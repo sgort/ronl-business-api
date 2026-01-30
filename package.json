@@ -1,0 +1,49 @@
+{
+  "name": "ronl-business-api",
+  "version": "1.0.0",
+  "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=@ronl/backend",
+    "dev:frontend": "npm run dev --workspace=@ronl/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "build:backend": "npm run build --workspace=@ronl/backend",
+    "build:frontend": "npm run build --workspace=@ronl/frontend",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:down:volumes": "docker compose down -v",
+    "docker:logs": "docker compose logs -f",
+    "docker:logs:keycloak": "docker compose logs -f keycloak",
+    "docker:logs:postgres": "docker compose logs -f postgres",
+    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
+    "setup": "npm install && npm run docker:up"
+  },
+  "keywords": [
+    "bpmn",
+    "dmn",
+    "keycloak",
+    "operaton",
+    "government",
+    "municipality",
+    "multi-tenant",
+    "monorepo"
+  ],
+  "author": "RONL Team",
+  "license": "EUPL-1.2",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
