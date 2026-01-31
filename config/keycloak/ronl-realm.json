@@ -36,15 +36,14 @@
       "description": "Secure Business API for municipality BPMN services",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "**GENERATED**",
       "redirectUris": ["*"],
       "webOrigins": ["*"],
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": true,
-      "publicClient": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
       "frontchannelLogout": false,
       "fullScopeAllowed": true,
       "attributes": {
@@ -89,6 +88,20 @@
             "user.attribute": "mandate",
             "claim.name": "mandate",
             "jsonType.label": "JSON",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm_roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
