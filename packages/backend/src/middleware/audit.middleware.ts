@@ -39,7 +39,7 @@ export function createAuditLog(entry: Omit<AuditLogEntry, 'timestamp'>): void {
   auditQueue.push(auditEntry);
 
   // Log to Winston
-  logger.info('Audit log', auditEntry);
+  logger.info('Audit log', auditEntry as unknown as Record<string, unknown>);
 
   // TODO: Persist to database asynchronously
   // This will be implemented with the audit service
@@ -123,7 +123,8 @@ export const auditMiddleware = (req: Request, res: Response, next: NextFunction)
       }
     }
 
-    return originalEnd.apply(this, args as [unknown, BufferEncoding?]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return originalEnd.apply(this, args as any);
   };
 
   next();

@@ -26,7 +26,7 @@ export const businessApi = {
   // Health check
   async health(): Promise<HealthResponse> {
     const response = await apiClient.get('/health');
-    return response.data;
+    return response.data.data;
   },
 
   // Evaluate DMN decision

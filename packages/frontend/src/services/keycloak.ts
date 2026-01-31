@@ -1,5 +1,5 @@
 import Keycloak from 'keycloak-js';
-import type { KeycloakUser } from '@ronl/shared';
+import type { AssuranceLevel, KeycloakUser } from '@ronl/shared';
 
 // Initialize Keycloak instance
 const keycloak = new Keycloak({
@@ -19,7 +19,8 @@ export const getUser = (): KeycloakUser | null => {
     sub: keycloak.tokenParsed.sub as string,
     name: keycloak.tokenParsed.name as string,
     municipality: keycloak.tokenParsed.municipality as string,
-    loa: keycloak.tokenParsed.loa as string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    loa: (keycloak.tokenParsed as any).loa as AssuranceLevel,
     roles: (keycloak.tokenParsed.roles as string[]) || [],
   };
 };

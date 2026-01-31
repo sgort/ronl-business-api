@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
-import { JWTPayload, AuthenticatedUser, AssuranceLevel } from '@types/auth.types';
+import { JWTPayload, AuthenticatedUser, AssuranceLevel } from '../types/auth.types';
 
 const logger = createLogger('jwt-middleware');
 

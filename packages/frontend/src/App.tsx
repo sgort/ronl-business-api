@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import keycloak, { getUser } from './services/keycloak';
 import { businessApi } from './services/api';
-import type { KeycloakUser } from '@ronl/shared';
+import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse, HealthResponse } from '@ronl/shared';
 import './index.css';
 
@@ -50,30 +50,30 @@ function App() {
     setResult(null);
 
     try {
-      const variables = {
+      const variables: Record<string, OperatonVariable> = {
         ingezetene_requirement: {
           value: formData.ingezetene,
-          type: 'Boolean',
+          type: 'Boolean' as const, // ← Add "as const"
         },
         leeftijd_requirement: {
           value: formData.leeftijd,
-          type: 'Boolean',
+          type: 'Boolean' as const,
         },
         betalingsregeling_requirement: {
           value: formData.betalingsregeling,
-          type: 'Boolean',
+          type: 'Boolean' as const,
         },
         detentie_requirement: {
           value: formData.detentie,
-          type: 'Boolean',
+          type: 'Boolean' as const,
         },
         verzekering_requirement: {
           value: formData.verzekering,
-          type: 'Boolean',
+          type: 'Boolean' as const,
         },
         inkomen_en_vermogen_requirement: {
           value: formData.inkomen,
-          type: 'Double',
+          type: 'Double' as const,
         },
       };
 
@@ -152,25 +152,35 @@ function App() {
               <div>
                 <span className="text-gray-600">Business API:</span>
                 <span
-                  className={`ml-2 font-semibold ${health.data.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}
+                  className={`ml-2 font-semibold ${
+                    health.status === 'healthy' ? 'text-green-600' : 'text-red-600'
+                  }`}
                 >
-                  {health.data.status}
+                  {health.status}
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Keycloak:</span>
                 <span
-                  className={`ml-2 font-semibold ${health.data.dependencies.keycloak.status === 'up' ? 'text-green-600' : 'text-red-600'}`}
+                  className={`ml-2 font-semibold ${
+                    health.dependencies?.keycloak.status === 'up'
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}
                 >
-                  {health.data.dependencies.keycloak.status}
+                  {health.dependencies?.keycloak.status}
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Operaton:</span>
                 <span
-                  className={`ml-2 font-semibold ${health.data.dependencies.operaton.status === 'up' ? 'text-green-600' : 'text-red-600'}`}
+                  className={`ml-2 font-semibold ${
+                    health.dependencies?.operaton.status === 'up'
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}
                 >
-                  {health.data.dependencies.operaton.status}
+                  {health.dependencies?.operaton.status}
                 </span>
               </div>
             </div>

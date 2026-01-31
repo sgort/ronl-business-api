@@ -4,6 +4,7 @@ import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenan
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
+import { OperatonVariable } from '@ronl/shared';
 
 const router = express.Router();
 const logger = createLogger('process-routes');
@@ -43,7 +44,7 @@ router.post(
       });
 
       // Transform variables to Operaton format
-      const operatonVariables: Record<string, { value: unknown; type: string }> = {};
+      const operatonVariables: Record<string, OperatonVariable> = {};
       for (const [varKey, value] of Object.entries(variables)) {
         operatonVariables[varKey] = {
           value,
@@ -317,7 +318,7 @@ router.delete('/:id', async (req, res) => {
 /**
  * Infer Operaton type from JavaScript value
  */
-function inferType(value: unknown): string {
+function inferType(value: unknown): OperatonVariable['type'] {
   if (value === null || value === undefined) {
     return 'Null';
   }
