@@ -70,3 +70,7 @@ dump.rdb
 .parcel-cache/
 .next/
 .nuxt/
+
+#flatten script & dir
+flatten_directory.sh
+flattened
