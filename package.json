@@ -54,14 +54,14 @@
   },
   "lint-staged": {
     "packages/frontend/**/*.{ts,tsx}": [
-      "eslint --fix",
+      "npm run lint:fix --workspace=@ronl/frontend",
       "prettier --write"
     ],
-    "packages/backend/**/*.{ts}": [
-      "eslint --fix",
+    "packages/backend/**/*.ts": [
+      "npm run lint:fix --workspace=@ronl/backend",
       "prettier --write"
     ],
-    "packages/shared/**/*.{ts}": [
+    "packages/shared/**/*.ts": [
       "prettier --write"
     ],
     "*.{json,md}": [

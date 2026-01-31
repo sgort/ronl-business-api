@@ -1,3 +1,9 @@
 #!/bin/sh
+echo "🔍 Running type checks..."
+npm run type-check
+
+echo "🔍 Running linters..."
 npm run lint
+
+echo "✨ Checking code formatting..."
 npm run check-format
