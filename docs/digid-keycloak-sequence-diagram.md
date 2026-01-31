@@ -35,22 +35,25 @@ sequenceDiagram
     participant BPM as Operaton BPMN Engine
 
     R->>MF: Access protected page
-    MF->>KC: OIDC Auth Request (redirect)
-    KC->>R: Redirect to IdP selection / broker
+    MF->>KC: OIDC Authorization Request (redirect)
+    KC->>R: Redirect to IdP selection
     R->>KC: Select DigiD / eHerkenning / eIDAS
     KC->>IDP: SAML AuthnRequest
     IDP->>R: Authentication UI
     R->>IDP: Credentials + MFA
     IDP->>KC: SAML Assertion (signed)
-    KC->>KC: Validate assertion
-Map attributes
-Create session
+
+    KC->>KC: Validate SAML assertion
+    KC->>KC: Map attributes (BSN / KvK / LoA)
+    KC->>KC: Create or link user session
+
     KC->>MF: OIDC Authorization Code
     MF->>KC: Token Request (code)
     KC->>MF: ID Token + Access Token (JWT)
-    MF->>API: REST call with Bearer token
-    API->>KC: Validate token (JWKS / introspection)
-    API->>BPM: Start / Continue BPMN process
+
+    MF->>API: REST call (Authorization: Bearer JWT)
+    API->>KC: Validate token (JWKS / signature)
+    API->>BPM: Start or continue BPMN process
     BPM-->>API: Process result
     API-->>MF: Business response
     MF-->>R: Render secured page
