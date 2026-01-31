@@ -79,13 +79,14 @@ function App() {
 
       const response = await businessApi.evaluateDecision('berekenrechtenhoogtezorg', variables);
       setResult(response);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       setResult({
         success: false,
         data: null,
         error: {
           code: 'REQUEST_FAILED',
-          message: error.message,
+          message,
         },
       });
     } finally {
