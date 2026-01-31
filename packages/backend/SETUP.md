@@ -45,6 +45,7 @@ docker-compose logs -f keycloak
 ```
 
 **Services will be available at:**
+
 - Keycloak: http://localhost:8080 (admin/admin)
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
@@ -100,6 +101,7 @@ echo "Token: $TOKEN"
 ```
 
 **Note:** You need to get the client secret from Keycloak admin console first:
+
 1. Open http://localhost:8080
 2. Login with admin/admin
 3. Go to "Clients" → "ronl-business-api" → "Credentials" tab
@@ -126,6 +128,7 @@ curl http://localhost:3002/v1/health | jq
 ```
 
 Expected response:
+
 ```json
 {
   "success": true,
@@ -157,6 +160,7 @@ curl -X POST http://localhost:3002/v1/process/vergunning/start \
 ```
 
 Expected response:
+
 ```json
 {
   "success": true,
@@ -185,6 +189,7 @@ Expected response:
 The realm comes pre-configured with test users:
 
 **Citizen (Utrecht)**
+
 - Username: `test-citizen-utrecht`
 - Password: `test123`
 - Municipality: Utrecht
@@ -192,6 +197,7 @@ The realm comes pre-configured with test users:
 - Role: citizen
 
 **Caseworker (Utrecht)**
+
 - Username: `test-caseworker-utrecht`
 - Password: `test123`
 - Municipality: Utrecht
@@ -200,6 +206,7 @@ The realm comes pre-configured with test users:
 ### View Token Claims
 
 After getting a token, decode it at https://jwt.io to see:
+
 - `sub`: User ID (opaque)
 - `municipality`: utrecht
 - `loa`: hoog
@@ -282,6 +289,7 @@ SELECT * FROM tenants;
 ### Issue: "Keycloak not responding"
 
 **Solution:**
+
 ```bash
 # Restart Keycloak
 docker-compose restart keycloak
@@ -293,6 +301,7 @@ curl http://localhost:8080/health/ready
 ### Issue: "Port 3002 already in use"
 
 **Solution:**
+
 ```bash
 # Find process using port
 lsof -i :3002
@@ -307,6 +316,7 @@ PORT=3003
 ### Issue: "Database connection failed"
 
 **Solution:**
+
 ```bash
 # Restart PostgreSQL
 docker-compose restart postgres
@@ -318,6 +328,7 @@ npm run dev
 ### Issue: "Token validation failed"
 
 **Solution:**
+
 1. Check that Keycloak is running: http://localhost:8080
 2. Verify realm is "ronl"
 3. Check client secret matches .env.development

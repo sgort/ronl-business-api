@@ -41,6 +41,7 @@ Operaton BPMN Engine (DMN evaluation)
 ### Prerequisites
 
 Make sure these are running:
+
 - ✅ Keycloak: http://localhost:8080
 - ✅ Business API: http://localhost:3002
 - ✅ Operaton: https://operaton.open-regels.nl
@@ -71,16 +72,19 @@ You'll be automatically redirected to Keycloak login.
 Use one of the test users:
 
 **Citizen (Utrecht)**
+
 - Username: `test-citizen-utrecht`
 - Password: `test123`
 
 **Caseworker (Utrecht)**
+
 - Username: `test-caseworker-utrecht`
 - Password: `test123`
 
 ### 5. Test DMN Evaluation
 
 The form is pre-filled with example data:
+
 - Check/uncheck requirements
 - Adjust income value
 - Click "Berekenen" (Calculate)
@@ -159,7 +163,7 @@ ronl-municipality-portal/
 - ✅ Ingezetene: Yes
 - ✅ 18+: Yes
 - ✅ Verzekering: Yes
-- ✅ Betalingsregeling: Yes  ← Payment plan active
+- ✅ Betalingsregeling: Yes ← Payment plan active
 - ❌ Detentie: No
 - 💰 Inkomen: €24,000
 
@@ -172,6 +176,7 @@ ronl-municipality-portal/
 ### Check API Health
 
 The top of the page shows real-time status:
+
 - Business API: healthy/degraded
 - Keycloak: up/down
 - Operaton: up/down
@@ -179,6 +184,7 @@ The top of the page shows real-time status:
 ### View Network Requests
 
 Open browser DevTools (F12):
+
 - **Network tab** → See API calls
 - **Console tab** → See errors
 - **Application tab** → See Keycloak token
@@ -234,13 +240,10 @@ Edit `src/App.tsx`:
 ```typescript
 // Add a new decision
 const handleCustomDecision = async () => {
-  const response = await businessApi.evaluateDecision(
-    'your-decision-key',
-    {
-      variable1: { value: 123, type: 'Integer' },
-      variable2: { value: true, type: 'Boolean' },
-    }
-  );
+  const response = await businessApi.evaluateDecision('your-decision-key', {
+    variable1: { value: 123, type: 'Integer' },
+    variable2: { value: true, type: 'Boolean' },
+  });
   setResult(response);
 };
 ```
@@ -250,13 +253,10 @@ const handleCustomDecision = async () => {
 ```typescript
 // Start a process
 const handleStartProcess = async () => {
-  const response = await businessApi.startProcess(
-    'vergunning',
-    {
-      aanvrager: { value: 'Test', type: 'String' },
-      adres: { value: 'Straat 123', type: 'String' },
-    }
-  );
+  const response = await businessApi.startProcess('vergunning', {
+    aanvrager: { value: 'Test', type: 'String' },
+    adres: { value: 'Straat 123', type: 'String' },
+  });
   console.log('Process started:', response);
 };
 ```
@@ -276,21 +276,25 @@ Edit `tailwind.config.js` or `src/index.css`.
 This setup demonstrates:
 
 ✅ **Separation of Concerns**
+
 - Frontend doesn't call Operaton directly
 - All security handled by Business API
 - Token validation centralized
 
 ✅ **Multi-Tenancy**
+
 - Municipality from JWT token
 - Automatic tenant isolation
 - Each municipality has separate data
 
 ✅ **Audit Trail**
+
 - All API calls logged
 - User actions tracked
 - Compliance with government requirements
 
 ✅ **Security**
+
 - No credentials in frontend
 - Short-lived JWT tokens (15 min)
 - Automatic token refresh
@@ -380,6 +384,7 @@ This frontend calls these Business API endpoints:
 - `POST /v1/process/:key/start` - Start BPMN process
 
 All calls include:
+
 - `Authorization: Bearer <token>` header
 - Automatic token refresh
 - Municipality context from token
@@ -399,6 +404,7 @@ All calls include:
 **🎉 Your complete RONL architecture is now running!**
 
 All components working together:
+
 - ✅ Frontend (Port 5173)
 - ✅ Keycloak (Port 8080)
 - ✅ Business API (Port 3002)

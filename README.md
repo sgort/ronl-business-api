@@ -22,7 +22,7 @@ npm run docker:up
 npm run dev
 
 # Backend: http://localhost:3002
-# Frontend: http://localhost:5173  
+# Frontend: http://localhost:5173
 # Keycloak: http://localhost:8080
 ```
 
@@ -58,7 +58,7 @@ ronl-business-api/
 ✅ **Multi-Tenant API** - Municipality isolation  
 ✅ **Keycloak Auth** - DigiD/eIDAS ready  
 ✅ **DMN Evaluation** - Operaton integration  
-✅ **Audit Logging** - Compliance-grade  
+✅ **Audit Logging** - Compliance-grade
 
 ---
 

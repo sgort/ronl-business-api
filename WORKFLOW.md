@@ -1,5 +1,7 @@
 ## 🔄 Daily Workflow
+
 ### Morning (Start Work)
+
 ```bash
 # 1. Check Docker is running
 docker ps
@@ -12,7 +14,9 @@ npm run dev
 
 # 4. Open browser: http://localhost:5173
 ```
+
 ### During Development
+
 ### Making Frontend Changes:
 
 - ✅ Files auto-reload (Vite HMR)
@@ -24,6 +28,7 @@ npm run dev
 - No restart needed!
 
 ### Making Shared Types Changes:
+
 ```bash
 # Terminal 2
 npm run build --workspace=@ronl/shared
@@ -32,6 +37,7 @@ npm run build --workspace=@ronl/shared
 ```
 
 ### Git Operations:
+
 ```bash
 # Terminal 2 (keep npm run dev running in Terminal 1)
 git status
@@ -43,6 +49,7 @@ git push
 ```
 
 ### Check Logs:
+
 ```bash
 # Terminal 2
 docker-compose logs -f keycloak
@@ -52,6 +59,7 @@ docker-compose logs -f postgres
 ```
 
 ### Evening (End Work)
+
 ```bash
 # Terminal 1: Stop dev servers
 Ctrl+C
@@ -63,7 +71,9 @@ npm run docker:down
 ```
 
 ### 🔧 Common Commands
+
 ### View Logs
+
 ```bash
 # Backend logs - visible in Terminal 1 where npm run dev runs
 # Frontend logs - also in Terminal 1
@@ -75,7 +85,9 @@ npm run docker:logs:postgres     # Just PostgreSQL
 ```
 
 ### Restart Services
+
 ### Restart Dev Servers:
+
 ```bash
 # Terminal 1
 Ctrl+C
@@ -83,6 +95,7 @@ npm run dev
 ```
 
 ### Restart Docker Service:
+
 ```bash
 # Terminal 2
 docker-compose restart keycloak
@@ -90,6 +103,7 @@ docker-compose restart postgres
 ```
 
 ### Full Reset:
+
 ```bash
 # Stop everything
 Ctrl+C  # (in Terminal 1)
@@ -104,6 +118,7 @@ npm run dev
 ```
 
 ### 🎯 Best Practices
+
 ### ✅ DO:
 
 - Keep Docker running all day (background)

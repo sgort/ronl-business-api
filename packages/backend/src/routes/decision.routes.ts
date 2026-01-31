@@ -46,12 +46,7 @@ router.post(
       const operatonVariables: Record<string, { value: unknown; type: string }> = {};
       for (const [varKey, value] of Object.entries(variables)) {
         // If already in Operaton format { value, type }, keep as-is
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          'value' in value &&
-          'type' in value
-        ) {
+        if (typeof value === 'object' && value !== null && 'value' in value && 'type' in value) {
           operatonVariables[varKey] = value as { value: unknown; type: string };
         } else {
           // Otherwise, wrap the value

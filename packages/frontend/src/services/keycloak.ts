@@ -14,13 +14,13 @@ export { KeycloakUser };
 
 export const getUser = (): KeycloakUser | null => {
   if (!keycloak.tokenParsed) return null;
-  
+
   return {
     sub: keycloak.tokenParsed.sub as string,
     name: keycloak.tokenParsed.name as string,
     municipality: keycloak.tokenParsed.municipality as string,
     loa: keycloak.tokenParsed.loa as string,
-    roles: keycloak.tokenParsed.roles as string[] || [],
+    roles: (keycloak.tokenParsed.roles as string[]) || [],
   };
 };
 
