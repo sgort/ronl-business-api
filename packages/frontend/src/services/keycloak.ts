@@ -1,5 +1,5 @@
 import Keycloak from 'keycloak-js';
-import { KeycloakUser } from '@ronl/shared';
+import type { KeycloakUser } from '@ronl/shared';
 
 // Initialize Keycloak instance
 const keycloak = new Keycloak({

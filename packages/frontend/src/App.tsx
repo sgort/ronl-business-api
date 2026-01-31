@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
-import keycloak, { getUser, KeycloakUser } from './services/keycloak';
-import { businessApi, ApiResponse, HealthResponse } from './services/api';
+import { useEffect, useState, useRef } from 'react';
+import keycloak, { getUser } from './services/keycloak';
+import { businessApi } from './services/api';
+import type { KeycloakUser } from '@ronl/shared';
+import type { ApiResponse, HealthResponse } from '@ronl/shared';
 import './index.css';
 
 function App() {
@@ -10,6 +12,8 @@ function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
+
+  const keycloakInitialized = useRef(false);
 
   // Form state for Zorgtoeslag calculation
   const [formData, setFormData] = useState({
@@ -22,6 +26,9 @@ function App() {
   });
 
   useEffect(() => {
+    if (keycloakInitialized.current) return;
+    keycloakInitialized.current = true;
+
     keycloak
       .init({
         onLoad: 'login-required',
@@ -32,7 +39,6 @@ function App() {
         setInitialized(true);
         if (auth) {
           setUser(getUser());
-          // Check API health
           businessApi.health().then(setHealth).catch(console.error);
         }
       })
@@ -71,10 +77,7 @@ function App() {
         },
       };
 
-      const response = await businessApi.evaluateDecision(
-        'berekenrechtenhoogtezorg',
-        variables
-      );
+      const response = await businessApi.evaluateDecision('berekenrechtenhoogtezorg', variables);
       setResult(response);
     } catch (error: any) {
       setResult({
@@ -128,17 +131,10 @@ function App() {
             <div className="text-right">
               <p className="text-sm">{user?.name || 'Ingelogd'}</p>
               <div className="flex items-center gap-2 text-xs text-blue-100">
-                <span className="bg-blue-700 px-2 py-1 rounded">
-                  LoA: {user?.loa || 'hoog'}
-                </span>
-                <span className="bg-blue-700 px-2 py-1 rounded">
-                  {user?.roles[0] || 'citizen'}
-                </span>
+                <span className="bg-blue-700 px-2 py-1 rounded">LoA: {user?.loa || 'hoog'}</span>
+                <span className="bg-blue-700 px-2 py-1 rounded">{user?.roles[0] || 'citizen'}</span>
               </div>
-              <button
-                onClick={handleLogout}
-                className="mt-2 text-sm underline hover:text-blue-200"
-              >
+              <button onClick={handleLogout} className="mt-2 text-sm underline hover:text-blue-200">
                 Uitloggen
               </button>
             </div>
@@ -155,19 +151,25 @@ function App() {
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">Business API:</span>
-                <span className={`ml-2 font-semibold ${health.data.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
+                <span
+                  className={`ml-2 font-semibold ${health.data.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}
+                >
                   {health.data.status}
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Keycloak:</span>
-                <span className={`ml-2 font-semibold ${health.data.dependencies.keycloak.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                <span
+                  className={`ml-2 font-semibold ${health.data.dependencies.keycloak.status === 'up' ? 'text-green-600' : 'text-red-600'}`}
+                >
                   {health.data.dependencies.keycloak.status}
                 </span>
               </div>
               <div>
                 <span className="text-gray-600">Operaton:</span>
-                <span className={`ml-2 font-semibold ${health.data.dependencies.operaton.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                <span
+                  className={`ml-2 font-semibold ${health.data.dependencies.operaton.status === 'up' ? 'text-green-600' : 'text-red-600'}`}
+                >
                   {health.data.dependencies.operaton.status}
                 </span>
               </div>
@@ -177,9 +179,7 @@ function App() {
 
         {/* Zorgtoeslag Calculator */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            Zorgtoeslag Berekenen
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Zorgtoeslag Berekenen</h2>
 
           <div className="space-y-4">
             {/* Boolean requirements */}
@@ -188,9 +188,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={formData.ingezetene}
-                  onChange={(e) =>
-                    setFormData({ ...formData, ingezetene: e.target.checked })
-                  }
+                  onChange={(e) => setFormData({ ...formData, ingezetene: e.target.checked })}
                   className="w-5 h-5 text-dutch-blue"
                 />
                 <span className="text-gray-700">Ingezetene van Nederland</span>
@@ -200,9 +198,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={formData.leeftijd}
-                  onChange={(e) =>
-                    setFormData({ ...formData, leeftijd: e.target.checked })
-                  }
+                  onChange={(e) => setFormData({ ...formData, leeftijd: e.target.checked })}
                   className="w-5 h-5 text-dutch-blue"
                 />
                 <span className="text-gray-700">18 jaar of ouder</span>
@@ -212,9 +208,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={formData.verzekering}
-                  onChange={(e) =>
-                    setFormData({ ...formData, verzekering: e.target.checked })
-                  }
+                  onChange={(e) => setFormData({ ...formData, verzekering: e.target.checked })}
                   className="w-5 h-5 text-dutch-blue"
                 />
                 <span className="text-gray-700">Zorgverzekering in Nederland</span>
@@ -236,9 +230,7 @@ function App() {
                 <input
                   type="checkbox"
                   checked={formData.detentie}
-                  onChange={(e) =>
-                    setFormData({ ...formData, detentie: e.target.checked })
-                  }
+                  onChange={(e) => setFormData({ ...formData, detentie: e.target.checked })}
                   className="w-5 h-5 text-dutch-blue"
                 />
                 <span className="text-gray-700">In detentie</span>
@@ -247,15 +239,11 @@ function App() {
 
             {/* Income input */}
             <div>
-              <label className="block text-gray-700 mb-2">
-                Inkomen en vermogen (€)
-              </label>
+              <label className="block text-gray-700 mb-2">Inkomen en vermogen (€)</label>
               <input
                 type="number"
                 value={formData.inkomen}
-                onChange={(e) =>
-                  setFormData({ ...formData, inkomen: parseFloat(e.target.value) })
-                }
+                onChange={(e) => setFormData({ ...formData, inkomen: parseFloat(e.target.value) })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-dutch-blue focus:border-transparent"
                 step="1000"
               />
@@ -276,17 +264,14 @@ function App() {
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               {result.success ? (
                 <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-green-600">
-                    ✓ Berekening succesvol
-                  </h3>
+                  <h3 className="text-lg font-semibold text-green-600">✓ Berekening succesvol</h3>
                   <pre className="bg-white p-4 rounded border overflow-x-auto text-sm">
                     {JSON.stringify(result.data, null, 2)}
                   </pre>
                   {Array.isArray(result.data) && result.data.length > 0 && (
                     <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                       <p className="text-lg font-bold text-green-800">
-                        Zorgtoeslag: €{' '}
-                        {result.data[0]?.zorgtoeslag?.value?.toFixed(2) || '0.00'}
+                        Zorgtoeslag: € {result.data[0]?.zorgtoeslag?.value?.toFixed(2) || '0.00'}
                       </p>
                       {result.data[0]?.annotation?.value && (
                         <p className="text-sm text-gray-600 mt-2">

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getToken } from './keycloak';
-import {
+import type {
   OperatonVariable,
   DecisionRequest,
   ApiResponse,
