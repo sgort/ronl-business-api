@@ -18,7 +18,10 @@ npm run build --workspace=@ronl/shared
 # 3. Start Docker services
 npm run docker:up
 
-# 4. Start development
+# 4. Wait for keycloak - look for KeyCloak <version> started in <x> sec in the log
+docker compose logs -f keycloak
+
+# 5. Start development
 npm run dev
 
 # Backend: http://localhost:3002
