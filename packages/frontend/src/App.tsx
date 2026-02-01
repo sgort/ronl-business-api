@@ -4,7 +4,12 @@ import { businessApi } from './services/api';
 import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse, HealthResponse } from '@ronl/shared';
 import type { TenantConfig } from '@ronl/shared';
-import { loadTenantConfigs, getTenantConfig, applyTenantTheme } from './services/tenant';
+import {
+  initializeTenantTheme,
+  loadTenantConfigs,
+  getTenantConfig,
+  applyTenantTheme,
+} from './services/tenant';
 import './index.css';
 
 function App() {
@@ -14,7 +19,6 @@ function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
-  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
 
   const keycloakInitialized = useRef(false);
 
@@ -41,26 +45,19 @@ function App() {
         setAuthenticated(auth);
         setInitialized(true);
         if (auth) {
-          setUser(getUser());
+          const currentUser = getUser();
+          setUser(currentUser);
+
+          // 🎨 Initialize tenant theme
+          if (currentUser?.municipality) {
+            initializeTenantTheme(currentUser.municipality);
+          }
+
           businessApi.health().then(setHealth).catch(console.error);
         }
       })
       .catch(console.error);
   }, []);
-
-  // Load tenant configuration and apply theme
-  useEffect(() => {
-    if (user?.municipality) {
-      loadTenantConfigs().then(() => {
-        const config = getTenantConfig(user.municipality);
-        if (config) {
-          setTenantConfig(config);
-          applyTenantTheme(config.theme);
-          console.log('🏛️ Loaded tenant config:', config.displayName);
-        }
-      });
-    }
-  }, [user]);
 
   const handleEvaluate = async () => {
     setLoading(true);
@@ -144,8 +141,11 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold">MijnOmgeving</h1>
-              <p className="text-sm text-blue-100">
-                {tenantConfig?.displayName || `Gemeente ${user?.municipality || 'Utrecht'}`}
+              <p className="text-sm opacity-90">
+                Gemeente{' '}
+                {user?.municipality
+                  ? user.municipality.charAt(0).toUpperCase() + user.municipality.slice(1)
+                  : 'Utrecht'}
               </p>
             </div>
             <div className="text-right">

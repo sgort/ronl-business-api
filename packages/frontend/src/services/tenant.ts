@@ -1,53 +1,75 @@
-import type { TenantConfig, TenantRegistry, TenantTheme } from '@ronl/shared';
+/**
+ * Tenant Management Service
+ * Handles multi-tenant theming and configuration
+ */
 
-let tenantRegistry: TenantRegistry | null = null;
+export interface TenantTheme {
+  primary: string;
+  primaryDark: string;
+  primaryLight: string;
+  secondary: string;
+  accent: string;
+}
+
+export interface TenantFeatures {
+  zorgtoeslag: boolean;
+  kinderbijslag: boolean;
+  huurtoeslag: boolean;
+  processes: string[];
+}
+
+export interface TenantContact {
+  phone: string;
+  email: string;
+  address: string;
+  postalCode: string;
+  city: string;
+}
+
+export interface TenantConfig {
+  id: string;
+  name: string;
+  displayName: string;
+  municipalityCode: string;
+  theme: TenantTheme;
+  features: TenantFeatures;
+  contact: TenantContact;
+  enabled: boolean;
+}
+
+export interface TenantRegistry {
+  [tenantId: string]: TenantConfig;
+}
+
+// Cache for loaded configurations
+let cachedTenants: TenantRegistry = {};
 
 /**
- * Load tenant configurations from JSON file
+ * Load all tenant configurations from JSON file
  */
 export async function loadTenantConfigs(): Promise<TenantRegistry> {
-  if (tenantRegistry) {
-    return tenantRegistry;
-  }
-
   try {
     const response = await fetch('/tenants.json');
     if (!response.ok) {
-      throw new Error(`Failed to load tenants.json: ${response.statusText}`);
+      console.error('Failed to load tenant configs:', response.statusText);
+      return {};
     }
-    tenantRegistry = await response.json();
-    return tenantRegistry;
+
+    const data = await response.json();
+    cachedTenants = data.tenants || {};
+    console.log('📋 Loaded tenant configurations:', Object.keys(cachedTenants));
+    return cachedTenants;
   } catch (error) {
-    console.error('Failed to load tenant configurations:', error);
-    // Return default minimal config
-    return {
-      default: 'utrecht',
-      tenants: {},
-    };
+    console.error('Error loading tenant configs:', error);
+    return {};
   }
 }
 
 /**
- * Get configuration for a specific tenant
+ * Get configuration for specific tenant
  */
 export function getTenantConfig(tenantId: string): TenantConfig | null {
-  if (!tenantRegistry) {
-    console.warn('Tenant registry not loaded yet');
-    return null;
-  }
-
-  const tenant = tenantRegistry.tenants[tenantId];
-  if (!tenant) {
-    console.warn(`Tenant '${tenantId}' not found, using default`);
-    return tenantRegistry.tenants[tenantRegistry.default] || null;
-  }
-
-  if (!tenant.enabled) {
-    console.warn(`Tenant '${tenantId}' is disabled`);
-    return null;
-  }
-
-  return tenant;
+  return cachedTenants[tenantId] || null;
 }
 
 /**
@@ -66,13 +88,35 @@ export function applyTenantTheme(theme: TenantTheme): void {
 }
 
 /**
- * Reset theme to defaults
+ * Initialize tenant theme based on municipality
  */
-export function resetTheme(): void {
-  const root = document.documentElement;
-  root.style.setProperty('--color-primary', '#01689b');
-  root.style.setProperty('--color-primary-dark', '#014d73');
-  root.style.setProperty('--color-primary-light', '#4da6e0');
-  root.style.setProperty('--color-secondary', '#e17000');
-  root.style.setProperty('--color-accent', '#ff6b00');
+export async function initializeTenantTheme(municipalityId: string): Promise<boolean> {
+  try {
+    // Load configs if not already cached
+    if (Object.keys(cachedTenants).length === 0) {
+      await loadTenantConfigs();
+    }
+
+    // Get tenant config
+    const config = getTenantConfig(municipalityId);
+
+    if (!config) {
+      console.warn(`⚠️ No tenant config found for: ${municipalityId}`);
+      return false;
+    }
+
+    if (!config.enabled) {
+      console.warn(`⚠️ Tenant disabled: ${municipalityId}`);
+      return false;
+    }
+
+    // Apply theme
+    applyTenantTheme(config.theme);
+    console.log(`🏛️ Loaded tenant config: ${config.displayName}`);
+
+    return true;
+  } catch (error) {
+    console.error('Failed to initialize tenant theme:', error);
+    return false;
+  }
 }
