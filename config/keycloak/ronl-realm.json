@@ -37,7 +37,7 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": ["*"],
-      "webOrigins": ["*"],
+      "webOrigins": ["http://localhost:5173", "http://localhost:3000", "http://localhost:3002"],
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,

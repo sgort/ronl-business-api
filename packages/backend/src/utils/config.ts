@@ -93,8 +93,11 @@ export const config: Config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseEnvInt(process.env.PORT, 3002),
   host: process.env.HOST || '0.0.0.0',
-  corsOrigin: parseEnvArray(process.env.CORS_ORIGIN, ['http://localhost:3000']),
-
+  corsOrigin: parseEnvArray(process.env.CORS_ORIGIN, [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:3002',
+  ]),
   keycloak: {
     url: process.env.KEYCLOAK_URL || 'http://localhost:8080',
     realm: process.env.KEYCLOAK_REALM || 'ronl',

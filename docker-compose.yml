@@ -17,6 +17,8 @@ services:
       KC_HOSTNAME_STRICT: false
       KC_HTTP_ENABLED: true
       KC_LOG_LEVEL: INFO
+      KC_PROXY: edge
+      KC_HTTP_RELATIVE_PATH: / 
     command:
       - start-dev
       - --import-realm
