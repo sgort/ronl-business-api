@@ -1,0 +1,109 @@
+{
+  "default": "utrecht",
+  "tenants": {
+    "utrecht": {
+      "id": "utrecht",
+      "name": "Utrecht",
+      "displayName": "Gemeente Utrecht",
+      "municipalityCode": "GM0344",
+      "enabled": true,
+      "theme": {
+        "primary": "#C41E3A",
+        "primaryDark": "#9B1830",
+        "primaryLight": "#E85770",
+        "secondary": "#2C5F2D",
+        "accent": "#FF6B00"
+      },
+      "features": {
+        "zorgtoeslag": true,
+        "vergunningen": true,
+        "subsidies": true,
+        "meldingen": true
+      },
+      "contact": {
+        "phone": "14 030",
+        "email": "info@utrecht.nl",
+        "address": "Stadsplateau 1, 3521 AZ Utrecht",
+        "openingHours": "Ma-Vr 08:30-17:00"
+      }
+    },
+    "amsterdam": {
+      "id": "amsterdam",
+      "name": "Amsterdam",
+      "displayName": "Gemeente Amsterdam",
+      "municipalityCode": "GM0363",
+      "enabled": true,
+      "theme": {
+        "primary": "#EC0000",
+        "primaryDark": "#B80000",
+        "primaryLight": "#FF4444",
+        "secondary": "#000000",
+        "accent": "#FFD700"
+      },
+      "features": {
+        "zorgtoeslag": true,
+        "vergunningen": true,
+        "subsidies": true,
+        "meldingen": true
+      },
+      "contact": {
+        "phone": "14 020",
+        "email": "info@amsterdam.nl",
+        "address": "Amstel 1, 1011 PN Amsterdam",
+        "openingHours": "Ma-Vr 08:00-18:00"
+      }
+    },
+    "rotterdam": {
+      "id": "rotterdam",
+      "name": "Rotterdam",
+      "displayName": "Gemeente Rotterdam",
+      "municipalityCode": "GM0599",
+      "enabled": true,
+      "theme": {
+        "primary": "#00811F",
+        "primaryDark": "#006619",
+        "primaryLight": "#00A828",
+        "secondary": "#0F6CB6",
+        "accent": "#FFB81C"
+      },
+      "features": {
+        "zorgtoeslag": true,
+        "vergunningen": true,
+        "subsidies": true,
+        "meldingen": true
+      },
+      "contact": {
+        "phone": "14 010",
+        "email": "info@rotterdam.nl",
+        "address": "Coolsingel 40, 3011 AD Rotterdam",
+        "openingHours": "Ma-Vr 08:30-16:30"
+      }
+    },
+    "denhaag": {
+      "id": "denhaag",
+      "name": "Den Haag",
+      "displayName": "Gemeente Den Haag",
+      "municipalityCode": "GM0518",
+      "enabled": true,
+      "theme": {
+        "primary": "#007BC7",
+        "primaryDark": "#00599C",
+        "primaryLight": "#4DA6E0",
+        "secondary": "#E17000",
+        "accent": "#6EC4E8"
+      },
+      "features": {
+        "zorgtoeslag": true,
+        "vergunningen": true,
+        "subsidies": true,
+        "meldingen": true
+      },
+      "contact": {
+        "phone": "14 070",
+        "email": "info@denhaag.nl",
+        "address": "Spui 70, 2511 BT Den Haag",
+        "openingHours": "Ma-Do 08:30-17:00, Vr 08:30-16:00"
+      }
+    }
+  }
+}

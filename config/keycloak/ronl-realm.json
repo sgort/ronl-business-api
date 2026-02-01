@@ -37,7 +37,7 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": ["*"],
-      "webOrigins": ["http://localhost:5173", "http://localhost:3000", "http://localhost:3002"],
+      "webOrigins": ["*"],
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
@@ -106,18 +106,6 @@
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
           }
-        },
-        {
-          "name": "audience",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-audience-mapper",
-          "consentRequired": false,
-          "config": {
-            "included.client.audience": "ronl-business-api",
-            "id.token.claim": "false",
-            "access.token.claim": "true",
-            "userinfo.token.claim": "false"
-          }
         }
       ]
     }
@@ -182,6 +170,132 @@
         "municipality": ["utrecht"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-001"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-amsterdam",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Amsterdammer",
+      "email": "test@amsterdam.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["amsterdam"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-002"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-amsterdam",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Amsterdam",
+      "email": "medewerker@amsterdam.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["amsterdam"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-002"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-rotterdam",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Rotterdammer",
+      "email": "test@rotterdam.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["rotterdam"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-003"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-rotterdam",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Rotterdam",
+      "email": "medewerker@rotterdam.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["rotterdam"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-003"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-denhaag",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Hagenaar",
+      "email": "test@denhaag.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["denhaag"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-004"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-denhaag",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Den Haag",
+      "email": "medewerker@denhaag.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["denhaag"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-004"]
       },
       "realmRoles": ["caseworker"]
     }

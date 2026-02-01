@@ -3,6 +3,8 @@ import keycloak, { getUser } from './services/keycloak';
 import { businessApi } from './services/api';
 import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse, HealthResponse } from '@ronl/shared';
+import type { TenantConfig } from '@ronl/shared';
+import { loadTenantConfigs, getTenantConfig, applyTenantTheme } from './services/tenant';
 import './index.css';
 
 function App() {
@@ -12,6 +14,7 @@ function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
+  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
 
   const keycloakInitialized = useRef(false);
 
@@ -44,6 +47,20 @@ function App() {
       })
       .catch(console.error);
   }, []);
+
+  // Load tenant configuration and apply theme
+  useEffect(() => {
+    if (user?.municipality) {
+      loadTenantConfigs().then(() => {
+        const config = getTenantConfig(user.municipality);
+        if (config) {
+          setTenantConfig(config);
+          applyTenantTheme(config.theme);
+          console.log('🏛️ Loaded tenant config:', config.displayName);
+        }
+      });
+    }
+  }, [user]);
 
   const handleEvaluate = async () => {
     setLoading(true);
@@ -122,18 +139,30 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-dutch-blue text-white shadow-lg">
+      <header style={{ backgroundColor: 'var(--color-primary)' }} className="text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold">MijnOmgeving</h1>
-              <p className="text-sm text-blue-100">Gemeente {user?.municipality || 'Utrecht'}</p>
+              <p className="text-sm text-blue-100">
+                {tenantConfig?.displayName || `Gemeente ${user?.municipality || 'Utrecht'}`}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm">{user?.name || 'Ingelogd'}</p>
               <div className="flex items-center gap-2 text-xs text-blue-100">
-                <span className="bg-blue-700 px-2 py-1 rounded">LoA: {user?.loa || 'hoog'}</span>
-                <span className="bg-blue-700 px-2 py-1 rounded">{user?.roles[0] || 'citizen'}</span>
+                <span
+                  style={{ backgroundColor: 'var(--color-primary-dark)' }}
+                  className="px-2 py-1 rounded"
+                >
+                  LoA: {user?.loa || 'hoog'}
+                </span>
+                <span
+                  style={{ backgroundColor: 'var(--color-primary-dark)' }}
+                  className="px-2 py-1 rounded"
+                >
+                  {user?.roles[0] || 'citizen'}
+                </span>
               </div>
               <button onClick={handleLogout} className="mt-2 text-sm underline hover:text-blue-200">
                 Uitloggen
@@ -200,7 +229,7 @@ function App() {
                   type="checkbox"
                   checked={formData.ingezetene}
                   onChange={(e) => setFormData({ ...formData, ingezetene: e.target.checked })}
-                  className="w-5 h-5 text-dutch-blue"
+                  className="w-5 h-5 text-primary"
                 />
                 <span className="text-gray-700">Ingezetene van Nederland</span>
               </label>
@@ -210,7 +239,7 @@ function App() {
                   type="checkbox"
                   checked={formData.leeftijd}
                   onChange={(e) => setFormData({ ...formData, leeftijd: e.target.checked })}
-                  className="w-5 h-5 text-dutch-blue"
+                  className="w-5 h-5 text-primary"
                 />
                 <span className="text-gray-700">18 jaar of ouder</span>
               </label>
@@ -220,7 +249,7 @@ function App() {
                   type="checkbox"
                   checked={formData.verzekering}
                   onChange={(e) => setFormData({ ...formData, verzekering: e.target.checked })}
-                  className="w-5 h-5 text-dutch-blue"
+                  className="w-5 h-5 text-primary"
                 />
                 <span className="text-gray-700">Zorgverzekering in Nederland</span>
               </label>
@@ -232,7 +261,7 @@ function App() {
                   onChange={(e) =>
                     setFormData({ ...formData, betalingsregeling: e.target.checked })
                   }
-                  className="w-5 h-5 text-dutch-blue"
+                  className="w-5 h-5 text-primary"
                 />
                 <span className="text-gray-700">Betalingsregeling premie</span>
               </label>
@@ -242,7 +271,7 @@ function App() {
                   type="checkbox"
                   checked={formData.detentie}
                   onChange={(e) => setFormData({ ...formData, detentie: e.target.checked })}
-                  className="w-5 h-5 text-dutch-blue"
+                  className="w-5 h-5 text-primary"
                 />
                 <span className="text-gray-700">In detentie</span>
               </label>
@@ -264,7 +293,11 @@ function App() {
             <button
               onClick={handleEvaluate}
               disabled={loading}
-              className="w-full bg-dutch-blue text-white py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold transition-colors"
+              style={{
+                backgroundColor: 'var(--color-primary)',
+                color: 'white',
+              }}
+              className="w-full py-3 px-6 rounded-lg hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold transition-colors"
             >
               {loading ? 'Berekenen...' : 'Berekenen'}
             </button>
