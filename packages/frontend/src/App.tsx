@@ -3,13 +3,7 @@ import keycloak, { getUser } from './services/keycloak';
 import { businessApi } from './services/api';
 import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse, HealthResponse } from '@ronl/shared';
-import type { TenantConfig } from '@ronl/shared';
-import {
-  initializeTenantTheme,
-  loadTenantConfigs,
-  getTenantConfig,
-  applyTenantTheme,
-} from './services/tenant';
+import { initializeTenantTheme } from './services/tenant';
 import './index.css';
 
 function App() {
