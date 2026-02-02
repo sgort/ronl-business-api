@@ -48,7 +48,7 @@ jobs:
           echo "Checking for index.js..."
           test -f dist/index.js || (echo "ERROR: dist/index.js not found!" && exit 1)
 
-``    - name: Prepare deployment package
+      - name: Prepare deployment package
         working-directory: packages/backend
         run: |
           mkdir -p deploy
