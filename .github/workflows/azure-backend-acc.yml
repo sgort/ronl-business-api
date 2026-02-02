@@ -1,0 +1,134 @@
+name: Deploy Backend to Azure ACC
+
+on:
+  push:
+    branches:
+      - acc
+    paths:
+      - 'packages/backend/**'
+      - 'packages/shared/**'
+      - '.github/workflows/azure-backend-acc.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: acc
+      url: https://acc.api.open-regels.nl
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@ronl/shared
+
+      - name: Run linter
+        working-directory: packages/backend
+        run: npm run lint
+
+      - name: Build TypeScript
+        working-directory: packages/backend
+        run: npm run build
+
+      - name: Verify build output
+        working-directory: packages/backend
+        run: |
+          echo "Checking built files..."
+          ls -la dist/
+          echo "Checking for index.js..."
+          test -f dist/index.js || echo "ERROR: dist/index.js not found!"
+
+      - name: Prepare deployment package
+        working-directory: packages/backend
+        run: |
+          mkdir -p deploy
+          
+          # Copy the ENTIRE dist folder
+          cp -r dist deploy/
+          
+          # Copy package.json to deploy root
+          cp package.json deploy/
+          
+          # Copy shared package dist
+          mkdir -p deploy/node_modules/@ronl
+          cp -r ../shared/dist deploy/node_modules/@ronl/shared
+          cp ../shared/package.json deploy/node_modules/@ronl/shared/
+          
+          # Verify structure
+          echo "Deployment structure:"
+          ls -la deploy/
+          ls -la deploy/dist/
+          
+          # Install production dependencies
+          cd deploy
+          npm install --production --omit=dev
+          
+          # Tell Azure not to rebuild
+          echo "[config]" > .deployment
+          echo "SCM_DO_BUILD_DURING_DEPLOYMENT = false" >> .deployment
+          
+          # Create startup script
+          cat > startup.sh << 'EOF'
+#!/bin/bash
+cd /home/site/wwwroot
+NODE_ENV=production node dist/index.js
+EOF
+          chmod +x startup.sh
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'ronl-business-api-acc'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_ACC }}
+          package: './packages/backend/deploy'
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          echo "Checking backend health..."
+          
+          # Retry up to 5 times
+          for i in {1..5}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://acc.api.open-regels.nl/v1/health)
+            
+            if [ "$response" = "200" ]; then
+              echo "✅ Health check passed! Backend is healthy."
+              
+              # Also check the response body
+              echo "Response body:"
+              curl -s https://acc.api.open-regels.nl/v1/health | jq '.'
+              exit 0
+            fi
+            
+            echo "Attempt $i: Got HTTP $response, retrying in 10 seconds..."
+            sleep 10
+          done
+          
+          echo "❌ Health check failed after 5 attempts"
+          echo "Checking application logs..."
+          exit 1
+
+      - name: Deployment success
+        if: success()
+        run: |
+          echo "🚀 Backend successfully deployed to ACC!"
+          echo "URL: https://acc.api.open-regels.nl"
+          echo "API v1: https://acc.api.open-regels.nl/v1/health"
+          echo ""
+          echo "Next steps:"
+          echo "1. Configure Keycloak at acc.keycloak.open-regels.nl"
+          echo "2. Update Azure App Service environment variables"
+          echo "3. Test authentication with Keycloak"

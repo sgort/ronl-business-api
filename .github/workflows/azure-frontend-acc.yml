@@ -1,0 +1,139 @@
+name: Deploy Frontend to Azure ACC
+
+on:
+  push:
+    branches:
+      - acc
+    paths:
+      - 'packages/frontend/**'
+      - 'packages/shared/**'
+      - '.github/workflows/azure-frontend-acc.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - acc
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    environment:
+      name: acc
+      url: https://acc.mijn.open-regels.nl
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@ronl/shared
+
+      - name: Update API URLs for ACC
+        working-directory: packages/frontend
+        run: |
+          # Update API base URL
+          sed -i "s|http://localhost:3002/v1|https://acc.api.open-regels.nl/v1|g" src/services/api.ts
+          
+          # Update Keycloak URL
+          sed -i "s|http://localhost:8080|https://acc.keycloak.open-regels.nl|g" src/services/keycloak.ts
+          
+          echo "✅ Updated configuration files for ACC environment"
+          
+          # Show changes
+          echo "API configuration:"
+          grep -A 2 "API_BASE_URL" src/services/api.ts
+          echo ""
+          echo "Keycloak configuration:"
+          grep -A 5 "url:" src/services/keycloak.ts
+
+      - name: Build frontend
+        working-directory: packages/frontend
+        run: |
+          npm run build
+          
+          # Verify build output
+          echo "Build output:"
+          ls -la dist/
+          
+          # Check for critical files
+          test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
+          test -f dist/tenants.json || (echo "ERROR: tenants.json not found!" && exit 1)
+          
+          echo "✅ Build completed successfully"
+
+      - name: Deploy to Azure Static Web Apps
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ACC }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: '/packages/frontend'
+          api_location: ''
+          output_location: 'dist'
+          skip_app_build: true
+
+      - name: Wait for deployment
+        run: sleep 15
+
+      - name: Verify deployment
+        run: |
+          echo "Checking deployment..."
+          
+          # Check if site is accessible
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://acc.mijn.open-regels.nl)
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Frontend is accessible!"
+          else
+            echo "⚠️  Frontend returned HTTP $response"
+          fi
+          
+          # Check if tenants.json is accessible
+          tenants_response=$(curl -s -o /dev/null -w "%{http_code}" https://acc.mijn.open-regels.nl/tenants.json)
+          
+          if [ "$tenants_response" = "200" ]; then
+            echo "✅ tenants.json is accessible!"
+          else
+            echo "⚠️  tenants.json returned HTTP $tenants_response"
+          fi
+
+      - name: Deployment success
+        if: success()
+        run: |
+          echo "🚀 Frontend successfully deployed to ACC!"
+          echo "URL: https://acc.mijn.open-regels.nl"
+          echo ""
+          echo "Configuration:"
+          echo "- API URL: https://acc.api.open-regels.nl/v1"
+          echo "- Keycloak URL: https://acc.keycloak.open-regels.nl"
+          echo ""
+          echo "Next steps:"
+          echo "1. Ensure backend is deployed"
+          echo "2. Configure custom domain in Azure Static Web Apps"
+          echo "3. Test login flow with Keycloak"
+
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ACC }}
+          action: 'close'
