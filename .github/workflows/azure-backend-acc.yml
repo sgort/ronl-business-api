@@ -38,7 +38,16 @@ jobs:
 
       - name: Build TypeScript
         working-directory: packages/backend
-        run: npm run build
+        run: |
+          echo "Building with TypeScript (project references)..."
+          npx tsc --build
+          
+          echo "Resolving path aliases..."
+          npx tsc-alias
+          
+          echo "Verifying build output..."
+          ls -la dist/
+          test -f dist/index.js || (echo "ERROR: dist/index.js not found!" && exit 1)
 
       - name: Verify build output
         working-directory: packages/backend
