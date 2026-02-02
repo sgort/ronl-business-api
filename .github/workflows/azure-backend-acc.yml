@@ -48,7 +48,7 @@ jobs:
           echo "Checking for index.js..."
           test -f dist/index.js || (echo "ERROR: dist/index.js not found!" && exit 1)
 
-      - name: Prepare deployment package
+``    - name: Prepare deployment package
         working-directory: packages/backend
         run: |
           mkdir -p deploy
@@ -78,11 +78,9 @@ jobs:
           echo "SCM_DO_BUILD_DURING_DEPLOYMENT = false" >> .deployment
           
           # Create startup script
-          cat > startup.sh << 'EOF'
-#!/bin/bash
-cd /home/site/wwwroot
-NODE_ENV=production node dist/index.js
-EOF
+          echo '#!/bin/bash' > startup.sh
+          echo 'cd /home/site/wwwroot' >> startup.sh
+          echo 'NODE_ENV=production node dist/index.js' >> startup.sh
           chmod +x startup.sh
 
       - name: Deploy to Azure Web App
