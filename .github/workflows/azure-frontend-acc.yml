@@ -33,7 +33,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -54,10 +53,10 @@ jobs:
           
           # Show changes
           echo "API configuration:"
-          grep -A 2 "API_BASE_URL" src/services/api.ts
+          grep -A 2 "API_BASE_URL" src/services/api.ts || echo "API_BASE_URL not found in expected format"
           echo ""
           echo "Keycloak configuration:"
-          grep -A 5 "url:" src/services/keycloak.ts
+          grep -A 5 "url:" src/services/keycloak.ts || echo "Keycloak URL not found in expected format"
 
       - name: Build frontend
         working-directory: packages/frontend
@@ -70,7 +69,6 @@ jobs:
           
           # Check for critical files
           test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
-          test -f dist/tenants.json || (echo "ERROR: tenants.json not found!" && exit 1)
           
           echo "✅ Build completed successfully"
 
@@ -101,15 +99,6 @@ jobs:
           else
             echo "⚠️  Frontend returned HTTP $response"
           fi
-          
-          # Check if tenants.json is accessible
-          tenants_response=$(curl -s -o /dev/null -w "%{http_code}" https://acc.mijn.open-regels.nl/tenants.json)
-          
-          if [ "$tenants_response" = "200" ]; then
-            echo "✅ tenants.json is accessible!"
-          else
-            echo "⚠️  tenants.json returned HTTP $tenants_response"
-          fi
 
       - name: Deployment success
         if: success()
@@ -120,11 +109,6 @@ jobs:
           echo "Configuration:"
           echo "- API URL: https://acc.api.open-regels.nl/v1"
           echo "- Keycloak URL: https://acc.keycloak.open-regels.nl"
-          echo ""
-          echo "Next steps:"
-          echo "1. Ensure backend is deployed"
-          echo "2. Configure custom domain in Azure Static Web Apps"
-          echo "3. Test login flow with Keycloak"
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

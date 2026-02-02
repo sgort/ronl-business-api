@@ -25,7 +25,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -47,7 +46,7 @@ jobs:
           echo "Checking built files..."
           ls -la dist/
           echo "Checking for index.js..."
-          test -f dist/index.js || echo "ERROR: dist/index.js not found!"
+          test -f dist/index.js || (echo "ERROR: dist/index.js not found!" && exit 1)
 
       - name: Prepare deployment package
         working-directory: packages/backend
@@ -109,7 +108,7 @@ EOF
               
               # Also check the response body
               echo "Response body:"
-              curl -s https://acc.api.open-regels.nl/v1/health | jq '.'
+              curl -s https://acc.api.open-regels.nl/v1/health
               exit 0
             fi
             
@@ -129,6 +128,6 @@ EOF
           echo "API v1: https://acc.api.open-regels.nl/v1/health"
           echo ""
           echo "Next steps:"
-          echo "1. Configure Keycloak at acc.keycloak.open-regels.nl"
-          echo "2. Update Azure App Service environment variables"
-          echo "3. Test authentication with Keycloak"
+          echo "1. Verify health endpoint returns 200"
+          echo "2. Check Keycloak connectivity"
+          echo "3. Test authentication flow"
