@@ -53,10 +53,10 @@ jobs:
         run: |
           mkdir -p deploy
           
-          # Copy the ENTIRE dist folder
+          # Copy the ENTIRE dist folder (preserve structure)
           cp -r dist deploy/
           
-          # Copy package.json to deploy root
+          # Copy package.json to deploy root (NOT inside dist)
           cp package.json deploy/
           
           # Copy shared package dist
@@ -69,62 +69,20 @@ jobs:
           ls -la deploy/
           ls -la deploy/dist/
           
-          # Install production dependencies
+          # Install production dependencies in deploy folder
           cd deploy
           npm install --production --omit=dev
           
-          # Tell Azure not to rebuild
+          # Tell Azure not to rebuild (we already built)
           echo "[config]" > .deployment
           echo "SCM_DO_BUILD_DURING_DEPLOYMENT = false" >> .deployment
-          
-          # Create startup script
-          echo '#!/bin/bash' > startup.sh
-          echo 'cd /home/site/wwwroot' >> startup.sh
-          echo 'NODE_ENV=production node dist/index.js' >> startup.sh
-          chmod +x startup.sh
-
-      - name: Create deployment ZIP
-        working-directory: packages/backend/deploy
-        run: |
-          echo "Creating deployment package..."
-          zip -r ../deployment.zip . -x "*.git*"
-          ls -lh ../deployment.zip
 
       - name: Deploy to Azure Web App
-        working-directory: packages/backend
-        env:
-          PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_ACC }}
-        run: |
-          echo "Extracting deployment credentials..."
-          PUBLISH_URL=$(echo "$PUBLISH_PROFILE" | sed -n 's/.*publishUrl="\([^"]*\)".*/\1/p' | head -1)
-          USERNAME=$(echo "$PUBLISH_PROFILE" | sed -n 's/.*userName="\([^"]*\)".*/\1/p' | head -1)
-          PASSWORD=$(echo "$PUBLISH_PROFILE" | sed -n 's/.*userPWD="\([^"]*\)".*/\1/p' | head -1)
-          
-          # Remove :443 from URL if present
-          PUBLISH_URL=${PUBLISH_URL%:443}
-          
-          echo "Deploying to https://$PUBLISH_URL"
-          
-          # Deploy using Kudu ZIP Deploy API
-          HTTP_CODE=$(curl -X POST \
-            -u "$USERNAME:$PASSWORD" \
-            --data-binary @deployment.zip \
-            "https://$PUBLISH_URL/api/zipdeploy" \
-            -H "Content-Type: application/zip" \
-            --max-time 300 \
-            -w "%{http_code}" \
-            -o deploy-response.txt \
-            -s)
-          
-          echo "HTTP Response Code: $HTTP_CODE"
-          
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ]; then
-            echo "✅ Deployment successful!"
-          else
-            echo "❌ Deployment failed with HTTP $HTTP_CODE"
-            cat deploy-response.txt
-            exit 1
-          fi
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'ronl-business-api-acc'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_ACC }}
+          package: './packages/backend/deploy'
 
       - name: Wait for deployment
         run: sleep 30
