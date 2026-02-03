@@ -336,10 +336,27 @@ function App() {
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="font-semibold text-blue-900 mb-2">🏛️ Architectuur</h3>
           <div className="text-sm text-blue-800 space-y-1">
-            <p>✓ Frontend (MijnOmgeving) → http://localhost:5173</p>
-            <p>✓ Keycloak (IAM) → http://localhost:8080</p>
-            <p>✓ Business API → http://localhost:3002</p>
-            <p>✓ Operaton (BPMN/DMN) → https://operaton.open-regels.nl</p>
+            {(() => {
+              const isLocalhost = window.location.hostname === 'localhost';
+              const frontendUrl = isLocalhost
+                ? 'http://localhost:5173'
+                : 'https://acc.mijn.open-regels.nl';
+              const keycloakUrl = isLocalhost
+                ? 'http://localhost:8080'
+                : 'https://acc.keycloak.open-regels.nl';
+              const apiUrl = isLocalhost
+                ? 'http://localhost:3002'
+                : 'https://acc.api.open-regels.nl';
+
+              return (
+                <>
+                  <p>✓ Frontend (MijnOmgeving) → {frontendUrl}</p>
+                  <p>✓ Keycloak (IAM) → {keycloakUrl}</p>
+                  <p>✓ Business API → {apiUrl}</p>
+                  <p>✓ Operaton (BPMN/DMN) → https://operaton.open-regels.nl</p>
+                </>
+              );
+            })()}
           </div>
         </div>
       </main>
