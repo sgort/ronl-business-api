@@ -1,53 +1,36 @@
 import axios from 'axios';
-import { getToken } from './keycloak';
-import type { OperatonVariable, DecisionRequest, ApiResponse, HealthResponse } from '@ronl/shared';
+import keycloak from './keycloak';
+import type { ApiResponse, OperatonVariable } from '@ronl/shared';
 
-const API_BASE_URL = 'http://localhost:3002/v1';
+// Check if we're in production based on hostname
+const isProduction =
+  typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
+const API_BASE_URL = isProduction ? 'https://api.open-regels.nl/v1' : 'http://localhost:3002/v1';
 
-const apiClient = axios.create({
+const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
-// Add auth token to requests
-apiClient.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add auth interceptor
+api.interceptors.request.use(async (config) => {
+  if (keycloak.token) {
+    config.headers.Authorization = `Bearer ${keycloak.token}`;
   }
   return config;
 });
 
-export { OperatonVariable, DecisionRequest, ApiResponse, HealthResponse };
-
 export const businessApi = {
-  // Health check
-  async health(): Promise<HealthResponse> {
-    const response = await apiClient.get('/health');
+  health: async () => {
+    const response = await api.get<ApiResponse>('/health');
     return response.data.data;
   },
 
-  // Evaluate DMN decision
-  async evaluateDecision(
-    decisionKey: string,
-    variables: Record<string, OperatonVariable>
-  ): Promise<ApiResponse> {
-    const response = await apiClient.post(`/decision/${decisionKey}/evaluate`, {
+  evaluateDecision: async (decisionKey: string, variables: Record<string, OperatonVariable>) => {
+    const response = await api.post<ApiResponse>(`/decision/${decisionKey}/evaluate`, {
       variables,
     });
     return response.data;
   },
 
-  // Start BPMN process
-  async startProcess(
-    processKey: string,
-    variables: Record<string, OperatonVariable>
-  ): Promise<ApiResponse> {
-    const response = await apiClient.post(`/process/${processKey}/start`, {
-      variables,
-    });
-    return response.data;
-  },
+  getBaseUrl: () => API_BASE_URL,
 };
