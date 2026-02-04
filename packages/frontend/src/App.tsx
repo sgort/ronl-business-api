@@ -343,22 +343,42 @@ function App() {
           <h3 className="font-semibold text-blue-900 mb-2">🏛️ Architectuur</h3>
           <div className="text-sm text-blue-800 space-y-1">
             {(() => {
-              const isLocalhost = window.location.hostname === 'localhost';
-              const frontendUrl = isLocalhost
-                ? 'http://localhost:5173'
-                : 'https://acc.mijn.open-regels.nl';
-              const keycloakUrl = isLocalhost
-                ? 'http://localhost:8080'
-                : 'https://acc.keycloak.open-regels.nl';
-              const apiUrl = isLocalhost
-                ? 'http://localhost:3002'
-                : 'https://acc.api.open-regels.nl';
+              const hostname = window.location.hostname;
+
+              // Determine environment based on hostname
+              let env: 'local' | 'acc' | 'prod' = 'prod';
+              if (hostname === 'localhost') {
+                env = 'local';
+              } else if (hostname.includes('acc.')) {
+                env = 'acc';
+              }
+
+              // Set URLs based on environment
+              const urls = {
+                local: {
+                  frontend: 'http://localhost:5173',
+                  keycloak: 'http://localhost:8080',
+                  api: 'http://localhost:3002',
+                },
+                acc: {
+                  frontend: 'https://acc.mijn.open-regels.nl',
+                  keycloak: 'https://acc.keycloak.open-regels.nl',
+                  api: 'https://acc.api.open-regels.nl',
+                },
+                prod: {
+                  frontend: 'https://mijn.open-regels.nl',
+                  keycloak: 'https://keycloak.open-regels.nl',
+                  api: 'https://api.open-regels.nl',
+                },
+              };
+
+              const currentUrls = urls[env];
 
               return (
                 <>
-                  <p>✓ Frontend (MijnOmgeving) → {frontendUrl}</p>
-                  <p>✓ Keycloak (IAM) → {keycloakUrl}</p>
-                  <p>✓ Business API → {apiUrl}</p>
+                  <p>✓ Frontend (MijnOmgeving) → {currentUrls.frontend}</p>
+                  <p>✓ Keycloak (IAM) → {currentUrls.keycloak}</p>
+                  <p>✓ Business API → {currentUrls.api}</p>
                   <p>✓ Operaton (BPMN/DMN) → https://operaton.open-regels.nl</p>
                 </>
               );
