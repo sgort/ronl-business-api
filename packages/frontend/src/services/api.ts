@@ -1,6 +1,6 @@
 import axios from 'axios';
 import keycloak from './keycloak';
-import type { ApiResponse, OperatonVariable } from '@ronl/shared';
+import type { ApiResponse, OperatonVariable, HealthResponse } from '@ronl/shared';
 
 // Check if we're in production based on hostname
 const isProduction =
@@ -20,9 +20,9 @@ api.interceptors.request.use(async (config) => {
 });
 
 export const businessApi = {
-  health: async () => {
-    const response = await api.get<ApiResponse>('/health');
-    return response.data.data;
+  health: async (): Promise<HealthResponse> => {
+    const response = await api.get<ApiResponse<HealthResponse>>('/health');
+    return response.data.data as HealthResponse;
   },
 
   evaluateDecision: async (decisionKey: string, variables: Record<string, OperatonVariable>) => {

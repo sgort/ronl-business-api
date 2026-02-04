@@ -47,7 +47,13 @@ function App() {
             initializeTenantTheme(currentUser.municipality);
           }
 
-          businessApi.health().then(setHealth).catch(console.error);
+          businessApi
+            .health()
+            .then((data) => setHealth(data))
+            .catch((error) => {
+              console.error('Health check failed:', error);
+              setHealth(null);
+            });
         }
       })
       .catch(console.error);
