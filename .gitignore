@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
@@ -8,6 +7,7 @@ pnpm-lock.yaml
 dist/
 build/
 *.tsbuildinfo
+deployment.zip
 
 # Environment files
 .env
