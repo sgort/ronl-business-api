@@ -1,0 +1,75 @@
+name: keycloak-acc
+services:
+  # PostgreSQL for Keycloak
+  keycloak-postgres-acc:
+    image: postgres:16-alpine
+    container_name: keycloak-postgres-acc
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+      POSTGRES_DB: keycloak
+    volumes:
+      - keycloak-acc-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - keycloak-acc-network
+
+  # Keycloak
+  keycloak-acc:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: keycloak-acc
+    restart: unless-stopped
+    depends_on:
+      keycloak-postgres-acc:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres-acc:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: acc.keycloak.open-regels.nl
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true
+      KC_PROXY: edge
+      KC_HTTP_RELATIVE_PATH: /
+      KC_LOG_LEVEL: info
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./ronl-realm.json:/opt/keycloak/data/import/ronl-realm.json:ro
+      - keycloak-acc-data:/opt/keycloak/data
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/127.0.0.1/8080' && exit 0 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - keycloak-acc-network
+      - npm-network
+    labels:
+      - "environment=acc"
+
+networks:
+  keycloak-acc-network:
+    driver: bridge
+    name: keycloak-acc-network
+  npm-network:
+    external: true
+    name: npm-network
+
+volumes:
+  keycloak-acc-db-data:
+    driver: local
+    name: keycloak-acc-db-data
+  keycloak-acc-data:
+    driver: local
+    name: keycloak-acc-data

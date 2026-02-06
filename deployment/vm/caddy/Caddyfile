@@ -1,0 +1,235 @@
+# Basic security headers (for CPRMV - no CSP)
+(basic_security_headers) {
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header X-XSS-Protection "1; mode=block"
+    header Referrer-Policy "same-origin"
+    header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    header Cross-Origin-Embedder-Policy "require-corp"
+    header Cross-Origin-Opener-Policy "same-origin"
+    header Cross-Origin-Resource-Policy "same-origin"
+}
+
+# Keycloak security headers (less restrictive for OAuth/OIDC)
+(keycloak_security_headers) {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	header X-Content-Type-Options "nosniff"
+	header X-Frame-Options "SAMEORIGIN"
+	header X-XSS-Protection "1; mode=block"
+	header Referrer-Policy "strict-origin-when-cross-origin"
+	header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+}
+
+# Enhanced security headers with strict CSP (for Operaton - NON-API)
+(enhanced_security_headers) {
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header X-XSS-Protection "1; mode=block"
+    header Referrer-Policy "same-origin"
+#    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    header Cross-Origin-Embedder-Policy "require-corp"
+    header Cross-Origin-Opener-Policy "same-origin"
+    header Cross-Origin-Resource-Policy "same-origin"
+}
+
+# Updated security headers snippet for Nextcloud
+(nextcloud_security_headers) {
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "SAMEORIGIN"
+    header X-XSS-Protection "1; mode=block"
+    header Referrer-Policy "same-origin"
+    header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    # Add forwarded headers for proper IP detection
+    header X-Forwarded-Proto {scheme}
+    header X-Forwarded-Host {host}
+    header X-Real-IP {remote}
+}
+
+skosmos.open-regels.nl {
+    handle /.well-known/* {
+        root * /srv/static/skosmos
+        file_server
+    }
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    import basic_security_headers
+    reverse_proxy skosmos-web:80
+    encode gzip
+}
+
+nextcloud.open-regels.nl {
+    # 1. CalDAV/CardDAV service discovery (uses simple redirect)
+    redir /.well-known/carddav /remote.php/dav 301
+    redir /.well-known/caldav /remote.php/dav 301
+    
+    # 2. Webfinger/Nodeinfo service discovery (uses rewrite to index.php)
+    # The trailing? is crucial to prevent Caddy from appending the query string again.
+    rewrite /.well-known/webfinger /index.php/.well-known/webfinger
+    rewrite /.well-known/nodeinfo /index.php/.well-known/nodeinfo
+
+    # 3. Handle specific static files (if needed, but placed after crucial rewrites)
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    
+    # 4. Apply headers and proxy
+    import nextcloud_security_headers
+    reverse_proxy host.docker.internal:8081
+    encode gzip
+}
+
+operaton.open-regels.nl {
+    # Handle static files
+    handle /.well-known/* {
+        root * /srv/static/operaton
+        file_server
+    }
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    
+    # Handle OPTIONS preflight requests for CORS
+    @options method OPTIONS
+    handle @options {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+        header Access-Control-Allow-Credentials "true"
+        header Access-Control-Max-Age "3600"
+        respond "" 204
+    }
+    
+    # Handle REST API endpoints - add CORS headers to proxy response
+    @api path /engine-rest/*
+    handle @api {
+        reverse_proxy 172.18.0.10:8080 {
+            header_up Host {host}
+            header_down Access-Control-Allow-Origin "*"
+            header_down Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+            header_down Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+            header_down Access-Control-Allow-Credentials "true"
+        }
+    }
+    
+    # Handle all other routes (Cockpit, Tasklist, etc.) with strict security
+    handle {
+        import enhanced_security_headers
+        reverse_proxy 172.18.0.10:8080
+    }
+    
+    encode gzip
+}
+
+operaton-dev.open-regels.nl {
+    handle /.well-known/* {
+        root * /srv/static/operaton-dev
+        file_server
+    }
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    import enhanced_security_headers
+    reverse_proxy 172.18.0.12:8080
+    encode gzip
+}
+
+operaton-doc.open-regels.nl {
+    handle /.well-known/* {
+        root * /srv/static/operaton-doc
+        file_server
+    }
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    import enhanced_security_headers
+    reverse_proxy 172.18.0.11:8080
+    encode gzip
+}
+
+cprmv.open-regels.nl {
+    handle /.well-known/* {
+        root * /srv/static/cprmv
+        file_server
+    }
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    import basic_security_headers
+    reverse_proxy cprmv-api:8000
+    encode gzip
+}
+
+acc.cprmv.open-regels.nl {
+    handle /.well-known/* {
+        root * /srv/static/cprmv-dev
+        file_server
+    }
+    handle /*.asc {
+        root * /srv/static
+        file_server
+    }
+    import basic_security_headers
+    reverse_proxy cprmv-api-dev:8000
+    encode gzip
+}
+
+# ACC Keycloak
+acc.keycloak.open-regels.nl {
+	# Handle static files
+	handle /.well-known/* {
+		root * /srv/static/keycloak/acc
+		file_server
+	}
+	handle /*.asc {
+		root * /srv/static
+		file_server
+	}
+
+	# Apply security headers
+	import keycloak_security_headers
+
+	# Reverse proxy to Keycloak ACC container
+	# Note: Caddy automatically sets X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host
+	reverse_proxy keycloak-acc:8080 {
+		# Handle WebSocket connections
+		flush_interval -1
+	}
+
+	encode gzip
+}
+
+# PROD Keycloak
+keycloak.open-regels.nl {
+	# Handle static files
+	handle /.well-known/* {
+		root * /srv/static/keycloak/prod
+		file_server
+	}
+	handle /*.asc {
+		root * /srv/static
+		file_server
+	}
+
+	# Apply security headers
+	import keycloak_security_headers
+
+	# Reverse proxy to Keycloak PROD container
+	# Note: Caddy automatically sets X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host
+	reverse_proxy keycloak-prod:8080 {
+		# Handle WebSocket connections
+		flush_interval -1
+	}
+
+	encode gzip
+}
