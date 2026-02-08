@@ -1,0 +1,71 @@
+name: Deploy Frontend to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/frontend/**'
+      - 'packages/shared/**'
+      - '.github/workflows/azure-frontend-prod.yml'
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy_job:
+    runs-on: ubuntu-latest
+    name: Build and Deploy Production Frontend
+    environment:
+      name: production
+      url: https://mijn.open-regels.nl
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@ronl/shared
+
+      - name: Create production .env file
+        working-directory: packages/frontend
+        run: |
+          cat > .env.production << EOL
+          VITE_API_BASE_URL=https://api.open-regels.nl/v1
+          VITE_KEYCLOAK_URL=https://keycloak.open-regels.nl
+          EOL
+          echo "✅ Production environment file created"
+          cat .env.production
+
+      - name: Build frontend
+        working-directory: packages/frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Verify build output
+        working-directory: packages/frontend
+        run: |
+          echo "Build output:"
+          ls -la dist/
+          echo "Index.html exists:"
+          test -f dist/index.html && echo "✅ Yes" || echo "❌ No"
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: '/packages/frontend/dist'
+          api_location: ''
+          output_location: ''
+          skip_app_build: true

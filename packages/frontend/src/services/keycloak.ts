@@ -1,9 +1,13 @@
 import Keycloak from 'keycloak-js';
 import type { AssuranceLevel, KeycloakUser } from '@ronl/shared';
 
-// Initialize Keycloak instance
+// Check if we're in production based on hostname
+const isProduction =
+  typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
+const KEYCLOAK_URL = isProduction ? 'https://keycloak.open-regels.nl' : 'http://localhost:8080';
+
 const keycloak = new Keycloak({
-  url: 'http://localhost:8080',
+  url: KEYCLOAK_URL,
   realm: 'ronl',
   clientId: 'ronl-business-api',
 });
@@ -15,10 +19,8 @@ export { KeycloakUser };
 export const getUser = (): KeycloakUser | null => {
   if (!keycloak.tokenParsed) return null;
 
-  // Debug: Log the entire token structure as JSON
   console.log('🔍 Full token as JSON:', JSON.stringify(keycloak.tokenParsed, null, 2));
 
-  // Extract roles from realm_access (where Keycloak stores them)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const token = keycloak.tokenParsed as any;
 

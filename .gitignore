@@ -7,7 +7,11 @@ pnpm-lock.yaml
 dist/
 build/
 *.tsbuildinfo
+packages/backend/deploy/node_modules/
+packages/backend/deploy/dist/
+packages/backend/deploy/package*.json
 deployment.zip
+packages/backend/deployment-prod.zip
 
 # Environment files
 .env
@@ -74,3 +78,17 @@ dump.rdb
 #flatten script & dir
 flatten_directory.sh
 flattened
+
+# VM Deployment Secrets
+deployment/vm/**/.env
+deployment/vm/**/keycloak-passwords.txt
+**/keycloak-passwords*.txt
+
+# Backup files
+deployment/vm/**/*.sql
+deployment/vm/**/*.tar.gz
+deployment/vm/**/backup/
+
+# Local VM sync
+deployment/vm/**/.DS_Store
+deployment/vm/**/Thumbs.db
