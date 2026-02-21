@@ -4,8 +4,25 @@ import type { AssuranceLevel, KeycloakUser } from '@ronl/shared';
 // Check if we're in production based on hostname
 const isProduction =
   typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
-const KEYCLOAK_URL = isProduction ? 'https://keycloak.open-regels.nl' : 'http://localhost:8080';
 
+const isAcceptance =
+  typeof window !== 'undefined' && window.location.hostname.includes('acc.mijn.open-regels.nl');
+
+// Determine Keycloak URL based on environment
+let KEYCLOAK_URL = 'http://localhost:8080';
+if (isProduction) {
+  KEYCLOAK_URL = 'https://keycloak.open-regels.nl';
+} else if (isAcceptance) {
+  KEYCLOAK_URL = 'https://acc.keycloak.open-regels.nl';
+}
+
+/**
+ * Keycloak instance
+ *
+ * This is initialized manually in AuthCallback component with the selected
+ * identity provider hint, allowing users to choose DigiD/eHerkenning/eIDAS
+ * from the landing page before being redirected to Keycloak
+ */
 const keycloak = new Keycloak({
   url: KEYCLOAK_URL,
   realm: 'ronl',
@@ -16,6 +33,9 @@ export default keycloak;
 
 export { KeycloakUser };
 
+/**
+ * Extract user information from Keycloak token
+ */
 export const getUser = (): KeycloakUser | null => {
   if (!keycloak.tokenParsed) return null;
 
@@ -34,12 +54,27 @@ export const getUser = (): KeycloakUser | null => {
   return {
     sub: keycloak.tokenParsed.sub as string,
     name: keycloak.tokenParsed.name as string,
-    municipality: keycloak.tokenParsed.municipality as string,
+    municipality: token.municipality as string,
     loa: token.loa as AssuranceLevel,
     roles: realmRoles,
   };
 };
 
+/**
+ * Get current access token
+ */
 export const getToken = (): string | undefined => {
   return keycloak.token;
+};
+
+/**
+ * Get environment-specific redirect URLs for Keycloak configuration
+ */
+export const getRedirectUris = () => {
+  if (isProduction) {
+    return ['https://mijn.open-regels.nl/*'];
+  } else if (isAcceptance) {
+    return ['https://acc.mijn.open-regels.nl/*'];
+  }
+  return ['http://localhost:5173/*'];
 };
