@@ -31,7 +31,7 @@ export default function LoginChoice() {
         {/* Header Card */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-8 text-white text-center shadow-lg">
           <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
-          <p className="text-blue-100">Welkom bij het portaal</p>
+          <p className="text-blue-100">Demo portaal van Open Regels</p>
         </div>
 
         {/* Content Card */}
@@ -120,9 +120,7 @@ export default function LoginChoice() {
 
           {/* Footer Note */}
           <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-500">
-              Door door te gaan wordt u veilig doorverwezen naar de inlogpagina
-            </p>
+            <p className="text-sm text-gray-500">U wordt veilig doorverwezen naar de inlogpagina</p>
           </div>
         </div>
 
