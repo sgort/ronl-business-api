@@ -23,7 +23,7 @@ export default function LoginChoice() {
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-8 text-center">
             <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
-            <p className="text-blue-100 text-sm">Welkom bij het portaal</p>
+            <p className="text-blue-100 text-sm">Demo portaal van Open Regels</p>
           </div>
 
           {/* Content */}
@@ -111,7 +111,7 @@ export default function LoginChoice() {
             {/* Footer Info */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <p className="text-sm text-gray-500 text-center">
-                Door door te gaan wordt u veilig doorverwezen naar de inlogpagina
+                U wordt veilig doorverwezen naar de inlogpagina
               </p>
             </div>
           </div>
@@ -119,7 +119,9 @@ export default function LoginChoice() {
 
         {/* Additional Info */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">Gemeente Utrecht, Amsterdam, Rotterdam, Den Haag</p>
+          <p className="text-sm text-gray-600">
+            Gemeenten Utrecht, Amsterdam, Rotterdam en Den Haag
+          </p>
         </div>
       </div>
     </div>
