@@ -2,6 +2,8 @@
 
 **Quick start guide for local development and testing**
 
+> For the complete developer guide — including JWT token testing, database access, local service URLs, and troubleshooting — see [Local Development Setup](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/local-development/) on the IOU Architecture docs site.
+
 ---
 
 ## 📋 Prerequisites
@@ -364,28 +366,7 @@ rm -rf logs
 
 ## 📚 Next Steps
 
-1. **Read the API Documentation:** `/docs/API.md`
-2. **Review Security Guide:** `/docs/SECURITY.md`
-3. **Explore Keycloak Setup:** `/docs/KEYCLOAK.md`
-4. **Deploy to Azure:** `/docs/DEPLOYMENT.md`
-
----
-
-## 💡 Tips
-
-- **API Documentation:** http://localhost:3002 (root endpoint)
-- **Health Checks:** http://localhost:3002/v1/health
-- **Keycloak Console:** http://localhost:8080
-- **Operaton Cockpit:** http://localhost:8081/operaton/app/cockpit/default/
-
----
-
-## 🤝 Need Help?
-
-- **Issues:** GitHub Issues
-- **Questions:** Team Slack / Email
-- **Security:** security@ronl.nl
-
----
-
-**Happy coding! 🚀**
+1. **API Reference:** [API Endpoints](https://iou-architectuur.open-regels.nl/ronl-business-api/references/api-endpoints/)
+2. **Security:** [Security & Compliance](https://iou-architectuur.open-regels.nl/ronl-business-api/features/security-compliance/)
+3. **Keycloak Setup:** [Keycloak Deployment](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/keycloak/)
+4. **Deploy to Azure:** [Deployment Overview](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/overview/)
