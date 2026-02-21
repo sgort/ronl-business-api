@@ -17,6 +17,7 @@ export default function AuthCallback() {
         const selectedIdp = sessionStorage.getItem('selected_idp');
 
         // Build Keycloak init options
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const initOptions: any = {
           onLoad: 'login-required',
           checkLoginIframe: false,
