@@ -92,3 +92,6 @@ deployment/vm/**/backup/
 # Local VM sync
 deployment/vm/**/.DS_Store
 deployment/vm/**/Thumbs.db
+
+#deploy theme script
+deploy-theme-to-acc.sh
