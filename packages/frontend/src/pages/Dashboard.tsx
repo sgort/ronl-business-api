@@ -436,56 +436,55 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-
-            {/* Architecture Info */}
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-2">🏛️ Architectuur</h3>
-              <div className="text-sm text-blue-800 space-y-1">
-                {(() => {
-                  const hostname = window.location.hostname;
-
-                  // Determine environment based on hostname
-                  let env: 'local' | 'acc' | 'prod' = 'prod';
-                  if (hostname === 'localhost') {
-                    env = 'local';
-                  } else if (hostname.includes('acc.')) {
-                    env = 'acc';
-                  }
-
-                  // Set URLs based on environment
-                  const urls = {
-                    local: {
-                      frontend: 'http://localhost:5173',
-                      keycloak: 'http://localhost:8080',
-                      api: 'http://localhost:3002',
-                    },
-                    acc: {
-                      frontend: 'https://acc.mijn.open-regels.nl',
-                      keycloak: 'https://acc.keycloak.open-regels.nl',
-                      api: 'https://acc.api.open-regels.nl',
-                    },
-                    prod: {
-                      frontend: 'https://mijn.open-regels.nl',
-                      keycloak: 'https://keycloak.open-regels.nl',
-                      api: 'https://api.open-regels.nl',
-                    },
-                  };
-
-                  const currentUrls = urls[env];
-
-                  return (
-                    <>
-                      <p>✓ Frontend (MijnOmgeving) → {currentUrls.frontend}</p>
-                      <p>✓ Keycloak (IAM) → {currentUrls.keycloak}</p>
-                      <p>✓ Business API → {currentUrls.api}</p>
-                      <p>✓ Operaton (BPMN/DMN) → https://operaton.open-regels.nl</p>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
           </>
         )}
+        {/* Architecture Info */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-semibold text-blue-900 mb-2">🏛️ Architectuur</h3>
+          <div className="text-sm text-blue-800 space-y-1">
+            {(() => {
+              const hostname = window.location.hostname;
+
+              // Determine environment based on hostname
+              let env: 'local' | 'acc' | 'prod' = 'prod';
+              if (hostname === 'localhost') {
+                env = 'local';
+              } else if (hostname.includes('acc.')) {
+                env = 'acc';
+              }
+
+              // Set URLs based on environment
+              const urls = {
+                local: {
+                  frontend: 'http://localhost:5173',
+                  keycloak: 'http://localhost:8080',
+                  api: 'http://localhost:3002',
+                },
+                acc: {
+                  frontend: 'https://acc.mijn.open-regels.nl',
+                  keycloak: 'https://acc.keycloak.open-regels.nl',
+                  api: 'https://acc.api.open-regels.nl',
+                },
+                prod: {
+                  frontend: 'https://mijn.open-regels.nl',
+                  keycloak: 'https://keycloak.open-regels.nl',
+                  api: 'https://api.open-regels.nl',
+                },
+              };
+
+              const currentUrls = urls[env];
+
+              return (
+                <>
+                  <p>✓ Frontend (MijnOmgeving) → {currentUrls.frontend}</p>
+                  <p>✓ Keycloak (IAM) → {currentUrls.keycloak}</p>
+                  <p>✓ Business API → {currentUrls.api}</p>
+                  <p>✓ Operaton (BPMN/DMN) → https://operaton.open-regels.nl</p>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       </main>
     </div>
   );
