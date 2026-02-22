@@ -1,5 +1,7 @@
 # VM Deployment Guide
 
+> For full deployment documentation including VM-level troubleshooting, volume backup procedures, and the production security checklist, see the [Deployment Overview](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/overview/) on the IOU Architecture docs site.
+
 This directory contains configuration files for services running on the VM (open-regels.nl).
 
 ## Architecture
@@ -331,7 +333,7 @@ For issues specific to:
 - **Keycloak ACC:** See [keycloak/acc/README.md](keycloak/acc/README.md)
 - **Keycloak PROD:** See [keycloak/prod/README.md](keycloak/prod/README.md)
 - **Caddy:** See [caddy/README.md](caddy/README.md)
-- **Operaton:** Check Operaton documentation
+- **Operaton:** See [Operaton deployment docs](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/operaton/)
 
 ## Security Considerations
 
@@ -353,7 +355,8 @@ By hosting Keycloak on VM instead of Azure:
 
 ## Documentation
 
-- Main README: `/README.md`
-- Architecture: `/docs/ARCHITECTURE.md`
-- API Documentation: `/docs/API.md`
-- Keycloak Setup: `/docs/KEYCLOAK.md`
+- [Architecture overview](https://iou-architectuur.open-regels.nl/ronl-business-api/)
+- [API Reference](https://iou-architectuur.open-regels.nl/ronl-business-api/references/api-endpoints/)
+- [Keycloak deployment](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/keycloak/)
+- [Caddy deployment](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/caddy/)
+- [Deployment overview](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/deployment/overview/)

@@ -25,6 +25,8 @@ services:
     volumes:
       - ./config/keycloak/ronl-realm.json:/opt/keycloak/data/import/ronl-realm.json:ro
       - keycloak-data:/opt/keycloak/data
+      - ./keycloak-themes:/opt/keycloak/themes
+      - ./config/keycloak/ronl-realm.json:/opt/keycloak/data/import/ronl-realm.json:ro
     ports:
       - "8080:8080"
     depends_on:

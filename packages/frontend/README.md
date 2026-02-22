@@ -2,13 +2,15 @@
 
 > Simple React frontend demonstrating the complete RONL Business API architecture
 
+> For full frontend developer documentation — component API calls, theming, adding pages, and feature flags — see [Frontend Development](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/frontend-development/) on the IOU Architecture docs site.
+
 **Municipality Portal** → **Keycloak** → **Business API** → **Operaton**
 
 ---
 
 ## 🎯 What This Demonstrates
 
-This frontend completes the reference architecture from `docs/operaton_business_api_architecture.md`:
+This frontend implements the complete RONL Business API architecture — see [Features overview](https://iou-architectuur.open-regels.nl/ronl-business-api/features/overview/) for a full description.
 
 ```
 Resident (You in browser)
@@ -129,143 +131,11 @@ ronl-municipality-portal/
 2. **Not logged in?** → Redirect to Keycloak login page
 3. **User logs in** → Keycloak validates credentials
 4. **Success** → Redirected back with JWT token
-5. **Token stored** → Keycloak JS adapter handles refresh
-6. **API calls** → Token automatically added to headers
+5. **Token stored** → Used for all API calls
 
 ---
 
-## 🧪 Testing Scenarios
-
-### Test 1: Eligible Citizen
-
-- ✅ Ingezetene: Yes
-- ✅ 18+: Yes
-- ✅ Verzekering: Yes
-- ❌ Betalingsregeling: No
-- ❌ Detentie: No
-- 💰 Inkomen: €24,000
-
-**Expected Result:** Zorgtoeslag €1,250
-
-### Test 2: Not Eligible (High Income)
-
-- ✅ Ingezetene: Yes
-- ✅ 18+: Yes
-- ✅ Verzekering: Yes
-- ❌ Betalingsregeling: No
-- ❌ Detentie: No
-- 💰 Inkomen: €50,000
-
-**Expected Result:** Zorgtoeslag €0 (income too high)
-
-### Test 3: Payment Plan Issue
-
-- ✅ Ingezetene: Yes
-- ✅ 18+: Yes
-- ✅ Verzekering: Yes
-- ✅ Betalingsregeling: Yes ← Payment plan active
-- ❌ Detentie: No
-- 💰 Inkomen: €24,000
-
-**Expected Result:** May affect eligibility
-
----
-
-## 🔍 Debugging
-
-### Check API Health
-
-The top of the page shows real-time status:
-
-- Business API: healthy/degraded
-- Keycloak: up/down
-- Operaton: up/down
-
-### View Network Requests
-
-Open browser DevTools (F12):
-
-- **Network tab** → See API calls
-- **Console tab** → See errors
-- **Application tab** → See Keycloak token
-
-### Decode JWT Token
-
-```bash
-# In browser console:
-localStorage.getItem('kc-token')
-
-# Or use jwt.io to decode
-```
-
-### API Not Responding?
-
-```bash
-# Check Business API is running
-curl http://localhost:3002/v1/health
-
-# Check Keycloak is running
-curl http://localhost:8080/health/ready
-```
-
----
-
-## 🛠️ Development Commands
-
-```bash
-# Start dev server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Type check
-npm run type-check
-
-# Lint code
-npm run lint
-```
-
----
-
-## 🎯 Extending the Frontend
-
-### Add More DMN Decisions
-
-Edit `src/App.tsx`:
-
-```typescript
-// Add a new decision
-const handleCustomDecision = async () => {
-  const response = await businessApi.evaluateDecision('your-decision-key', {
-    variable1: { value: 123, type: 'Integer' },
-    variable2: { value: true, type: 'Boolean' },
-  });
-  setResult(response);
-};
-```
-
-### Add BPMN Process Starting
-
-```typescript
-// Start a process
-const handleStartProcess = async () => {
-  const response = await businessApi.startProcess('vergunning', {
-    aanvrager: { value: 'Test', type: 'String' },
-    adres: { value: 'Straat 123', type: 'String' },
-  });
-  console.log('Process started:', response);
-};
-```
-
-### Change Municipality
-
-Update test user in Keycloak or switch users.
-
-### Customize Styling
+## 🎨 Customize Styling
 
 Edit `tailwind.config.js` or `src/index.css`.
 
@@ -398,6 +268,16 @@ All calls include:
 - **Console tab** - See Keycloak token info
 - **Logout** - Click "Uitloggen" in header
 - **Test Different Users** - Logout and login as different user
+
+---
+
+## 🤝 Support & Resources
+
+- **Full developer docs:** [Frontend Development](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/frontend-development/)
+- **API Documentation:** http://localhost:3002 (when running)
+- **Keycloak Docs:** https://www.keycloak.org/docs/23.0/
+- **React Docs:** https://react.dev
+- **Express Docs:** https://expressjs.com
 
 ---
 
