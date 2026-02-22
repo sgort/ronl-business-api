@@ -10,6 +10,7 @@ import { Timeline } from '../components/TimeLine';
 import { PersonalDataPanel } from '../components/PersonalDataPanel';
 import { getPersonTimeline, calculateHistoricalState } from '../services/brp.timeline';
 import type { TimelineConfig, BRPPersonHistoricalData, PersonState } from '../types/brp.types';
+import { getUserBSN } from '../services/bsn.mapping';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -64,9 +65,17 @@ export default function Dashboard() {
 
   // TIMELINE DATA LOADING
   useEffect(() => {
-    if (showTimeline && user?.sub && !timelineData) {
+    if (showTimeline && user && !timelineData) {
+      const bsn = getUserBSN(user); // Use BSN mapping, not user.sub
+
+      if (!bsn) {
+        console.error('No BSN available for user');
+        setIsLoadingTimeline(false);
+        return;
+      }
+
       setIsLoadingTimeline(true);
-      getPersonTimeline(user.sub)
+      getPersonTimeline(bsn) // Pass the BSN, not user.sub
         .then((data) => {
           setTimelineData(data);
           setIsLoadingTimeline(false);
@@ -76,7 +85,7 @@ export default function Dashboard() {
           setIsLoadingTimeline(false);
         });
     }
-  }, [showTimeline, user?.sub, timelineData]);
+  }, [showTimeline, user, timelineData]);
 
   // HISTORICAL STATE CALCULATION
   useEffect(() => {

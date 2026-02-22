@@ -1,22 +1,34 @@
 import axios, { AxiosInstance } from 'axios';
+import keycloak from './keycloak';
 import type { PersonState, BRPPersonenResponse } from '../types/brp.types';
 
-const BRP_API_BASE_URL = 'https://brp-api-mock.open-regels.nl/haalcentraal/api/brp';
+// Use backend proxy instead of direct BRP API call
+const isProduction =
+  typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
+const API_BASE_URL = isProduction ? 'https://api.open-regels.nl/v1' : 'http://localhost:3002/v1';
 
 /**
  * BRP API Service for fetching person data
- * Uses the Haal Centraal BRP test API
+ * Routes through backend proxy to avoid CORS issues
  */
 class BRPApiService {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: BRP_API_BASE_URL,
+      baseURL: API_BASE_URL,
       timeout: 10000,
       headers: {
-        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Type': 'application/json',
       },
+    });
+
+    // Add JWT token to requests
+    this.client.interceptors.request.use(async (config) => {
+      if (keycloak.token) {
+        config.headers.Authorization = `Bearer ${keycloak.token}`;
+      }
+      return config;
     });
 
     // Response interceptor for error handling
@@ -35,17 +47,26 @@ class BRPApiService {
 
   /**
    * Fetch person data by BSN (Burgerservicenummer)
+   * Routes through backend at /v1/brp/personen
    */
   async getPersonByBSN(bsn: string): Promise<PersonState | null> {
     try {
-      const response = await this.client.post<BRPPersonenResponse>('/personen', {
-        type: 'RaadpleegMetBurgerservicenummer',
-        burgerservicenummer: [bsn],
-        fields: ['burgerservicenummer', 'geboorte', 'kinderen', 'leeftijd', 'naam', 'partners'],
-      });
+      // Call backend proxy endpoint
+      const response = await this.client.post<{ success: boolean; data: BRPPersonenResponse }>(
+        '/brp/personen',
+        {
+          type: 'RaadpleegMetBurgerservicenummer',
+          burgerservicenummer: [bsn],
+          fields: ['burgerservicenummer', 'geboorte', 'kinderen', 'leeftijd', 'naam', 'partners'],
+        }
+      );
 
-      if (response.data.personen && response.data.personen.length > 0) {
-        return response.data.personen[0];
+      if (
+        response.data.success &&
+        response.data.data.personen &&
+        response.data.data.personen.length > 0
+      ) {
+        return response.data.data.personen[0];
       }
 
       return null;
@@ -59,7 +80,7 @@ class BRPApiService {
    * Get API base URL for debugging
    */
   getBaseUrl(): string {
-    return BRP_API_BASE_URL;
+    return API_BASE_URL;
   }
 }
 

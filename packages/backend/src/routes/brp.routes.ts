@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
-import jwtMiddleware from '../auth/jwt.middleware'; // ✅ CHANGE: default import
+import jwtMiddleware from '../auth/jwt.middleware';
 import { auditLog } from '../middleware/audit.middleware';
 import { createLogger } from '../utils/logger';
 
@@ -21,13 +21,32 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
       requestBody: req.body,
     });
 
-    // Forward request to BRP API
+    // Forward request to BRP API - match curl headers exactly
     const response = await axios.post(`${BRP_API_BASE_URL}/personen`, req.body, {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
+        Accept: 'application/json', // ✅ BE EXPLICIT
       },
       timeout: 10000,
+      validateStatus: (status) => status < 500, // ✅ Don't throw on 4xx
     });
+
+    // Check if response was successful
+    if (response.status >= 400) {
+      logger.error('BRP API returned error', {
+        status: response.status,
+        data: response.data,
+      });
+
+      return res.status(response.status).json({
+        success: false,
+        error: {
+          code: 'BRP_API_ERROR',
+          message: 'BRP API returned an error',
+          details: response.data,
+        },
+      });
+    }
 
     // Log successful request
     auditLog(req, 'brp.personen.fetch', 'success', {
@@ -42,6 +61,12 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
     logger.error('BRP API request failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       userId: req.user?.userId,
+      axiosError: axios.isAxiosError(error)
+        ? {
+            status: error.response?.status,
+            data: error.response?.data,
+          }
+        : null,
     });
 
     auditLog(req, 'brp.personen.fetch', 'error', {

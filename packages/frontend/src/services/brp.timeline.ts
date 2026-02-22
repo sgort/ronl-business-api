@@ -166,6 +166,10 @@ export async function getPersonTimeline(bsn: string): Promise<BRPPersonHistorica
     const birthDate = new Date(currentState.geboorte.datum.datum);
     const today = new Date();
 
+    // Start 2 years before birth
+    const earliestDate = new Date(birthDate);
+    earliestDate.setFullYear(earliestDate.getFullYear() - 2);
+
     // Allow future dates (for "what if" scenarios)
     const futureDate = new Date(today);
     futureDate.setFullYear(futureDate.getFullYear() + 10);
@@ -173,7 +177,7 @@ export async function getPersonTimeline(bsn: string): Promise<BRPPersonHistorica
     return {
       bsn,
       events,
-      earliestDate: birthDate,
+      earliestDate, // Now starts 2 years before birth
       latestDate: futureDate,
       currentState,
     };

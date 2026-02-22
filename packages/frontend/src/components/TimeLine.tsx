@@ -81,10 +81,17 @@ export const Timeline: React.FC<TimelineProps> = ({
     const endYear = maxDate.getFullYear();
     const markers: { year: number; position: number }[] = [];
 
-    for (let year = startYear; year <= endYear; year += 5) {
+    // Round start year DOWN to nearest 5
+    const roundedStartYear = Math.floor(startYear / 5) * 5;
+
+    for (let year = roundedStartYear; year <= endYear; year += 5) {
       const yearDate = new Date(year, 0, 1);
-      const position = dateToPercentage(yearDate);
-      markers.push({ year, position });
+
+      // Only show markers that are within the actual timeline range
+      if (yearDate >= minDate && yearDate <= maxDate) {
+        const position = dateToPercentage(yearDate);
+        markers.push({ year, position });
+      }
     }
 
     return markers;
@@ -170,6 +177,14 @@ export const Timeline: React.FC<TimelineProps> = ({
             style={{ backgroundColor: 'var(--color-primary)' }}
             onMouseDown={() => setIsDragging(true)}
           />
+          {/* Date label below marker */}
+          <div className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+            {selectedDate.toLocaleDateString('nl-NL', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </div>
         </div>
       </div>
 
@@ -177,20 +192,34 @@ export const Timeline: React.FC<TimelineProps> = ({
       <div className="mt-6 flex flex-wrap gap-2 justify-center">
         <button
           onClick={() => onDateChange(new Date())}
-          className="px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
-          style={{ backgroundColor: 'var(--color-primary)' }}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            Math.abs(selectedDate.getTime() - new Date().getTime()) < 86400000 // Within 1 day
+              ? 'text-white shadow-lg'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+          style={
+            Math.abs(selectedDate.getTime() - new Date().getTime()) < 86400000
+              ? { backgroundColor: 'var(--color-primary)' }
+              : {}
+          }
         >
           Vandaag
         </button>
-        {events.map((event) => (
-          <button
-            key={event.id}
-            onClick={() => onDateChange(event.date)}
-            className="px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            {event.label}
-          </button>
-        ))}
+        {events.map((event) => {
+          const isSelected = Math.abs(selectedDate.getTime() - event.date.getTime()) < 86400000;
+          return (
+            <button
+              key={event.id}
+              onClick={() => onDateChange(event.date)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isSelected ? 'text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              style={isSelected ? { backgroundColor: 'var(--color-primary)' } : {}}
+            >
+              {event.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
