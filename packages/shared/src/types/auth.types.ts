@@ -29,4 +29,6 @@ export interface KeycloakUser {
   loa: AssuranceLevel;
   roles: string[];
   mandate?: MandateInfo;
+  preferred_username?: string;
+  bsn?: string;
 }

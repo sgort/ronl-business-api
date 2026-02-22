@@ -1,0 +1,23 @@
+{
+  "displayFields": {
+    "person": [
+      "burgerservicenummer",
+      "leeftijd",
+      "naam.volledigeNaam",
+      "geboorte.datum.langFormaat",
+      "geboorte.plaats.omschrijving"
+    ],
+    "partner": [
+      "naam.volledigeNaam",
+      "burgerservicenummer",
+      "soortVerbintenis.omschrijving",
+      "aangaanHuwelijkPartnerschap.datum.langFormaat"
+    ],
+    "children": [
+      "naam.volledigeNaam",
+      "burgerservicenummer",
+      "leeftijd",
+      "geboorte.datum.langFormaat"
+    ]
+  }
+}

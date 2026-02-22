@@ -34,6 +34,6 @@
     }
   },
   "include": ["src/**/*", "package.json"],
-  "exclude": ["node_modules", "dist", "tests"],
-  "references": [{ "path": "../shared" }]
+  "exclude": ["node_modules", "dist", "tests"]
+  // "references": [{ "path": "../shared" }]
 }
