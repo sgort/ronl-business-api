@@ -10,6 +10,7 @@ build/
 packages/backend/deploy/node_modules/
 packages/backend/deploy/dist/
 packages/backend/deploy/package*.json
+deploy/
 deployment.zip
 packages/backend/*.zip
 
