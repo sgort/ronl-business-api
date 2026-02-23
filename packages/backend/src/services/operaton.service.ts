@@ -265,11 +265,37 @@ export class OperatonService {
 
       return response.data;
     } catch (error) {
+      const operatonBody = axios.isAxiosError(error) ? error.response?.data : null;
+      const operatonMessage: string = operatonBody?.message ?? '';
+
       logger.error('Failed to evaluate DMN', {
         decisionKey,
         tenantId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        operatonError: operatonBody,
       });
+
+      // Detect known Operaton engine errors and throw with a descriptive message
+      // instead of leaking the raw axios "Request failed with status code 500".
+      if (operatonMessage.includes("Exception while evaluating decision with key 'null'")) {
+        throw new Error(
+          `DMN configuratiefout in beslissingstabel '${decisionKey}': meerdere regels zijn tegelijk van toepassing, maar de hit policy staat slechts één treffer toe. Neem contact op met de beheerder.`
+        );
+      }
+
+      if (
+        operatonMessage.includes('decision-definition') &&
+        operatonBody?.type === 'RestException'
+      ) {
+        throw new Error(
+          `De beslissingstabel '${decisionKey}' kon niet worden geëvalueerd door een configuratiefout in de regelengine. Neem contact op met de beheerder.`
+        );
+      }
+
+      // For any other Operaton error, surface the engine message rather than hiding it
+      if (operatonMessage) {
+        throw new Error(operatonMessage);
+      }
+
       throw error;
     }
   }

@@ -424,13 +424,21 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
-                  ) : (
+                  ) : user?.roles?.includes('caseworker') ? (
                     <div className="space-y-2">
                       <h3 className="text-lg font-semibold text-red-600">✗ Fout</h3>
                       <p className="text-red-700">{result.error?.message}</p>
                       {result.error?.details && (
                         <p className="text-sm text-gray-600">{result.error.details}</p>
                       )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-yellow-700">ℹ️ Melding</h3>
+                      <p className="text-gray-700">
+                        De berekening kon niet worden afgerond vanwege een fout in de
+                        bedrijfsregels. Dit is bij de beheerder gemeld.
+                      </p>
                     </div>
                   )}
                 </div>
