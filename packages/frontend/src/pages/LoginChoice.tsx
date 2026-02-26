@@ -6,11 +6,8 @@ export default function LoginChoice() {
   const navigate = useNavigate();
   const [changelogOpen, setChangelogOpen] = useState(false);
 
-  const handleIDPSelection = (idp: 'digid' | 'eherkenning' | 'eidas') => {
-    // Store selected IDP in session storage
-    sessionStorage.setItem('selectedIDP', idp);
-
-    // Navigate to auth callback which will initialize Keycloak
+  const handleIDPSelection = (idp: 'digid' | 'eherkenning' | 'eidas' | 'medewerker') => {
+    sessionStorage.setItem('selected_idp', idp);
     navigate('/auth');
   };
 
@@ -42,7 +39,7 @@ export default function LoginChoice() {
             <p className="text-gray-600">Kies hoe u wilt inloggen:</p>
           </div>
 
-          {/* IDP Buttons */}
+          {/* Citizen IDP Buttons */}
           <div className="space-y-4">
             {/* DigiD Button */}
             <button
@@ -106,6 +103,43 @@ export default function LoginChoice() {
                   </svg>
                 </div>
                 <span className="font-semibold text-lg">Inloggen met eIDAS</span>
+              </div>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="mt-6 flex items-center gap-3">
+            <div className="flex-1 border-t border-gray-200" />
+            <span className="text-xs text-gray-400 font-medium">MEDEWERKERS</span>
+            <div className="flex-1 border-t border-gray-200" />
+          </div>
+
+          {/* Caseworker Button */}
+          <div className="mt-4">
+            <button
+              onClick={() => handleIDPSelection('medewerker')}
+              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                      clipRule="evenodd"
+                    />
+                    <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                  </svg>
+                </div>
+                <span className="font-semibold text-lg">Inloggen als Medewerker</span>
               </div>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
