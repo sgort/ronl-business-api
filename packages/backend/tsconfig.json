@@ -20,7 +20,6 @@
     "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
-    "composite": true,
     "paths": {
       "@/*": ["./src/*"],
       "@auth/*": ["./src/auth/*"],
@@ -29,11 +28,10 @@
       "@services/*": ["./src/services/*"],
       "@models/*": ["./src/models/*"],
       "@types/*": ["./src/types/*"],
-      "@utils/*": ["./src/utils/*"],
-      "@ronl/shared": ["../shared/src"]
+      "@utils/*": ["./src/utils/*"]
     }
   },
   "include": ["src/**/*", "package.json"],
-  "exclude": ["node_modules", "dist", "tests"],
-  "references": [{ "path": "../shared" }]
+  "exclude": ["node_modules", "dist", "tests"]
+  // "references": [{ "path": "../shared" }]
 }

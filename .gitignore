@@ -10,8 +10,9 @@ build/
 packages/backend/deploy/node_modules/
 packages/backend/deploy/dist/
 packages/backend/deploy/package*.json
+deploy/
 deployment.zip
-packages/backend/deployment-prod.zip
+packages/backend/*.zip
 
 # Environment files
 .env
@@ -92,3 +93,6 @@ deployment/vm/**/backup/
 # Local VM sync
 deployment/vm/**/.DS_Store
 deployment/vm/**/Thumbs.db
+
+#deploy theme script
+deploy-theme-to-acc.sh
