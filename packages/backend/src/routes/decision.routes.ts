@@ -87,12 +87,13 @@ router.post(
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
       res.status(500).json({
         success: false,
         error: {
           code: 'DECISION_EVALUATION_FAILED',
-          message: 'Failed to evaluate decision',
-          details: error instanceof Error ? error.message : 'Unknown error',
+          message: errorMessage,
         },
       });
     }

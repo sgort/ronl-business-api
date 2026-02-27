@@ -1,11 +1,24 @@
 <#import "template.ftl" as layout>
+<#assign isMedewerker = (login.username!'') == '__medewerker__'>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled??; section>
     <#if section = "header">
-        ${msg("loginAccountTitle")}
+        <#if isMedewerker>Medewerker portaal<#else>${msg("loginAccountTitle")}</#if>
     <#elseif section = "form">
     <div id="kc-form">
       <div id="kc-form-wrapper">
         <#if realm.password>
+
+            <#-- Context banner: visually distinguishes medewerker from citizen login -->
+            <#if isMedewerker>
+            <div id="kc-context-banner" class="kc-context-medewerker">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd" />
+                    <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                </svg>
+                Inloggen als medewerker
+            </div>
+            </#if>
+
             <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
                 <#if !usernameHidden??>
                     <div class="${properties.kcFormGroupClass!}">
@@ -16,7 +29,10 @@
                             </#if>
                         </label>
 
-                        <input tabindex="1" id="username" class="${properties.kcInputClass!}" name="username" value="${(login.username!'')}"  type="text" autofocus autocomplete="off"
+                        <#-- For medewerker, suppress the sentinel '__medewerker__' from pre-filling the field -->
+                        <input tabindex="1" id="username" class="${properties.kcInputClass!}" name="username"
+                               value="<#if !isMedewerker>${(login.username!'')}</#if>"
+                               type="text" autofocus autocomplete="off"
                                aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         />
 
@@ -74,8 +90,20 @@
 
                   <div id="kc-form-buttons" class="${properties.kcFormGroupClass!}">
                       <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
-                      <input tabindex="6" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
+                      <input tabindex="6"
+                             class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}"
+                             name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                   </div>
+
+                  <div id="kc-cancel-container">
+                      <a id="kc-cancel" href="${client.baseUrl!'/'}" onclick="history.go(-2); return false;" tabindex="7">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M19 12H5M12 5l-7 7 7 7"/>
+                          </svg>
+                          Terug naar inlogkeuze
+                      </a>
+                  </div>
+
             </form>
         </#if>
         </div>
@@ -84,7 +112,7 @@
         <#if realm.password && realm.registrationAllowed && !registrationDisabled??>
             <div id="kc-registration-container">
                 <div id="kc-registration">
-                    <span>${msg("noAccount")} <a tabindex="7" href="${url.registrationUrl}">${msg("doRegister")}</a></span>
+                    <span>${msg("noAccount")} <a tabindex="8" href="${url.registrationUrl}">${msg("doRegister")}</a></span>
                 </div>
             </div>
         </#if>

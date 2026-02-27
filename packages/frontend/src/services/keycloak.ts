@@ -57,6 +57,8 @@ export const getUser = (): KeycloakUser | null => {
     municipality: token.municipality as string,
     loa: token.loa as AssuranceLevel,
     roles: realmRoles,
+    preferred_username: token.preferred_username as string | undefined,
+    bsn: token.bsn as string | undefined,
   };
 };
 
