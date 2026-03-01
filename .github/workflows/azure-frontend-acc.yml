@@ -18,10 +18,10 @@ jobs:
   build_and_deploy_job:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Build and Deploy Production Frontend
+    name: Build and Deploy ACC Frontend
     environment:
-      name: production
-      url: https://mijn.open-regels.nl
+      name: acc
+      url: https://acc.mijn.open-regels.nl
 
     steps:
       - uses: actions/checkout@v4
@@ -40,10 +40,10 @@ jobs:
       - name: Build shared package
         run: npm run build --workspace=@ronl/shared
 
-      - name: Build frontend for production
+      - name: Build frontend for ACC
         working-directory: packages/frontend
         run: |
-          npm run build:prod
+          npm run build:acc
 
           echo "Build output:"
           ls -la dist/
@@ -54,7 +54,7 @@ jobs:
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ACC }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: 'upload'
           app_location: '/packages/frontend/dist'
@@ -67,22 +67,12 @@ jobs:
 
       - name: Verify deployment
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://mijn.open-regels.nl)
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://acc.mijn.open-regels.nl)
           if [ "$response" = "200" ]; then
             echo "✅ Frontend is accessible!"
           else
             echo "⚠️  Frontend returned HTTP $response"
           fi
-
-      - name: Deployment success
-        if: success()
-        run: |
-          echo "🚀 Frontend successfully deployed to ACC!"
-          echo "URL: https://acc.mijn.open-regels.nl"
-          echo ""
-          echo "Configuration:"
-          echo "- API URL: https://acc.api.open-regels.nl/v1"
-          echo "- Keycloak URL: https://acc.keycloak.open-regels.nl"
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
