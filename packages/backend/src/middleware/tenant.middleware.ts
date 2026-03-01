@@ -129,6 +129,12 @@ export const addTenantToProcessVariables = (req: Request, res: Response, next: N
       type: 'String',
     };
 
+    // applicantId is the stable citizen identifier used for history queries
+    req.body.variables.applicantId = {
+      value: req.user.userId,
+      type: 'String',
+    };
+
     req.body.variables.assuranceLevel = {
       value: req.user.assuranceLevel,
       type: 'String',

@@ -337,4 +337,60 @@ function inferType(value: unknown): OperatonVariable['type'] {
   }
 }
 
+/**
+ * GET /v1/process/history?applicantId=xxx
+ * List historical process instances for a citizen.
+ * Accessible by both citizens (own history) and caseworkers (any citizen in their municipality).
+ */
+router.get('/history', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { applicantId } = req.query;
+
+  if (!applicantId || typeof applicantId !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'applicantId query parameter is required' },
+    });
+  }
+
+  // Citizens can only request their own history
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (req.user as any).roles ?? [];
+  const isCaseworker = roles.includes('caseworker');
+  if (!isCaseworker && applicantId !== req.user.userId) {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Citizens may only request their own history' },
+    });
+  }
+
+  try {
+    const instances = await operatonService.getProcessHistory(applicantId, req.user.tenantId);
+
+    auditLog(req, 'process.history', 'success', {
+      applicantId,
+      tenantId: req.user.tenantId,
+      count: (instances as unknown[]).length,
+    });
+
+    res.json({ success: true, data: instances });
+  } catch (error) {
+    logger.error('Failed to get process history', {
+      applicantId,
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
+    });
+  }
+});
+
 export default router;

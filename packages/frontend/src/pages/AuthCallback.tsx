@@ -1,10 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import keycloak from '../services/keycloak';
 
+function getRoleDashboard(): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  return roles.includes('caseworker') ? '/dashboard/caseworker' : '/dashboard/citizen';
+}
+
 /**
- * Authentication callback page
- * Initializes Keycloak with the selected identity provider hint
+ * Authentication callback page.
+ *
+ * Citizen flows (digid / eherkenning / eidas):
+ *   keycloak.init({ onLoad: 'login-required', idpHint }) — Keycloak immediately
+ *   redirects to the external IdP. In dev (no real IdPs configured) it falls back
+ *   to the native login form without a context banner.
+ *
+ * Medewerker flow:
+ *   keycloak.init({ onLoad: 'check-sso' }) — does NOT trigger a redirect.
+ *   If already authenticated, go straight to dashboard.
+ *   Otherwise call keycloak.login({ loginHint: '__medewerker__' }) so the
+ *   login.ftl template can detect the sentinel and show the medewerker banner.
  */
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -13,37 +30,44 @@ export default function AuthCallback() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Get the selected identity provider from sessionStorage
         const selectedIdp = sessionStorage.getItem('selected_idp');
+        const isMedewerker = selectedIdp === 'medewerker';
 
-        // Build Keycloak init options
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const initOptions: any = {
-          onLoad: 'login-required',
-          checkLoginIframe: false,
-        };
+        if (isMedewerker) {
+          const authenticated = await keycloak.init({
+            onLoad: 'check-sso',
+            checkLoginIframe: false,
+          });
 
-        // Add IDP hint if available
-        // This will direct Keycloak to automatically use the selected identity provider
-        if (selectedIdp) {
-          initOptions.idpHint = selectedIdp;
-        }
-
-        // Initialize Keycloak
-        const authenticated = await keycloak.init(initOptions);
-
-        if (authenticated) {
-          // Clear the stored IDP selection
-          sessionStorage.removeItem('selected_idp');
-
-          // Navigate to the main dashboard
-          navigate('/dashboard', { replace: true });
+          if (authenticated) {
+            sessionStorage.removeItem('selected_idp');
+            navigate(getRoleDashboard(), { replace: true });
+          } else {
+            await keycloak.login({ loginHint: '__medewerker__' });
+          }
         } else {
-          setError('Authenticatie mislukt. Probeer het opnieuw.');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const initOptions: any = {
+            onLoad: 'login-required',
+            checkLoginIframe: false,
+          };
+
+          if (selectedIdp) {
+            initOptions.idpHint = selectedIdp;
+          }
+
+          const authenticated = await keycloak.init(initOptions);
+
+          if (authenticated) {
+            sessionStorage.removeItem('selected_idp');
+            navigate(getRoleDashboard(), { replace: true });
+          } else {
+            setError('Authenticatie mislukt. Probeer het opnieuw.');
+          }
         }
       } catch (err) {
         console.error('Keycloak initialization error:', err);
-        setError('Er is een fout opgetreden bij het inloggen.');
+        setError('Er is een fout opgetreden bij het inloggen. Probeer het opnieuw.');
       }
     };
 
@@ -52,42 +76,50 @@ export default function AuthCallback() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md">
-          <div className="text-red-600 mb-4">
-            <svg
-              className="w-12 h-12 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-8 text-white text-center shadow-lg">
+            <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
+            <p className="text-blue-100">Demo portaal van Open Regels</p>
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 text-center mb-2">Inloggen mislukt</h2>
-          <p className="text-gray-600 text-center mb-6">{error}</p>
-          <button
-            onClick={() => navigate('/', { replace: true })}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-          >
-            Terug naar inlogpagina
-          </button>
+          <div className="bg-white rounded-b-2xl shadow-xl p-8 text-center">
+            <div className="text-red-500 text-4xl mb-4">⚠</div>
+            <p className="text-gray-700 mb-6">{error}</p>
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+            >
+              Terug naar inlogkeuze
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 text-lg">Inloggen...</p>
-        <p className="text-gray-500 text-sm mt-2">U wordt doorverwezen naar Keycloak</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-8 text-white text-center shadow-lg">
+          <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
+          <p className="text-blue-100">Demo portaal van Open Regels</p>
+        </div>
+        <div className="bg-white rounded-b-2xl shadow-xl p-8 text-center">
+          <div className="flex items-center justify-center gap-3 text-gray-500">
+            <svg className="animate-spin w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            <span>Verbinding maken...</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -31,6 +31,48 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.0.2',
+      status: 'Enhancement',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'March 1, 2026',
+      sections: [
+        {
+          title: 'CI/CD Environment Configuration',
+          icon: '⚙️',
+          iconColor: 'blue',
+          items: [
+            'Replaced brittle sed-based URL patching in CI workflows with Vite native .env mode files',
+            'Three environment files added: .env.development, .env.acceptance, .env.production',
+            'New build scripts: build:acc and build:prod — no manual URL replacement needed for new service files',
+            'api.ts, keycloak.ts and brp.api.ts now read VITE_API_URL and VITE_KEYCLOAK_URL from env at build time',
+            'vite-env.d.ts added for TypeScript support of Vite environment variables',
+            'Removed unused getRedirectUris() from keycloak.ts',
+          ],
+        },
+      ],
+    },
+    {
+      version: '2.0.1',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'February 27, 2026',
+      sections: [
+        {
+          title: 'Caseworker Login',
+          icon: '🏢',
+          iconColor: 'blue',
+          items: [
+            'Dedicated "Inloggen als Medewerker" button on the landing page, visually separated from citizen IdP options',
+            'Caseworker flow uses Keycloak-native login — no DigiD or eHerkenning required',
+            'SSO session reuse via check-sso: returning caseworkers skip the login screen entirely',
+            'Keycloak login form shows indigo "Inloggen als gemeentemedewerker" context banner when accessed as caseworker',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.0.0',
       status: 'Major Release',
       statusColor: 'blue',

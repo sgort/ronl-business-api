@@ -1,20 +1,7 @@
 import Keycloak from 'keycloak-js';
 import type { AssuranceLevel, KeycloakUser } from '@ronl/shared';
 
-// Check if we're in production based on hostname
-const isProduction =
-  typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
-
-const isAcceptance =
-  typeof window !== 'undefined' && window.location.hostname.includes('acc.mijn.open-regels.nl');
-
-// Determine Keycloak URL based on environment
-let KEYCLOAK_URL = 'http://localhost:8080';
-if (isProduction) {
-  KEYCLOAK_URL = 'https://keycloak.open-regels.nl';
-} else if (isAcceptance) {
-  KEYCLOAK_URL = 'https://acc.keycloak.open-regels.nl';
-}
+const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL as string;
 
 /**
  * Keycloak instance
@@ -67,16 +54,4 @@ export const getUser = (): KeycloakUser | null => {
  */
 export const getToken = (): string | undefined => {
   return keycloak.token;
-};
-
-/**
- * Get environment-specific redirect URLs for Keycloak configuration
- */
-export const getRedirectUris = () => {
-  if (isProduction) {
-    return ['https://mijn.open-regels.nl/*'];
-  } else if (isAcceptance) {
-    return ['https://acc.mijn.open-regels.nl/*'];
-  }
-  return ['http://localhost:5173/*'];
 };
