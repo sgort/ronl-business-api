@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import keycloak from '../services/keycloak';
+
+function getRoleDashboard(): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  return roles.includes('caseworker') ? '/dashboard/caseworker' : '/dashboard/citizen';
+}
 
 /**
  * Authentication callback page.
@@ -27,8 +34,6 @@ export default function AuthCallback() {
         const isMedewerker = selectedIdp === 'medewerker';
 
         if (isMedewerker) {
-          // check-sso: returns true if SSO session already exists, false otherwise
-          // — crucially, does NOT trigger a login redirect by itself.
           const authenticated = await keycloak.init({
             onLoad: 'check-sso',
             checkLoginIframe: false,
@@ -36,13 +41,11 @@ export default function AuthCallback() {
 
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
-            navigate('/dashboard', { replace: true });
+            navigate(getRoleDashboard(), { replace: true });
           } else {
-            // Trigger login with sentinel so login.ftl shows the medewerker banner.
             await keycloak.login({ loginHint: '__medewerker__' });
           }
         } else {
-          // Citizen IdP flow — idpHint redirects straight to DigiD / eHerkenning / eIDAS.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const initOptions: any = {
             onLoad: 'login-required',
@@ -57,7 +60,7 @@ export default function AuthCallback() {
 
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
-            navigate('/dashboard', { replace: true });
+            navigate(getRoleDashboard(), { replace: true });
           } else {
             setError('Authenticatie mislukt. Probeer het opnieuw.');
           }
