@@ -2,10 +2,7 @@ import axios from 'axios';
 import keycloak from './keycloak';
 import type { ApiResponse, OperatonVariable, HealthResponse } from '@ronl/shared';
 
-// Check if we're in production based on hostname
-const isProduction =
-  typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
-const API_BASE_URL = isProduction ? 'https://api.open-regels.nl/v1' : 'http://localhost:3002/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 
 const api = axios.create({
   baseURL: API_BASE_URL,

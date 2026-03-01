@@ -2,10 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import keycloak from './keycloak';
 import type { PersonState, BRPPersonenResponse } from '../types/brp.types';
 
-// Use backend proxy instead of direct BRP API call
-const isProduction =
-  typeof window !== 'undefined' && window.location.hostname === 'mijn.open-regels.nl';
-const API_BASE_URL = isProduction ? 'https://api.open-regels.nl/v1' : 'http://localhost:3002/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 
 /**
  * BRP API Service for fetching person data
