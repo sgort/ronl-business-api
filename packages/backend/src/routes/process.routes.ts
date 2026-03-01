@@ -360,6 +360,7 @@ router.get('/history', async (req, res) => {
   }
 
   // Citizens can only request their own history
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roles: string[] = (req.user as any).roles ?? [];
   const isCaseworker = roles.includes('caseworker');
   if (!isCaseworker && applicantId !== req.user.userId) {
