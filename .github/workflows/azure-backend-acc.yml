@@ -21,7 +21,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -43,83 +43,54 @@ jobs:
       - name: Verify build output
         working-directory: packages/backend
         run: |
-          echo "Checking built files..."
-          ls -la dist/
-          echo "Checking for index.js..."
-          test -f dist/index.js || (echo "ERROR: dist/index.js not found!" && exit 1)
+          test -f dist/index.js || (echo "❌ dist/index.js not found" && exit 1)
+          echo "✅ dist/index.js found"
 
       - name: Prepare deployment package
         working-directory: packages/backend
         run: |
           mkdir -p deploy
-          
-          # Copy the ENTIRE dist folder (preserve structure)
+
           cp -r dist deploy/
-          
-          # Copy package.json to deploy root (NOT inside dist)
           cp package.json deploy/
-          
-          # Copy shared package dist
+
           mkdir -p deploy/node_modules/@ronl
           cp -r ../shared/dist deploy/node_modules/@ronl/shared
           cp ../shared/package.json deploy/node_modules/@ronl/shared/
-          
-          # Verify structure
-          echo "Deployment structure:"
-          ls -la deploy/
-          ls -la deploy/dist/
-          
-          # Install production dependencies in deploy folder
+
           cd deploy
           npm install --production --omit=dev
-          
-          # Tell Azure not to rebuild (we already built)
+
           echo "[config]" > .deployment
           echo "SCM_DO_BUILD_DURING_DEPLOYMENT = false" >> .deployment
+
+      - name: Create deployment zip
+        working-directory: packages/backend
+        run: |
+          cd deploy
+          zip -r ../deployment-acc.zip .
+          echo "✅ Zip created: $(du -sh ../deployment-acc.zip | cut -f1)"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'ronl-business-api-acc'
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_ACC }}
-          package: './packages/backend/deploy'
+          package: './packages/backend/deployment-acc.zip'
 
-      - name: Wait for deployment
+      - name: Wait for startup
         run: sleep 30
 
       - name: Health check
         run: |
-          echo "Checking backend health..."
-          
-          # Retry up to 5 times
           for i in {1..5}; do
             response=$(curl -s -o /dev/null -w "%{http_code}" https://acc.api.open-regels.nl/v1/health)
-            
             if [ "$response" = "200" ]; then
-              echo "✅ Health check passed! Backend is healthy."
-              
-              # Also check the response body
-              echo "Response body:"
-              curl -s https://acc.api.open-regels.nl/v1/health
+              echo "✅ Health check passed!"
               exit 0
             fi
-            
-            echo "Attempt $i: Got HTTP $response, retrying in 10 seconds..."
+            echo "Attempt $i: HTTP $response, retrying in 10s..."
             sleep 10
           done
-          
           echo "❌ Health check failed after 5 attempts"
-          echo "Checking application logs..."
           exit 1
-
-      - name: Deployment success
-        if: success()
-        run: |
-          echo "🚀 Backend successfully deployed to ACC!"
-          echo "URL: https://acc.api.open-regels.nl"
-          echo "API v1: https://acc.api.open-regels.nl/v1/health"
-          echo ""
-          echo "Next steps:"
-          echo "1. Verify health endpoint returns 200"
-          echo "2. Check Keycloak connectivity"
-          echo "3. Test authentication flow"
