@@ -162,6 +162,37 @@ export class OperatonService {
   }
 
   /**
+   * Get historical process instances for a citizen by applicantId,
+   * scoped to the caseworker's/citizen's municipality (tenant isolation).
+   */
+  async getProcessHistory(applicantId: string, tenantId: string): Promise<unknown[]> {
+    try {
+      const response = await this.client.post('/history/process-instance', {
+        variables: [
+          { name: 'applicantId', operator: 'eq', value: applicantId },
+          { name: 'municipality', operator: 'eq', value: tenantId },
+        ],
+        sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
+      });
+
+      logger.info('Process history retrieved', {
+        applicantId,
+        tenantId,
+        count: response.data.length,
+      });
+
+      return response.data;
+    } catch (error) {
+      logger.error('Failed to get process history', {
+        applicantId,
+        tenantId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get tasks for a user
    */
   async getUserTasks(userId: string, tenantId: string): Promise<Task[]> {
