@@ -199,7 +199,6 @@ export class OperatonService {
     try {
       const response = await this.client.get('/task', {
         params: {
-          assignee: userId,
           processVariables: `municipality_eq_${tenantId}`,
         },
       });

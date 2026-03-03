@@ -38,6 +38,166 @@ const SERVICE_LABELS: Record<string, { label: string; description: string; icon:
   },
 };
 
+function VergunningForm({
+  user,
+  onBack,
+  onSubmitted,
+}: {
+  user: KeycloakUser | null;
+  onBack: () => void;
+  onSubmitted: () => void;
+}) {
+  const [treeDiameter, setTreeDiameter] = useState('');
+  const [protectedArea, setProtectedArea] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ dossier: string } | null>(null);
+
+  const handleSubmit = async () => {
+    if (!treeDiameter || Number(treeDiameter) <= 0) {
+      setError('Voer een geldige stamdiameter in (groter dan 0 cm).');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await businessApi.process.start('AwbShellProcess', {
+        treeDiameter: parseInt(treeDiameter, 10),
+        protectedArea: protectedArea,
+        applicantId: user?.sub ?? 'unknown',
+        productType: 'TreeFellingPermit',
+      });
+      if (res.success) {
+        setSuccess({
+          dossier:
+            (res.data as { businessKey?: string; processInstanceId?: string })?.businessKey ??
+            (res.data as { processInstanceId?: string })?.processInstanceId ??
+            '—',
+        });
+      } else {
+        setError('De aanvraag kon niet worden ingediend. Probeer het opnieuw.');
+      }
+    } catch {
+      setError('De aanvraag kon niet worden ingediend. Probeer het opnieuw.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div>
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-3">✅</div>
+            <h2 className="text-xl font-bold text-gray-800">Aanvraag ingediend</h2>
+            <p className="text-gray-500 mt-2">
+              Uw kapvergunningaanvraag is ontvangen en wordt behandeld.
+            </p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 mb-6">
+            <p>
+              <span className="font-medium">Dossiernummer:</span> {success.dossier}
+            </p>
+            <p className="mt-1 text-gray-500">
+              U ontvangt bericht zodra de aanvraag is beoordeeld (wettelijke termijn: 8 weken, Awb
+              4:13).
+            </p>
+          </div>
+          <button
+            onClick={onSubmitted}
+            className="w-full py-2 text-white rounded-lg font-medium"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Naar mijn aanvragen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+      >
+        ← Terug naar diensten
+      </button>
+      <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">🌳 Kapvergunning aanvragen</h2>
+          <p className="text-gray-500 mt-1 text-sm">
+            Vul de gegevens in over de boom die u wilt kappen. De aanvraag wordt automatisch
+            beoordeeld op basis van de gemeentelijke regelgeving.
+          </p>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Stamdiameter (cm) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="500"
+              value={treeDiameter}
+              onChange={(e) => setTreeDiameter(e.target.value)}
+              placeholder="Voer diameter in centimeters in"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Meet de diameter van de boomstam op 1,30 meter hoogte (borsthoogte).
+            </p>
+          </div>
+
+          <div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={protectedArea}
+                onChange={(e) => setProtectedArea(e.target.checked)}
+                className="mt-0.5 w-4 h-4"
+                style={{ accentColor: 'var(--color-primary)' }}
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-700">
+                  🏛️ Boom staat in beschermd gebied
+                </span>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Vink aan als de boom in een natuur-, beschermings- of erfgoedzone staat. Dit kan
+                  invloed hebben op de vergunningsvoorwaarden.
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="pt-2">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="w-full py-3 text-white font-semibold rounded-lg disabled:opacity-50 transition-opacity"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              {submitting ? 'Aanvraag indienen...' : 'Aanvraag indienen'}
+            </button>
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Na indienen ontvangt u bericht binnen de wettelijke termijn van 8 weken (Awb 4:13).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<KeycloakUser | null>(null);
@@ -367,24 +527,41 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Other services (stub) ── */}
-        {activeTab === 'diensten' && activeService && activeService !== 'zorgtoeslag' && (
-          <div>
-            <button
-              onClick={() => setActiveService(null)}
-              className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-            >
-              ← Terug naar diensten
-            </button>
-            <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
-              <div className="text-4xl mb-4">{SERVICE_LABELS[activeService]?.icon}</div>
-              <h2 className="text-xl font-bold text-gray-800 mb-2">
-                {SERVICE_LABELS[activeService]?.label}
-              </h2>
-              <p className="text-gray-500">Deze dienst is in ontwikkeling.</p>
-            </div>
-          </div>
+        {/* ── Vergunningen service (AWB Kapvergunning) ── */}
+        {activeTab === 'diensten' && activeService === 'vergunningen' && (
+          <VergunningForm
+            user={user}
+            onBack={() => {
+              setActiveService(null);
+            }}
+            onSubmitted={() => {
+              setActiveService(null);
+              setActiveTab('aanvragen');
+              setApplications(null); // force reload
+            }}
+          />
         )}
+
+        {/* ── Other services (stub) ── */}
+        {activeTab === 'diensten' &&
+          activeService &&
+          !['zorgtoeslag', 'vergunningen'].includes(activeService) && (
+            <div>
+              <button
+                onClick={() => setActiveService(null)}
+                className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+              >
+                ← Terug naar diensten
+              </button>
+              <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
+                <div className="text-4xl mb-4">{SERVICE_LABELS[activeService]?.icon}</div>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">
+                  {SERVICE_LABELS[activeService]?.label}
+                </h2>
+                <p className="text-gray-500">Deze dienst is in ontwikkeling.</p>
+              </div>
+            </div>
+          )}
 
         {/* ── Mijn aanvragen ── */}
         {activeTab === 'aanvragen' && (

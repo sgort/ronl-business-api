@@ -7,6 +7,225 @@ import type { KeycloakUser, Task } from '@ronl/shared';
 
 type Tab = 'taken' | 'beheer';
 
+function CaseReviewForm({
+  taskId,
+  variables,
+  onCompleted,
+  onError,
+}: {
+  taskId: string;
+  variables: Record<string, unknown> | null;
+  onCompleted: () => void;
+  onError: () => void;
+}) {
+  const [reviewAction, setReviewAction] = useState<'confirm' | 'reject' | 'change'>('confirm');
+  const [reviewPermitDecision, setReviewPermitDecision] = useState<'Permit' | 'Reject'>('Permit');
+  const [reviewReplacementDecision, setReviewReplacementDecision] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const permitDecision = variables?.permitDecision as string | undefined;
+  const replacementDecision = variables?.replacementDecision;
+  const treeDiameter = variables?.treeDiameter as number | undefined;
+  const protectedArea = variables?.protectedArea as boolean | undefined;
+  const dossierReference = variables?.dossierReference as string | undefined;
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const vars: Record<string, unknown> = {
+        reviewAction: reviewAction,
+      };
+      if (reviewAction === 'change') {
+        vars.reviewPermitDecision = reviewPermitDecision;
+        vars.reviewReplacementDecision = reviewReplacementDecision;
+      }
+      const res = await businessApi.task.complete(taskId, vars);
+      if (res.success) onCompleted();
+      else onError();
+    } catch {
+      onError();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* DMN result summary */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm space-y-1">
+        <p className="font-semibold text-blue-800 mb-2">Automatische beoordeling (DMN)</p>
+        {dossierReference && (
+          <p>
+            <span className="text-gray-600">Dossier:</span>{' '}
+            <span className="font-mono">{dossierReference}</span>
+          </p>
+        )}
+        {treeDiameter !== undefined && (
+          <p>
+            <span className="text-gray-600">Stamdiameter:</span> {treeDiameter} cm
+          </p>
+        )}
+        {protectedArea !== undefined && (
+          <p>
+            <span className="text-gray-600">Beschermd gebied:</span> {protectedArea ? 'Ja' : 'Nee'}
+          </p>
+        )}
+        <p>
+          <span className="text-gray-600">Vergunningsbesluit DMN:</span>{' '}
+          <span
+            className={`font-medium ${permitDecision === 'Permit' ? 'text-green-700' : 'text-red-700'}`}
+          >
+            {permitDecision === 'Permit' ? 'Verlenen' : 'Weigeren'}
+          </span>
+        </p>
+        <p>
+          <span className="text-gray-600">Herplant vereist DMN:</span>{' '}
+          {String(replacementDecision) === 'true' ? 'Ja' : 'Nee'}
+        </p>
+      </div>
+
+      {/* Review action */}
+      <div>
+        <p className="text-sm font-semibold text-gray-700 mb-2">Uw beslissing</p>
+        <div className="space-y-2">
+          {(
+            [
+              { value: 'confirm', label: 'Bevestigen — akkoord met DMN-besluit' },
+              { value: 'reject', label: 'Weigeren — vergunning alsnog weigeren' },
+              { value: 'change', label: 'Wijzigen — besluit aanpassen' },
+            ] as { value: 'confirm' | 'reject' | 'change'; label: string }[]
+          ).map((opt) => (
+            <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="radio"
+                checked={reviewAction === opt.value}
+                onChange={() => setReviewAction(opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {reviewAction === 'change' && (
+        <div className="bg-gray-50 rounded-lg p-4 space-y-3 text-sm">
+          <div>
+            <label className="block font-medium text-gray-700 mb-1">Nieuw vergunningsbesluit</label>
+            <select
+              value={reviewPermitDecision}
+              onChange={(e) => setReviewPermitDecision(e.target.value as 'Permit' | 'Reject')}
+              className="w-full border border-gray-300 rounded px-2 py-1.5"
+            >
+              <option value="Permit">Verlenen</option>
+              <option value="Reject">Weigeren</option>
+            </select>
+          </div>
+          {reviewPermitDecision === 'Permit' && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={reviewReplacementDecision}
+                onChange={(e) => setReviewReplacementDecision(e.target.checked)}
+              />
+              <span>Herplantplicht vereist</span>
+            </label>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={handleSubmit}
+        disabled={submitting}
+        className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700"
+      >
+        {submitting ? 'Opslaan...' : 'Beoordeling opslaan'}
+      </button>
+    </div>
+  );
+}
+
+function NotifyApplicantForm({
+  taskId,
+  onCompleted,
+  onError,
+}: {
+  taskId: string;
+  onCompleted: () => void;
+  onError: () => void;
+}) {
+  const [notificationMethod, setNotificationMethod] = useState('');
+  const [notificationNotes, setNotificationNotes] = useState('');
+  const [applicantNotified, setApplicantNotified] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!notificationMethod || !applicantNotified) return;
+    setSubmitting(true);
+    try {
+      const res = await businessApi.task.complete(taskId, {
+        notificationMethod: notificationMethod,
+        notificationNotes: notificationNotes,
+        applicantNotified: true,
+      });
+      if (res.success) onCompleted();
+      else onError();
+    } catch {
+      onError();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Wijze van kennisgeving <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={notificationMethod}
+          onChange={(e) => setNotificationMethod(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">Selecteer methode...</option>
+          <option value="email">E-mail</option>
+          <option value="letter">Brief (post)</option>
+          <option value="phone">Telefonisch</option>
+          <option value="portal">Burgerportaal</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Aanvullende notities</label>
+        <textarea
+          value={notificationNotes}
+          onChange={(e) => setNotificationNotes(e.target.value)}
+          rows={3}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          placeholder="Optioneel: notities voor de kennisgeving..."
+        />
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer text-sm">
+        <input
+          type="checkbox"
+          checked={applicantNotified}
+          onChange={(e) => setApplicantNotified(e.target.checked)}
+        />
+        <span className="font-medium">Ik bevestig dat de aanvrager wordt geïnformeerd</span>
+      </label>
+
+      <button
+        onClick={handleSubmit}
+        disabled={submitting || !notificationMethod || !applicantNotified}
+        className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700 disabled:cursor-not-allowed"
+      >
+        {submitting ? 'Bevestigen...' : 'Kennisgeving bevestigen'}
+      </button>
+    </div>
+  );
+}
+
 export default function CaseworkerDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<KeycloakUser | null>(null);
@@ -337,7 +556,11 @@ export default function CaseworkerDashboard() {
                             <div key={key} className="flex justify-between text-sm">
                               <span className="text-gray-600 font-medium">{key}</span>
                               <span className="text-gray-800 font-mono text-xs">
-                                {String(value ?? '—')}
+                                {value === null || value === undefined
+                                  ? '—'
+                                  : typeof value === 'object'
+                                    ? JSON.stringify(value)
+                                    : String(value)}
                               </span>
                             </div>
                           ))}
@@ -345,28 +568,48 @@ export default function CaseworkerDashboard() {
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex gap-3">
-                    {!selectedTask.assignee && (
-                      <button
-                        onClick={handleClaim}
-                        disabled={claiming}
-                        className="px-5 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-opacity"
-                        style={{ backgroundColor: 'var(--color-primary)' }}
-                      >
-                        {claiming ? 'Claimen...' : 'Taak claimen'}
-                      </button>
-                    )}
-                    {selectedTask.assignee && (
-                      <button
-                        onClick={handleComplete}
-                        disabled={completing}
-                        className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
-                      >
-                        {completing ? 'Afronden...' : 'Taak afronden'}
-                      </button>
-                    )}
-                  </div>
+                  {/* Actions — task-type specific */}
+                  {!selectedTask.assignee ? (
+                    <button
+                      onClick={handleClaim}
+                      disabled={claiming}
+                      className="px-5 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      {claiming ? 'Claimen...' : 'Taak claimen'}
+                    </button>
+                  ) : selectedTask.taskDefinitionKey === 'Sub_CaseReview' ? (
+                    <CaseReviewForm
+                      taskId={selectedTask.id}
+                      variables={taskVariables}
+                      onCompleted={() => {
+                        setActionMessage({ type: 'success', text: 'Beoordeling opgeslagen.' });
+                        setSelectedTask(null);
+                        setTaskVariables(null);
+                        loadTasks();
+                      }}
+                      onError={() => setActionMessage({ type: 'error', text: 'Opslaan mislukt.' })}
+                    />
+                  ) : selectedTask.taskDefinitionKey === 'Task_Phase6_Notify' ? (
+                    <NotifyApplicantForm
+                      taskId={selectedTask.id}
+                      onCompleted={() => {
+                        setActionMessage({ type: 'success', text: 'Kennisgeving bevestigd.' });
+                        setSelectedTask(null);
+                        setTaskVariables(null);
+                        loadTasks();
+                      }}
+                      onError={() => setActionMessage({ type: 'error', text: 'Opslaan mislukt.' })}
+                    />
+                  ) : (
+                    <button
+                      onClick={handleComplete}
+                      disabled={completing}
+                      className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700"
+                    >
+                      {completing ? 'Afronden...' : 'Taak afronden'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
