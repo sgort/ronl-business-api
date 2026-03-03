@@ -117,28 +117,10 @@ export const addTenantToProcessVariables = (req: Request, res: Response, next: N
     // Add tenant as business key
     req.body.businessKey = `${req.user.tenantId}-${Date.now()}`;
 
-    // Add tenant to variables
-    req.body.variables.municipality = {
-      value: req.user.tenantId,
-      type: 'String',
-    };
-
-    // Add user context
-    req.body.variables.initiator = {
-      value: req.user.userId,
-      type: 'String',
-    };
-
-    // applicantId is the stable citizen identifier used for history queries
-    req.body.variables.applicantId = {
-      value: req.user.userId,
-      type: 'String',
-    };
-
-    req.body.variables.assuranceLevel = {
-      value: req.user.assuranceLevel,
-      type: 'String',
-    };
+    req.body.variables.municipality = req.user.tenantId;
+    req.body.variables.initiator = req.user.userId;
+    req.body.variables.assuranceLevel = req.user.assuranceLevel;
+    req.body.variables.applicantId = req.user.userId;
 
     logger.debug('Added tenant context to process variables', {
       tenantId: req.user.tenantId,
