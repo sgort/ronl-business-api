@@ -31,6 +31,51 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.1.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 3, 2026',
+      sections: [
+        {
+          title: 'AWB Kapvergunning Process',
+          icon: '🌳',
+          iconColor: 'green',
+          items: [
+            'Full AWB shell process (AwbShellProcess) implementing Awb procedural phases 1–6',
+            'TreeFellingPermitSubProcess handles substantive decision via TreeFellingDecision and ReplacementTreeDecision DMNs',
+            'Both DMNs always evaluated before caseworker review, giving full context at the Sub_CaseReview task',
+            'Sub_ResolveDecision script task applies caseworker override when reviewAction is "change"',
+            'AWB shell sets dossierReference, receiptDate and awbDeadlineDate (8-week statutory deadline, Awb 4:13)',
+            'Task_Phase6_Notify confirms citizen notification before process ends',
+            'camunda:historyTimeToLive set to 365 (shell) and 180 (subprocess) per AWB retention requirements',
+          ],
+        },
+        {
+          title: 'Caseworker Task Queue — Claim-First Workflow',
+          icon: '🏛️',
+          iconColor: 'blue',
+          items: [
+            'userTask elements no longer use camunda:assignee — tasks are unassigned on creation',
+            'candidateGroups="caseworker" set on Sub_CaseReview, Task_Phase6_Notify, and Task_RequestMissingInfo',
+            'Tasks appear as Openstaand in the task queue and require an explicit claim before the action form is shown',
+            'Task status in CaseworkerDashboard correctly shows Openstaand (unclaimed) vs Geclaimd (assigned)',
+            'Removed dead Task_ExtractCompleteness scriptTask from AwbShellProcess (disconnected, never executed)',
+          ],
+        },
+        {
+          title: 'Backend — Tenant Variable Serialisation',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'Tenant middleware now stores plain scalar values instead of wrapped {value, type} objects',
+            'Process start routes wrap variables with inferType() before forwarding to Operaton',
+            'Resolves "Must provide null or String value for SerializableValue type Json" 500 error on process start',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.0.2',
       status: 'Enhancement',
       statusColor: 'green',
