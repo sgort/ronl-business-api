@@ -1,7 +1,16 @@
+# Flow A - Toestemming geven
+
+## Bron
+
+De flowchart is afkomstig uit het document dat de Functionele Requirements (FR) voor DvTP (Delen via Toestemming met Private partijen) beschrijft als toetsbaar fundament voor ontwerp, realisatie en beheer van de voorzieningen die toestemming door de burger mogelijk maken in de gegevensuitwisseling tussen publieke en private partijen. De set met functionele requirements is gebaseerd op de use cases uit het Beschrijvend document DvTP v0.2.
+
+## Flowchart
+
+```mermaid
 flowchart TB
-%% =========================================================
-%% Flow B — Data ophalen (stapvolgorde op elke pijl)
-%% =========================================================
+    %% =========================================================
+    %% Flow B — Data ophalen (stapvolgorde op elke pijl)
+    %% =========================================================
 
     %% --- Definities van Stijlen ---
     classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
@@ -67,3 +76,4 @@ flowchart TB
 
     %% Stap 6: Verificatie / feedback door burger
     PD_App -- "B-15. Verificatie (FR-19)" --> Burger
+```
