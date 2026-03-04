@@ -6,7 +6,8 @@ De flowchart is afkomstig uit het document dat de Functionele Requirements (FR) 
 
 ## Flowchart
 
-```flowchart TB
+```mermaid
+flowchart TB
     %% ============================
     %% Flow A — Toestemming geven
     %% ============================
