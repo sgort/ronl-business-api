@@ -1,4 +1,4 @@
-# Flow A - Toestemming geven
+# Flow B - Data ophalen
 
 ## Bron
 
