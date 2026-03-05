@@ -1,3 +1,4 @@
+import axios from 'axios';
 import express from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
@@ -129,6 +130,72 @@ router.get('/:id/variables', async (req, res) => {
     res.status(500).json({
       success: false,
       error: { code: 'TASK_VARIABLES_FAILED', message: 'Failed to retrieve task variables' },
+    });
+  }
+});
+
+/**
+ * GET /v1/task/:id/form-schema
+ * Proxy the deployed task form schema for a user task.
+ * Only Camunda Forms (JSON, schemaVersion 16) are supported.
+ * Returns 415 if the deployed form is an embedded HTML form.
+ *
+ * Note: named /form-schema (not /form) because GET /task/:id/form is already
+ * taken by Operaton's own "Get Form Key" meaning — returning only { key, contextPath }.
+ */
+router.get('/:id/form-schema', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const task = await operatonService.getTask(id);
+
+    if (task.tenantId && task.tenantId !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+      });
+    }
+
+    const { data, contentType } = await operatonService.getDeployedTaskForm(id);
+
+    if (!contentType.includes('application/json')) {
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_FORM_TYPE',
+          message: `Task '${id}' has an embedded HTML form. Only Camunda Forms (JSON) are supported.`,
+        },
+      });
+    }
+
+    const schema = JSON.parse(data);
+    res.json({ success: true, data: schema });
+  } catch (error) {
+    logger.error('Failed to fetch task form schema', {
+      taskId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    const status =
+      axios.isAxiosError(error) &&
+      (error.response?.status === 404 || error.response?.status === 400)
+        ? 404
+        : 500;
+    res.status(status).json({
+      success: false,
+      error: {
+        code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
+        message:
+          status === 404
+            ? `No deployed form found for task '${id}'`
+            : 'Failed to retrieve task form schema',
+      },
     });
   }
 });

@@ -347,6 +347,49 @@ export class OperatonService {
       };
     }
   }
+
+  /**
+   * Fetch the deployed start form for a process definition by key.
+   * Returns the raw form content as a string; callers must detect content type.
+   * Camunda Forms (.form) will be valid JSON. Embedded HTML forms will be HTML.
+   */
+  async getDeployedStartForm(processKey: string): Promise<{ data: string; contentType: string }> {
+    try {
+      const response = await this.client.get(
+        `/process-definition/key/${processKey}/deployed-start-form`,
+        { responseType: 'text' }
+      );
+      const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
+      return { data: response.data as string, contentType };
+    } catch (error) {
+      logger.error('Failed to fetch deployed start form', {
+        processKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch the deployed task form for a user task by task ID.
+   * Returns the raw form content as a string; callers must detect content type.
+   * Camunda Forms (.form) will be valid JSON. Embedded HTML forms will be HTML.
+   */
+  async getDeployedTaskForm(taskId: string): Promise<{ data: string; contentType: string }> {
+    try {
+      const response = await this.client.get(`/task/${taskId}/deployed-form`, {
+        responseType: 'text',
+      });
+      const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
+      return { data: response.data as string, contentType };
+    } catch (error) {
+      logger.error('Failed to fetch deployed task form', {
+        taskId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
 }
 
 export const operatonService = new OperatonService();
