@@ -31,6 +31,25 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.2.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 12, 2026',
+      sections: [
+        {
+          title: 'Backend — Form Schema Endpoints',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'GET /v1/process/:key/start-form — fetches deployed start form schema; returns 415 UNSUPPORTED_FORM_TYPE for legacy HTML formKey deployments',
+            'GET /v1/task/:id/form-schema — fetches deployed task form schema with tenant isolation; treats Operaton 400 (no formRef set) as 404 FORM_NOT_FOUND',
+            'POST /api/dmns/process/deploy — deploys BPMN + subprocess BPMNs + Camunda Forms in one multipart request; supports custom Operaton URL and credentials',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.1.0',
       status: 'Feature Release',
       statusColor: 'purple',
