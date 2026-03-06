@@ -193,6 +193,30 @@ export class OperatonService {
   }
 
   /**
+   * Fetch final historic variable values for a completed process instance.
+   */
+  async getHistoricVariables(processInstanceId: string): Promise<Record<string, unknown>> {
+    try {
+      const response = await this.client.get('/history/variable-instance', {
+        params: { processInstanceId, deserializeValues: true },
+      });
+
+      // Flatten [{name, value}] → {name: value}
+      const flat: Record<string, unknown> = {};
+      for (const v of response.data as { name: string; value: unknown }[]) {
+        flat[v.name] = v.value;
+      }
+      return flat;
+    } catch (error) {
+      logger.error('Failed to get historic variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get tasks for a user
    */
   async getUserTasks(userId: string, tenantId: string): Promise<Task[]> {

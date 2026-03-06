@@ -6,6 +6,8 @@ import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse } from '@ronl/shared';
 import { initializeTenantTheme, loadTenantConfigs, getTenantConfig } from '../services/tenant';
 import type { TenantConfig } from '../services/tenant';
+import ProcessStartFormViewer from '../components/ProcessStartFormViewer';
+import DecisionViewer from '../components/DecisionViewer';
 
 import { Timeline } from '../components/TimeLine';
 import { PersonalDataPanel } from '../components/PersonalDataPanel';
@@ -47,66 +49,36 @@ function VergunningForm({
   onBack: () => void;
   onSubmitted: () => void;
 }) {
-  const [treeDiameter, setTreeDiameter] = useState('');
-  const [protectedArea, setProtectedArea] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ dossier: string } | null>(null);
-
-  const handleSubmit = async () => {
-    if (!treeDiameter || Number(treeDiameter) <= 0) {
-      setError('Voer een geldige stamdiameter in (groter dan 0 cm).');
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await businessApi.process.start('AwbShellProcess', {
-        treeDiameter: parseInt(treeDiameter, 10),
-        protectedArea: protectedArea,
-        applicantId: user?.sub ?? 'unknown',
-        productType: 'TreeFellingPermit',
-      });
-      if (res.success) {
-        setSuccess({
-          dossier:
-            (res.data as { businessKey?: string; processInstanceId?: string })?.businessKey ??
-            (res.data as { processInstanceId?: string })?.processInstanceId ??
-            '—',
-        });
-      } else {
-        setError('De aanvraag kon niet worden ingediend. Probeer het opnieuw.');
-      }
-    } catch {
-      setError('De aanvraag kon niet worden ingediend. Probeer het opnieuw.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const [error, setError] = useState(false);
 
   if (success) {
     return (
       <div>
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg">
-          <div className="text-center mb-6">
-            <div className="text-5xl mb-3">✅</div>
-            <h2 className="text-xl font-bold text-gray-800">Aanvraag ingediend</h2>
-            <p className="text-gray-500 mt-2">
-              Uw kapvergunningaanvraag is ontvangen en wordt behandeld.
+        <button
+          onClick={onBack}
+          className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+        >
+          ← Terug naar diensten
+        </button>
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
+          <div className="text-5xl mb-4">✅</div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Aanvraag ingediend</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Uw kapvergunningaanvraag is ontvangen en wordt behandeld.
+          </p>
+          <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+            <p className="text-sm font-medium text-gray-700">
+              Dossiernummer: <span className="font-mono">{success.dossier}</span>
             </p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 mb-6">
-            <p>
-              <span className="font-medium">Dossiernummer:</span> {success.dossier}
-            </p>
-            <p className="mt-1 text-gray-500">
+            <p className="text-xs text-gray-400 mt-1">
               U ontvangt bericht zodra de aanvraag is beoordeeld (wettelijke termijn: 8 weken, Awb
               4:13).
             </p>
           </div>
           <button
             onClick={onSubmitted}
-            className="w-full py-2 text-white rounded-lg font-medium"
+            className="w-full py-3 text-white font-semibold rounded-lg transition-opacity"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             Naar mijn aanvragen
@@ -124,75 +96,30 @@ function VergunningForm({
       >
         ← Terug naar diensten
       </button>
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">🌳 Kapvergunning aanvragen</h2>
-          <p className="text-gray-500 mt-1 text-sm">
-            Vul de gegevens in over de boom die u wilt kappen. De aanvraag wordt automatisch
-            beoordeeld op basis van de gemeentelijke regelgeving.
-          </p>
-        </div>
-
-        <div className="space-y-5">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl">🌳</span>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Stamdiameter (cm) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="500"
-              value={treeDiameter}
-              onChange={(e) => setTreeDiameter(e.target.value)}
-              placeholder="Voer diameter in centimeters in"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Meet de diameter van de boomstam op 1,30 meter hoogte (borsthoogte).
-            </p>
-          </div>
-
-          <div>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={protectedArea}
-                onChange={(e) => setProtectedArea(e.target.checked)}
-                className="mt-0.5 w-4 h-4"
-                style={{ accentColor: 'var(--color-primary)' }}
-              />
-              <div>
-                <span className="text-sm font-medium text-gray-700">
-                  🏛️ Boom staat in beschermd gebied
-                </span>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Vink aan als de boom in een natuur-, beschermings- of erfgoedzone staat. Dit kan
-                  invloed hebben op de vergunningsvoorwaarden.
-                </p>
-              </div>
-            </label>
-          </div>
-
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <div className="pt-2">
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full py-3 text-white font-semibold rounded-lg disabled:opacity-50 transition-opacity"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              {submitting ? 'Aanvraag indienen...' : 'Aanvraag indienen'}
-            </button>
-            <p className="text-xs text-gray-400 text-center mt-2">
-              Na indienen ontvangt u bericht binnen de wettelijke termijn van 8 weken (Awb 4:13).
+            <h2 className="text-xl font-bold text-gray-800">Kapvergunning aanvragen</h2>
+            <p className="text-sm text-gray-500">
+              De aanvraag wordt automatisch beoordeeld op basis van de gemeentelijke regelgeving.
             </p>
           </div>
         </div>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            De aanvraag kon niet worden ingediend. Probeer het opnieuw.
+          </div>
+        )}
+        <ProcessStartFormViewer
+          processKey="AwbShellProcess"
+          initialData={{
+            applicantId: user?.sub ?? 'unknown',
+            productType: 'TreeFellingPermit',
+          }}
+          onStarted={(dossier) => setSuccess({ dossier })}
+          onError={() => setError(true)}
+        />
       </div>
     </div>
   );
@@ -204,6 +131,7 @@ export default function Dashboard() {
   const [tenant, setTenant] = useState<TenantConfig | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('diensten');
   const [activeService, setActiveService] = useState<string | null>(null);
+  const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
 
   // Zorgtoeslag calculator state
   const [calcLoading, setCalcLoading] = useState(false);
@@ -594,31 +522,57 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-3">
                   {(applications as Record<string, unknown>[]).map((app) => (
-                    <div
-                      key={app.id as string}
-                      className="bg-white rounded-lg shadow p-4 flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          {(app.processDefinitionKey as string) ?? 'Aanvraag'}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {app.startTime
-                            ? new Date(app.startTime as string).toLocaleDateString('nl-NL')
-                            : ''}
-                        </p>
+                    <div key={app.id as string} className="bg-white rounded-lg shadow p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {(app.processDefinitionKey as string) ?? 'Aanvraag'}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {app.startTime
+                              ? new Date(app.startTime as string).toLocaleDateString('nl-NL')
+                              : ''}
+                          </p>
+                          {typeof app.businessKey === 'string' && (
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">
+                              {app.businessKey}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              app.state === 'ACTIVE'
+                                ? 'bg-blue-100 text-blue-700'
+                                : app.state === 'COMPLETED'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {app.state as string}
+                          </span>
+                          {app.state === 'COMPLETED' && (
+                            <button
+                              onClick={() =>
+                                setExpandedDecision(
+                                  expandedDecision === (app.id as string)
+                                    ? null
+                                    : (app.id as string)
+                                )
+                              }
+                              className="text-sm font-medium underline"
+                              style={{ color: 'var(--color-primary)' }}
+                            >
+                              {expandedDecision === (app.id as string)
+                                ? 'Verbergen'
+                                : 'Bekijk beslissing'}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          app.state === 'ACTIVE'
-                            ? 'bg-blue-100 text-blue-700'
-                            : app.state === 'COMPLETED'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {app.state as string}
-                      </span>
+                      {expandedDecision === (app.id as string) && (
+                        <DecisionViewer processInstanceId={app.id as string} />
+                      )}
                     </div>
                   ))}
                 </div>

@@ -38,6 +38,42 @@ export const changelog: Changelog = {
       date: 'March 5, 2026',
       sections: [
         {
+          title: 'Citizen Dashboard — Dynamic Start Form',
+          icon: '🌳',
+          iconColor: 'green',
+          items: [
+            'Kapvergunning form replaced by @bpmn-io/form-js viewer — schema fetched live from the deployed process via GET /v1/process/:key/start-form',
+            'Form renders with applicantId and productType pre-populated as hidden initial data',
+            'On submit, form variables are passed directly to POST /v1/process/:key/start — no hardcoded field mapping',
+            'Success card shows dossier number and statutory 8-week notice (Awb 4:13)',
+            'Falls back gracefully when no form is deployed (404/415)',
+          ],
+        },
+        {
+          title: 'Caseworker Dashboard — Dynamic Task Forms',
+          icon: '🏛️',
+          iconColor: 'blue',
+          items: [
+            'All task-specific form components (CaseReviewForm, NotifyApplicantForm) replaced by a single TaskFormViewer component',
+            'Form schema fetched per task via GET /v1/task/:id/form-schema with tenant isolation',
+            'Process variables pre-populated into the form at import time — caseworker sees current DMN decisions immediately',
+            'Submit fires the form-js submit event, completing the task via POST /v1/task/:id/complete with form data',
+            'Tasks without a deployed form fall back to a generic complete button',
+          ],
+        },
+        {
+          title: 'Citizen Dashboard — Decision Viewer',
+          icon: '📋',
+          iconColor: 'purple',
+          items: [
+            'Completed applications in "Mijn aanvragen" show a "Bekijk beslissing" toggle',
+            'DecisionViewer component fetches final variable state via GET /v1/process/:id/historic-variables using Operaton history API',
+            'Backend GET /v1/process/:id/historic-variables flattens historic variable instances and applies tenant isolation via municipality variable',
+            'Readonly form renders status, vergunningsbesluit, beslissing, herplantinformatie and dossiernummer — caseworker-only fields excluded',
+            'Historic variables are available immediately after process completion — no polling required',
+          ],
+        },
+        {
           title: 'Backend — Form Schema Endpoints',
           icon: '⚙️',
           iconColor: 'orange',

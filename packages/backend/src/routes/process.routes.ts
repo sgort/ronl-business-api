@@ -448,4 +448,47 @@ router.get('/history', async (req, res) => {
   }
 });
 
+/**
+ * GET /v1/process/:id/historic-variables
+ * Fetch final variable state of a completed process instance from Operaton history.
+ * Used to show the citizen their decision after the process ends.
+ */
+router.get('/:id/historic-variables', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const variables = await operatonService.getHistoricVariables(id);
+
+    // Tenant check via municipality variable
+    const municipality = variables['municipality'];
+    if (municipality && municipality !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+      });
+    }
+
+    res.json({ success: true, data: variables });
+  } catch (error) {
+    logger.error('Failed to get historic variables', {
+      processInstanceId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'HISTORIC_VARIABLES_FAILED',
+        message: 'Failed to retrieve historic variables',
+      },
+    });
+  }
+});
+
 export default router;

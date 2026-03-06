@@ -113,6 +113,19 @@ export const businessApi = {
       );
       return response.data;
     },
+
+    /**
+     * Get final variable state of a completed process instance.
+     * GET /v1/process/:id/historic-variables
+     */
+    historicVariables: async (
+      processInstanceId: string
+    ): Promise<ApiResponse<Record<string, unknown>>> => {
+      const response = await api.get<ApiResponse<Record<string, unknown>>>(
+        `/process/${processInstanceId}/historic-variables`
+      );
+      return response.data;
+    },
   },
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
@@ -172,17 +185,6 @@ export const businessApi = {
      */
     complete: async (taskId: string, variables: Record<string, unknown>): Promise<ApiResponse> => {
       const response = await api.post<ApiResponse>(`/task/${taskId}/complete`, { variables });
-      return response.data;
-    },
-
-    /**
-     * Get the deployed Camunda Form schema for a task.
-     * GET /v1/task/:id/form-schema
-     */
-    formSchema: async (taskId: string): Promise<ApiResponse<Record<string, unknown>>> => {
-      const response = await api.get<ApiResponse<Record<string, unknown>>>(
-        `/task/${taskId}/form-schema`
-      );
       return response.data;
     },
   },

@@ -2,35 +2,33 @@ import { Form } from '@bpmn-io/form-js';
 import '@bpmn-io/form-js/dist/assets/form-js.css';
 import { useEffect, useRef, useState } from 'react';
 
-import { businessApi } from '../../services/api';
+import { businessApi } from '../services/api';
 
 type FormStatus = 'loading' | 'ready' | 'no-form' | 'error';
 
-interface TaskFormViewerProps {
-  taskId: string;
-  variables: Record<string, unknown> | null;
-  onCompleted: () => void;
+interface ProcessStartFormViewerProps {
+  processKey: string;
+  initialData?: Record<string, unknown>;
+  onStarted: (dossier: string) => void;
   onError: () => void;
 }
 
-export default function TaskFormViewer({
-  taskId,
-  variables,
-  onCompleted,
+export default function ProcessStartFormViewer({
+  processKey,
+  initialData,
+  onStarted,
   onError,
-}: TaskFormViewerProps) {
+}: ProcessStartFormViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<InstanceType<typeof Form> | null>(null);
   const [status, setStatus] = useState<FormStatus>('loading');
   const [submitting, setSubmitting] = useState(false);
 
-  const onCompletedRef = useRef(onCompleted);
+  const onStartedRef = useRef(onStarted);
   const onErrorRef = useRef(onError);
-
   useEffect(() => {
-    onCompletedRef.current = onCompleted;
-  }, [onCompleted]);
-
+    onStartedRef.current = onStarted;
+  }, [onStarted]);
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
@@ -40,8 +38,7 @@ export default function TaskFormViewer({
 
     const init = async () => {
       try {
-        const res = await businessApi.task.formSchema(taskId);
-        console.log('[TaskFormViewer]', taskId, res);
+        const res = await businessApi.process.startForm(processKey);
 
         if (cancelled || !containerRef.current) return;
 
@@ -53,7 +50,7 @@ export default function TaskFormViewer({
         const form = new Form({ container: containerRef.current });
         formRef.current = form;
 
-        await form.importSchema(res.data, variables ?? {});
+        await form.importSchema(res.data, initialData ?? {});
 
         form.on(
           'submit',
@@ -67,9 +64,17 @@ export default function TaskFormViewer({
             if (Object.keys(errors).length > 0) return;
             setSubmitting(true);
             try {
-              const completeRes = await businessApi.task.complete(taskId, data);
-              if (completeRes.success) onCompletedRef.current();
-              else onErrorRef.current();
+              const startRes = await businessApi.process.start(processKey, data);
+              if (startRes.success) {
+                const dossier =
+                  (startRes.data as { businessKey?: string; processInstanceId?: string })
+                    ?.businessKey ??
+                  (startRes.data as { processInstanceId?: string })?.processInstanceId ??
+                  '—';
+                onStartedRef.current(dossier);
+              } else {
+                onErrorRef.current();
+              }
             } catch {
               onErrorRef.current();
             } finally {
@@ -93,54 +98,27 @@ export default function TaskFormViewer({
       formRef.current?.destroy();
       formRef.current = null;
     };
-  }, [taskId, variables]); // onCompleted and onError intentionally excluded — stored in refs
+  }, [processKey, initialData]);
 
-  // Always render the container div so the ref is available to the effect
   return (
     <div className="space-y-3">
-      {/* Loading state */}
       {status === 'loading' && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
           Formulier laden…
         </div>
       )}
-
-      {/* Error state */}
       {status === 'error' && (
         <p className="text-sm text-red-600">Formulier kon niet worden geladen.</p>
       )}
-
-      {/* No form — generic complete button */}
       {status === 'no-form' && (
-        <button
-          onClick={async () => {
-            setSubmitting(true);
-            try {
-              const res = await businessApi.task.complete(taskId, {});
-              if (res.success) onCompletedRef.current();
-              else onErrorRef.current();
-            } catch {
-              onErrorRef.current();
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-          disabled={submitting}
-          className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700"
-        >
-          {submitting ? 'Bezig…' : 'Taak voltooien'}
-        </button>
+        <p className="text-sm text-gray-500">Geen formulier beschikbaar voor dit proces.</p>
       )}
-
-      {/* Form container — always in DOM so ref is available on first render */}
       <div ref={containerRef} className={status === 'ready' ? 'fjs-container' : 'hidden'} />
-
-      {/* Submitting indicator */}
       {submitting && status === 'ready' && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-          Opslaan…
+          Aanvraag indienen…
         </div>
       )}
     </div>
