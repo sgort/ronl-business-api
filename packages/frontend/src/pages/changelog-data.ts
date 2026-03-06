@@ -35,7 +35,7 @@ export const changelog: Changelog = {
       status: 'Feature Release',
       statusColor: 'purple',
       borderColor: 'purple',
-      date: 'March 12, 2026',
+      date: 'March 5, 2026',
       sections: [
         {
           title: 'Backend — Form Schema Endpoints',
