@@ -154,6 +154,17 @@ export const businessApi = {
       const response = await api.post<ApiResponse>(`/task/${taskId}/complete`, { variables });
       return response.data;
     },
+
+    /**
+     * Get the deployed Camunda Form schema for a task.
+     * GET /v1/task/:id/form-schema
+     */
+    formSchema: async (taskId: string): Promise<ApiResponse<Record<string, unknown>>> => {
+      const response = await api.get<ApiResponse<Record<string, unknown>>>(
+        `/task/${taskId}/form-schema`
+      );
+      return response.data;
+    },
   },
 
   // ── Utilities ─────────────────────────────────────────────────────────────
