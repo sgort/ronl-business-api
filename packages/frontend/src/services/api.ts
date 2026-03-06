@@ -65,6 +65,16 @@ export const businessApi = {
     },
 
     /**
+     * Fetch the deployed Camunda Forms schema for a process start event.
+     * Returns 404 if no form is linked, 415 if the form is embedded HTML (not supported).
+     * GET /v1/process/:key/start-form
+     */
+    startForm: async (processKey: string): Promise<ApiResponse<unknown>> => {
+      const response = await api.get<ApiResponse<unknown>>(`/process/${processKey}/start-form`);
+      return response.data;
+    },
+
+    /**
      * Get process instance status.
      * GET /v1/process/:id/status
      */
@@ -123,6 +133,16 @@ export const businessApi = {
      */
     get: async (taskId: string): Promise<ApiResponse<Task>> => {
       const response = await api.get<ApiResponse<Task>>(`/task/${taskId}`);
+      return response.data;
+    },
+
+    /**
+     * Fetch the deployed Camunda Forms schema for a user task.
+     * Returns 404 if no form is linked, 415 if the form is embedded HTML (not supported).
+     * GET /v1/task/:id/form-schema
+     */
+    formSchema: async (taskId: string): Promise<ApiResponse<unknown>> => {
+      const response = await api.get<ApiResponse<unknown>>(`/task/${taskId}/form-schema`);
       return response.data;
     },
 

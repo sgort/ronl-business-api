@@ -1,3 +1,4 @@
+import axios from 'axios';
 import express from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
@@ -235,6 +236,60 @@ router.get('/:id/variables', async (req, res) => {
       error: {
         code: 'PROCESS_NOT_FOUND',
         message: 'Process instance not found',
+      },
+    });
+  }
+});
+
+/**
+ * GET /v1/process/:key/start-form
+ * Proxy the deployed start form schema for a process definition.
+ * Only Camunda Forms (JSON, schemaVersion 16) are supported.
+ * Returns 415 if the deployed form is an embedded HTML form.
+ */
+router.get('/:key/start-form', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { key } = req.params;
+
+  try {
+    const { data, contentType } = await operatonService.getDeployedStartForm(key);
+
+    if (!contentType.includes('application/json')) {
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_FORM_TYPE',
+          message: `Process '${key}' has an embedded HTML start form. Only Camunda Forms (JSON) are supported.`,
+        },
+      });
+    }
+
+    const schema = JSON.parse(data);
+    res.json({ success: true, data: schema });
+  } catch (error) {
+    logger.error('Failed to fetch start form', {
+      processKey: key,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    const status =
+      axios.isAxiosError(error) &&
+      (error.response?.status === 404 || error.response?.status === 400)
+        ? 404
+        : 500;
+    res.status(status).json({
+      success: false,
+      error: {
+        code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
+        message:
+          status === 404
+            ? `No deployed start form found for process '${key}'`
+            : 'Failed to retrieve start form',
       },
     });
   }
