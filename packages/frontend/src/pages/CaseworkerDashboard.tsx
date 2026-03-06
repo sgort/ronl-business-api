@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
@@ -23,7 +24,6 @@ export default function CaseworkerDashboard() {
   const [taskVariables, setTaskVariables] = useState<Record<string, unknown> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [completing, setCompleting] = useState(false);
   const [actionMessage, setActionMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -94,27 +94,6 @@ export default function CaseworkerDashboard() {
       setActionMessage({ type: 'error', text: 'Claimen mislukt.' });
     } finally {
       setClaiming(false);
-    }
-  };
-
-  const handleComplete = async () => {
-    if (!selectedTask) return;
-    setCompleting(true);
-    setActionMessage(null);
-    try {
-      const res = await businessApi.task.complete(selectedTask.id, {});
-      if (res.success) {
-        setActionMessage({ type: 'success', text: 'Taak afgerond.' });
-        setSelectedTask(null);
-        setTaskVariables(null);
-        loadTasks();
-      } else {
-        setActionMessage({ type: 'error', text: 'Afronden mislukt.' });
-      }
-    } catch {
-      setActionMessage({ type: 'error', text: 'Afronden mislukt.' });
-    } finally {
-      setCompleting(false);
     }
   };
 
