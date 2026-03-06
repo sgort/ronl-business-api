@@ -162,13 +162,67 @@ export class OperatonService {
   }
 
   /**
+   * Get historical process instances for a citizen by applicantId,
+   * scoped to the caseworker's/citizen's municipality (tenant isolation).
+   */
+  async getProcessHistory(applicantId: string, tenantId: string): Promise<unknown[]> {
+    try {
+      const response = await this.client.post('/history/process-instance', {
+        variables: [
+          { name: 'applicantId', operator: 'eq', value: applicantId },
+          { name: 'municipality', operator: 'eq', value: tenantId },
+        ],
+        sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
+      });
+
+      logger.info('Process history retrieved', {
+        applicantId,
+        tenantId,
+        count: response.data.length,
+      });
+
+      return response.data;
+    } catch (error) {
+      logger.error('Failed to get process history', {
+        applicantId,
+        tenantId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch final historic variable values for a completed process instance.
+   */
+  async getHistoricVariables(processInstanceId: string): Promise<Record<string, unknown>> {
+    try {
+      const response = await this.client.get('/history/variable-instance', {
+        params: { processInstanceId, deserializeValues: true },
+      });
+
+      // Flatten [{name, value}] → {name: value}
+      const flat: Record<string, unknown> = {};
+      for (const v of response.data as { name: string; value: unknown }[]) {
+        flat[v.name] = v.value;
+      }
+      return flat;
+    } catch (error) {
+      logger.error('Failed to get historic variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get tasks for a user
    */
   async getUserTasks(userId: string, tenantId: string): Promise<Task[]> {
     try {
       const response = await this.client.get('/task', {
         params: {
-          assignee: userId,
           processVariables: `municipality_eq_${tenantId}`,
         },
       });
@@ -315,6 +369,49 @@ export class OperatonService {
         status: 'down',
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+    }
+  }
+
+  /**
+   * Fetch the deployed start form for a process definition by key.
+   * Returns the raw form content as a string; callers must detect content type.
+   * Camunda Forms (.form) will be valid JSON. Embedded HTML forms will be HTML.
+   */
+  async getDeployedStartForm(processKey: string): Promise<{ data: string; contentType: string }> {
+    try {
+      const response = await this.client.get(
+        `/process-definition/key/${processKey}/deployed-start-form`,
+        { responseType: 'text' }
+      );
+      const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
+      return { data: response.data as string, contentType };
+    } catch (error) {
+      logger.error('Failed to fetch deployed start form', {
+        processKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch the deployed task form for a user task by task ID.
+   * Returns the raw form content as a string; callers must detect content type.
+   * Camunda Forms (.form) will be valid JSON. Embedded HTML forms will be HTML.
+   */
+  async getDeployedTaskForm(taskId: string): Promise<{ data: string; contentType: string }> {
+    try {
+      const response = await this.client.get(`/task/${taskId}/deployed-form`, {
+        responseType: 'text',
+      });
+      const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
+      return { data: response.data as string, contentType };
+    } catch (error) {
+      logger.error('Failed to fetch deployed task form', {
+        taskId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
     }
   }
 }

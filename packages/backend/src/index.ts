@@ -10,6 +10,7 @@ import decisionRoutes from '@routes/decision.routes';
 import { auditMiddleware } from '@middleware/audit.middleware';
 import packageJson from '../package.json';
 import brpRoutes from './routes/brp.routes';
+import taskRoutes from '@routes/task.routes';
 
 const appLogger = createLogger('app');
 
@@ -126,7 +127,7 @@ app.get('/', (req: Request, res: Response) => {
 app.use('/v1/health', healthRoutes);
 app.use('/v1/process', processRoutes);
 app.use('/v1/decision', decisionRoutes);
-// app.use('/v1/tasks', taskRoutes); // TODO: Create task routes
+app.use('/v1/task', taskRoutes);
 app.use('/v1/brp', brpRoutes);
 
 // 404 handler

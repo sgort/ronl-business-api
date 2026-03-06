@@ -31,6 +31,106 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.2.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 5, 2026',
+      sections: [
+        {
+          title: 'Citizen Dashboard — Dynamic Start Form',
+          icon: '🌳',
+          iconColor: 'green',
+          items: [
+            'Kapvergunning form replaced by @bpmn-io/form-js viewer — schema fetched live from the deployed process via GET /v1/process/:key/start-form',
+            'Form renders with applicantId and productType pre-populated as hidden initial data',
+            'On submit, form variables are passed directly to POST /v1/process/:key/start — no hardcoded field mapping',
+            'Success card shows dossier number and statutory 8-week notice (Awb 4:13)',
+            'Falls back gracefully when no form is deployed (404/415)',
+          ],
+        },
+        {
+          title: 'Caseworker Dashboard — Dynamic Task Forms',
+          icon: '🏛️',
+          iconColor: 'blue',
+          items: [
+            'All task-specific form components (CaseReviewForm, NotifyApplicantForm) replaced by a single TaskFormViewer component',
+            'Form schema fetched per task via GET /v1/task/:id/form-schema with tenant isolation',
+            'Process variables pre-populated into the form at import time — caseworker sees current DMN decisions immediately',
+            'Submit fires the form-js submit event, completing the task via POST /v1/task/:id/complete with form data',
+            'Tasks without a deployed form fall back to a generic complete button',
+          ],
+        },
+        {
+          title: 'Citizen Dashboard — Decision Viewer',
+          icon: '📋',
+          iconColor: 'purple',
+          items: [
+            'Completed applications in "Mijn aanvragen" show a "Bekijk beslissing" toggle',
+            'DecisionViewer component fetches final variable state via GET /v1/process/:id/historic-variables using Operaton history API',
+            'Backend GET /v1/process/:id/historic-variables flattens historic variable instances and applies tenant isolation via municipality variable',
+            'Readonly form renders status, vergunningsbesluit, beslissing, herplantinformatie and dossiernummer — caseworker-only fields excluded',
+            'Historic variables are available immediately after process completion — no polling required',
+          ],
+        },
+        {
+          title: 'Backend — Form Schema Endpoints',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'GET /v1/process/:key/start-form — fetches deployed start form schema; returns 415 UNSUPPORTED_FORM_TYPE for legacy HTML formKey deployments',
+            'GET /v1/task/:id/form-schema — fetches deployed task form schema with tenant isolation; treats Operaton 400 (no formRef set) as 404 FORM_NOT_FOUND',
+            'POST /api/dmns/process/deploy — deploys BPMN + subprocess BPMNs + Camunda Forms in one multipart request; supports custom Operaton URL and credentials',
+          ],
+        },
+      ],
+    },
+    {
+      version: '2.1.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 3, 2026',
+      sections: [
+        {
+          title: 'AWB Kapvergunning Process',
+          icon: '🌳',
+          iconColor: 'green',
+          items: [
+            'Full AWB shell process (AwbShellProcess) implementing Awb procedural phases 1–6',
+            'TreeFellingPermitSubProcess handles substantive decision via TreeFellingDecision and ReplacementTreeDecision DMNs',
+            'Both DMNs always evaluated before caseworker review, giving full context at the Sub_CaseReview task',
+            'Sub_ResolveDecision script task applies caseworker override when reviewAction is "change"',
+            'AWB shell sets dossierReference, receiptDate and awbDeadlineDate (8-week statutory deadline, Awb 4:13)',
+            'Task_Phase6_Notify confirms citizen notification before process ends',
+            'camunda:historyTimeToLive set to 365 (shell) and 180 (subprocess) per AWB retention requirements',
+          ],
+        },
+        {
+          title: 'Caseworker Task Queue — Claim-First Workflow',
+          icon: '🏛️',
+          iconColor: 'blue',
+          items: [
+            'userTask elements no longer use camunda:assignee — tasks are unassigned on creation',
+            'candidateGroups="caseworker" set on Sub_CaseReview, Task_Phase6_Notify, and Task_RequestMissingInfo',
+            'Tasks appear as Openstaand in the task queue and require an explicit claim before the action form is shown',
+            'Task status in CaseworkerDashboard correctly shows Openstaand (unclaimed) vs Geclaimd (assigned)',
+            'Removed dead Task_ExtractCompleteness scriptTask from AwbShellProcess (disconnected, never executed)',
+          ],
+        },
+        {
+          title: 'Backend — Tenant Variable Serialisation',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'Tenant middleware now stores plain scalar values instead of wrapped {value, type} objects',
+            'Process start routes wrap variables with inferType() before forwarding to Operaton',
+            'Resolves "Must provide null or String value for SerializableValue type Json" 500 error on process start',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.0.2',
       status: 'Enhancement',
       statusColor: 'green',

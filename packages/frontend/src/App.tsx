@@ -1,27 +1,85 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import LoginChoice from './pages/LoginChoice';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+
 import AuthCallback from './pages/AuthCallback';
+import CaseworkerDashboard from './pages/CaseworkerDashboard';
 import Dashboard from './pages/Dashboard';
+import LoginChoice from './pages/LoginChoice';
+import keycloak from './services/keycloak';
 import './index.css';
 
 /**
- * Main application component with routing
- * Implements the identity provider selection flow from the mockup
+ * Guards a route by authentication and role.
+ *
+ * - Not authenticated          → redirect to /
+ * - Authenticated, wrong role  → redirect to the correct dashboard
+ * - Authenticated, correct role → render children
  */
+function ProtectedRoute({
+  children,
+  requiredRole,
+}: {
+  children: React.ReactNode;
+  requiredRole: 'citizen' | 'caseworker';
+}) {
+  if (!keycloak.authenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  const isCaseworker = roles.includes('caseworker');
+
+  if (requiredRole === 'caseworker' && !isCaseworker) {
+    return <Navigate to="/dashboard/citizen" replace />;
+  }
+  if (requiredRole === 'citizen' && isCaseworker) {
+    return <Navigate to="/dashboard/caseworker" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Landing page with identity provider choices */}
         <Route path="/" element={<LoginChoice />} />
-
-        {/* Authentication callback that initializes Keycloak */}
         <Route path="/auth" element={<AuthCallback />} />
 
-        {/* Main dashboard (protected, requires authentication) */}
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/dashboard/citizen"
+          element={
+            <ProtectedRoute requiredRole="citizen">
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/caseworker"
+          element={
+            <ProtectedRoute requiredRole="caseworker">
+              <CaseworkerDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Redirect any unknown routes to landing page */}
+        {/* Legacy /dashboard redirect — role-based, falls through to ProtectedRoute logic */}
+        <Route
+          path="/dashboard"
+          element={
+            keycloak.authenticated ? (
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (keycloak.tokenParsed as any)?.realm_access?.roles?.includes('caseworker') ? (
+                <Navigate to="/dashboard/caseworker" replace />
+              ) : (
+                <Navigate to="/dashboard/citizen" replace />
+              )
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

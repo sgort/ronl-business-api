@@ -1,3 +1,4 @@
+import axios from 'axios';
 import express from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
@@ -241,6 +242,60 @@ router.get('/:id/variables', async (req, res) => {
 });
 
 /**
+ * GET /v1/process/:key/start-form
+ * Proxy the deployed start form schema for a process definition.
+ * Only Camunda Forms (JSON, schemaVersion 16) are supported.
+ * Returns 415 if the deployed form is an embedded HTML form.
+ */
+router.get('/:key/start-form', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { key } = req.params;
+
+  try {
+    const { data, contentType } = await operatonService.getDeployedStartForm(key);
+
+    if (!contentType.includes('application/json')) {
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_FORM_TYPE',
+          message: `Process '${key}' has an embedded HTML start form. Only Camunda Forms (JSON) are supported.`,
+        },
+      });
+    }
+
+    const schema = JSON.parse(data);
+    res.json({ success: true, data: schema });
+  } catch (error) {
+    logger.error('Failed to fetch start form', {
+      processKey: key,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    const status =
+      axios.isAxiosError(error) &&
+      (error.response?.status === 404 || error.response?.status === 400)
+        ? 404
+        : 500;
+    res.status(status).json({
+      success: false,
+      error: {
+        code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
+        message:
+          status === 404
+            ? `No deployed start form found for process '${key}'`
+            : 'Failed to retrieve start form',
+      },
+    });
+  }
+});
+
+/**
  * DELETE /v1/process/:id
  * Cancel a process instance
  */
@@ -336,5 +391,104 @@ function inferType(value: unknown): OperatonVariable['type'] {
       return 'String';
   }
 }
+
+/**
+ * GET /v1/process/history?applicantId=xxx
+ * List historical process instances for a citizen.
+ * Accessible by both citizens (own history) and caseworkers (any citizen in their municipality).
+ */
+router.get('/history', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { applicantId } = req.query;
+
+  if (!applicantId || typeof applicantId !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'applicantId query parameter is required' },
+    });
+  }
+
+  // Citizens can only request their own history
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (req.user as any).roles ?? [];
+  const isCaseworker = roles.includes('caseworker');
+  if (!isCaseworker && applicantId !== req.user.userId) {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Citizens may only request their own history' },
+    });
+  }
+
+  try {
+    const instances = await operatonService.getProcessHistory(applicantId, req.user.tenantId);
+
+    auditLog(req, 'process.history', 'success', {
+      applicantId,
+      tenantId: req.user.tenantId,
+      count: (instances as unknown[]).length,
+    });
+
+    res.json({ success: true, data: instances });
+  } catch (error) {
+    logger.error('Failed to get process history', {
+      applicantId,
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
+    });
+  }
+});
+
+/**
+ * GET /v1/process/:id/historic-variables
+ * Fetch final variable state of a completed process instance from Operaton history.
+ * Used to show the citizen their decision after the process ends.
+ */
+router.get('/:id/historic-variables', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const variables = await operatonService.getHistoricVariables(id);
+
+    // Tenant check via municipality variable
+    const municipality = variables['municipality'];
+    if (municipality && municipality !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+      });
+    }
+
+    res.json({ success: true, data: variables });
+  } catch (error) {
+    logger.error('Failed to get historic variables', {
+      processInstanceId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'HISTORIC_VARIABLES_FAILED',
+        message: 'Failed to retrieve historic variables',
+      },
+    });
+  }
+});
 
 export default router;

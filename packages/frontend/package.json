@@ -15,6 +15,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@bpmn-io/form-js": "^1.20.1",
     "@ronl/shared": "*",
     "axios": "^1.6.5",
     "keycloak-js": "^23.0.4",
