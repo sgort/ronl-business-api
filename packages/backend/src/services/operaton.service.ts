@@ -217,6 +217,34 @@ export class OperatonService {
   }
 
   /**
+   * Fetch deduplicated variable names and types from Operaton history
+   * for a given process definition key.
+   * Used by the Document Composer BindingPanel for variable discovery.
+   */
+  async getVariableHints(processKey: string): Promise<Array<{ name: string; type: string }>> {
+    try {
+      const response = await this.client.get('/history/variable-instance', {
+        params: { processDefinitionKey: processKey, firstResult: 0, maxResults: 500 },
+      });
+
+      const seen = new Map<string, string>();
+      for (const v of response.data as { name: string; type: string }[]) {
+        seen.set(v.name, v.type ?? 'String');
+      }
+
+      return Array.from(seen.entries())
+        .map(([name, type]) => ({ name, type }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+      logger.error('Failed to get variable hints', {
+        processKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get tasks for a user
    */
   async getUserTasks(userId: string, tenantId: string): Promise<Task[]> {

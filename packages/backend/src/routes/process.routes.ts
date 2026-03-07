@@ -491,4 +491,39 @@ router.get('/:id/historic-variables', async (req, res) => {
   }
 });
 
+/**
+ * GET /v1/process/:key/variable-hints
+ * Fetch deduplicated variable names and types from Operaton history
+ * for a given process definition key.
+ * Used by the Document Composer BindingPanel for variable discovery.
+ */
+router.get('/:key/variable-hints', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { key } = req.params;
+
+  try {
+    const variables = await operatonService.getVariableHints(key);
+
+    res.json({ success: true, variables });
+  } catch (error) {
+    logger.error('Failed to get variable hints', {
+      processKey: key,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'VARIABLE_HINTS_FAILED',
+        message: 'Failed to retrieve variable hints',
+      },
+    });
+  }
+});
+
 export default router;
