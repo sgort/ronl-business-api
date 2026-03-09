@@ -217,6 +217,48 @@ export class OperatonService {
   }
 
   /**
+   * Fetch the DocumentTemplate linked via camunda:documentRef on any UserTask in the BPMN
+   * associated with the given process instance. Works for completed instances via the history API.
+   * Throws Error('DOCUMENT_NOT_FOUND') when no camunda:documentRef is present or the deployment
+   * resource is absent.
+   */
+  async getDecisionDocument(processInstanceId: string): Promise<Record<string, unknown>> {
+    // 1. Resolve processDefinitionId via history API (active /process-instance/{id} returns 404 for COMPLETED)
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+
+    // 2. Fetch BPMN XML for that definition
+    const xmlRes = await this.client.get(`/process-definition/${processDefinitionId}/xml`);
+    const bpmnXml: string = xmlRes.data.bpmn20Xml;
+
+    // 3. Find ronl:documentRef on any UserTask — scan all occurrences and take the first
+    const docRefMatch = bpmnXml.match(/ronl:documentRef="([^"]+)"/);
+    if (!docRefMatch) {
+      throw new Error('DOCUMENT_NOT_FOUND');
+    }
+    const documentRef = docRefMatch[1];
+
+    // 4. Get deploymentId from the process definition record
+    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const deploymentId: string = procDefRes.data.deploymentId;
+
+    // 5. List resources in that deployment, find the .document file
+    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resources: Array<{ id: string; name: string; deploymentId: string }> = resourcesRes.data;
+    const docResource = resources.find((r) => r.name === `${documentRef}.document`);
+    if (!docResource) {
+      throw new Error('DOCUMENT_NOT_FOUND');
+    }
+
+    // 6. Fetch the raw JSON of the DocumentTemplate resource
+    const dataRes = await this.client.get(
+      `/deployment/${deploymentId}/resources/${docResource.id}/data`,
+      { responseType: 'text' }
+    );
+    return JSON.parse(dataRes.data) as Record<string, unknown>;
+  }
+
+  /**
    * Fetch deduplicated variable names and types from Operaton history
    * for a given process definition key.
    * Used by the Document Composer BindingPanel for variable discovery.

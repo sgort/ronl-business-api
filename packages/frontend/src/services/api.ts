@@ -126,6 +126,20 @@ export const businessApi = {
       );
       return response.data;
     },
+
+    /**
+     * Fetch the DocumentTemplate linked via camunda:documentRef for a completed process instance.
+     * Returns 404 DOCUMENT_NOT_FOUND when the process was deployed before document templates existed.
+     * GET /v1/process/:id/decision-document
+     */
+    decisionDocument: async (
+      processInstanceId: string
+    ): Promise<{ success: boolean; template?: Record<string, unknown> }> => {
+      const response = await api.get<{ success: boolean; template?: Record<string, unknown> }>(
+        `/process/${processInstanceId}/decision-document`
+      );
+      return response.data;
+    },
   },
 
   // ── Tasks ─────────────────────────────────────────────────────────────────

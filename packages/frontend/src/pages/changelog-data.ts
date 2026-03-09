@@ -31,6 +31,52 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.3.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 9, 2026',
+      sections: [
+        {
+          title: 'Citizen Dashboard — Document Template Viewer',
+          icon: '📄',
+          iconColor: 'purple',
+          items: [
+            'DecisionViewer replaced: citizen decision now renders the DocumentTemplate authored in the LDE Document Composer instead of a hardcoded form-js schema',
+            'Template fetched via new GET /v1/process/:id/decision-document endpoint; falls back to the previous form-js readonly schema for process instances deployed before document templates existed',
+            'TipTap/ProseMirror JSON blocks rendered as HTML — no TipTap runtime dependency in MijnOmgeving',
+            'Placeholder substitution replaces {{variableKey}} in text blocks with historic process variables',
+            'Variable blocks resolved directly from historicVariables by variableKey',
+            'Letterhead and Contact Information zones rendered side-by-side in a CSS grid, matching the Document Composer canvas layout',
+            'Separator, spacer, and image block types supported',
+          ],
+        },
+        {
+          title: 'Backend — Decision Document Endpoint',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'GET /v1/process/:id/decision-document resolves the DocumentTemplate bundled in the Operaton deployment for a given process instance',
+            'Reads ronl:documentRef attribute from the BPMN UserTask element via the process definition XML',
+            'Fetches the named .document resource from the deployment bundle and returns it as { success: true, template: DocumentTemplate }',
+            'Tenant isolation via municipality variable — same pattern as historic-variables',
+            'Returns 404 DOCUMENT_NOT_FOUND when no ronl:documentRef is present or the resource is absent from the deployment',
+            'Route ordering in process.routes.ts corrected: literal /history route and instance-ID sub-routes registered before definition-key sub-routes',
+          ],
+        },
+        {
+          title: 'LDE — BPMN Document Linking',
+          icon: '🔗',
+          iconColor: 'blue',
+          items: [
+            'BpmnCanvas properties panel writes ronl:documentRef="<templateId>" into the BPMN XML when a document template is linked to a UserTask',
+            'ronl namespace (http://ronl.nl/schema/1.0) declared on the BPMN definitions element',
+            'Linked document template bundled as a .document JSON file in the one-click deployment alongside BPMN and form files',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.2.0',
       status: 'Feature Release',
       statusColor: 'purple',

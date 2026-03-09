@@ -15,6 +15,10 @@ router.use(jwtMiddleware);
 router.use(tenantMiddleware);
 
 /**
+ * Routing order - mutations first
+ */
+
+/**
  * POST /v1/process/:key/start
  * Start a new process instance
  */
@@ -102,6 +106,70 @@ router.post(
     }
   }
 );
+
+/**
+ * Routing order - literal single-segment route, always before :param routes first
+ */
+
+/**
+ * GET /v1/process/history?applicantId=xxx
+ * List historical process instances for a citizen.
+ * Accessible by both citizens (own history) and caseworkers (any citizen in their municipality).
+ */
+router.get('/history', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { applicantId } = req.query;
+
+  if (!applicantId || typeof applicantId !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'applicantId query parameter is required' },
+    });
+  }
+
+  // Citizens can only request their own history
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (req.user as any).roles ?? [];
+  const isCaseworker = roles.includes('caseworker');
+  if (!isCaseworker && applicantId !== req.user.userId) {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Citizens may only request their own history' },
+    });
+  }
+
+  try {
+    const instances = await operatonService.getProcessHistory(applicantId, req.user.tenantId);
+
+    auditLog(req, 'process.history', 'success', {
+      applicantId,
+      tenantId: req.user.tenantId,
+      count: (instances as unknown[]).length,
+    });
+
+    res.json({ success: true, data: instances });
+  } catch (error) {
+    logger.error('Failed to get process history', {
+      applicantId,
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
+    });
+  }
+});
+
+/**
+ * Routing order - instance-ID routes (operate on a running/completed instance)
+ */
 
 /**
  * GET /v1/process/:id/status
@@ -242,6 +310,119 @@ router.get('/:id/variables', async (req, res) => {
 });
 
 /**
+ * GET /v1/process/:id/historic-variables
+ * Fetch final variable state of a completed process instance from Operaton history.
+ * Used to show the citizen their decision after the process ends.
+ */
+router.get('/:id/historic-variables', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const variables = await operatonService.getHistoricVariables(id);
+
+    // Tenant check via municipality variable
+    const municipality = variables['municipality'];
+    if (municipality && municipality !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+      });
+    }
+
+    res.json({ success: true, data: variables });
+  } catch (error) {
+    logger.error('Failed to get historic variables', {
+      processInstanceId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'HISTORIC_VARIABLES_FAILED',
+        message: 'Failed to retrieve historic variables',
+      },
+    });
+  }
+});
+
+/**
+ * GET /v1/process/:instanceId/decision-document
+ * Returns the DocumentTemplate bundled in the deployment that is linked to this process instance
+ * via camunda:documentRef on a UserTask. Works for completed instances.
+ */
+router.get('/:instanceId/decision-document', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { instanceId } = req.params;
+
+  try {
+    // Tenant isolation: reuse the same flat-value historic variables map
+    const vars = await operatonService.getHistoricVariables(instanceId);
+    const processTenant = vars.municipality;
+
+    if (processTenant !== req.user.tenantId) {
+      logger.warn('Tenant mismatch on decision-document access', {
+        instanceId,
+        userTenant: req.user.tenantId,
+        processTenant,
+      });
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+      });
+    }
+
+    const template = await operatonService.getDecisionDocument(instanceId);
+    res.json({ success: true, template });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+
+    if (msg === 'DOCUMENT_NOT_FOUND') {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'DOCUMENT_NOT_FOUND',
+          message: 'No document template found for this process instance',
+        },
+      });
+    }
+
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'DOCUMENT_NOT_FOUND', message: 'Process instance or definition not found' },
+      });
+    }
+
+    logger.error('Failed to fetch decision document', {
+      instanceId,
+      error: msg || 'Unknown error',
+    });
+
+    res.status(500).json({
+      success: false,
+      error: { code: 'DOCUMENT_FETCH_FAILED', message: 'Failed to retrieve decision document' },
+    });
+  }
+});
+
+/**
+ * Routing order - definition-key routes (operate on a process definition)
+ */
+
+/**
  * GET /v1/process/:key/start-form
  * Proxy the deployed start form schema for a process definition.
  * Only Camunda Forms (JSON, schemaVersion 16) are supported.
@@ -294,6 +475,45 @@ router.get('/:key/start-form', async (req, res) => {
     });
   }
 });
+
+/**
+ * GET /v1/process/:key/variable-hints
+ * Fetch deduplicated variable names and types from Operaton history
+ * for a given process definition key.
+ * Used by the Document Composer BindingPanel for variable discovery.
+ */
+router.get('/:key/variable-hints', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { key } = req.params;
+
+  try {
+    const variables = await operatonService.getVariableHints(key);
+
+    res.json({ success: true, variables });
+  } catch (error) {
+    logger.error('Failed to get variable hints', {
+      processKey: key,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'VARIABLE_HINTS_FAILED',
+        message: 'Failed to retrieve variable hints',
+      },
+    });
+  }
+});
+
+/**
+ * Routing order - mutations last
+ */
 
 /**
  * DELETE /v1/process/:id
@@ -391,139 +611,5 @@ function inferType(value: unknown): OperatonVariable['type'] {
       return 'String';
   }
 }
-
-/**
- * GET /v1/process/history?applicantId=xxx
- * List historical process instances for a citizen.
- * Accessible by both citizens (own history) and caseworkers (any citizen in their municipality).
- */
-router.get('/history', async (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-    });
-  }
-
-  const { applicantId } = req.query;
-
-  if (!applicantId || typeof applicantId !== 'string') {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'applicantId query parameter is required' },
-    });
-  }
-
-  // Citizens can only request their own history
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const roles: string[] = (req.user as any).roles ?? [];
-  const isCaseworker = roles.includes('caseworker');
-  if (!isCaseworker && applicantId !== req.user.userId) {
-    return res.status(403).json({
-      success: false,
-      error: { code: 'FORBIDDEN', message: 'Citizens may only request their own history' },
-    });
-  }
-
-  try {
-    const instances = await operatonService.getProcessHistory(applicantId, req.user.tenantId);
-
-    auditLog(req, 'process.history', 'success', {
-      applicantId,
-      tenantId: req.user.tenantId,
-      count: (instances as unknown[]).length,
-    });
-
-    res.json({ success: true, data: instances });
-  } catch (error) {
-    logger.error('Failed to get process history', {
-      applicantId,
-      tenantId: req.user.tenantId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
-    });
-  }
-});
-
-/**
- * GET /v1/process/:id/historic-variables
- * Fetch final variable state of a completed process instance from Operaton history.
- * Used to show the citizen their decision after the process ends.
- */
-router.get('/:id/historic-variables', async (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-    });
-  }
-
-  const { id } = req.params;
-
-  try {
-    const variables = await operatonService.getHistoricVariables(id);
-
-    // Tenant check via municipality variable
-    const municipality = variables['municipality'];
-    if (municipality && municipality !== req.user.tenantId) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
-      });
-    }
-
-    res.json({ success: true, data: variables });
-  } catch (error) {
-    logger.error('Failed to get historic variables', {
-      processInstanceId: id,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'HISTORIC_VARIABLES_FAILED',
-        message: 'Failed to retrieve historic variables',
-      },
-    });
-  }
-});
-
-/**
- * GET /v1/process/:key/variable-hints
- * Fetch deduplicated variable names and types from Operaton history
- * for a given process definition key.
- * Used by the Document Composer BindingPanel for variable discovery.
- */
-router.get('/:key/variable-hints', async (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-    });
-  }
-
-  const { key } = req.params;
-
-  try {
-    const variables = await operatonService.getVariableHints(key);
-
-    res.json({ success: true, variables });
-  } catch (error) {
-    logger.error('Failed to get variable hints', {
-      processKey: key,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'VARIABLE_HINTS_FAILED',
-        message: 'Failed to retrieve variable hints',
-      },
-    });
-  }
-});
 
 export default router;
