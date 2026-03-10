@@ -18,6 +18,7 @@ export interface JWTPayload {
   mandate?: MandateInfo; // Optional mandate information
   name?: string; // User display name
   email?: string; // User email
+  preferred_username?: string;
 }
 
 export interface AuthContext extends AuthenticatedUser {

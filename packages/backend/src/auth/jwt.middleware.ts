@@ -69,6 +69,7 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
     assuranceLevel: payload.loa as AssuranceLevel,
     mandate: payload.mandate,
     displayName: payload.name,
+    preferredUsername: payload.preferred_username,
   };
 }
 

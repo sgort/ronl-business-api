@@ -19,6 +19,7 @@ export interface AuthenticatedUser {
   assuranceLevel: AssuranceLevel;
   mandate?: MandateInfo;
   displayName?: string;
+  preferredUsername?: string;
 }
 
 export interface KeycloakUser {

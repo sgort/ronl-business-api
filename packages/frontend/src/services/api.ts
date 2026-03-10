@@ -174,6 +174,22 @@ export const businessApi = {
     },
   },
 
+  hr: {
+    profile: async (employeeId: string): Promise<ApiResponse<Record<string, unknown> | null>> => {
+      try {
+        const response = await api.get<ApiResponse<Record<string, unknown> | null>>(
+          `/hr/onboarding/profile?employeeId=${encodeURIComponent(employeeId)}`
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<null>;
+        }
+        throw error;
+      }
+    },
+  },
+
   // ── Utilities ─────────────────────────────────────────────────────────────
 
   getBaseUrl: () => API_BASE_URL,

@@ -217,6 +217,39 @@ export class OperatonService {
   }
 
   /**
+   * Find the most recent completed HrOnboardingProcess for a given employeeId.
+   * Returns flattened historic variables, or null if no completed instance found.
+   */
+  async getHrOnboardingProfile(
+    employeeId: string,
+    tenantId: string
+  ): Promise<Record<string, unknown> | null> {
+    try {
+      const response = await this.client.post('/history/process-instance', {
+        processDefinitionKey: 'HrOnboardingProcess',
+        finished: true,
+        variables: [
+          { name: 'employeeId', operator: 'eq', value: employeeId },
+          { name: 'municipality', operator: 'eq', value: tenantId },
+        ],
+        sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
+      });
+
+      const instances = response.data as { id: string }[];
+      if (!instances.length) return null;
+
+      return this.getHistoricVariables(instances[0].id);
+    } catch (error) {
+      logger.error('Failed to get HR onboarding profile', {
+        employeeId,
+        tenantId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Fetch the DocumentTemplate linked via camunda:documentRef on any UserTask in the BPMN
    * associated with the given process instance. Works for completed instances via the history API.
    * Throws Error('DOCUMENT_NOT_FOUND') when no camunda:documentRef is present or the deployment

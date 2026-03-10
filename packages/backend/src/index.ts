@@ -12,6 +12,7 @@ import packageJson from '../package.json';
 import brpRoutes from './routes/brp.routes';
 import taskRoutes from '@routes/task.routes';
 import publicRoutes from '@routes/public.routes';
+import hrRoutes from './routes/hr.routes';
 
 const appLogger = createLogger('app');
 
@@ -115,6 +116,7 @@ app.get('/', (req: Request, res: Response) => {
       decision: '/v1/decision',
       tasks: '/v1/task',
       public: '/v1/public',
+      hr: '/v1/hr',
     },
     security: {
       authentication: 'JWT (Keycloak)',
@@ -131,6 +133,7 @@ app.use('/v1/decision', decisionRoutes);
 app.use('/v1/task', taskRoutes);
 app.use('/v1/brp', brpRoutes);
 app.use('/v1/public', publicRoutes);
+app.use('/v1/hr', hrRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
