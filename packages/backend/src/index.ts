@@ -11,6 +11,7 @@ import { auditMiddleware } from '@middleware/audit.middleware';
 import packageJson from '../package.json';
 import brpRoutes from './routes/brp.routes';
 import taskRoutes from '@routes/task.routes';
+import publicRoutes from '@routes/public.routes';
 
 const appLogger = createLogger('app');
 
@@ -65,7 +66,6 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Per-tenant rate limiting if enabled
   keyGenerator: (req: Request) => {
     if (config.rateLimit.perTenant && req.user) {
       return `${req.user.tenantId}:${req.ip}`;
@@ -113,7 +113,8 @@ app.get('/', (req: Request, res: Response) => {
       health: '/v1/health',
       process: '/v1/process',
       decision: '/v1/decision',
-      tasks: '/v1/tasks',
+      tasks: '/v1/task',
+      public: '/v1/public',
     },
     security: {
       authentication: 'JWT (Keycloak)',
@@ -129,6 +130,7 @@ app.use('/v1/process', processRoutes);
 app.use('/v1/decision', decisionRoutes);
 app.use('/v1/task', taskRoutes);
 app.use('/v1/brp', brpRoutes);
+app.use('/v1/public', publicRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -183,7 +185,6 @@ const startServer = () => {
     appLogger.info(`Health check: http://${host}:${port}/v1/health`);
     appLogger.info(`Documentation: http://${host}:${port}/v1/docs`);
 
-    // Log security configuration
     appLogger.info('Security configuration', {
       helmetEnabled: config.security.helmetEnabled,
       secureCookies: config.security.secureCookies,
@@ -197,7 +198,6 @@ const startServer = () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
-  // TODO: Close database connections, flush logs, etc.
   process.exit(0);
 });
 
@@ -206,15 +206,12 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-// Unhandled rejection handler
 process.on('unhandledRejection', (reason: unknown) => {
   appLogger.error('Unhandled promise rejection', {
     reason: reason instanceof Error ? reason.message : String(reason),
   });
-  // Don't crash the server, but log the error
 });
 
-// Start the server
 startServer();
 
 export default app;

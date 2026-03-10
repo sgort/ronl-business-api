@@ -54,14 +54,9 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/dashboard/caseworker"
-          element={
-            <ProtectedRoute requiredRole="caseworker">
-              <CaseworkerDashboard />
-            </ProtectedRoute>
-          }
-        />
+
+        {/* Caseworker portal is public — auth state is handled inside the component */}
+        <Route path="/dashboard/caseworker" element={<CaseworkerDashboard />} />
 
         {/* Legacy /dashboard redirect — role-based, falls through to ProtectedRoute logic */}
         <Route
