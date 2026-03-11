@@ -399,6 +399,21 @@
       "realmRoles": ["citizen"]
     },
     {
+      "username": "test-hr-flevoland",
+      "enabled": true,
+      "firstName": "HR",
+      "lastName": "Medewerker Flevoland",
+      "email": "hr@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-hr-01"]
+      },
+      "realmRoles": ["caseworker", "hr-medewerker"]
+    },
+    {
       "username": "test-caseworker-flevoland",
       "enabled": true,
       "firstName": "Test",
