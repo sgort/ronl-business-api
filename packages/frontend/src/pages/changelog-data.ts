@@ -31,6 +31,62 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.4.0',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'March 11, 2026',
+      sections: [
+        {
+          title: 'HR Onboarding Process',
+          icon: '👤',
+          iconColor: 'blue',
+          items: [
+            'HrOnboardingProcess BPMN deployed: collect employee data → DMN role assignment → HR review → notify employee',
+            'EmployeeRoleAssignment DMN maps department + job function to assignedRoles, candidateGroups, and accessLevel',
+            'All user tasks use candidateGroups="hr-medewerker" — claim-first workflow identical to Kapvergunning',
+            'Process started with empty variables; first task (Collect employee data) appears in task queue immediately',
+            'hr-medewerker realm role added; test-hr-denhaag and test-onboarded-denhaag test users added for Den Haag',
+            'employeeId protocol mapper added to ronl-business-api-dedicated client scope — injects employee_id user attribute as employeeId JWT claim',
+          ],
+        },
+        {
+          title: 'IT Handover Document',
+          icon: '📄',
+          iconColor: 'purple',
+          items: [
+            'hr-it-handover.document authored and bundled in HrOnboardingProcess deployment (Version 4)',
+            'Document linked via ronl:documentRef on Task_NotifyEmployee in HrOnboardingProcess.bpmn',
+            'Template includes medewerkergegevens, toegangsspecificaties, and step-by-step Keycloak account creation instructions for IT',
+            'Bindings cover employeeId, firstName, lastName, municipality, department, jobFunction, assignedRoles, candidateGroups, accessLevel, startDate',
+          ],
+        },
+        {
+          title: 'Caseworker Dashboard — HR Sections',
+          icon: '🏛️',
+          iconColor: 'green',
+          items: [
+            'Persoonlijke info → Profiel: JWT identity card + onboarding data auto-fetched via employeeId claim; manual input fallback when claim absent',
+            'Persoonlijke info → Rollen & rechten: assigned roles from completed onboarding process with access level description card',
+            'Persoonlijke info → Medewerker onboarden: role-gated to hr-medewerker; starts HrOnboardingProcess with a single button; success state directs to task queue',
+            'Persoonlijke info → Afgeronde onboardingen: role-gated to hr-medewerker; lists all completed HrOnboardingProcess instances for the municipality with name, employee ID, and completion date; expand to render IT handover document via DecisionViewer',
+            'GET /v1/hr/onboarding/profile — returns flattened historic variables for a completed onboarding by employeeId + municipality',
+            'GET /v1/hr/onboarding/completed — returns list of all completed onboarding instances enriched with employeeId, firstName, lastName',
+          ],
+        },
+        {
+          title: 'Caseworker Dashboard — UX Fixes',
+          icon: '✨',
+          iconColor: 'orange',
+          items: [
+            'Header user block shows preferred_username, LoA badge, and all role badges dynamically — supports multiple roles',
+            'Unauthenticated navigation to any top-nav page now defaults to the first section in the left panel, showing the login prompt immediately without a second click',
+            'Afgeronde onboardingen access restricted to hr-medewerker role — regular caseworkers see access-denied message',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.3.0',
       status: 'Feature Release',
       statusColor: 'purple',
