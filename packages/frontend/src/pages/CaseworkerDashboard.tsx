@@ -1148,7 +1148,7 @@ export default function CaseworkerDashboard() {
 
           {isAuthenticated ? (
             <div className="text-right">
-              <p className="text-sm font-medium">{user?.preferred_username ?? 'ingelogd'}</p>
+              <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
               <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
                 {user?.loa && (
                   <span

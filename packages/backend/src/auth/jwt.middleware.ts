@@ -65,6 +65,7 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
   return {
     userId: payload.sub,
     tenantId: payload.municipality,
+    organisationType: payload.organisation_type,
     roles: payload.roles || [],
     assuranceLevel: payload.loa as AssuranceLevel,
     mandate: payload.mandate,

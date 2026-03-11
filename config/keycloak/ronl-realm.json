@@ -66,6 +66,20 @@
           }
         },
         {
+          "name": "organisation_type",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "organisation_type",
+            "claim.name": "organisation_type",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
           "name": "assurance_level",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-usermodel-attribute-mapper",
@@ -176,6 +190,7 @@
       ],
       "attributes": {
         "municipality": ["utrecht"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-001"]
       },
@@ -197,6 +212,7 @@
       ],
       "attributes": {
         "municipality": ["utrecht"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-001"]
       },
@@ -218,6 +234,7 @@
       ],
       "attributes": {
         "municipality": ["amsterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-002"]
       },
@@ -239,6 +256,7 @@
       ],
       "attributes": {
         "municipality": ["amsterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-002"]
       },
@@ -260,6 +278,7 @@
       ],
       "attributes": {
         "municipality": ["rotterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-003"]
       },
@@ -281,6 +300,7 @@
       ],
       "attributes": {
         "municipality": ["rotterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-003"]
       },
@@ -302,6 +322,7 @@
       ],
       "attributes": {
         "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-004"]
       },
@@ -323,6 +344,7 @@
       ],
       "attributes": {
         "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-004"]
       },
@@ -338,6 +360,7 @@
       "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
       "attributes": {
         "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-hr-01"]
       },
@@ -353,8 +376,73 @@
       "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
       "attributes": {
         "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-test-01"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-flevoland",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Flevolander",
+      "email": "test@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-005"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-flevoland",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Flevoland",
+      "email": "medewerker@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-005"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-uwv",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "UWV Aanvrager",
+      "email": "test@uwv.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["uwv"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-006"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-uwv",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker UWV",
+      "email": "medewerker@uwv.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["uwv"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-006"]
       },
       "realmRoles": ["caseworker"]
     }
