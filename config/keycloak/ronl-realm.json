@@ -408,6 +408,7 @@
       "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
       "attributes": {
         "municipality": ["flevoland"],
+        "organisation_type": ["province"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-hr-01"]
       },
