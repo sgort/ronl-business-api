@@ -1,3 +1,5 @@
+import { OrganisationType } from './tenant.types';
+
 export type AssuranceLevel = 'basis' | 'midden' | 'hoog' | 'substantieel';
 
 export interface MandateInfo {
@@ -11,6 +13,7 @@ export interface MandateInfo {
 export interface AuthenticatedUser {
   userId: string;
   tenantId: string;
+  organisationType: OrganisationType;
   roles: string[];
   assuranceLevel: AssuranceLevel;
   mandate?: MandateInfo;
@@ -24,6 +27,7 @@ export interface KeycloakUser {
   name?: string;
   email?: string;
   municipality: string;
+  organisation_type: OrganisationType;
   loa: AssuranceLevel;
   roles: string[];
   mandate?: MandateInfo;

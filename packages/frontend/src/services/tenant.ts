@@ -3,6 +3,8 @@
  * Handles multi-tenant theming and configuration
  */
 
+export type OrganisationType = 'municipality' | 'province' | 'national';
+
 export interface TenantTheme {
   primary: string;
   primaryDark: string;
@@ -29,7 +31,7 @@ export interface TenantContact {
 export interface LeftPanelSection {
   id: string;
   label: string;
-  isPublic?: boolean; // defaults to true when omitted
+  isPublic?: boolean;
 }
 
 export interface LeftPanelSections {
@@ -40,7 +42,9 @@ export interface TenantConfig {
   id: string;
   name: string;
   displayName: string;
-  municipalityCode: string;
+  organisationType: OrganisationType;
+  municipalityCode?: string;
+  organisationCode?: string;
   theme: TenantTheme;
   features: TenantFeatures;
   contact: TenantContact;

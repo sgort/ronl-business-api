@@ -262,16 +262,25 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-medium">
-              {user?.name ?? user?.preferred_username ?? 'Burger'}
-            </p>
-            <div className="flex items-center gap-2 text-xs opacity-80 mt-0.5 justify-end">
-              <span
-                className="px-2 py-0.5 rounded"
-                style={{ backgroundColor: 'var(--color-primary-dark)' }}
-              >
-                LoA: {user?.loa ?? 'hoog'}
-              </span>
+            <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
+            <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
+              {user?.loa && (
+                <span
+                  className="px-2 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                >
+                  LoA: {user.loa}
+                </span>
+              )}
+              {(user?.roles ?? []).map((role) => (
+                <span
+                  key={role}
+                  className="px-2 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                >
+                  {role}
+                </span>
+              ))}
             </div>
             <button onClick={handleLogout} className="mt-1 text-sm underline hover:opacity-80">
               Uitloggen

@@ -31,6 +31,31 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.4.1',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 11, 2026',
+      sections: [
+        {
+          title: 'Multi-Tenant Architecture — Organisation Types',
+          icon: '🏛️',
+          iconColor: 'purple',
+          items: [
+            'Platform extended beyond municipalities: provinces and national government agencies now supported as first-class tenant categories',
+            'New OrganisationType union type: municipality | province | national — shared across frontend, backend, and Keycloak',
+            'organisationType JWT claim added to all tokens via Keycloak protocol mapper (organisation_type user attribute)',
+            'organisationType propagated through AuthenticatedUser, JWTPayload, and BPMN process variables',
+            'TenantConfig gains organisationType (required) and organisationCode (optional, for CBS PV codes, OIN, etc.); municipalityCode made optional',
+            'tenants.json extended with Provincie Flevoland (province) and UWV (national) as reference tenants',
+            'Backend error messages generalised: "municipality mismatch" → "organisation mismatch"',
+            'PostgreSQL tenants table gains organisation_type and organisation_code columns',
+            'Keycloak realm: organisation_type attribute and protocol mapper added; test users for flevoland and uwv added',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.4.0',
       status: 'Feature Release',
       statusColor: 'blue',

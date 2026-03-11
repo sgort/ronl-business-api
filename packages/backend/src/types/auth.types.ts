@@ -1,23 +1,24 @@
-import { AuthenticatedUser, AssuranceLevel, MandateInfo } from '@ronl/shared';
+import { AuthenticatedUser, AssuranceLevel, MandateInfo, OrganisationType } from '@ronl/shared';
 
-export { AuthenticatedUser, AssuranceLevel, MandateInfo };
+export { AuthenticatedUser, AssuranceLevel, MandateInfo, OrganisationType };
 
 /**
  * Authentication and Authorization Type Definitions
  */
 export interface JWTPayload {
-  sub: string; // Subject (user ID - opaque identifier)
-  iss: string; // Issuer (Keycloak URL)
-  aud: string | string[]; // Audience
-  exp: number; // Expiration timestamp
-  iat: number; // Issued at timestamp
-  jti?: string; // JWT ID
-  municipality: string; // Municipality/tenant identifier
-  loa: AssuranceLevel; // Level of Assurance (DigiD level)
-  roles: string[]; // User roles
-  mandate?: MandateInfo; // Optional mandate information
-  name?: string; // User display name
-  email?: string; // User email
+  sub: string;
+  iss: string;
+  aud: string | string[];
+  exp: number;
+  iat: number;
+  jti?: string;
+  municipality: string;
+  organisation_type: OrganisationType;
+  loa: AssuranceLevel;
+  roles: string[];
+  mandate?: MandateInfo;
+  name?: string;
+  email?: string;
   preferred_username?: string;
   employeeId?: string;
 }
@@ -47,8 +48,6 @@ export interface KeycloakJWKS {
   keys: KeycloakPublicKey[];
 }
 
-// Extend Express Request with authenticated user
-// Using module augmentation instead of namespace
 declare module 'express-serve-static-core' {
   interface Request {
     auth?: AuthContext;
