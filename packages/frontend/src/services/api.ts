@@ -175,18 +175,26 @@ export const businessApi = {
   },
 
   hr: {
-    profile: async (employeeId: string): Promise<ApiResponse<Record<string, unknown> | null>> => {
-      try {
-        const response = await api.get<ApiResponse<Record<string, unknown> | null>>(
-          `/hr/onboarding/profile?employeeId=${encodeURIComponent(employeeId)}`
-        );
-        return response.data;
-      } catch (error: unknown) {
-        if (axios.isAxiosError(error) && error.response?.data) {
-          return error.response.data as ApiResponse<null>;
-        }
-        throw error;
-      }
+    profile: async (employeeId: string): Promise<ApiResponse<Record<string, unknown>>> => {
+      const response = await api.get<ApiResponse<Record<string, unknown>>>(
+        `/hr/onboarding/profile?employeeId=${encodeURIComponent(employeeId)}`
+      );
+      return response.data;
+    },
+    completed: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          endTime: string;
+          employeeId: string;
+          firstName: string;
+          lastName: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/hr/onboarding/completed');
+      return response.data;
     },
   },
 

@@ -70,6 +70,7 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
     mandate: payload.mandate,
     displayName: payload.name,
     preferredUsername: payload.preferred_username,
+    employeeId: payload.employeeId,
   };
 }
 

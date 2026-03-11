@@ -192,11 +192,15 @@ const FALLBACK_SCHEMA = {
 
 interface DecisionViewerProps {
   processInstanceId: string;
+  showFallback?: boolean;
 }
 
 type Status = 'loading' | 'ready' | 'fallback' | 'error';
 
-export default function DecisionViewer({ processInstanceId }: DecisionViewerProps) {
+export default function DecisionViewer({
+  processInstanceId,
+  showFallback = true,
+}: DecisionViewerProps) {
   const [status, setStatus] = useState<Status>('loading');
   const [template, setTemplate] = useState<DocumentTemplate | null>(null);
   const [vars, setVars] = useState<Record<string, unknown>>({});
@@ -272,8 +276,8 @@ export default function DecisionViewer({ processInstanceId }: DecisionViewerProp
         </div>
       )}
 
-      {status === 'error' && (
-        <p className="text-sm text-red-600">Beslissing kon niet worden geladen.</p>
+      {status === 'error' && showFallback && (
+        <p className="text-sm text-red-500">Document kon niet worden geladen.</p>
       )}
 
       {/* Document template renderer */}
@@ -295,7 +299,10 @@ export default function DecisionViewer({ processInstanceId }: DecisionViewerProp
       )}
 
       {/* form-js fallback — container always in DOM once status==='fallback' */}
-      <div ref={containerRef} className={status === 'fallback' ? 'fjs-container' : 'hidden'} />
+      <div
+        ref={containerRef}
+        className={status === 'fallback' && showFallback ? 'fjs-container' : 'hidden'}
+      />
     </div>
   );
 }

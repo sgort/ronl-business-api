@@ -19,6 +19,7 @@ export interface JWTPayload {
   name?: string; // User display name
   email?: string; // User email
   preferred_username?: string;
+  employeeId?: string;
 }
 
 export interface AuthContext extends AuthenticatedUser {

@@ -42,4 +42,34 @@ router.get('/onboarding/profile', async (req, res) => {
   }
 });
 
+/**
+ * GET /v1/hr/onboarding/completed
+ * List all completed HrOnboardingProcess instances for the caseworker's municipality.
+ */
+router.get('/onboarding/completed', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  try {
+    const list = await operatonService.getHrOnboardingCompletedList(req.user.tenantId);
+    res.json({ success: true, data: list });
+  } catch (error) {
+    logger.error('Failed to list completed onboardings', {
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'ONBOARDING_LIST_FAILED',
+        message: 'Failed to retrieve completed onboardings',
+      },
+    });
+  }
+});
+
 export default router;

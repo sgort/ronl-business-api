@@ -117,6 +117,20 @@
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
+        },
+        {
+          "name": "employee_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "employee_id",
+            "claim.name": "employeeId",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
         }
       ]
     }
@@ -130,6 +144,10 @@
       {
         "name": "representative",
         "description": "Representative acting on behalf of a citizen (with mandate)"
+      },
+      {
+        "name": "hr-medewerker",
+        "description": "HR department employee who manages staff onboarding"
       },
       {
         "name": "caseworker",
@@ -307,6 +325,36 @@
         "municipality": ["denhaag"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-004"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-hr-denhaag",
+      "enabled": true,
+      "firstName": "HR",
+      "lastName": "Medewerker Den Haag",
+      "email": "hr@denhaag.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["denhaag"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-hr-01"]
+      },
+      "realmRoles": ["caseworker", "hr-medewerker"]
+    },
+    {
+      "username": "test-onboarded-denhaag",
+      "enabled": true,
+      "firstName": "Onboarded",
+      "lastName": "Medewerker Den Haag",
+      "email": "onboarded@denhaag.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["denhaag"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-test-01"]
       },
       "realmRoles": ["caseworker"]
     }

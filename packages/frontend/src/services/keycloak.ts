@@ -46,6 +46,7 @@ export const getUser = (): KeycloakUser | null => {
     roles: realmRoles,
     preferred_username: token.preferred_username as string | undefined,
     bsn: token.bsn as string | undefined,
+    employeeId: token.employeeId as string | undefined,
   };
 };
 

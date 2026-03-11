@@ -1,7 +1,3 @@
-/**
- * Shared Authentication Types
- */
-
 export type AssuranceLevel = 'basis' | 'midden' | 'hoog' | 'substantieel';
 
 export interface MandateInfo {
@@ -20,6 +16,7 @@ export interface AuthenticatedUser {
   mandate?: MandateInfo;
   displayName?: string;
   preferredUsername?: string;
+  employeeId?: string;
 }
 
 export interface KeycloakUser {
@@ -32,4 +29,5 @@ export interface KeycloakUser {
   mandate?: MandateInfo;
   preferred_username?: string;
   bsn?: string;
+  employeeId?: string;
 }

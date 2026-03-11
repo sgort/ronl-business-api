@@ -13,7 +13,7 @@ import {
 import type { TenantConfig, LeftPanelSection } from '../services/tenant';
 import type { KeycloakUser, Task } from '@ronl/shared';
 import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
-import ProcessStartFormViewer from '../components/ProcessStartFormViewer';
+import DecisionViewer from '../components/DecisionViewer';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects';
 
@@ -70,12 +70,25 @@ export default function CaseworkerDashboard() {
 
   // Profiel onboarding enrichment
   const [onboardingStarted, setOnboardingStarted] = useState(false);
-  const [employeeIdInput, setEmployeeIdInput] = useState('');
   const [profielData, setProfielData] = useState<Record<string, unknown> | null | undefined>(
     undefined
   );
   const [profielLoading, setProfielLoading] = useState(false);
   const [profielError, setProfielError] = useState<string | null>(null);
+  const [employeeIdInput, setEmployeeIdInput] = useState('');
+  const [onboardingArchief, setOnboardingArchief] = useState<
+    Array<{
+      id: string;
+      startTime: string;
+      endTime: string;
+      employeeId: string;
+      firstName: string;
+      lastName: string;
+    }>
+  >([]);
+  const [onboardingArchiefLoading, setOnboardingArchiefLoading] = useState(false);
+  const [onboardingArchiefError, setOnboardingArchiefError] = useState<string | null>(null);
+  const [selectedOnboarding, setSelectedOnboarding] = useState<string | null>(null);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -105,7 +118,7 @@ export default function CaseworkerDashboard() {
       setActiveSection(sections.length > 0 ? sections[0].id : null);
     } else {
       const firstPublic = sections.find((s) => s.isPublic !== false);
-      setActiveSection(firstPublic?.id ?? null);
+      setActiveSection(firstPublic?.id ?? sections[0]?.id ?? null);
     }
   }, [activeTopNavPage, tenantConfig, isAuthenticated]);
 
@@ -114,7 +127,25 @@ export default function CaseworkerDashboard() {
     if (activeSection === 'taken' && isAuthenticated) loadTasks();
     if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
     if (activeSection === 'berichten' && berichtenItems.length === 0) loadBerichten();
-  }, [activeSection, berichtenItems.length, isAuthenticated, nieuwsItems.length]);
+    if (activeSection === 'onboarding-archief' && isAuthenticated) loadOnboardingArchief();
+    if (
+      (activeSection === 'profiel' || activeSection === 'rollen') &&
+      isAuthenticated &&
+      profielData === undefined &&
+      !profielLoading &&
+      user?.employeeId
+    )
+      loadProfiel(user.employeeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeSection,
+    berichtenItems.length,
+    isAuthenticated,
+    nieuwsItems.length,
+    profielData,
+    profielLoading,
+    user?.employeeId,
+  ]);
 
   // ── Data fetchers ─────────────────────────────────────────────────────────
 
@@ -157,6 +188,35 @@ export default function CaseworkerDashboard() {
       setBerichtenError('Berichten konden niet worden geladen.');
     } finally {
       setBerichtenLoading(false);
+    }
+  };
+
+  const loadProfiel = async (employeeId: string) => {
+    setProfielLoading(true);
+    setProfielError(null);
+    try {
+      const res = await businessApi.hr.profile(employeeId);
+      if (res.success) setProfielData(res.data ?? null);
+      else setProfielData(null);
+    } catch {
+      setProfielError('Onboardingprofiel kon niet worden geladen.');
+      setProfielData(null);
+    } finally {
+      setProfielLoading(false);
+    }
+  };
+
+  const loadOnboardingArchief = async () => {
+    setOnboardingArchiefLoading(true);
+    setOnboardingArchiefError(null);
+    try {
+      const res = await businessApi.hr.completed();
+      if (res.success) setOnboardingArchief(res.data as typeof onboardingArchief);
+      else setOnboardingArchiefError('Afgeronde onboardingen konden niet worden geladen.');
+    } catch {
+      setOnboardingArchiefError('Afgeronde onboardingen konden niet worden geladen.');
+    } finally {
+      setOnboardingArchiefLoading(false);
     }
   };
 
@@ -646,22 +706,11 @@ export default function CaseworkerDashboard() {
 
     const handleFetchOnboarding = async () => {
       if (!employeeIdInput.trim()) return;
-      setProfielLoading(true);
-      setProfielError(null);
-      try {
-        const res = await businessApi.hr.profile(employeeIdInput.trim());
-        if (res.success) setProfielData(res.data ?? null);
-        else setProfielData(null);
-      } catch {
-        setProfielError('Onboardingprofiel kon niet worden geladen.');
-      } finally {
-        setProfielLoading(false);
-      }
+      await loadProfiel(employeeIdInput.trim());
     };
 
     return (
       <div className="max-w-2xl space-y-4">
-        {/* JWT data — always shown */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
             Persoonlijke gegevens
@@ -671,6 +720,7 @@ export default function CaseworkerDashboard() {
               [
                 { label: 'Naam', value: user?.name },
                 { label: 'Gebruikersnaam', value: user?.preferred_username },
+                { label: 'Medewerker-ID', value: user?.employeeId },
                 { label: 'Gemeente', value: tenantConfig?.displayName ?? user?.municipality },
                 {
                   label: 'Beveiligingsniveau',
@@ -692,45 +742,66 @@ export default function CaseworkerDashboard() {
           </dl>
         </div>
 
-        {/* Onboarding enrichment — manual lookup by employeeId */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Onboardinggegevens
           </h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Voer uw medewerker-ID in om uw onboardingprofiel op te halen.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={employeeIdInput}
-              onChange={(e) => setEmployeeIdInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleFetchOnboarding()}
-              placeholder="bijv. emp-001"
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-            <button
-              onClick={handleFetchOnboarding}
-              disabled={profielLoading || !employeeIdInput.trim()}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40 transition-opacity"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              {profielLoading ? 'Laden…' : 'Ophalen'}
-            </button>
-          </div>
 
-          {profielError && <p className="text-sm text-red-500 mt-3">{profielError}</p>}
+          {profielLoading && (
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex gap-4">
+                  <div className="h-3 bg-gray-200 rounded w-1/4" />
+                  <div className="h-3 bg-gray-200 rounded w-1/3" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!profielLoading && profielError && (
+            <p className="text-sm text-red-500">{profielError}</p>
+          )}
+
+          {!profielLoading && !user?.employeeId && profielData === undefined && (
+            <>
+              <p className="text-sm text-gray-400 mb-4">
+                Voer uw medewerker-ID in om uw onboardingprofiel op te halen.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={employeeIdInput}
+                  onChange={(e) => setEmployeeIdInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFetchOnboarding()}
+                  placeholder="bijv. emp-001"
+                  className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button
+                  onClick={handleFetchOnboarding}
+                  disabled={!employeeIdInput.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  Ophalen
+                </button>
+              </div>
+            </>
+          )}
 
           {!profielLoading && profielData === null && !profielError && (
-            <p className="text-sm text-gray-400 mt-3">
-              Geen onboardingprofiel gevonden voor dit medewerker-ID.
+            <p className="text-sm text-gray-400">
+              Geen onboardingprofiel gevonden.{' '}
+              {user?.roles?.includes('hr-medewerker') && (
+                <span>
+                  Gebruik <strong>Medewerker onboarden</strong> om een profiel aan te maken.
+                </span>
+              )}
             </p>
           )}
 
           {!profielLoading && profielData && (
-            <dl className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between mb-1">
-                <span />
+            <dl className="space-y-3">
+              <div className="flex justify-end mb-1">
                 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
                   Onboarding voltooid
                 </span>
@@ -762,6 +833,99 @@ export default function CaseworkerDashboard() {
     );
   }
 
+  function renderRollen() {
+    const ROLE_DESCRIPTIONS: Record<string, string> = {
+      caseworker: 'Behandelen van aanvragen en zaken',
+      'hr-medewerker': 'Beheren van medewerker onboarding',
+      'rip-verkenner': 'Verkenningsfase van RIP-projecten',
+      'rip-planner': 'Planvoorbereiding en contractvorming',
+      'rip-inkoop': 'Aanbestedingen en inkoop',
+      'rip-contractbeheer': 'Contractbeheersing',
+      'rip-projectleider': 'Projectleiding en decharge',
+      'rip-toetser': 'Toetsproces',
+      'rip-kwaliteit': 'Kwaliteitstoetsing',
+      admin: 'Beheerder',
+    };
+
+    const ACCESS_LEVEL_DESCRIPTIONS: Record<string, string> = {
+      basis: 'Standaard toegang tot eigen taken en zaken',
+      uitgebreid: 'Uitgebreide toegang inclusief rapportages',
+      admin: 'Volledige toegang tot alle functionaliteiten',
+    };
+
+    const jwtRoles = user?.roles ?? [];
+    const onboardingRoles = profielData?.assignedRoles
+      ? (profielData.assignedRoles as string).split(',').map((r) => r.trim())
+      : null;
+    const accessLevel = profielData?.accessLevel as string | undefined;
+
+    return (
+      <div className="max-w-2xl space-y-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            Toegewezen rollen
+          </h2>
+
+          {profielLoading && (
+            <div className="animate-pulse space-y-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-10 bg-gray-100 rounded-lg" />
+              ))}
+            </div>
+          )}
+
+          {!profielLoading && (
+            <ul className="space-y-2">
+              {(onboardingRoles ?? jwtRoles).map((role) => (
+                <li
+                  key={role}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100"
+                >
+                  <span
+                    className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{role}</p>
+                    {ROLE_DESCRIPTIONS[role] && (
+                      <p className="text-xs text-gray-400 mt-0.5">{ROLE_DESCRIPTIONS[role]}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {!profielLoading && accessLevel && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Toegangsniveau
+            </h2>
+            <div className="flex items-center gap-3">
+              <span
+                className="text-sm font-semibold capitalize px-3 py-1 rounded-full text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                {accessLevel}
+              </span>
+              {ACCESS_LEVEL_DESCRIPTIONS[accessLevel] && (
+                <p className="text-sm text-gray-500">{ACCESS_LEVEL_DESCRIPTIONS[accessLevel]}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!profielLoading && !profielData && !user?.employeeId && (
+          <p className="text-sm text-gray-400 px-1">
+            Koppel uw medewerker-ID via <strong>Profiel</strong> om gedetailleerde rolinformatie te
+            zien.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   function renderHrOnboarding() {
     const isHrMedewerker = user?.roles?.includes('hr-medewerker');
 
@@ -786,7 +950,8 @@ export default function CaseworkerDashboard() {
             <p className="text-3xl mb-4">✅</p>
             <h2 className="text-lg font-bold text-gray-800 mb-2">Onboardingsproces gestart</h2>
             <p className="text-gray-500 text-sm mb-5">
-              Het proces staat klaar in de taakwachtrij voor verdere afhandeling.
+              De taak staat klaar in de wachtrij. Ga naar <strong>Projecten → Taken</strong> om de
+              gegevens in te vullen.
             </p>
             <button
               onClick={() => setOnboardingStarted(false)}
@@ -804,22 +969,122 @@ export default function CaseworkerDashboard() {
       <div className="max-w-2xl">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-1">Medewerker onboarden</h2>
-          <p className="text-sm text-gray-500 mb-5 leading-relaxed">
-            Start een onboardingsproces voor een nieuwe medewerker. Het systeem bepaalt automatisch
-            de rollen en rechten op basis van afdeling en functie.
+          <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+            Start een onboardingsproces voor een nieuwe medewerker. Na het starten verschijnt de
+            taak in de wachtrij waar u de medewerkergegevens kunt invullen.
           </p>
-          <ProcessStartFormViewer
-            processKey="HrOnboardingProcess"
-            initialData={{}}
-            onStarted={() => setOnboardingStarted(true)}
-            onError={() =>
-              setActionMessage({
-                type: 'error',
-                text: 'Onboardingsproces kon niet worden gestart.',
-              })
-            }
-          />
+          <button
+            onClick={async () => {
+              try {
+                const res = await businessApi.process.start('HrOnboardingProcess', {});
+                if (res.success) {
+                  setOnboardingStarted(true);
+                } else {
+                  setActionMessage({
+                    type: 'error',
+                    text: 'Onboardingsproces kon niet worden gestart.',
+                  });
+                }
+              } catch {
+                setActionMessage({
+                  type: 'error',
+                  text: 'Onboardingsproces kon niet worden gestart.',
+                });
+              }
+            }}
+            className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Onboardingsproces starten
+          </button>
         </div>
+      </div>
+    );
+  }
+
+  function renderOnboardingArchief() {
+    const isHrMedewerker = user?.roles?.includes('hr-medewerker');
+
+    if (!isHrMedewerker) {
+      return (
+        <div className="max-w-lg">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p className="text-3xl mb-4 text-gray-300">🔒</p>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Toegang beperkt</h2>
+            <p className="text-gray-400 text-sm">
+              Alleen HR-medewerkers kunnen afgeronde onboardingen inzien.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (onboardingArchiefLoading) {
+      return (
+        <div className="max-w-2xl space-y-3">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-1/3" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (onboardingArchiefError) {
+      return (
+        <div className="max-w-2xl bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
+          {onboardingArchiefError}
+          <button onClick={loadOnboardingArchief} className="ml-3 underline">
+            Opnieuw proberen
+          </button>
+        </div>
+      );
+    }
+
+    if (onboardingArchief.length === 0) {
+      return (
+        <div className="max-w-2xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+          Geen afgeronde onboardingen gevonden.
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl space-y-3">
+        {onboardingArchief.map((record) => (
+          <div
+            key={record.id}
+            className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+          >
+            <button
+              onClick={() =>
+                setSelectedOnboarding(selectedOnboarding === record.id ? null : record.id)
+              }
+              className="w-full text-left p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div>
+                <p className="font-medium text-gray-800 text-sm">
+                  {record.firstName} {record.lastName}
+                  <span className="ml-2 text-gray-400 font-normal">{record.employeeId}</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Afgerond op {formatDate(record.endTime)}
+                </p>
+              </div>
+              <span className="text-gray-400 text-lg">
+                {selectedOnboarding === record.id ? '▲' : '▼'}
+              </span>
+            </button>
+
+            {selectedOnboarding === record.id && (
+              <div className="border-t border-gray-100 p-5">
+                <DecisionViewer processInstanceId={record.id} showFallback={false} />
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     );
   }
@@ -842,6 +1107,10 @@ export default function CaseworkerDashboard() {
         return renderProfiel();
       case 'hr-onboarding':
         return renderHrOnboarding();
+      case 'onboarding-archief':
+        return renderOnboardingArchief();
+      case 'rollen':
+        return renderRollen();
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
@@ -879,16 +1148,25 @@ export default function CaseworkerDashboard() {
 
           {isAuthenticated ? (
             <div className="text-right">
-              <p className="text-sm font-medium">
-                {user?.name ?? user?.preferred_username ?? 'Medewerker'}
-              </p>
-              <div className="flex items-center gap-2 text-xs opacity-80 mt-0.5 justify-end">
-                <span
-                  className="px-2 py-0.5 rounded"
-                  style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
-                >
-                  caseworker
-                </span>
+              <p className="text-sm font-medium">{user?.preferred_username ?? 'ingelogd'}</p>
+              <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
+                {user?.loa && (
+                  <span
+                    className="px-2 py-0.5 rounded"
+                    style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                  >
+                    LoA: {user.loa}
+                  </span>
+                )}
+                {(user?.roles ?? []).map((role) => (
+                  <span
+                    key={role}
+                    className="px-2 py-0.5 rounded"
+                    style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                  >
+                    {role}
+                  </span>
+                ))}
               </div>
               <button onClick={handleLogout} className="mt-1 text-xs underline hover:opacity-80">
                 Uitloggen

@@ -250,6 +250,60 @@ export class OperatonService {
   }
 
   /**
+   * List all completed HrOnboardingProcess instances for a municipality,
+   * enriched with key display variables (employeeId, firstName, lastName).
+   */
+  async getHrOnboardingCompletedList(
+    tenantId: string
+  ): Promise<
+    Array<{
+      id: string;
+      startTime: string;
+      endTime: string;
+      employeeId: string;
+      firstName: string;
+      lastName: string;
+    }>
+  > {
+    // 1. Fetch completed instances filtered by municipality variable
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'HrOnboardingProcess',
+      finished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string; endTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    // 2. Bulk-fetch all variables for all instance IDs in one request
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: {
+        processInstanceIdIn: ids,
+        deserializeValues: true,
+      },
+    });
+
+    // 3. Index variables by processInstanceId, keep only display fields
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!['employeeId', 'firstName', 'lastName'].includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      endTime: i.endTime,
+      employeeId: varMap[i.id]?.employeeId ?? '—',
+      firstName: varMap[i.id]?.firstName ?? '—',
+      lastName: varMap[i.id]?.lastName ?? '—',
+    }));
+  }
+
+  /**
    * Fetch the DocumentTemplate linked via camunda:documentRef on any UserTask in the BPMN
    * associated with the given process instance. Works for completed instances via the history API.
    * Throws Error('DOCUMENT_NOT_FOUND') when no camunda:documentRef is present or the deployment

@@ -26,11 +26,6 @@
         "address": "Stadsplateau 1, 3521 AZ Utrecht",
         "openingHours": "Ma-Vr 08:30-17:00"
       },
-      "personal-info": [
-        { "id": "profiel", "label": "Profiel", "isPublic": false },
-        { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-        { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false }
-      ],
       "leftPanelSections": {
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
@@ -38,7 +33,9 @@
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false }
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
         ],
         "projects": [
           { "id": "taken", "label": "Taken", "isPublic": false },
@@ -72,11 +69,6 @@
         "address": "Amstel 1, 1011 PN Amsterdam",
         "openingHours": "Ma-Vr 08:00-18:00"
       },
-      "personal-info": [
-        { "id": "profiel", "label": "Profiel", "isPublic": false },
-        { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-        { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false }
-      ],
       "leftPanelSections": {
         "home": [
           { "id": "taken", "label": "Taken", "isPublic": false },
@@ -85,7 +77,9 @@
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false }
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
         ],
         "projects": [
           { "id": "actief", "label": "Actieve zaken", "isPublic": false },
@@ -118,11 +112,6 @@
         "address": "Coolsingel 40, 3011 AD Rotterdam",
         "openingHours": "Ma-Vr 08:30-16:30"
       },
-      "personal-info": [
-        { "id": "profiel", "label": "Profiel", "isPublic": false },
-        { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-        { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false }
-      ],
       "leftPanelSections": {
         "home": [
           { "id": "taken", "label": "Taken", "isPublic": false },
@@ -131,7 +120,9 @@
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false }
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
         ],
         "projects": [
           { "id": "actief", "label": "Actieve zaken", "isPublic": false },
@@ -164,11 +155,6 @@
         "address": "Spui 70, 2511 BT Den Haag",
         "openingHours": "Ma-Do 08:30-17:00, Vr 08:30-16:00"
       },
-      "personal-info": [
-        { "id": "profiel", "label": "Profiel", "isPublic": false },
-        { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-        { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false }
-      ],
       "leftPanelSections": {
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
@@ -176,7 +162,9 @@
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false }
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
         ],
         "projects": [
           { "id": "taken", "label": "Taken", "isPublic": false },
