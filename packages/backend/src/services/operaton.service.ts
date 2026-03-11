@@ -253,9 +253,7 @@ export class OperatonService {
    * List all completed HrOnboardingProcess instances for a municipality,
    * enriched with key display variables (employeeId, firstName, lastName).
    */
-  async getHrOnboardingCompletedList(
-    tenantId: string
-  ): Promise<
+  async getHrOnboardingCompletedList(tenantId: string): Promise<
     Array<{
       id: string;
       startTime: string;
