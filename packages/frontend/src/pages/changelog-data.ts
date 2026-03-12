@@ -31,6 +31,36 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.5.1',
+      status: 'Enhancement',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'March 12, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — Changelog Panel',
+          icon: '📋',
+          iconColor: 'blue',
+          items: [
+            'Changelog panel now available in the caseworker dashboard header, mirroring the button already present on the login page',
+            'Button positioned to the right of the authenticated user block for consistent right-side placement',
+            'Accessible without login — visible to unauthenticated visitors alongside the public sections',
+          ],
+        },
+        {
+          title: 'Nieuws — Government.nl RSS Feed',
+          icon: '📰',
+          iconColor: 'green',
+          items: [
+            'Nieuws endpoint switched from the Rijksoverheid JSON API to the Government.nl RSS feed (feeds.government.nl/news.rss)',
+            'RSS parsed server-side with no additional dependency — axios responseType text with regex-based item extraction',
+            'Source attribution updated to Government.nl; CDATA and plain-text description fields both handled correctly',
+            '10-minute cache TTL retained; stale cache returned on feed unavailability to prevent blank UI',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.5.0',
       status: 'Feature Release',
       statusColor: 'purple',

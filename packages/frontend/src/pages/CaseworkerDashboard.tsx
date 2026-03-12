@@ -15,6 +15,7 @@ import type { KeycloakUser, Task } from '@ronl/shared';
 import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
 import DecisionViewer from '../components/DecisionViewer';
 import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
+import ChangelogPanel from './ChangelogPanel';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects';
 
@@ -45,6 +46,8 @@ export default function CaseworkerDashboard() {
 
   const [activeTopNavPage, setActiveTopNavPage] = useState<TopNavPage>('home');
   const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   // Tasks
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -1153,48 +1156,60 @@ export default function CaseworkerDashboard() {
             )}
           </div>
 
-          {isAuthenticated ? (
-            <div className="text-right">
-              <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
-              <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
-                {user?.loa && (
-                  <span
-                    className="px-2 py-0.5 rounded"
-                    style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
-                  >
-                    LoA: {user.loa}
-                  </span>
-                )}
-                {(user?.roles ?? []).map((role) => (
-                  <span
-                    key={role}
-                    className="px-2 py-0.5 rounded"
-                    style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
-                  >
-                    {role}
-                  </span>
-                ))}
+          <div className="flex items-center gap-3">
+            {isAuthenticated ? (
+              <div className="text-right">
+                <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
+                <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
+                  {user?.loa && (
+                    <span
+                      className="px-2 py-0.5 rounded"
+                      style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                    >
+                      LoA: {user.loa}
+                    </span>
+                  )}
+                  {(user?.roles ?? []).map((role) => (
+                    <span
+                      key={role}
+                      className="px-2 py-0.5 rounded"
+                      style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                    >
+                      {role}
+                    </span>
+                  ))}
+                </div>
+                <button onClick={handleLogout} className="mt-1 text-xs underline hover:opacity-80">
+                  Uitloggen
+                </button>
               </div>
-              <button onClick={handleLogout} className="mt-1 text-xs underline hover:opacity-80">
-                Uitloggen
+            ) : (
+              <button
+                onClick={handleLogin}
+                className="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-sm font-semibold transition-colors border border-white/30"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                    clipRule="evenodd"
+                  />
+                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                </svg>
+                Inloggen als medewerker
               </button>
-            </div>
-          ) : (
+            )}
+
+            {/* Changelog button */}
             <button
-              onClick={handleLogin}
-              className="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-sm font-semibold transition-colors border border-white/30"
+              onClick={() => setChangelogOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/15 hover:bg-white/25 rounded-lg border border-white/30 transition-colors"
+              aria-label="Open changelog"
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
-                  clipRule="evenodd"
-                />
-                <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
-              </svg>
-              Inloggen als medewerker
+              <span>📋</span>
+              <span className="hidden sm:inline">Changelog</span>
             </button>
-          )}
+          </div>
         </div>
 
         <div className="px-4 sm:px-6 lg:px-8">
@@ -1222,6 +1237,8 @@ export default function CaseworkerDashboard() {
           </div>
         </div>
       </header>
+
+      <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
 
       {/* ── Body: left panel + content ── */}
       <div className="flex flex-1">
