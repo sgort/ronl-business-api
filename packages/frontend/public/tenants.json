@@ -29,8 +29,9 @@
       },
       "leftPanelSections": {
         "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -73,8 +74,9 @@
       },
       "leftPanelSections": {
         "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -117,8 +119,9 @@
       },
       "leftPanelSections": {
         "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -161,8 +164,9 @@
       },
       "leftPanelSections": {
         "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -185,10 +189,10 @@
       "organisationCode": "PV24",
       "enabled": true,
       "theme": {
-        "primary": "#1B6CA8",
+        "primary": "#0046ad",
         "primaryDark": "#134F7D",
         "primaryLight": "#4A8FC0",
-        "secondary": "#00875A",
+        "secondary": "#e70077",
         "accent": "#F5A623"
       },
       "features": {
@@ -205,8 +209,9 @@
       },
       "leftPanelSections": {
         "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -249,8 +254,9 @@
       },
       "leftPanelSections": {
         "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },

@@ -172,6 +172,11 @@ export const businessApi = {
       const response = await api.get<R>(`/public/berichten?limit=${limit}&offset=${offset}`);
       return response.data;
     },
+
+    regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
+      const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
+      return response.data;
+    },
   },
 
   hr: {
@@ -229,4 +234,42 @@ export interface BerichtItem {
   priority: 'low' | 'normal' | 'high';
   isRead: boolean;
   action: { label: string; url: string } | null;
+}
+
+export interface CatalogService {
+  uri: string;
+  title: string;
+  description: string;
+}
+
+export interface CatalogOrganization {
+  uri: string;
+  identifier: string;
+  name: string;
+  homepage: string | null;
+  logo: string | null;
+  services: Array<{ uri: string; title: string }>;
+}
+
+export interface CatalogConcept {
+  uri: string;
+  prefLabel: string;
+  exactMatch: string | null;
+  serviceUri: string;
+  serviceTitle: string;
+}
+
+export interface CatalogRule {
+  serviceTitle: string;
+  ruleTitle: string;
+  validFrom: string | null;
+  confidence: string | null;
+  description: string | null;
+}
+
+export interface RegelcatalogusData {
+  services: CatalogService[];
+  organizations: CatalogOrganization[];
+  concepts: CatalogConcept[];
+  rules: CatalogRule[];
 }

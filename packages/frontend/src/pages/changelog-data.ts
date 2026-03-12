@@ -31,6 +31,69 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.5.1',
+      status: 'Enhancement',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'March 12, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — Changelog Panel',
+          icon: '📋',
+          iconColor: 'blue',
+          items: [
+            'Changelog panel now available in the caseworker dashboard header, mirroring the button already present on the login page',
+            'Button positioned to the right of the authenticated user block for consistent right-side placement',
+            'Accessible without login — visible to unauthenticated visitors alongside the public sections',
+          ],
+        },
+        {
+          title: 'Nieuws — Government.nl RSS Feed',
+          icon: '📰',
+          iconColor: 'green',
+          items: [
+            'Nieuws endpoint switched from the Rijksoverheid JSON API to the Government.nl RSS feed (feeds.government.nl/news.rss)',
+            'RSS parsed server-side with no additional dependency — axios responseType text with regex-based item extraction',
+            'Source attribution updated to Government.nl; CDATA and plain-text description fields both handled correctly',
+            '10-minute cache TTL retained; stale cache returned on feed unavailability to prevent blank UI',
+          ],
+        },
+      ],
+    },
+    {
+      version: '2.5.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 12, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — Regelcatalogus',
+          icon: '🔍',
+          iconColor: 'blue',
+          items: [
+            'New public section "Regelcatalogus" added to the Home tab — accessible without caseworker login',
+            'Diensten tab: 10 publieke diensten uit de RONL kennisgraaf weergegeven als uitklapbare kaarten met volledige beschrijving en URI-link; klikken op "Toon concepten" navigeert direct naar de Concepten tab pre-gefilterd op die dienst',
+            'Organisaties tab: 8 uitvoeringsorganisaties met logo (opgehaald via TriplyDB assets API), homepage en gekoppelde diensten per organisatie',
+            'Concepten tab: 129 NL-SBB concepten doorzoekbaar op label, filterbaar per dienst; elk concept met directe link naar exactMatch URI',
+            'Regels tab: 69 uitvoeringsregels gegroepeerd per dienst (Zorgtoeslag, Studiefinanciering, Regeling bekostiging vo-scholen); doorzoekbaar op regelnaam en beschrijving, groepen klappen automatisch open bij zoeken, beschrijving uitklapbaar per regel',
+          ],
+        },
+        {
+          title: 'Backend — Regelcatalogus Endpoint',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'GET /v1/public/regelcatalogus — no authentication required; returns services, organisations, concepts, and rules in a single response',
+            'Five parallel SPARQL queries against the RONL TriplyDB endpoint: PublicService, PublicOrganisation, competent authority links, NL-SBB concept traversal, and cpsv:Rule implementations',
+            'Organisation logos resolved via TriplyDB assets API to versioned CDN URLs — same mechanism as the Linked Data Explorer',
+            '5-minute in-memory cache per data slice; stale cache returned on TriplyDB failure to prevent blank UI',
+            'RONL_SPARQL_ENDPOINT environment variable for overriding the default endpoint per deployment',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.4.1',
       status: 'Feature Release',
       statusColor: 'purple',

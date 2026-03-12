@@ -14,6 +14,8 @@ import type { TenantConfig, LeftPanelSection } from '../services/tenant';
 import type { KeycloakUser, Task } from '@ronl/shared';
 import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
 import DecisionViewer from '../components/DecisionViewer';
+import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
+import ChangelogPanel from './ChangelogPanel';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects';
 
@@ -44,6 +46,16 @@ export default function CaseworkerDashboard() {
 
   const [activeTopNavPage, setActiveTopNavPage] = useState<TopNavPage>('home');
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  // Remembers last selected section per top-nav page
+  const [sectionMemory, setSectionMemory] = useState<Record<string, string>>({});
+
+  // Wrap setActiveSection so every explicit user click also saves to memory
+  function selectSection(id: string) {
+    setActiveSection(id);
+    setSectionMemory((prev) => ({ ...prev, [activeTopNavPage]: id }));
+  }
+
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   // Tasks
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -114,12 +126,22 @@ export default function CaseworkerDashboard() {
   useEffect(() => {
     if (!tenantConfig) return;
     const sections = tenantConfig.leftPanelSections?.[activeTopNavPage] ?? [];
+
+    // Restore last visited section for this page if it still exists
+    const remembered = sectionMemory[activeTopNavPage];
+    if (remembered && sections.some((s) => s.id === remembered)) {
+      setActiveSection(remembered);
+      return;
+    }
+
+    // First visit to this page — fall back to first accessible section
     if (isAuthenticated) {
       setActiveSection(sections.length > 0 ? sections[0].id : null);
     } else {
       const firstPublic = sections.find((s) => s.isPublic !== false);
       setActiveSection(firstPublic?.id ?? sections[0]?.id ?? null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTopNavPage, tenantConfig, isAuthenticated]);
 
   // Load section data when activeSection changes
@@ -127,6 +149,10 @@ export default function CaseworkerDashboard() {
     if (activeSection === 'taken' && isAuthenticated) loadTasks();
     if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
     if (activeSection === 'berichten' && berichtenItems.length === 0) loadBerichten();
+    // existing lines stay as-is, add:
+    if (activeSection === 'regelcatalogus') {
+      /* data fetched inside component */
+    }
     if (activeSection === 'onboarding-archief' && isAuthenticated) loadOnboardingArchief();
     if (
       (activeSection === 'profiel' || activeSection === 'rollen') &&
@@ -611,8 +637,9 @@ export default function CaseworkerDashboard() {
         <div className="max-w-2xl space-y-3">
           {[1, 2, 3].map((n) => (
             <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
-              <div className="h-3 bg-gray-100 rounded w-full" />
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-full mb-1" />
+              <div className="h-3 bg-gray-100 rounded w-2/3" />
             </div>
           ))}
         </div>
@@ -639,7 +666,7 @@ export default function CaseworkerDashboard() {
     }
 
     return (
-      <div className="max-w-2xl space-y-2">
+      <div className="max-w-2xl space-y-3">
         {berichtenItems.map((item) => (
           <article
             key={item.id}
@@ -657,9 +684,11 @@ export default function CaseworkerDashboard() {
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     />
                   )}
-                  <p className="font-semibold text-gray-900 text-sm truncate">{item.subject}</p>
+                  <p className="font-semibold text-gray-900 text-sm">{item.subject}</p>
                 </div>
-                <p className="text-gray-500 text-sm leading-relaxed">{item.preview}</p>
+                <p className="text-gray-500 text-sm mt-1 leading-relaxed line-clamp-2">
+                  {item.preview}
+                </p>
                 {item.action && (
                   <a
                     href={item.action.url}
@@ -685,7 +714,7 @@ export default function CaseworkerDashboard() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
+            <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
               <span>{item.sender.name}</span>
               <span>·</span>
               <span>{formatDate(item.publishedAt)}</span>
@@ -1103,6 +1132,8 @@ export default function CaseworkerDashboard() {
         return renderNieuws();
       case 'berichten':
         return renderBerichten();
+      case 'regelcatalogus':
+        return <RegelCatalogus />;
       case 'profiel':
         return renderProfiel();
       case 'hr-onboarding':
@@ -1146,48 +1177,60 @@ export default function CaseworkerDashboard() {
             )}
           </div>
 
-          {isAuthenticated ? (
-            <div className="text-right">
-              <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
-              <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
-                {user?.loa && (
-                  <span
-                    className="px-2 py-0.5 rounded"
-                    style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
-                  >
-                    LoA: {user.loa}
-                  </span>
-                )}
-                {(user?.roles ?? []).map((role) => (
-                  <span
-                    key={role}
-                    className="px-2 py-0.5 rounded"
-                    style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
-                  >
-                    {role}
-                  </span>
-                ))}
+          <div className="flex items-center gap-3">
+            {isAuthenticated ? (
+              <div className="text-right">
+                <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
+                <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
+                  {user?.loa && (
+                    <span
+                      className="px-2 py-0.5 rounded"
+                      style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                    >
+                      LoA: {user.loa}
+                    </span>
+                  )}
+                  {(user?.roles ?? []).map((role) => (
+                    <span
+                      key={role}
+                      className="px-2 py-0.5 rounded"
+                      style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                    >
+                      {role}
+                    </span>
+                  ))}
+                </div>
+                <button onClick={handleLogout} className="mt-1 text-xs underline hover:opacity-80">
+                  Uitloggen
+                </button>
               </div>
-              <button onClick={handleLogout} className="mt-1 text-xs underline hover:opacity-80">
-                Uitloggen
+            ) : (
+              <button
+                onClick={handleLogin}
+                className="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-sm font-semibold transition-colors border border-white/30"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                    clipRule="evenodd"
+                  />
+                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                </svg>
+                Inloggen als medewerker
               </button>
-            </div>
-          ) : (
+            )}
+
+            {/* Changelog button */}
             <button
-              onClick={handleLogin}
-              className="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-sm font-semibold transition-colors border border-white/30"
+              onClick={() => setChangelogOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg border border-white/30 transition-colors"
+              aria-label="Open changelog"
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
-                  clipRule="evenodd"
-                />
-                <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
-              </svg>
-              Inloggen als medewerker
+              <span>📋</span>
+              <span className="hidden sm:inline">Changelog</span>
             </button>
-          )}
+          </div>
         </div>
 
         <div className="px-4 sm:px-6 lg:px-8">
@@ -1216,6 +1259,8 @@ export default function CaseworkerDashboard() {
         </div>
       </header>
 
+      <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
+
       {/* ── Body: left panel + content ── */}
       <div className="flex flex-1">
         {/* ── Left panel ── */}
@@ -1231,7 +1276,7 @@ export default function CaseworkerDashboard() {
                   return (
                     <li key={section.id}>
                       <button
-                        onClick={() => setActiveSection(section.id)}
+                        onClick={() => selectSection(section.id)}
                         className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
                         style={
                           isActive
