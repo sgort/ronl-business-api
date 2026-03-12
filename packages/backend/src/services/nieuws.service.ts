@@ -3,7 +3,7 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('nieuws-service');
 
-const GOVERNMENT_RSS_URL = 'https://feeds.government.nl/news.rss';
+const GOVERNMENT_RSS_URL = 'https://feeds.rijksoverheid.nl/nieuws.rss';
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 

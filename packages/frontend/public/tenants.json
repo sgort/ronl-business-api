@@ -189,10 +189,10 @@
       "organisationCode": "PV24",
       "enabled": true,
       "theme": {
-        "primary": "#1B6CA8",
+        "primary": "#0046ad",
         "primaryDark": "#134F7D",
         "primaryLight": "#4A8FC0",
-        "secondary": "#00875A",
+        "secondary": "#e70077",
         "accent": "#F5A623"
       },
       "features": {

@@ -46,6 +46,14 @@ export default function CaseworkerDashboard() {
 
   const [activeTopNavPage, setActiveTopNavPage] = useState<TopNavPage>('home');
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  // Remembers last selected section per top-nav page
+  const [sectionMemory, setSectionMemory] = useState<Record<string, string>>({});
+
+  // Wrap setActiveSection so every explicit user click also saves to memory
+  function selectSection(id: string) {
+    setActiveSection(id);
+    setSectionMemory((prev) => ({ ...prev, [activeTopNavPage]: id }));
+  }
 
   const [changelogOpen, setChangelogOpen] = useState(false);
 
@@ -118,12 +126,22 @@ export default function CaseworkerDashboard() {
   useEffect(() => {
     if (!tenantConfig) return;
     const sections = tenantConfig.leftPanelSections?.[activeTopNavPage] ?? [];
+
+    // Restore last visited section for this page if it still exists
+    const remembered = sectionMemory[activeTopNavPage];
+    if (remembered && sections.some((s) => s.id === remembered)) {
+      setActiveSection(remembered);
+      return;
+    }
+
+    // First visit to this page — fall back to first accessible section
     if (isAuthenticated) {
       setActiveSection(sections.length > 0 ? sections[0].id : null);
     } else {
       const firstPublic = sections.find((s) => s.isPublic !== false);
       setActiveSection(firstPublic?.id ?? sections[0]?.id ?? null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTopNavPage, tenantConfig, isAuthenticated]);
 
   // Load section data when activeSection changes
@@ -619,8 +637,9 @@ export default function CaseworkerDashboard() {
         <div className="max-w-2xl space-y-3">
           {[1, 2, 3].map((n) => (
             <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
-              <div className="h-3 bg-gray-100 rounded w-full" />
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-full mb-1" />
+              <div className="h-3 bg-gray-100 rounded w-2/3" />
             </div>
           ))}
         </div>
@@ -647,7 +666,7 @@ export default function CaseworkerDashboard() {
     }
 
     return (
-      <div className="max-w-2xl space-y-2">
+      <div className="max-w-2xl space-y-3">
         {berichtenItems.map((item) => (
           <article
             key={item.id}
@@ -665,9 +684,11 @@ export default function CaseworkerDashboard() {
                       style={{ backgroundColor: 'var(--color-primary)' }}
                     />
                   )}
-                  <p className="font-semibold text-gray-900 text-sm truncate">{item.subject}</p>
+                  <p className="font-semibold text-gray-900 text-sm">{item.subject}</p>
                 </div>
-                <p className="text-gray-500 text-sm leading-relaxed">{item.preview}</p>
+                <p className="text-gray-500 text-sm mt-1 leading-relaxed line-clamp-2">
+                  {item.preview}
+                </p>
                 {item.action && (
                   <a
                     href={item.action.url}
@@ -693,7 +714,7 @@ export default function CaseworkerDashboard() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
+            <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
               <span>{item.sender.name}</span>
               <span>·</span>
               <span>{formatDate(item.publishedAt)}</span>
@@ -1255,7 +1276,7 @@ export default function CaseworkerDashboard() {
                   return (
                     <li key={section.id}>
                       <button
-                        onClick={() => setActiveSection(section.id)}
+                        onClick={() => selectSection(section.id)}
                         className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
                         style={
                           isActive

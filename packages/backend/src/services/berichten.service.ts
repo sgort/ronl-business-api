@@ -17,20 +17,23 @@ export interface BerichtItem {
 const SEED: BerichtItem[] = [
   {
     id: 'bericht-001',
-    subject: 'Welkom in MijnOmgeving',
+    subject: 'Nieuwe versie: kapvergunningproces v2.1.0',
     preview:
-      'Op dit portaal vindt u publieke updates, nieuws en meldingen over gemeentelijke dienstverlening.',
+      'Het kapvergunningproces is bijgewerkt. De medewerkersbeoordeling verloopt nu via een apart taakformulier.',
     content:
-      '<p>Welkom op het medewerkersportaal van MijnOmgeving. Op deze pagina verschijnen algemene berichten en mededelingen die voor alle medewerkers zichtbaar zijn.</p>',
-    type: 'announcement',
+      '<p>Versie 2.1.0 bevat een herstructurering van het BPMN-subprocess voor kapvergunningen. De casusbeoordeling door een medewerker vereist nu altijd een expliciete claimstap voordat het formulier kan worden ingevuld. Zie de releasenotes voor details.</p>',
+    type: 'update',
     status: 'published',
     audience: 'all',
-    sender: { id: 'system', name: 'MijnOmgeving' },
-    publishedAt: '2026-01-06T08:00:00Z',
+    sender: { id: 'ontwikkelteam', name: 'Ontwikkelteam RONL' },
+    publishedAt: '2026-03-06T09:30:00Z',
     expiresAt: null,
     priority: 'normal',
     isRead: false,
-    action: null,
+    action: {
+      label: 'Bekijk releasenotes',
+      url: 'https://iou-architectuur.open-regels.nl/ronl-business-api/',
+    },
   },
   {
     id: 'bericht-002',
@@ -51,26 +54,6 @@ const SEED: BerichtItem[] = [
   },
   {
     id: 'bericht-003',
-    subject: 'Nieuwe versie: kapvergunningproces v2.1.0',
-    preview:
-      'Het kapvergunningproces is bijgewerkt. De medewerkersbeoordeling verloopt nu via een apart taakformulier.',
-    content:
-      '<p>Versie 2.1.0 bevat een herstructurering van het BPMN-subprocess voor kapvergunningen. De casusbeoordeling door een medewerker vereist nu altijd een expliciete claimstap voordat het formulier kan worden ingevuld. Zie de releasenotes voor details.</p>',
-    type: 'update',
-    status: 'published',
-    audience: 'all',
-    sender: { id: 'ontwikkelteam', name: 'Ontwikkelteam RONL' },
-    publishedAt: '2026-03-06T09:30:00Z',
-    expiresAt: null,
-    priority: 'normal',
-    isRead: false,
-    action: {
-      label: 'Bekijk releasenotes',
-      url: 'https://iou-architectuur.open-regels.nl/ronl-business-api/',
-    },
-  },
-  {
-    id: 'bericht-004',
     subject: 'DigiD-koppeling succesvol gevalideerd in acceptatieomgeving',
     preview:
       'De DigiD-authenticatiestroom is succesvol getest in de ACC-omgeving. Uitrol naar productie volgt op 17 maart.',
@@ -81,6 +64,23 @@ const SEED: BerichtItem[] = [
     audience: 'all',
     sender: { id: 'projectleider', name: 'Projectleider Digitale Toegang' },
     publishedAt: '2026-03-05T14:15:00Z',
+    expiresAt: null,
+    priority: 'normal',
+    isRead: true,
+    action: null,
+  },
+  {
+    id: 'bericht-004',
+    subject: 'Welkom in MijnOmgeving',
+    preview:
+      'Op dit portaal vindt u publieke updates, nieuws en meldingen over gemeentelijke dienstverlening.',
+    content:
+      '<p>Welkom op het medewerkersportaal van MijnOmgeving. Op deze pagina verschijnen algemene berichten en mededelingen die voor alle medewerkers zichtbaar zijn.</p>',
+    type: 'announcement',
+    status: 'published',
+    audience: 'all',
+    sender: { id: 'system', name: 'MijnOmgeving' },
+    publishedAt: '2026-01-06T08:00:00Z',
     expiresAt: null,
     priority: 'normal',
     isRead: true,
