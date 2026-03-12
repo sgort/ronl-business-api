@@ -73,10 +73,10 @@ export const changelog: Changelog = {
           iconColor: 'blue',
           items: [
             'New public section "Regelcatalogus" added to the Home tab — accessible without caseworker login',
-            'Diensten tab: 10 publieke diensten uit de RONL kennisgraaf weergegeven als uitklapbare kaarten met volledige beschrijving en URI-link; klikken op "Toon concepten" navigeert direct naar de Concepten tab pre-gefilterd op die dienst',
-            'Organisaties tab: 8 uitvoeringsorganisaties met logo (opgehaald via TriplyDB assets API), homepage en gekoppelde diensten per organisatie',
-            'Concepten tab: 129 NL-SBB concepten doorzoekbaar op label, filterbaar per dienst; elk concept met directe link naar exactMatch URI',
-            'Regels tab: 69 uitvoeringsregels gegroepeerd per dienst (Zorgtoeslag, Studiefinanciering, Regeling bekostiging vo-scholen); doorzoekbaar op regelnaam en beschrijving, groepen klappen automatisch open bij zoeken, beschrijving uitklapbaar per regel',
+            'Diensten tab: Public services from the RONL knowledge graph are displayed as expandable cards with a full description and URI link; clicking "Toon concepten" navigates directly to the Concepts tab, pre-filtered by that service',
+            'Organisaties tab: Implementing organizations with logo (retrieved via TriplyDB assets API), homepage, and linked services per organization',
+            'Concepten tab: NL-SBB concepts searchable by label, filterable by service; each concept has a direct link to the skos:exactMatch URI',
+            'Regels tab: Implementation rules grouped by service (Healthcare Allowance, Student Finance, Secondary School Funding Regulations); searchable by rule name and description, groups automatically expand when searching, description expandable per rule',
           ],
         },
         {
