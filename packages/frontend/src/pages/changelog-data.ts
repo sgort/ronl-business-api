@@ -31,6 +31,39 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.5.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 12, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — Regelcatalogus',
+          icon: '🔍',
+          iconColor: 'blue',
+          items: [
+            'New public section "Regelcatalogus" added to the Home tab — accessible without caseworker login',
+            'Diensten tab: 10 publieke diensten uit de RONL kennisgraaf weergegeven als uitklapbare kaarten met volledige beschrijving en URI-link',
+            'Organisaties tab: 8 uitvoeringsorganisaties met logo, homepage en gekoppelde diensten per organisatie',
+            'Concepten tab: 129 NL-SBB concepten doorzoekbaar op label, filterbaar per dienst; elk concept met directe link naar exactMatch URI',
+            'Cross-tab navigatie: klikken op "Toon concepten" in een dienstkaart navigeert direct naar de Concepten tab pre-gefilterd op die dienst',
+          ],
+        },
+        {
+          title: 'Backend — Regelcatalogus Endpoint',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'GET /v1/public/regelcatalogus — no authentication required; returns services, organisations, and concepts in a single response',
+            'Four parallel SPARQL queries against the RONL TriplyDB endpoint: PublicService, PublicOrganisation, competent authority links, and NL-SBB concept traversal',
+            'Organisation logos resolved via TriplyDB assets API to versioned CDN URLs — same mechanism as the Linked Data Explorer',
+            '5-minute in-memory cache per data slice; stale cache returned on TriplyDB failure to prevent blank UI',
+            'RONL_SPARQL_ENDPOINT environment variable for overriding the default endpoint per deployment',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.4.1',
       status: 'Feature Release',
       statusColor: 'purple',

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createLogger } from '@utils/logger';
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
+import { getRegelcatalogusData } from '@services/regelcatalogus.service';
 
 const router = Router();
 const logger = createLogger('public-routes');
@@ -72,6 +73,33 @@ router.get('/berichten/:id', (req: Request, res: Response) => {
     });
   }
   res.json({ success: true, data: item, meta: meta() });
+});
+
+/**
+ * GET /v1/public/regelcatalogus
+ * Linked Data catalog — services, organisations, and concepts from TriplyDB.
+ * No authentication required. Cached 5 minutes server-side.
+ */
+router.get('/regelcatalogus', async (_req: Request, res: Response) => {
+  try {
+    const data = await getRegelcatalogusData();
+    res.json({
+      success: true,
+      data,
+      meta: meta(),
+    });
+  } catch (error) {
+    logger.error('Failed to serve regelcatalogus', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'REGELCATALOGUS_FETCH_FAILED',
+        message: 'Regelcatalogus kon niet worden opgehaald.',
+      },
+    });
+  }
 });
 
 export default router;

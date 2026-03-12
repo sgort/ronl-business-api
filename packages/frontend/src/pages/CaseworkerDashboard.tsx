@@ -14,6 +14,7 @@ import type { TenantConfig, LeftPanelSection } from '../services/tenant';
 import type { KeycloakUser, Task } from '@ronl/shared';
 import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
 import DecisionViewer from '../components/DecisionViewer';
+import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects';
 
@@ -127,6 +128,10 @@ export default function CaseworkerDashboard() {
     if (activeSection === 'taken' && isAuthenticated) loadTasks();
     if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
     if (activeSection === 'berichten' && berichtenItems.length === 0) loadBerichten();
+    // existing lines stay as-is, add:
+    if (activeSection === 'regelcatalogus') {
+      /* data fetched inside component */
+    }
     if (activeSection === 'onboarding-archief' && isAuthenticated) loadOnboardingArchief();
     if (
       (activeSection === 'profiel' || activeSection === 'rollen') &&
@@ -1103,6 +1108,8 @@ export default function CaseworkerDashboard() {
         return renderNieuws();
       case 'berichten':
         return renderBerichten();
+      case 'regelcatalogus':
+        return <RegelCatalogus />;
       case 'profiel':
         return renderProfiel();
       case 'hr-onboarding':
