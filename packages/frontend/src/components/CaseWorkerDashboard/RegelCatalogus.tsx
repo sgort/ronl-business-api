@@ -5,14 +5,16 @@ import type {
   CatalogService,
   CatalogOrganization,
   CatalogConcept,
+  CatalogRule,
 } from '../../services/api';
 
-type CatalogTab = 'diensten' | 'organisaties' | 'concepten';
+type CatalogTab = 'diensten' | 'organisaties' | 'concepten' | 'regels';
 
 const TABS: { id: CatalogTab; label: string }[] = [
   { id: 'diensten', label: 'Diensten' },
   { id: 'organisaties', label: 'Organisaties' },
   { id: 'concepten', label: 'Concepten' },
+  { id: 'regels', label: 'Regels' },
 ];
 
 export default function RegelCatalogus() {
@@ -91,7 +93,9 @@ export default function RegelCatalogus() {
               ? data.services.length
               : tab.id === 'organisaties'
                 ? data.organizations.length
-                : data.concepts.length;
+                : tab.id === 'concepten'
+                  ? data.concepts.length
+                  : data.rules.length;
           return (
             <button
               key={tab.id}
@@ -136,6 +140,7 @@ export default function RegelCatalogus() {
             onServiceFilterChange={setConceptServiceFilter}
           />
         )}
+        {activeTab === 'regels' && <RegelsTab rules={data.rules} />}
       </div>
     </div>
   );
@@ -408,6 +413,163 @@ function ConceptenTab({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Regels tab ─────────────────────────────────────────────────────────────
+
+function RegelsTab({ rules }: { rules: CatalogRule[] }) {
+  const [search, setSearch] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
+
+  // Group by serviceTitle
+  const grouped = rules.reduce<Record<string, CatalogRule[]>>((acc, rule) => {
+    (acc[rule.serviceTitle] ??= []).push(rule);
+    return acc;
+  }, {});
+
+  const query = search.toLowerCase();
+
+  // When searching, only show services that have matching rules
+  const visibleGroups = Object.entries(grouped).filter(([, groupRules]) =>
+    !query
+      ? true
+      : groupRules.some(
+          (r) =>
+            r.ruleTitle.toLowerCase().includes(query) ||
+            (r.description ?? '').toLowerCase().includes(query)
+        )
+  );
+
+  function toggleGroup(title: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(title) ? next.delete(title) : next.add(title);
+      return next;
+    });
+  }
+
+  function toggleRule(key: string) {
+    setExpandedRules((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  // Auto-expand groups that have search matches
+  const isGroupExpanded = (title: string) =>
+    expandedGroups.has(title) || (!!query && visibleGroups.some(([t]) => t === title));
+
+  if (rules.length === 0) {
+    return <EmptyState label="Geen regels gevonden." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Search */}
+      <input
+        type="text"
+        placeholder="Zoek op regelnaam of beschrijving…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+      />
+
+      {visibleGroups.length === 0 && (
+        <EmptyState label="Geen regels gevonden voor deze zoekopdracht." />
+      )}
+
+      {visibleGroups.map(([serviceTitle, groupRules]) => {
+        const matchingRules = query
+          ? groupRules.filter(
+              (r) =>
+                r.ruleTitle.toLowerCase().includes(query) ||
+                (r.description ?? '').toLowerCase().includes(query)
+            )
+          : groupRules;
+
+        const open = isGroupExpanded(serviceTitle);
+
+        return (
+          <div
+            key={serviceTitle}
+            className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+          >
+            {/* Group header */}
+            <button
+              onClick={() => toggleGroup(serviceTitle)}
+              className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-gray-800 text-sm">{serviceTitle}</span>
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                  {matchingRules.length} regel{matchingRules.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+            </button>
+
+            {/* Rules list */}
+            {open && (
+              <div className="border-t border-gray-100 divide-y divide-gray-50">
+                {matchingRules.map((rule, i) => {
+                  const key = `${serviceTitle}-${i}`;
+                  const isExpanded = expandedRules.has(key);
+
+                  return (
+                    <div key={key}>
+                      <button
+                        onClick={() => toggleRule(key)}
+                        className="w-full text-left px-4 py-2.5 flex items-start justify-between gap-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-700 font-medium leading-snug">
+                            {rule.ruleTitle}
+                          </p>
+                          {(rule.validFrom || rule.confidence) && (
+                            <div className="flex gap-2 mt-1">
+                              {rule.validFrom && (
+                                <span className="text-xs text-gray-400">
+                                  Geldig vanaf {rule.validFrom}
+                                </span>
+                              )}
+                              {rule.confidence && (
+                                <span className="px-1.5 py-0.5 bg-green-50 text-green-700 text-xs rounded">
+                                  {rule.confidence}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {rule.description && (
+                          <span className="text-gray-400 text-xs flex-shrink-0 mt-0.5">
+                            {isExpanded ? '▲' : '▼'}
+                          </span>
+                        )}
+                      </button>
+
+                      {isExpanded && rule.description && (
+                        <div className="px-4 pb-3 pt-1">
+                          <pre className="text-xs text-gray-600 whitespace-pre-wrap font-sans leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            {rule.description}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <p className="text-xs text-gray-400 text-right">
+        {rules.length} regels in {Object.keys(grouped).length} diensten
+      </p>
     </div>
   );
 }

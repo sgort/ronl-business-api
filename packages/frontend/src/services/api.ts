@@ -259,8 +259,17 @@ export interface CatalogConcept {
   serviceTitle: string;
 }
 
+export interface CatalogRule {
+  serviceTitle: string;
+  ruleTitle: string;
+  validFrom: string | null;
+  confidence: string | null;
+  description: string | null;
+}
+
 export interface RegelcatalogusData {
   services: CatalogService[];
   organizations: CatalogOrganization[];
   concepts: CatalogConcept[];
+  rules: CatalogRule[];
 }

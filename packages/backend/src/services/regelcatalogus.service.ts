@@ -37,10 +37,19 @@ export interface CatalogConcept {
   serviceTitle: string;
 }
 
+export interface CatalogRule {
+  serviceTitle: string;
+  ruleTitle: string;
+  validFrom: string | null;
+  confidence: string | null;
+  description: string | null;
+}
+
 export interface RegelcatalogusData {
   services: CatalogService[];
   organizations: CatalogOrganization[];
   concepts: CatalogConcept[];
+  rules: CatalogRule[];
 }
 
 // ── In-memory cache ────────────────────────────────────────────────────────
@@ -236,6 +245,38 @@ ORDER BY ?service ?subject
   }));
 }
 
+async function fetchRules(): Promise<CatalogRule[]> {
+  // From the 'Rules with Their Services' sample query in LDE constants.ts
+  const query = `
+PREFIX cpsv:  <http://purl.org/vocab/cpsv#>
+PREFIX dct:   <http://purl.org/dc/terms/>
+PREFIX ronl:  <https://regels.overheid.nl/ontology#>
+
+SELECT ?serviceTitle ?ruleTitle ?validFrom ?confidence ?description
+WHERE {
+  ?service a cpsv:PublicService ;
+           dct:title ?serviceTitle .
+  ?rule a cpsv:Rule ;
+        cpsv:implements ?service ;
+        dct:title ?ruleTitle .
+  OPTIONAL { ?rule dct:description ?description }
+  OPTIONAL { ?rule ronl:validFrom ?validFrom }
+  OPTIONAL { ?rule ronl:confidenceLevel ?confidence }
+  FILTER(LANG(?serviceTitle) = "nl")
+  FILTER(LANG(?ruleTitle) = "nl")
+}
+ORDER BY ?serviceTitle ?validFrom ?ruleTitle
+`;
+  const rows = await runQuery(query);
+  return rows.map((r) => ({
+    serviceTitle: val(r, 'serviceTitle') ?? '',
+    ruleTitle: val(r, 'ruleTitle') ?? '',
+    validFrom: val(r, 'validFrom'),
+    confidence: val(r, 'confidence'),
+    description: val(r, 'description'),
+  }));
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 export async function getRegelcatalogusData(): Promise<RegelcatalogusData> {
@@ -249,12 +290,13 @@ export async function getRegelcatalogusData(): Promise<RegelcatalogusData> {
   logger.info('Fetching regelcatalogus from TriplyDB', { endpoint: SPARQL_ENDPOINT });
 
   try {
-    const [services, orgsBase, orgServices, concepts, assetUrls] = await Promise.all([
+    const [services, orgsBase, orgServices, concepts, assetUrls, rules] = await Promise.all([
       fetchServices(),
       fetchOrganizations(),
       fetchOrganizationServices(),
       fetchConcepts(),
       resolveLogoUrls(),
+      fetchRules(),
     ]);
 
     const organizations: CatalogOrganization[] = orgsBase.map((org) => {
@@ -271,7 +313,7 @@ export async function getRegelcatalogusData(): Promise<RegelcatalogusData> {
       };
     });
 
-    const data: RegelcatalogusData = { services, organizations, concepts };
+    const data: RegelcatalogusData = { services, organizations, concepts, rules };
     cache = { data, fetchedAt: now };
 
     logger.info('Regelcatalogus cache refreshed', {
@@ -286,6 +328,6 @@ export async function getRegelcatalogusData(): Promise<RegelcatalogusData> {
       error: error instanceof Error ? error.message : String(error),
     });
     // Return stale cache if available, otherwise empty slices
-    return cache?.data ?? { services: [], organizations: [], concepts: [] };
+    return cache?.data ?? { services: [], organizations: [], concepts: [], rules: [] };
   }
 }
