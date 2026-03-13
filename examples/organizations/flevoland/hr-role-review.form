@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "hr-role-review",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Review role assignment"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "The DMN has determined the roles and access level below. Review and approve or reject the assignment."
+    },
+    {
+      "id": "Field_AssignedRoles",
+      "type": "textfield",
+      "label": "Assigned roles",
+      "key": "assignedRoles",
+      "readonly": true,
+      "disabled": true
+    },
+    {
+      "id": "Field_AccessLevel",
+      "type": "textfield",
+      "label": "Access level",
+      "key": "accessLevel",
+      "readonly": true,
+      "disabled": true
+    },
+    {
+      "id": "Field_ApprovalStatus",
+      "type": "radio",
+      "label": "Decision",
+      "key": "approvalStatus",
+      "validate": {
+        "required": true
+      },
+      "values": [
+        { "label": "Approved", "value": "approved" },
+        { "label": "Rejected", "value": "rejected" }
+      ]
+    },
+    {
+      "id": "Field_ReviewNotes",
+      "type": "textarea",
+      "label": "Notes",
+      "key": "reviewNotes",
+      "description": "Optional. Provide a reason if rejecting the assignment."
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Submit decision",
+      "action": "submit"
+    }
+  ]
+}

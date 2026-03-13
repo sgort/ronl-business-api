@@ -1,0 +1,181 @@
+<style>
+  .form-horizontal {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+  }
+  
+  .decision-header {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    background-color: #d4edda;
+    color: #155724;
+    border: 2px solid #c3e6cb;
+  }
+  
+  .info-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    border-left: 4px solid #007bff;
+  }
+  
+  .info-label {
+    font-weight: bold;
+    color: #495057;
+    margin-bottom: 5px;
+    display: block;
+  }
+  
+  .readonly-field {
+    width: 100%;
+    padding: 8px;
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    color: #495057;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  
+  .control-group {
+    margin-bottom: 15px;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  
+  .action-section {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 2px solid #dee2e6;
+  }
+  
+  .help-text {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 5px;
+  }
+</style>
+
+<form class="form-horizontal">
+  
+  <!-- Decision Result Header -->
+  <div class="decision-header">
+    ✓ DECISION RESULT
+  </div>
+  
+  <!-- Application Details -->
+  <div class="info-section">
+    <label class="info-label">Application Details</label>
+    
+    <div class="control-group">
+      <label>Tree Diameter (cm)</label>
+      <input type="text" 
+             cam-variable-name="treeDiameter"
+             cam-variable-type="Integer"
+             class="readonly-field"
+             readonly />
+    </div>
+    
+    <div class="control-group">
+      <label>Protected Area</label>
+      <input type="text"
+             cam-variable-name="protectedArea"
+             cam-variable-type="Boolean"
+             class="readonly-field"
+             readonly />
+    </div>
+  </div>
+  
+  <!-- Decision Details -->
+  <div class="info-section">
+    <label class="info-label">Decision Information</label>
+    
+    <div class="control-group">
+      <label>Status</label>
+      <input type="text"
+             cam-variable-name="status"
+             cam-variable-type="String"
+             class="readonly-field"
+             readonly />
+    </div>
+    
+    <div class="control-group">
+      <label>Permit Decision</label>
+      <input type="text"
+             cam-variable-name="permitDecision"
+             cam-variable-type="String"
+             class="readonly-field"
+             readonly />
+    </div>
+    
+    <div class="control-group">
+      <label>Decision Message</label>
+      <textarea cam-variable-name="finalMessage"
+                cam-variable-type="String"
+                class="readonly-field"
+                rows="2"
+                readonly></textarea>
+    </div>
+    
+    <div class="control-group">
+      <label>Replacement Information</label>
+      <textarea cam-variable-name="replacementInfo"
+                cam-variable-type="String"
+                class="readonly-field"
+                rows="2"
+                readonly></textarea>
+    </div>
+  </div>
+  
+  <!-- Action Section -->
+  <div class="action-section">
+    <div class="control-group">
+      <label class="info-label">Notification Method *</label>
+      <select cam-variable-name="notificationMethod" 
+              cam-variable-type="String"
+              class="form-control"
+              required>
+        <option value="">Select method...</option>
+        <option value="email">Email</option>
+        <option value="letter">Letter (Post)</option>
+        <option value="phone">Phone Call</option>
+        <option value="portal">Citizen Portal</option>
+      </select>
+      <div class="help-text">How should the applicant be informed of this decision?</div>
+    </div>
+    
+    <div class="control-group">
+      <label class="info-label">Additional Notes</label>
+      <textarea cam-variable-name="notificationNotes"
+                cam-variable-type="String"
+                rows="3"
+                class="form-control"
+                placeholder="Optional: Add any notes for the notification..."></textarea>
+      <div class="help-text">These notes will be included in the notification to the applicant.</div>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        <input type="checkbox"
+               cam-variable-name="applicantNotified"
+               cam-variable-type="Boolean"
+               required />
+        <strong>I confirm the applicant will be notified</strong>
+      </label>
+    </div>
+  </div>
+  
+</form>

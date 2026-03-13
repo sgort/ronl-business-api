@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "hr-notify-employee",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Notify employee"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "The role assignment has been approved. Notify the employee of their assigned roles and confirm the notification method used."
+    },
+    {
+      "id": "Field_EmployeeId",
+      "type": "textfield",
+      "label": "Employee ID",
+      "key": "employeeId",
+      "readonly": true,
+      "disabled": true
+    },
+    {
+      "id": "Field_AssignedRoles",
+      "type": "textfield",
+      "label": "Assigned roles",
+      "key": "assignedRoles",
+      "readonly": true,
+      "disabled": true
+    },
+    {
+      "id": "Field_NotificationMethod",
+      "type": "select",
+      "label": "Notification method",
+      "key": "notificationMethod",
+      "validate": {
+        "required": true
+      },
+      "values": [
+        { "label": "Email", "value": "email" },
+        { "label": "Letter", "value": "letter" },
+        { "label": "Portal", "value": "portal" }
+      ]
+    },
+    {
+      "id": "Field_Notified",
+      "type": "checkbox",
+      "label": "I confirm the employee has been notified",
+      "key": "notified",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Complete onboarding",
+      "action": "submit"
+    }
+  ]
+}

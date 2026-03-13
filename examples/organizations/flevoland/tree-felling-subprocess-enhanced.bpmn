@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_TreeFellingSubProcess" targetNamespace="http://example.com/tree-permit" exporter="Camunda Modeler" exporterVersion="5.43.1">
+  <bpmn:process id="TreeFellingPermitSubProcess" name="Tree Felling Permit - Processing and Decision" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:startEvent id="SubStart" name="Start processing">
+      <bpmn:outgoing>Flow_Sub_Start_Assess</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="Sub_AssessPermit" name="Assess tree felling permit (APV)" camunda:resultVariable="permitDecision" camunda:decisionRef="TreeFellingDecision" camunda:mapDecisionResult="singleEntry">
+      <bpmn:incoming>Flow_Sub_Start_Assess</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Assess_Gateway</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Sub_Gateway_Permit" name="Permit granted?">
+      <bpmn:incoming>Flow_Sub_Assess_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Permit_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Sub_To_Review_FromReject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:businessRuleTask id="Sub_AssessReplacement" name="Assess replacement tree requirement" camunda:resultVariable="replacementDecision" camunda:decisionRef="ReplacementTreeDecision" camunda:mapDecisionResult="singleEntry">
+      <bpmn:incoming>Flow_Sub_Permit_Yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_To_Review_FromReplacement</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:userTask id="Sub_CaseReview" name="Case worker review" camunda:formRef="tree-felling-review" camunda:formRefBinding="latest" camunda:candidateGroups="case-workers">
+      <bpmn:incoming>Flow_Sub_To_Review_FromReplacement</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Review_Invalid</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Review_To_Apply</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:scriptTask id="Sub_ApplyReview" name="Apply review outcome" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Review_To_Apply</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Apply_To_ReviewOk</bpmn:outgoing>
+<bpmn:script><![CDATA[
+  // reviewAction: "confirm" | "reject" | "change"
+  var action = execution.getVariable("reviewAction");
+
+  function isSet(v) { return v !== null && v !== undefined && v !== ""; }
+
+  // clear previous error (if any)
+  execution.removeVariable("reviewError");
+
+  if (action === "reject") {
+
+    execution.setVariable("permitDecision", "Reject");
+    execution.setVariable("replacementDecision", false);
+
+  } else if (action === "change") {
+
+    var newPermit = execution.getVariable("reviewPermitDecision");           // required for change
+    var newReplacement = execution.getVariable("reviewReplacementDecision"); // boolean / or string from radio/select
+
+    if (!isSet(newPermit)) {
+      execution.setVariable("reviewError", "When action is 'Change', you must set the new permit decision.");
+    } else {
+
+      execution.setVariable("permitDecision", newPermit);
+
+      if (newPermit === "Permit") {
+        if (newReplacement === null || newReplacement === undefined) {
+          execution.setVariable("reviewError", "When changing to 'Permit', you must set whether replacement is required.");
+        } else {
+          // If radio/select yields "true"/"false" strings, normalize:
+          if (newReplacement === "true") newReplacement = true;
+          if (newReplacement === "false") newReplacement = false;
+
+          execution.setVariable("replacementDecision", newReplacement);
+        }
+      } else {
+        execution.setVariable("replacementDecision", false);
+      }
+    }
+
+  } else {
+    // "confirm": keep DMN values as-is
+  }
+]]></bpmn:script>
+    </bpmn:scriptTask>
+<bpmn:exclusiveGateway id="Sub_Gateway_ReviewOk" name="Review valid?">
+  <bpmn:incoming>Flow_Sub_Apply_To_ReviewOk</bpmn:incoming>
+  <bpmn:outgoing>Flow_Sub_Review_Invalid</bpmn:outgoing>
+  <bpmn:outgoing>Flow_Sub_Review_Valid_Granted</bpmn:outgoing>
+  <bpmn:outgoing>Flow_Sub_Review_Valid_Rejected</bpmn:outgoing>
+</bpmn:exclusiveGateway>
+    <bpmn:scriptTask id="Sub_SetGranted" name="Set decision variables: Granted" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Review_Valid_Granted</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Granted_End</bpmn:outgoing>
+      <bpmn:script>
+        execution.setVariable("status", "Approved");
+        execution.setVariable("decisionType", "Granted");
+        execution.setVariable("finalMessage", "Your tree felling permit has been GRANTED.");
+        execution.setVariable("paymentRequired", false);
+        execution.setVariable("chainProcessRequired", false);
+
+        var replacement = execution.getVariable("replacementDecision");
+        var replacementText;
+        if (replacement === true || replacement === "true") {
+          replacementText = "Replacement tree REQUIRED - you are obligated to plant a replacement tree.";
+        } else {
+          replacementText = "No replacement tree required.";
+        }
+        execution.setVariable("replacementInfo", replacementText);
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Sub_SetRejected" name="Set decision variables: Rejected" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Review_Valid_Rejected</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_To_Review_FromReject</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Rejected_End</bpmn:outgoing>
+      <bpmn:script>
+        execution.setVariable("status", "Rejected");
+        execution.setVariable("decisionType", "Rejected");
+        execution.setVariable("finalMessage", "Your tree felling permit has been REJECTED. You may appeal within 6 weeks (Awb 6:7).");
+        execution.setVariable("replacementInfo", "N/A - permit was rejected.");
+        execution.setVariable("paymentRequired", false);
+        execution.setVariable("chainProcessRequired", false);
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="SubEnd" name="Decision ready">
+      <bpmn:incoming>Flow_Sub_Granted_End</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Rejected_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Sub_Start_Assess" sourceRef="SubStart" targetRef="Sub_AssessPermit" />
+    <bpmn:sequenceFlow id="Flow_Sub_Assess_Gateway" sourceRef="Sub_AssessPermit" targetRef="Sub_Gateway_Permit" />
+    <bpmn:sequenceFlow id="Flow_Sub_Permit_Yes" sourceRef="Sub_Gateway_Permit" targetRef="Sub_AssessReplacement">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${permitDecision == "Permit"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_To_Review_FromReject" sourceRef="Sub_Gateway_Permit" targetRef="Sub_SetRejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${permitDecision == "Reject"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_To_Review_FromReplacement" sourceRef="Sub_AssessReplacement" targetRef="Sub_CaseReview" />
+    <bpmn:sequenceFlow id="Flow_Sub_Review_To_Apply" sourceRef="Sub_CaseReview" targetRef="Sub_ApplyReview" />
+    <bpmn:sequenceFlow id="Flow_Sub_Apply_To_ReviewOk" sourceRef="Sub_ApplyReview" targetRef="Sub_Gateway_ReviewOk" />
+<bpmn:sequenceFlow id="Flow_Sub_Review_Invalid" sourceRef="Sub_Gateway_ReviewOk" targetRef="Sub_CaseReview">
+  <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">
+    ${execution.hasVariable('reviewError')}
+  </bpmn:conditionExpression>
+</bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="Flow_Sub_Review_Valid_Granted" sourceRef="Sub_Gateway_ReviewOk" targetRef="Sub_SetGranted">
+  <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">
+    ${!execution.hasVariable('reviewError') and permitDecision == "Permit"}
+  </bpmn:conditionExpression>
+</bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="Flow_Sub_Review_Valid_Rejected" sourceRef="Sub_Gateway_ReviewOk" targetRef="Sub_SetRejected">
+  <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">
+    ${!execution.hasVariable('reviewError') and permitDecision == "Reject"}
+  </bpmn:conditionExpression>
+</bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Granted_End" sourceRef="Sub_SetGranted" targetRef="SubEnd" />
+    <bpmn:sequenceFlow id="Flow_Sub_Rejected_End" sourceRef="Sub_SetRejected" targetRef="SubEnd" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Sub">
+    <bpmndi:BPMNPlane id="BPMNPlane_Sub" bpmnElement="TreeFellingPermitSubProcess">
+      <bpmndi:BPMNShape id="SubStart_di" bpmnElement="SubStart">
+        <dc:Bounds x="152" y="116" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="130" y="85" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_AssessPermit_di" bpmnElement="Sub_AssessPermit">
+        <dc:Bounds x="248" y="94" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_Gateway_Permit_di" bpmnElement="Sub_Gateway_Permit" isMarkerVisible="true">
+        <dc:Bounds x="468" y="109" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="453" y="85" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_AssessReplacement_di" bpmnElement="Sub_AssessReplacement">
+        <dc:Bounds x="560" y="94" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_CaseReview_di" bpmnElement="Sub_CaseReview">
+        <dc:Bounds x="758" y="94" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_ApplyReview_di" bpmnElement="Sub_ApplyReview">
+        <dc:Bounds x="950" y="94" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_Gateway_ReviewOk_di" bpmnElement="Sub_Gateway_ReviewOk" isMarkerVisible="true">
+        <dc:Bounds x="1145" y="109" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1136" y="85" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetRejected_di" bpmnElement="Sub_SetRejected">
+        <dc:Bounds x="758" y="250" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetGranted_di" bpmnElement="Sub_SetGranted">
+        <dc:Bounds x="1250" y="94" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubEnd_di" bpmnElement="SubEnd">
+        <dc:Bounds x="1482" y="116" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1463" y="85" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Sub_Start_Assess_di" bpmnElement="Flow_Sub_Start_Assess">
+        <di:waypoint x="188" y="134" />
+        <di:waypoint x="248" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Assess_Gateway_di" bpmnElement="Flow_Sub_Assess_Gateway">
+        <di:waypoint x="408" y="134" />
+        <di:waypoint x="468" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Permit_Yes_di" bpmnElement="Flow_Sub_Permit_Yes">
+        <di:waypoint x="518" y="134" />
+        <di:waypoint x="560" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_To_Review_FromReject_di" bpmnElement="Flow_Sub_To_Review_FromReject">
+        <di:waypoint x="493" y="159" />
+        <di:waypoint x="493" y="290" />
+        <di:waypoint x="758" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_To_Review_FromReplacement_di" bpmnElement="Flow_Sub_To_Review_FromReplacement">
+        <di:waypoint x="720" y="134" />
+        <di:waypoint x="758" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_To_Apply_di" bpmnElement="Flow_Sub_Review_To_Apply">
+        <di:waypoint x="918" y="134" />
+        <di:waypoint x="950" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Apply_To_ReviewOk_di" bpmnElement="Flow_Sub_Apply_To_ReviewOk">
+        <di:waypoint x="1110" y="134" />
+        <di:waypoint x="1145" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_Invalid_di" bpmnElement="Flow_Sub_Review_Invalid">
+        <di:waypoint x="1170" y="159" />
+        <di:waypoint x="1170" y="210" />
+        <di:waypoint x="838" y="210" />
+        <di:waypoint x="838" y="174" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_Valid_Granted_di" bpmnElement="Flow_Sub_Review_Valid_Granted">
+        <di:waypoint x="1195" y="134" />
+        <di:waypoint x="1250" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_Valid_Rejected_di" bpmnElement="Flow_Sub_Review_Valid_Rejected">
+        <di:waypoint x="1170" y="159" />
+        <di:waypoint x="1170" y="290" />
+        <di:waypoint x="918" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Granted_End_di" bpmnElement="Flow_Sub_Granted_End">
+        <di:waypoint x="1410" y="134" />
+        <di:waypoint x="1482" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Rejected_End_di" bpmnElement="Flow_Sub_Rejected_End">
+        <di:waypoint x="918" y="290" />
+        <di:waypoint x="1500" y="290" />
+        <di:waypoint x="1500" y="152" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

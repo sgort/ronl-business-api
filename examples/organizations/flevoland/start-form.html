@@ -1,0 +1,229 @@
+<style>
+  .form-horizontal {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+  }
+  
+  .form-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    margin: -20px -20px 20px -20px;
+    border-radius: 8px 8px 0 0;
+    text-align: center;
+  }
+  
+  .form-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  
+  .form-header p {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.95;
+  }
+  
+  .info-box {
+    background-color: #e7f3ff;
+    border-left: 4px solid #2196F3;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #1565C0;
+  }
+  
+  .info-box strong {
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+  .control-group {
+    margin-bottom: 20px;
+  }
+  
+  .control-label {
+    display: block;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+  
+  .controls {
+    position: relative;
+  }
+  
+  .controls input[type="number"] {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+  }
+  
+  .controls input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+  
+  .controls input[type="number"]:invalid {
+    border-color: #e74c3c;
+  }
+  
+  .help-text {
+    font-size: 13px;
+    color: #666;
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+  
+  .checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 2px solid #ddd;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .checkbox-wrapper:hover {
+    background-color: #e9ecef;
+    border-color: #667eea;
+  }
+  
+  .checkbox-wrapper input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+    cursor: pointer;
+  }
+  
+  .checkbox-label {
+    font-size: 15px;
+    color: #333;
+    font-weight: 500;
+    cursor: pointer;
+    flex: 1;
+  }
+  
+  .checkbox-description {
+    font-size: 13px;
+    color: #666;
+    margin-top: 4px;
+  }
+  
+  .input-suffix {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    color: #999;
+    font-size: 14px;
+    pointer-events: none;
+  }
+  
+  .example-values {
+    background-color: #fff9e6;
+    border-left: 4px solid #ffc107;
+    padding: 10px 12px;
+    margin-top: 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #856404;
+  }
+  
+  .submit-section {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 2px solid #e9ecef;
+    text-align: center;
+  }
+  
+  .submit-note {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 15px;
+  }
+  
+  @media (max-width: 600px) {
+    .form-horizontal {
+      padding: 15px;
+    }
+    
+    .form-header {
+      margin: -15px -15px 15px -15px;
+    }
+  }
+</style>
+
+<form class="form-horizontal">
+  
+  <!-- Form Header -->
+  <div class="form-header">
+    <h2>🌳 Tree Felling Permit Application</h2>
+    <p>Please provide details about the tree you wish to fell</p>
+  </div>
+  
+  <!-- Information Box -->
+  <div class="info-box">
+    <strong>ℹ️ About this application</strong>
+    This process will automatically assess your tree felling permit application based on municipal regulations. You will receive a decision and notification regarding replacement requirements if applicable.
+  </div>
+  
+  <!-- Tree Diameter Field -->
+  <div class="control-group">
+    <label class="control-label">Tree Diameter *</label>
+    <div class="controls">
+      <input type="number"
+             cam-variable-name="treeDiameter"
+             cam-variable-type="Integer"
+             min="1"
+             max="500"
+             placeholder="Enter diameter in centimeters"
+             required />
+      <span class="input-suffix">cm</span>
+    </div>
+    <div class="help-text">
+      Measure the diameter of the tree trunk at 1.30 meters above ground level (breast height). This is the standard measurement point for tree assessment.
+    </div>
+    <div class="example-values">
+      <strong>Examples:</strong> Small tree (10-20 cm) | Medium tree (30-50 cm) | Large tree (60+ cm)
+    </div>
+  </div>
+  
+  <!-- Protected Area Checkbox -->
+  <div class="control-group">
+    <label class="control-label">Location Details</label>
+    <label class="checkbox-wrapper">
+      <input type="checkbox"
+             cam-variable-name="protectedArea"
+             cam-variable-type="Boolean" />
+      <div style="flex: 1;">
+        <div class="checkbox-label">🏛️ Tree is located in a protected area</div>
+        <div class="checkbox-description">
+          Protected areas include: nature reserves, conservation zones, heritage sites, or areas with special environmental protection status.
+        </div>
+      </div>
+    </label>
+    <div class="help-text">
+      Check this box if the tree is within a designated protected area. This may affect permit requirements and replacement obligations.
+    </div>
+  </div>
+  
+  <!-- Submit Information -->
+  <div class="submit-section">
+    <div class="submit-note">
+      📋 After submitting, your application will be processed automatically. The system will assess your permit eligibility and determine if tree replacement is required.
+    </div>
+  </div>
+  
+</form>
