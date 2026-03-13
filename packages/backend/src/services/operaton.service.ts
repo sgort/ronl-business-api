@@ -569,6 +569,100 @@ export class OperatonService {
       throw error;
     }
   }
+
+  /**
+   * List active (unfinished) RipPhase1Process instances for a municipality,
+   * enriched with projectNumber, projectName, edocsWorkspaceId.
+   */
+  async getRipPhase1ActiveList(tenantId: string): Promise<
+    {
+      id: string;
+      startTime: string;
+      projectNumber: string;
+      projectName: string;
+      edocsWorkspaceId: string;
+    }[]
+  > {
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'RipPhase1Process',
+      unfinished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceIdIn: ids, deserializeValues: true },
+    });
+
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!['projectNumber', 'projectName', 'edocsWorkspaceId'].includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      projectNumber: varMap[i.id]?.projectNumber ?? '—',
+      projectName: varMap[i.id]?.projectName ?? '—',
+      edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
+    }));
+  }
+
+  /**
+   * Fetch all three RIP Phase 1 document templates from the deployment bundle,
+   * together with the current process variables (via history API — works for active instances).
+   * Documents not yet present in the deployment return null.
+   */
+  async getRipPhase1Documents(processInstanceId: string): Promise<{
+    variables: Record<string, unknown>;
+    intakeReport: Record<string, unknown> | null;
+    psuReport: Record<string, unknown> | null;
+    pdp: Record<string, unknown> | null;
+  }> {
+    // 1. Variables (history API works for active instances)
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceId, deserializeValues: true },
+    });
+    const variables: Record<string, unknown> = {};
+    for (const v of varsRes.data as { name: string; value: unknown }[]) {
+      variables[v.name] = v.value;
+    }
+
+    // 2. Resolve deployment
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const deploymentId: string = procDefRes.data.deploymentId;
+
+    // 3. List resources
+    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resources: Array<{ id: string; name: string }> = resourcesRes.data;
+
+    // 4. Fetch each named .document resource, null if absent
+    const fetchDoc = async (name: string): Promise<Record<string, unknown> | null> => {
+      const resource = resources.find((r) => r.name === `${name}.document`);
+      if (!resource) return null;
+      const dataRes = await this.client.get(
+        `/deployment/${deploymentId}/resources/${resource.id}/data`,
+        { responseType: 'text' }
+      );
+      return JSON.parse(dataRes.data) as Record<string, unknown>;
+    };
+
+    const [intakeReport, psuReport, pdp] = await Promise.all([
+      fetchDoc('rip-intake-report'),
+      fetchDoc('rip-psu-report'),
+      fetchDoc('rip-pdp'),
+    ]);
+
+    return { variables, intakeReport, psuReport, pdp };
+  }
 }
 
 export const operatonService = new OperatonService();

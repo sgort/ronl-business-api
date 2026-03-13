@@ -170,6 +170,14 @@
       {
         "name": "admin",
         "description": "Municipality administrator"
+      },
+      {
+        "name": "infra-projectteam",
+        "description": "Infrastructure project team member — can claim RIP Phase 1 tasks"
+      },
+      {
+        "name": "infra-medewerker",
+        "description": "Infrastructure employee role assigned via HR onboarding DMN"
       }
     ]
   },
@@ -429,6 +437,22 @@
         "employee_id": ["emp-005"]
       },
       "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-infra-flevoland",
+      "enabled": true,
+      "firstName": "Infra",
+      "lastName": "Medewerker Flevoland",
+      "email": "infra@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-001"]
+      },
+      "realmRoles": ["caseworker", "infra-projectteam", "infra-medewerker"]
     },
     {
       "username": "test-citizen-uwv",

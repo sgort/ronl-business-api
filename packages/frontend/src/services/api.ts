@@ -203,6 +203,37 @@ export const businessApi = {
     },
   },
 
+  rip: {
+    phase1Active: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phase1/active');
+      return response.data;
+    },
+
+    phase1Documents: async (
+      instanceId: string
+    ): Promise<
+      ApiResponse<{
+        variables: Record<string, unknown>;
+        intakeReport: Record<string, unknown> | null;
+        psuReport: Record<string, unknown> | null;
+        pdp: Record<string, unknown> | null;
+      }>
+    > => {
+      const response = await api.get(`/rip/phase1/${instanceId}/documents`);
+      return response.data;
+    },
+  },
+
   // ── Utilities ─────────────────────────────────────────────────────────────
 
   getBaseUrl: () => API_BASE_URL,

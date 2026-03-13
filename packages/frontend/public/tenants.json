@@ -221,6 +221,8 @@
         ],
         "projects": [
           { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "rip-fase1", "label": "RIP Fase 1 starten", "isPublic": false },
+          { "id": "rip-fase1-wip", "label": "RIP Fase 1 WIP", "isPublic": false },
           { "id": "actief", "label": "Actieve zaken", "isPublic": false },
           { "id": "archief", "label": "Archief", "isPublic": false }
         ]

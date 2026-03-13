@@ -46,11 +46,11 @@
         <outputEntry id="OutputEntry_02_3"><text>"uitgebreid"</text></outputEntry>
       </rule>
 
-      <!-- Rule 3: infrastructuur / verkenner -->
+<!-- Rule 3: infrastructuur / verkenner -->
       <rule id="Rule_03">
         <inputEntry id="InputEntry_03_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_03_2"><text>"verkenner"</text></inputEntry>
-        <outputEntry id="OutputEntry_03_1"><text>"caseworker,rip-verkenner"</text></outputEntry>
+        <outputEntry id="OutputEntry_03_1"><text>"caseworker,infra-projectteam,rip-verkenner"</text></outputEntry>
         <outputEntry id="OutputEntry_03_2"><text>"caseworker,rip-verkenner"</text></outputEntry>
         <outputEntry id="OutputEntry_03_3"><text>"basis"</text></outputEntry>
       </rule>
@@ -59,7 +59,7 @@
       <rule id="Rule_04">
         <inputEntry id="InputEntry_04_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_04_2"><text>"planner"</text></inputEntry>
-        <outputEntry id="OutputEntry_04_1"><text>"caseworker,rip-planner"</text></outputEntry>
+        <outputEntry id="OutputEntry_04_1"><text>"caseworker,infra-projectteam,rip-planner"</text></outputEntry>
         <outputEntry id="OutputEntry_04_2"><text>"caseworker,rip-planner"</text></outputEntry>
         <outputEntry id="OutputEntry_04_3"><text>"uitgebreid"</text></outputEntry>
       </rule>
@@ -68,7 +68,7 @@
       <rule id="Rule_05">
         <inputEntry id="InputEntry_05_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_05_2"><text>"inkoop"</text></inputEntry>
-        <outputEntry id="OutputEntry_05_1"><text>"caseworker,rip-inkoop"</text></outputEntry>
+        <outputEntry id="OutputEntry_05_1"><text>"caseworker,infra-projectteam,rip-inkoop"</text></outputEntry>
         <outputEntry id="OutputEntry_05_2"><text>"caseworker,rip-inkoop"</text></outputEntry>
         <outputEntry id="OutputEntry_05_3"><text>"uitgebreid"</text></outputEntry>
       </rule>
@@ -77,7 +77,7 @@
       <rule id="Rule_06">
         <inputEntry id="InputEntry_06_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_06_2"><text>"contractbeheer"</text></inputEntry>
-        <outputEntry id="OutputEntry_06_1"><text>"caseworker,rip-contractbeheer"</text></outputEntry>
+        <outputEntry id="OutputEntry_06_1"><text>"caseworker,infra-projectteam,rip-contractbeheer"</text></outputEntry>
         <outputEntry id="OutputEntry_06_2"><text>"caseworker,rip-contractbeheer"</text></outputEntry>
         <outputEntry id="OutputEntry_06_3"><text>"uitgebreid"</text></outputEntry>
       </rule>
@@ -86,7 +86,7 @@
       <rule id="Rule_07">
         <inputEntry id="InputEntry_07_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_07_2"><text>"projectleider"</text></inputEntry>
-        <outputEntry id="OutputEntry_07_1"><text>"caseworker,rip-verkenner,rip-planner,rip-contractbeheer"</text></outputEntry>
+        <outputEntry id="OutputEntry_07_1"><text>"caseworker,infra-projectteam,rip-verkenner,rip-planner,rip-contractbeheer"</text></outputEntry>
         <outputEntry id="OutputEntry_07_2"><text>"caseworker,rip-projectleider"</text></outputEntry>
         <outputEntry id="OutputEntry_07_3"><text>"admin"</text></outputEntry>
       </rule>
@@ -95,7 +95,7 @@
       <rule id="Rule_08">
         <inputEntry id="InputEntry_08_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_08_2"><text>"toetser"</text></inputEntry>
-        <outputEntry id="OutputEntry_08_1"><text>"caseworker,rip-toetser"</text></outputEntry>
+        <outputEntry id="OutputEntry_08_1"><text>"caseworker,infra-projectteam,rip-toetser"</text></outputEntry>
         <outputEntry id="OutputEntry_08_2"><text>"caseworker,rip-toetser"</text></outputEntry>
         <outputEntry id="OutputEntry_08_3"><text>"basis"</text></outputEntry>
       </rule>
@@ -104,7 +104,7 @@
       <rule id="Rule_09">
         <inputEntry id="InputEntry_09_1"><text>"infrastructuur"</text></inputEntry>
         <inputEntry id="InputEntry_09_2"><text>"kwaliteit"</text></inputEntry>
-        <outputEntry id="OutputEntry_09_1"><text>"caseworker,rip-kwaliteit"</text></outputEntry>
+        <outputEntry id="OutputEntry_09_1"><text>"caseworker,infra-projectteam,rip-kwaliteit"</text></outputEntry>
         <outputEntry id="OutputEntry_09_2"><text>"caseworker,rip-kwaliteit"</text></outputEntry>
         <outputEntry id="OutputEntry_09_3"><text>"basis"</text></outputEntry>
       </rule>

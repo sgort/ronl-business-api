@@ -31,6 +31,68 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.6.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 13, 2026',
+      sections: [
+        {
+          title: 'RIP Fase 1 — Process Bundle (Flevoland)',
+          icon: '🏗️',
+          iconColor: 'blue',
+          items: [
+            'RipPhase1Process BPMN deployed: 17-step process covering intake → eDOCS workspace → intake meeting → intake report → approval loop → PSU → PSU report → risk file → PDP → approval loop → end',
+            'RipProjectTypeAssignment DMN maps department + projectType to candidateGroups (infra-projectteam) and assignedRoles (infra-medewerker)',
+            'Seven task forms: rip-intake, rip-intake-meeting, rip-intake-report, rip-psu-organize, rip-psu-execution, rip-risk-file, rip-approval',
+            'Three document templates bundled in deployment: rip-intake-report.document, rip-psu-report.document, rip-pdp.document',
+            'eDOCS integration via external service tasks on topics rip-edocs-workspace and rip-edocs-document; output variables edocsWorkspaceId, edocsIntakeReportId, edocsPsuReportId, edocsPdpId',
+            'EmployeeRoleAssignment DMN updated: all infrastructuur roles prepend infra-projectteam to candidateGroups so onboarded infra employees can claim RIP tasks',
+          ],
+        },
+        {
+          title: 'RIP Fase 1 — Caseworker Dashboard',
+          icon: '🏛️',
+          iconColor: 'purple',
+          items: [
+            'Projecten → RIP Fase 1 starten: role-gated to infra-projectteam; starts RipPhase1Process with a single button; success state directs to task queue',
+            'Projecten → RIP Fase 1 WIP: lists all active RipPhase1Process instances for the municipality grouped by edocsWorkspaceId, showing projectName, projectNumber, and start date',
+            'Each WIP project expands to show three collapsible document sections: Intakeverslag (Kolom 2), PSU-verslag (Kolom 3), Voorlopige Ontwerpuitgangspunten (Kolom 4)',
+            'Documents not yet produced by the process show "Nog niet beschikbaar" — no error state',
+            'Document rendering reuses the same TipTap/ProseMirror zone renderer as DecisionViewer with zone key normalisation (signoff/signOff, contactInfo/contactInformation)',
+          ],
+        },
+        {
+          title: 'Backend — RIP Phase 1 Endpoints',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            "GET /v1/rip/phase1/active — lists active RipPhase1Process instances for the caseworker's municipality, enriched with projectNumber, projectName, edocsWorkspaceId",
+            'GET /v1/rip/phase1/:instanceId/documents — fetches all three document templates from the deployment bundle plus current process variables in a single response; absent documents return null',
+            'Both endpoints apply municipality-based tenant isolation consistent with all other process routes',
+          ],
+        },
+        {
+          title: 'Keycloak — Flevoland RIP Roles',
+          icon: '🔑',
+          iconColor: 'green',
+          items: [
+            'infra-projectteam and infra-medewerker realm roles added',
+            'test-infra-flevoland test user added with roles caseworker, infra-projectteam, infra-medewerker and attributes municipality=flevoland, employeeId=EMP-FLV-001',
+          ],
+        },
+        {
+          title: 'Caseworker Dashboard — UX',
+          icon: '✨',
+          iconColor: 'gray',
+          items: [
+            'Procesgegevens panel restyled to match RIP WIP document sections — bordered card with consistent ▲/▼ Verbergen/Tonen toggle',
+            'roleResult intermediate DMN variable excluded from Procesgegevens display',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.5.1',
       status: 'Enhancement',
       statusColor: 'green',

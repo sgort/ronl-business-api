@@ -13,6 +13,7 @@ import {
 import type { TenantConfig, LeftPanelSection } from '../services/tenant';
 import type { KeycloakUser, Task } from '@ronl/shared';
 import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
+import RipFase1WipViewer from '../components/CaseWorkerDashboard/RipFase1WipViewer';
 import DecisionViewer from '../components/DecisionViewer';
 import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
 import ChangelogPanel from './ChangelogPanel';
@@ -69,6 +70,7 @@ export default function CaseworkerDashboard() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [processDataOpen, setProcessDataOpen] = useState(false);
 
   // Nieuws
   const [nieuwsItems, setNieuwsItems] = useState<NieuwsItem[]>([]);
@@ -82,6 +84,19 @@ export default function CaseworkerDashboard() {
 
   // Profiel onboarding enrichment
   const [onboardingStarted, setOnboardingStarted] = useState(false);
+  const [ripPhase1Started, setRipPhase1Started] = useState(false);
+  const [ripFase1Wip, setRipFase1Wip] = useState<
+    Array<{
+      id: string;
+      startTime: string;
+      projectNumber: string;
+      projectName: string;
+      edocsWorkspaceId: string;
+    }>
+  >([]);
+  const [ripFase1WipLoading, setRipFase1WipLoading] = useState(false);
+  const [ripFase1WipError, setRipFase1WipError] = useState<string | null>(null);
+  const [selectedRipInstance, setSelectedRipInstance] = useState<string | null>(null);
   const [profielData, setProfielData] = useState<Record<string, unknown> | null | undefined>(
     undefined
   );
@@ -147,6 +162,7 @@ export default function CaseworkerDashboard() {
   // Load section data when activeSection changes
   useEffect(() => {
     if (activeSection === 'taken' && isAuthenticated) loadTasks();
+    if (activeSection === 'rip-fase1-wip' && isAuthenticated) loadRipFase1Wip();
     if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
     if (activeSection === 'berichten' && berichtenItems.length === 0) loadBerichten();
     // existing lines stay as-is, add:
@@ -246,10 +262,25 @@ export default function CaseworkerDashboard() {
     }
   };
 
+  const loadRipFase1Wip = async () => {
+    setRipFase1WipLoading(true);
+    setRipFase1WipError(null);
+    try {
+      const res = await businessApi.rip.phase1Active();
+      if (res.success && res.data) setRipFase1Wip(res.data);
+      else setRipFase1WipError('Projecten konden niet worden geladen.');
+    } catch {
+      setRipFase1WipError('Projecten konden niet worden geladen.');
+    } finally {
+      setRipFase1WipLoading(false);
+    }
+  };
+
   // ── Task actions ──────────────────────────────────────────────────────────
 
   const handleSelectTask = async (task: Task) => {
     setSelectedTask(task);
+    setProcessDataOpen(!task.assignee);
     setTaskVariables(null);
     setActionMessage(null);
     setDetailLoading(true);
@@ -430,6 +461,7 @@ export default function CaseworkerDashboard() {
                 <button
                   onClick={() => {
                     setSelectedTask(null);
+                    setProcessDataOpen(false);
                     setTaskVariables(null);
                     setActionMessage(null);
                   }}
@@ -486,26 +518,39 @@ export default function CaseworkerDashboard() {
                 <p className="text-sm text-gray-400 mb-6">Procesgegevens laden...</p>
               )}
               {taskVariables && Object.keys(taskVariables).length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Procesgegevens</h4>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    {Object.entries(taskVariables)
-                      .filter(
-                        ([key]) => !['municipality', 'initiator', 'assuranceLevel'].includes(key)
-                      )
-                      .map(([key, value]) => (
-                        <div key={key} className="flex justify-between text-sm">
-                          <span className="text-gray-600 font-medium">{key}</span>
-                          <span className="text-gray-800 font-mono text-xs">
-                            {value === null || value === undefined
-                              ? '—'
-                              : typeof value === 'object'
-                                ? JSON.stringify(value)
-                                : String(value)}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
+                <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setProcessDataOpen((o) => !o)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <span className="text-sm font-medium text-gray-700">Procesgegevens</span>
+                    <span className="text-xs text-gray-400">
+                      {processDataOpen ? '▲ Verbergen' : '▼ Tonen'}
+                    </span>
+                  </button>
+                  {processDataOpen && (
+                    <div className="bg-white p-4 space-y-2">
+                      {Object.entries(taskVariables)
+                        .filter(
+                          ([key]) =>
+                            !['municipality', 'initiator', 'assuranceLevel', 'roleResult'].includes(
+                              key
+                            )
+                        )
+                        .map(([key, value]) => (
+                          <div key={key} className="flex justify-between text-sm">
+                            <span className="text-gray-600 font-medium">{key}</span>
+                            <span className="text-gray-800 font-mono text-xs">
+                              {value === null || value === undefined
+                                ? '—'
+                                : typeof value === 'object'
+                                  ? JSON.stringify(value)
+                                  : String(value)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1031,6 +1076,171 @@ export default function CaseworkerDashboard() {
     );
   }
 
+  function renderRipPhase1() {
+    const isInfraTeam = user?.roles?.includes('infra-projectteam');
+
+    if (!isInfraTeam) {
+      return (
+        <div className="max-w-lg">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p className="text-3xl mb-4 text-gray-300">🔒</p>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Toegang beperkt</h2>
+            <p className="text-gray-400 text-sm">
+              Alleen leden van het infra-projectteam kunnen een RIP Fase 1 starten.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (ripPhase1Started) {
+      return (
+        <div className="max-w-lg">
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+            <p className="text-3xl mb-4">✅</p>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">RIP Fase 1 gestart</h2>
+            <p className="text-gray-500 text-sm mb-5">
+              De intake taak staat klaar in de wachtrij. Ga naar <strong>Projecten → Taken</strong>{' '}
+              om het intakeformulier in te vullen.
+            </p>
+            <button
+              onClick={() => setRipPhase1Started(false)}
+              className="text-sm font-medium hover:underline"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              Nieuw RIP Fase 1 proces starten
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl">
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">
+            RIP Fase 1 — Projectdefinitie
+          </h2>
+          <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+            Start het RIP Fase 1 proces voor een nieuw infrastructuurproject. Na het starten
+            verschijnt het intakeformulier in de wachtrij.
+          </p>
+          <button
+            onClick={async () => {
+              try {
+                const res = await businessApi.process.start('RipPhase1Process', {});
+                if (res.success) {
+                  setRipPhase1Started(true);
+                } else {
+                  setActionMessage({
+                    type: 'error',
+                    text: 'RIP Fase 1 proces kon niet worden gestart.',
+                  });
+                }
+              } catch {
+                setActionMessage({
+                  type: 'error',
+                  text: 'RIP Fase 1 proces kon niet worden gestart.',
+                });
+              }
+            }}
+            className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            RIP Fase 1 starten
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderRipFase1Wip() {
+    const isInfraTeam = user?.roles?.includes('infra-projectteam');
+
+    if (!isInfraTeam) {
+      return (
+        <div className="max-w-lg">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p className="text-3xl mb-4 text-gray-300">🔒</p>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Toegang beperkt</h2>
+            <p className="text-gray-400 text-sm">
+              Alleen leden van het infra-projectteam kunnen lopende RIP Fase 1 projecten inzien.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (ripFase1WipLoading) {
+      return (
+        <div className="max-w-2xl space-y-3">
+          {[1, 2].map((n) => (
+            <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-1/3" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (ripFase1WipError) {
+      return (
+        <div className="max-w-2xl bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
+          {ripFase1WipError}
+          <button onClick={loadRipFase1Wip} className="ml-3 underline">
+            Opnieuw proberen
+          </button>
+        </div>
+      );
+    }
+
+    if (ripFase1Wip.length === 0) {
+      return (
+        <div className="max-w-2xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+          Geen lopende RIP Fase 1 projecten gevonden.
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl space-y-3">
+        {ripFase1Wip.map((project) => (
+          <div
+            key={project.id}
+            className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+          >
+            <button
+              onClick={() =>
+                setSelectedRipInstance(selectedRipInstance === project.id ? null : project.id)
+              }
+              className="w-full text-left p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div>
+                <p className="font-medium text-gray-800 text-sm">
+                  {project.projectName !== '—' ? project.projectName : 'Naamloos project'}
+                  <span className="ml-2 text-gray-400 font-normal">{project.projectNumber}</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Werkruimte: {project.edocsWorkspaceId} · Gestart op{' '}
+                  {new Date(project.startTime).toLocaleDateString('nl-NL')}
+                </p>
+              </div>
+              <span className="text-gray-400 text-lg">
+                {selectedRipInstance === project.id ? '▲' : '▼'}
+              </span>
+            </button>
+            {selectedRipInstance === project.id && (
+              <div className="border-t border-gray-100">
+                <RipFase1WipViewer instanceId={project.id} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderOnboardingArchief() {
     const isHrMedewerker = user?.roles?.includes('hr-medewerker');
 
@@ -1142,6 +1352,10 @@ export default function CaseworkerDashboard() {
         return renderOnboardingArchief();
       case 'rollen':
         return renderRollen();
+      case 'rip-fase1':
+        return renderRipPhase1();
+      case 'rip-fase1-wip':
+        return renderRipFase1Wip();
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
