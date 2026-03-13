@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-psu-organize",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Organise project start-up (PSU)"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Record PSU logistics. The PSU typically has many participants and is often held at an external location. Attach the project plan when sending invitations."
+    },
+    {
+      "id": "Field_PsDate",
+      "type": "datetime",
+      "label": "PSU date and time",
+      "key": "psDate",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PsLocation",
+      "type": "textfield",
+      "label": "Location",
+      "key": "psLocation",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PsParticipants",
+      "type": "textarea",
+      "label": "Invited participants",
+      "key": "psParticipants",
+      "validate": { "required": true },
+      "description": "Full project team, contributor, client, and other relevant parties."
+    },
+    {
+      "id": "Field_PsPresentationReady",
+      "type": "checkbox",
+      "label": "PSU presentation prepared (KMS format)",
+      "key": "psPresentationReady",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PsInviteSent",
+      "type": "checkbox",
+      "label": "Calendar invitation sent with project plan attached",
+      "key": "psInviteSent",
+      "validate": { "required": true }
+    }
+  ]
+}

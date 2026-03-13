@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-psu-execution",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# PSU execution — notes and outcomes"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Record outcomes from the project start-up meeting. These will form the basis of the PSU report (column 3) saved to eDOCS."
+    },
+    {
+      "id": "Text_Section_Outcomes",
+      "type": "text",
+      "text": "### Outcomes"
+    },
+    {
+      "id": "Field_PsOutcomes",
+      "type": "textarea",
+      "label": "PSU outcomes and key decisions",
+      "key": "psOutcomes",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PsActionPoints",
+      "type": "textarea",
+      "label": "Action points",
+      "key": "psActionPoints",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PsRisksIdentified",
+      "type": "textarea",
+      "label": "Risks identified during PSU",
+      "key": "psRisksIdentified"
+    },
+    {
+      "id": "Text_Section_TeamRoles",
+      "type": "text",
+      "text": "### Project team roles confirmed"
+    },
+    {
+      "id": "Field_ProjectManager",
+      "type": "textfield",
+      "label": "Project manager",
+      "key": "projectManager",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ProjectSupporter",
+      "type": "textfield",
+      "label": "Project supporter",
+      "key": "projectSupporter"
+    },
+    {
+      "id": "Field_EnvironmentalManager",
+      "type": "textfield",
+      "label": "Environmental manager (omgevingsmanager)",
+      "key": "environmentalManager"
+    },
+    {
+      "id": "Field_ProjectControlManager",
+      "type": "textfield",
+      "label": "Project control manager",
+      "key": "projectControlManager"
+    },
+    {
+      "id": "Field_PsNotes",
+      "type": "textarea",
+      "label": "Additional notes",
+      "key": "psNotes"
+    }
+  ]
+}

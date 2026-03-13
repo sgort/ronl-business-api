@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+  xmlns:ronl="http://ronl.nl/schema/1.0"
+  id="Definitions_RipPhase1"
+  targetNamespace="http://example.com/rip-phase1"
+  exporter="Linked Data Explorer"
+  exporterVersion="1.1.0">
+
+  <!--
+    RIP Phase 1: Project Definition + Preliminary Design Preparation
+    Covers: intake form → eDOCS workspace creation → intake meeting → intake report
+            → intake report approval → PSU organisation → PSU execution → PSU report
+            → risk file → preliminary design principles → PDP approval
+
+    ServiceTasks use the Operaton external task pattern (camunda:type="external").
+    The LDE backend worker polls topics:
+      - rip-edocs-workspace  : creates or retrieves the project workspace in eDOCS
+      - rip-edocs-document   : uploads a rendered document to the project workspace
+
+    Variable contract:
+      Inputs (set by forms):
+        projectNumber        String  — unique project identifier, drives eDOCS workspace key
+        projectName          String
+        projectType          String  — used by RipProjectTypeAssignment DMN
+        department           String  — used by RipProjectTypeAssignment DMN
+        contributorId        String
+        clientId             String
+        projectScope         String
+        projectFinances      String
+        projectTimeline      String
+        intakeMeetingDate    String
+        intakeMeetingNotes   String
+        psDate               String
+        psLocation           String
+        psNotes              String
+        psOutcomes           String
+        riskFileReference    String
+        pdpNotes             String
+        approvalStatus       String  — "approved" | "rejected"
+        approvalRemarks      String
+
+      Set by DMN (RipProjectTypeAssignment):
+        candidateGroups      String
+        assignedRoles        String
+
+      Set by ServiceTasks:
+        edocsWorkspaceId     String  — eDOCS workspace identifier
+        edocsIntakeReportId  String  — eDOCS document number for the intake report
+        edocsPsuReportId     String  — eDOCS document number for the PSU report
+        edocsPdpId           String  — eDOCS document number for the PDP document
+  -->
+
+  <bpmn:process id="RipPhase1Process" name="RIP Phase 1 — Project Definition &amp; Preliminary Design Preparation" isExecutable="true" camunda:historyTimeToLive="365">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         START
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:startEvent id="StartEvent_RipPhase1" name="Start RIP Phase 1">
+      <bpmn:outgoing>Flow_Start_Intake</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 1: Complete intake form
+         Contributor fills in project details; department + projectType drive the DMN.
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_Intake" name="Complete intake form"
+      camunda:formRef="rip-intake"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_Start_Intake</bpmn:incoming>
+      <bpmn:outgoing>Flow_Intake_DetermineRoles</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         DMN: Determine candidate groups from project type + department
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:businessRuleTask id="Task_DetermineRoles" name="Determine project roles"
+      camunda:resultVariable="roleResult"
+      camunda:decisionRef="RipProjectTypeAssignment"
+      camunda:mapDecisionResult="singleResult">
+      <bpmn:incoming>Flow_Intake_DetermineRoles</bpmn:incoming>
+      <bpmn:outgoing>Flow_DetermineRoles_MapOutputs</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:scriptTask id="Task_MapRoleOutputs" name="Map role outputs" scriptFormat="javascript">
+      <bpmn:incoming>Flow_DetermineRoles_MapOutputs</bpmn:incoming>
+      <bpmn:outgoing>Flow_MapOutputs_EnsureWorkspace</bpmn:outgoing>
+      <bpmn:script>
+        execution.setVariable("candidateGroups", roleResult.get("candidateGroups"));
+        execution.setVariable("assignedRoles",   roleResult.get("assignedRoles"));
+      </bpmn:script>
+    </bpmn:scriptTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SERVICE TASK: Create/ensure eDOCS project workspace
+         Topic: rip-edocs-workspace
+         Input variables fetched: projectNumber, projectName
+         Output variable set:     edocsWorkspaceId
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:serviceTask id="Task_EnsureWorkspace" name="Create eDOCS project workspace"
+      camunda:type="external"
+      camunda:topic="rip-edocs-workspace">
+      <bpmn:incoming>Flow_MapOutputs_EnsureWorkspace</bpmn:incoming>
+      <bpmn:outgoing>Flow_EnsureWorkspace_IntakeMeeting</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 2: Organise intake meeting
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_IntakeMeeting" name="Organise intake meeting"
+      camunda:formRef="rip-intake-meeting"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_EnsureWorkspace_IntakeMeeting</bpmn:incoming>
+      <bpmn:outgoing>Flow_IntakeMeeting_IntakeReport</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 3 + 4: Complete intake report (column 2)
+         Linked document template: rip-intake-report.document
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_IntakeReport" name="Complete intake report"
+      camunda:formRef="rip-intake-report"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam"
+      ronl:documentRef="rip-intake-report">
+      <bpmn:incoming>Flow_IntakeMeeting_IntakeReport</bpmn:incoming>
+      <bpmn:incoming>Flow_IntakeRejected_BackToReport</bpmn:incoming>
+      <bpmn:outgoing>Flow_IntakeReport_SaveEdocs</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SERVICE TASK: Save intake report to eDOCS
+         Topic: rip-edocs-document
+         Input variables fetched: edocsWorkspaceId, projectNumber, projectName
+         The worker renders the document from Operaton history variables.
+         Output variable set:     edocsIntakeReportId
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:serviceTask id="Task_SaveIntakeReport" name="Save intake report to eDOCS"
+      camunda:type="external"
+      camunda:topic="rip-edocs-document">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="documentTemplateId">rip-intake-report</camunda:inputParameter>
+          <camunda:inputParameter name="edocsDocumentVariableName">edocsIntakeReportId</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_IntakeReport_SaveEdocs</bpmn:incoming>
+      <bpmn:outgoing>Flow_SaveIntakeReport_Approve</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 5: Approve intake report
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_ApproveIntakeReport" name="Approve intake report"
+      camunda:formRef="rip-approval"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_SaveIntakeReport_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApproveIntakeReport_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_IntakeApproval" name="Intake report approved?">
+      <bpmn:incoming>Flow_ApproveIntakeReport_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_IntakeApproved_PSUOrganise</bpmn:outgoing>
+      <bpmn:outgoing>Flow_IntakeRejected_BackToReport</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 6: Organise PSU
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_OrganisePSU" name="Organise PSU"
+      camunda:formRef="rip-psu-organize"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_IntakeApproved_PSUOrganise</bpmn:incoming>
+      <bpmn:outgoing>Flow_OrganisePSU_ExecutePSU</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 7: PSU execution
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_ExecutePSU" name="PSU execution"
+      camunda:formRef="rip-psu-execution"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_OrganisePSU_ExecutePSU</bpmn:incoming>
+      <bpmn:outgoing>Flow_ExecutePSU_PSUReport</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 8: Complete PSU report (column 3)
+         Linked document template: rip-psu-report.document
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_PsuReport" name="Complete PSU report"
+      camunda:formRef="rip-psu-execution"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam"
+      ronl:documentRef="rip-psu-report">
+      <bpmn:incoming>Flow_ExecutePSU_PSUReport</bpmn:incoming>
+      <bpmn:outgoing>Flow_PsuReport_SaveEdocs</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- SERVICE TASK: Save PSU report to eDOCS -->
+    <bpmn:serviceTask id="Task_SavePsuReport" name="Save PSU report to eDOCS"
+      camunda:type="external"
+      camunda:topic="rip-edocs-document">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="documentTemplateId">rip-psu-report</camunda:inputParameter>
+          <camunda:inputParameter name="edocsDocumentVariableName">edocsPsuReportId</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PsuReport_SaveEdocs</bpmn:incoming>
+      <bpmn:outgoing>Flow_SavePsuReport_RiskFile</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 9: Prepare risk file
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_RiskFile" name="Prepare risk file"
+      camunda:formRef="rip-risk-file"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_SavePsuReport_RiskFile</bpmn:incoming>
+      <bpmn:outgoing>Flow_RiskFile_PDP</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 10 + 11: Complete preliminary design principles (column 4)
+         Linked document template: rip-pdp.document
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_PDP" name="Complete preliminary design principles"
+      camunda:formRef="rip-intake-report"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam"
+      ronl:documentRef="rip-pdp">
+      <bpmn:incoming>Flow_RiskFile_PDP</bpmn:incoming>
+      <bpmn:incoming>Flow_PDPRejected_BackToPDP</bpmn:incoming>
+      <bpmn:outgoing>Flow_PDP_SaveEdocs</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- SERVICE TASK: Save PDP to eDOCS -->
+    <bpmn:serviceTask id="Task_SavePDP" name="Save preliminary design principles to eDOCS"
+      camunda:type="external"
+      camunda:topic="rip-edocs-document">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="documentTemplateId">rip-pdp</camunda:inputParameter>
+          <camunda:inputParameter name="edocsDocumentVariableName">edocsPdpId</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PDP_SaveEdocs</bpmn:incoming>
+      <bpmn:outgoing>Flow_SavePDP_ApprovePDP</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         STEP 11: Approve preliminary design principles
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:userTask id="Task_ApprovePDP" name="Approve preliminary design principles"
+      camunda:formRef="rip-approval"
+      camunda:formRefBinding="latest"
+      camunda:candidateGroups="infra-projectteam">
+      <bpmn:incoming>Flow_SavePDP_ApprovePDP</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovePDP_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_PDPApproval" name="PDP approved?">
+      <bpmn:incoming>Flow_ApprovePDP_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_PDPApproved_End</bpmn:outgoing>
+      <bpmn:outgoing>Flow_PDPRejected_BackToPDP</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         END
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:endEvent id="EndEvent_Phase1Complete" name="Phase 1 complete">
+      <bpmn:incoming>Flow_PDPApproved_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SEQUENCE FLOWS
+         ═══════════════════════════════════════════════════════════════════ -->
+    <bpmn:sequenceFlow id="Flow_Start_Intake"               sourceRef="StartEvent_RipPhase1"     targetRef="Task_Intake" />
+    <bpmn:sequenceFlow id="Flow_Intake_DetermineRoles"      sourceRef="Task_Intake"              targetRef="Task_DetermineRoles" />
+    <bpmn:sequenceFlow id="Flow_DetermineRoles_MapOutputs"  sourceRef="Task_DetermineRoles"      targetRef="Task_MapRoleOutputs" />
+    <bpmn:sequenceFlow id="Flow_MapOutputs_EnsureWorkspace" sourceRef="Task_MapRoleOutputs"      targetRef="Task_EnsureWorkspace" />
+    <bpmn:sequenceFlow id="Flow_EnsureWorkspace_IntakeMeeting" sourceRef="Task_EnsureWorkspace"  targetRef="Task_IntakeMeeting" />
+    <bpmn:sequenceFlow id="Flow_IntakeMeeting_IntakeReport" sourceRef="Task_IntakeMeeting"       targetRef="Task_IntakeReport" />
+    <bpmn:sequenceFlow id="Flow_IntakeReport_SaveEdocs"     sourceRef="Task_IntakeReport"        targetRef="Task_SaveIntakeReport" />
+    <bpmn:sequenceFlow id="Flow_SaveIntakeReport_Approve"   sourceRef="Task_SaveIntakeReport"    targetRef="Task_ApproveIntakeReport" />
+    <bpmn:sequenceFlow id="Flow_ApproveIntakeReport_Gateway" sourceRef="Task_ApproveIntakeReport" targetRef="Gateway_IntakeApproval" />
+    <bpmn:sequenceFlow id="Flow_IntakeApproved_PSUOrganise" name="approved" sourceRef="Gateway_IntakeApproval" targetRef="Task_OrganisePSU">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "approved"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_IntakeRejected_BackToReport" name="rejected" sourceRef="Gateway_IntakeApproval" targetRef="Task_IntakeReport">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "rejected"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_OrganisePSU_ExecutePSU"     sourceRef="Task_OrganisePSU"         targetRef="Task_ExecutePSU" />
+    <bpmn:sequenceFlow id="Flow_ExecutePSU_PSUReport"       sourceRef="Task_ExecutePSU"          targetRef="Task_PsuReport" />
+    <bpmn:sequenceFlow id="Flow_PsuReport_SaveEdocs"        sourceRef="Task_PsuReport"           targetRef="Task_SavePsuReport" />
+    <bpmn:sequenceFlow id="Flow_SavePsuReport_RiskFile"     sourceRef="Task_SavePsuReport"       targetRef="Task_RiskFile" />
+    <bpmn:sequenceFlow id="Flow_RiskFile_PDP"               sourceRef="Task_RiskFile"            targetRef="Task_PDP" />
+    <bpmn:sequenceFlow id="Flow_PDP_SaveEdocs"              sourceRef="Task_PDP"                 targetRef="Task_SavePDP" />
+    <bpmn:sequenceFlow id="Flow_SavePDP_ApprovePDP"         sourceRef="Task_SavePDP"             targetRef="Task_ApprovePDP" />
+    <bpmn:sequenceFlow id="Flow_ApprovePDP_Gateway"         sourceRef="Task_ApprovePDP"          targetRef="Gateway_PDPApproval" />
+    <bpmn:sequenceFlow id="Flow_PDPApproved_End" name="approved" sourceRef="Gateway_PDPApproval" targetRef="EndEvent_Phase1Complete">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "approved"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_PDPRejected_BackToPDP" name="rejected" sourceRef="Gateway_PDPApproval" targetRef="Task_PDP">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "rejected"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+  </bpmn:process>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DIAGRAM LAYOUT
+       ═══════════════════════════════════════════════════════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipPhase1">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipPhase1" bpmnElement="RipPhase1Process">
+
+      <bpmndi:BPMNShape id="StartEvent_RipPhase1_di" bpmnElement="StartEvent_RipPhase1">
+        <dc:Bounds x="152" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="130" y="155" width="82" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Intake_di" bpmnElement="Task_Intake">
+        <dc:Bounds x="240" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_DetermineRoles_di" bpmnElement="Task_DetermineRoles">
+        <dc:Bounds x="460" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_MapRoleOutputs_di" bpmnElement="Task_MapRoleOutputs">
+        <dc:Bounds x="680" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_EnsureWorkspace_di" bpmnElement="Task_EnsureWorkspace">
+        <dc:Bounds x="900" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_IntakeMeeting_di" bpmnElement="Task_IntakeMeeting">
+        <dc:Bounds x="1120" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_IntakeReport_di" bpmnElement="Task_IntakeReport">
+        <dc:Bounds x="1340" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_SaveIntakeReport_di" bpmnElement="Task_SaveIntakeReport">
+        <dc:Bounds x="1560" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_ApproveIntakeReport_di" bpmnElement="Task_ApproveIntakeReport">
+        <dc:Bounds x="1780" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_IntakeApproval_di" bpmnElement="Gateway_IntakeApproval" isMarkerVisible="true">
+        <dc:Bounds x="2005" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1986" y="162" width="90" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_OrganisePSU_di" bpmnElement="Task_OrganisePSU">
+        <dc:Bounds x="2120" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_ExecutePSU_di" bpmnElement="Task_ExecutePSU">
+        <dc:Bounds x="2340" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_PsuReport_di" bpmnElement="Task_PsuReport">
+        <dc:Bounds x="2560" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_SavePsuReport_di" bpmnElement="Task_SavePsuReport">
+        <dc:Bounds x="2780" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_RiskFile_di" bpmnElement="Task_RiskFile">
+        <dc:Bounds x="3000" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_PDP_di" bpmnElement="Task_PDP">
+        <dc:Bounds x="3220" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_SavePDP_di" bpmnElement="Task_SavePDP">
+        <dc:Bounds x="3440" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_ApprovePDP_di" bpmnElement="Task_ApprovePDP">
+        <dc:Bounds x="3660" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_PDPApproval_di" bpmnElement="Gateway_PDPApproval" isMarkerVisible="true">
+        <dc:Bounds x="3885" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3866" y="162" width="90" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_Phase1Complete_di" bpmnElement="EndEvent_Phase1Complete">
+        <dc:Bounds x="4002" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3980" y="155" width="82" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Sequence flow edges — straight horizontal spine -->
+      <bpmndi:BPMNEdge id="Flow_Start_Intake_di" bpmnElement="Flow_Start_Intake">
+        <di:waypoint x="188" y="130" /><di:waypoint x="240" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Intake_DetermineRoles_di" bpmnElement="Flow_Intake_DetermineRoles">
+        <di:waypoint x="400" y="130" /><di:waypoint x="460" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_DetermineRoles_MapOutputs_di" bpmnElement="Flow_DetermineRoles_MapOutputs">
+        <di:waypoint x="620" y="130" /><di:waypoint x="680" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_MapOutputs_EnsureWorkspace_di" bpmnElement="Flow_MapOutputs_EnsureWorkspace">
+        <di:waypoint x="840" y="130" /><di:waypoint x="900" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_EnsureWorkspace_IntakeMeeting_di" bpmnElement="Flow_EnsureWorkspace_IntakeMeeting">
+        <di:waypoint x="1060" y="130" /><di:waypoint x="1120" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IntakeMeeting_IntakeReport_di" bpmnElement="Flow_IntakeMeeting_IntakeReport">
+        <di:waypoint x="1280" y="130" /><di:waypoint x="1340" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IntakeReport_SaveEdocs_di" bpmnElement="Flow_IntakeReport_SaveEdocs">
+        <di:waypoint x="1500" y="130" /><di:waypoint x="1560" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SaveIntakeReport_Approve_di" bpmnElement="Flow_SaveIntakeReport_Approve">
+        <di:waypoint x="1720" y="130" /><di:waypoint x="1780" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ApproveIntakeReport_Gateway_di" bpmnElement="Flow_ApproveIntakeReport_Gateway">
+        <di:waypoint x="1940" y="130" /><di:waypoint x="2005" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IntakeApproved_PSUOrganise_di" bpmnElement="Flow_IntakeApproved_PSUOrganise">
+        <di:waypoint x="2055" y="130" /><di:waypoint x="2120" y="130" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2070" y="112" width="48" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <!-- Rejection loop for intake report — goes below the spine -->
+      <bpmndi:BPMNEdge id="Flow_IntakeRejected_BackToReport_di" bpmnElement="Flow_IntakeRejected_BackToReport">
+        <di:waypoint x="2030" y="155" /><di:waypoint x="2030" y="220" /><di:waypoint x="1420" y="220" /><di:waypoint x="1420" y="170" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1700" y="202" width="42" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_OrganisePSU_ExecutePSU_di" bpmnElement="Flow_OrganisePSU_ExecutePSU">
+        <di:waypoint x="2280" y="130" /><di:waypoint x="2340" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ExecutePSU_PSUReport_di" bpmnElement="Flow_ExecutePSU_PSUReport">
+        <di:waypoint x="2500" y="130" /><di:waypoint x="2560" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PsuReport_SaveEdocs_di" bpmnElement="Flow_PsuReport_SaveEdocs">
+        <di:waypoint x="2720" y="130" /><di:waypoint x="2780" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SavePsuReport_RiskFile_di" bpmnElement="Flow_SavePsuReport_RiskFile">
+        <di:waypoint x="2940" y="130" /><di:waypoint x="3000" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RiskFile_PDP_di" bpmnElement="Flow_RiskFile_PDP">
+        <di:waypoint x="3160" y="130" /><di:waypoint x="3220" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PDP_SaveEdocs_di" bpmnElement="Flow_PDP_SaveEdocs">
+        <di:waypoint x="3380" y="130" /><di:waypoint x="3440" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SavePDP_ApprovePDP_di" bpmnElement="Flow_SavePDP_ApprovePDP">
+        <di:waypoint x="3600" y="130" /><di:waypoint x="3660" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ApprovePDP_Gateway_di" bpmnElement="Flow_ApprovePDP_Gateway">
+        <di:waypoint x="3820" y="130" /><di:waypoint x="3885" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PDPApproved_End_di" bpmnElement="Flow_PDPApproved_End">
+        <di:waypoint x="3935" y="130" /><di:waypoint x="4002" y="130" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3950" y="112" width="48" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <!-- Rejection loop for PDP — goes below the spine -->
+      <bpmndi:BPMNEdge id="Flow_PDPRejected_BackToPDP_di" bpmnElement="Flow_PDPRejected_BackToPDP">
+        <di:waypoint x="3910" y="155" /><di:waypoint x="3910" y="220" /><di:waypoint x="3300" y="220" /><di:waypoint x="3300" y="170" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3580" y="202" width="42" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

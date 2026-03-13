@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-approval",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Approval"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Review the document linked to this task before approving or rejecting. When rejecting, provide remarks so the author can revise."
+    },
+    {
+      "id": "Field_ApprovalStatus",
+      "type": "radio",
+      "label": "Decision",
+      "key": "approvalStatus",
+      "validate": { "required": true },
+      "values": [
+        { "label": "Approved", "value": "approved" },
+        { "label": "Rejected — revise and resubmit", "value": "rejected" }
+      ]
+    },
+    {
+      "id": "Field_ApprovalRemarks",
+      "type": "textarea",
+      "label": "Remarks",
+      "key": "approvalRemarks",
+      "description": "Required when rejecting. Optional when approving."
+    }
+  ]
+}
