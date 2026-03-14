@@ -17,6 +17,7 @@ import RipFase1WipViewer from '../components/CaseWorkerDashboard/RipFase1WipView
 import DecisionViewer from '../components/DecisionViewer';
 import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
 import ChangelogPanel from './ChangelogPanel';
+import SessionExpiryWarning from '../components/SessionExpiryWarning';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects';
 
@@ -96,6 +97,19 @@ export default function CaseworkerDashboard() {
   >([]);
   const [ripFase1WipLoading, setRipFase1WipLoading] = useState(false);
   const [ripFase1WipError, setRipFase1WipError] = useState<string | null>(null);
+  const [ripFase1Gereed, setRipFase1Gereed] = useState<
+    Array<{
+      id: string;
+      startTime: string;
+      endTime: string;
+      projectNumber: string;
+      projectName: string;
+      edocsWorkspaceId: string;
+    }>
+  >([]);
+  const [ripFase1GereedLoading, setRipFase1GereedLoading] = useState(false);
+  const [ripFase1GereedError, setRipFase1GereedError] = useState<string | null>(null);
+  const [selectedRipGereedInstance, setSelectedRipGereedInstance] = useState<string | null>(null);
   const [selectedRipInstance, setSelectedRipInstance] = useState<string | null>(null);
   const [profielData, setProfielData] = useState<Record<string, unknown> | null | undefined>(
     undefined
@@ -163,6 +177,7 @@ export default function CaseworkerDashboard() {
   useEffect(() => {
     if (activeSection === 'taken' && isAuthenticated) loadTasks();
     if (activeSection === 'rip-fase1-wip' && isAuthenticated) loadRipFase1Wip();
+    if (activeSection === 'rip-fase1-gereed' && isAuthenticated) loadRipFase1Gereed();
     if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
     if (activeSection === 'berichten' && berichtenItems.length === 0) loadBerichten();
     // existing lines stay as-is, add:
@@ -273,6 +288,20 @@ export default function CaseworkerDashboard() {
       setRipFase1WipError('Projecten konden niet worden geladen.');
     } finally {
       setRipFase1WipLoading(false);
+    }
+  };
+
+  const loadRipFase1Gereed = async () => {
+    setRipFase1GereedLoading(true);
+    setRipFase1GereedError(null);
+    try {
+      const res = await businessApi.rip.phase1Completed();
+      if (res.success && res.data) setRipFase1Gereed(res.data);
+      else setRipFase1GereedError('Projecten konden niet worden geladen.');
+    } catch {
+      setRipFase1GereedError('Projecten konden niet worden geladen.');
+    } finally {
+      setRipFase1GereedLoading(false);
     }
   };
 
@@ -1241,6 +1270,95 @@ export default function CaseworkerDashboard() {
     );
   }
 
+  function renderRipFase1Gereed() {
+    const isInfraTeam = user?.roles?.includes('infra-projectteam');
+
+    if (!isInfraTeam) {
+      return (
+        <div className="max-w-lg">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p className="text-3xl mb-4 text-gray-300">🔒</p>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Toegang beperkt</h2>
+            <p className="text-gray-400 text-sm">
+              Alleen leden van het infra-projectteam kunnen afgeronde RIP Fase 1 projecten inzien.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (ripFase1GereedLoading) {
+      return (
+        <div className="max-w-2xl space-y-3">
+          {[1, 2].map((n) => (
+            <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-1/3" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (ripFase1GereedError) {
+      return (
+        <div className="max-w-2xl bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
+          {ripFase1GereedError}
+          <button onClick={loadRipFase1Gereed} className="ml-3 underline">
+            Opnieuw proberen
+          </button>
+        </div>
+      );
+    }
+
+    if (ripFase1Gereed.length === 0) {
+      return (
+        <div className="max-w-2xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+          Geen afgeronde RIP Fase 1 projecten gevonden.
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl space-y-3">
+        {ripFase1Gereed.map((project) => (
+          <div
+            key={project.id}
+            className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+          >
+            <button
+              onClick={() =>
+                setSelectedRipGereedInstance(
+                  selectedRipGereedInstance === project.id ? null : project.id
+                )
+              }
+              className="w-full text-left p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div>
+                <p className="font-medium text-gray-800 text-sm">
+                  {project.projectName !== '—' ? project.projectName : 'Naamloos project'}
+                  <span className="ml-2 text-gray-400 font-normal">{project.projectNumber}</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Werkruimte: {project.edocsWorkspaceId} · Afgerond op{' '}
+                  {new Date(project.endTime).toLocaleDateString('nl-NL')}
+                </p>
+              </div>
+              <span className="text-gray-400 text-lg">
+                {selectedRipGereedInstance === project.id ? '▲' : '▼'}
+              </span>
+            </button>
+            {selectedRipGereedInstance === project.id && (
+              <div className="border-t border-gray-100">
+                <RipFase1WipViewer instanceId={project.id} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderOnboardingArchief() {
     const isHrMedewerker = user?.roles?.includes('hr-medewerker');
 
@@ -1356,6 +1474,8 @@ export default function CaseworkerDashboard() {
         return renderRipPhase1();
       case 'rip-fase1-wip':
         return renderRipFase1Wip();
+      case 'rip-fase1-gereed':
+        return renderRipFase1Gereed();
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
@@ -1376,6 +1496,7 @@ export default function CaseworkerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
+      <SessionExpiryWarning />
       {/* ── Top navigation bar ── */}
       <header
         className="text-white shadow-lg flex-shrink-0"

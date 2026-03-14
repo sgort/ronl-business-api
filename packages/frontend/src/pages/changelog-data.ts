@@ -73,6 +73,16 @@ export const changelog: Changelog = {
           ],
         },
         {
+          title: 'RIP Fase 1 — Gereed archive',
+          icon: '✅',
+          iconColor: 'green',
+          items: [
+            'Projecten → RIP Fase 1 gereed: lists all completed RipPhase1Process instances for the municipality, matching the WIP layout with projectName, projectNumber, edocsWorkspaceId, and completion date',
+            'Expands to render all three document templates via the same RipFase1WipViewer — documents that were not produced before completion show "Nog niet beschikbaar"',
+            'GET /v1/rip/phase1/completed added alongside the existing /active endpoint, using the Operaton history API with finished: true',
+          ],
+        },
+        {
           title: 'Keycloak — Flevoland RIP Roles',
           icon: '🔑',
           iconColor: 'green',
@@ -88,6 +98,17 @@ export const changelog: Changelog = {
           items: [
             'Procesgegevens panel restyled to match RIP WIP document sections — bordered card with consistent ▲/▼ Verbergen/Tonen toggle',
             'roleResult intermediate DMN variable excluded from Procesgegevens display',
+            'RIP WIP document zone key normalisation: signoff/signOff and contactInfo/contactInformation variants both handled — fixes crash when opening Intakeverslag',
+          ],
+        },
+        {
+          title: 'Session expiry warning',
+          icon: '⏱️',
+          iconColor: 'orange',
+          items: [
+            'SessionExpiryWarning component mounted in the caseworker dashboard — polls token expiry every 15 seconds and shows a modal when fewer than 2 minutes remain',
+            'Modal offers "Sessie verlengen" (forces updateToken) and "Uitloggen" — unsaved form data is preserved when extending',
+            'Axios request interceptor upgraded to proactively call updateToken(30) before every API request; forces re-login if the SSO session is gone',
           ],
         },
       ],

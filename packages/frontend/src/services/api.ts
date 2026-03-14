@@ -15,6 +15,16 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  if (keycloak.authenticated) {
+    try {
+      // Refresh if token expires within the next 30 seconds
+      await keycloak.updateToken(30);
+    } catch {
+      // Refresh failed — session gone, force re-login
+      keycloak.login();
+      return Promise.reject(new Error('Session expired'));
+    }
+  }
   if (keycloak.token) {
     config.headers.Authorization = `Bearer ${keycloak.token}`;
   }
@@ -230,6 +240,22 @@ export const businessApi = {
       }>
     > => {
       const response = await api.get(`/rip/phase1/${instanceId}/documents`);
+      return response.data;
+    },
+
+    phase1Completed: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          endTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phase1/completed');
       return response.data;
     },
   },

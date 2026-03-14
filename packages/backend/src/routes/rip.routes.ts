@@ -78,4 +78,37 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
   }
 });
 
+/**
+ * GET /v1/rip/phase1/completed
+ * List completed RipPhase1Process instances for the caseworker's municipality.
+ */
+router.get('/phase1/completed', async (req, res) => {
+  if (!req.user) {
+    return res
+      .status(401)
+      .json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+  }
+  try {
+    const list = await operatonService.getRipPhase1CompletedList(req.user.tenantId);
+    res.json({ success: true, data: list });
+  } catch (error) {
+    logger.error('Failed to list completed RIP Phase 1 instances', {
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res
+      .status(500)
+      .json({
+        success: false,
+        error: {
+          code: 'RIP_COMPLETED_LIST_FAILED',
+          message: 'Failed to retrieve completed RIP Phase 1 instances',
+        },
+      });
+  }
+});
+
 export default router;

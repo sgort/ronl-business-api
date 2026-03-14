@@ -663,6 +663,51 @@ export class OperatonService {
 
     return { variables, intakeReport, psuReport, pdp };
   }
+
+  /**
+   * Fetch all three RIP Phase 1 documents from the deployment bundle for finished instances.
+   */
+  async getRipPhase1CompletedList(tenantId: string): Promise<
+    {
+      id: string;
+      startTime: string;
+      endTime: string;
+      projectNumber: string;
+      projectName: string;
+      edocsWorkspaceId: string;
+    }[]
+  > {
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'RipPhase1Process',
+      finished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string; endTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceIdIn: ids, deserializeValues: true },
+    });
+
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!['projectNumber', 'projectName', 'edocsWorkspaceId'].includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      endTime: i.endTime,
+      projectNumber: varMap[i.id]?.projectNumber ?? '—',
+      projectName: varMap[i.id]?.projectName ?? '—',
+      edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
+    }));
+  }
 }
 
 export const operatonService = new OperatonService();
