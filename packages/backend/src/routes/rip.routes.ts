@@ -84,12 +84,10 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
  */
 router.get('/phase1/completed', async (req, res) => {
   if (!req.user) {
-    return res
-      .status(401)
-      .json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-      });
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
   }
   try {
     const list = await operatonService.getRipPhase1CompletedList(req.user.tenantId);
@@ -99,15 +97,13 @@ router.get('/phase1/completed', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: {
-          code: 'RIP_COMPLETED_LIST_FAILED',
-          message: 'Failed to retrieve completed RIP Phase 1 instances',
-        },
-      });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'RIP_COMPLETED_LIST_FAILED',
+        message: 'Failed to retrieve completed RIP Phase 1 instances',
+      },
+    });
   }
 });
 
