@@ -71,6 +71,13 @@ interface Config {
     defaultMaxProcessInstances: number;
     enableIsolation: boolean;
   };
+  edocs: {
+    baseUrl: string;
+    library: string;
+    userId: string;
+    password: string;
+    stubMode: boolean;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -167,6 +174,14 @@ export const config: Config = {
   tenant: {
     defaultMaxProcessInstances: parseEnvInt(process.env.DEFAULT_MAX_PROCESS_INSTANCES, 1000),
     enableIsolation: parseEnvBool(process.env.ENABLE_TENANT_ISOLATION, true),
+  },
+
+  edocs: {
+    baseUrl: process.env.EDOCS_BASE_URL ?? '',
+    library: process.env.EDOCS_LIBRARY ?? 'DOCUVITT',
+    userId: process.env.EDOCS_USER_ID ?? '',
+    password: process.env.EDOCS_PASSWORD ?? '',
+    stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
   },
 };
 

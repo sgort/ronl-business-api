@@ -31,6 +31,37 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.7.0',
+      status: 'Feature Release',
+      statusColor: 'teal',
+      borderColor: 'teal',
+      date: 'March 14, 2026',
+      sections: [
+        {
+          title: 'eDOCS Service — Live Mode',
+          icon: '📁',
+          iconColor: 'blue',
+          items: [
+            'EdocsService implemented in packages/backend/src/services/edocs.service.ts: session token caching via /connect, automatic re-authentication on 401/403, ensureWorkspace, uploadDocument, getWorkspaceDocuments, and healthCheck',
+            'ExternalTaskWorker implemented in packages/backend/src/services/externalTaskWorker.service.ts: long-polling Operaton external task API on topics rip-edocs-workspace and rip-edocs-document; worker starts on server boot and stops cleanly on SIGTERM/SIGINT',
+            'edocs.routes.ts rewritten to call EdocsService instead of returning hardcoded stub responses; all four endpoints (status, workspaces/ensure, documents, workspaces/:id/documents) now go through the service',
+            'Stub mode fully preserved: EDOCS_STUB_MODE=true (default) returns realistic fake responses identical in shape to live eDOCS responses; no callers can distinguish stub from live',
+            'config.ts extended with edocs block: EDOCS_BASE_URL, EDOCS_LIBRARY, EDOCS_USER_ID, EDOCS_PASSWORD, EDOCS_STUB_MODE',
+            'utils/errors.ts added: getErrorMessage() helper for safe extraction of error messages from unknown caught values',
+          ],
+        },
+        {
+          title: 'Copilot Studio — eDOCS OAuth Connection',
+          icon: '🤖',
+          iconColor: 'purple',
+          items: [
+            'Keycloak client copilot-studio-edocs registered in ronl-realm: confidential, service accounts enabled, client_credentials grant only, audience mapper targeting ronl-business-api',
+            'OAuth 2.0 connection verified end-to-end on ACC: token obtained from acc.keycloak.open-regels.nl, Bearer token accepted by acc.api.open-regels.nl/v1/edocs endpoints',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.6.0',
       status: 'Feature Release',
       statusColor: 'purple',

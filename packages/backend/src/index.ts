@@ -15,6 +15,7 @@ import publicRoutes from '@routes/public.routes';
 import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
+import { externalTaskWorker } from '@services/externalTaskWorker.service';
 
 const appLogger = createLogger('app');
 
@@ -199,17 +200,21 @@ const startServer = () => {
       auditEnabled: config.audit.enabled,
       tenantIsolation: config.tenant.enableIsolation,
     });
+
+    externalTaskWorker.start();
   });
 };
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
+  externalTaskWorker.stop();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
+  externalTaskWorker.stop();
   process.exit(0);
 });
 
