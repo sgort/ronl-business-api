@@ -14,6 +14,7 @@ import taskRoutes from '@routes/task.routes';
 import publicRoutes from '@routes/public.routes';
 import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
+import edocsRoutes from './routes/edocs.routes';
 
 const appLogger = createLogger('app');
 
@@ -136,6 +137,7 @@ app.use('/v1/brp', brpRoutes);
 app.use('/v1/public', publicRoutes);
 app.use('/v1/hr', hrRoutes);
 app.use('/v1/rip', ripRoutes);
+app.use('/v1/edocs', edocsRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
