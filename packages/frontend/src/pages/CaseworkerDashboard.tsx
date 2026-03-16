@@ -212,7 +212,6 @@ export default function CaseworkerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeSection,
-    auditLogs.length,
     berichtenItems.length,
     isAuthenticated,
     nieuwsItems.length,
