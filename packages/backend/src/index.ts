@@ -16,6 +16,8 @@ import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
+import { initDb } from '@services/audit.service';
+import adminRoutes from '@routes/admin.routes';
 
 const appLogger = createLogger('app');
 
@@ -139,6 +141,7 @@ app.use('/v1/public', publicRoutes);
 app.use('/v1/hr', hrRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
+app.use('/v1/admin', adminRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -175,9 +178,11 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 });
 
 // Start server
-const startServer = () => {
+const startServer = async () => {
   const port = config.port;
   const host = config.host;
+
+  await initDb();
 
   app.listen(port, host, () => {
     appLogger.info('Server started', {
@@ -200,8 +205,6 @@ const startServer = () => {
       auditEnabled: config.audit.enabled,
       tenantIsolation: config.tenant.enableIsolation,
     });
-
-    externalTaskWorker.start();
   });
 };
 

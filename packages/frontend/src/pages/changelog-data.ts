@@ -31,6 +31,51 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.7.1',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'March 16, 2026',
+      sections: [
+        {
+          title: 'Audit Log — Database Persistence',
+          icon: '🗄️',
+          iconColor: 'blue',
+          items: [
+            'audit.service.ts implemented: pg-promise connection pool wired to audit_logs PostgreSQL database; previously audit entries were in-memory only',
+            'AuditLogEntry extracted to src/types/audit.types.ts — re-exported from audit.middleware.ts for backward compatibility',
+            'persistAuditLog() called fire-and-forget from createAuditLog(); errors logged but never propagated to the request cycle',
+            'initDb() called at server startup — non-fatal if DB is unreachable; falls back to in-memory logging until connection is restored',
+            '304 Not Modified responses reclassified as success — status code threshold corrected from < 300 to < 400',
+          ],
+        },
+        {
+          title: 'Caseworker Dashboard — Audit Log Tab',
+          icon: '📋',
+          iconColor: 'purple',
+          items: [
+            'New "Audit log" top-nav tab with two left panel sections: Overzicht and Details',
+            'Overzicht: paginated table showing timestamp, tenant, truncated user ID, action, and colour-coded result badge',
+            'Details: same records with full details JSONB rendered as key/value pairs per row',
+            'Load more pagination (50 records per page); manual Vernieuwen button resets to page 0',
+            'Tab visible to all authenticated users; non-admin users see Toegang beperkt screen',
+            'Audit records reload on every section entry — always shows current data when returning from other pages',
+            'GET /v1/admin/audit endpoint — role-gated to admin, returns paginated records with total count',
+          ],
+        },
+        {
+          title: 'Bug Fixes',
+          icon: '🐛',
+          iconColor: 'red',
+          items: [
+            'JWT role extraction fixed: backend was reading payload.roles (always empty) instead of payload.realm_access.roles — role-gated endpoints including /v1/admin/audit now work correctly; side-effect fix for all requireRoles() guards across the API',
+            'Session expiry warning appearing during active use: Axios interceptor updateToken threshold raised from 30s to 120s to match the warning threshold — token now silently refreshes on any API call while fewer than 2 minutes remain',
+            'Audit log auto-selection on first visit: audit-log page now wired into the section-reset useEffect alongside tenant-driven pages',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.7.0',
       status: 'Feature Release',
       statusColor: 'teal',

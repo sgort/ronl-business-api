@@ -15,7 +15,9 @@ export interface JWTPayload {
   municipality: string;
   organisation_type: OrganisationType;
   loa: AssuranceLevel;
-  roles: string[];
+  realm_access?: {
+    roles: string[];
+  };
   mandate?: MandateInfo;
   name?: string;
   email?: string;

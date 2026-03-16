@@ -17,10 +17,8 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   if (keycloak.authenticated) {
     try {
-      // Refresh if token expires within the next 30 seconds
-      await keycloak.updateToken(30);
+      await keycloak.updateToken(120);
     } catch {
-      // Refresh failed — session gone, force re-login
       keycloak.login();
       return Promise.reject(new Error('Session expired'));
     }
@@ -260,6 +258,20 @@ export const businessApi = {
     },
   },
 
+  admin: {
+    auditLogs: async (
+      limit = 50,
+      offset = 0
+    ): Promise<
+      ApiResponse<{
+        items: AuditLogRecord[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>
+    > => {
+      const response = await api.get(`/admin/audit?limit=${limit}&offset=${offset}`);
+      return response.data;
+    },
+  },
   // ── Utilities ─────────────────────────────────────────────────────────────
 
   getBaseUrl: () => API_BASE_URL,
@@ -329,4 +341,18 @@ export interface RegelcatalogusData {
   organizations: CatalogOrganization[];
   concepts: CatalogConcept[];
   rules: CatalogRule[];
+}
+
+export interface AuditLogRecord {
+  id: number;
+  timestamp: string;
+  tenant_id: string;
+  user_id: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  details: Record<string, unknown> | null;
+  result: 'success' | 'failure' | 'error';
+  error_message: string | null;
+  request_id: string | null;
 }
