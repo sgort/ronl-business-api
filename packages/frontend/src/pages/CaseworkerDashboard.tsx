@@ -495,9 +495,7 @@ export default function CaseworkerDashboard() {
                     setActionMessage(null);
                   }}
                   className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-                >
-                  ×
-                </button>
+                ></button>
               </div>
 
               {actionMessage && (
