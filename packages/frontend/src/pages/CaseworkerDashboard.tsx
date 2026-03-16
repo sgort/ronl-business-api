@@ -436,41 +436,75 @@ export default function CaseworkerDashboard() {
               Geen openstaande taken.
             </div>
           )}
-          {!tasksLoading && tasks.length > 0 && (
-            <div className="space-y-2">
-              {tasks.map((task) => (
-                <button
-                  key={task.id}
-                  onClick={() => handleSelectTask(task)}
-                  className="w-full text-left bg-white rounded-lg shadow-sm p-4 transition-all border-2 border-transparent hover:border-gray-200"
-                  style={
-                    selectedTask?.id === task.id ? { borderColor: 'var(--color-primary)' } : {}
-                  }
-                >
-                  <p className="font-medium text-gray-800 truncate text-sm">{task.name}</p>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-500">
-                      {new Date(task.created).toLocaleDateString('nl-NL')}
-                    </p>
-                    {task.assignee ? (
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                        Geclaimd
-                      </span>
-                    ) : (
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
-                        Openstaand
-                      </span>
-                    )}
-                  </div>
-                  {task.due && (
-                    <p className="text-xs text-red-500 mt-1">
-                      Deadline: {new Date(task.due).toLocaleDateString('nl-NL')}
-                    </p>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+          {!tasksLoading &&
+            tasks.length > 0 &&
+            (() => {
+              // Group by processDefinitionKey, sort tasks within each group descending
+              const grouped = tasks
+                .slice()
+                .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+                .reduce<Record<string, typeof tasks>>((acc, task) => {
+                  const key = task.processDefinitionKey ?? task.processDefinitionId;
+                  if (!acc[key]) acc[key] = [];
+                  acc[key].push(task);
+                  return acc;
+                }, {});
+
+              // Sort groups by their most recent task descending
+              const sortedGroups = Object.entries(grouped).sort(
+                ([, a], [, b]) =>
+                  new Date(b[0].created).getTime() - new Date(a[0].created).getTime()
+              );
+
+              return (
+                <div className="space-y-4">
+                  {sortedGroups.map(([defKey, groupTasks]) => (
+                    <div key={defKey}>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide font-mono mb-1 px-1 truncate">
+                        {defKey}
+                      </p>
+                      <div className="space-y-2">
+                        {groupTasks.map((task) => (
+                          <button
+                            key={task.id}
+                            onClick={() => handleSelectTask(task)}
+                            className="w-full text-left bg-white rounded-lg shadow-sm p-4 transition-all border-2 border-transparent hover:border-gray-200"
+                            style={
+                              selectedTask?.id === task.id
+                                ? { borderColor: 'var(--color-primary)' }
+                                : {}
+                            }
+                          >
+                            <p className="font-medium text-gray-800 truncate text-sm">
+                              {task.name}
+                            </p>
+                            <div className="flex items-center justify-between mt-1">
+                              <p className="text-xs text-gray-500">
+                                {new Date(task.created).toLocaleDateString('nl-NL')}
+                              </p>
+                              {task.assignee ? (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                  Geclaimd
+                                </span>
+                              ) : (
+                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                                  Openstaand
+                                </span>
+                              )}
+                            </div>
+                            {task.due && (
+                              <p className="text-xs text-red-500 mt-1">
+                                Deadline: {new Date(task.due).toLocaleDateString('nl-NL')}
+                              </p>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
         </div>
 
         <div className="flex-1">

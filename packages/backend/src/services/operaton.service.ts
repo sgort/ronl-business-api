@@ -382,7 +382,36 @@ export class OperatonService {
         },
       });
 
-      return response.data;
+      const tasks: Task[] = response.data;
+      if (tasks.length === 0) return tasks;
+
+      // Resolve processDefinitionKey for each unique processDefinitionId.
+      // Operaton sometimes returns a bare UUID for subprocess tasks instead of
+      // the Key:version:uuid format, so we fetch the definition to get the key.
+      const uniqueDefIds = [...new Set(tasks.map((t) => t.processDefinitionId))];
+
+      const defKeyMap: Record<string, string> = {};
+      await Promise.all(
+        uniqueDefIds.map(async (defId) => {
+          // If it already contains colons it's in Key:version:id format — extract directly.
+          if (defId.includes(':')) {
+            defKeyMap[defId] = defId.split(':')[0];
+            return;
+          }
+          // Bare UUID — fetch from Operaton.
+          try {
+            const defRes = await this.client.get(`/process-definition/${defId}`);
+            defKeyMap[defId] = defRes.data.key ?? defId;
+          } catch {
+            defKeyMap[defId] = defId;
+          }
+        })
+      );
+
+      return tasks.map((t) => ({
+        ...t,
+        processDefinitionKey: defKeyMap[t.processDefinitionId] ?? t.processDefinitionId,
+      }));
     } catch (error) {
       logger.error('Failed to get user tasks', {
         userId,

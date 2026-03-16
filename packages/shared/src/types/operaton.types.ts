@@ -31,6 +31,7 @@ export interface Task {
   description?: string;
   executionId: string;
   processDefinitionId: string;
+  processDefinitionKey?: string;
   processInstanceId: string;
   taskDefinitionKey: string;
   suspended: boolean;
