@@ -57,7 +57,7 @@ export const auditMiddleware = (req: Request, res: Response, next: NextFunction)
       if (req.user && req.auth) {
         const action = `${req.method} ${req.path}`;
         const result =
-          statusCode >= 200 && statusCode < 300
+          statusCode >= 200 && statusCode < 400
             ? 'success'
             : statusCode >= 400 && statusCode < 500
               ? 'failure'
