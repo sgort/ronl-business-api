@@ -34,14 +34,14 @@ export async function persistAuditLog(entry: AuditLogEntry): Promise<void> {
   try {
     await db.none(
       `INSERT INTO audit_logs (
-        timestamp, tenant_id, user_id, action,
-        resource_type, resource_id, details,
-        ip_address, user_agent, result, error_message, request_id
-      ) VALUES (
-        $<timestamp>, $<tenantId>, $<userId>, $<action>,
-        $<resourceType>, $<resourceId>, $<details:json>,
-        $<ipAddress>, $<userAgent>, $<result>, $<errorMessage>, $<requestId>
-      )`,
+    timestamp, tenant_id, user_id, action,
+    resource_type, resource_id, details,
+    ip_address, user_agent, result, error_message, request_id
+  ) VALUES (
+    $<timestamp>, $<tenantId>, $<userId>, $<action>,
+    $<resourceType>, $<resourceId>, $<details:json>,
+    $<ipAddress>, $<userAgent>, $<result>, $<errorMessage>, $<requestId>
+  )`,
       {
         timestamp: entry.timestamp,
         tenantId: entry.tenantId,
@@ -50,7 +50,7 @@ export async function persistAuditLog(entry: AuditLogEntry): Promise<void> {
         resourceType: entry.resourceType ?? null,
         resourceId: entry.resourceId ?? null,
         details: entry.details ?? null,
-        ipAddress: entry.ipAddress ?? null,
+        ipAddress: entry.ipAddress ? entry.ipAddress.replace(/:\d+$/, '') : null,
         userAgent: entry.userAgent ?? null,
         result: entry.result,
         errorMessage: entry.errorMessage ?? null,
