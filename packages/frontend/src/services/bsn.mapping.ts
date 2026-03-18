@@ -9,6 +9,7 @@ export const testUserBSNMapping: Record<string, string> = {
   'test-citizen-amsterdam': '999992235', // For now, same test data
   'test-citizen-rotterdam': '999992235', // For now, same test data
   'test-citizen-denhaag': '999992235', // For now, same test data
+  'test-citizen-flevoland': '999992235', // For now, same test data
 };
 
 /**
