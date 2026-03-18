@@ -57,6 +57,26 @@ router.post(
         };
       }
 
+      // AwbZorgtoeslagProcess: coerce variable types that the DRD expects as Double
+      // and strip overlijdensdatum when left blank (DRD expects absence, not empty string).
+      if (key === 'AwbZorgtoeslagProcess') {
+        for (const field of ['toetsingsinkomen', 'woonlandfactorBuitenland'] as const) {
+          if (operatonVariables[field] !== undefined) {
+            operatonVariables[field] = {
+              value: Number(operatonVariables[field].value),
+              type: 'Double',
+            };
+          }
+        }
+        if (
+          operatonVariables.overlijdensdatum !== undefined &&
+          (operatonVariables.overlijdensdatum.value === null ||
+            operatonVariables.overlijdensdatum.value === '')
+        ) {
+          delete operatonVariables.overlijdensdatum;
+        }
+      }
+
       // Start process
       const processInstance = await operatonService.startProcess(
         key,

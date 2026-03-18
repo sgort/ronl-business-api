@@ -31,6 +31,48 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.7.2',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 18, 2026',
+      sections: [
+        {
+          title: 'Citizen Dashboard — AWB Zorgtoeslag Aanvragen',
+          icon: '🏥',
+          iconColor: 'blue',
+          items: [
+            'AwbZorgtoeslagProcess wired into the zorgtoeslag service card — citizens can now submit a formal zorgtoeslag application via the Awb process',
+            'Zorgtoeslag service card split into two views: calculator (Berekenen) and application form (Aanvragen), toggled by button',
+            'Clicking Aanvragen transitions to the ProcessStartFormViewer for AwbZorgtoeslagProcess without clearing the calculator inputs',
+            'Calculator prefills the ProcessStartFormViewer initialData with all form values including computed age fields (leeftijdOpDatumBerekening, leeftijdOpLaatsteDagVorigeMaand, leeftijdOpLaatsteDagHuidigeMaand)',
+            'Success card after submission shows dossier number and 8-week statutory notice (Awb 4:13), then navigates to Mijn aanvragen',
+            'Mijn aanvragen now displays human-readable labels: AwbShellProcess → Kapvergunning aanvragen, AwbZorgtoeslagProcess → Zorgtoeslag aanvragen',
+          ],
+        },
+        {
+          title: 'Citizen Dashboard — Zorgtoeslag Calculator',
+          icon: '🧮',
+          iconColor: 'green',
+          items: [
+            'Calculator switched from berekenrechtenhoogtezorg DMN to zorgtoeslag_resultaat — the same DMN used by the Awb process',
+            'Input fields updated to match the new DMN contract: geboortedatum, overlijdensdatum (optional), toetsingsinkomen, woonlandfactorBuitenland, statusZorgverzekerd, woonachtigNL, rechtmatigVerblijfNL, gedetineerd',
+            'Age fields (leeftijdOpDatumBerekening, leeftijdOpLaatsteDagVorigeMaand, leeftijdOpLaatsteDagHuidigeMaand) computed client-side from geboortedatum at evaluation time',
+            'Result card shows eligible/not-eligible outcome with estimated annual amount and monthly breakdown',
+          ],
+        },
+        {
+          title: 'Backend — Variable Coercion for AwbZorgtoeslagProcess',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'POST /v1/process/AwbZorgtoeslagProcess/start applies type coercions before forwarding to Operaton: toetsingsinkomen and woonlandfactorBuitenland forced to Double regardless of whether the form submits an integer',
+            'overlijdensdatum omitted from the variables payload when null or empty string — DRD expects absence, not an empty value',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.7.1',
       status: 'Feature Release',
       statusColor: 'blue',
