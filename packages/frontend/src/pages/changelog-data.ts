@@ -31,6 +31,24 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.8.2',
+      status: 'Bug Fix',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: 'March 19, 2026',
+      sections: [
+        {
+          title: 'Audit Log — Database Persistence Fixes',
+          icon: '🐛',
+          iconColor: 'orange',
+          items: [
+            'persistAuditLog() refactored to pass an explicit named-parameter object to pg-promise instead of spreading the AuditLogEntry — the spread caused pg-promise to throw "Property does not exist" for any field not referenced in the SQL template (e.g. azp), silently suppressing all audit log writes on ACC.',
+            "ipAddress port stripping now applied in the explicit object: entry.ipAddress.replace(/:\\d+$/, '') — Azure App Service appends the port to req.ip, which is invalid for PostgreSQL inet type. Was masked by the spread error and is now also fixed.",
+          ],
+        },
+      ],
+    },
+    {
       version: '2.8.1',
       status: 'Bug Fix',
       statusColor: 'orange',

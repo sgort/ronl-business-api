@@ -43,8 +43,18 @@ export async function persistAuditLog(entry: AuditLogEntry & { azp?: string }): 
         $<ipAddress>, $<userAgent>, $<result>, $<errorMessage>, $<requestId>
       )`,
       {
-        ...entry,
+        timestamp: entry.timestamp,
         tenantId: entry.tenantId ?? entry.azp ?? 'unknown',
+        userId: entry.userId,
+        action: entry.action,
+        resourceType: entry.resourceType ?? null,
+        resourceId: entry.resourceId ?? null,
+        details: entry.details ?? null,
+        ipAddress: entry.ipAddress ? entry.ipAddress.replace(/:\d+$/, '') : null,
+        userAgent: entry.userAgent ?? null,
+        result: entry.result,
+        errorMessage: entry.errorMessage ?? null,
+        requestId: entry.requestId ?? null,
       }
     );
   } catch (error) {
