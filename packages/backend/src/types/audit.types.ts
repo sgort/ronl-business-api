@@ -11,4 +11,5 @@ export interface AuditLogEntry {
   result: 'success' | 'failure' | 'error';
   errorMessage?: string;
   requestId?: string;
+  azp?: string;
 }

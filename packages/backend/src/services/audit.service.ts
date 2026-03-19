@@ -30,31 +30,21 @@ export async function initDb(): Promise<void> {
   }
 }
 
-export async function persistAuditLog(entry: AuditLogEntry): Promise<void> {
+export async function persistAuditLog(entry: AuditLogEntry & { azp?: string }): Promise<void> {
   try {
     await db.none(
       `INSERT INTO audit_logs (
-    timestamp, tenant_id, user_id, action,
-    resource_type, resource_id, details,
-    ip_address, user_agent, result, error_message, request_id
-  ) VALUES (
-    $<timestamp>, $<tenantId>, $<userId>, $<action>,
-    $<resourceType>, $<resourceId>, $<details:json>,
-    $<ipAddress>, $<userAgent>, $<result>, $<errorMessage>, $<requestId>
-  )`,
+        timestamp, tenant_id, user_id, action,
+        resource_type, resource_id, details,
+        ip_address, user_agent, result, error_message, request_id
+      ) VALUES (
+        $<timestamp>, $<tenantId>, $<userId>, $<action>,
+        $<resourceType>, $<resourceId>, $<details:json>,
+        $<ipAddress>, $<userAgent>, $<result>, $<errorMessage>, $<requestId>
+      )`,
       {
-        timestamp: entry.timestamp,
-        tenantId: entry.tenantId,
-        userId: entry.userId,
-        action: entry.action,
-        resourceType: entry.resourceType ?? null,
-        resourceId: entry.resourceId ?? null,
-        details: entry.details ?? null,
-        ipAddress: entry.ipAddress ? entry.ipAddress.replace(/:\d+$/, '') : null,
-        userAgent: entry.userAgent ?? null,
-        result: entry.result,
-        errorMessage: entry.errorMessage ?? null,
-        requestId: entry.requestId ?? null,
+        ...entry,
+        tenantId: entry.tenantId ?? entry.azp ?? 'unknown',
       }
     );
   } catch (error) {

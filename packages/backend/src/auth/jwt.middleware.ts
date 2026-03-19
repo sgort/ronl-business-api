@@ -64,7 +64,7 @@ function validateToken(token: string): Promise<JWTPayload> {
 function extractUser(payload: JWTPayload): AuthenticatedUser {
   return {
     userId: payload.sub,
-    tenantId: payload.municipality ?? payload.azp,
+    tenantId: payload.municipality,
     organisationType: payload.organisation_type,
     roles: payload.realm_access?.roles ?? [],
     assuranceLevel: payload.loa as AssuranceLevel,
@@ -116,6 +116,7 @@ export const jwtMiddleware = async (req: Request, res: Response, next: NextFunct
     req.user = user;
     req.auth = {
       ...user,
+      azp: payload.azp,
       requestId: (req.headers['x-request-id'] as string) || `req-${Date.now()}`,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],

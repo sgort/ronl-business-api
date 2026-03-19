@@ -30,6 +30,7 @@ export interface AuthContext extends AuthenticatedUser {
   requestId: string;
   ipAddress?: string;
   userAgent?: string;
+  azp?: string;
 }
 
 export interface TokenValidationResult {

@@ -31,6 +31,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.8.1',
+      status: 'Bug Fix',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: 'March 19, 2026',
+      sections: [
+        {
+          title: 'Audit Log — M2M Tenant Fallback',
+          icon: '🐛',
+          iconColor: 'orange',
+          items: [
+            'persistAuditLog() in audit.service.ts now falls back to the azp claim when tenantId is absent, preventing NOT NULL violation on tenant_id for service account tokens. The fallback is applied only at the point of DB persistence — req.user.tenantId is unchanged.',
+            'jwt.middleware.ts reverted: tenantId is set exclusively from the municipality claim. The earlier azp fallback on req.user caused tenantMiddleware to pass M2M tokens through to tenant-scoped routes, returning empty data instead of MISSING_TENANT.',
+            'persistAuditLog() refactored to pass an explicit column object to pg-promise instead of spreading the entry — prevents "Property does not exist" errors when extra fields (azp) are present on the entry object.',
+            'azp?: string added to AuditLogEntry in audit.types.ts and to AuthContext in auth.types.ts — eliminates type casts in audit.middleware.ts.',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.8.0',
       status: 'Feature Release',
       statusColor: 'teal',

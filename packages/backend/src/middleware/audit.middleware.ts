@@ -82,6 +82,7 @@ export const auditMiddleware = (req: Request, res: Response, next: NextFunction)
 
         createAuditLog({
           tenantId: req.auth.tenantId,
+          azp: req.auth.azp,
           userId: req.auth.userId,
           action,
           resourceType,
