@@ -529,6 +529,54 @@
         "employee_id": ["emp-006"]
       },
       "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-toeslagen",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Toeslagen Aanvrager",
+      "email": "test@toeslagen.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["toeslagen"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-007"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-toeslagen",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Toeslagen",
+      "email": "medewerker@toeslagen.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["toeslagen"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-007"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-unive",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Unive Klant",
+      "email": "test@unive.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["unive"],
+        "organisation_type": ["commercial"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-008"]
+      },
+      "realmRoles": ["citizen"]
     }
   ],
   "identityProviders": [

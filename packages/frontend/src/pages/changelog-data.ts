@@ -31,6 +31,38 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.7.3',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 19, 2026',
+      sections: [
+        {
+          title: 'Multi-Tenant Architecture — Commercial Organisations',
+          icon: '🏢',
+          iconColor: 'purple',
+          items: [
+            'OrganisationType extended with commercial — shared across packages/shared, frontend tenant service, and Keycloak',
+            'Unive Verzekeringen added as the first commercial tenant with its own theme, MijnOmgeving, and zorgtoeslag feature flag enabled',
+            'Dienst Toeslagen added as a national tenant (processing authority for all AWB zorgtoeslag instances)',
+            'Three new Keycloak test users: test-citizen-toeslagen, test-caseworker-toeslagen, test-citizen-unive',
+            'tenants.json and PostgreSQL tenants table updated with toeslagen and unive entries',
+          ],
+        },
+        {
+          title: 'Backend — Cross-Tenant Processing Authority',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            "AwbZorgtoeslagProcess start route overrides municipality to toeslagen regardless of which tenant's MijnOmgeving the citizen used — ensures the toeslagen caseworker queue picks up all zorgtoeslag tasks",
+            'originTenantId process variable records the originating channel (e.g. unive) for reporting without affecting task routing',
+            'GET /v1/process/history drops the municipality filter for commercial org citizens — they can see their own dossiers even when the process ran under a different processing authority',
+            'GET /v1/process/:id/historic-variables and GET /v1/process/:instanceId/decision-document tenant checks extended: access granted when municipality matches OR applicantId matches the requesting user — allows commercial org citizens to read their own decision documents',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.7.2',
       status: 'Feature Release',
       statusColor: 'purple',

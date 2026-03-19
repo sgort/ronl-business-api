@@ -59,6 +59,9 @@ router.post(
 
       // AwbZorgtoeslagProcess: coerce variable types that the DRD expects as Double
       // and strip overlijdensdatum when left blank (DRD expects absence, not empty string).
+      // AwbZorgtoeslagProcess: type coercions + processing authority override.
+      // The AWB process always runs under the toeslagen authority regardless of
+      // which channel (municipality, commercial org) the citizen came from.
       if (key === 'AwbZorgtoeslagProcess') {
         for (const field of ['toetsingsinkomen', 'woonlandfactorBuitenland'] as const) {
           if (operatonVariables[field] !== undefined) {
@@ -75,6 +78,16 @@ router.post(
         ) {
           delete operatonVariables.overlijdensdatum;
         }
+        // Record originating channel, then override municipality to the
+        // processing authority so the toeslagen caseworker queue picks it up.
+        operatonVariables.originTenantId = {
+          value: req.user.tenantId,
+          type: 'String',
+        };
+        operatonVariables.municipality = {
+          value: 'toeslagen',
+          type: 'String',
+        };
       }
 
       // Start process
@@ -165,8 +178,11 @@ router.get('/history', async (req, res) => {
   }
 
   try {
-    const instances = await operatonService.getProcessHistory(applicantId, req.user.tenantId);
-
+    const instances = await operatonService.getProcessHistory(
+      applicantId,
+      req.user.tenantId,
+      req.user.organisationType
+    );
     auditLog(req, 'process.history', 'success', {
       applicantId,
       tenantId: req.user.tenantId,
@@ -347,12 +363,15 @@ router.get('/:id/historic-variables', async (req, res) => {
   try {
     const variables = await operatonService.getHistoricVariables(id);
 
-    // Tenant check via municipality variable
+    // Tenant check: allow if municipality matches OR if this is the citizen's own process
+    // (commercial org citizens have processes running under toeslagen, not their own tenantId).
     const municipality = variables['municipality'];
-    if (municipality && municipality !== req.user.tenantId) {
+    const ownTenant = !municipality || municipality === req.user.tenantId;
+    const ownProcess = variables['applicantId'] === req.user.userId;
+    if (!ownTenant && !ownProcess) {
       return res.status(403).json({
         success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+        error: { code: 'FORBIDDEN', message: 'Access denied: organisation mismatch' },
       });
     }
 
@@ -392,7 +411,9 @@ router.get('/:instanceId/decision-document', async (req, res) => {
     const vars = await operatonService.getHistoricVariables(instanceId);
     const processTenant = vars.municipality;
 
-    if (processTenant !== req.user.tenantId) {
+    const ownTenant = processTenant === req.user.tenantId;
+    const ownProcess = vars['applicantId'] === req.user.userId;
+    if (!ownTenant && !ownProcess) {
       logger.warn('Tenant mismatch on decision-document access', {
         instanceId,
         userTenant: req.user.tenantId,
@@ -400,7 +421,7 @@ router.get('/:instanceId/decision-document', async (req, res) => {
       });
       return res.status(403).json({
         success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+        error: { code: 'FORBIDDEN', message: 'Access denied: organisation mismatch' },
       });
     }
 

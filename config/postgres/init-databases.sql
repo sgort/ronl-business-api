@@ -81,7 +81,13 @@ ON CONFLICT (tenant_id) DO NOTHING;
 
 -- National agencies
 INSERT INTO tenants (tenant_id, name, organisation_type, organisation_code, enabled, config) VALUES
-    ('uwv', 'UWV', 'national', 'OIN-00000001820588740000', true, '{"maxProcessInstances": 10000}'::jsonb)
+    ('uwv',        'UWV',        'national', 'OIN-00000001820588740000', true, '{"maxProcessInstances": 10000}'::jsonb),
+    ('toeslagen',  'Toeslagen',  'national', 'OIN-00000001003214345000', true, '{"maxProcessInstances": 10000}'::jsonb)
+ON CONFLICT (tenant_id) DO NOTHING;
+
+-- Commercial organisations
+INSERT INTO tenants (tenant_id, name, organisation_type, organisation_code, enabled, config) VALUES
+    ('unive', 'Unive', 'commercial', 'KVK-12345678', true, '{"maxProcessInstances": 5000}'::jsonb)
 ON CONFLICT (tenant_id) DO NOTHING;
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO audit_user;

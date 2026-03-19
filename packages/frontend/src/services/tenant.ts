@@ -3,7 +3,7 @@
  * Handles multi-tenant theming and configuration
  */
 
-export type OrganisationType = 'municipality' | 'province' | 'national';
+export type OrganisationType = 'municipality' | 'province' | 'national' | 'commercial';
 
 export interface TenantTheme {
   primary: string;

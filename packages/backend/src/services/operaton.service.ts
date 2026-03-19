@@ -165,13 +165,23 @@ export class OperatonService {
    * Get historical process instances for a citizen by applicantId,
    * scoped to the caseworker's/citizen's municipality (tenant isolation).
    */
-  async getProcessHistory(applicantId: string, tenantId: string): Promise<unknown[]> {
+  async getProcessHistory(
+    applicantId: string,
+    tenantId: string,
+    orgType?: string
+  ): Promise<unknown[]> {
     try {
+      const filters: { name: string; operator: string; value: string }[] = [
+        { name: 'applicantId', operator: 'eq', value: applicantId },
+      ];
+      // Commercial org citizens may have processes running under a different
+      // processing authority (e.g. toeslagen). Filter only by applicantId so
+      // they can see their own dossiers regardless of which authority handled them.
+      if (orgType !== 'commercial') {
+        filters.push({ name: 'municipality', operator: 'eq', value: tenantId });
+      }
       const response = await this.client.post('/history/process-instance', {
-        variables: [
-          { name: 'applicantId', operator: 'eq', value: applicantId },
-          { name: 'municipality', operator: 'eq', value: tenantId },
-        ],
+        variables: filters,
         sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
       });
 
