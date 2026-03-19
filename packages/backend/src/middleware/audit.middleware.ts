@@ -134,6 +134,7 @@ export function auditLog(
 
   createAuditLog({
     tenantId: req.auth.tenantId,
+    azp: req.auth.azp,
     userId: req.auth.userId,
     action,
     details,
