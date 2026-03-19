@@ -120,12 +120,10 @@ router.get('/process', async (req: Request, res: Response) => {
     logger.error('m2m process.list failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_LIST_FAILED', message: 'Failed to list process instances' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_LIST_FAILED', message: 'Failed to list process instances' },
+    });
   }
 });
 
@@ -154,12 +152,10 @@ router.post('/process/:key/start', async (req: Request, res: Response) => {
       processKey: key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_START_FAILED', message: 'Failed to start process' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_START_FAILED', message: 'Failed to start process' },
+    });
   }
 });
 
@@ -176,12 +172,10 @@ router.get('/process/history', async (req: Request, res: Response) => {
     logger.error('m2m process.history failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
+    });
   }
 });
 
@@ -209,12 +203,10 @@ router.get('/process/:id/status', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
-      });
+    res.status(404).json({
+      success: false,
+      error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+    });
   }
 });
 
@@ -234,12 +226,10 @@ router.get('/process/:id/variables', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
-      });
+    res.status(404).json({
+      success: false,
+      error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+    });
   }
 });
 
@@ -257,12 +247,10 @@ router.get('/process/:id/historic-variables', async (req: Request, res: Response
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
-      });
+    res.status(404).json({
+      success: false,
+      error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+    });
   }
 });
 
@@ -280,12 +268,10 @@ router.get('/process/:id/decision-document', async (req: Request, res: Response)
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({
-        success: false,
-        error: { code: 'DOCUMENT_NOT_FOUND', message: 'Decision document not found' },
-      });
+    res.status(404).json({
+      success: false,
+      error: { code: 'DOCUMENT_NOT_FOUND', message: 'Decision document not found' },
+    });
   }
 });
 
@@ -298,15 +284,13 @@ router.get('/process/:key/start-form', async (req: Request, res: Response) => {
   try {
     const { data, contentType } = await m2mOperatonService.getDeployedStartForm(key);
     if (!contentType.includes('application/json')) {
-      return res
-        .status(415)
-        .json({
-          success: false,
-          error: {
-            code: 'UNSUPPORTED_FORM_TYPE',
-            message: 'Only Camunda Forms (JSON) are supported',
-          },
-        });
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_FORM_TYPE',
+          message: 'Only Camunda Forms (JSON) are supported',
+        },
+      });
     }
     res.json({ success: true, data: JSON.parse(data) });
   } catch (error) {
@@ -334,12 +318,10 @@ router.get('/process/:key/variable-hints', async (req: Request, res: Response) =
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'VARIABLE_HINTS_FAILED', message: 'Failed to retrieve variable hints' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'VARIABLE_HINTS_FAILED', message: 'Failed to retrieve variable hints' },
+    });
   }
 });
 
@@ -362,12 +344,10 @@ router.delete('/process/:id', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'PROCESS_DELETE_FAILED', message: 'Failed to cancel process' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_DELETE_FAILED', message: 'Failed to cancel process' },
+    });
   }
 });
 
@@ -388,12 +368,10 @@ router.get('/task', async (req: Request, res: Response) => {
     logger.error('m2m task.list failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'TASK_LIST_FAILED', message: 'Failed to list tasks' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'TASK_LIST_FAILED', message: 'Failed to list tasks' },
+    });
   }
 });
 
@@ -446,15 +424,13 @@ router.get('/task/:id/form-schema', async (req: Request, res: Response) => {
   try {
     const { data, contentType } = await m2mOperatonService.getDeployedTaskForm(id);
     if (!contentType.includes('application/json')) {
-      return res
-        .status(415)
-        .json({
-          success: false,
-          error: {
-            code: 'UNSUPPORTED_FORM_TYPE',
-            message: 'Only Camunda Forms (JSON) are supported',
-          },
-        });
+      return res.status(415).json({
+        success: false,
+        error: {
+          code: 'UNSUPPORTED_FORM_TYPE',
+          message: 'Only Camunda Forms (JSON) are supported',
+        },
+      });
     }
     res.json({ success: true, data: JSON.parse(data) });
   } catch (error) {
@@ -462,12 +438,10 @@ router.get('/task/:id/form-schema', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({
-        success: false,
-        error: { code: 'FORM_NOT_FOUND', message: 'Form schema not found' },
-      });
+    res.status(404).json({
+      success: false,
+      error: { code: 'FORM_NOT_FOUND', message: 'Form schema not found' },
+    });
   }
 });
 
@@ -487,12 +461,10 @@ router.post('/task/:id/claim', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'TASK_CLAIM_FAILED', message: 'Failed to claim task' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'TASK_CLAIM_FAILED', message: 'Failed to claim task' },
+    });
   }
 });
 
@@ -513,12 +485,10 @@ router.post('/task/:id/complete', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: { code: 'TASK_COMPLETE_FAILED', message: 'Failed to complete task' },
-      });
+    res.status(500).json({
+      success: false,
+      error: { code: 'TASK_COMPLETE_FAILED', message: 'Failed to complete task' },
+    });
   }
 });
 
@@ -547,15 +517,13 @@ router.post('/decision/:key/evaluate', async (req: Request, res: Response) => {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: {
-          code: 'DECISION_EVALUATION_FAILED',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DECISION_EVALUATION_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+    });
   }
 });
 
@@ -573,12 +541,10 @@ router.get('/decision/:key', async (req: Request, res: Response) => {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({
-        success: false,
-        error: { code: 'DECISION_NOT_FOUND', message: 'Decision definition not found' },
-      });
+    res.status(404).json({
+      success: false,
+      error: { code: 'DECISION_NOT_FOUND', message: 'Decision definition not found' },
+    });
   }
 });
 
