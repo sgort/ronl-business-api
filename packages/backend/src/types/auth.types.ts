@@ -12,6 +12,7 @@ export interface JWTPayload {
   exp: number;
   iat: number;
   jti?: string;
+  azp?: string;
   municipality: string;
   organisation_type: OrganisationType;
   loa: AssuranceLevel;

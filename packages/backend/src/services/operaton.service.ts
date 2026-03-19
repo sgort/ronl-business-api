@@ -15,19 +15,22 @@ export interface TaskCompleteRequest {
 export class OperatonService {
   private client: AxiosInstance;
 
-  constructor() {
+  constructor(baseUrl?: string, username?: string, password?: string) {
+    const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
+    const resolvedUsername = username ?? config.operaton.username;
+    const resolvedPassword = password ?? config.operaton.password;
+
     this.client = axios.create({
-      baseURL: config.operaton.baseUrl,
+      baseURL: resolvedBaseUrl,
       timeout: config.operaton.timeout,
       headers: {
         'Content-Type': 'application/json',
       },
-      // Add basic auth if credentials are provided
-      ...(config.operaton.username &&
-        config.operaton.password && {
+      ...(resolvedUsername &&
+        resolvedPassword && {
           auth: {
-            username: config.operaton.username,
-            password: config.operaton.password,
+            username: resolvedUsername,
+            password: resolvedPassword,
           },
         }),
     });
@@ -59,6 +62,36 @@ export class OperatonService {
         throw error;
       }
     );
+  }
+
+  /**
+   * List active process instances. Optional params are passed through directly
+   * to the Operaton /process-instance query string (e.g. businessKey, processDefinitionKey).
+   * No tenant filter is applied — intended for M2M callers.
+   */
+  async listProcessInstances(params?: Record<string, unknown>): Promise<unknown[]> {
+    const response = await this.client.get('/process-instance', { params });
+    return response.data;
+  }
+
+  /**
+   * Query process instance history. The body is passed through directly to
+   * Operaton POST /history/process-instance — callers control all filters
+   * (variables, processDefinitionKey, finished, sorting, etc.).
+   * No tenant filter is applied — intended for M2M callers.
+   */
+  async queryProcessHistory(body: Record<string, unknown>): Promise<unknown[]> {
+    const response = await this.client.post('/history/process-instance', body);
+    return response.data;
+  }
+
+  /**
+   * Fetch decision definition metadata by key from Operaton.
+   * Returns the raw Operaton response object.
+   */
+  async getDecisionDefinition(key: string): Promise<unknown> {
+    const response = await this.client.get(`/decision-definition/key/${key}`);
+    return response.data;
   }
 
   /**
@@ -384,31 +417,26 @@ export class OperatonService {
   /**
    * Get tasks for a user
    */
-  async getUserTasks(userId: string, tenantId: string): Promise<Task[]> {
+  async getUserTasks(userId?: string, tenantId?: string): Promise<Task[]> {
     try {
-      const response = await this.client.get('/task', {
-        params: {
-          processVariables: `municipality_eq_${tenantId}`,
-        },
-      });
+      const params: Record<string, string> = {};
+      if (tenantId) {
+        params['processVariables'] = `municipality_eq_${tenantId}`;
+      }
+
+      const response = await this.client.get('/task', { params });
 
       const tasks: Task[] = response.data;
       if (tasks.length === 0) return tasks;
 
-      // Resolve processDefinitionKey for each unique processDefinitionId.
-      // Operaton sometimes returns a bare UUID for subprocess tasks instead of
-      // the Key:version:uuid format, so we fetch the definition to get the key.
       const uniqueDefIds = [...new Set(tasks.map((t) => t.processDefinitionId))];
-
       const defKeyMap: Record<string, string> = {};
       await Promise.all(
         uniqueDefIds.map(async (defId) => {
-          // If it already contains colons it's in Key:version:id format — extract directly.
           if (defId.includes(':')) {
             defKeyMap[defId] = defId.split(':')[0];
             return;
           }
-          // Bare UUID — fetch from Operaton.
           try {
             const defRes = await this.client.get(`/process-definition/${defId}`);
             defKeyMap[defId] = defRes.data.key ?? defId;
@@ -446,6 +474,19 @@ export class OperatonService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Get all process variables for a task, resolved via the task's processInstanceId.
+   */
+  async getTaskVariables(taskId: string): Promise<Record<string, unknown>> {
+    const task = await this.getTask(taskId);
+    const variables = await this.getProcessVariables(task.processInstanceId);
+    const plain: Record<string, unknown> = {};
+    for (const [key, variable] of Object.entries(variables)) {
+      plain[key] = variable.value;
+    }
+    return plain;
   }
 
   /**

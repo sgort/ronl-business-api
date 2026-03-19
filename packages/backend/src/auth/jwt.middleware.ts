@@ -64,7 +64,7 @@ function validateToken(token: string): Promise<JWTPayload> {
 function extractUser(payload: JWTPayload): AuthenticatedUser {
   return {
     userId: payload.sub,
-    tenantId: payload.municipality,
+    tenantId: payload.municipality ?? payload.azp,
     organisationType: payload.organisation_type,
     roles: payload.realm_access?.roles ?? [],
     assuranceLevel: payload.loa as AssuranceLevel,

@@ -31,6 +31,57 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.8.0',
+      status: 'Feature Release',
+      statusColor: 'teal',
+      borderColor: 'teal',
+      date: 'March 19, 2026',
+      sections: [
+        {
+          title: 'M2M API — Operaton Access',
+          icon: '🤖',
+          iconColor: 'blue',
+          items: [
+            'New /v1/m2m/* route group in m2m.routes.ts: jwtMiddleware only, no tenantMiddleware — M2M clients are system actors not scoped to a single organisation',
+            'Full Operaton surface exposed: process (list, start, status, variables, historic-variables, history, decision-document, start-form, variable-hints, delete), task (list, get, variables, form-schema, claim, complete), decision (evaluate, get)',
+            'Curation gate: M2M_ALLOWED_OPERATIONS constant at the top of m2m.routes.ts — comment out any entry to disable that operation with no other code changes required',
+            'Dedicated Operaton instance for M2M supported via OPERATON_M2M_BASE_URL, OPERATON_M2M_USERNAME, OPERATON_M2M_PASSWORD — falls back to the shared instance when unset',
+            'OperatonService constructor updated to accept optional baseUrl, username, password parameters; existing singleton instantiation unchanged',
+          ],
+        },
+        {
+          title: 'OperatonService — New Public Methods',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'getUserTasks() parameters made optional: tenantId omitted → unfiltered task list; existing callers with tenantId unaffected',
+            'getTaskVariables(taskId) added: resolves processInstanceId via getTask(), then returns flattened process variables — replaces inline two-step pattern in task.routes.ts',
+            'listProcessInstances(params?) added: thin pass-through to Operaton /process-instance, no tenant filter, intended for M2M',
+            'queryProcessHistory(body) added: thin pass-through to Operaton POST /history/process-instance, caller controls all filters, intended for M2M',
+            'getDecisionDefinition(key) added: fetches decision definition metadata by key, intended for M2M',
+          ],
+        },
+        {
+          title: 'Keycloak — operaton-mcp-client',
+          icon: '🔑',
+          iconColor: 'purple',
+          items: [
+            'New confidential Keycloak client operaton-mcp-client: service accounts enabled, Client Credentials grant only, audience mapper targeting ronl-business-api',
+            'No municipality or organisation_type hardcoded claims — M2M client carries no tenant context by design',
+          ],
+        },
+        {
+          title: 'Audit Log — M2M Tenant Fallback',
+          icon: '🗄️',
+          iconColor: 'green',
+          items: [
+            'JWT middleware extractUser() falls back to azp claim when municipality is absent — prevents NOT NULL violation on tenant_id for service account tokens',
+            'M2M audit entries record tenant_id as the Keycloak client ID (e.g. operaton-mcp-client), making M2M activity queryable in the audit log',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.7.3',
       status: 'Feature Release',
       statusColor: 'purple',
