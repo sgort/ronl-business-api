@@ -18,6 +18,7 @@ import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
+import m2mRoutes from './routes/m2m.routes';
 
 const appLogger = createLogger('app');
 
@@ -142,6 +143,7 @@ app.use('/v1/hr', hrRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
 app.use('/v1/admin', adminRoutes);
+app.use('/v1/m2m', m2mRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

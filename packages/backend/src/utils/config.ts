@@ -26,9 +26,12 @@ interface Config {
   };
   operaton: {
     baseUrl: string;
+    m2mBaseUrl: string;
     timeout: number;
     username?: string;
     password?: string;
+    m2mUsername?: string;
+    m2mPassword?: string;
   };
   database: {
     url: string;
@@ -120,9 +123,13 @@ export const config: Config = {
 
   operaton: {
     baseUrl: process.env.OPERATON_BASE_URL || 'https://operaton.open-regels.nl/engine-rest',
+    m2mBaseUrl:
+      process.env.OPERATON_M2M_BASE_URL || 'https://operaton-doc.open-regels.nl/engine-rest',
     timeout: parseEnvInt(process.env.OPERATON_TIMEOUT, 30000),
     username: process.env.OPERATON_USERNAME,
     password: process.env.OPERATON_PASSWORD,
+    m2mUsername: process.env.OPERATON_M2M_USERNAME,
+    m2mPassword: process.env.OPERATON_M2M_PASSWORD,
   },
 
   database: {
