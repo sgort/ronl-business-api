@@ -46,6 +46,16 @@ export const changelog: Changelog = {
             "ipAddress port stripping now applied in the explicit object: entry.ipAddress.replace(/:\\d+$/, '') — Azure App Service appends the port to req.ip, which is invalid for PostgreSQL inet type. Was masked by the spread error and is now also fixed.",
           ],
         },
+        {
+          title: 'Backend — Process History Fix for Cross-Tenant Processes',
+          icon: '🐛',
+          iconColor: 'red',
+          items: [
+            'Fixed: citizens of any tenant (municipality, province, commercial) no longer see an empty Mijn aanvragen after submitting AwbZorgtoeslagProcess — the municipality filter was incorrectly applied to citizen history queries, causing dossiers to be invisible because the process runs under the toeslagen processing authority rather than the originating tenant',
+            'getProcessHistory now applies the municipality filter only for caseworker requests — caseworkers still see all processes scoped to their own organisation',
+            'Citizens are isolated by applicantId alone, which is sufficient since the route already enforces that citizens can only request their own history',
+          ],
+        },
       ],
     },
     {

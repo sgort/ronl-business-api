@@ -201,16 +201,18 @@ export class OperatonService {
   async getProcessHistory(
     applicantId: string,
     tenantId: string,
-    orgType?: string
+    orgType?: string,
+    isCaseworker?: boolean
   ): Promise<unknown[]> {
     try {
       const filters: { name: string; operator: string; value: string }[] = [
         { name: 'applicantId', operator: 'eq', value: applicantId },
       ];
-      // Commercial org citizens may have processes running under a different
-      // processing authority (e.g. toeslagen). Filter only by applicantId so
-      // they can see their own dossiers regardless of which authority handled them.
-      if (orgType !== 'commercial') {
+      // Caseworkers see all processes for their municipality — apply the municipality
+      // filter to scope their queue. Citizens query only their own history via
+      // applicantId, which already provides full isolation regardless of which
+      // processing authority handled the process (e.g. toeslagen for zorgtoeslag).
+      if (isCaseworker) {
         filters.push({ name: 'municipality', operator: 'eq', value: tenantId });
       }
       const response = await this.client.post('/history/process-instance', {

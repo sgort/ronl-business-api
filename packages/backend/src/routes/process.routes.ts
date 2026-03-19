@@ -181,7 +181,8 @@ router.get('/history', async (req, res) => {
     const instances = await operatonService.getProcessHistory(
       applicantId,
       req.user.tenantId,
-      req.user.organisationType
+      req.user.organisationType,
+      isCaseworker
     );
     auditLog(req, 'process.history', 'success', {
       applicantId,
