@@ -21,10 +21,11 @@ const m2mOperatonService = config.operaton.m2mBaseUrl
 
 // ─── Curation gate ────────────────────────────────────────────────────────────
 //
-// Comment out any entry here to disable that operation for M2M clients.
+// Comment out any entry to disable that operation for M2M clients.
+// A disabled operation returns 403 OPERATION_NOT_PERMITTED.
 // No other code changes required.
 //
-const M2M_ALLOWED_OPERATIONS = [
+const M2M_ALLOWED_OPERATIONS: readonly string[] = [
   // Process
   'process.list',
   'process.start',
@@ -46,12 +47,10 @@ const M2M_ALLOWED_OPERATIONS = [
   // Decision
   'decision.evaluate',
   'decision.get',
-] as const;
+];
 
-type M2MOperation = (typeof M2M_ALLOWED_OPERATIONS)[number];
-
-function isAllowed(op: M2MOperation): boolean {
-  return (M2M_ALLOWED_OPERATIONS as readonly string[]).includes(op);
+function isAllowed(op: string): boolean {
+  return M2M_ALLOWED_OPERATIONS.includes(op);
 }
 
 function notAllowed(res: Response): void {
@@ -162,6 +161,7 @@ router.post('/process/:key/start', async (req: Request, res: Response) => {
 /**
  * GET /v1/m2m/process/history
  * Query process instance history. Body is passed through to Operaton unchanged.
+ * NOTE: Must be registered before /process/:id/* to avoid route shadowing.
  */
 router.get('/process/history', async (req: Request, res: Response) => {
   if (!isAllowed('process.history')) return notAllowed(res);
@@ -409,9 +409,10 @@ router.get('/task/:id/variables', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({ success: false, error: { code: 'TASK_NOT_FOUND', message: 'Task not found' } });
+    res.status(500).json({
+      success: false,
+      error: { code: 'TASK_VARIABLES_FAILED', message: 'Failed to retrieve task variables' },
+    });
   }
 });
 
@@ -447,6 +448,7 @@ router.get('/task/:id/form-schema', async (req: Request, res: Response) => {
 
 /**
  * POST /v1/m2m/task/:id/claim
+ * Body: { "userId": "..." } — optional, falls back to token subject.
  */
 router.post('/task/:id/claim', async (req: Request, res: Response) => {
   if (!isAllowed('task.claim')) return notAllowed(res);
