@@ -33,8 +33,15 @@ export const businessApi = {
   // ── Health ────────────────────────────────────────────────────────────────
 
   health: async (): Promise<HealthResponse> => {
-    const response = await api.get<ApiResponse<HealthResponse>>('/health');
-    return response.data.data as HealthResponse;
+    try {
+      const response = await api.get<ApiResponse<HealthResponse>>('/health');
+      return response.data.data as HealthResponse;
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.data?.data) {
+        return err.response.data.data as HealthResponse;
+      }
+      throw err;
+    }
   },
 
   // ── DMN decisions ─────────────────────────────────────────────────────────
@@ -272,7 +279,27 @@ export const businessApi = {
       return response.data;
     },
   },
-  // ── Utilities ─────────────────────────────────────────────────────────────
+
+  edocs: {
+    status: async (): Promise<
+      ApiResponse<{
+        status: 'up' | 'down' | 'stub';
+        library?: string;
+        stubMode?: boolean;
+        latencyMs?: number;
+      }>
+    > => {
+      const response = await api.get('/edocs/status');
+      return response.data;
+    },
+  },
+
+  externalStatus: async (): Promise<
+    ApiResponse<Record<string, { status: 'up' | 'down'; latency: number }>>
+  > => {
+    const response = await api.get('/health/external');
+    return response.data;
+  },
 
   getBaseUrl: () => API_BASE_URL,
 };
