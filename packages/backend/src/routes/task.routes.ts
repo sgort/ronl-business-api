@@ -46,6 +46,40 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /v1/task/history
+ * List completed tasks for the authenticated caseworker's tenant.
+ * Uses Operaton historic task API filtered by municipality variable.
+ */
+router.get('/history', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  try {
+    const tasks = await operatonService.getCompletedTasks(req.user.tenantId);
+
+    auditLog(req, 'task.history', 'success', {
+      tenantId: req.user.tenantId,
+      count: tasks.length,
+    });
+
+    res.json({ success: true, data: tasks });
+  } catch (error) {
+    logger.error('Failed to list completed tasks', {
+      tenantId: req.user?.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'TASK_HISTORY_FAILED', message: 'Failed to retrieve completed tasks' },
+    });
+  }
+});
+
+/**
  * GET /v1/task/:id
  * Get a single task by ID.
  */

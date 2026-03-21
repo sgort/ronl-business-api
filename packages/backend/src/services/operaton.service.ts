@@ -463,6 +463,42 @@ export class OperatonService {
   }
 
   /**
+   * Get completed (historic) tasks for a tenant, most recent first.
+   */
+  async getCompletedTasks(tenantId: string): Promise<
+    Array<{
+      id: string;
+      name: string;
+      assignee: string | null;
+      taskDefinitionKey: string;
+      processDefinitionKey: string | null;
+      processInstanceId: string;
+      startTime: string;
+      endTime: string;
+      duration: number;
+    }>
+  > {
+    try {
+      const response = await this.client.get('/history/task', {
+        params: {
+          finished: true,
+          processVariables: `municipality_eq_${tenantId}`,
+          sortBy: 'endTime',
+          sortOrder: 'desc',
+          maxResults: 200,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('Failed to get completed tasks', {
+        tenantId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get task details
    */
   async getTask(taskId: string): Promise<Task> {

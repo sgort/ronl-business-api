@@ -6,6 +6,7 @@ import type {
   HealthResponse,
   ProcessStatusResponse,
   Task,
+  HistoricTask,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -159,6 +160,11 @@ export const businessApi = {
 
     complete: async (taskId: string, variables: Record<string, unknown>): Promise<ApiResponse> => {
       const response = await api.post<ApiResponse>(`/task/${taskId}/complete`, { variables });
+      return response.data;
+    },
+
+    history: async (): Promise<ApiResponse<HistoricTask[]>> => {
+      const response = await api.get<ApiResponse<HistoricTask[]>>('/task/history');
       return response.data;
     },
   },

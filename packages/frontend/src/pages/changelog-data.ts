@@ -31,6 +31,29 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.9.1',
+      status: 'Feature Release',
+      statusColor: 'teal',
+      borderColor: 'teal',
+      date: 'March 21, 2026',
+      sections: [
+        {
+          title: 'Archive — Completed tasks',
+          icon: '📋',
+          iconColor: 'blue',
+          items: [
+            'Archive menu option in the caseworker dashboard now displays completed tasks via the Operaton historic task API (GET /history/task?finished=true)',
+            'New backend endpoint GET /v1/task/history: tenant-scoped via municipality process variable, audited, registered before the /:id route to prevent shadowing',
+            'OperatonService.getCompletedTasks(tenantId) added: fetches up to 200 completed tasks sorted by endTime descending',
+            'businessApi.task.history() added to the frontend API client with HistoricTask type',
+            'Tasks in Archive are grouped by processDefinitionKey, identical to the Tasks view: mono uppercase group headers, groups sorted by most recent endTime',
+            'Task cards show task name, completion date and assignee; expanding reveals process variables via the existing historicVariables endpoint',
+            'Variables are cached per processInstanceId — multiple expand actions require no repeated API calls',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.0',
       status: 'Feature Release',
       statusColor: 'purple',

@@ -55,3 +55,15 @@ export interface ProcessStatusResponse {
   ended: boolean;
   suspended: boolean;
 }
+
+export interface HistoricTask {
+  id: string;
+  name: string;
+  assignee: string | null;
+  taskDefinitionKey: string;
+  processDefinitionKey: string | null;
+  processInstanceId: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+}

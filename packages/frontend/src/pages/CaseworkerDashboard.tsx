@@ -12,7 +12,7 @@ import {
   getDefaultTenantConfig,
 } from '../services/tenant';
 import type { TenantConfig, LeftPanelSection } from '../services/tenant';
-import type { KeycloakUser, Task } from '@ronl/shared';
+import type { KeycloakUser, Task, HistoricTask } from '@ronl/shared';
 import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
 import RipFase1WipViewer from '../components/CaseWorkerDashboard/RipFase1WipViewer';
 import DecisionViewer from '../components/DecisionViewer';
@@ -167,6 +167,15 @@ export default function CaseworkerDashboard() {
   } | null>(null);
   const [processDataOpen, setProcessDataOpen] = useState(false);
 
+  // Archief (completed tasks)
+  const [taskArchief, setTaskArchief] = useState<HistoricTask[]>([]);
+  const [taskArchiefLoading, setTaskArchiefLoading] = useState(false);
+  const [taskArchiefError, setTaskArchiefError] = useState<string | null>(null);
+  const [selectedArchiefTask, setSelectedArchiefTask] = useState<string | null>(null);
+  const [archiefVariables, setArchiefVariables] = useState<Record<string, Record<string, unknown>>>(
+    {}
+  );
+
   // Nieuws
   const [nieuwsItems, setNieuwsItems] = useState<NieuwsItem[]>([]);
   const [nieuwsLoading, setNieuwsLoading] = useState(false);
@@ -320,6 +329,7 @@ export default function CaseworkerDashboard() {
   // Load section data when activeSection changes
   useEffect(() => {
     if (activeSection === 'taken' && isAuthenticated) loadTasks();
+    if (activeSection === 'archief' && isAuthenticated) loadTaskArchief();
     if (activeSection === 'rip-fase1-wip' && isAuthenticated) loadRipFase1Wip();
     if (activeSection === 'rip-fase1-gereed' && isAuthenticated) loadRipFase1Gereed();
     if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
@@ -365,6 +375,35 @@ export default function CaseworkerDashboard() {
       setTasksError('Taken konden niet worden geladen.');
     } finally {
       setTasksLoading(false);
+    }
+  };
+
+  const loadTaskArchief = async () => {
+    setTaskArchiefLoading(true);
+    setTaskArchiefError(null);
+    try {
+      const res = await businessApi.task.history();
+      if (res.success && res.data) setTaskArchief(res.data);
+      else setTaskArchiefError('Archieftaken konden niet worden geladen.');
+    } catch {
+      setTaskArchiefError('Archieftaken konden niet worden geladen.');
+    } finally {
+      setTaskArchiefLoading(false);
+    }
+  };
+
+  const loadArchiefVariables = async (processInstanceId: string) => {
+    if (archiefVariables[processInstanceId]) return; // already loaded
+    try {
+      const res = await businessApi.process.historicVariables(processInstanceId);
+      if (res.success && res.data) {
+        setArchiefVariables((prev) => ({
+          ...prev,
+          [processInstanceId]: res.data as Record<string, unknown>,
+        }));
+      }
+    } catch {
+      // not critical
     }
   };
 
@@ -811,6 +850,163 @@ export default function CaseworkerDashboard() {
               )}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderTaskArchief() {
+    if (taskArchiefLoading) {
+      return (
+        <div className="max-w-3xl space-y-3">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-1/3" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (taskArchiefError) {
+      return (
+        <div className="max-w-3xl bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
+          {taskArchiefError}
+          <button onClick={loadTaskArchief} className="ml-3 underline">
+            Opnieuw proberen
+          </button>
+        </div>
+      );
+    }
+
+    if (taskArchief.length === 0) {
+      return (
+        <div className="max-w-3xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+          Geen afgeronde taken gevonden.
+        </div>
+      );
+    }
+
+    // Group by processDefinitionKey, sort tasks within each group by endTime descending
+    const grouped = taskArchief
+      .slice()
+      .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())
+      .reduce<Record<string, typeof taskArchief>>((acc, task) => {
+        const key = task.processDefinitionKey ?? task.taskDefinitionKey;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(task);
+        return acc;
+      }, {});
+
+    // Sort groups by their most recent task descending
+    const sortedGroups = Object.entries(grouped).sort(
+      ([, a], [, b]) => new Date(b[0].endTime).getTime() - new Date(a[0].endTime).getTime()
+    );
+
+    return (
+      <div className="max-w-3xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800">Archief</h2>
+          <button
+            onClick={loadTaskArchief}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          >
+            ↺ Vernieuwen
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {sortedGroups.map(([defKey, groupTasks]) => (
+            <div key={defKey}>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide font-mono mb-1 px-1 truncate">
+                {defKey}
+              </p>
+              <div className="space-y-2">
+                {groupTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="bg-white rounded-lg shadow-sm border-2 border-transparent overflow-hidden"
+                    style={
+                      selectedArchiefTask === task.id ? { borderColor: 'var(--color-primary)' } : {}
+                    }
+                  >
+                    <button
+                      onClick={() => {
+                        const next = selectedArchiefTask === task.id ? null : task.id;
+                        setSelectedArchiefTask(next);
+                        if (next) loadArchiefVariables(task.processInstanceId);
+                      }}
+                      className="w-full text-left p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-800 truncate text-sm">
+                          {task.name || task.taskDefinitionKey}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-xs text-gray-500">
+                            {new Date(task.endTime).toLocaleDateString('nl-NL')}
+                          </p>
+                          {task.assignee && (
+                            <span className="text-xs text-gray-400">{task.assignee}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-gray-400 text-lg ml-4 flex-shrink-0">
+                        {selectedArchiefTask === task.id ? '▲' : '▼'}
+                      </span>
+                    </button>
+
+                    {selectedArchiefTask === task.id && (
+                      <div className="border-t border-gray-100 p-4 bg-white">
+                        {archiefVariables[task.processInstanceId] ? (
+                          <div className="space-y-1">
+                            {Object.entries(archiefVariables[task.processInstanceId])
+                              .filter(
+                                ([key]) =>
+                                  ![
+                                    'municipality',
+                                    'initiator',
+                                    'assuranceLevel',
+                                    'roleResult',
+                                  ].includes(key)
+                              )
+                              .map(([key, value]) => (
+                                <div key={key} className="flex justify-between text-sm">
+                                  <span className="text-gray-600 font-medium">{key}</span>
+                                  <span className="text-gray-800 font-mono text-xs">
+                                    {value === null || value === undefined
+                                      ? '—'
+                                      : typeof value === 'object'
+                                        ? JSON.stringify(value)
+                                        : String(value)}
+                                  </span>
+                                </div>
+                              ))}
+                            {Object.keys(archiefVariables[task.processInstanceId]).filter(
+                              (key) =>
+                                ![
+                                  'municipality',
+                                  'initiator',
+                                  'assuranceLevel',
+                                  'roleResult',
+                                ].includes(key)
+                            ).length === 0 && (
+                              <p className="text-xs text-gray-400">
+                                Geen procesgegevens beschikbaar.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400">Laden…</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -1969,6 +2165,8 @@ export default function CaseworkerDashboard() {
     switch (activeSection) {
       case 'taken':
         return renderTaskQueue();
+      case 'archief':
+        return renderTaskArchief();
       case 'nieuws':
         return renderNieuws();
       case 'berichten':
