@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
@@ -10,22 +9,22 @@ import {
 } from '../services/tenant';
 import type { TenantConfig, LeftPanelSection } from '../services/tenant';
 import type { KeycloakUser } from '@ronl/shared';
-import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
+import RegelCatalogus from '../components/CaseworkerDashboard/RegelCatalogus';
 import ChangelogPanel from './ChangelogPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
-import NieuwsSection from '../components/CaseWorkerDashboard/NieuwsSection';
-import BerichtenSection from '../components/CaseWorkerDashboard/BerichtenSection';
-import ArchiefSection from '../components/CaseWorkerDashboard/ArchiefSection';
-import OnboardingArchiefSection from '../components/CaseWorkerDashboard/OnboardingArchiefSection';
-import RipFase1WipSection from '../components/CaseWorkerDashboard/RipFase1WipSection';
-import RipFase1GereedSection from '../components/CaseWorkerDashboard/RipFase1GereedSection';
-import GereedschapSection from '../components/CaseWorkerDashboard/GereedschapSection';
-import TakenSection from '../components/CaseWorkerDashboard/TakenSection';
-import HrOnboardingSection from '../components/CaseWorkerDashboard/HrOnboardingSection';
-import RipFase1Section from '../components/CaseWorkerDashboard/RipFase1Section';
-import ProfielSection from '../components/CaseWorkerDashboard/ProfielSection';
-import RollenSection from '../components/CaseWorkerDashboard/RollenSection';
-import AuditSection from '../components/CaseWorkerDashboard/AuditSection';
+import NieuwsSection from '../components/CaseworkerDashboard/NieuwsSection';
+import BerichtenSection from '../components/CaseworkerDashboard/BerichtenSection';
+import ArchiefSection from '../components/CaseworkerDashboard/ArchiefSection';
+import OnboardingArchiefSection from '../components/CaseworkerDashboard/OnboardingArchiefSection';
+import RipFase1WipSection from '../components/CaseworkerDashboard/RipFase1WipSection';
+import RipFase1GereedSection from '../components/CaseworkerDashboard/RipFase1GereedSection';
+import GereedschapSection from '../components/CaseworkerDashboard/GereedschapSection';
+import TakenSection from '../components/CaseworkerDashboard/TakenSection';
+import HrOnboardingSection from '../components/CaseworkerDashboard/HrOnboardingSection';
+import RipFase1Section from '../components/CaseworkerDashboard/RipFase1Section';
+import ProfielSection from '../components/CaseworkerDashboard/ProfielSection';
+import RollenSection from '../components/CaseworkerDashboard/RollenSection';
+import AuditSection from '../components/CaseworkerDashboard/AuditSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
 
