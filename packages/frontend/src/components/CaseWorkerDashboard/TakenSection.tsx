@@ -84,6 +84,7 @@ export default function TakenSection({ user, onCountChange }: Props) {
 
   useEffect(() => {
     loadTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Group tasks by processDefinitionKey, sort by created descending
