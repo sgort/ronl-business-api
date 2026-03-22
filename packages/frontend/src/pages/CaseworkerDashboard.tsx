@@ -22,6 +22,7 @@ import ArchiefSection from '../components/CaseWorkerDashboard/ArchiefSection';
 import OnboardingArchiefSection from '../components/CaseWorkerDashboard/OnboardingArchiefSection';
 import RipFase1WipSection from '../components/CaseWorkerDashboard/RipFase1WipSection';
 import RipFase1GereedSection from '../components/CaseWorkerDashboard/RipFase1GereedSection';
+import GereedschapSection from '../components/CaseWorkerDashboard/GereedschapSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
 
@@ -40,88 +41,6 @@ const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
 
 const GEREEDSCHAP_SECTIONS: LeftPanelSection[] = [
   { id: 'gereedschap-overzicht', label: 'Overzicht' },
-];
-
-interface PlatformTool {
-  id: string;
-  label: string;
-  description: string;
-  url: string | null; // null = placeholder, not yet available
-  icon: string;
-  roles: string[]; // [] = any authenticated user; non-empty = user must have at least one of these roles
-  statusWidget?: boolean;
-}
-
-const PLATFORM_TOOLS: PlatformTool[] = [
-  {
-    id: 'cpsv-editor',
-    label: 'CPSV Editor',
-    description: 'Beheer en publiceer publieke diensten conform de CPSV-AP standaard.',
-    url: 'https://acc.cpsv-editor.open-regels.nl/',
-    icon: '✏️',
-    roles: [],
-  },
-  {
-    id: 'cprmv',
-    label: 'CPRMV API',
-    description: 'Interactieve API-documentatie voor het CPRMV validatieplatform.',
-    url: 'https://acc.cprmv.open-regels.nl/docs',
-    icon: '📜',
-    roles: [],
-    statusWidget: true,
-  },
-  {
-    id: 'triplydb',
-    label: 'TriplyDB',
-    description: 'SPARQL-endpoint en graafbeheer voor de RONL kennisgraaf.',
-    url: 'https://open-regels.triply.cc/stevengort/RONL/graphs',
-    icon: '🗄️',
-    roles: [],
-    statusWidget: true,
-  },
-  {
-    id: 'lde',
-    label: 'Linked Data Explorer',
-    description: 'Verken de RONL kennisgraaf: diensten, organisaties, concepten en regels.',
-    url: 'https://acc.linkeddata.open-regels.nl/',
-    icon: '🔍',
-    roles: [],
-    statusWidget: true,
-  },
-  {
-    id: 'operaton',
-    label: 'Operaton Cockpit',
-    description: 'Monitor en beheer BPMN-procesinstanties en DMN-beslissingen.',
-    url: 'https://operaton.open-regels.nl/operaton/app/welcome/default/#!/welcome',
-    icon: '⚙️',
-    roles: ['admin'],
-    statusWidget: true,
-  },
-  {
-    id: 'edocs',
-    label: 'eDOCS',
-    description: 'OpenText eDOCS documentbeheersysteem voor zaakdossiers.',
-    url: null,
-    icon: '📁',
-    roles: [],
-    statusWidget: true,
-  },
-  {
-    id: 'sap',
-    label: 'SAP',
-    description: 'ERP-koppeling voor personeels- en financiële administratie.',
-    url: null,
-    icon: '🏢',
-    roles: ['admin'],
-  },
-  {
-    id: 'kms',
-    label: 'KMS',
-    description: 'Kwaliteitsmanagementsysteem voor procesborging en audits.',
-    url: null,
-    icon: '🏅',
-    roles: [],
-  },
 ];
 
 export default function CaseworkerDashboard() {
@@ -165,23 +84,6 @@ export default function CaseworkerDashboard() {
   const [auditOffset, setAuditOffset] = useState(0);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditHasMore, setAuditHasMore] = useState(false);
-
-  // Gereedschap — eDOCS status widget
-  const [edocsStatus, setEdocsStatus] = useState<{
-    status: 'up' | 'down' | 'stub';
-    library?: string;
-    stubMode?: boolean;
-    latencyMs?: number;
-  } | null>(null);
-  const [edocsStatusLoading, setEdocsStatusLoading] = useState(false);
-  const [operatonStatus, setOperatonStatus] = useState<{
-    status: 'up' | 'down';
-    latency?: number;
-  } | null>(null);
-  const [externalStatuses, setExternalStatuses] = useState<Record<
-    string,
-    { status: 'up' | 'down'; latency: number }
-  > | null>(null);
 
   // Profiel onboarding enrichment
   const [onboardingStarted, setOnboardingStarted] = useState(false);
@@ -238,27 +140,6 @@ export default function CaseworkerDashboard() {
       setActiveSection(firstPublic?.id ?? sections[0]?.id ?? null);
     }
   }, [activeTopNavPage, tenantConfig, isAuthenticated, sectionMemory]);
-
-  useEffect(() => {
-    if (activeSection !== 'gereedschap-overzicht' || !isAuthenticated) return;
-
-    setEdocsStatusLoading(true);
-    businessApi.edocs
-      .status()
-      .then((res) => setEdocsStatus(res.success ? (res.data ?? null) : null))
-      .catch(() => setEdocsStatus(null))
-      .finally(() => setEdocsStatusLoading(false));
-
-    businessApi
-      .health()
-      .then((data) => setOperatonStatus(data.dependencies?.operaton ?? null))
-      .catch(() => setOperatonStatus(null));
-
-    businessApi
-      .externalStatus()
-      .then((res) => setExternalStatuses(res.success ? (res.data ?? null) : null))
-      .catch(() => setExternalStatuses(null));
-  }, [activeSection, isAuthenticated]);
 
   // Load section data when activeSection changes
   useEffect(() => {
@@ -1211,155 +1092,6 @@ export default function CaseworkerDashboard() {
     );
   }
 
-  function renderGereedschap() {
-    if (!isAuthenticated) return renderLoginPrompt();
-
-    const visibleTools = PLATFORM_TOOLS.filter(
-      (tool) => tool.roles.length === 0 || tool.roles.some((r) => user?.roles?.includes(r))
-    );
-
-    return (
-      <div className="max-w-5xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {visibleTools.map((tool) => {
-            const isPlaceholder = tool.url === null;
-            return (
-              <div
-                key={tool.id}
-                className="bg-white rounded-xl border border-gray-200 flex flex-col gap-3 p-5"
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl leading-none">{tool.icon}</span>
-                    <p className="font-semibold text-sm text-gray-800">{tool.label}</p>
-                  </div>
-                  {isPlaceholder && (
-                    <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium">
-                      Binnenkort
-                    </span>
-                  )}
-                </div>
-
-                {/* Description */}
-                <p className="text-xs text-gray-500 leading-relaxed flex-1">{tool.description}</p>
-
-                {/* eDOCS live status widget */}
-                {tool.statusWidget && (
-                  <div className="border-t border-gray-100 pt-2">
-                    {tool.id === 'edocs' &&
-                      (edocsStatusLoading ? (
-                        <span className="text-xs text-gray-400">Status ophalen…</span>
-                      ) : edocsStatus ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              edocsStatus.status === 'stub'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : edocsStatus.status === 'up'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-red-100 text-red-700'
-                            }`}
-                          >
-                            {edocsStatus.status === 'stub'
-                              ? 'Stub'
-                              : edocsStatus.status === 'up'
-                                ? 'Online'
-                                : 'Offline'}
-                          </span>
-                          {edocsStatus.library && (
-                            <span className="text-xs text-gray-400">
-                              Library: {edocsStatus.library}
-                            </span>
-                          )}
-                          {edocsStatus.latencyMs !== undefined && (
-                            <span className="text-xs text-gray-400">
-                              {edocsStatus.latencyMs} ms
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">Status niet beschikbaar</span>
-                      ))}
-                    {tool.id === 'operaton' &&
-                      (operatonStatus ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              operatonStatus.status === 'up'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}
-                          >
-                            {operatonStatus.status === 'up' ? 'Online' : 'Offline'}
-                          </span>
-                          {operatonStatus.latency !== undefined && (
-                            <span className="text-xs text-gray-400">
-                              {operatonStatus.latency} ms
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">Status niet beschikbaar</span>
-                      ))}
-                    {tool.id === 'cprmv' || tool.id === 'triplydb' || tool.id === 'lde'
-                      ? (() => {
-                          const ext = externalStatuses?.[tool.id];
-                          return ext ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                  ext.status === 'up'
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-red-100 text-red-700'
-                                }`}
-                              >
-                                {ext.status === 'up' ? 'Online' : 'Offline'}
-                              </span>
-                              <span className="text-xs text-gray-400">{ext.latency} ms</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">Status niet beschikbaar</span>
-                          );
-                        })()
-                      : null}
-                  </div>
-                )}
-
-                {/* Open button — active tools only */}
-                {!isPlaceholder && (
-                  <button
-                    onClick={() => window.open(tool.url!, '_blank', 'noopener,noreferrer')}
-                    className="mt-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors self-start"
-                    style={{
-                      color: 'var(--color-primary)',
-                      borderColor: 'var(--color-primary-light, #ccc)',
-                    }}
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
-                    Openen
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   function renderContent() {
     if (!isAuthenticated && !isSectionPublic(activeSection)) {
       return renderLoginPrompt();
@@ -1397,7 +1129,7 @@ export default function CaseworkerDashboard() {
       case 'audit-details':
         return renderAuditDetails();
       case 'gereedschap-overzicht':
-        return renderGereedschap();
+        return <GereedschapSection user={user} />;
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
