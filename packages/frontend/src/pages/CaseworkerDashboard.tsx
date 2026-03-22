@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
 import { businessApi } from '../services/api';
-import type { NieuwsItem, BerichtItem } from '../services/api';
 import type { AuditLogRecord } from '../services/api';
 import {
   initializeTenantTheme,
@@ -19,6 +18,9 @@ import DecisionViewer from '../components/DecisionViewer';
 import RegelCatalogus from '../components/CaseWorkerDashboard/RegelCatalogus';
 import ChangelogPanel from './ChangelogPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
+import { formatDate } from '../utils/formatDate';
+import NieuwsSection from '../components/CaseWorkerDashboard/NieuwsSection';
+import BerichtenSection from '../components/CaseWorkerDashboard/BerichtenSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
 
@@ -29,18 +31,6 @@ const TOP_NAV_ITEMS: { id: TopNavPage; label: string }[] = [
   { id: 'audit-log', label: 'Audit log' },
   { id: 'gereedschap', label: 'Gereedschap' },
 ];
-
-const PRIORITY_STYLES: Record<string, string> = {
-  high: 'bg-red-100 text-red-700',
-  normal: 'bg-blue-100 text-blue-700',
-  low: 'bg-gray-100 text-gray-600',
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  announcement: 'Mededeling',
-  maintenance: 'Onderhoud',
-  update: 'Update',
-};
 
 const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
   { id: 'audit-overzicht', label: 'Overzicht' },
@@ -175,16 +165,6 @@ export default function CaseworkerDashboard() {
   const [archiefVariables, setArchiefVariables] = useState<Record<string, Record<string, unknown>>>(
     {}
   );
-
-  // Nieuws
-  const [nieuwsItems, setNieuwsItems] = useState<NieuwsItem[]>([]);
-  const [nieuwsLoading, setNieuwsLoading] = useState(false);
-  const [nieuwsError, setNieuwsError] = useState<string | null>(null);
-
-  // Berichten
-  const [berichtenItems, setBerichtenItems] = useState<BerichtItem[]>([]);
-  const [berichtenLoading, setBerichtenLoading] = useState(false);
-  const [berichtenError, setBerichtenError] = useState<string | null>(null);
 
   // Audit log
   const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
@@ -332,8 +312,6 @@ export default function CaseworkerDashboard() {
     if (activeSection === 'archief' && isAuthenticated) loadTaskArchief();
     if (activeSection === 'rip-fase1-wip' && isAuthenticated) loadRipFase1Wip();
     if (activeSection === 'rip-fase1-gereed' && isAuthenticated) loadRipFase1Gereed();
-    if (activeSection === 'nieuws' && nieuwsItems.length === 0) loadNieuws();
-    if (activeSection === 'berichten' && berichtenItems.length === 0) loadBerichten();
     if (activeSection === 'regelcatalogus') {
       /* data fetched inside component */
     }
@@ -352,15 +330,7 @@ export default function CaseworkerDashboard() {
     )
       loadAuditLogs(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeSection,
-    berichtenItems.length,
-    isAuthenticated,
-    nieuwsItems.length,
-    profielData,
-    profielLoading,
-    user?.employeeId,
-  ]);
+  }, [activeSection, isAuthenticated, profielData, profielLoading, user?.employeeId]);
 
   // ── Data fetchers ─────────────────────────────────────────────────────────
 
@@ -404,34 +374,6 @@ export default function CaseworkerDashboard() {
       }
     } catch {
       // not critical
-    }
-  };
-
-  const loadNieuws = async () => {
-    setNieuwsLoading(true);
-    setNieuwsError(null);
-    try {
-      const res = await businessApi.portal.nieuws(10);
-      if (res.success && res.data) setNieuwsItems(res.data.items);
-      else setNieuwsError('Nieuws kon niet worden geladen.');
-    } catch {
-      setNieuwsError('Nieuws kon niet worden geladen.');
-    } finally {
-      setNieuwsLoading(false);
-    }
-  };
-
-  const loadBerichten = async () => {
-    setBerichtenLoading(true);
-    setBerichtenError(null);
-    try {
-      const res = await businessApi.portal.berichten(10);
-      if (res.success && res.data) setBerichtenItems(res.data.items);
-      else setBerichtenError('Berichten konden niet worden geladen.');
-    } catch {
-      setBerichtenError('Berichten konden niet worden geladen.');
-    } finally {
-      setBerichtenLoading(false);
     }
   };
 
@@ -575,15 +517,6 @@ export default function CaseworkerDashboard() {
     if (!sectionId) return true;
     const section = leftPanelSections.find((s) => s.id === sectionId);
     return section?.isPublic !== false;
-  }
-
-  function formatDate(iso: string): string {
-    if (!iso) return '';
-    return new Date(iso).toLocaleDateString('nl-NL', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
   }
 
   // ── Content renderers ─────────────────────────────────────────────────────
@@ -1008,193 +941,6 @@ export default function CaseworkerDashboard() {
             </div>
           ))}
         </div>
-      </div>
-    );
-  }
-
-  function renderNieuws() {
-    if (nieuwsLoading) {
-      return (
-        <div className="max-w-2xl space-y-3">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-              <div className="h-3 bg-gray-100 rounded w-full mb-1" />
-              <div className="h-3 bg-gray-100 rounded w-2/3" />
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (nieuwsError) {
-      return (
-        <div className="max-w-2xl bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
-          {nieuwsError}
-          <button onClick={loadNieuws} className="ml-3 underline">
-            Opnieuw proberen
-          </button>
-        </div>
-      );
-    }
-
-    if (nieuwsItems.length === 0) {
-      return (
-        <div className="max-w-2xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
-          Geen nieuwsberichten beschikbaar.
-        </div>
-      );
-    }
-
-    return (
-      <div className="max-w-2xl space-y-3">
-        {nieuwsItems.map((item) => (
-          <article key={item.id} className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                {item.url ? (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-gray-900 text-sm hover:underline"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    {item.title}
-                  </a>
-                ) : (
-                  <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
-                )}
-                <p className="text-gray-500 text-sm mt-1 leading-relaxed line-clamp-2">
-                  {item.summary}
-                </p>
-              </div>
-              {item.category && (
-                <span className="flex-shrink-0 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                  {item.category}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
-              <span>{item.source.name}</span>
-              {item.publishedAt && (
-                <>
-                  <span>·</span>
-                  <span>{formatDate(item.publishedAt)}</span>
-                </>
-              )}
-              {item.url && (
-                <>
-                  <span>·</span>
-
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    Lees meer →
-                  </a>
-                </>
-              )}
-            </div>
-          </article>
-        ))}
-      </div>
-    );
-  }
-
-  function renderBerichten() {
-    if (berichtenLoading) {
-      return (
-        <div className="max-w-2xl space-y-3">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-              <div className="h-3 bg-gray-100 rounded w-full mb-1" />
-              <div className="h-3 bg-gray-100 rounded w-2/3" />
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (berichtenError) {
-      return (
-        <div className="max-w-2xl bg-red-50 border border-red-200 rounded-xl p-5 text-red-700 text-sm">
-          {berichtenError}
-          <button onClick={loadBerichten} className="ml-3 underline">
-            Opnieuw proberen
-          </button>
-        </div>
-      );
-    }
-
-    if (berichtenItems.length === 0) {
-      return (
-        <div className="max-w-2xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
-          Er zijn momenteel geen berichten.
-        </div>
-      );
-    }
-
-    return (
-      <div className="max-w-2xl space-y-3">
-        {berichtenItems.map((item) => (
-          <article
-            key={item.id}
-            className={`bg-white rounded-xl border p-5 ${
-              item.isRead ? 'border-gray-200' : 'border-l-4'
-            }`}
-            style={!item.isRead ? { borderLeftColor: 'var(--color-primary)' } : {}}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {!item.isRead && (
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    />
-                  )}
-                  <p className="font-semibold text-gray-900 text-sm">{item.subject}</p>
-                </div>
-                <p className="text-gray-500 text-sm mt-1 leading-relaxed line-clamp-2">
-                  {item.preview}
-                </p>
-                {item.action && (
-                  <a
-                    href={item.action.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs font-medium hover:underline"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    {item.action.label} →
-                  </a>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                <span
-                  className={`text-xs px-2 py-0.5 rounded ${
-                    PRIORITY_STYLES[item.priority] ?? PRIORITY_STYLES.normal
-                  }`}
-                >
-                  {TYPE_LABELS[item.type] ?? item.type}
-                </span>
-                {item.expiresAt && new Date(item.expiresAt) > new Date() && (
-                  <span className="text-xs text-orange-500">t/m {formatDate(item.expiresAt)}</span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
-              <span>{item.sender.name}</span>
-              <span>·</span>
-              <span>{formatDate(item.publishedAt)}</span>
-            </div>
-          </article>
-        ))}
       </div>
     );
   }
@@ -2168,9 +1914,9 @@ export default function CaseworkerDashboard() {
       case 'archief':
         return renderTaskArchief();
       case 'nieuws':
-        return renderNieuws();
+        return <NieuwsSection />;
       case 'berichten':
-        return renderBerichten();
+        return <BerichtenSection />;
       case 'regelcatalogus':
         return <RegelCatalogus />;
       case 'profiel':
