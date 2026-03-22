@@ -25,6 +25,8 @@ import GereedschapSection from '../components/CaseWorkerDashboard/GereedschapSec
 import TakenSection from '../components/CaseWorkerDashboard/TakenSection';
 import HrOnboardingSection from '../components/CaseWorkerDashboard/HrOnboardingSection';
 import RipFase1Section from '../components/CaseWorkerDashboard/RipFase1Section';
+import ProfielSection from '../components/CaseWorkerDashboard/ProfielSection';
+import RollenSection from '../components/CaseWorkerDashboard/RollenSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
 
@@ -75,14 +77,6 @@ export default function CaseworkerDashboard() {
   const [auditOffset, setAuditOffset] = useState(0);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditHasMore, setAuditHasMore] = useState(false);
-
-  // Profiel onboarding enrichment
-  const [profielData, setProfielData] = useState<Record<string, unknown> | null | undefined>(
-    undefined
-  );
-  const [profielLoading, setProfielLoading] = useState(false);
-  const [profielError, setProfielError] = useState<string | null>(null);
-  const [employeeIdInput, setEmployeeIdInput] = useState('');
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -136,37 +130,14 @@ export default function CaseworkerDashboard() {
       /* data fetched inside component */
     }
     if (
-      (activeSection === 'profiel' || activeSection === 'rollen') &&
-      isAuthenticated &&
-      profielData === undefined &&
-      !profielLoading &&
-      user?.employeeId
-    )
-      loadProfiel(user.employeeId);
-    if (
       (activeSection === 'audit-overzicht' || activeSection === 'audit-details') &&
       isAuthenticated
     )
       loadAuditLogs(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection, isAuthenticated, profielData, profielLoading, user?.employeeId]);
+  }, [activeSection, isAuthenticated, user?.employeeId]);
 
   // ── Data fetchers ─────────────────────────────────────────────────────────
-
-  const loadProfiel = async (employeeId: string) => {
-    setProfielLoading(true);
-    setProfielError(null);
-    try {
-      const res = await businessApi.hr.profile(employeeId);
-      if (res.success) setProfielData(res.data ?? null);
-      else setProfielData(null);
-    } catch {
-      setProfielError('Onboardingprofiel kon niet worden geladen.');
-      setProfielData(null);
-    } finally {
-      setProfielLoading(false);
-    }
-  };
 
   const loadAuditLogs = async (offset = 0) => {
     setAuditLoading(true);
@@ -243,236 +214,6 @@ export default function CaseworkerDashboard() {
             Inloggen als medewerker
           </button>
         </div>
-      </div>
-    );
-  }
-
-  function renderProfiel() {
-    const LOA_LABELS: Record<string, string> = {
-      basis: 'Basis',
-      midden: 'Midden',
-      substantieel: 'Substantieel',
-      hoog: 'Hoog',
-    };
-
-    const handleFetchOnboarding = async () => {
-      if (!employeeIdInput.trim()) return;
-      await loadProfiel(employeeIdInput.trim());
-    };
-
-    return (
-      <div className="max-w-2xl space-y-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Persoonlijke gegevens
-          </h2>
-          <dl className="space-y-3">
-            {(
-              [
-                { label: 'Naam', value: user?.name },
-                { label: 'Gebruikersnaam', value: user?.preferred_username },
-                { label: 'Medewerker-ID', value: user?.employeeId },
-                { label: 'Gemeente', value: tenantConfig?.displayName ?? user?.municipality },
-                {
-                  label: 'Beveiligingsniveau',
-                  value: user?.loa ? (LOA_LABELS[user.loa] ?? user.loa) : undefined,
-                },
-                {
-                  label: 'Rollen',
-                  value: user?.roles?.length ? user.roles.join(', ') : undefined,
-                },
-              ] as { label: string; value: string | undefined }[]
-            )
-              .filter((f) => Boolean(f.value))
-              .map(({ label, value }) => (
-                <div key={label} className="flex gap-4">
-                  <dt className="w-44 text-sm text-gray-400 flex-shrink-0">{label}</dt>
-                  <dd className="text-sm text-gray-900 font-medium">{value}</dd>
-                </div>
-              ))}
-          </dl>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-            Onboardinggegevens
-          </h2>
-
-          {profielLoading && (
-            <div className="animate-pulse space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="h-3 bg-gray-200 rounded w-1/4" />
-                  <div className="h-3 bg-gray-200 rounded w-1/3" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!profielLoading && profielError && (
-            <p className="text-sm text-red-500">{profielError}</p>
-          )}
-
-          {!profielLoading && !user?.employeeId && profielData === undefined && (
-            <>
-              <p className="text-sm text-gray-400 mb-4">
-                Voer uw medewerker-ID in om uw onboardingprofiel op te halen.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={employeeIdInput}
-                  onChange={(e) => setEmployeeIdInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFetchOnboarding()}
-                  placeholder="bijv. emp-001"
-                  className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-                <button
-                  onClick={handleFetchOnboarding}
-                  disabled={!employeeIdInput.trim()}
-                  className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  Ophalen
-                </button>
-              </div>
-            </>
-          )}
-
-          {!profielLoading && profielData === null && !profielError && (
-            <p className="text-sm text-gray-400">
-              Geen onboardingprofiel gevonden.{' '}
-              {user?.roles?.includes('hr-medewerker') && (
-                <span>
-                  Gebruik <strong>Medewerker onboarden</strong> om een profiel aan te maken.
-                </span>
-              )}
-            </p>
-          )}
-
-          {!profielLoading && profielData && (
-            <dl className="space-y-3">
-              <div className="flex justify-end mb-1">
-                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                  Onboarding voltooid
-                </span>
-              </div>
-              {(
-                [
-                  { label: 'Voornaam', value: profielData.firstName as string | undefined },
-                  { label: 'Achternaam', value: profielData.lastName as string | undefined },
-                  { label: 'Afdeling', value: profielData.department as string | undefined },
-                  { label: 'Functie', value: profielData.jobFunction as string | undefined },
-                  { label: 'Toegangsniveau', value: profielData.accessLevel as string | undefined },
-                  {
-                    label: 'Toegewezen rollen',
-                    value: profielData.assignedRoles as string | undefined,
-                  },
-                ] as { label: string; value: string | undefined }[]
-              )
-                .filter((f) => Boolean(f.value))
-                .map(({ label, value }) => (
-                  <div key={label} className="flex gap-4">
-                    <dt className="w-44 text-sm text-gray-400 flex-shrink-0">{label}</dt>
-                    <dd className="text-sm text-gray-900 font-medium capitalize">{value}</dd>
-                  </div>
-                ))}
-            </dl>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function renderRollen() {
-    const ROLE_DESCRIPTIONS: Record<string, string> = {
-      caseworker: 'Behandelen van aanvragen en zaken',
-      'hr-medewerker': 'Beheren van medewerker onboarding',
-      'rip-verkenner': 'Verkenningsfase van RIP-projecten',
-      'rip-planner': 'Planvoorbereiding en contractvorming',
-      'rip-inkoop': 'Aanbestedingen en inkoop',
-      'rip-contractbeheer': 'Contractbeheersing',
-      'rip-projectleider': 'Projectleiding en decharge',
-      'rip-toetser': 'Toetsproces',
-      'rip-kwaliteit': 'Kwaliteitstoetsing',
-      admin: 'Beheerder',
-    };
-
-    const ACCESS_LEVEL_DESCRIPTIONS: Record<string, string> = {
-      basis: 'Standaard toegang tot eigen taken en zaken',
-      uitgebreid: 'Uitgebreide toegang inclusief rapportages',
-      admin: 'Volledige toegang tot alle functionaliteiten',
-    };
-
-    const jwtRoles = user?.roles ?? [];
-    const onboardingRoles = profielData?.assignedRoles
-      ? (profielData.assignedRoles as string).split(',').map((r) => r.trim())
-      : null;
-    const accessLevel = profielData?.accessLevel as string | undefined;
-
-    return (
-      <div className="max-w-2xl space-y-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Toegewezen rollen
-          </h2>
-
-          {profielLoading && (
-            <div className="animate-pulse space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-10 bg-gray-100 rounded-lg" />
-              ))}
-            </div>
-          )}
-
-          {!profielLoading && (
-            <ul className="space-y-2">
-              {(onboardingRoles ?? jwtRoles).map((role) => (
-                <li
-                  key={role}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100"
-                >
-                  <span
-                    className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{role}</p>
-                    {ROLE_DESCRIPTIONS[role] && (
-                      <p className="text-xs text-gray-400 mt-0.5">{ROLE_DESCRIPTIONS[role]}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {!profielLoading && accessLevel && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Toegangsniveau
-            </h2>
-            <div className="flex items-center gap-3">
-              <span
-                className="text-sm font-semibold capitalize px-3 py-1 rounded-full text-white"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                {accessLevel}
-              </span>
-              {ACCESS_LEVEL_DESCRIPTIONS[accessLevel] && (
-                <p className="text-sm text-gray-500">{ACCESS_LEVEL_DESCRIPTIONS[accessLevel]}</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {!profielLoading && !profielData && !user?.employeeId && (
-          <p className="text-sm text-gray-400 px-1">
-            Koppel uw medewerker-ID via <strong>Profiel</strong> om gedetailleerde rolinformatie te
-            zien.
-          </p>
-        )}
       </div>
     );
   }
@@ -656,13 +397,13 @@ export default function CaseworkerDashboard() {
       case 'regelcatalogus':
         return <RegelCatalogus />;
       case 'profiel':
-        return renderProfiel();
+        return <ProfielSection user={user} tenantConfig={tenantConfig} />;
       case 'hr-onboarding':
         return <HrOnboardingSection user={user} />;
       case 'onboarding-archief':
         return <OnboardingArchiefSection user={user} />;
       case 'rollen':
-        return renderRollen();
+        return <RollenSection user={user} />;
       case 'rip-fase1':
         return <RipFase1Section user={user} />;
       case 'rip-fase1-wip':
