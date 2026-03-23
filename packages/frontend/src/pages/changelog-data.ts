@@ -31,6 +31,35 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.9.2',
+      status: 'Refactor',
+      statusColor: 'gray',
+      borderColor: 'gray',
+      date: 'March 22, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — Component Extraction',
+          icon: '🏗️',
+          iconColor: 'gray',
+          items: [
+            'CaseworkerDashboard.tsx reduced from ~2,500 lines to a pure shell: auth state, tenant config, nav state, and layout only — no domain logic remains in the page file',
+            'formatDate extracted to src/utils/formatDate.ts and shared across components',
+            'NieuwsSection and BerichtenSection extracted — fully self-contained with own fetch lifecycle; PRIORITY_STYLES and TYPE_LABELS moved into BerichtenSection',
+            'ArchiefSection extracted — owns task history fetch, grouping logic, variable cache, and expand state',
+            'OnboardingArchiefSection extracted — role-gated to hr-medewerker, owns completed onboarding list fetch and DecisionViewer expand state',
+            'RipFase1WipSection and RipFase1GereedSection extracted — both role-gated to infra-projectteam, each owns its own project list fetch and RipFase1WipViewer expand state',
+            'GereedschapSection extracted — owns all three status API calls (eDOCS, Operaton, external); PLATFORM_TOOLS constant moved out of the page file',
+            'TakenSection extracted — owns full task queue lifecycle including list fetch, select, claim, TaskFormViewer integration, and onCountChange callback for the top nav badge',
+            'HrOnboardingSection and RipFase1Section extracted — each owns its started/error state, eliminating the last uses of the shared actionMessage state in the dashboard',
+            'useProfielData hook introduced in src/hooks/useProfielData.ts — shared by ProfielSection and RollenSection',
+            'ProfielSection extracted — consumes useProfielData, owns employeeIdInput for manual ID lookup fallback',
+            'RollenSection extracted — consumes useProfielData independently, derives onboarding roles and access level display',
+            'AuditSection extracted — handles both audit-overzicht and audit-details tabs via activeTab prop, owns paginated fetch and load-more state',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.1',
       status: 'Feature Release',
       statusColor: 'teal',
