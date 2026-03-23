@@ -35,8 +35,14 @@ export const changelog: Changelog = {
       status: 'Refactor',
       statusColor: 'gray',
       borderColor: 'gray',
-      date: 'March 22, 2026',
+      date: 'March 23, 2026',
       sections: [
+        {
+          title: 'Caseworker Dashboard — Regelcatalogus',
+          icon: '🔍',
+          iconColor: 'blue',
+          items: ['Changing tab order: Organisaties, Diensten, Regels, Concepten'],
+        },
         {
           title: 'Caseworker Dashboard — Component Extraction',
           icon: '🏗️',

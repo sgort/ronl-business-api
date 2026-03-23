@@ -11,10 +11,10 @@ import type {
 type CatalogTab = 'diensten' | 'organisaties' | 'concepten' | 'regels';
 
 const TABS: { id: CatalogTab; label: string }[] = [
-  { id: 'diensten', label: 'Diensten' },
   { id: 'organisaties', label: 'Organisaties' },
-  { id: 'concepten', label: 'Concepten' },
+  { id: 'diensten', label: 'Diensten' },
   { id: 'regels', label: 'Regels' },
+  { id: 'concepten', label: 'Concepten' },
 ];
 
 export default function RegelCatalogus() {
@@ -89,9 +89,9 @@ export default function RegelCatalogus() {
       <div className="flex gap-0 border-b border-gray-200">
         {TABS.map((tab) => {
           const count =
-            tab.id === 'diensten'
+            tab.id === 'organisaties'
               ? data.services.length
-              : tab.id === 'organisaties'
+              : tab.id === 'diensten'
                 ? data.organizations.length
                 : tab.id === 'concepten'
                   ? data.concepts.length
@@ -121,6 +121,7 @@ export default function RegelCatalogus() {
 
       {/* Tab content */}
       <div>
+        {activeTab === 'organisaties' && <OrganisatiesTab organizations={data.organizations} />}
         {activeTab === 'diensten' && (
           <DienstenTab
             services={data.services}
@@ -129,7 +130,6 @@ export default function RegelCatalogus() {
             onLinkConcepten={handleServiceLinkToConcepten}
           />
         )}
-        {activeTab === 'organisaties' && <OrganisatiesTab organizations={data.organizations} />}
         {activeTab === 'concepten' && (
           <ConceptenTab
             concepts={data.concepts}
