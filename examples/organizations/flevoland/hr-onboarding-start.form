@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "hr-onboarding-start",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# New employee onboarding"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Complete this form to register a new employee. The assigned roles and access level will be determined automatically based on department and job function."
+    },
+    {
+      "id": "Field_EmployeeId",
+      "type": "textfield",
+      "label": "Employee ID",
+      "key": "employeeId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "id": "Field_FirstName",
+      "type": "textfield",
+      "label": "First name",
+      "key": "firstName",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "id": "Field_LastName",
+      "type": "textfield",
+      "label": "Last name",
+      "key": "lastName",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "id": "Field_Municipality",
+      "type": "select",
+      "label": "Municipality",
+      "defaultValue": "Flevoland",
+      "key": "municipality",
+      "validate": {
+        "required": true
+      },
+      "values": [
+        { "label": "Den Haag", "value": "denhaag" },
+        { "label": "Utrecht", "value": "utrecht" },
+        { "label": "Amsterdam", "value": "amsterdam" },
+        { "label": "Rotterdam", "value": "rotterdam" },
+        { "label": "Flevoland", "value": "flevoland" },
+        { "label": "Lelystad", "value": "lelystad" }
+      ]
+    },
+    {
+      "id": "Field_Department",
+      "type": "select",
+      "label": "Department",
+      "key": "department",
+      "validate": {
+        "required": true
+      },
+      "values": [
+        { "label": "Vergunningen", "value": "vergunningen" },
+        { "label": "Infrastructuur", "value": "infrastructuur" },
+        { "label": "HR", "value": "hr" }
+      ]
+    },
+    {
+      "id": "Field_JobFunction",
+      "type": "select",
+      "label": "Job function",
+      "key": "jobFunction",
+      "validate": {
+        "required": true
+      },
+      "values": [
+        { "label": "Behandelaar", "value": "behandelaar" },
+        { "label": "Senior behandelaar", "value": "senior-behandelaar" },
+        { "label": "Verkenner", "value": "verkenner" },
+        { "label": "Planner", "value": "planner" },
+        { "label": "Inkoop", "value": "inkoop" },
+        { "label": "Contractbeheer", "value": "contractbeheer" },
+        { "label": "Projectleider", "value": "projectleider" },
+        { "label": "Toetser", "value": "toetser" },
+        { "label": "Kwaliteit", "value": "kwaliteit" },
+        { "label": "HR medewerker", "value": "hr-medewerker" }
+      ],
+      "description": "Select the job function matching the employee's role within their department."
+    },
+    {
+      "id": "Field_StartDate",
+      "type": "datetime",
+      "label": "Start date",
+      "key": "startDate",
+      "validate": {
+        "required": true
+      },
+      "subtype": "date"
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Submit",
+      "action": "submit"
+    }
+  ]
+}

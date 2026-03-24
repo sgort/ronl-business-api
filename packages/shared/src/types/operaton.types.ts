@@ -31,6 +31,7 @@ export interface Task {
   description?: string;
   executionId: string;
   processDefinitionId: string;
+  processDefinitionKey?: string;
   processInstanceId: string;
   taskDefinitionKey: string;
   suspended: boolean;
@@ -53,4 +54,16 @@ export interface ProcessStatusResponse {
   status: 'active' | 'suspended' | 'ended';
   ended: boolean;
   suspended: boolean;
+}
+
+export interface HistoricTask {
+  id: string;
+  name: string;
+  assignee: string | null;
+  taskDefinitionKey: string;
+  processDefinitionKey: string | null;
+  processInstanceId: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
 }

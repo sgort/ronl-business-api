@@ -1,372 +1,400 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
-import { businessApi } from '../services/api';
-import { initializeTenantTheme } from '../services/tenant';
-import type { KeycloakUser, Task } from '@ronl/shared';
-import TaskFormViewer from '../components/CaseWorkerDashboard/TaskFormViewer';
+import {
+  initializeTenantTheme,
+  loadTenantConfigs,
+  getTenantConfig,
+  getDefaultTenantConfig,
+} from '../services/tenant';
+import type { TenantConfig, LeftPanelSection } from '../services/tenant';
+import type { KeycloakUser } from '@ronl/shared';
+import RegelCatalogus from '../components/CaseworkerDashboard/RegelCatalogus';
+import ChangelogPanel from './ChangelogPanel';
+import SessionExpiryWarning from '../components/SessionExpiryWarning';
+import NieuwsSection from '../components/CaseworkerDashboard/NieuwsSection';
+import BerichtenSection from '../components/CaseworkerDashboard/BerichtenSection';
+import ArchiefSection from '../components/CaseworkerDashboard/ArchiefSection';
+import OnboardingArchiefSection from '../components/CaseworkerDashboard/OnboardingArchiefSection';
+import RipFase1WipSection from '../components/CaseworkerDashboard/RipFase1WipSection';
+import RipFase1GereedSection from '../components/CaseworkerDashboard/RipFase1GereedSection';
+import GereedschapSection from '../components/CaseworkerDashboard/GereedschapSection';
+import TakenSection from '../components/CaseworkerDashboard/TakenSection';
+import HrOnboardingSection from '../components/CaseworkerDashboard/HrOnboardingSection';
+import RipFase1Section from '../components/CaseworkerDashboard/RipFase1Section';
+import ProfielSection from '../components/CaseworkerDashboard/ProfielSection';
+import RollenSection from '../components/CaseworkerDashboard/RollenSection';
+import AuditSection from '../components/CaseworkerDashboard/AuditSection';
 
-type Tab = 'taken' | 'beheer';
+type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
+
+const TOP_NAV_ITEMS: { id: TopNavPage; label: string }[] = [
+  { id: 'home', label: 'Home' },
+  { id: 'personal-info', label: 'Persoonlijke info' },
+  { id: 'projects', label: 'Projecten' },
+  { id: 'audit-log', label: 'Audit log' },
+  { id: 'gereedschap', label: 'Gereedschap' },
+];
+
+const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
+  { id: 'audit-overzicht', label: 'Overzicht' },
+  { id: 'audit-details', label: 'Details' },
+];
+
+const GEREEDSCHAP_SECTIONS: LeftPanelSection[] = [
+  { id: 'gereedschap-overzicht', label: 'Overzicht' },
+];
 
 export default function CaseworkerDashboard() {
   const navigate = useNavigate();
+
+  const [isAuthenticated] = useState(() => !!keycloak.authenticated);
   const [user, setUser] = useState<KeycloakUser | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('taken');
+  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
 
-  // Task queue state
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [tasksError, setTasksError] = useState<string | null>(null);
+  const [activeTopNavPage, setActiveTopNavPage] = useState<TopNavPage>('home');
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
-  // Task detail state
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [taskVariables, setTaskVariables] = useState<Record<string, unknown> | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [claiming, setClaiming] = useState(false);
-  const [actionMessage, setActionMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
+  // Remembers last selected section per top-nav page
+  const [sectionMemory, setSectionMemory] = useState<Record<string, string>>({});
+
+  // Wrap setActiveSection so every explicit user click also saves to memory
+  function selectSection(id: string) {
+    setActiveSection(id);
+    setSectionMemory((prev) => ({ ...prev, [activeTopNavPage]: id }));
+  }
+
+  const [changelogOpen, setChangelogOpen] = useState(false);
+
+  // Task counter
+  const [taskCount, setTaskCount] = useState(0);
+
+  // ── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!keycloak.authenticated) {
-      navigate('/', { replace: true });
+    if (isAuthenticated) {
+      const currentUser = getUser();
+      setUser(currentUser);
+      if (currentUser?.municipality) {
+        initializeTenantTheme(currentUser.municipality).then(() => {
+          loadTenantConfigs().then(() => {
+            setTenantConfig(getTenantConfig(currentUser.municipality!));
+          });
+        });
+      }
+    } else {
+      loadTenantConfigs().then(() => {
+        setTenantConfig(getDefaultTenantConfig());
+      });
+    }
+  }, [isAuthenticated]);
+
+  // Reset active section when page or tenant config changes
+  useEffect(() => {
+    const sections =
+      activeTopNavPage === 'audit-log'
+        ? AUDIT_LOG_SECTIONS
+        : activeTopNavPage === 'gereedschap'
+          ? GEREEDSCHAP_SECTIONS
+          : (tenantConfig?.leftPanelSections?.[activeTopNavPage] ?? []);
+
+    if (!tenantConfig && activeTopNavPage !== 'audit-log' && activeTopNavPage !== 'gereedschap')
+      return;
+
+    const remembered = sectionMemory[activeTopNavPage];
+    if (remembered && sections.some((s) => s.id === remembered)) {
+      setActiveSection(remembered);
       return;
     }
-    const currentUser = getUser();
-    setUser(currentUser);
-    if (currentUser?.municipality) {
-      initializeTenantTheme(currentUser.municipality);
-    }
-  }, [navigate]);
 
-  // Load tasks when tab is active
-  useEffect(() => {
-    if (activeTab === 'taken') {
-      loadTasks();
+    if (isAuthenticated) {
+      setActiveSection(sections.length > 0 ? sections[0].id : null);
+    } else {
+      const firstPublic = sections.find((s) => s.isPublic !== false);
+      setActiveSection(firstPublic?.id ?? sections[0]?.id ?? null);
     }
-  }, [activeTab]);
+  }, [activeTopNavPage, tenantConfig, isAuthenticated, sectionMemory]);
 
-  const loadTasks = async () => {
-    setTasksLoading(true);
-    setTasksError(null);
-    try {
-      const res = await businessApi.task.list();
-      if (res.success) setTasks(res.data as Task[]);
-      else setTasksError('Taken konden niet worden geladen.');
-    } catch {
-      setTasksError('Taken konden niet worden geladen.');
-    } finally {
-      setTasksLoading(false);
-    }
+  // ── Navigation ────────────────────────────────────────────────────────────
+
+  const handleLogin = () => {
+    sessionStorage.setItem('selected_idp', 'medewerker');
+    navigate('/auth');
   };
 
-  const handleSelectTask = async (task: Task) => {
-    setSelectedTask(task);
-    setTaskVariables(null);
-    setActionMessage(null);
-    setDetailLoading(true);
-    try {
-      const res = await businessApi.task.variables(task.id);
-      if (res.success) setTaskVariables(res.data as Record<string, unknown>);
-    } catch {
-      // Variables not critical — continue showing task
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+  const handleLogout = () =>
+    keycloak.logout({
+      redirectUri: `${window.location.origin}/dashboard/caseworker`,
+    });
 
-  const handleClaim = async () => {
-    if (!selectedTask) return;
-    setClaiming(true);
-    setActionMessage(null);
-    try {
-      const res = await businessApi.task.claim(selectedTask.id);
-      if (res.success) {
-        setActionMessage({ type: 'success', text: 'Taak succesvol geclaimd.' });
-        setSelectedTask({ ...selectedTask, assignee: user?.sub });
-        loadTasks();
-      } else {
-        setActionMessage({ type: 'error', text: 'Claimen mislukt.' });
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  const leftPanelSections: LeftPanelSection[] =
+    activeTopNavPage === 'audit-log'
+      ? AUDIT_LOG_SECTIONS
+      : activeTopNavPage === 'gereedschap'
+        ? GEREEDSCHAP_SECTIONS
+        : (tenantConfig?.leftPanelSections?.[activeTopNavPage] ?? []);
+
+  function isSectionPublic(sectionId: string | null): boolean {
+    if (!sectionId) return true;
+    const section = leftPanelSections.find((s) => s.id === sectionId);
+    return section?.isPublic !== false;
+  }
+
+  // ── Content renderers ─────────────────────────────────────────────────────
+
+  function renderLoginPrompt() {
+    return (
+      <div className="max-w-lg">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          <div className="text-4xl mb-4">🏛️</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Welkom bij MijnOmgeving</h2>
+          <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+            Dit is het medewerkersportaal. Log in om uw taken te bekijken en te werken aan zaken die
+            aan u zijn toegewezen of geclaimd kunnen worden.
+          </p>
+          <button
+            onClick={handleLogin}
+            className="flex items-center gap-2 px-5 py-2.5 text-white rounded-lg text-sm font-semibold transition-colors"
+            style={{ backgroundColor: 'var(--color-primary, #154273)' }}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                clipRule="evenodd"
+              />
+              <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+            </svg>
+            Inloggen als medewerker
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderContent() {
+    if (!isAuthenticated && !isSectionPublic(activeSection)) {
+      return renderLoginPrompt();
+    }
+
+    if (!activeSection) return null;
+
+    switch (activeSection) {
+      case 'taken':
+        return <TakenSection user={user} onCountChange={setTaskCount} />;
+      case 'archief':
+        return <ArchiefSection />;
+      case 'nieuws':
+        return <NieuwsSection />;
+      case 'berichten':
+        return <BerichtenSection />;
+      case 'regelcatalogus':
+        return <RegelCatalogus />;
+      case 'profiel':
+        return <ProfielSection user={user} tenantConfig={tenantConfig} />;
+      case 'rollen':
+        return <RollenSection user={user} />;
+      case 'hr-onboarding':
+        return <HrOnboardingSection user={user} />;
+      case 'onboarding-archief':
+        return <OnboardingArchiefSection user={user} />;
+      case 'rip-fase1':
+        return <RipFase1Section user={user} />;
+      case 'rip-fase1-wip':
+        return <RipFase1WipSection user={user} />;
+      case 'rip-fase1-gereed':
+        return <RipFase1GereedSection user={user} />;
+      case 'audit-overzicht':
+      case 'audit-details':
+        return (
+          <AuditSection
+            activeTab={activeSection as 'audit-overzicht' | 'audit-details'}
+            user={user}
+          />
+        );
+      case 'gereedschap-overzicht':
+        return <GereedschapSection user={user} />;
+      default: {
+        const sectionLabel =
+          leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
+        return (
+          <div className="max-w-lg">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <p className="text-3xl mb-4 text-gray-300">◻</p>
+              <h2 className="text-lg font-bold text-gray-800 mb-2">{sectionLabel}</h2>
+              <p className="text-gray-400 text-sm">Deze sectie is in ontwikkeling.</p>
+            </div>
+          </div>
+        );
       }
-    } catch {
-      setActionMessage({ type: 'error', text: 'Claimen mislukt.' });
-    } finally {
-      setClaiming(false);
     }
-  };
+  }
 
-  const handleLogout = () => keycloak.logout({ redirectUri: window.location.origin });
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header style={{ backgroundColor: 'var(--color-primary)' }} className="text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      <SessionExpiryWarning />
+      {/* ── Top navigation bar ── */}
+      <header
+        className="text-white shadow-lg flex-shrink-0"
+        style={{ backgroundColor: 'var(--color-primary, #154273)' }}
+      >
+        <div className="px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">MijnOmgeving — Medewerker</h1>
-            <p className="text-sm opacity-90 capitalize">Gemeente {user?.municipality ?? ''}</p>
+            <h1 className="text-xl font-bold leading-tight">MijnOmgeving</h1>
+            {isAuthenticated && user?.municipality && (
+              <p className="text-xs opacity-80 capitalize mt-0.5">
+                {tenantConfig?.displayName ?? `Gemeente ${user.municipality}`}
+              </p>
+            )}
           </div>
-          <div className="text-right">
-            <p className="text-sm font-medium">
-              {user?.name ?? user?.preferred_username ?? 'Medewerker'}
-            </p>
-            <div className="flex items-center gap-2 text-xs opacity-80 mt-0.5 justify-end">
-              <span
-                className="px-2 py-0.5 rounded"
-                style={{ backgroundColor: 'var(--color-primary-dark)' }}
+
+          <div className="flex items-center gap-3">
+            {isAuthenticated ? (
+              <div className="text-right">
+                <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
+                <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
+                  {user?.loa && (
+                    <span
+                      className="px-2 py-0.5 rounded"
+                      style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                    >
+                      LoA: {user.loa}
+                    </span>
+                  )}
+                  {(user?.roles ?? []).map((role) => (
+                    <span
+                      key={role}
+                      className="px-2 py-0.5 rounded"
+                      style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                    >
+                      {role}
+                    </span>
+                  ))}
+                </div>
+                <button onClick={handleLogout} className="mt-1 text-xs underline hover:opacity-80">
+                  Uitloggen
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleLogin}
+                className="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-sm font-semibold transition-colors border border-white/30"
               >
-                caseworker
-              </span>
-            </div>
-            <button onClick={handleLogout} className="mt-1 text-sm underline hover:opacity-80">
-              Uitloggen
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                    clipRule="evenodd"
+                  />
+                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                </svg>
+                Inloggen als medewerker
+              </button>
+            )}
+
+            {/* Changelog button */}
+            <button
+              onClick={() => setChangelogOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg border border-white/30 transition-colors"
+              aria-label="Open changelog"
+            >
+              <span>📋</span>
+              <span className="hidden sm:inline">Changelog</span>
             </button>
           </div>
         </div>
 
-        {/* Tab bar */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex gap-1">
-            {(
-              [
-                { id: 'taken', label: 'Taakwachtrij' },
-                { id: 'beheer', label: 'Beheer' },
-              ] as { id: Tab; label: string }[]
-            ).map((tab) => (
+            {TOP_NAV_ITEMS.map((item) => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 ${
-                  activeTab === tab.id
+                key={item.id}
+                onClick={() => setActiveTopNavPage(item.id)}
+                className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 ${
+                  activeTopNavPage === item.id
                     ? 'border-white text-white'
                     : 'border-transparent text-white/70 hover:text-white hover:border-white/50'
                 }`}
               >
-                {tab.label}
-                {tab.id === 'taken' && tasks.length > 0 && (
-                  <span className="ml-2 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {tasks.length}
-                  </span>
-                )}
+                {item.label}
+                {isAuthenticated &&
+                  taskCount > 0 &&
+                  tenantConfig?.leftPanelSections?.[item.id]?.some((s) => s.id === 'taken') && (
+                    <span className="ml-2 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">
+                      {taskCount}
+                    </span>
+                  )}
               </button>
             ))}
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-        {/* ── Taakwachtrij ── */}
-        {activeTab === 'taken' && (
-          <div className="flex gap-6 h-full">
-            {/* Task list */}
-            <div className="w-full lg:w-96 flex-shrink-0">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800">Taken</h2>
-                <button
-                  onClick={loadTasks}
-                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-                >
-                  ↺ Vernieuwen
-                </button>
-              </div>
+      <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
 
-              {tasksLoading && (
-                <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                  Taken laden...
-                </div>
-              )}
-              {tasksError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-                  {tasksError}
-                </div>
-              )}
-              {!tasksLoading && !tasksError && tasks.length === 0 && (
-                <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                  Geen openstaande taken.
-                </div>
-              )}
-              {!tasksLoading && tasks.length > 0 && (
-                <div className="space-y-2">
-                  {tasks.map((task) => (
-                    <button
-                      key={task.id}
-                      onClick={() => handleSelectTask(task)}
-                      className={`w-full text-left bg-white rounded-lg shadow p-4 transition-all border-2 ${
-                        selectedTask?.id === task.id
-                          ? 'border-primary shadow-md'
-                          : 'border-transparent hover:border-gray-200'
-                      }`}
-                      style={
-                        selectedTask?.id === task.id ? { borderColor: 'var(--color-primary)' } : {}
-                      }
-                    >
-                      <p className="font-medium text-gray-800 truncate">{task.name}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-gray-500">
-                          {new Date(task.created).toLocaleDateString('nl-NL')}
-                        </p>
-                        {task.assignee ? (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                            Geclaimd
-                          </span>
-                        ) : (
-                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
-                            Openstaand
-                          </span>
-                        )}
-                      </div>
-                      {task.due && (
-                        <p className="text-xs text-red-500 mt-1">
-                          Deadline: {new Date(task.due).toLocaleDateString('nl-NL')}
-                        </p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+      {/* ── Body: left panel + content ── */}
+      <div className="flex flex-1">
+        {/* ── Left panel ── */}
+        <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200">
+          {leftPanelSections.length > 0 ? (
+            <nav className="p-3">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-2">
+                {TOP_NAV_ITEMS.find((i) => i.id === activeTopNavPage)?.label}
+              </p>
+              <ul className="space-y-0.5">
+                {leftPanelSections.map((section) => {
+                  const isActive = activeSection === section.id;
+                  return (
+                    <li key={section.id}>
+                      <button
+                        onClick={() => selectSection(section.id)}
+                        className="w-full text-left px-3 py-2 text-sm rounded-md transition-colors"
+                        style={
+                          isActive
+                            ? {
+                                backgroundColor: 'var(--color-primary, #154273)',
+                                color: '#ffffff',
+                                fontWeight: 500,
+                              }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (!isActive) {
+                            (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                              'var(--color-primary-light, #e5e7eb)';
+                            (e.currentTarget as HTMLButtonElement).style.color = '#111827';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) {
+                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                            (e.currentTarget as HTMLButtonElement).style.color = '';
+                          }
+                        }}
+                      >
+                        {section.label}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          ) : (
+            <div className="p-4">
+              <p className="text-xs text-gray-400 leading-relaxed mt-2">
+                Log in om uw persoonlijke navigatie te zien.
+              </p>
             </div>
+          )}
+        </aside>
 
-            {/* Task detail */}
-            <div className="flex-1">
-              {!selectedTask ? (
-                <div className="bg-white rounded-lg shadow p-8 text-center text-gray-400">
-                  Selecteer een taak om de details te bekijken.
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-800">{selectedTask.name}</h3>
-                      {selectedTask.description && (
-                        <p className="text-gray-500 mt-1 text-sm">{selectedTask.description}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedTask(null);
-                        setTaskVariables(null);
-                        setActionMessage(null);
-                      }}
-                      className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  {actionMessage && (
-                    <div
-                      className={`mb-4 p-3 rounded-lg text-sm ${
-                        actionMessage.type === 'success'
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-red-50 text-red-700 border border-red-200'
-                      }`}
-                    >
-                      {actionMessage.text}
-                    </div>
-                  )}
-
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm mb-6">
-                    <div>
-                      <dt className="text-gray-500">Aangemaakt</dt>
-                      <dd className="font-medium text-gray-800">
-                        {new Date(selectedTask.created).toLocaleString('nl-NL')}
-                      </dd>
-                    </div>
-                    {selectedTask.due && (
-                      <div>
-                        <dt className="text-gray-500">Deadline</dt>
-                        <dd className="font-medium text-red-600">
-                          {new Date(selectedTask.due).toLocaleString('nl-NL')}
-                        </dd>
-                      </div>
-                    )}
-                    <div>
-                      <dt className="text-gray-500">Status</dt>
-                      <dd>
-                        {selectedTask.assignee ? (
-                          <span className="text-blue-700 font-medium">Geclaimd</span>
-                        ) : (
-                          <span className="text-yellow-700 font-medium">Openstaand</span>
-                        )}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-gray-500">Taak ID</dt>
-                      <dd className="font-mono text-xs text-gray-600 truncate">
-                        {selectedTask.id}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {/* Process variables */}
-                  {detailLoading && (
-                    <p className="text-sm text-gray-400 mb-6">Procesgegevens laden...</p>
-                  )}
-                  {taskVariables && Object.keys(taskVariables).length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Procesgegevens</h4>
-                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                        {Object.entries(taskVariables)
-                          .filter(
-                            ([key]) =>
-                              !['municipality', 'initiator', 'assuranceLevel'].includes(key)
-                          )
-                          .map(([key, value]) => (
-                            <div key={key} className="flex justify-between text-sm">
-                              <span className="text-gray-600 font-medium">{key}</span>
-                              <span className="text-gray-800 font-mono text-xs">
-                                {value === null || value === undefined
-                                  ? '—'
-                                  : typeof value === 'object'
-                                    ? JSON.stringify(value)
-                                    : String(value)}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions — task-type specific */}
-                  {!selectedTask.assignee ? (
-                    <button
-                      onClick={handleClaim}
-                      disabled={claiming}
-                      className="px-5 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
-                    >
-                      {claiming ? 'Claimen...' : 'Taak claimen'}
-                    </button>
-                  ) : (
-                    <TaskFormViewer
-                      taskId={selectedTask.id}
-                      variables={taskVariables}
-                      onCompleted={() => {
-                        setActionMessage({ type: 'success', text: 'Taak voltooid.' });
-                        setSelectedTask(null);
-                        setTaskVariables(null);
-                        loadTasks();
-                      }}
-                      onError={() => setActionMessage({ type: 'error', text: 'Opslaan mislukt.' })}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Beheer ── */}
-        {activeTab === 'beheer' && (
-          <div className="bg-white rounded-lg shadow p-8 text-center max-w-lg">
-            <div className="text-4xl mb-4">⚙️</div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Beheer</h2>
-            <p className="text-gray-500">Dienstenbeheer voor uw gemeente is in ontwikkeling.</p>
-          </div>
-        )}
-      </main>
+        {/* ── Main content area ── */}
+        <main className="flex-1 p-6 overflow-auto">{renderContent()}</main>
+      </div>
     </div>
   );
 }

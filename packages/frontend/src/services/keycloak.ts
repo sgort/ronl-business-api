@@ -1,5 +1,5 @@
 import Keycloak from 'keycloak-js';
-import type { AssuranceLevel, KeycloakUser } from '@ronl/shared';
+import type { AssuranceLevel, KeycloakUser, OrganisationType } from '@ronl/shared';
 
 const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL as string;
 
@@ -42,10 +42,12 @@ export const getUser = (): KeycloakUser | null => {
     sub: keycloak.tokenParsed.sub as string,
     name: keycloak.tokenParsed.name as string,
     municipality: token.municipality as string,
+    organisation_type: token.organisation_type as OrganisationType,
     loa: token.loa as AssuranceLevel,
     roles: realmRoles,
     preferred_username: token.preferred_username as string | undefined,
     bsn: token.bsn as string | undefined,
+    employeeId: token.employeeId as string | undefined,
   };
 };
 

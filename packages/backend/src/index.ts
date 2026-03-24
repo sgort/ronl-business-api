@@ -11,6 +11,14 @@ import { auditMiddleware } from '@middleware/audit.middleware';
 import packageJson from '../package.json';
 import brpRoutes from './routes/brp.routes';
 import taskRoutes from '@routes/task.routes';
+import publicRoutes from '@routes/public.routes';
+import hrRoutes from './routes/hr.routes';
+import ripRoutes from './routes/rip.routes';
+import edocsRoutes from './routes/edocs.routes';
+import { externalTaskWorker } from '@services/externalTaskWorker.service';
+import { initDb } from '@services/audit.service';
+import adminRoutes from '@routes/admin.routes';
+import m2mRoutes from './routes/m2m.routes';
 
 const appLogger = createLogger('app');
 
@@ -65,7 +73,6 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Per-tenant rate limiting if enabled
   keyGenerator: (req: Request) => {
     if (config.rateLimit.perTenant && req.user) {
       return `${req.user.tenantId}:${req.ip}`;
@@ -113,7 +120,9 @@ app.get('/', (req: Request, res: Response) => {
       health: '/v1/health',
       process: '/v1/process',
       decision: '/v1/decision',
-      tasks: '/v1/tasks',
+      tasks: '/v1/task',
+      public: '/v1/public',
+      hr: '/v1/hr',
     },
     security: {
       authentication: 'JWT (Keycloak)',
@@ -129,6 +138,12 @@ app.use('/v1/process', processRoutes);
 app.use('/v1/decision', decisionRoutes);
 app.use('/v1/task', taskRoutes);
 app.use('/v1/brp', brpRoutes);
+app.use('/v1/public', publicRoutes);
+app.use('/v1/hr', hrRoutes);
+app.use('/v1/rip', ripRoutes);
+app.use('/v1/edocs', edocsRoutes);
+app.use('/v1/admin', adminRoutes);
+app.use('/v1/m2m', m2mRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -165,9 +180,11 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 });
 
 // Start server
-const startServer = () => {
+const startServer = async () => {
   const port = config.port;
   const host = config.host;
+
+  await initDb();
 
   app.listen(port, host, () => {
     appLogger.info('Server started', {
@@ -183,7 +200,6 @@ const startServer = () => {
     appLogger.info(`Health check: http://${host}:${port}/v1/health`);
     appLogger.info(`Documentation: http://${host}:${port}/v1/docs`);
 
-    // Log security configuration
     appLogger.info('Security configuration', {
       helmetEnabled: config.security.helmetEnabled,
       secureCookies: config.security.secureCookies,
@@ -197,24 +213,22 @@ const startServer = () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
-  // TODO: Close database connections, flush logs, etc.
+  externalTaskWorker.stop();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
+  externalTaskWorker.stop();
   process.exit(0);
 });
 
-// Unhandled rejection handler
 process.on('unhandledRejection', (reason: unknown) => {
   appLogger.error('Unhandled promise rejection', {
     reason: reason instanceof Error ? reason.message : String(reason),
   });
-  // Don't crash the server, but log the error
 });
 
-// Start the server
 startServer();
 
 export default app;

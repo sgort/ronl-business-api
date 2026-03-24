@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_HrOnboardingProcess" targetNamespace="http://example.com/hr-onboarding" exporter="Camunda Modeler" exporterVersion="5.43.1">
+  <bpmn:process id="HrOnboardingProcess" name="HR Onboarding Process" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:startEvent id="StartEvent_Onboarding" name="Start onboarding">
+      <bpmn:outgoing>Flow_Start_CollectData</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_CollectEmployeeData" name="Collect employee data" camunda:formRef="hr-onboarding-start" camunda:formRefBinding="latest" camunda:candidateGroups="hr-medewerker">
+      <bpmn:incoming>Flow_Start_CollectData</bpmn:incoming>
+      <bpmn:incoming>Flow_Revision_BackToCollect</bpmn:incoming>
+      <bpmn:outgoing>Flow_CollectData_DetermineRoles</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:businessRuleTask id="Task_DetermineRoles" name="Determine roles" camunda:resultVariable="roleResult" camunda:decisionRef="EmployeeRoleAssignment" camunda:mapDecisionResult="singleResult">
+      <bpmn:incoming>Flow_CollectData_DetermineRoles</bpmn:incoming>
+      <bpmn:outgoing>Flow_DetermineRoles_MapOutputs</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:scriptTask id="Task_MapRoleOutputs" name="Map role outputs" scriptFormat="javascript">
+      <bpmn:incoming>Flow_DetermineRoles_MapOutputs</bpmn:incoming>
+      <bpmn:outgoing>Flow_MapOutputs_ReviewRoles</bpmn:outgoing>
+      <bpmn:script>
+        execution.setVariable("assignedRoles",   roleResult.get("assignedRoles"));
+        execution.setVariable("candidateGroups", roleResult.get("candidateGroups"));
+        execution.setVariable("accessLevel",     roleResult.get("accessLevel"));
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:userTask id="Task_ReviewRoleAssignment" name="Review role assignment" camunda:formRef="hr-role-review" camunda:formRefBinding="latest" camunda:candidateGroups="hr-medewerker">
+      <bpmn:incoming>Flow_MapOutputs_ReviewRoles</bpmn:incoming>
+      <bpmn:outgoing>Flow_Review_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_ApprovalStatus" name="Approved?">
+      <bpmn:incoming>Flow_Review_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_Notify</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_Revision</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_NotifyEmployee" name="Notify employee" camunda:formRef="hr-notify-employee" camunda:formRefBinding="latest" camunda:candidateGroups="hr-medewerker">
+      <bpmn:incoming>Flow_Gateway_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_Onboarded" name="Employee onboarded">
+      <bpmn:incoming>Flow_Notify_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_RequestRevision" name="Request revision" camunda:candidateGroups="hr-medewerker">
+      <bpmn:incoming>Flow_Gateway_Revision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Revision_BackToCollect</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_Start_CollectData" sourceRef="StartEvent_Onboarding" targetRef="Task_CollectEmployeeData" />
+    <bpmn:sequenceFlow id="Flow_CollectData_DetermineRoles" sourceRef="Task_CollectEmployeeData" targetRef="Task_DetermineRoles" />
+    <bpmn:sequenceFlow id="Flow_DetermineRoles_MapOutputs" sourceRef="Task_DetermineRoles" targetRef="Task_MapRoleOutputs" />
+    <bpmn:sequenceFlow id="Flow_MapOutputs_ReviewRoles" sourceRef="Task_MapRoleOutputs" targetRef="Task_ReviewRoleAssignment" />
+    <bpmn:sequenceFlow id="Flow_Review_Gateway" sourceRef="Task_ReviewRoleAssignment" targetRef="Gateway_ApprovalStatus" />
+    <bpmn:sequenceFlow id="Flow_Gateway_Notify" name="approved" sourceRef="Gateway_ApprovalStatus" targetRef="Task_NotifyEmployee">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "approved"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_Revision" name="rejected" sourceRef="Gateway_ApprovalStatus" targetRef="Task_RequestRevision">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "rejected"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Notify_End" sourceRef="Task_NotifyEmployee" targetRef="EndEvent_Onboarded" />
+    <bpmn:sequenceFlow id="Flow_Revision_BackToCollect" sourceRef="Task_RequestRevision" targetRef="Task_CollectEmployeeData" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_HrOnboarding">
+    <bpmndi:BPMNPlane id="BPMNPlane_HrOnboarding" bpmnElement="HrOnboardingProcess">
+      <bpmndi:BPMNShape id="StartEvent_Onboarding_di" bpmnElement="StartEvent_Onboarding">
+        <dc:Bounds x="152" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="130" y="155" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CollectEmployeeData_di" bpmnElement="Task_CollectEmployeeData">
+        <dc:Bounds x="240" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DetermineRoles_di" bpmnElement="Task_DetermineRoles">
+        <dc:Bounds x="460" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MapRoleOutputs_di" bpmnElement="Task_MapRoleOutputs">
+        <dc:Bounds x="680" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReviewRoleAssignment_di" bpmnElement="Task_ReviewRoleAssignment">
+        <dc:Bounds x="900" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ApprovalStatus_di" bpmnElement="Gateway_ApprovalStatus" isMarkerVisible="true">
+        <dc:Bounds x="1115" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1113" y="82" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyEmployee_di" bpmnElement="Task_NotifyEmployee">
+        <dc:Bounds x="1220" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Onboarded_di" bpmnElement="EndEvent_Onboarded">
+        <dc:Bounds x="1442" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1434" y="155" width="53" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RequestRevision_di" bpmnElement="Task_RequestRevision">
+        <dc:Bounds x="680" y="250" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_CollectData_di" bpmnElement="Flow_Start_CollectData">
+        <di:waypoint x="188" y="130" />
+        <di:waypoint x="240" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CollectData_DetermineRoles_di" bpmnElement="Flow_CollectData_DetermineRoles">
+        <di:waypoint x="400" y="130" />
+        <di:waypoint x="460" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_DetermineRoles_MapOutputs_di" bpmnElement="Flow_DetermineRoles_MapOutputs">
+        <di:waypoint x="620" y="130" />
+        <di:waypoint x="680" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_MapOutputs_ReviewRoles_di" bpmnElement="Flow_MapOutputs_ReviewRoles">
+        <di:waypoint x="840" y="130" />
+        <di:waypoint x="900" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Review_Gateway_di" bpmnElement="Flow_Review_Gateway">
+        <di:waypoint x="1060" y="130" />
+        <di:waypoint x="1115" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Notify_di" bpmnElement="Flow_Gateway_Notify">
+        <di:waypoint x="1165" y="130" />
+        <di:waypoint x="1220" y="130" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1180" y="112" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Revision_di" bpmnElement="Flow_Gateway_Revision">
+        <di:waypoint x="1140" y="155" />
+        <di:waypoint x="1140" y="290" />
+        <di:waypoint x="840" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1156" y="200" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Notify_End_di" bpmnElement="Flow_Notify_End">
+        <di:waypoint x="1380" y="130" />
+        <di:waypoint x="1442" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Revision_BackToCollect_di" bpmnElement="Flow_Revision_BackToCollect">
+        <di:waypoint x="680" y="290" />
+        <di:waypoint x="320" y="290" />
+        <di:waypoint x="320" y="170" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -40,6 +40,11 @@ const SERVICE_LABELS: Record<string, { label: string; description: string; icon:
   },
 };
 
+const PROCESS_DEFINITION_LABELS: Record<string, string> = {
+  AwbShellProcess: 'Kapvergunning aanvragen',
+  AwbZorgtoeslagProcess: 'Zorgtoeslag aanvragen',
+};
+
 function VergunningForm({
   user,
   onBack,
@@ -132,17 +137,24 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('diensten');
   const [activeService, setActiveService] = useState<string | null>(null);
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
+  const [zorgtoeslagView, setZorgtoeslagView] = useState<'calculator' | 'aanvragen'>('calculator');
+  const [zorgtoeslagAanvraagSuccess, setZorgtoeslagAanvraagSuccess] = useState<{
+    dossier: string;
+  } | null>(null);
+  const [zorgtoeslagAanvraagError, setZorgtoeslagAanvraagError] = useState(false);
 
   // Zorgtoeslag calculator state
   const [calcLoading, setCalcLoading] = useState(false);
   const [calcResult, setCalcResult] = useState<ApiResponse | null>(null);
-  const [formData, setFormData] = useState({
-    ingezetene: true,
-    leeftijd: true,
-    betalingsregeling: false,
-    detentie: false,
-    verzekering: true,
-    inkomen: 24000,
+  const [calcFormData, setCalcFormData] = useState({
+    geboortedatum: '2000-01-10',
+    overlijdensdatum: '',
+    woonachtigNL: true,
+    rechtmatigVerblijfNL: true,
+    statusZorgverzekerd: 'Binnenlands zorgverzekerd',
+    gedetineerd: false,
+    toetsingsinkomen: 30000,
+    woonlandfactorBuitenland: 1.0,
   });
 
   // My applications state
@@ -220,19 +232,50 @@ export default function Dashboard() {
     }
   }, [activeTab, user, applications]);
 
+  function computeAge(geboortedatum: string, reference: Date): number {
+    const birth = new Date(geboortedatum);
+    let age = reference.getFullYear() - birth.getFullYear();
+    const m = reference.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && reference.getDate() < birth.getDate())) age--;
+    return Math.max(0, age);
+  }
+
   const handleEvaluate = async () => {
     setCalcLoading(true);
     setCalcResult(null);
     try {
+      const today = new Date();
+      const datumBerekening = today.toISOString().split('T')[0];
+      const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      const lastDayCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
       const variables: Record<string, OperatonVariable> = {
-        ingezetene_requirement: { value: formData.ingezetene, type: 'Boolean' },
-        leeftijd_requirement: { value: formData.leeftijd, type: 'Boolean' },
-        betalingsregeling_requirement: { value: formData.betalingsregeling, type: 'Boolean' },
-        detentie_requirement: { value: formData.detentie, type: 'Boolean' },
-        verzekering_requirement: { value: formData.verzekering, type: 'Boolean' },
-        inkomen_en_vermogen_requirement: { value: formData.inkomen, type: 'Double' },
+        datumBerekening: { value: datumBerekening, type: 'String' },
+        geboortedatum: { value: calcFormData.geboortedatum, type: 'String' },
+        leeftijdOpDatumBerekening: {
+          value: computeAge(calcFormData.geboortedatum, today),
+          type: 'Integer',
+        },
+        leeftijdOpLaatsteDagVorigeMaand: {
+          value: computeAge(calcFormData.geboortedatum, lastDayPrevMonth),
+          type: 'Integer',
+        },
+        leeftijdOpLaatsteDagHuidigeMaand: {
+          value: computeAge(calcFormData.geboortedatum, lastDayCurrentMonth),
+          type: 'Integer',
+        },
+        woonachtigNL: { value: calcFormData.woonachtigNL, type: 'Boolean' },
+        rechtmatigVerblijfNL: { value: calcFormData.rechtmatigVerblijfNL, type: 'Boolean' },
+        statusZorgverzekerd: { value: calcFormData.statusZorgverzekerd, type: 'String' },
+        gedetineerd: { value: calcFormData.gedetineerd, type: 'Boolean' },
+        toetsingsinkomen: { value: calcFormData.toetsingsinkomen, type: 'Double' },
+        woonlandfactorBuitenland: { value: calcFormData.woonlandfactorBuitenland, type: 'Double' },
       };
-      const response = await businessApi.evaluateDecision('berekenrechtenhoogtezorg', variables);
+      if (calcFormData.overlijdensdatum) {
+        variables.overlijdensdatum = { value: calcFormData.overlijdensdatum, type: 'String' };
+      }
+
+      const response = await businessApi.evaluateDecision('zorgtoeslag_resultaat', variables);
       setCalcResult(response);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -262,16 +305,25 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-medium">
-              {user?.name ?? user?.preferred_username ?? 'Burger'}
-            </p>
-            <div className="flex items-center gap-2 text-xs opacity-80 mt-0.5 justify-end">
-              <span
-                className="px-2 py-0.5 rounded"
-                style={{ backgroundColor: 'var(--color-primary-dark)' }}
-              >
-                LoA: {user?.loa ?? 'hoog'}
-              </span>
+            <p className="text-sm font-medium">{user?.preferred_username ?? 'Ingelogd'}</p>
+            <div className="flex items-center gap-1 text-xs opacity-80 mt-0.5 justify-end flex-wrap">
+              {user?.loa && (
+                <span
+                  className="px-2 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                >
+                  LoA: {user.loa}
+                </span>
+              )}
+              {(user?.roles ?? []).map((role) => (
+                <span
+                  key={role}
+                  className="px-2 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--color-primary-dark, #0d2f4f)' }}
+                >
+                  {role}
+                </span>
+              ))}
             </div>
             <button onClick={handleLogout} className="mt-1 text-sm underline hover:opacity-80">
               Uitloggen
@@ -351,107 +403,290 @@ export default function Dashboard() {
               onClick={() => {
                 setActiveService(null);
                 setCalcResult(null);
+                setZorgtoeslagView('calculator');
+                setZorgtoeslagAanvraagSuccess(null);
+                setZorgtoeslagAanvraagError(false);
               }}
               className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
             >
               ← Terug naar diensten
             </button>
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Zorgtoeslag Berekenen</h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    { key: 'ingezetene', label: 'Ingezetene van Nederland' },
-                    { key: 'leeftijd', label: '18 jaar of ouder' },
-                    { key: 'verzekering', label: 'Zorgverzekering in Nederland' },
-                  ].map(({ key, label }) => (
-                    <label key={key} className="flex items-center space-x-3">
-                      <input
-                        type="checkbox"
-                        checked={formData[key as keyof typeof formData] as boolean}
-                        onChange={(e) => setFormData({ ...formData, [key]: e.target.checked })}
-                        className="w-5 h-5"
-                        style={{ accentColor: 'var(--color-primary)' }}
-                      />
-                      <span className="text-gray-700">{label}</span>
-                    </label>
-                  ))}
-                  {[
-                    { key: 'betalingsregeling', label: 'Betalingsregeling Belastingdienst' },
-                    { key: 'detentie', label: 'In detentie' },
-                  ].map(({ key, label }) => (
-                    <label key={key} className="flex items-center space-x-3">
-                      <input
-                        type="checkbox"
-                        checked={formData[key as keyof typeof formData] as boolean}
-                        onChange={(e) => setFormData({ ...formData, [key]: e.target.checked })}
-                        className="w-5 h-5"
-                        style={{ accentColor: 'var(--color-primary)' }}
-                      />
-                      <span className="text-gray-700">{label}</span>
-                    </label>
-                  ))}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Toetsingsinkomen (€)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.inkomen}
-                    onChange={(e) => setFormData({ ...formData, inkomen: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                    style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
-                  />
-                </div>
-                <button
-                  onClick={handleEvaluate}
-                  disabled={calcLoading}
-                  className="w-full py-3 text-white font-semibold rounded-lg transition-opacity disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  {calcLoading ? 'Berekenen...' : 'Berekenen'}
-                </button>
-              </div>
 
-              {calcResult && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  {calcResult.success ? (
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold text-green-600">
-                        ✓ Berekening succesvol
-                      </h3>
-                      {Array.isArray(calcResult.data) && calcResult.data.length > 0 && (
-                        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-lg font-bold text-green-800">
-                            Zorgtoeslag: €{' '}
-                            {(
-                              calcResult.data[0] as { zorgtoeslag?: { value: number } }
-                            )?.zorgtoeslag?.value?.toFixed(2) ?? '0.00'}
-                          </p>
-                          {(calcResult.data[0] as { annotation?: { value: string } })?.annotation
-                            ?.value && (
-                            <p className="text-sm text-gray-600 mt-2">
-                              {
-                                (calcResult.data[0] as { annotation: { value: string } }).annotation
-                                  .value
-                              }
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
+            {zorgtoeslagView === 'calculator' && (
+              <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">Zorgtoeslag Berekenen</h2>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-yellow-700">ℹ️ Melding</h3>
-                      <p className="text-gray-700 mt-1">
-                        De berekening kon niet worden afgerond. Dit is bij de beheerder gemeld.
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Geboortedatum
+                      </label>
+                      <input
+                        type="date"
+                        value={calcFormData.geboortedatum}
+                        onChange={(e) =>
+                          setCalcFormData({ ...calcFormData, geboortedatum: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                        style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Overlijdensdatum{' '}
+                        <span className="text-gray-400 font-normal">(optioneel)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={calcFormData.overlijdensdatum}
+                        onChange={(e) =>
+                          setCalcFormData({ ...calcFormData, overlijdensdatum: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                        style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Toetsingsinkomen (€)
+                      </label>
+                      <input
+                        type="number"
+                        value={calcFormData.toetsingsinkomen}
+                        onChange={(e) =>
+                          setCalcFormData({
+                            ...calcFormData,
+                            toetsingsinkomen: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                        style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Woonlandfactor
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={calcFormData.woonlandfactorBuitenland}
+                        onChange={(e) =>
+                          setCalcFormData({
+                            ...calcFormData,
+                            woonlandfactorBuitenland: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                        style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Status zorgverzekering
+                      </label>
+                      <select
+                        value={calcFormData.statusZorgverzekerd}
+                        onChange={(e) =>
+                          setCalcFormData({ ...calcFormData, statusZorgverzekerd: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                        style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
+                      >
+                        <option value="Binnenlands zorgverzekerd">Binnenlands zorgverzekerd</option>
+                        <option value="Buitenlands zorgverzekerd">Buitenlands zorgverzekerd</option>
+                        <option value="Niet zorgverzekerd">Niet zorgverzekerd</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {(
+                      [
+                        { key: 'woonachtigNL', label: 'Woonachtig in Nederland' },
+                        { key: 'rechtmatigVerblijfNL', label: 'Rechtmatig verblijf NL' },
+                        { key: 'gedetineerd', label: 'Gedetineerd' },
+                      ] as { key: keyof typeof calcFormData; label: string }[]
+                    ).map(({ key, label }) => (
+                      <label key={key} className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calcFormData[key] as boolean}
+                          onChange={(e) =>
+                            setCalcFormData({ ...calcFormData, [key]: e.target.checked })
+                          }
+                          className="w-5 h-5"
+                          style={{ accentColor: 'var(--color-primary)' }}
+                        />
+                        <span className="text-sm text-gray-700">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleEvaluate}
+                      disabled={calcLoading}
+                      className="flex-1 py-3 text-white font-semibold rounded-lg transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      {calcLoading ? 'Berekenen...' : 'Berekenen'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCalcResult(null);
+                        setZorgtoeslagAanvraagError(false);
+                        setZorgtoeslagView('aanvragen');
+                      }}
+                      className="flex-1 py-3 font-semibold rounded-lg border-2 transition-colors"
+                      style={{
+                        borderColor: 'var(--color-primary)',
+                        color: 'var(--color-primary)',
+                      }}
+                    >
+                      Aanvragen
+                    </button>
+                  </div>
+                </div>
+
+                {calcResult && (
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    {calcResult.success &&
+                    Array.isArray(calcResult.data) &&
+                    calcResult.data.length > 0 ? (
+                      (() => {
+                        const row = calcResult.data[0] as {
+                          eligible?: { value: boolean };
+                          amountYear?: { value: number };
+                        };
+                        const eligible = row.eligible?.value ?? false;
+                        const amountYear = row.amountYear?.value ?? 0;
+                        return eligible ? (
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-green-600">
+                              ✓ Recht op zorgtoeslag
+                            </h3>
+                            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-lg font-bold text-green-800">
+                                Geschat jaarbedrag: € {amountYear.toFixed(2)}
+                              </p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                ≈ € {(amountYear / 12).toFixed(2)} per maand
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <h3 className="text-lg font-semibold text-yellow-700">
+                              ⚠ Geen recht op zorgtoeslag
+                            </h3>
+                            <p className="text-gray-600 mt-1 text-sm">
+                              Op basis van de ingevoerde gegevens bestaat er geen recht op
+                              zorgtoeslag.
+                            </p>
+                          </div>
+                        );
+                      })()
+                    ) : !calcResult.success ? (
+                      <div>
+                        <h3 className="text-lg font-semibold text-yellow-700">ℹ️ Melding</h3>
+                        <p className="text-gray-700 mt-1">
+                          De berekening kon niet worden afgerond. Probeer het opnieuw.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {zorgtoeslagView === 'aanvragen' && (
+              <div className="max-w-2xl">
+                <button
+                  onClick={() => {
+                    setZorgtoeslagView('calculator');
+                    setZorgtoeslagAanvraagError(false);
+                  }}
+                  className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                >
+                  ← Terug naar berekening
+                </button>
+                {zorgtoeslagAanvraagSuccess ? (
+                  <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+                    <div className="text-5xl mb-4">✅</div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Aanvraag ingediend</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Uw zorgtoeslag aanvraag is ontvangen en wordt behandeld.
+                    </p>
+                    <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+                      <p className="text-sm font-medium text-gray-700">
+                        Dossiernummer:{' '}
+                        <span className="font-mono">{zorgtoeslagAanvraagSuccess.dossier}</span>
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        U ontvangt bericht zodra de aanvraag is beoordeeld (wettelijke termijn: 8
+                        weken, Awb 4:13).
                       </p>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <button
+                      onClick={() => {
+                        setActiveService(null);
+                        setActiveTab('aanvragen');
+                        setApplications(null);
+                      }}
+                      className="w-full py-3 text-white font-semibold rounded-lg transition-opacity"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      Naar mijn aanvragen
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <span className="text-3xl">🏥</span>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-800">Zorgtoeslag aanvragen</h2>
+                        <p className="text-sm text-gray-500">
+                          Dien uw aanvraag in voor zorgtoeslag. De beoordeling verloopt via het
+                          Awb-proces (wettelijke termijn: 8 weken).
+                        </p>
+                      </div>
+                    </div>
+                    {zorgtoeslagAanvraagError && (
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                        De aanvraag kon niet worden ingediend. Probeer het opnieuw.
+                      </div>
+                    )}
+                    <ProcessStartFormViewer
+                      processKey="AwbZorgtoeslagProcess"
+                      initialData={(() => {
+                        const today = new Date();
+                        const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                        const lastDayCurrentMonth = new Date(
+                          today.getFullYear(),
+                          today.getMonth() + 1,
+                          0
+                        );
+                        return {
+                          applicantId: user?.sub ?? 'unknown',
+                          productType: 'Zorgtoeslag',
+                          ...calcFormData,
+                          leeftijdOpDatumBerekening: computeAge(calcFormData.geboortedatum, today),
+                          leeftijdOpLaatsteDagVorigeMaand: computeAge(
+                            calcFormData.geboortedatum,
+                            lastDayPrevMonth
+                          ),
+                          leeftijdOpLaatsteDagHuidigeMaand: computeAge(
+                            calcFormData.geboortedatum,
+                            lastDayCurrentMonth
+                          ),
+                        };
+                      })()}
+                      onStarted={(dossier) => setZorgtoeslagAanvraagSuccess({ dossier })}
+                      onError={() => setZorgtoeslagAanvraagError(true)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -526,7 +761,9 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-gray-800">
-                            {(app.processDefinitionKey as string) ?? 'Aanvraag'}
+                            {PROCESS_DEFINITION_LABELS[app.processDefinitionKey as string] ??
+                              (app.processDefinitionKey as string) ??
+                              'Aanvraag'}
                           </p>
                           <p className="text-sm text-gray-500">
                             {app.startTime

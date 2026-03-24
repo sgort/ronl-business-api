@@ -66,6 +66,20 @@
           }
         },
         {
+          "name": "organisation_type",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "organisation_type",
+            "claim.name": "organisation_type",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
           "name": "assurance_level",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-usermodel-attribute-mapper",
@@ -117,6 +131,94 @@
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
+        },
+        {
+          "name": "employee_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "employee_id",
+            "claim.name": "employeeId",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "preferred_username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "copilot-studio-edocs",
+      "name": "Copilot Studio — eDOCS",
+      "description": "Machine-to-machine client for Microsoft Copilot Studio eDOCS POC",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "change-me-in-keycloak-console",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "audience-edocs",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ronl-business-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "operaton-mcp-client",
+      "name": "Operaton MCP Client",
+      "description": "Machine-to-machine client for MCP-based Operaton interaction via the RONL Business API",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "change-me-in-keycloak-console",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "audience-ronl",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ronl-business-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
         }
       ]
     }
@@ -132,12 +234,24 @@
         "description": "Representative acting on behalf of a citizen (with mandate)"
       },
       {
+        "name": "hr-medewerker",
+        "description": "HR department employee who manages staff onboarding"
+      },
+      {
         "name": "caseworker",
         "description": "Municipality caseworker processing applications"
       },
       {
         "name": "admin",
         "description": "Municipality administrator"
+      },
+      {
+        "name": "infra-projectteam",
+        "description": "Infrastructure project team member — can claim RIP Phase 1 tasks"
+      },
+      {
+        "name": "infra-medewerker",
+        "description": "Infrastructure employee role assigned via HR onboarding DMN"
       }
     ]
   },
@@ -158,6 +272,7 @@
       ],
       "attributes": {
         "municipality": ["utrecht"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-001"]
       },
@@ -179,6 +294,7 @@
       ],
       "attributes": {
         "municipality": ["utrecht"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-001"]
       },
@@ -200,6 +316,7 @@
       ],
       "attributes": {
         "municipality": ["amsterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-002"]
       },
@@ -221,6 +338,7 @@
       ],
       "attributes": {
         "municipality": ["amsterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-002"]
       },
@@ -242,6 +360,7 @@
       ],
       "attributes": {
         "municipality": ["rotterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-003"]
       },
@@ -263,6 +382,7 @@
       ],
       "attributes": {
         "municipality": ["rotterdam"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-003"]
       },
@@ -284,6 +404,7 @@
       ],
       "attributes": {
         "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "opaque_id": ["opaque-citizen-004"]
       },
@@ -305,10 +426,187 @@
       ],
       "attributes": {
         "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-004"]
       },
       "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-hr-denhaag",
+      "enabled": true,
+      "firstName": "HR",
+      "lastName": "Medewerker Den Haag",
+      "email": "hr@denhaag.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-hr-01"]
+      },
+      "realmRoles": ["caseworker", "hr-medewerker"]
+    },
+    {
+      "username": "test-onboarded-denhaag",
+      "enabled": true,
+      "firstName": "Onboarded",
+      "lastName": "Medewerker Den Haag",
+      "email": "onboarded@denhaag.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["denhaag"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-test-01"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-flevoland",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Flevolander",
+      "email": "test@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-005"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-hr-flevoland",
+      "enabled": true,
+      "firstName": "HR",
+      "lastName": "Medewerker Flevoland",
+      "email": "hr@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-hr-01"]
+      },
+      "realmRoles": ["caseworker", "hr-medewerker"]
+    },
+    {
+      "username": "test-caseworker-flevoland",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Flevoland",
+      "email": "medewerker@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-005"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-infra-flevoland",
+      "enabled": true,
+      "firstName": "Infra",
+      "lastName": "Medewerker Flevoland",
+      "email": "infra@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-001"]
+      },
+      "realmRoles": ["caseworker", "infra-projectteam", "infra-medewerker"]
+    },
+    {
+      "username": "test-citizen-uwv",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "UWV Aanvrager",
+      "email": "test@uwv.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["uwv"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-006"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-uwv",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker UWV",
+      "email": "medewerker@uwv.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["uwv"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-006"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-toeslagen",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Toeslagen Aanvrager",
+      "email": "test@toeslagen.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["toeslagen"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-007"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-toeslagen",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Toeslagen",
+      "email": "medewerker@toeslagen.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["toeslagen"],
+        "organisation_type": ["national"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-007"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
+      "username": "test-citizen-unive",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Unive Klant",
+      "email": "test@unive.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["unive"],
+        "organisation_type": ["commercial"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-008"]
+      },
+      "realmRoles": ["citizen"]
     }
   ],
   "identityProviders": [

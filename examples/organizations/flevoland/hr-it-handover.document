@@ -1,0 +1,802 @@
+{
+  "id": "hr-it-handover",
+  "name": "HR Onboarding — IT Accountaanvraag",
+  "description": "Interne overdracht aan IT voor aanmaken gebruikersaccount na goedgekeurde onboarding",
+  "processKey": "HrOnboardingProcess",
+  "serviceId": "HrOnboarding",
+  "schemaVersion": 1,
+  "readonly": false,
+  "status": "wip",
+  "createdAt": "2026-03-11T19:50:30.649Z",
+  "updatedAt": "2026-03-11T19:53:26.814Z",
+  "assets": [],
+  "bindings": [
+    {
+      "id": "b1",
+      "placeholder": "{{employeeId}}",
+      "variableKey": "employeeId",
+      "source": "process",
+      "label": "Medewerker-ID"
+    },
+    {
+      "id": "b2",
+      "placeholder": "{{firstName}}",
+      "variableKey": "firstName",
+      "source": "process",
+      "label": "Voornaam"
+    },
+    {
+      "id": "b3",
+      "placeholder": "{{lastName}}",
+      "variableKey": "lastName",
+      "source": "process",
+      "label": "Achternaam"
+    },
+    {
+      "id": "b4",
+      "placeholder": "{{municipality}}",
+      "variableKey": "municipality",
+      "source": "process",
+      "label": "Gemeente"
+    },
+    {
+      "id": "b5",
+      "placeholder": "{{department}}",
+      "variableKey": "department",
+      "source": "process",
+      "label": "Afdeling"
+    },
+    {
+      "id": "b6",
+      "placeholder": "{{jobFunction}}",
+      "variableKey": "jobFunction",
+      "source": "process",
+      "label": "Functie"
+    },
+    {
+      "id": "b7",
+      "placeholder": "{{assignedRoles}}",
+      "variableKey": "assignedRoles",
+      "source": "dmn_output",
+      "label": "Toegewezen rollen"
+    },
+    {
+      "id": "b8",
+      "placeholder": "{{candidateGroups}}",
+      "variableKey": "candidateGroups",
+      "source": "dmn_output",
+      "label": "Taakgroepen"
+    },
+    {
+      "id": "b9",
+      "placeholder": "{{accessLevel}}",
+      "variableKey": "accessLevel",
+      "source": "dmn_output",
+      "label": "Toegangsniveau"
+    },
+    {
+      "id": "b10",
+      "placeholder": "{{startDate}}",
+      "variableKey": "startDate",
+      "source": "process",
+      "label": "Startdatum"
+    },
+    {
+      "placeholder": "{{organisationType}}",
+      "variableKey": "organisationType",
+      "source": "process",
+      "id": "b_1773258697914"
+    }
+  ],
+  "zones": {
+    "letterhead": {
+      "blocks": [
+        {
+          "id": "lh_org_name",
+          "type": "text",
+          "label": "Organisatienaam",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 1
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Provincie Flevoland"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ],
+                    "text": "Afdeling HR — Interne overdracht aan IT"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_1773258800246_muf4j",
+          "type": "separator",
+          "label": "Separator"
+        }
+      ]
+    },
+    "contactInformation": {
+      "blocks": [
+        {
+          "id": "ci_address",
+          "type": "text",
+          "label": "Contactgegevens HR",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Afdeling Personeelszaken"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Provincie {{municipality}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "E-mail: hr@flevoland.nl"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Verwerking via: IOU portaal"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "reference": {
+      "blocks": [
+        {
+          "id": "ref_header",
+          "type": "text",
+          "label": "Kenmerk en datum",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Medewerker-ID: {{employeeId}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Startdatum: {{startDate}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Betreft: Accountaanvraag nieuwe medewerker"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "ref_addressee",
+          "type": "text",
+          "label": "Geachte",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Geachte collega van de IT-afdeling,"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "body": {
+      "blocks": [
+        {
+          "id": "body_intro",
+          "type": "text",
+          "label": "Inleiding",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "De HR-afdeling verzoekt u een gebruikersaccount aan te maken voor onderstaande nieuwe medewerker. De onboarding is afgerond en goedgekeurd. De medewerker dient toegang te krijgen conform de onderstaande specificaties."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body_employee_heading",
+          "type": "text",
+          "label": "Medewerkergegevens",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Medewerkergegevens"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body_employee_details",
+          "type": "text",
+          "label": "Persoonsgegevens",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "Naam: "
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{firstName}} {{lastName}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "Medewerker-ID: "
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{employeeId}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "Provincie: "
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{municipality}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "Afdeling: "
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{department}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "Functie: "
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{jobFunction}}"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body_access_heading",
+          "type": "text",
+          "label": "Toegangsspecificaties",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Toegangsspecificaties"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body_access_details",
+          "type": "text",
+          "label": "Rollen en toegangsniveau",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Toegangsniveau: ",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{accessLevel}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Realm rollen (Keycloak): ",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{assignedRoles}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Taakgroepen (Operaton): ",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{candidateGroups}}"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body_instructions_heading",
+          "type": "text",
+          "label": "Instructies",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Handelingsinstructies"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body_instructions",
+          "type": "text",
+          "label": "Stappen voor IT",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "1. Maak een gebruikersaccount aan in Keycloak realm "
+                  },
+                  {
+                    "type": "text",
+                    "text": "ronl"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "   — Gebruikersnaam: conform naamgevingsconventie {{firstName}}.{{lastName}}-{{municipality}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "   — User attribute "
+                  },
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ],
+                    "text": "municipality"
+                  },
+                  {
+                    "type": "text",
+                    "text": " instellen op: {{municipality}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "   — User attribute "
+                  },
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ],
+                    "text": "employee_id"
+                  },
+                  {
+                    "type": "text",
+                    "text": " instellen op: {{employeeId}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "   — User attribute "
+                  },
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ],
+                    "text": "assurance_level"
+                  },
+                  {
+                    "type": "text",
+                    "text": " instellen op: hoog"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "   — User attribute "
+                  },
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ],
+                    "text": "organisation_type"
+                  },
+                  {
+                    "type": "text",
+                    "text": " instellen op: {{organisationType}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "2. Ken de volgende realm rollen toe: "
+                  },
+                  {
+                    "type": "text",
+                    "text": "{{assignedRoles}}"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "3. Stel een tijdelijk wachtwoord in en zet "
+                  },
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ],
+                    "text": "Temporary"
+                  },
+                  {
+                    "type": "text",
+                    "text": " op aan zodat de medewerker dit bij eerste inlog wijzigt."
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "4. Bevestig aanmaak aan HR via hr@flevoland.nl met vermelding van medewerker-ID {{employeeId}}."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "closing": {
+      "blocks": [
+        {
+          "id": "cl_deadline",
+          "type": "text",
+          "label": "Termijn",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Wij verzoeken u het account uiterlijk één werkdag vóór de startdatum ({{startDate}}) aan te maken zodat de medewerker op de eerste werkdag direct toegang heeft."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "signOff": {
+      "blocks": [
+        {
+          "id": "so_closing",
+          "type": "text",
+          "label": "Afsluiting",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Met vriendelijke groet,"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "so_spacer",
+          "type": "spacer",
+          "label": "Ruimte handtekening"
+        },
+        {
+          "id": "so_name",
+          "type": "text",
+          "label": "Naam en functie",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Namens de afdeling HR,"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph"
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ],
+                    "text": "HR-medewerker Onboarding"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Provincie {{municipality}}"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "annex": null
+  }
+}

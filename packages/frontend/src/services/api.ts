@@ -6,6 +6,7 @@ import type {
   HealthResponse,
   ProcessStatusResponse,
   Task,
+  HistoricTask,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -15,6 +16,14 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  if (keycloak.authenticated) {
+    try {
+      await keycloak.updateToken(120);
+    } catch {
+      keycloak.login();
+      return Promise.reject(new Error('Session expired'));
+    }
+  }
   if (keycloak.token) {
     config.headers.Authorization = `Bearer ${keycloak.token}`;
   }
@@ -25,8 +34,15 @@ export const businessApi = {
   // ── Health ────────────────────────────────────────────────────────────────
 
   health: async (): Promise<HealthResponse> => {
-    const response = await api.get<ApiResponse<HealthResponse>>('/health');
-    return response.data.data as HealthResponse;
+    try {
+      const response = await api.get<ApiResponse<HealthResponse>>('/health');
+      return response.data.data as HealthResponse;
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.data?.data) {
+        return err.response.data.data as HealthResponse;
+      }
+      throw err;
+    }
   },
 
   // ── DMN decisions ─────────────────────────────────────────────────────────
@@ -48,10 +64,6 @@ export const businessApi = {
   // ── Process instances ─────────────────────────────────────────────────────
 
   process: {
-    /**
-     * Start a new process instance.
-     * POST /v1/process/:key/start
-     */
     start: async (
       processKey: string,
       variables: Record<string, unknown>,
@@ -64,20 +76,11 @@ export const businessApi = {
       return response.data;
     },
 
-    /**
-     * Fetch the deployed Camunda Forms schema for a process start event.
-     * Returns 404 if no form is linked, 415 if the form is embedded HTML (not supported).
-     * GET /v1/process/:key/start-form
-     */
     startForm: async (processKey: string): Promise<ApiResponse<unknown>> => {
       const response = await api.get<ApiResponse<unknown>>(`/process/${processKey}/start-form`);
       return response.data;
     },
 
-    /**
-     * Get process instance status.
-     * GET /v1/process/:id/status
-     */
     status: async (processInstanceId: string): Promise<ApiResponse<ProcessStatusResponse>> => {
       const response = await api.get<ApiResponse<ProcessStatusResponse>>(
         `/process/${processInstanceId}/status`
@@ -85,10 +88,6 @@ export const businessApi = {
       return response.data;
     },
 
-    /**
-     * Get all variables of a process instance.
-     * GET /v1/process/:id/variables
-     */
     variables: async (processInstanceId: string): Promise<ApiResponse<Record<string, unknown>>> => {
       const response = await api.get<ApiResponse<Record<string, unknown>>>(
         `/process/${processInstanceId}/variables`
@@ -96,10 +95,6 @@ export const businessApi = {
       return response.data;
     },
 
-    /**
-     * Cancel (delete) a process instance.
-     * DELETE /v1/process/:id
-     */
     cancel: async (processInstanceId: string, reason?: string): Promise<ApiResponse> => {
       const response = await api.delete<ApiResponse>(`/process/${processInstanceId}`, {
         data: { reason },
@@ -114,10 +109,6 @@ export const businessApi = {
       return response.data;
     },
 
-    /**
-     * Get final variable state of a completed process instance.
-     * GET /v1/process/:id/historic-variables
-     */
     historicVariables: async (
       processInstanceId: string
     ): Promise<ApiResponse<Record<string, unknown>>> => {
@@ -126,43 +117,35 @@ export const businessApi = {
       );
       return response.data;
     },
+
+    decisionDocument: async (
+      processInstanceId: string
+    ): Promise<{ success: boolean; template?: Record<string, unknown> }> => {
+      const response = await api.get<{ success: boolean; template?: Record<string, unknown> }>(
+        `/process/${processInstanceId}/decision-document`
+      );
+      return response.data;
+    },
   },
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
 
   task: {
-    /**
-     * List open tasks for the authenticated caseworker's municipality.
-     * GET /v1/task
-     */
     list: async (): Promise<ApiResponse<Task[]>> => {
       const response = await api.get<ApiResponse<Task[]>>('/task');
       return response.data;
     },
 
-    /**
-     * Get a single task by ID.
-     * GET /v1/task/:id
-     */
     get: async (taskId: string): Promise<ApiResponse<Task>> => {
       const response = await api.get<ApiResponse<Task>>(`/task/${taskId}`);
       return response.data;
     },
 
-    /**
-     * Fetch the deployed Camunda Forms schema for a user task.
-     * Returns 404 if no form is linked, 415 if the form is embedded HTML (not supported).
-     * GET /v1/task/:id/form-schema
-     */
     formSchema: async (taskId: string): Promise<ApiResponse<unknown>> => {
       const response = await api.get<ApiResponse<unknown>>(`/task/${taskId}/form-schema`);
       return response.data;
     },
 
-    /**
-     * Get all process variables for a task.
-     * GET /v1/task/:id/variables
-     */
     variables: async (taskId: string): Promise<ApiResponse<Record<string, unknown>>> => {
       const response = await api.get<ApiResponse<Record<string, unknown>>>(
         `/task/${taskId}/variables`
@@ -170,26 +153,239 @@ export const businessApi = {
       return response.data;
     },
 
-    /**
-     * Claim a task for the authenticated caseworker.
-     * POST /v1/task/:id/claim
-     */
     claim: async (taskId: string): Promise<ApiResponse> => {
       const response = await api.post<ApiResponse>(`/task/${taskId}/claim`);
       return response.data;
     },
 
-    /**
-     * Complete a task with submitted variables.
-     * POST /v1/task/:id/complete
-     */
     complete: async (taskId: string, variables: Record<string, unknown>): Promise<ApiResponse> => {
       const response = await api.post<ApiResponse>(`/task/${taskId}/complete`, { variables });
       return response.data;
     },
+
+    history: async (): Promise<ApiResponse<HistoricTask[]>> => {
+      const response = await api.get<ApiResponse<HistoricTask[]>>('/task/history');
+      return response.data;
+    },
   },
 
-  // ── Utilities ─────────────────────────────────────────────────────────────
+  // ── Public content (no auth required) ────────────────────────────────────
+
+  portal: {
+    /**
+     * GET /v1/public/nieuws
+     * National news from Rijksoverheid — publicly accessible.
+     */
+    nieuws: async (limit = 10, offset = 0) => {
+      type R = ApiResponse<{
+        items: NieuwsItem[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>;
+      const response = await api.get<R>(`/public/nieuws?limit=${limit}&offset=${offset}`);
+      return response.data;
+    },
+
+    berichten: async (limit = 10, offset = 0) => {
+      type R = ApiResponse<{
+        items: BerichtItem[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>;
+      const response = await api.get<R>(`/public/berichten?limit=${limit}&offset=${offset}`);
+      return response.data;
+    },
+
+    regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
+      const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
+      return response.data;
+    },
+  },
+
+  hr: {
+    profile: async (employeeId: string): Promise<ApiResponse<Record<string, unknown>>> => {
+      const response = await api.get<ApiResponse<Record<string, unknown>>>(
+        `/hr/onboarding/profile?employeeId=${encodeURIComponent(employeeId)}`
+      );
+      return response.data;
+    },
+    completed: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          endTime: string;
+          employeeId: string;
+          firstName: string;
+          lastName: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/hr/onboarding/completed');
+      return response.data;
+    },
+  },
+
+  rip: {
+    phase1Active: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phase1/active');
+      return response.data;
+    },
+
+    phase1Documents: async (
+      instanceId: string
+    ): Promise<
+      ApiResponse<{
+        variables: Record<string, unknown>;
+        intakeReport: Record<string, unknown> | null;
+        psuReport: Record<string, unknown> | null;
+        pdp: Record<string, unknown> | null;
+      }>
+    > => {
+      const response = await api.get(`/rip/phase1/${instanceId}/documents`);
+      return response.data;
+    },
+
+    phase1Completed: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          endTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phase1/completed');
+      return response.data;
+    },
+  },
+
+  admin: {
+    auditLogs: async (
+      limit = 50,
+      offset = 0
+    ): Promise<
+      ApiResponse<{
+        items: AuditLogRecord[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>
+    > => {
+      const response = await api.get(`/admin/audit?limit=${limit}&offset=${offset}`);
+      return response.data;
+    },
+  },
+
+  edocs: {
+    status: async (): Promise<
+      ApiResponse<{
+        status: 'up' | 'down' | 'stub';
+        library?: string;
+        stubMode?: boolean;
+        latencyMs?: number;
+      }>
+    > => {
+      const response = await api.get('/edocs/status');
+      return response.data;
+    },
+  },
+
+  externalStatus: async (): Promise<
+    ApiResponse<Record<string, { status: 'up' | 'down'; latency: number }>>
+  > => {
+    const response = await api.get('/health/external');
+    return response.data;
+  },
 
   getBaseUrl: () => API_BASE_URL,
 };
+
+// ── Shared public content types (used by portal methods and the dashboard) ──
+
+export interface NieuwsItem {
+  id: string;
+  title: string;
+  summary: string;
+  category: string | null;
+  publishedAt: string;
+  url: string | null;
+  source: { id: string; name: string };
+}
+
+export interface BerichtItem {
+  id: string;
+  subject: string;
+  preview: string;
+  content: string | null;
+  type: 'announcement' | 'maintenance' | 'update';
+  status: 'published';
+  audience: 'all';
+  sender: { id: string; name: string };
+  publishedAt: string;
+  expiresAt: string | null;
+  priority: 'low' | 'normal' | 'high';
+  isRead: boolean;
+  action: { label: string; url: string } | null;
+}
+
+export interface CatalogService {
+  uri: string;
+  title: string;
+  description: string;
+}
+
+export interface CatalogOrganization {
+  uri: string;
+  identifier: string;
+  name: string;
+  homepage: string | null;
+  logo: string | null;
+  services: Array<{ uri: string; title: string }>;
+}
+
+export interface CatalogConcept {
+  uri: string;
+  prefLabel: string;
+  exactMatch: string | null;
+  serviceUri: string;
+  serviceTitle: string;
+}
+
+export interface CatalogRule {
+  serviceTitle: string;
+  ruleTitle: string;
+  validFrom: string | null;
+  confidence: string | null;
+  description: string | null;
+}
+
+export interface RegelcatalogusData {
+  services: CatalogService[];
+  organizations: CatalogOrganization[];
+  concepts: CatalogConcept[];
+  rules: CatalogRule[];
+}
+
+export interface AuditLogRecord {
+  id: number;
+  timestamp: string;
+  tenant_id: string;
+  user_id: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  details: Record<string, unknown> | null;
+  result: 'success' | 'failure' | 'error';
+  error_message: string | null;
+  request_id: string | null;
+}

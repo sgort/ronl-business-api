@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:camunda="http://camunda.org/schema/1.0/dmn"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  id="definitions_awb_completeness"
+  name="AwbCompletenessCheck"
+  namespace="http://example.com/awb/dmn"
+  exporter="Camunda Modeler"
+  exporterVersion="5.36.0">
+
+  <!--
+    AwbCompletenessCheck
+    ====================
+    AWB Phase 3 - Admissibility Check (Awb 2:3 / 4:5)
+
+    Determines whether a submitted application is complete.
+    An incomplete application must be returned to the applicant
+    for supplementation before processing can begin (Awb 4:5).
+
+    To add a new product/service: add one or two rows for that productType.
+
+    Inputs:
+      - productType  (String)  : identifies the public service type
+      - treeDiameter (Integer) : product-specific field (tree felling)
+
+    Outputs:
+      - isComplete    (Boolean) : true if the application may be processed
+      - missingFields (String)  : description of what is missing (if any)
+      - awbArticle    (String)  : applicable Awb article for the decision
+  -->
+
+  <decision id="AwbCompletenessCheck" name="Awb Admissibility Check" camunda:historyTimeToLive="180">
+    <decisionTable id="DecisionTable_Completeness" hitPolicy="FIRST">
+
+      <input id="Input_ProductType">
+        <inputExpression id="InputExpr_ProductType" typeRef="string">
+          <text>productType</text>
+        </inputExpression>
+      </input>
+
+      <input id="Input_TreeDiameter">
+        <inputExpression id="InputExpr_TreeDiameter" typeRef="integer">
+          <text>treeDiameter</text>
+        </inputExpression>
+      </input>
+
+      <output id="Output_IsComplete"    name="isComplete"    typeRef="boolean" />
+      <output id="Output_MissingFields" name="missingFields" typeRef="string" />
+      <output id="Output_AwbArticle"    name="awbArticle"    typeRef="string" />
+
+      <!-- TreeFellingPermit: diameter missing or invalid -->
+      <rule id="Rule_TreeFelling_Incomplete">
+        <inputEntry id="IE_TF_ProductType_Inc"><text>"TreeFellingPermit"</text></inputEntry>
+        <inputEntry id="IE_TF_Diameter_Inc"><text>&lt;= 0</text></inputEntry>
+        <outputEntry id="OE_TF_Complete_Inc"><text>false</text></outputEntry>
+        <outputEntry id="OE_TF_Missing_Inc"><text>"Tree diameter is missing or invalid. Please enter the trunk diameter in centimetres (measured at 1.30m height)."</text></outputEntry>
+        <outputEntry id="OE_TF_Article_Inc"><text>"Awb 4:5 paragraph 1 - application incomplete"</text></outputEntry>
+      </rule>
+
+      <!-- TreeFellingPermit: diameter present and valid -->
+      <rule id="Rule_TreeFelling_Complete">
+        <inputEntry id="IE_TF_ProductType_Com"><text>"TreeFellingPermit"</text></inputEntry>
+        <inputEntry id="IE_TF_Diameter_Com"><text>&gt; 0</text></inputEntry>
+        <outputEntry id="OE_TF_Complete_Com"><text>true</text></outputEntry>
+        <outputEntry id="OE_TF_Missing_Com"><text>"No missing fields."</text></outputEntry>
+        <outputEntry id="OE_TF_Article_Com"><text>"Awb 4:5 - application complete"</text></outputEntry>
+      </rule>
+
+      <!-- BuildingPermit (future placeholder) -->
+      <rule id="Rule_BuildingPermit_Complete">
+        <inputEntry id="IE_BP_ProductType"><text>"BuildingPermit"</text></inputEntry>
+        <inputEntry id="IE_BP_Diameter"><text>-</text></inputEntry>
+        <outputEntry id="OE_BP_Complete"><text>true</text></outputEntry>
+        <outputEntry id="OE_BP_Missing"><text>"No missing fields."</text></outputEntry>
+        <outputEntry id="OE_BP_Article"><text>"Awb 4:5 - application complete"</text></outputEntry>
+      </rule>
+
+      <!-- Fallback: unknown product type -->
+      <rule id="Rule_Default">
+        <inputEntry id="IE_UK_ProductType"><text>-</text></inputEntry>
+        <inputEntry id="IE_UK_Diameter"><text>-</text></inputEntry>
+        <outputEntry id="OE_UK_Complete"><text>true</text></outputEntry>
+        <outputEntry id="OE_UK_Missing"><text>"Unknown product type - declared complete by default."</text></outputEntry>
+        <outputEntry id="OE_UK_Article"><text>"Awb 4:5 - default rule"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <inputData id="InputData_productType" name="productType">
+    <variable id="Variable_productType" name="productType" typeRef="string" />
+  </inputData>
+
+  <inputData id="InputData_treeDiameter" name="treeDiameter">
+    <variable id="Variable_treeDiameter" name="treeDiameter" typeRef="integer" />
+  </inputData>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_Completeness">
+      <dmndi:DMNShape id="DMNShape_Completeness" dmnElementRef="AwbCompletenessCheck">
+        <dc:Bounds height="80" width="180" x="150" y="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>

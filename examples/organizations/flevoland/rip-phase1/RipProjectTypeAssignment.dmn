@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:camunda="http://camunda.org/schema/1.0/dmn"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  id="definitions"
+  name="RipProjectTypeAssignment"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Linked Data Explorer"
+  exporterVersion="1.1.0">
+
+  <!--
+    RIP Project Type Assignment
+    Determines candidateGroups and assignedRoles based on projectType and department.
+
+    Currently all rules resolve to infra-projectteam / infra-medewerker so that any
+    team member can claim tasks. The table structure supports adding granular per-role
+    rules later without any BPMN changes — add rows here and re-deploy.
+
+    Inputs:
+      projectType  String  e.g. "wegaanleg", "brug", "onderhoud", "kanaal"
+      department   String  e.g. "infrastructuur", "omgeving", "contractbeheer"
+
+    Outputs:
+      candidateGroups  String  Operaton candidate group(s), comma-separated
+      assignedRoles    String  Role label(s) for audit / document bindings
+  -->
+
+  <decision id="RipProjectTypeAssignment" name="RIP Project Type Assignment" camunda:historyTimeToLive="365">
+    <decisionTable id="DecisionTable_RipProjectTypeAssignment" hitPolicy="FIRST">
+
+      <input id="Input_projectType">
+        <inputExpression id="InputExpression_projectType" typeRef="string">
+          <text>projectType</text>
+        </inputExpression>
+      </input>
+
+      <input id="Input_department">
+        <inputExpression id="InputExpression_department" typeRef="string">
+          <text>department</text>
+        </inputExpression>
+      </input>
+
+      <output id="Output_candidateGroups" name="candidateGroups" typeRef="string" />
+      <output id="Output_assignedRoles"   name="assignedRoles"   typeRef="string" />
+
+      <!--
+        Future granular rules example (commented out — ready to activate):
+
+        <rule id="Rule_WegaanlegOmgeving">
+          <inputEntry><text>"wegaanleg"</text></inputEntry>
+          <inputEntry><text>"omgeving"</text></inputEntry>
+          <outputEntry><text>"infra-projectteam,omgevingsmanager"</text></outputEntry>
+          <outputEntry><text>"infra-medewerker,omgevingsmanager"</text></outputEntry>
+        </rule>
+      -->
+
+      <!-- Rule 1: infrastructuur / any projectType -->
+      <rule id="Rule_01">
+        <inputEntry id="InputEntry_01_1"><text>-</text></inputEntry>
+        <inputEntry id="InputEntry_01_2"><text>"infrastructuur"</text></inputEntry>
+        <outputEntry id="OutputEntry_01_1"><text>"infra-projectteam"</text></outputEntry>
+        <outputEntry id="OutputEntry_01_2"><text>"infra-medewerker"</text></outputEntry>
+      </rule>
+
+      <!-- Rule 2: omgeving / any projectType -->
+      <rule id="Rule_02">
+        <inputEntry id="InputEntry_02_1"><text>-</text></inputEntry>
+        <inputEntry id="InputEntry_02_2"><text>"omgeving"</text></inputEntry>
+        <outputEntry id="OutputEntry_02_1"><text>"infra-projectteam"</text></outputEntry>
+        <outputEntry id="OutputEntry_02_2"><text>"infra-medewerker"</text></outputEntry>
+      </rule>
+
+      <!-- Rule 3: contractbeheer / any projectType -->
+      <rule id="Rule_03">
+        <inputEntry id="InputEntry_03_1"><text>-</text></inputEntry>
+        <inputEntry id="InputEntry_03_2"><text>"contractbeheer"</text></inputEntry>
+        <outputEntry id="OutputEntry_03_1"><text>"infra-projectteam"</text></outputEntry>
+        <outputEntry id="OutputEntry_03_2"><text>"infra-medewerker"</text></outputEntry>
+      </rule>
+
+      <!-- Rule 4: catch-all -->
+      <rule id="Rule_04">
+        <inputEntry id="InputEntry_04_1"><text>-</text></inputEntry>
+        <inputEntry id="InputEntry_04_2"><text>-</text></inputEntry>
+        <outputEntry id="OutputEntry_04_1"><text>"infra-projectteam"</text></outputEntry>
+        <outputEntry id="OutputEntry_04_2"><text>"infra-medewerker"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <inputData id="InputData_projectType" name="projectType">
+    <variable id="Variable_projectType" name="projectType" typeRef="string" />
+  </inputData>
+
+  <inputData id="InputData_department" name="department">
+    <variable id="Variable_department" name="department" typeRef="string" />
+  </inputData>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_RipProjectTypeAssignment">
+      <dmndi:DMNShape id="DMNShape_RipProjectTypeAssignment" dmnElementRef="RipProjectTypeAssignment">
+        <dc:Bounds height="80" width="180" x="150" y="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>

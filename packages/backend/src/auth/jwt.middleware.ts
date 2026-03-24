@@ -65,10 +65,13 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
   return {
     userId: payload.sub,
     tenantId: payload.municipality,
-    roles: payload.roles || [],
+    organisationType: payload.organisation_type,
+    roles: payload.realm_access?.roles ?? [],
     assuranceLevel: payload.loa as AssuranceLevel,
     mandate: payload.mandate,
     displayName: payload.name,
+    preferredUsername: payload.preferred_username,
+    employeeId: payload.employeeId,
   };
 }
 
@@ -113,6 +116,7 @@ export const jwtMiddleware = async (req: Request, res: Response, next: NextFunct
     req.user = user;
     req.auth = {
       ...user,
+      azp: payload.azp,
       requestId: (req.headers['x-request-id'] as string) || `req-${Date.now()}`,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],

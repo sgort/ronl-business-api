@@ -1,0 +1,224 @@
+{
+  "id": "rip-psu-report",
+  "name": "RIP — PSU Report (Column 3)",
+  "description": "Project start-up report. Records PSU outcomes, team roles, and action points. Saved to eDOCS after PSU execution.",
+  "processKey": "RipPhase1Process",
+  "serviceId": "RipPhase1",
+  "schemaVersion": 1,
+  "readonly": false,
+  "status": "wip",
+  "createdAt": "2026-03-13T00:00:00.000Z",
+  "updatedAt": "2026-03-13T00:00:00.000Z",
+  "assets": [],
+  "bindings": [
+    { "id": "b1",  "placeholder": "{{projectNumber}}",        "variableKey": "projectNumber",        "source": "process", "label": "Project number" },
+    { "id": "b2",  "placeholder": "{{projectName}}",          "variableKey": "projectName",          "source": "process", "label": "Project name" },
+    { "id": "b3",  "placeholder": "{{psDate}}",               "variableKey": "psDate",               "source": "process", "label": "PSU date" },
+    { "id": "b4",  "placeholder": "{{psLocation}}",           "variableKey": "psLocation",           "source": "process", "label": "PSU location" },
+    { "id": "b5",  "placeholder": "{{psOutcomes}}",           "variableKey": "psOutcomes",           "source": "process", "label": "PSU outcomes" },
+    { "id": "b6",  "placeholder": "{{psActionPoints}}",       "variableKey": "psActionPoints",       "source": "process", "label": "Action points" },
+    { "id": "b7",  "placeholder": "{{psRisksIdentified}}",    "variableKey": "psRisksIdentified",    "source": "process", "label": "Risks identified" },
+    { "id": "b8",  "placeholder": "{{projectManager}}",       "variableKey": "projectManager",       "source": "process", "label": "Project manager" },
+    { "id": "b9",  "placeholder": "{{projectSupporter}}",     "variableKey": "projectSupporter",     "source": "process", "label": "Project supporter" },
+    { "id": "b10", "placeholder": "{{environmentalManager}}", "variableKey": "environmentalManager", "source": "process", "label": "Environmental manager" },
+    { "id": "b11", "placeholder": "{{projectControlManager}}","variableKey": "projectControlManager","source": "process", "label": "Project control manager" },
+    { "id": "b12", "placeholder": "{{psNotes}}",              "variableKey": "psNotes",              "source": "process", "label": "Additional notes" }
+  ],
+  "zones": {
+    "letterhead": {
+      "blocks": [
+        {
+          "id": "lh1",
+          "type": "text",
+          "label": "Organisation header",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 1 },
+                "content": [{ "type": "text", "text": "Province of Flevoland" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "Infrastructure — Regular Infrastructure Projects" }]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "reference": {
+      "blocks": [
+        {
+          "id": "ref1",
+          "type": "text",
+          "label": "Document reference",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project number: " },
+                  { "type": "text", "text": "{{projectNumber}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Document: " },
+                  { "type": "text", "text": "PSU Report (Column 3)" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "body": {
+      "blocks": [
+        {
+          "id": "body1",
+          "type": "text",
+          "label": "PSU details",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "1. Project start-up details" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project: " },
+                  { "type": "text", "text": "{{projectName}} ({{projectNumber}})" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Date: " },
+                  { "type": "text", "text": "{{psDate}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Location: " },
+                  { "type": "text", "text": "{{psLocation}}" }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body2",
+          "type": "text",
+          "label": "Project team",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "2. Project team" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project manager: " },
+                  { "type": "text", "text": "{{projectManager}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project supporter: " },
+                  { "type": "text", "text": "{{projectSupporter}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Environmental manager: " },
+                  { "type": "text", "text": "{{environmentalManager}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project control manager: " },
+                  { "type": "text", "text": "{{projectControlManager}}" }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body3",
+          "type": "text",
+          "label": "Outcomes and action points",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "3. Outcomes" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "{{psOutcomes}}" }]
+              },
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "4. Action points" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "{{psActionPoints}}" }]
+              },
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "5. Risks identified" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "{{psRisksIdentified}}" }]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "closing": { "blocks": [] },
+    "signoff": {
+      "blocks": [
+        {
+          "id": "so1",
+          "type": "text",
+          "label": "Prepared by",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project manager: " },
+                  { "type": "text", "text": "{{projectManager}}   ___________________________" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "contactInfo": { "blocks": [] },
+    "annex": { "blocks": [] }
+  }
+}

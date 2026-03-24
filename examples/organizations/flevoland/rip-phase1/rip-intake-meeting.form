@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-intake-meeting",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Organise intake meeting"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Record the intake meeting details. Participants must include the contributor, project manager, official client, and Infra secretariat."
+    },
+    {
+      "id": "Field_IntakeMeetingDate",
+      "type": "datetime",
+      "label": "Meeting date and time",
+      "key": "intakeMeetingDate",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_IntakeMeetingLocation",
+      "type": "textfield",
+      "label": "Location",
+      "key": "intakeMeetingLocation",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_IntakeMeetingParticipants",
+      "type": "textarea",
+      "label": "Confirmed participants",
+      "key": "intakeMeetingParticipants",
+      "validate": { "required": true },
+      "description": "List each participant by name and role."
+    },
+    {
+      "id": "Field_InviteSent",
+      "type": "checkbox",
+      "label": "Calendar invitation sent to all participants",
+      "key": "intakeMeetingInviteSent",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ProjectPlanAttached",
+      "type": "checkbox",
+      "label": "Project plan attached to invitation",
+      "key": "intakeMeetingPlanAttached",
+      "validate": { "required": true }
+    }
+  ]
+}

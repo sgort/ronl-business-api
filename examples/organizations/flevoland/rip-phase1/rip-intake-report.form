@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-intake-report",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Intake report (column 2)"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Complete the intake report based on the outcome of the intake meeting. This report will be saved to eDOCS and submitted for approval."
+    },
+    {
+      "id": "Text_Section_Decisions",
+      "type": "text",
+      "text": "### Decisions and agreements"
+    },
+    {
+      "id": "Field_IntakeDecisions",
+      "type": "textarea",
+      "label": "Key decisions made during intake",
+      "key": "intakeDecisions",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_IntakeAgreements",
+      "type": "textarea",
+      "label": "Agreements and action points",
+      "key": "intakeAgreements",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Text_Section_Scope",
+      "type": "text",
+      "text": "### Confirmed scope"
+    },
+    {
+      "id": "Field_ConfirmedScope",
+      "type": "textarea",
+      "label": "Confirmed project scope",
+      "key": "confirmedScope",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ScopeChanges",
+      "type": "textarea",
+      "label": "Scope changes compared to intake form",
+      "key": "scopeChanges",
+      "description": "Leave blank if scope is unchanged."
+    },
+    {
+      "id": "Text_Section_Finance",
+      "type": "text",
+      "text": "### Budget and timeline"
+    },
+    {
+      "id": "Field_ConfirmedBudget",
+      "type": "textfield",
+      "label": "Confirmed budget",
+      "key": "confirmedBudget",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ConfirmedTimeline",
+      "type": "textfield",
+      "label": "Confirmed timeline",
+      "key": "confirmedTimeline",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_IntakeMeetingNotes",
+      "type": "textarea",
+      "label": "Additional meeting notes",
+      "key": "intakeMeetingNotes"
+    }
+  ]
+}

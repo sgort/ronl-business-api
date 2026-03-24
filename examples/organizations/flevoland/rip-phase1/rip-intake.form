@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-intake",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Project intake form"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Complete this form to register a new infrastructure project. The project type and department determine role assignment for subsequent tasks."
+    },
+    {
+      "id": "Text_Section_Project",
+      "type": "text",
+      "text": "### Project details"
+    },
+    {
+      "id": "Field_ProjectNumber",
+      "type": "textfield",
+      "label": "Project number",
+      "key": "projectNumber",
+      "validate": { "required": true },
+      "description": "Unique project identifier — used as the eDOCS workspace key."
+    },
+    {
+      "id": "Field_ProjectName",
+      "type": "textfield",
+      "label": "Project name",
+      "key": "projectName",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ProjectType",
+      "type": "select",
+      "label": "Project type",
+      "key": "projectType",
+      "validate": { "required": true },
+      "values": [
+        { "label": "Road construction (wegaanleg)", "value": "wegaanleg" },
+        { "label": "Bridge (brug)", "value": "brug" },
+        { "label": "Maintenance (onderhoud)", "value": "onderhoud" },
+        { "label": "Canal (kanaal)", "value": "kanaal" },
+        { "label": "Other", "value": "overig" }
+      ]
+    },
+    {
+      "id": "Field_Department",
+      "type": "select",
+      "label": "Department",
+      "key": "department",
+      "validate": { "required": true },
+      "values": [
+        { "label": "Infrastructuur", "value": "infrastructuur" },
+        { "label": "Omgeving", "value": "omgeving" },
+        { "label": "Contractbeheer", "value": "contractbeheer" }
+      ]
+    },
+    {
+      "id": "Text_Section_Participants",
+      "type": "text",
+      "text": "### Participants"
+    },
+    {
+      "id": "Field_ContributorId",
+      "type": "textfield",
+      "label": "Contributor (bijdrager)",
+      "key": "contributorId",
+      "validate": { "required": true },
+      "description": "Name or ID of the contributing party."
+    },
+    {
+      "id": "Field_ClientId",
+      "type": "textfield",
+      "label": "Official client (opdrachtgever)",
+      "key": "clientId",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Text_Section_ProjectPlan",
+      "type": "text",
+      "text": "### Project plan content (column 1)"
+    },
+    {
+      "id": "Field_ProjectScope",
+      "type": "textarea",
+      "label": "Scope",
+      "key": "projectScope",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ProjectFinances",
+      "type": "textfield",
+      "label": "Budget indication",
+      "key": "projectFinances",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_ProjectTimeline",
+      "type": "textfield",
+      "label": "Timeline",
+      "key": "projectTimeline",
+      "validate": { "required": true },
+      "description": "Expected start and end date, e.g. Q2 2025 – Q4 2026."
+    }
+  ]
+}

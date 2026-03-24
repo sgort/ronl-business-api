@@ -6,7 +6,7 @@ const logger = createLogger('tenant-middleware');
 
 /**
  * Tenant Isolation Middleware
- * Ensures all operations are scoped to the user's municipality
+ * Ensures all operations are scoped to the user's organisation
  */
 export const tenantMiddleware = (req: Request, res: Response, next: NextFunction) => {
   if (!config.tenant.enableIsolation) {
@@ -27,7 +27,6 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
 
   const tenantId = req.user.tenantId;
 
-  // Validate tenant ID
   if (!tenantId) {
     logger.error('Missing tenant ID in user context', {
       userId: req.user.userId,
@@ -37,12 +36,11 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
       success: false,
       error: {
         code: 'MISSING_TENANT',
-        message: 'Municipality information missing',
+        message: 'Organisation information missing',
       },
     });
   }
 
-  // Add tenant context to request
   if (req.auth) {
     req.auth = {
       ...req.auth,
@@ -52,6 +50,7 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
 
   logger.debug('Tenant context established', {
     tenantId,
+    organisationType: req.user.organisationType,
     userId: req.user.userId,
     path: req.path,
   });
@@ -61,7 +60,7 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
 
 /**
  * Validate tenant ID in request parameters
- * Ensures user can only access resources from their own municipality
+ * Ensures user can only access resources from their own organisation
  */
 export const validateTenantParam = (paramName: string = 'tenantId') => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -90,7 +89,7 @@ export const validateTenantParam = (paramName: string = 'tenantId') => {
         success: false,
         error: {
           code: 'TENANT_MISMATCH',
-          message: 'Access denied: municipality mismatch',
+          message: 'Access denied: organisation mismatch',
         },
       });
     }
@@ -100,30 +99,30 @@ export const validateTenantParam = (paramName: string = 'tenantId') => {
 };
 
 /**
- * Add tenant ID to Operaton process variables
- * Ensures all BPMN processes are tagged with municipality
+ * Add tenant ID and organisation type to Operaton process variables
+ * Ensures all BPMN processes are tagged with tenant context
  */
 export const addTenantToProcessVariables = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
     return next();
   }
 
-  // Add tenant ID to request body variables
   if (req.body && typeof req.body === 'object') {
     if (!req.body.variables) {
       req.body.variables = {};
     }
 
-    // Add tenant as business key
     req.body.businessKey = `${req.user.tenantId}-${Date.now()}`;
 
     req.body.variables.municipality = req.user.tenantId;
+    req.body.variables.organisationType = req.user.organisationType;
     req.body.variables.initiator = req.user.userId;
     req.body.variables.assuranceLevel = req.user.assuranceLevel;
     req.body.variables.applicantId = req.user.userId;
 
     logger.debug('Added tenant context to process variables', {
       tenantId: req.user.tenantId,
+      organisationType: req.user.organisationType,
       businessKey: req.body.businessKey,
     });
   }

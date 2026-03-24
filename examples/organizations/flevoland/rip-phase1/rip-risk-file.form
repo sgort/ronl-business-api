@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-risk-file",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Risk file preparation"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Confirm that the risk file has been prepared in Relatics based on the PSU outcomes. Record the Relatics reference for traceability."
+    },
+    {
+      "id": "Field_RiskFileReference",
+      "type": "textfield",
+      "label": "Relatics risk dossier reference",
+      "key": "riskFileReference",
+      "validate": { "required": true },
+      "description": "Relatics identifier for the risk dossier created for this project."
+    },
+    {
+      "id": "Field_RiskFileDate",
+      "type": "datetime",
+      "label": "Date prepared",
+      "key": "riskFileDate",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_RiskFilePreparedBy",
+      "type": "textfield",
+      "label": "Prepared by (project control manager)",
+      "key": "riskFilePreparedBy",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_RiskFileSummary",
+      "type": "textarea",
+      "label": "Risk summary",
+      "key": "riskFileSummary",
+      "validate": { "required": true },
+      "description": "Brief description of the key risks identified and their initial scores."
+    },
+    {
+      "id": "Field_RiskFileComplete",
+      "type": "checkbox",
+      "label": "Risk file recorded in Relatics",
+      "key": "riskFileComplete",
+      "validate": { "required": true }
+    }
+  ]
+}

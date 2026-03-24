@@ -136,4 +136,34 @@ router.get('/ready', async (req, res) => {
   }
 });
 
+/**
+ * GET /v1/health/external
+ * Reachability check for external platform tools — server-side to avoid CORS.
+ */
+router.get('/external', async (_req, res) => {
+  const targets: Record<string, string> = {
+    cprmv: 'https://acc.cprmv.open-regels.nl/docs',
+    triplydb: 'https://api.open-regels.triply.cc/datasets/stevengort/RONL',
+    lde: 'https://acc.linkeddata.open-regels.nl/',
+  };
+
+  const results = await Promise.all(
+    Object.entries(targets).map(async ([id, url]) => {
+      const start = Date.now();
+      try {
+        const response = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5_000) });
+        return [id, { status: response.ok ? 'up' : 'down', latency: Date.now() - start }] as const;
+      } catch {
+        return [id, { status: 'down', latency: Date.now() - start }] as const;
+      }
+    })
+  );
+
+  res.json({
+    success: true,
+    data: Object.fromEntries(results),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 export default router;

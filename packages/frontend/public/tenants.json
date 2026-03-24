@@ -5,6 +5,7 @@
       "id": "utrecht",
       "name": "Utrecht",
       "displayName": "Gemeente Utrecht",
+      "organisationType": "municipality",
       "municipalityCode": "GM0344",
       "enabled": true,
       "theme": {
@@ -25,12 +26,31 @@
         "email": "info@utrecht.nl",
         "address": "Stadsplateau 1, 3521 AZ Utrecht",
         "openingHours": "Ma-Vr 08:30-17:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+        ],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
       }
     },
     "amsterdam": {
       "id": "amsterdam",
       "name": "Amsterdam",
       "displayName": "Gemeente Amsterdam",
+      "organisationType": "municipality",
       "municipalityCode": "GM0363",
       "enabled": true,
       "theme": {
@@ -51,12 +71,31 @@
         "email": "info@amsterdam.nl",
         "address": "Amstel 1, 1011 PN Amsterdam",
         "openingHours": "Ma-Vr 08:00-18:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+        ],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
       }
     },
     "rotterdam": {
       "id": "rotterdam",
       "name": "Rotterdam",
       "displayName": "Gemeente Rotterdam",
+      "organisationType": "municipality",
       "municipalityCode": "GM0599",
       "enabled": true,
       "theme": {
@@ -77,12 +116,31 @@
         "email": "info@rotterdam.nl",
         "address": "Coolsingel 40, 3011 AD Rotterdam",
         "openingHours": "Ma-Vr 08:30-16:30"
+      },
+      "leftPanelSections": {
+        "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+        ],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
       }
     },
     "denhaag": {
       "id": "denhaag",
       "name": "Den Haag",
       "displayName": "Gemeente Den Haag",
+      "organisationType": "municipality",
       "municipalityCode": "GM0518",
       "enabled": true,
       "theme": {
@@ -103,6 +161,188 @@
         "email": "info@denhaag.nl",
         "address": "Spui 70, 2511 BT Den Haag",
         "openingHours": "Ma-Do 08:30-17:00, Vr 08:30-16:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+        ],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
+      }
+    },
+    "flevoland": {
+      "id": "flevoland",
+      "name": "Flevoland",
+      "displayName": "Provincie Flevoland",
+      "organisationType": "province",
+      "organisationCode": "PV24",
+      "enabled": true,
+      "theme": {
+        "primary": "#0046ad",
+        "primaryDark": "#134F7D",
+        "primaryLight": "#4A8FC0",
+        "secondary": "#e70077",
+        "accent": "#F5A623"
+      },
+      "features": {
+        "zorgtoeslag": false,
+        "vergunningen": true,
+        "subsidies": true,
+        "meldingen": true
+      },
+      "contact": {
+        "phone": "0320 265 265",
+        "email": "post@flevoland.nl",
+        "address": "Visarenddreef 1, 8232 PH Lelystad",
+        "openingHours": "Ma-Vr 08:30-17:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+        ],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "rip-fase1", "label": "RIP Fase 1 starten", "isPublic": false },
+          { "id": "rip-fase1-wip", "label": "RIP Fase 1 WIP", "isPublic": false },
+          { "id": "rip-fase1-gereed", "label": "RIP Fase 1 gereed", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
+      }
+    },
+    "toeslagen": {
+      "id": "toeslagen",
+      "name": "Toeslagen",
+      "displayName": "Dienst Toeslagen",
+      "organisationType": "national",
+      "organisationCode": "OIN-00000001003214345000",
+      "enabled": true,
+      "theme": {
+        "primary": "#154273",
+        "primaryDark": "#0d2f52",
+        "primaryLight": "#4a7aad",
+        "secondary": "#6EC4E8",
+        "accent": "#FFB81C"
+      },
+      "features": {
+        "zorgtoeslag": false,
+        "vergunningen": false,
+        "subsidies": false,
+        "meldingen": false
+      },
+      "contact": {
+        "phone": "0800 0543",
+        "email": "info@toeslagen.nl",
+        "address": "Postbus 9000, 6500 JA Nijmegen",
+        "openingHours": "Ma-Vr 08:00-20:00"
+      },
+      "leftPanelSections": {
+        "home": [{ "id": "nieuws", "label": "Nieuws", "isPublic": true }],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
+      }
+    },
+    "unive": {
+      "id": "unive",
+      "name": "Unive",
+      "displayName": "Unive Verzekeringen",
+      "organisationType": "commercial",
+      "organisationCode": "KVK-12345678",
+      "enabled": true,
+      "theme": {
+        "primary": "#E4007D",
+        "primaryDark": "#B3005F",
+        "primaryLight": "#FF4DAF",
+        "secondary": "#1A1A2E",
+        "accent": "#FF6B6B"
+      },
+      "features": {
+        "zorgtoeslag": true,
+        "vergunningen": false,
+        "subsidies": false,
+        "meldingen": false
+      },
+      "contact": {
+        "phone": "0900 1513",
+        "email": "service@unive.nl",
+        "address": "Coolsingel 139, 3012 AG Rotterdam",
+        "openingHours": "Ma-Vr 08:00-20:00, Za 09:00-17:00"
+      },
+      "leftPanelSections": {
+        "home": [{ "id": "nieuws", "label": "Nieuws", "isPublic": true }],
+        "personal-info": [{ "id": "profiel", "label": "Profiel", "isPublic": false }],
+        "projects": [{ "id": "aanvragen", "label": "Mijn aanvragen", "isPublic": false }]
+      }
+    },
+    "uwv": {
+      "id": "uwv",
+      "name": "UWV",
+      "displayName": "UWV",
+      "organisationType": "national",
+      "organisationCode": "OIN-00000001820588740000",
+      "enabled": true,
+      "theme": {
+        "primary": "#0067A5",
+        "primaryDark": "#004F7C",
+        "primaryLight": "#3D8DC4",
+        "secondary": "#E85612",
+        "accent": "#FFB81C"
+      },
+      "features": {
+        "zorgtoeslag": false,
+        "vergunningen": false,
+        "subsidies": true,
+        "meldingen": true
+      },
+      "contact": {
+        "phone": "088 898 20 00",
+        "email": "info@uwv.nl",
+        "address": "La Guardiaweg 116, 1043 DL Amsterdam",
+        "openingHours": "Ma-Vr 08:00-18:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+        ],
+        "personal-info": [
+          { "id": "profiel", "label": "Profiel", "isPublic": false },
+          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
+          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
+          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+        ],
+        "projects": [
+          { "id": "taken", "label": "Taken", "isPublic": false },
+          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
+          { "id": "archief", "label": "Archief", "isPublic": false }
+        ]
       }
     }
   }

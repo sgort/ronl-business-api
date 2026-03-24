@@ -93,3 +93,4 @@ deployment/vm/**/Thumbs.db
 
 #deploy theme script
 deploy-theme-to-acc.sh
+deploy-backend-to-acc.sh
