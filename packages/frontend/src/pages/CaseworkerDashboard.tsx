@@ -25,6 +25,7 @@ import RipFase1Section from '../components/CaseworkerDashboard/RipFase1Section';
 import ProfielSection from '../components/CaseworkerDashboard/ProfielSection';
 import RollenSection from '../components/CaseworkerDashboard/RollenSection';
 import AuditSection from '../components/CaseworkerDashboard/AuditSection';
+import McpChatSection from '../components/CaseworkerDashboard/McpChatSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
 
@@ -42,7 +43,8 @@ const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
 ];
 
 const GEREEDSCHAP_SECTIONS: LeftPanelSection[] = [
-  { id: 'gereedschap-overzicht', label: 'Overzicht' },
+  { id: 'gereedschap-overzicht', label: 'Overview' },
+  { id: 'mcp-chat', label: 'AI Assistant' },
 ];
 
 export default function CaseworkerDashboard() {
@@ -216,6 +218,8 @@ export default function CaseworkerDashboard() {
         );
       case 'gereedschap-overzicht':
         return <GereedschapSection user={user} />;
+      case 'mcp-chat':
+        return <McpChatSection user={user} />;
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;

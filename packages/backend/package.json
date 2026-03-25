@@ -31,6 +31,7 @@
   "author": "RONL Team",
   "license": "EUPL-1.2",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@ronl/shared": "*",
     "axios": "^1.6.5",

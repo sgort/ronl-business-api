@@ -58,6 +58,18 @@ export class McpClientService {
     return result as McpToolResult;
   }
 
+  async getToolDefinitions(): Promise<
+    Array<{ name: string; description: string; input_schema: Record<string, unknown> }>
+  > {
+    this.assertConnected();
+    const result = await this.client!.listTools();
+    return result.tools.map((t) => ({
+      name: t.name,
+      description: t.description ?? '',
+      input_schema: t.inputSchema as Record<string, unknown>,
+    }));
+  }
+
   isConnected(): boolean {
     return this.client !== null;
   }
