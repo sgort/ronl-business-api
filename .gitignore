@@ -18,7 +18,7 @@ packages/backend/*.zip
 .env
 .env.local
 .env.*.local
-.env.development
+packages/backend/.env.development
 .env.production
 .env.acceptance
 
