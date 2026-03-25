@@ -16,6 +16,7 @@ import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
+import { mcpClientService } from '@services/mcpClient.service';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
@@ -186,6 +187,13 @@ const startServer = async () => {
 
   await initDb();
 
+  externalTaskWorker.start();
+
+  if (config.mcp.enabled) {
+    await mcpClientService.connect();
+    appLogger.info('MCP client ready');
+  }
+
   app.listen(port, host, () => {
     appLogger.info('Server started', {
       environment: config.nodeEnv,
@@ -214,12 +222,14 @@ const startServer = async () => {
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
   externalTaskWorker.stop();
+  void mcpClientService.disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
   externalTaskWorker.stop();
+  void mcpClientService.disconnect();
   process.exit(0);
 });
 

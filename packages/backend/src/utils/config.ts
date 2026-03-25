@@ -81,6 +81,10 @@ interface Config {
     password: string;
     stubMode: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    skipHealthCheck: boolean;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -189,6 +193,11 @@ export const config: Config = {
     userId: process.env.EDOCS_USER_ID ?? '',
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
+  },
+
+  mcp: {
+    enabled: parseEnvBool(process.env.MCP_ENABLED, false),
+    skipHealthCheck: parseEnvBool(process.env.MCP_SKIP_HEALTH_CHECK, false),
   },
 };
 
