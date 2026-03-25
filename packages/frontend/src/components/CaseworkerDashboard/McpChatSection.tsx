@@ -2,17 +2,18 @@ import { useState, useRef, useEffect } from 'react';
 import { businessApi } from '../../services/api';
 import type { KeycloakUser } from '@ronl/shared';
 
-interface Message {
+export interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
 interface Props {
   user: KeycloakUser | null;
+  messages: Message[];
+  onMessagesChange: (messages: Message[]) => void;
 }
 
-export default function McpChatSection({ user }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function McpChatSection({ user, messages, onMessagesChange }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +41,7 @@ export default function McpChatSection({ user }: Props) {
 
     const userMessage: Message = { role: 'user', content: trimmed };
     const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
+    onMessagesChange(nextMessages);
     setInput('');
     setError(null);
     setLoading(true);
@@ -51,16 +52,14 @@ export default function McpChatSection({ user }: Props) {
         messages.map((m) => ({ role: m.role, content: m.content }))
       );
       if (res.success && res.data) {
-        setMessages([...nextMessages, { role: 'assistant', content: res.data.response }]);
+        onMessagesChange([...nextMessages, { role: 'assistant', content: res.data.response }]);
       } else {
         setError('No response received.');
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Request failed. Please try again.';
-      // Try to extract the backend error message if it's an axios error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const backendMsg = (err as any)?.response?.data?.error?.message;
-      setError(backendMsg ?? msg);
+      setError(backendMsg ?? 'Request failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -74,18 +73,30 @@ export default function McpChatSection({ user }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full max-w-3xl" style={{ height: 'calc(100vh - 160px)' }}>
-      <div className="mb-4 flex items-center gap-3">
-        <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-lg"
-          style={{ backgroundColor: 'var(--color-primary, #154273)' }}
-        >
-          🤖
+    <div className="flex flex-col h-full max-w-3xl">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-lg"
+            style={{ backgroundColor: 'var(--color-primary, #154273)' }}
+          >
+            🤖
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">AI Assistant</h2>
+            <p className="text-xs text-gray-400">Powered by Claude + Operaton MCP</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-semibold text-gray-800">AI Assistant</h2>
-          <p className="text-xs text-gray-400">Powered by Claude + Operaton MCP</p>
-        </div>
+
+        {messages.length > 0 && (
+          <button
+            onClick={() => onMessagesChange([])}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1 rounded hover:bg-gray-100"
+            title="Clear conversation"
+          >
+            Clear chat
+          </button>
+        )}
       </div>
 
       {/* Message history */}

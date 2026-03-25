@@ -25,6 +25,7 @@ import RipFase1Section from '../components/CaseworkerDashboard/RipFase1Section';
 import ProfielSection from '../components/CaseworkerDashboard/ProfielSection';
 import RollenSection from '../components/CaseworkerDashboard/RollenSection';
 import AuditSection from '../components/CaseworkerDashboard/AuditSection';
+import type { Message as McpMessage } from '../components/CaseworkerDashboard/McpChatSection';
 import McpChatSection from '../components/CaseworkerDashboard/McpChatSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
@@ -59,6 +60,8 @@ export default function CaseworkerDashboard() {
 
   // Remembers last selected section per top-nav page
   const [sectionMemory, setSectionMemory] = useState<Record<string, string>>({});
+
+  const [mcpMessages, setMcpMessages] = useState<McpMessage[]>([]);
 
   // Wrap setActiveSection so every explicit user click also saves to memory
   function selectSection(id: string) {
@@ -219,7 +222,9 @@ export default function CaseworkerDashboard() {
       case 'gereedschap-overzicht':
         return <GereedschapSection user={user} />;
       case 'mcp-chat':
-        return <McpChatSection user={user} />;
+        return (
+          <McpChatSection user={user} messages={mcpMessages} onMessagesChange={setMcpMessages} />
+        );
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
@@ -239,7 +244,7 @@ export default function CaseworkerDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="h-screen bg-gray-100 flex flex-col">
       <SessionExpiryWarning />
       {/* ── Top navigation bar ── */}
       <header
@@ -341,7 +346,7 @@ export default function CaseworkerDashboard() {
       <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
 
       {/* ── Body: left panel + content ── */}
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-h-0">
         {/* ── Left panel ── */}
         <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200">
           {leftPanelSections.length > 0 ? (

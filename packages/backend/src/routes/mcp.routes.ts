@@ -12,7 +12,7 @@ const logger = createLogger('mcp-routes');
 router.use(jwtMiddleware);
 router.use(requireRoles('caseworker', 'admin'));
 
-const CHAT_TIMEOUT_MS = 60_000;
+const CHAT_TIMEOUT_MS = 120_000;
 
 /**
  * POST /v1/mcp/chat

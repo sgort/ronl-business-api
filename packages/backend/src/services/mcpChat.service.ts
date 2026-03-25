@@ -10,10 +10,18 @@ const MAX_TOKENS = 4096;
 const MAX_TOOL_ROUNDS = 10;
 
 const SYSTEM_PROMPT = `You are an AI assistant integrated into the RONL Business API platform.
-You have access to the Operaton BPMN/DMN engine via tools that allow you to query process definitions,
+You are connected to the Operaton instance at: ${config.operaton.baseUrl}
+You have access to the Operaton BPMN/DMN engine via tools to query process definitions,
 process instances, tasks, decisions, deployments, and more.
-When answering questions about workflows, tasks, or process data, use the available tools to fetch
-current information. Be concise and structured in your responses.`;
+
+Important conventions:
+- When LISTING resources for display, use maxResults=20 unless the user asks for more.
+- When COUNTING resources, use the dedicated count tools or maxResults=1000 with a count-only intent.
+- When listing or counting deployed process definitions or decisions, filter by latestVersion=true
+  unless the user explicitly asks about all versions or version history.
+- Be concise and structured in your responses.
+- Never describe or narrate your tool calls in your response text. Only provide the final answer
+  based on the tool results.`;
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -21,37 +29,43 @@ export interface ChatMessage {
 }
 
 const ALLOWED_TOOLS = new Set([
-  // Process definitions
-  'getProcessDefinitions',
-  'getProcessDefinition',
-  'getProcessDefinitionCount',
-  // Process instances
-  'getProcessInstances',
-  'getProcessInstance',
-  'getProcessInstanceCount',
-  // Tasks
-  'getTasks',
-  'getTask',
-  'getTaskCount',
-  // History
-  'getHistoricProcessInstances',
-  'getHistoricProcessInstanceCount',
-  'getHistoricTaskInstances',
-  'getHistoricTaskInstanceCount',
-  // Decisions
-  'getDecisionDefinitions',
-  'getDecisionDefinition',
-  // Deployments
-  'getDeployments',
-  'getDeployment',
-  'getDeploymentCount',
-  // Incidents
-  'getIncidents',
-  'getIncidentCount',
-  // Jobs
-  'getJobs',
-  'getJobCount',
+  // Process definitions — read only
+  'processDefinition_list',
+  'processDefinition_count',
+  'processDefinition_getByKey',
+  // Process instances — read only
+  'processInstance_list',
+  'processInstance_count',
+  'processInstance_get',
+  // Tasks — read only
+  'task_list',
+  'task_count',
+  'task_getById',
+  // Decisions — read only
+  'decision_list',
+  'decision_getByKey',
+  // Deployments — read only
+  'deployment_list',
+  'deployment_count',
+  'deployment_getById',
+  // Incidents — read only
+  'incident_list',
+  'incident_count',
 ]);
+
+function sanitizeResponse(text: string): string {
+  return text
+    .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, '')
+    .replace(/<function_result>[\s\S]*?<\/function_result>/g, '')
+    .replace(/<invoke[\s\S]*?<\/invoke>/g, '')
+    .replace(/<select>[\s\S]*?<\/select>/g, '')
+    .replace(/<operaton_[\w]+>[\s\S]*?<\/operaton_[\w]+>/g, '')
+    .replace(/<operation_call>[\s\S]*?<\/operation_call>/g, '')
+    .replace(/<operation_result>[\s\S]*?<\/operation_result>/g, '')
+    .replace(/\{[^}]*color:[^}]*\}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 export async function runChatTurn(history: ChatMessage[], userMessage: string): Promise<string> {
   const client = new Anthropic({ apiKey: config.anthropic.apiKey });
@@ -84,10 +98,7 @@ export async function runChatTurn(history: ChatMessage[], userMessage: string): 
     );
 
     if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
-      return textBlocks
-        .map((b) => b.text)
-        .join('\n')
-        .trim();
+      return sanitizeResponse(textBlocks.map((b) => b.text).join('\n'));
     }
 
     // Add assistant turn with all content blocks
