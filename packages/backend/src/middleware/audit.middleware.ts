@@ -57,8 +57,8 @@ export const auditMiddleware = (req: Request, res: Response, next: NextFunction)
       if (req.user && req.auth) {
         const action = `${req.method} ${req.path}`;
 
-        // Don't audit the audit log endpoint itself
-        if (req.path === '/audit') {
+        // Don't audit read-only browsing or high-frequency chat turns
+        if (req.path === '/audit' || req.path === '/chat') {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return originalEnd.apply(this, args as any);
         }

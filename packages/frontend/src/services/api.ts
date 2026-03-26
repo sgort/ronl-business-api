@@ -313,15 +313,78 @@ export const businessApi = {
   },
 
   mcp: {
-    chat: async (
+    async *chatStream(
       message: string,
-      history: Array<{ role: 'user' | 'assistant'; content: string }> = []
-    ): Promise<ApiResponse<{ response: string }>> => {
-      const response = await api.post<ApiResponse<{ response: string }>>('/mcp/chat', {
-        message,
-        history,
-      });
-      return response.data;
+      history: Array<{ role: 'user' | 'assistant'; content: string }>,
+      signal?: AbortSignal
+    ): AsyncGenerator<McpChatStreamEvent> {
+      if (keycloak.authenticated) {
+        try {
+          await keycloak.updateToken(120);
+        } catch {
+          keycloak.login();
+          return;
+        }
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE_URL}/mcp/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {}),
+          },
+          body: JSON.stringify({ message, history }),
+          signal,
+        });
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        yield { type: 'error', message: (err as Error).message ?? 'Network error' };
+        return;
+      }
+
+      if (!response.ok) {
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: { message?: string } };
+          errorMsg = errData?.error?.message ?? errorMsg;
+        } catch {
+          // ignore
+        }
+        yield { type: 'error', message: errorMsg };
+        return;
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr) {
+                try {
+                  yield JSON.parse(jsonStr) as McpChatStreamEvent;
+                } catch {
+                  // ignore malformed SSE line
+                }
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
     },
   },
 
@@ -414,6 +477,12 @@ export interface AuditLogRecord {
   error_message: string | null;
   request_id: string | null;
 }
+
+export type McpChatStreamEvent =
+  | { type: 'status'; message: string }
+  | { type: 'delta'; text: string }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
 
 export interface ProductDienstItem {
   id: string;

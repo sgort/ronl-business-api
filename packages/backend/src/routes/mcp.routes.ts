@@ -1,8 +1,7 @@
 import express from 'express';
-import { jwtMiddleware } from '@auth/jwt.middleware';
-import { requireRoles } from '@auth/jwt.middleware';
+import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { createLogger } from '@utils/logger';
-import { runChatTurn } from '@services/mcpChat.service';
+import { runChatStream } from '@services/mcpChat.service';
 import { mcpClientService } from '@services/mcpClient.service';
 import { config } from '@utils/config';
 
@@ -12,11 +11,17 @@ const logger = createLogger('mcp-routes');
 router.use(jwtMiddleware);
 router.use(requireRoles('caseworker', 'admin'));
 
-const CHAT_TIMEOUT_MS = 120_000;
+const CHAT_TIMEOUT_MS = 240_000;
 
 /**
  * POST /v1/mcp/chat
- * Run a single chat turn through the MCP agentic loop.
+ * Stream a single chat turn through the MCP agentic loop via SSE.
+ *
+ * Event types emitted on the stream:
+ *   { type: 'status', message: string }  — tool call about to execute
+ *   { type: 'delta',  text: string }     — text token from the model
+ *   { type: 'done' }                     — loop finished cleanly
+ *   { type: 'error', message: string }   — unrecoverable failure
  */
 router.post('/chat', async (req, res) => {
   if (!config.mcp.enabled) {
@@ -45,29 +50,52 @@ router.post('/chat', async (req, res) => {
     });
   }
 
+  // ── SSE setup ──────────────────────────────────────────────────────────────
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable Caddy / nginx proxy buffering
+  res.flushHeaders();
+
+  const abortController = new AbortController();
+
+  const timeoutId = setTimeout(() => {
+    abortController.abort();
+    send({ type: 'error', message: 'Chat request timed out' });
+    if (!res.writableEnded) res.end();
+  }, CHAT_TIMEOUT_MS);
+
+  req.on('close', () => {
+    abortController.abort();
+    clearTimeout(timeoutId);
+  });
+
+  function send(event: object): void {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+  }
+
+  // ── Agentic loop ───────────────────────────────────────────────────────────
+  logger.info('MCP chat stream started', {
+    userId: req.user?.userId,
+    historyLength: history.length,
+  });
+
   try {
-    logger.info('MCP chat turn', { userId: req.user?.userId, historyLength: history.length });
-
-    const response = await Promise.race([
-      runChatTurn(history, message),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Chat request timed out after 60s')), CHAT_TIMEOUT_MS)
-      ),
-    ]);
-
-    res.json({ success: true, data: { response } });
+    await runChatStream(history, message, send, abortController.signal);
+    send({ type: 'done' });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    const timedOut = msg.includes('timed out');
-
-    logger.error('MCP chat failed', { error: msg });
-    res.status(timedOut ? 504 : 500).json({
-      success: false,
-      error: {
-        code: timedOut ? 'MCP_CHAT_TIMEOUT' : 'MCP_CHAT_FAILED',
-        message: msg,
-      },
-    });
+    if (abortController.signal.aborted) {
+      // timeout or client disconnect — already handled
+    } else {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('MCP chat stream failed', { error: msg });
+      send({ type: 'error', message: msg });
+    }
+  } finally {
+    clearTimeout(timeoutId);
+    if (!res.writableEnded) res.end();
   }
 });
 

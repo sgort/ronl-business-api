@@ -16,12 +16,23 @@ interface Props {
 export default function McpChatSection({ user, messages, onMessagesChange }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const streamingRef = useRef('');
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, loading, streamingContent]);
+
+  // Abort any in-flight stream on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   if (!user) {
     return (
@@ -45,23 +56,43 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
     setInput('');
     setError(null);
     setLoading(true);
+    setStreamingContent('');
+    setStatusMessage(null);
+    streamingRef.current = '';
+
+    const abort = new AbortController();
+    abortRef.current = abort;
 
     try {
-      const res = await businessApi.mcp.chat(
-        trimmed,
-        messages.map((m) => ({ role: m.role, content: m.content }))
-      );
-      if (res.success && res.data) {
-        onMessagesChange([...nextMessages, { role: 'assistant', content: res.data.response }]);
-      } else {
-        setError('No response received.');
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+
+      for await (const event of businessApi.mcp.chatStream(trimmed, history, abort.signal)) {
+        if (abort.signal.aborted) break;
+
+        if (event.type === 'delta') {
+          streamingRef.current += event.text;
+          setStreamingContent(streamingRef.current);
+          setStatusMessage(null);
+        } else if (event.type === 'status') {
+          setStatusMessage(event.message);
+        } else if (event.type === 'done') {
+          onMessagesChange([...nextMessages, { role: 'assistant', content: streamingRef.current }]);
+          streamingRef.current = '';
+          setStreamingContent('');
+          setStatusMessage(null);
+        } else if (event.type === 'error') {
+          setError(event.message);
+        }
       }
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const backendMsg = (err as any)?.response?.data?.error?.message;
-      setError(backendMsg ?? 'Request failed. Please try again.');
+      if ((err as Error).name !== 'AbortError') {
+        setError((err as Error).message ?? 'Request failed. Please try again.');
+      }
     } finally {
+      abortRef.current = null;
       setLoading(false);
+      setStreamingContent('');
+      setStatusMessage(null);
     }
   }
 
@@ -71,6 +102,22 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
       void handleSend();
     }
   }
+
+  function handleClear() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+    setStreamingContent('');
+    setStatusMessage(null);
+    setError(null);
+    streamingRef.current = '';
+    onMessagesChange([]);
+  }
+
+  // True while waiting for the first delta (no streamed text yet)
+  const showTypingIndicator = loading && streamingContent === '' && statusMessage === null;
+  // Show the dots alongside a status line when status arrives but text hasn't yet
+  const showStatusWithDots = loading && streamingContent === '' && statusMessage !== null;
 
   return (
     <div className="flex flex-col max-w-3xl" style={{ height: '100%' }}>
@@ -88,9 +135,9 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
           </div>
         </div>
 
-        {messages.length > 0 && (
+        {(messages.length > 0 || loading) && (
           <button
-            onClick={() => onMessagesChange([])}
+            onClick={handleClear}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1 rounded hover:bg-gray-100"
             title="Clear conversation"
           >
@@ -101,9 +148,11 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
 
       {/* Message history */}
       <div
-        className={`flex-1 min-h-0 bg-white rounded-xl border border-gray-200 p-4 space-y-4 mb-3 ${messages.length > 0 ? 'overflow-y-auto' : 'overflow-hidden'}`}
+        className={`flex-1 min-h-0 bg-white rounded-xl border border-gray-200 p-4 space-y-4 mb-3 ${
+          messages.length > 0 || loading ? 'overflow-y-auto' : 'overflow-hidden'
+        }`}
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !loading && (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-12">
             <p className="text-3xl mb-3">💬</p>
             <p className="text-sm font-medium text-gray-500 mb-1">
@@ -115,6 +164,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </p>
           </div>
         )}
+
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'assistant' && (
@@ -139,7 +189,9 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </div>
           </div>
         ))}
-        {loading && (
+
+        {/* In-progress assistant bubble — visible while tokens are arriving */}
+        {loading && streamingContent !== '' && (
           <div className="flex justify-start">
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs mr-2 flex-shrink-0 mt-0.5"
@@ -147,15 +199,35 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             >
               AI
             </div>
-            <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex gap-1 items-center h-4">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+            <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed text-gray-800 whitespace-pre-wrap max-w-[80%]">
+              {streamingContent}
+              <span className="inline-block w-0.5 h-3.5 bg-gray-400 ml-0.5 align-text-bottom animate-pulse" />
+            </div>
+          </div>
+        )}
+
+        {/* Typing indicator — waiting for first token, with optional status line */}
+        {(showTypingIndicator || showStatusWithDots) && (
+          <div className="flex justify-start">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs mr-2 flex-shrink-0 mt-0.5"
+              style={{ backgroundColor: 'var(--color-primary, #154273)' }}
+            >
+              AI
+            </div>
+            <div className="flex flex-col gap-1">
+              {statusMessage && <p className="text-xs text-gray-400 px-1">{statusMessage}</p>}
+              <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
+                <div className="flex gap-1 items-center h-4">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+                </div>
               </div>
             </div>
           </div>
         )}
+
         {error && (
           <div className="flex justify-center">
             <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
@@ -163,6 +235,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </p>
           </div>
         )}
+
         <div ref={bottomRef} />
       </div>
 
