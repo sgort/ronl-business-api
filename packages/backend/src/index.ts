@@ -16,9 +16,11 @@ import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
+import { mcpClientService } from '@services/mcpClient.service';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
+import mcpRoutes from './routes/mcp.routes';
 
 const appLogger = createLogger('app');
 
@@ -144,6 +146,7 @@ app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
 app.use('/v1/admin', adminRoutes);
 app.use('/v1/m2m', m2mRoutes);
+app.use('/v1/mcp', mcpRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -186,6 +189,13 @@ const startServer = async () => {
 
   await initDb();
 
+  externalTaskWorker.start();
+
+  if (config.mcp.enabled) {
+    await mcpClientService.connect();
+    appLogger.info('MCP client ready');
+  }
+
   app.listen(port, host, () => {
     appLogger.info('Server started', {
       environment: config.nodeEnv,
@@ -214,12 +224,14 @@ const startServer = async () => {
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
   externalTaskWorker.stop();
+  void mcpClientService.disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
   externalTaskWorker.stop();
+  void mcpClientService.disconnect();
   process.exit(0);
 });
 

@@ -81,6 +81,13 @@ interface Config {
     password: string;
     stubMode: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    skipHealthCheck: boolean;
+  };
+  anthropic: {
+    apiKey: string;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -190,6 +197,15 @@ export const config: Config = {
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
   },
+
+  mcp: {
+    enabled: parseEnvBool(process.env.MCP_ENABLED, false),
+    skipHealthCheck: parseEnvBool(process.env.MCP_SKIP_HEALTH_CHECK, false),
+  },
+
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  },
 };
 
 // Validate required configuration
@@ -206,6 +222,10 @@ function validateConfig() {
 
   if (!config.operaton.baseUrl) {
     errors.push('OPERATON_BASE_URL is required');
+  }
+
+  if (!config.anthropic.apiKey) {
+    errors.push('ANTHROPIC_API_KEY is required');
   }
 
   if (errors.length > 0) {

@@ -300,6 +300,19 @@ export const businessApi = {
     },
   },
 
+  mcp: {
+    chat: async (
+      message: string,
+      history: Array<{ role: 'user' | 'assistant'; content: string }> = []
+    ): Promise<ApiResponse<{ response: string }>> => {
+      const response = await api.post<ApiResponse<{ response: string }>>('/mcp/chat', {
+        message,
+        history,
+      });
+      return response.data;
+    },
+  },
+
   externalStatus: async (): Promise<
     ApiResponse<Record<string, { status: 'up' | 'down'; latency: number }>>
   > => {

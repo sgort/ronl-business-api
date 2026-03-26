@@ -31,6 +31,31 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.9.3',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 25, 2026',
+      sections: [
+        {
+          title: 'AI Assistant — MCP Client Integration',
+          icon: '🤖',
+          iconColor: 'purple',
+          items: [
+            'New McpClientService in packages/backend/src/services/mcpClient.service.ts: spawns operaton-mcp as a stdio child process via StdioClientTransport, exposes connect(), disconnect(), listTools(), callTool(), and getToolDefinitions()',
+            'McpClientService wired into server startup alongside ExternalTaskWorker — connects when MCP_ENABLED=true, disconnects cleanly on SIGTERM/SIGINT',
+            'New McpChatService in packages/backend/src/services/mcpChat.service.ts: agentic loop using Anthropic claude-sonnet-4 with up to 10 tool-call rounds, ALLOWED_TOOLS curation gate prevents context overflow, sanitizeResponse strips leaked tool narration tags',
+            'New POST /v1/mcp/chat route: JWT + caseworker/admin role required, 120s timeout with structured timeout error response, MCP_ENABLED guard returns 503 when disabled',
+            'New AI Assistant section under Gereedschap tab — role-gated to authenticated caseworkers',
+            'McpChatSection component: chat bubble UI with typing indicator, Enter-to-send, clear chat button, error display with backend error message propagation',
+            'Chat history lifted to CaseworkerDashboard state — conversation survives navigating away and returning to the section',
+            'System prompt tuned with latestVersion=true convention, maxResults=20 for listing vs count tools for counting, no tool narration instruction',
+            'ALLOWED_TOOLS reduced to 15 read-only tools using correct operaton-mcp naming convention (group_verb format) — prevents context window overflow on tool schema injection',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.2',
       status: 'Refactor',
       statusColor: 'gray',
