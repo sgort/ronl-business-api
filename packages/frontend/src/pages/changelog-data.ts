@@ -38,6 +38,19 @@ export const changelog: Changelog = {
       date: 'March 26, 2026',
       sections: [
         {
+          title: 'Caseworker Dashboard — Berichten & Regelcatalogus',
+          icon: '📰',
+          iconColor: 'blue',
+          items: [
+            'Berichten endpoint switched from hardcoded seed data to the Provincie Flevoland RSS feed (flevoland.nl/Content/Pages/Loket?rss=news) — same axios/regex pattern as the Nieuws service, 10-minute cache TTL',
+            'HTML entities decoded server-side (nbsp, amp, euro, lt, gt, quot); action link populated from RSS <link> element as "Lees meer"',
+            'getBerichtById() now reads from the live cache instead of the removed SEED constant; /berichten and /berichten/:id routes made async',
+            'BerichtenSection footer row now renders item.action as a "Lees meer →" anchor, matching the NieuwsSection pattern',
+            'Berichten section moved above Nieuws in leftPanelSections.home for all tenants in tenants.json',
+            'Regelcatalogus default active tab changed from "diensten" to "organisaties"',
+          ],
+        },
+        {
           title: 'AI Assistant — MCP Client Integration',
           icon: '🤖',
           iconColor: 'purple',

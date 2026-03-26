@@ -44,21 +44,31 @@ router.get('/nieuws', async (req: Request, res: Response) => {
 
 /**
  * GET /v1/public/berichten
- * Public platform announcements — no authentication required.
+ * Public announcements from Provincie Flevoland RSS — no authentication required.
  */
-router.get('/berichten', (req: Request, res: Response) => {
+router.get('/berichten', async (req: Request, res: Response) => {
   const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 20);
   const offset = parseInt(String(req.query.offset ?? '0'), 10) || 0;
 
-  const { items, total } = getBerichtenItems(limit, offset);
-  res.json({
-    success: true,
-    data: {
-      items,
-      pagination: { limit, offset, total, hasMore: offset + limit < total },
-    },
-    meta: meta(),
-  });
+  try {
+    const { items, total } = await getBerichtenItems(limit, offset);
+    res.json({
+      success: true,
+      data: {
+        items,
+        pagination: { limit, offset, total, hasMore: offset + limit < total },
+      },
+      meta: meta(),
+    });
+  } catch (error) {
+    logger.error('Failed to serve berichten', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'BERICHTEN_FETCH_FAILED', message: 'Berichten konden niet worden opgehaald.' },
+    });
+  }
 });
 
 /**

@@ -29,8 +29,8 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [
@@ -209,8 +209,8 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
         ],
         "personal-info": [

@@ -99,6 +99,21 @@ export default function BerichtenSection() {
             <span>{item.sender.name}</span>
             <span>·</span>
             <span>{formatDate(item.publishedAt)}</span>
+            {item.action && (
+              <>
+                <span>·</span>
+
+                <a
+                  href={item.action.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                  style={{ color: 'var(--color-primary)' }}
+                >
+                  {item.action.label} →
+                </a>
+              </>
+            )}
           </div>
         </article>
       ))}

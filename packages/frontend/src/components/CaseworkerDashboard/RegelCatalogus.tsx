@@ -22,7 +22,7 @@ export default function RegelCatalogus() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<CatalogTab>('diensten');
+  const [activeTab, setActiveTab] = useState<CatalogTab>('organisaties');
   const [expandedService, setExpandedService] = useState<string | null>(null);
 
   // Concepten filter state — can be driven externally via cross-tab click
