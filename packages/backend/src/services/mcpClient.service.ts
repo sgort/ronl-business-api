@@ -3,8 +3,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createLogger } from '@utils/logger';
 import { config } from '@utils/config';
-import { execSync } from 'child_process';
 import os from 'os';
+import { createRequire } from 'module';
 
 const logger = createLogger('mcp-client');
 
@@ -18,13 +18,13 @@ function getMcpCommand(): { command: string; args: string[] } {
     return { command: 'npx', args: ['-y', 'operaton-mcp'] };
   }
 
-  // Linux (Azure App Service) — use globally installed package directly
+  // Linux — resolve from local node_modules (bundled with deployment)
   try {
-    const globalRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
-    const entryPoint = `${globalRoot}/operaton-mcp/dist/index.js`;
-    return { command: 'node', args: [entryPoint] };
+    const require = createRequire(__filename);
+    const pkgPath = require.resolve('operaton-mcp/dist/index.js');
+    return { command: 'node', args: [pkgPath] };
   } catch {
-    // Fallback to npx if npm root fails
+    logger.warn('operaton-mcp not found in node_modules, falling back to npx');
     return { command: 'npx', args: ['-y', 'operaton-mcp'] };
   }
 }
