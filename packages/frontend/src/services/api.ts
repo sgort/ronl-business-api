@@ -194,6 +194,18 @@ export const businessApi = {
       return response.data;
     },
 
+    productenDiensten: async (
+      limit: number = 50
+    ): Promise<
+      ApiResponse<{
+        items: ProductDienstItem[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>
+    > => {
+      const response = await api.get(`/public/producten-diensten?limit=${limit}`);
+      return response.data;
+    },
+
     regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
       const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
       return response.data;
@@ -401,4 +413,14 @@ export interface AuditLogRecord {
   result: 'success' | 'failure' | 'error';
   error_message: string | null;
   request_id: string | null;
+}
+
+export interface ProductDienstItem {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  audience: ('ondernemer' | 'particulier')[];
+  onlineAanvragen: boolean;
+  modified: string | null;
 }

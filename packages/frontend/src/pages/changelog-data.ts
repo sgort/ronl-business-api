@@ -51,6 +51,20 @@ export const changelog: Changelog = {
           ],
         },
         {
+          title: 'Caseworker Dashboard — Producten & Diensten Catalogus',
+          icon: '🗂️',
+          iconColor: 'green',
+          items: [
+            'New "Producten & Diensten" section added to the Flevoland tenant home panel — publicly accessible without login',
+            'Backend service fetches the Provincie Flevoland SC4.0 product feed (flevoland.nl/loket/loketoverview?sc40=true) — XML parsed server-side with no additional dependency, 30-minute cache TTL',
+            'New GET /v1/public/producten-diensten endpoint; returns id, title, description, url, audience, onlineAanvragen, and modified per item',
+            'ProductenDienstenCatalogus component: expandable 2-column card grid styled after RegelCatalogus, with free-text search and audience filter (Alle / Ondernemer / Particulier)',
+            'Cards show audience badges and an "Online aanvragen" badge where applicable; expanded card links directly to the product page on flevoland.nl',
+            'Stats row shows total visible product count and number of online-aanvraagbare items',
+            'Main content area overflow corrected from overflow-hidden to overflow-y-auto — all sections with long content lists are now fully scrollable',
+          ],
+        },
+        {
           title: 'AI Assistant — MCP Client Integration',
           icon: '🤖',
           iconColor: 'purple',

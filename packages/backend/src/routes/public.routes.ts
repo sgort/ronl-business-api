@@ -3,6 +3,7 @@ import { createLogger } from '@utils/logger';
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
 import { getRegelcatalogusData } from '@services/regelcatalogus.service';
+import { getProductenDienstenItems } from '@services/productenDiensten.service';
 
 const router = Router();
 const logger = createLogger('public-routes');
@@ -83,6 +84,38 @@ router.get('/berichten/:id', (req: Request, res: Response) => {
     });
   }
   res.json({ success: true, data: item, meta: meta() });
+});
+
+/**
+ * GET /v1/public/producten-diensten
+ * Provincie Flevoland products & services from SC4.0 feed — no authentication required.
+ */
+router.get('/producten-diensten', async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10) || 50, 200);
+  const offset = parseInt(String(req.query.offset ?? '0'), 10) || 0;
+
+  try {
+    const { items, total } = await getProductenDienstenItems(limit, offset);
+    res.json({
+      success: true,
+      data: {
+        items,
+        pagination: { limit, offset, total, hasMore: offset + limit < total },
+      },
+      meta: meta(),
+    });
+  } catch (error) {
+    logger.error('Failed to serve producten-diensten', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'PRODUCTEN_DIENSTEN_FETCH_FAILED',
+        message: 'Producten & diensten konden niet worden opgehaald.',
+      },
+    });
+  }
 });
 
 /**
