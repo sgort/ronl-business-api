@@ -27,7 +27,7 @@ export class McpClientService {
         OPERATON_BASE_URL: config.operaton.baseUrl,
         OPERATON_USERNAME: config.operaton.username ?? '',
         OPERATON_PASSWORD: config.operaton.password ?? '',
-        OPERATON_SKIP_HEALTH_CHECK: config.mcp.skipHealthCheck ? 'true' : 'false',
+        OPERATON_SKIP_HEALTH_CHECK: 'true',
       },
     });
 
