@@ -73,7 +73,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
   }
 
   return (
-    <div className="flex flex-col h-full max-w-3xl">
+    <div className="flex flex-col max-w-3xl" style={{ height: '100%' }}>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -100,7 +100,9 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
       </div>
 
       {/* Message history */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-gray-200 p-4 space-y-4 mb-3">
+      <div
+        className={`flex-1 min-h-0 bg-white rounded-xl border border-gray-200 p-4 space-y-4 mb-3 ${messages.length > 0 ? 'overflow-y-auto' : 'overflow-hidden'}`}
+      >
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-12">
             <p className="text-3xl mb-3">💬</p>
@@ -113,7 +115,6 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </p>
           </div>
         )}
-
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'assistant' && (
@@ -138,7 +139,6 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </div>
           </div>
         ))}
-
         {loading && (
           <div className="flex justify-start">
             <div
@@ -156,7 +156,6 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </div>
           </div>
         )}
-
         {error && (
           <div className="flex justify-center">
             <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
@@ -164,7 +163,6 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             </p>
           </div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
