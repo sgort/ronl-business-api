@@ -192,8 +192,14 @@ const startServer = async () => {
   externalTaskWorker.start();
 
   if (config.mcp.enabled) {
-    await mcpClientService.connect();
-    appLogger.info('MCP client ready');
+    try {
+      await mcpClientService.connect();
+      appLogger.info('MCP client ready');
+    } catch (err) {
+      appLogger.error('MCP client failed to connect — continuing without MCP', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   app.listen(port, host, () => {

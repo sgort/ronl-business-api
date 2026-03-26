@@ -32,7 +32,12 @@ export class McpClientService {
 
     this.client = new Client({ name: 'ronl-business-api', version: '1.0.0' }, { capabilities: {} });
 
-    await this.client.connect(this.transport);
+    await Promise.race([
+      this.client.connect(this.transport),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('MCP connect timed out after 30s')), 30_000)
+      ),
+    ]);
 
     logger.info('MCP client connected', { operatonBaseUrl: config.operaton.baseUrl });
   }
