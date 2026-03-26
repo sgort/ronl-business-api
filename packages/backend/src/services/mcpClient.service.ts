@@ -22,11 +22,12 @@ export class McpClientService {
       command: 'npx',
       args: ['-y', 'operaton-mcp'],
       env: {
-        ...process.env,
+        PATH: process.env.PATH ?? '',
+        HOME: process.env.HOME ?? '',
         OPERATON_BASE_URL: config.operaton.baseUrl,
         OPERATON_USERNAME: config.operaton.username ?? '',
         OPERATON_PASSWORD: config.operaton.password ?? '',
-        ...(config.mcp.skipHealthCheck && { OPERATON_SKIP_HEALTH_CHECK: 'true' }),
+        OPERATON_SKIP_HEALTH_CHECK: config.mcp.skipHealthCheck ? 'true' : 'false',
       },
     });
 
