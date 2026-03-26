@@ -3,18 +3,6 @@ import { businessApi } from '../../services/api';
 import type { BerichtItem } from '../../services/api';
 import { formatDate } from '../../utils/formatDate';
 
-const PRIORITY_STYLES: Record<string, string> = {
-  high: 'bg-red-100 text-red-700',
-  normal: 'bg-blue-100 text-blue-700',
-  low: 'bg-gray-100 text-gray-600',
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  announcement: 'Mededeling',
-  maintenance: 'Onderhoud',
-  update: 'Update',
-};
-
 export default function BerichtenSection() {
   const [items, setItems] = useState<BerichtItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,19 +65,24 @@ export default function BerichtenSection() {
         <article key={item.id} className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900 text-sm">{item.subject}</p>
+              {item.action ? (
+                <a
+                  href={item.action.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-sm hover:underline"
+                  style={{ color: 'var(--color-primary)' }}
+                >
+                  {item.subject}
+                </a>
+              ) : (
+                <p className="font-semibold text-gray-900 text-sm">{item.subject}</p>
+              )}
               <p className="text-gray-500 text-sm mt-1 leading-relaxed line-clamp-2">
                 {item.preview}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  PRIORITY_STYLES[item.priority] ?? PRIORITY_STYLES.normal
-                }`}
-              >
-                {TYPE_LABELS[item.type] ?? item.type}
-              </span>
               {item.expiresAt && new Date(item.expiresAt) > new Date() && (
                 <span className="text-xs text-orange-500">t/m {formatDate(item.expiresAt)}</span>
               )}
