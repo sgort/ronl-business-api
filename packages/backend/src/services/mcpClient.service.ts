@@ -3,12 +3,30 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createLogger } from '@utils/logger';
 import { config } from '@utils/config';
+import { execSync } from 'child_process';
+import os from 'os';
 
 const logger = createLogger('mcp-client');
 
 export interface McpToolResult {
   content: Array<{ type: string; text: string }>;
   isError?: boolean;
+}
+
+function getMcpCommand(): { command: string; args: string[] } {
+  if (os.platform() === 'win32' || os.platform() === 'darwin') {
+    return { command: 'npx', args: ['-y', 'operaton-mcp'] };
+  }
+
+  // Linux (Azure App Service) — use globally installed package directly
+  try {
+    const globalRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
+    const entryPoint = `${globalRoot}/operaton-mcp/dist/index.js`;
+    return { command: 'node', args: [entryPoint] };
+  } catch {
+    // Fallback to npx if npm root fails
+    return { command: 'npx', args: ['-y', 'operaton-mcp'] };
+  }
 }
 
 export class McpClientService {
@@ -18,9 +36,11 @@ export class McpClientService {
   async connect(): Promise<void> {
     if (this.client) return;
 
+    const { command, args } = getMcpCommand();
+
     this.transport = new StdioClientTransport({
-      command: 'npx',
-      args: ['-y', 'operaton-mcp'],
+      command,
+      args,
       env: {
         PATH: process.env.PATH ?? '',
         HOME: process.env.HOME ?? '',
@@ -39,6 +59,13 @@ export class McpClientService {
         setTimeout(() => reject(new Error('MCP connect timed out after 30s')), 30_000)
       ),
     ]);
+
+    // Prevent EPIPE from crashing the process when the transport pipe closes
+    this.transport.stderr?.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code !== 'EPIPE') {
+        logger.error('MCP transport stderr error', { error: err.message });
+      }
+    });
 
     logger.info('MCP client connected', { operatonBaseUrl: config.operaton.baseUrl });
   }

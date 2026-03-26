@@ -182,6 +182,15 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
+// Suppress EPIPE errors from MCP child process stdio pipes closing
+process.on('SIGPIPE', () => {});
+process.stdout.on('error', (err) => {
+  if (err.code !== 'EPIPE') throw err;
+});
+process.stderr.on('error', (err) => {
+  if (err.code !== 'EPIPE') throw err;
+});
+
 // Start server
 const startServer = async () => {
   const port = config.port;
