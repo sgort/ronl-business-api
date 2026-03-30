@@ -313,9 +313,15 @@ export const businessApi = {
   },
 
   mcp: {
+    async getSources(): Promise<ApiResponse<McpSourceMeta[]>> {
+      const response = await api.get('/mcp/sources');
+      return response.data;
+    },
+
     async *chatStream(
       message: string,
       history: Array<{ role: 'user' | 'assistant'; content: string }>,
+      sources: string[],
       signal?: AbortSignal
     ): AsyncGenerator<McpChatStreamEvent> {
       if (keycloak.authenticated) {
@@ -335,7 +341,7 @@ export const businessApi = {
             'Content-Type': 'application/json',
             ...(keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {}),
           },
-          body: JSON.stringify({ message, history }),
+          body: JSON.stringify({ message, history, sources }),
           signal,
         });
       } catch (err) {
@@ -483,6 +489,13 @@ export type McpChatStreamEvent =
   | { type: 'delta'; text: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
+
+export interface McpSourceMeta {
+  id: string;
+  displayName: string;
+  description: string;
+  connected: boolean;
+}
 
 export interface ProductDienstItem {
   id: string;

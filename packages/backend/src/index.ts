@@ -16,7 +16,9 @@ import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
-import { mcpClientService } from '@services/mcpClient.service';
+import { mcpRegistry } from '@services/mcp/McpRegistry';
+import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
+import { TriplyDbMcpProvider } from '@services/mcp/TriplyDbMcpProvider';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
@@ -201,14 +203,12 @@ const startServer = async () => {
   externalTaskWorker.start();
 
   if (config.mcp.enabled) {
-    try {
-      await mcpClientService.connect();
-      appLogger.info('MCP client ready');
-    } catch (err) {
-      appLogger.error('MCP client failed to connect — continuing without MCP', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    mcpRegistry.register(new OperatonMcpProvider());
+    if (config.triplydb.enabled) {
+      mcpRegistry.register(new TriplyDbMcpProvider());
     }
+    await mcpRegistry.connectAll();
+    appLogger.info('MCP registry ready');
   }
 
   app.listen(port, host, () => {
@@ -239,14 +239,14 @@ const startServer = async () => {
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
   externalTaskWorker.stop();
-  void mcpClientService.disconnect();
+  void mcpRegistry.disconnectAll();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
   externalTaskWorker.stop();
-  void mcpClientService.disconnect();
+  void mcpRegistry.disconnectAll();
   process.exit(0);
 });
 

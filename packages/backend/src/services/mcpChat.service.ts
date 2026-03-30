@@ -1,27 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
-import { mcpClientService } from '@services/mcpClient.service';
+import { mcpRegistry } from '@services/mcp/McpRegistry';
 
 const logger = createLogger('mcp-chat');
 
 const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 4096;
 const MAX_TOOL_ROUNDS = 10;
-
-const SYSTEM_PROMPT = `You are an AI assistant integrated into the RONL Business API platform.
-You are connected to the Operaton instance at: ${config.operaton.baseUrl}
-You have access to the Operaton BPMN/DMN engine via tools to query process definitions,
-process instances, tasks, decisions, deployments, and more.
-
-Important conventions:
-- When LISTING resources for display, use maxResults=20 unless the user asks for more.
-- When COUNTING resources, use the dedicated count tools or maxResults=1000 with a count-only intent.
-- When listing or counting deployed process definitions or decisions, filter by latestVersion=true
-  unless the user explicitly asks about all versions or version history.
-- Be concise and structured in your responses.
-- Never describe or narrate your tool calls in your response text. Only provide the final answer
-  based on the tool results.`;
+const MAX_TOOL_RESULT_CHARS = 12_000;
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -36,27 +23,6 @@ export type ChatStreamEvent =
 
 export type ChatEventCallback = (event: ChatStreamEvent) => void;
 
-const ALLOWED_TOOLS = new Set([
-  'processDefinition_list',
-  'processDefinition_count',
-  'processDefinition_getByKey',
-  'processInstance_list',
-  'processInstance_count',
-  'processInstance_get',
-  'task_list',
-  'task_count',
-  'task_getById',
-  'decision_list',
-  'decision_getByKey',
-  'deployment_list',
-  'deployment_count',
-  'deployment_getById',
-  'incident_list',
-  'incident_count',
-]);
-
-const MAX_TOOL_RESULT_CHARS = 12_000;
-
 function truncateToolResult(text: string): string {
   if (text.length <= MAX_TOOL_RESULT_CHARS) return text;
   return (
@@ -69,12 +35,17 @@ export async function runChatStream(
   history: ChatMessage[],
   userMessage: string,
   emit: ChatEventCallback,
+  selectedProviderIds: string[],
   signal?: AbortSignal
 ): Promise<void> {
   const client = new Anthropic({ apiKey: config.anthropic.apiKey });
 
-  const allTools = await mcpClientService.getToolDefinitions();
-  const tools = allTools.filter((t) => ALLOWED_TOOLS.has(t.name));
+  const tools = await mcpRegistry.getToolDefinitions(
+    selectedProviderIds.length > 0 ? selectedProviderIds : undefined
+  );
+  const systemPrompt = mcpRegistry.buildSystemPrompt(
+    selectedProviderIds.length > 0 ? selectedProviderIds : undefined
+  );
 
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -87,17 +58,13 @@ export async function runChatStream(
     if (signal?.aborted) return;
     round++;
 
-    // Buffer text for this round — only flush to the client if this is the
-    // final round (stop_reason === 'end_turn'). Intermediate rounds that
-    // proceed to tool execution discard their text to avoid narration leaking
-    // into the bubble mid-loop.
     let roundText = '';
 
     const stream = client.messages.stream(
       {
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: tools as Anthropic.Tool[],
         messages,
       },
@@ -115,14 +82,13 @@ export async function runChatStream(
     );
 
     if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
-      // Final round — emit the buffered text as deltas so the bubble fills in
       if (roundText) {
         emit({ type: 'delta', text: roundText });
       }
       return;
     }
 
-    // Tool round — discard roundText, do not emit it
+    // Tool round — discard buffered text, execute tools
     messages.push({ role: 'assistant', content: response.content });
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
@@ -134,7 +100,7 @@ export async function runChatStream(
       logger.info('Executing tool', { tool: toolUse.name });
 
       try {
-        const result = await mcpClientService.callTool(
+        const result = await mcpRegistry.callTool(
           toolUse.name,
           toolUse.input as Record<string, unknown>
         );
@@ -156,8 +122,5 @@ export async function runChatStream(
     messages.push({ role: 'user', content: toolResults });
   }
 
-  emit({
-    type: 'delta',
-    text: 'Maximum tool call rounds reached. Please refine your question.',
-  });
+  emit({ type: 'delta', text: 'Maximum tool call rounds reached. Please refine your question.' });
 }

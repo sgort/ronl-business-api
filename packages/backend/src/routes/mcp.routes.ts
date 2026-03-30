@@ -2,7 +2,7 @@ import express from 'express';
 import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { createLogger } from '@utils/logger';
 import { runChatStream } from '@services/mcpChat.service';
-import { mcpClientService } from '@services/mcpClient.service';
+import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { config } from '@utils/config';
 
 const router = express.Router();
@@ -14,10 +14,27 @@ router.use(requireRoles('caseworker', 'admin'));
 const CHAT_TIMEOUT_MS = 240_000;
 
 /**
+ * GET /v1/mcp/sources
+ * Returns all registered MCP providers with their metadata and connection status.
+ * Used by the frontend to populate the source selector.
+ */
+router.get('/sources', (_req, res) => {
+  if (!config.mcp.enabled) {
+    return res.json({ success: true, data: [] });
+  }
+  return res.json({ success: true, data: mcpRegistry.getProviderMeta() });
+});
+
+/**
  * POST /v1/mcp/chat
  * Stream a single chat turn through the MCP agentic loop via SSE.
  *
- * Event types emitted on the stream:
+ * Body:
+ *   message  string          — the user's message
+ *   history  ChatMessage[]   — prior turns
+ *   sources  string[]        — provider IDs to use (e.g. ["operaton", "triplydb"])
+ *
+ * SSE event types:
  *   { type: 'status', message: string }  — tool call about to execute
  *   { type: 'delta',  text: string }     — text token from the model
  *   { type: 'done' }                     — loop finished cleanly
@@ -27,20 +44,18 @@ router.post('/chat', async (req, res) => {
   if (!config.mcp.enabled) {
     return res.status(503).json({
       success: false,
-      error: { code: 'MCP_DISABLED', message: 'MCP client is not enabled' },
+      error: { code: 'MCP_DISABLED', message: 'MCP is not enabled' },
     });
   }
 
-  if (!mcpClientService.isConnected()) {
-    return res.status(503).json({
-      success: false,
-      error: { code: 'MCP_NOT_CONNECTED', message: 'MCP client is not connected' },
-    });
-  }
-
-  const { message, history = [] } = req.body as {
+  const {
+    message,
+    history = [],
+    sources = [],
+  } = req.body as {
     message: string;
     history: Array<{ role: 'user' | 'assistant'; content: string }>;
+    sources: string[];
   };
 
   if (!message?.trim()) {
@@ -50,11 +65,18 @@ router.post('/chat', async (req, res) => {
     });
   }
 
+  if (!mcpRegistry.isAnyConnected(sources.length > 0 ? sources : undefined)) {
+    return res.status(503).json({
+      success: false,
+      error: { code: 'MCP_NOT_CONNECTED', message: 'No selected MCP sources are connected' },
+    });
+  }
+
   // ── SSE setup ──────────────────────────────────────────────────────────────
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable Caddy / nginx proxy buffering
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   const abortController = new AbortController();
@@ -76,19 +98,17 @@ router.post('/chat', async (req, res) => {
     }
   }
 
-  // ── Agentic loop ───────────────────────────────────────────────────────────
   logger.info('MCP chat stream started', {
     userId: req.user?.userId,
+    sources,
     historyLength: history.length,
   });
 
   try {
-    await runChatStream(history, message, send, abortController.signal);
+    await runChatStream(history, message, send, sources, abortController.signal);
     send({ type: 'done' });
   } catch (error) {
-    if (abortController.signal.aborted) {
-      // timeout or client disconnect — already handled
-    } else {
+    if (!abortController.signal.aborted) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error('MCP chat stream failed', { error: msg });
       send({ type: 'error', message: msg });
