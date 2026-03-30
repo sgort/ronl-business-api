@@ -116,7 +116,10 @@ Common prefixes:
   PREFIX eli:    <http://data.europa.eu/eli/ontology#>
 
 Key types: cprmv:DecisionModel, cpsv:PublicService, schema:Organization, cprmv:Rule.
-Never narrate tool calls in your response text. Only return the final answer.`;
+Never narrate tool calls in your response text. Only return the final answer.
+
+Note: the knowledge graph contains documented metadata about decision models, including their intended Operaton endpoints.
+This is not live deployment data — to verify what is actually running in Operaton, the Process Engine source must also be selected.`;
   }
 
   private assertConnected(): void {
