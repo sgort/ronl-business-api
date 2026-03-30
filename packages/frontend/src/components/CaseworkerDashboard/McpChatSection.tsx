@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { businessApi } from '../../services/api';
 import type { McpSourceMeta } from '../../services/api';
 import type { KeycloakUser } from '@ronl/shared';
@@ -233,16 +234,16 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                 msg.role === 'user'
-                  ? 'text-white rounded-tr-sm'
-                  : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                  ? 'text-white rounded-tr-sm whitespace-pre-wrap'
+                  : 'bg-gray-100 text-gray-800 rounded-tl-sm prose prose-sm max-w-none'
               }`}
               style={
                 msg.role === 'user' ? { backgroundColor: 'var(--color-primary, #154273)' } : {}
               }
             >
-              {msg.content}
+              {msg.role === 'user' ? msg.content : <ReactMarkdown>{msg.content}</ReactMarkdown>}
             </div>
           </div>
         ))}
@@ -256,8 +257,8 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             >
               AI
             </div>
-            <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed text-gray-800 whitespace-pre-wrap max-w-[80%]">
-              {streamingContent}
+            <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed text-gray-800 max-w-[80%] prose prose-sm max-w-none">
+              <ReactMarkdown>{streamingContent}</ReactMarkdown>
               <span className="inline-block w-0.5 h-3.5 bg-gray-400 ml-0.5 align-text-bottom animate-pulse" />
             </div>
           </div>
