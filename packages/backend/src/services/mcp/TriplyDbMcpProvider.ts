@@ -8,7 +8,19 @@ import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from
 
 const logger = createLogger('triplydb-provider');
 
-const ALLOWED_TOOLS = new Set(['sparql_query']);
+const ALLOWED_TOOLS = new Set([
+  'dmn_list',
+  'dmn_get',
+  'dmn_chain_links',
+  'dmn_enhanced_chain_links',
+  'dmn_semantic_equivalences',
+  'organization_list',
+  'service_list',
+  'rule_list',
+  'concept_list',
+  'service_rules_metadata',
+  'sparql_query',
+]);
 
 function getServerCommand(): { command: string; args: string[] } {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -99,23 +111,24 @@ export class TriplyDbMcpProvider implements McpProvider {
   }
 
   systemPromptContribution(): string {
-    return `## Knowledge Graph (TriplyDB)
-You have access to the RONL knowledge graph via SPARQL. The default endpoint is:
-  ${config.triplydb.endpoint}
+    return `## Knowledge Graph (TriplyDB — RONL)
+You have access to the RONL knowledge graph at: ${config.triplydb.endpoint}
 
-Use sparql_query to retrieve decision models, public services, organisations, concepts, and rules.
-If the user asks about a different dataset, pass its endpoint explicitly.
+Prefer the dedicated tools over sparql_query whenever possible — they contain correct, tested queries.
 
-Common prefixes:
-  PREFIX cprmv:  <https://cprmv.open-regels.nl/0.3.0/>
-  PREFIX ronl:   <https://regels.overheid.nl/ontology#>
-  PREFIX dct:    <http://purl.org/dc/terms/>
-  PREFIX skos:   <http://www.w3.org/2004/02/skos/core#>
-  PREFIX cpsv:   <http://www.w3.org/ns/regorg#>
-  PREFIX schema: <http://schema.org/>
-  PREFIX eli:    <http://data.europa.eu/eli/ontology#>
+Available tools and what they return:
+- dmn_list            — all decision models with title, identifier, API endpoint, deployment ID, linked service
+- dmn_get             — full detail for one DMN: all inputs and outputs with types, descriptions, test values
+- dmn_chain_links     — variable-level connections between DMNs (exact identifier match, type-compatible)
+- dmn_enhanced_chain_links — chain links including semantic matches via skos:exactMatch; returns matchType: exact | semantic | both
+- dmn_semantic_equivalences — variables across different DMNs sharing the same concept URI (semantic interoperability)
+- organization_list   — all cv:PublicOrganisation resources with name, identifier, homepage, logo
+- service_list        — all cpsv:PublicService resources with title, description, competent authority
+- rule_list           — cpsv:Rule resources linked to services; supports optional serviceTitle filter
+- concept_list        — NL-SBB skos:Concept resources with exactMatch URIs, linked variables, and services
+- service_rules_metadata — detailed cprmv:Rule traversal through eli:LegalResource to cpsv:PublicService; supports optional serviceId filter
+- sparql_query        — escape hatch for queries not covered by the dedicated tools
 
-Key types: cprmv:DecisionModel, cpsv:PublicService, schema:Organization, cprmv:Rule.
 Never narrate tool calls in your response text. Only return the final answer.
 
 Note: the knowledge graph contains documented metadata about decision models, including their intended Operaton endpoints.
