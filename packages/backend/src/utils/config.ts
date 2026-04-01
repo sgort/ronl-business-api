@@ -88,6 +88,12 @@ interface Config {
   anthropic: {
     apiKey: string;
   };
+  gitlab: {
+    token: string;
+    baseUrl: string;
+    projectPath: string;
+    ucLabel: string;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -205,6 +211,13 @@ export const config: Config = {
 
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  },
+
+  gitlab: {
+    token: process.env.GITLAB_TOKEN || '',
+    baseUrl: process.env.GITLAB_BASE_URL || 'https://git.open-regels.nl',
+    projectPath: process.env.GITLAB_PROJECT_PATH || 'showcases%2Fiou-architectuur',
+    ucLabel: process.env.GITLAB_UC_LABEL || 'uc::submitted',
   },
 };
 

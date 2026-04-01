@@ -3,6 +3,8 @@ import { createLogger } from '@utils/logger';
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
 import { getRegelcatalogusData } from '@services/regelcatalogus.service';
+import axios from 'axios';
+import { config } from '@utils/config';
 
 const router = Router();
 const logger = createLogger('public-routes');
@@ -97,6 +99,98 @@ router.get('/regelcatalogus', async (_req: Request, res: Response) => {
       error: {
         code: 'REGELCATALOGUS_FETCH_FAILED',
         message: 'Regelcatalogus kon niet worden opgehaald.',
+      },
+    });
+  }
+});
+
+/**
+ * POST /v1/public/use-case
+ * Receives a use-case submission from the IOU Architecture documentation site
+ * and creates a GitLab work item. No authentication required — contributors
+ * are external users without GitLab accounts.
+ *
+ * Body (JSON):
+ *   title       string  — issue title (required)
+ *   description string  — full markdown body (required)
+ *
+ * Response 201: { success: true, data: { iid, web_url } }
+ * Response 400: missing required fields
+ * Response 502: GitLab API unreachable or rejected the request
+ */
+router.post('/use-case', async (req: Request, res: Response) => {
+  const { title, description } = req.body as { title?: string; description?: string };
+
+  if (!title?.trim() || !description?.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'USE_CASE_INVALID',
+        message: 'Both title and description are required.',
+      },
+    });
+  }
+
+  if (!config.gitlab.token) {
+    logger.error('GitLab token not configured — cannot create use-case issue');
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'GITLAB_NOT_CONFIGURED',
+        message: 'Use-case submission is not configured on this server.',
+      },
+    });
+  }
+
+  try {
+    const gitlabRes = await axios.post(
+      `${config.gitlab.baseUrl}/api/v4/projects/${config.gitlab.projectPath}/issues`,
+      {
+        title: `[Use Case] ${title.trim()}`,
+        description: description.trim(),
+        labels: config.gitlab.ucLabel,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'PRIVATE-TOKEN': config.gitlab.token,
+        },
+        timeout: 10000,
+        validateStatus: (status) => status < 500,
+      }
+    );
+
+    if (gitlabRes.status !== 201) {
+      logger.error('GitLab rejected use-case issue creation', {
+        status: gitlabRes.status,
+        response: gitlabRes.data,
+      });
+      return res.status(502).json({
+        success: false,
+        error: {
+          code: 'GITLAB_ERROR',
+          message: `GitLab returned ${gitlabRes.status}: ${JSON.stringify(gitlabRes.data)}`,
+        },
+      });
+    }
+
+    const { iid, web_url } = gitlabRes.data as { iid: number; web_url: string };
+
+    logger.info('Use-case work item created', { iid, web_url });
+
+    return res.status(201).json({
+      success: true,
+      data: { iid, web_url },
+      meta: { generatedAt: new Date().toISOString() },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to create use-case work item', { error: message });
+    return res.status(502).json({
+      success: false,
+      error: {
+        code: 'GITLAB_UNREACHABLE',
+        message: `Could not reach GitLab: ${message}`,
       },
     });
   }
