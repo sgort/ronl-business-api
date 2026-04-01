@@ -6,6 +6,16 @@ import { getRegelcatalogusData } from '@services/regelcatalogus.service';
 import axios from 'axios';
 import { config } from '@utils/config';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
+import multer from 'multer';
+import FormData from 'form-data';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 }, // 10MB per file, max 5
+  fileFilter: (_req, file, cb) => {
+    cb(null, file.mimetype.startsWith('image/'));
+  },
+});
 
 const router = Router();
 const logger = createLogger('public-routes');
@@ -297,6 +307,113 @@ router.get('/use-cases', async (req: Request, res: Response) => {
         code: 'USE_CASES_FETCH_FAILED',
         message: "Gebruiksscenario's konden niet worden opgehaald.",
       },
+    });
+  }
+});
+
+/**
+ * POST /v1/public/feedback
+ * Submit feedback with optional screenshots as a GitLab work item.
+ * Accepts multipart/form-data: { name, org, role, contact, description } + up to 5 image files.
+ * No authentication required.
+ */
+router.post('/feedback', upload.array('screenshots', 5), async (req: Request, res: Response) => {
+  const token = process.env.GITLAB_TOKEN;
+  const projectPath = process.env.GITLAB_PROJECT_PATH;
+  const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
+
+  if (!token || !projectPath) {
+    logger.error('GitLab env vars missing for feedback submission');
+    return res.status(503).json({
+      success: false,
+      error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+    });
+  }
+
+  const { name, org, role, contact, description } = req.body as Record<string, string>;
+
+  if (!name?.trim() || !contact?.trim() || !description?.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'MISSING_FIELDS', message: 'name, contact, and description are required.' },
+    });
+  }
+
+  const axios = (await import('axios')).default;
+  const files = (req.files ?? []) as Express.Multer.File[];
+
+  try {
+    // ── Upload each screenshot to GitLab and collect markdown references ──
+    const imageMarkdown: string[] = [];
+    for (const file of files) {
+      const form = new FormData();
+      form.append('file', file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
+      const uploadRes = await axios.post(
+        `${gitlabBase}/api/v4/projects/${projectPath}/uploads`,
+        form,
+        {
+          headers: {
+            'PRIVATE-TOKEN': token,
+            ...form.getHeaders(),
+          },
+          timeout: 15_000,
+        }
+      );
+      // GitLab returns { markdown: "![filename](/uploads/...)" }
+      imageMarkdown.push((uploadRes.data as { markdown: string }).markdown);
+    }
+
+    // ── Build issue description ──
+    const today = new Date().toLocaleDateString('nl-NL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+
+    const screenshotsSection =
+      imageMarkdown.length > 0 ? `\n\n---\n\n## Screenshots\n\n${imageMarkdown.join('\n\n')}` : '';
+
+    const markdownBody = `## Indiener · Submitter
+
+| Veld · Field | Waarde · Value |
+|---|---|
+| Naam · Name | ${name.trim()} |
+| Organisatie · Organisation | ${(org ?? '').trim() || '—'} |
+| Functie · Role | ${(role ?? '').trim() || '—'} |
+| Contact | ${contact.trim()} |
+| Datum · Date | ${today} |
+
+---
+
+## Beschrijving · Description
+
+${description.trim()}${screenshotsSection}`;
+
+    const issueRes = await axios.post(
+      `${gitlabBase}/api/v4/projects/${projectPath}/issues`,
+      {
+        title: `[Feedback] ${name.trim()} — ${new Date().toISOString().slice(0, 10)}`,
+        description: markdownBody,
+        labels: 'Feedback',
+      },
+      {
+        headers: { 'PRIVATE-TOKEN': token },
+        timeout: 10_000,
+      }
+    );
+
+    const { iid, web_url } = issueRes.data as { iid: number; web_url: string };
+    res.json({ success: true, data: { iid, web_url } });
+  } catch (error) {
+    logger.error('Failed to submit feedback', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'FEEDBACK_SUBMIT_FAILED', message: 'Feedback kon niet worden ingediend.' },
     });
   }
 });

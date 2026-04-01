@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 
@@ -205,9 +207,9 @@ export default function IouZakenSection({ state }: Props) {
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                             {field.label}
                           </p>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                            {content}
-                          </p>
+                          <div className="prose prose-sm max-w-none text-gray-700">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                          </div>
                         </div>
                       );
                     })}
