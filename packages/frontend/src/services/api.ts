@@ -194,6 +194,18 @@ export const businessApi = {
       return response.data;
     },
 
+    productenDiensten: async (
+      limit: number = 50
+    ): Promise<
+      ApiResponse<{
+        items: ProductDienstItem[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>
+    > => {
+      const response = await api.get(`/public/producten-diensten?limit=${limit}`);
+      return response.data;
+    },
+
     regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
       const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
       return response.data;
@@ -301,15 +313,84 @@ export const businessApi = {
   },
 
   mcp: {
-    chat: async (
-      message: string,
-      history: Array<{ role: 'user' | 'assistant'; content: string }> = []
-    ): Promise<ApiResponse<{ response: string }>> => {
-      const response = await api.post<ApiResponse<{ response: string }>>('/mcp/chat', {
-        message,
-        history,
-      });
+    async getSources(): Promise<ApiResponse<McpSourceMeta[]>> {
+      const response = await api.get('/mcp/sources');
       return response.data;
+    },
+
+    async *chatStream(
+      message: string,
+      history: Array<{ role: 'user' | 'assistant'; content: string }>,
+      sources: string[],
+      signal?: AbortSignal
+    ): AsyncGenerator<McpChatStreamEvent> {
+      if (keycloak.authenticated) {
+        try {
+          await keycloak.updateToken(120);
+        } catch {
+          keycloak.login();
+          return;
+        }
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE_URL}/mcp/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {}),
+          },
+          body: JSON.stringify({ message, history, sources }),
+          signal,
+        });
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        yield { type: 'error', message: (err as Error).message ?? 'Network error' };
+        return;
+      }
+
+      if (!response.ok) {
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: { message?: string } };
+          errorMsg = errData?.error?.message ?? errorMsg;
+        } catch {
+          // ignore
+        }
+        yield { type: 'error', message: errorMsg };
+        return;
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr) {
+                try {
+                  yield JSON.parse(jsonStr) as McpChatStreamEvent;
+                } catch {
+                  // ignore malformed SSE line
+                }
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
     },
   },
 
@@ -401,4 +482,27 @@ export interface AuditLogRecord {
   result: 'success' | 'failure' | 'error';
   error_message: string | null;
   request_id: string | null;
+}
+
+export type McpChatStreamEvent =
+  | { type: 'status'; message: string }
+  | { type: 'delta'; text: string }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
+
+export interface McpSourceMeta {
+  id: string;
+  displayName: string;
+  description: string;
+  connected: boolean;
+}
+
+export interface ProductDienstItem {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  audience: ('ondernemer' | 'particulier')[];
+  onlineAanvragen: boolean;
+  modified: string | null;
 }

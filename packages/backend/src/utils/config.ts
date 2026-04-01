@@ -85,6 +85,11 @@ interface Config {
     enabled: boolean;
     skipHealthCheck: boolean;
   };
+  triplydb: {
+    enabled: boolean;
+    endpoint: string;
+    token: string;
+  };
   anthropic: {
     apiKey: string;
   };
@@ -207,6 +212,12 @@ export const config: Config = {
   mcp: {
     enabled: parseEnvBool(process.env.MCP_ENABLED, false),
     skipHealthCheck: parseEnvBool(process.env.MCP_SKIP_HEALTH_CHECK, false),
+  },
+
+  triplydb: {
+    enabled: parseEnvBool(process.env.TRIPLYDB_MCP_ENABLED, false),
+    endpoint: process.env.TRIPLYDB_ENDPOINT ?? '',
+    token: process.env.TRIPLYDB_TOKEN ?? '',
   },
 
   anthropic: {

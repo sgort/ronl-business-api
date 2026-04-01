@@ -5,20 +5,33 @@ import { createLogger } from '@utils/logger';
 import { config } from '@utils/config';
 import os from 'os';
 import { createRequire } from 'module';
+import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from './McpProvider';
 
-const logger = createLogger('mcp-client');
+const logger = createLogger('operaton-provider');
 
-export interface McpToolResult {
-  content: Array<{ type: string; text: string }>;
-  isError?: boolean;
-}
+const ALLOWED_TOOLS = new Set([
+  'processDefinition_list',
+  'processDefinition_count',
+  'processDefinition_getByKey',
+  'processInstance_list',
+  'processInstance_count',
+  'processInstance_get',
+  'task_list',
+  'task_count',
+  'task_getById',
+  'decision_list',
+  'decision_getByKey',
+  'deployment_list',
+  'deployment_count',
+  'deployment_getById',
+  'incident_list',
+  'incident_count',
+]);
 
 function getMcpCommand(): { command: string; args: string[] } {
   if (os.platform() === 'win32' || os.platform() === 'darwin') {
     return { command: 'npx', args: ['-y', 'operaton-mcp'] };
   }
-
-  // Linux — resolve from local node_modules (bundled with deployment)
   try {
     const require = createRequire(__filename);
     const pkgPath = require.resolve('operaton-mcp/dist/index.js');
@@ -29,7 +42,13 @@ function getMcpCommand(): { command: string; args: string[] } {
   }
 }
 
-export class McpClientService {
+export class OperatonMcpProvider implements McpProvider {
+  readonly meta: McpProviderMeta = {
+    id: 'operaton',
+    displayName: 'Process Engine',
+    description: 'Operaton BPMN/DMN — process instances, tasks, decisions, deployments',
+  };
+
   private client: Client | null = null;
   private transport: StdioClientTransport | null = null;
 
@@ -60,14 +79,13 @@ export class McpClientService {
       ),
     ]);
 
-    // Prevent EPIPE from crashing the process when the transport pipe closes
     this.transport.stderr?.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code !== 'EPIPE') {
-        logger.error('MCP transport stderr error', { error: err.message });
+        logger.error('Operaton MCP transport error', { error: err.message });
       }
     });
 
-    logger.info('MCP client connected', { operatonBaseUrl: config.operaton.baseUrl });
+    logger.info('Operaton MCP provider connected', { operatonBaseUrl: config.operaton.baseUrl });
   }
 
   async disconnect(): Promise<void> {
@@ -75,43 +93,48 @@ export class McpClientService {
     await this.client.close();
     this.client = null;
     this.transport = null;
-    logger.info('MCP client disconnected');
+    logger.info('Operaton MCP provider disconnected');
   }
 
-  async listTools(): Promise<string[]> {
+  async getToolDefinitions(): Promise<ToolDefinition[]> {
     this.assertConnected();
     const result = await this.client!.listTools();
-    return result.tools.map((t) => t.name);
+    return result.tools
+      .filter((t) => ALLOWED_TOOLS.has(t.name))
+      .map((t) => ({
+        name: t.name,
+        description: t.description ?? '',
+        input_schema: t.inputSchema as Record<string, unknown>,
+      }));
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
     this.assertConnected();
-    logger.info('Calling MCP tool', { tool: name });
+    logger.info('Calling Operaton tool', { tool: name });
     const result = await this.client!.callTool({ name, arguments: args });
     return result as McpToolResult;
-  }
-
-  async getToolDefinitions(): Promise<
-    Array<{ name: string; description: string; input_schema: Record<string, unknown> }>
-  > {
-    this.assertConnected();
-    const result = await this.client!.listTools();
-    return result.tools.map((t) => ({
-      name: t.name,
-      description: t.description ?? '',
-      input_schema: t.inputSchema as Record<string, unknown>,
-    }));
   }
 
   isConnected(): boolean {
     return this.client !== null;
   }
 
+  systemPromptContribution(): string {
+    return `## Process Engine (Operaton)
+You are connected to the Operaton BPMN/DMN engine at: ${config.operaton.baseUrl}
+Use these tools to query process definitions, running instances, tasks, decisions, deployments, and incidents.
+
+Conventions:
+- When LISTING resources for display, use maxResults=20 unless the user asks for more.
+- When COUNTING resources, use the dedicated count tools or maxResults=1000 with a count-only intent.
+- When listing or counting deployed process definitions or decisions, filter by latestVersion=true
+  unless the user explicitly asks about all versions or version history.
+- Never narrate tool calls in your response text. Only return the final answer.`;
+  }
+
   private assertConnected(): void {
     if (!this.client) {
-      throw new Error('MCP client is not connected. Call connect() first.');
+      throw new Error('Operaton MCP provider is not connected');
     }
   }
 }
-
-export const mcpClientService = new McpClientService();

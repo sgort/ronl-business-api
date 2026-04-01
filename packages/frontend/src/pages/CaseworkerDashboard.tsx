@@ -27,6 +27,7 @@ import RollenSection from '../components/CaseworkerDashboard/RollenSection';
 import AuditSection from '../components/CaseworkerDashboard/AuditSection';
 import type { Message as McpMessage } from '../components/CaseworkerDashboard/McpChatSection';
 import McpChatSection from '../components/CaseworkerDashboard/McpChatSection';
+import ProductenDienstenCatalogus from '../components/CaseworkerDashboard/ProductenDienstenCatalogus';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
 
@@ -195,6 +196,8 @@ export default function CaseworkerDashboard() {
         return <NieuwsSection />;
       case 'berichten':
         return <BerichtenSection />;
+      case 'producten-diensten':
+        return <ProductenDienstenCatalogus />;
       case 'regelcatalogus':
         return <RegelCatalogus />;
       case 'profiel':
@@ -402,7 +405,7 @@ export default function CaseworkerDashboard() {
         </aside>
 
         {/* ── Main content area ── */}
-        <main className="flex-1 min-h-0 p-6 overflow-hidden flex flex-col">{renderContent()}</main>
+        <main className="flex-1 min-h-0 p-6 overflow-y-auto flex flex-col">{renderContent()}</main>
       </div>
     </div>
   );

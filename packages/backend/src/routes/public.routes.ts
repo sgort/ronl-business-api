@@ -5,6 +5,7 @@ import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
 import { getRegelcatalogusData } from '@services/regelcatalogus.service';
 import axios from 'axios';
 import { config } from '@utils/config';
+import { getProductenDienstenItems } from '@services/productenDiensten.service';
 
 const router = Router();
 const logger = createLogger('public-routes');
@@ -46,21 +47,31 @@ router.get('/nieuws', async (req: Request, res: Response) => {
 
 /**
  * GET /v1/public/berichten
- * Public platform announcements — no authentication required.
+ * Public announcements from Provincie Flevoland RSS — no authentication required.
  */
-router.get('/berichten', (req: Request, res: Response) => {
+router.get('/berichten', async (req: Request, res: Response) => {
   const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 20);
   const offset = parseInt(String(req.query.offset ?? '0'), 10) || 0;
 
-  const { items, total } = getBerichtenItems(limit, offset);
-  res.json({
-    success: true,
-    data: {
-      items,
-      pagination: { limit, offset, total, hasMore: offset + limit < total },
-    },
-    meta: meta(),
-  });
+  try {
+    const { items, total } = await getBerichtenItems(limit, offset);
+    res.json({
+      success: true,
+      data: {
+        items,
+        pagination: { limit, offset, total, hasMore: offset + limit < total },
+      },
+      meta: meta(),
+    });
+  } catch (error) {
+    logger.error('Failed to serve berichten', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'BERICHTEN_FETCH_FAILED', message: 'Berichten konden niet worden opgehaald.' },
+    });
+  }
 });
 
 /**
@@ -75,6 +86,38 @@ router.get('/berichten/:id', (req: Request, res: Response) => {
     });
   }
   res.json({ success: true, data: item, meta: meta() });
+});
+
+/**
+ * GET /v1/public/producten-diensten
+ * Provincie Flevoland products & services from SC4.0 feed — no authentication required.
+ */
+router.get('/producten-diensten', async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10) || 50, 200);
+  const offset = parseInt(String(req.query.offset ?? '0'), 10) || 0;
+
+  try {
+    const { items, total } = await getProductenDienstenItems(limit, offset);
+    res.json({
+      success: true,
+      data: {
+        items,
+        pagination: { limit, offset, total, hasMore: offset + limit < total },
+      },
+      meta: meta(),
+    });
+  } catch (error) {
+    logger.error('Failed to serve producten-diensten', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'PRODUCTEN_DIENSTEN_FETCH_FAILED',
+        message: 'Producten & diensten konden niet worden opgehaald.',
+      },
+    });
+  }
 });
 
 /**

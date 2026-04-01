@@ -1,9 +1,8 @@
 import express from 'express';
-import { jwtMiddleware } from '@auth/jwt.middleware';
-import { requireRoles } from '@auth/jwt.middleware';
+import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { createLogger } from '@utils/logger';
-import { runChatTurn } from '@services/mcpChat.service';
-import { mcpClientService } from '@services/mcpClient.service';
+import { runChatStream } from '@services/mcpChat.service';
+import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { config } from '@utils/config';
 
 const router = express.Router();
@@ -12,30 +11,51 @@ const logger = createLogger('mcp-routes');
 router.use(jwtMiddleware);
 router.use(requireRoles('caseworker', 'admin'));
 
-const CHAT_TIMEOUT_MS = 120_000;
+const CHAT_TIMEOUT_MS = 240_000;
+
+/**
+ * GET /v1/mcp/sources
+ * Returns all registered MCP providers with their metadata and connection status.
+ * Used by the frontend to populate the source selector.
+ */
+router.get('/sources', (_req, res) => {
+  if (!config.mcp.enabled) {
+    return res.json({ success: true, data: [] });
+  }
+  return res.json({ success: true, data: mcpRegistry.getProviderMeta() });
+});
 
 /**
  * POST /v1/mcp/chat
- * Run a single chat turn through the MCP agentic loop.
+ * Stream a single chat turn through the MCP agentic loop via SSE.
+ *
+ * Body:
+ *   message  string          — the user's message
+ *   history  ChatMessage[]   — prior turns
+ *   sources  string[]        — provider IDs to use (e.g. ["operaton", "triplydb"])
+ *
+ * SSE event types:
+ *   { type: 'status', message: string }  — tool call about to execute
+ *   { type: 'delta',  text: string }     — text token from the model
+ *   { type: 'done' }                     — loop finished cleanly
+ *   { type: 'error', message: string }   — unrecoverable failure
  */
 router.post('/chat', async (req, res) => {
   if (!config.mcp.enabled) {
     return res.status(503).json({
       success: false,
-      error: { code: 'MCP_DISABLED', message: 'MCP client is not enabled' },
+      error: { code: 'MCP_DISABLED', message: 'MCP is not enabled' },
     });
   }
 
-  if (!mcpClientService.isConnected()) {
-    return res.status(503).json({
-      success: false,
-      error: { code: 'MCP_NOT_CONNECTED', message: 'MCP client is not connected' },
-    });
-  }
-
-  const { message, history = [] } = req.body as {
+  const {
+    message,
+    history = [],
+    sources = [],
+  } = req.body as {
     message: string;
     history: Array<{ role: 'user' | 'assistant'; content: string }>;
+    sources: string[];
   };
 
   if (!message?.trim()) {
@@ -45,29 +65,57 @@ router.post('/chat', async (req, res) => {
     });
   }
 
-  try {
-    logger.info('MCP chat turn', { userId: req.user?.userId, historyLength: history.length });
-
-    const response = await Promise.race([
-      runChatTurn(history, message),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Chat request timed out after 60s')), CHAT_TIMEOUT_MS)
-      ),
-    ]);
-
-    res.json({ success: true, data: { response } });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    const timedOut = msg.includes('timed out');
-
-    logger.error('MCP chat failed', { error: msg });
-    res.status(timedOut ? 504 : 500).json({
+  if (!mcpRegistry.isAnyConnected(sources.length > 0 ? sources : undefined)) {
+    return res.status(503).json({
       success: false,
-      error: {
-        code: timedOut ? 'MCP_CHAT_TIMEOUT' : 'MCP_CHAT_FAILED',
-        message: msg,
-      },
+      error: { code: 'MCP_NOT_CONNECTED', message: 'No selected MCP sources are connected' },
     });
+  }
+
+  // ── SSE setup ──────────────────────────────────────────────────────────────
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const abortController = new AbortController();
+
+  const timeoutId = setTimeout(() => {
+    abortController.abort();
+    send({ type: 'error', message: 'Chat request timed out' });
+    if (!res.writableEnded) res.end();
+  }, CHAT_TIMEOUT_MS);
+
+  req.on('close', () => {
+    abortController.abort();
+    clearTimeout(timeoutId);
+  });
+
+  function send(event: object): void {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+  }
+
+  logger.info('MCP chat stream started', {
+    userId: req.user?.userId,
+    sources,
+    historyLength: history.length,
+  });
+
+  try {
+    await runChatStream(history, message, send, sources, abortController.signal);
+    send({ type: 'done' });
+  } catch (error) {
+    if (!abortController.signal.aborted) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('MCP chat stream failed', { error: msg });
+      send({ type: 'error', message: msg });
+    }
+  } finally {
+    clearTimeout(timeoutId);
+    if (!res.writableEnded) res.end();
   }
 });
 
