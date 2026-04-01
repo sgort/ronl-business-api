@@ -53,11 +53,12 @@ interface UseCase {
 
 interface Props {
   state: 'opened' | 'closed';
+  onCountChange?: (count: number) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function IouZakenSection({ state }: Props) {
+export default function IouZakenSection({ state, onCountChange }: Props) {
   const [items, setItems] = useState<UseCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +73,10 @@ export default function IouZakenSection({ state }: Props) {
         return r.json();
       })
       .then((data) => {
-        setItems(data.data ?? []);
+        const loaded = data.data ?? [];
+        setItems(loaded);
         setLoading(false);
+        onCountChange?.(loaded.length);
       })
       .catch((err: Error) => {
         setError(err.message);
@@ -165,7 +168,11 @@ export default function IouZakenSection({ state }: Props) {
                       {item.labels.map((label) => (
                         <span
                           key={label}
-                          className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100"
+                          className={`text-xs px-2 py-0.5 rounded-full border ${
+                            label === 'Feedback'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-100'
+                          }`}
                         >
                           {label}
                         </span>

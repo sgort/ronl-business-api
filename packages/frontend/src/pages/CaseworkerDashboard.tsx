@@ -76,8 +76,9 @@ export default function CaseworkerDashboard() {
 
   const [changelogOpen, setChangelogOpen] = useState(false);
 
-  // Task counter
+  // Task & IOU counter
   const [taskCount, setTaskCount] = useState(0);
+  const [iouCount, setIouCount] = useState(0);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -237,7 +238,7 @@ export default function CaseworkerDashboard() {
       case 'iou-feedback':
         return <IouFeedbackSection />;
       case 'iou-actieve-zaken':
-        return <IouZakenSection state="opened" />;
+        return <IouZakenSection state="opened" onCountChange={setIouCount} />;
       case 'iou-archief':
         return <IouZakenSection state="closed" />;
       default: {
@@ -350,6 +351,14 @@ export default function CaseworkerDashboard() {
                   tenantConfig?.leftPanelSections?.[item.id]?.some((s) => s.id === 'taken') && (
                     <span className="ml-2 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">
                       {taskCount}
+                    </span>
+                  )}
+                {iouCount > 0 &&
+                  tenantConfig?.leftPanelSections?.[item.id]?.some(
+                    (s) => s.id === 'iou-actieve-zaken'
+                  ) && (
+                    <span className="ml-2 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">
+                      {iouCount}
                     </span>
                   )}
               </button>
