@@ -31,6 +31,38 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.9.4',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'April 1, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — IOU tab (Flevoland)',
+          icon: '🏛️',
+          iconColor: 'blue',
+          items: [
+            'New "IOU" top-nav tab added to the Flevoland tenant — tenant-scoped via tenants.json, visible without authentication',
+            'Gebruiksscenario indienen: full use-case submission form with 10 sections (title, submitter, description, current situation, desired outcome, process steps, legislation, affected parties, existing materials, priority) — POSTs to existing POST /v1/public/use-case GitLab proxy; organisation pre-filled as "Provincie Flevoland"',
+            'Feedback geven: feedback form with submitter info, description, and screenshot upload — paste (Ctrl+V), drag-and-drop, or file picker; up to 5 images at 10 MB each; backend uploads each image to GitLab via POST /api/v4/projects/:path/uploads before creating the issue with embedded markdown image references via new POST /v1/public/feedback route',
+            'Actieve zaken: read-only list of open GitLab issues fetched via new GET /v1/public/use-cases?state=opened — expandable cards rendered with react-markdown + remark-gfm showing Indiener table, Beschrijving, and Gewenst resultaat sections parsed from the issue body',
+            'Archief: same component as Actieve zaken with state=closed — completed and declined submissions',
+            'IouZakenSection shared by both list views; WORK_ITEM_FIELDS constant controls which markdown sections are extracted and displayed per card',
+            'Main content area overflow corrected from flex-col to block — scrolling now works correctly for all long-form sections',
+          ],
+        },
+        {
+          title: 'Backend — IOU public endpoints',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'GET /v1/public/use-cases?state=opened|closed — lists GitLab issues for GITLAB_PROJECT_PATH; returns iid, title, state, created_at, updated_at, web_url, labels, assignees, description; no authentication required',
+            'POST /v1/public/feedback — multipart/form-data; accepts name, org, role, contact, description and up to 5 screenshot files; uploads images to GitLab project uploads API, embeds returned markdown references in issue body; multer in-memory storage with 10 MB per-file limit and image-only filter',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.3',
       status: 'Feature Release',
       statusColor: 'purple',
