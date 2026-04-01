@@ -156,6 +156,13 @@ export default function IouGebruiksscenarioSection() {
     setForm((prev) => ({ ...prev, steps: [...prev.steps, ''] }));
   }
 
+  function removeStep(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      steps: prev.steps.filter((_, i) => i !== index),
+    }));
+  }
+
   function toggleMaterial(value: string) {
     setForm((prev) => {
       const next = new Set(prev.materials);
@@ -436,7 +443,7 @@ ${PO_ASSESSMENT_TEMPLATE}`;
         <div className="space-y-2">
           {form.steps.map((step, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center mt-2 font-semibold">
+              <span className="flex-shrink-0 w-5 h-5 rounded-md bg-slate-500 text-white text-xs flex items-center justify-center mt-2.5 font-mono font-semibold">
                 {i + 1}
               </span>
               <textarea
@@ -446,6 +453,16 @@ ${PO_ASSESSMENT_TEMPLATE}`;
                 value={step}
                 onChange={(e) => setStep(i, e.target.value)}
               />
+              {form.steps.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeStep(i)}
+                  className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-200 text-gray-400 text-xs flex items-center justify-center mt-2.5 hover:bg-red-100 hover:text-red-500 transition-colors"
+                  title="Remove step · Stap verwijderen"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>
