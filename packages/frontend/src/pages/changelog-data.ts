@@ -31,7 +31,7 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
-      version: '2.9.4',
+      version: '2.9.5',
       status: 'Feature Release',
       statusColor: 'blue',
       borderColor: 'blue',
@@ -58,6 +58,59 @@ export const changelog: Changelog = {
           items: [
             'GET /v1/public/use-cases?state=opened|closed — lists GitLab issues for GITLAB_PROJECT_PATH; returns iid, title, state, created_at, updated_at, web_url, labels, assignees, description; no authentication required',
             'POST /v1/public/feedback — multipart/form-data; accepts name, org, role, contact, description and up to 5 screenshot files; uploads images to GitLab project uploads API, embeds returned markdown references in issue body; multer in-memory storage with 10 MB per-file limit and image-only filter',
+          ],
+        },
+      ],
+    },
+    {
+      version: '2.9.4',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'March 30, 2026',
+      sections: [
+        {
+          title: 'AI Assistant — Multi-Source MCP Registry',
+          icon: '🤖',
+          iconColor: 'purple',
+          items: [
+            'McpClientService singleton replaced by McpRegistry — a provider registry that manages multiple independent MCP sources; each provider connects, exposes tools, and contributes a system prompt block independently',
+            'McpProvider interface introduced: id, displayName, description, connect(), disconnect(), getToolDefinitions(), callTool(), isConnected(), systemPromptContribution()',
+            'OperatonMcpProvider replaces McpClientService — identical stdio subprocess behaviour, ALLOWED_TOOLS curation gate (15 read-only tools) preserved, systemPromptContribution() carries the Operaton-specific conventions',
+            'TriplyDbMcpProvider added — spawns a custom triplydb-mcp stdio subprocess; connects to the RONL TriplyDB endpoint; enabled via TRIPLYDB_MCP_ENABLED=true',
+            'Custom triplydb-mcp server in packages/backend/src/mcp-servers/triplydb/index.ts — exposes 11 tools: dmn_list, dmn_get, dmn_chain_links, dmn_enhanced_chain_links, dmn_semantic_equivalences, organization_list, service_list, rule_list, concept_list, service_rules_metadata, sparql_query',
+            'SPARQL queries in triplydb-mcp are purpose-built from LDE sparql.service.ts and constants.ts — correct prefixes, type-compatible variable joins, skos:exactMatch semantic matching; sparql_query retained as escape hatch',
+            'Default TRIPLYDB_ENDPOINT changed to the RONL dataset (stevengort/RONL) — the canonical knowledge graph replacing the earlier DMN-discovery subset',
+            'McpRegistry.connectAll() connects all registered providers independently — a provider failure does not block others',
+            'McpRegistry.getToolDefinitions(providerIds?) and callTool() accept optional provider ID filter for per-request source scoping',
+            'McpRegistry.buildSystemPrompt(providerIds?) assembles a composite system prompt from only the selected connected providers',
+            'McpRegistry.getProviderMeta() returns id, displayName, description, and connected status for all registered providers',
+            'runChatStream() signature extended with selectedProviderIds: string[] — tools and system prompt are scoped to the selected providers per request',
+            'POST /v1/mcp/chat body extended with sources: string[] — provider IDs selected by the user for this session',
+            'GET /v1/mcp/sources added — returns registered provider metadata and connection status; used by the frontend to populate the source selector',
+          ],
+        },
+        {
+          title: 'AI Assistant — Source Selector UI',
+          icon: '🎛️',
+          iconColor: 'blue',
+          items: [
+            'McpChatSection fetches available sources from GET /v1/mcp/sources on mount; all connected sources pre-selected by default',
+            'Source toggle buttons rendered below the message history — filled primary colour when selected, outlined when not; disabled and greyed out when the provider is offline',
+            'Send button and textarea disabled when no sources are selected; placeholder text updated to reflect selection state',
+            'Header subtitle dynamically shows active source display names (e.g. "Claude + Process Engine, Knowledge Graph")',
+            'Empty state prompt adapts to selected sources',
+            'Selected sources passed as sources array on every POST /v1/mcp/chat request; session-scoped — persists until Clear chat or page navigation',
+          ],
+        },
+        {
+          title: 'AI Assistant — Markdown Rendering',
+          icon: '✨',
+          iconColor: 'green',
+          items: [
+            'Assistant message bubbles now render Markdown via react-markdown — bold, lists, headings, and paragraphs display correctly instead of showing raw asterisks',
+            'User bubbles retain plain whitespace-pre-wrap rendering; assistant bubbles use prose prose-sm Tailwind typography classes',
+            'In-progress streaming bubble also uses ReactMarkdown — formatting appears incrementally as tokens arrive',
           ],
         },
       ],
