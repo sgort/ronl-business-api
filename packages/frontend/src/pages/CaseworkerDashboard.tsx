@@ -27,8 +27,11 @@ import RollenSection from '../components/CaseworkerDashboard/RollenSection';
 import AuditSection from '../components/CaseworkerDashboard/AuditSection';
 import type { Message as McpMessage } from '../components/CaseworkerDashboard/McpChatSection';
 import McpChatSection from '../components/CaseworkerDashboard/McpChatSection';
+import IouGebruiksscenarioSection from '../components/CaseworkerDashboard/IouGebruiksscenarioSection';
+import IouFeedbackSection from '../components/CaseworkerDashboard/IouFeedbackSection';
+import IouZakenSection from '../components/CaseworkerDashboard/IouZakenSection';
 
-type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
+type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap' | 'iou';
 
 const TOP_NAV_ITEMS: { id: TopNavPage; label: string }[] = [
   { id: 'home', label: 'Home' },
@@ -36,6 +39,7 @@ const TOP_NAV_ITEMS: { id: TopNavPage; label: string }[] = [
   { id: 'projects', label: 'Projecten' },
   { id: 'audit-log', label: 'Audit log' },
   { id: 'gereedschap', label: 'Gereedschap' },
+  { id: 'iou', label: 'IOU' },
 ];
 
 const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
@@ -225,6 +229,14 @@ export default function CaseworkerDashboard() {
         return (
           <McpChatSection user={user} messages={mcpMessages} onMessagesChange={setMcpMessages} />
         );
+      case 'iou-gebruiksscenario':
+        return <IouGebruiksscenarioSection />;
+      case 'iou-feedback':
+        return <IouFeedbackSection />;
+      case 'iou-actieve-zaken':
+        return <IouZakenSection state="opened" />;
+      case 'iou-archief':
+        return <IouZakenSection state="closed" />;
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
@@ -402,7 +414,7 @@ export default function CaseworkerDashboard() {
         </aside>
 
         {/* ── Main content area ── */}
-        <main className="flex-1 min-h-0 p-6 overflow-hidden flex flex-col">{renderContent()}</main>
+        <main className="flex-1 min-h-0 p-6 overflow-y-auto">{renderContent()}</main>
       </div>
     </div>
   );

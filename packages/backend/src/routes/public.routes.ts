@@ -196,4 +196,66 @@ router.post('/use-case', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /v1/public/use-cases
+ * List GitLab issues for the IOU Architecture project.
+ * Query param: state=opened (default) | closed
+ * No authentication required — read-only public view.
+ */
+router.get('/use-cases', async (req: Request, res: Response) => {
+  const token = process.env.GITLAB_TOKEN;
+  const projectPath = process.env.GITLAB_PROJECT_PATH;
+  const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
+
+  if (!token || !projectPath) {
+    logger.error('GitLab env vars missing for use-cases listing');
+    return res.status(503).json({
+      success: false,
+      error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+    });
+  }
+
+  const state = req.query.state === 'closed' ? 'closed' : 'opened';
+
+  try {
+    const axios = (await import('axios')).default;
+    const response = await axios.get(`${gitlabBase}/api/v4/projects/${projectPath}/issues`, {
+      params: {
+        state,
+        per_page: 100,
+        order_by: 'created_at',
+        sort: 'desc',
+      },
+      headers: { 'PRIVATE-TOKEN': token },
+      timeout: 10_000,
+    });
+
+    const items = (response.data as Record<string, unknown>[]).map((issue) => ({
+      iid: issue['iid'],
+      title: issue['title'],
+      state: issue['state'],
+      created_at: issue['created_at'],
+      updated_at: issue['updated_at'],
+      web_url: issue['web_url'],
+      labels: issue['labels'],
+      assignees: (issue['assignees'] as { name: string }[] | undefined)?.map((a) => a.name) ?? [],
+      description: issue['description'] ?? '',
+    }));
+
+    res.json({ success: true, data: items, meta: meta() });
+  } catch (error) {
+    logger.error('Failed to list GitLab use-case issues', {
+      state,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'USE_CASES_FETCH_FAILED',
+        message: "Gebruiksscenario's konden niet worden opgehaald.",
+      },
+    });
+  }
+});
+
 export default router;

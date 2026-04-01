@@ -1,5 +1,5 @@
 {
-  "default": "utrecht",
+  "default": "flevoland",
   "tenants": {
     "utrecht": {
       "id": "utrecht",
@@ -226,6 +226,12 @@
           { "id": "rip-fase1-gereed", "label": "RIP Fase 1 gereed", "isPublic": false },
           { "id": "actief", "label": "Actieve zaken", "isPublic": false },
           { "id": "archief", "label": "Archief", "isPublic": false }
+        ],
+        "iou": [
+          { "id": "iou-gebruiksscenario", "label": "Gebruiksscenario indienen", "isPublic": false },
+          { "id": "iou-feedback", "label": "Feedback geven", "isPublic": false },
+          { "id": "iou-actieve-zaken", "label": "Actieve zaken", "isPublic": true },
+          { "id": "iou-archief", "label": "Archief", "isPublic": true }
         ]
       }
     },
