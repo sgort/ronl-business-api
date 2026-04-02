@@ -99,6 +99,10 @@ interface Config {
     projectPath: string;
     ucLabel: string;
   };
+  cprmv: {
+    enabled: boolean;
+    url: string;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -218,6 +222,11 @@ export const config: Config = {
     enabled: parseEnvBool(process.env.TRIPLYDB_MCP_ENABLED, false),
     endpoint: process.env.TRIPLYDB_ENDPOINT ?? '',
     token: process.env.TRIPLYDB_TOKEN ?? '',
+  },
+
+  cprmv: {
+    enabled: parseEnvBool(process.env.CPRMV_MCP_ENABLED, false),
+    url: process.env.CPRMV_URL ?? 'https://acc.cprmv.open-regels.nl/mcp',
   },
 
   anthropic: {

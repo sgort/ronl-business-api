@@ -19,6 +19,7 @@ import { externalTaskWorker } from '@services/externalTaskWorker.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
 import { TriplyDbMcpProvider } from '@services/mcp/TriplyDbMcpProvider';
+import { CprmvMcpProvider } from '@services/mcp/CprmvMcpProvider';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
@@ -206,6 +207,9 @@ const startServer = async () => {
     mcpRegistry.register(new OperatonMcpProvider());
     if (config.triplydb.enabled) {
       mcpRegistry.register(new TriplyDbMcpProvider());
+    }
+    if (config.cprmv.enabled) {
+      mcpRegistry.register(new CprmvMcpProvider());
     }
     await mcpRegistry.connectAll();
     appLogger.info('MCP registry ready');

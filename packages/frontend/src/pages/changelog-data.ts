@@ -38,6 +38,18 @@ export const changelog: Changelog = {
       date: 'April 2, 2026',
       sections: [
         {
+          title: 'AI Assistant — CPRMV Legislation Provider',
+          icon: '📜',
+          iconColor: 'teal',
+          items: [
+            'CprmvMcpProvider added — connects to the CPRMV HTTP MCP server at acc.cprmv.open-regels.nl/mcp; enabled via CPRMV_MCP_ENABLED=true, URL overridable via CPRMV_URL',
+            'Uses StreamableHTTPClientTransport (HTTP-based MCP) rather than StdioClientTransport — the CPRMV server is a remote HTTP endpoint, not a local subprocess',
+            'Three tools exposed: rules_rules__rule_id_path__get (retrieve rules from BWB, CVDR, or EU CELLAR by rule ID path), ref_ref__referencemethod___reference__get (resolve rules by Juriconnect reference), celex_cellar_by_celex__celexid___language___format__get (look up EU CELLAR publications by CELEX id)',
+            'config.cprmv added to Config interface and config object: enabled (CPRMV_MCP_ENABLED, default false), url (CPRMV_URL, default https://acc.cprmv.open-regels.nl/mcp)',
+            'CprmvMcpProvider registered in index.ts inside the existing if (config.mcp.enabled) block, conditional on config.cprmv.enabled',
+          ],
+        },
+        {
           title: 'Caseworker Dashboard — Procesbibliotheek',
           icon: '📦',
           iconColor: 'blue',
