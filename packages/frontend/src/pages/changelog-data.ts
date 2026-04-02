@@ -31,6 +31,35 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.9."6"',
+      status: 'Enhancement',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'April 2, 2026',
+      sections: [
+        {
+          title: 'IOU — Gebruiksscenario indienen',
+          icon: '🏛️',
+          iconColor: 'blue',
+          items: [
+            'Step 6 (Concrete Example): sub-step number badges changed from blue filled circles to slate rounded squares — eliminates visual collision with the section header badges which share the same shape and colour',
+            'Step 6: remove button added per step row; only shown when more than one step is present, preventing accidental full deletion; button turns red on hover to signal destructive intent',
+            'Step 9 (Existing Materials): optional file attachment upload added below the existing material checkboxes — drag-and-drop or file picker, up to 5 files of any type at 10 MB each',
+            'Attachments are pre-uploaded to GitLab one by one via new POST /v1/public/upload-file before the use-case issue is created; returned markdown references are appended as a Bijlagen section in the issue body',
+            'Submission reverted to JSON (Content-Type: application/json) — multipart/form-data on /use-case caused multer v2 text-field parsing to fail silently, leaving req.body empty regardless of file presence',
+          ],
+        },
+        {
+          title: 'Backend — New endpoint',
+          icon: '⚙️',
+          iconColor: 'orange',
+          items: [
+            'POST /v1/public/upload-file: accepts a single file of any type via multipart/form-data (field name: file), uploads it to the GitLab project uploads API, and returns the GitLab markdown reference — no authentication required; uses a dedicated uploadAny multer instance without the image-only fileFilter',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.5',
       status: 'Feature Release',
       statusColor: 'blue',

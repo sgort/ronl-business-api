@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_MB = 10;
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 
@@ -107,6 +110,11 @@ interface FormState {
   priority: string;
 }
 
+interface AttachedFile {
+  id: string;
+  file: File;
+}
+
 const initialForm = (): FormState => ({
   title: '',
   name: '',
@@ -132,6 +140,10 @@ export default function IouGebruiksscenarioSection() {
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [successData, setSuccessData] = useState<{ iid: number; web_url: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [attachments, setAttachments] = useState<AttachedFile[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const attachmentDropRef = useRef<HTMLDivElement>(null);
 
   // ── Field helpers ────────────────────────────────────────────────────────
 
@@ -169,6 +181,46 @@ export default function IouGebruiksscenarioSection() {
       next.has(value) ? next.delete(value) : next.add(value);
       return { ...prev, materials: next };
     });
+  }
+
+  // ── Attachment helpers ───────────────────────────────────────────────────
+
+  function addAttachments(files: FileList | File[]) {
+    setAttachmentError(null);
+    const arr = Array.from(files);
+    const valid: AttachedFile[] = [];
+
+    for (const file of arr) {
+      if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+        setAttachmentError(`Maximale bestandsgrootte is ${MAX_ATTACHMENT_MB} MB per bestand.`);
+        continue;
+      }
+      if (attachments.length + valid.length >= MAX_ATTACHMENTS) {
+        setAttachmentError(`Maximaal ${MAX_ATTACHMENTS} bijlagen.`);
+        break;
+      }
+      valid.push({ id: `${Date.now()}-${Math.random()}`, file });
+    }
+    setAttachments((prev) => [...prev, ...valid]);
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function handleAttachmentDrop(e: React.DragEvent) {
+    e.preventDefault();
+    attachmentDropRef.current?.classList.remove('border-blue-400', 'bg-blue-50');
+    addAttachments(e.dataTransfer.files);
+  }
+
+  function handleAttachmentDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    attachmentDropRef.current?.classList.add('border-blue-400', 'bg-blue-50');
+  }
+
+  function handleAttachmentDragLeave() {
+    attachmentDropRef.current?.classList.remove('border-blue-400', 'bg-blue-50');
   }
 
   // ── Validation ───────────────────────────────────────────────────────────
@@ -279,10 +331,35 @@ ${PO_ASSESSMENT_TEMPLATE}`;
     setErrorMessage('');
 
     try {
+      // ── Pre-upload attachments to GitLab, collect markdown references ──
+      const attachmentMarkdown: string[] = [];
+      for (const a of attachments) {
+        const fd = new FormData();
+        fd.append('file', a.file, a.file.name);
+        const uploadRes = await fetch(`${API_BASE_URL}/public/upload-file`, {
+          method: 'POST',
+          body: fd,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || !uploadData.success) {
+          throw new Error(`Bestand uploaden mislukt: ${uploadData.error?.message ?? a.file.name}`);
+        }
+        attachmentMarkdown.push(uploadData.data.markdown);
+      }
+
+      const attachmentsSection =
+        attachmentMarkdown.length > 0
+          ? `\n\n---\n\n## Bijlagen · Attachments\n\n${attachmentMarkdown.join('\n\n')}`
+          : '';
+
+      // ── Submit use-case as JSON (with attachment references embedded) ──
       const response = await fetch(`${API_BASE_URL}/public/use-case`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: form.title.trim(), description: markdownBody }),
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: markdownBody + attachmentsSection,
+        }),
       });
 
       const data = await response.json();
@@ -294,6 +371,7 @@ ${PO_ASSESSMENT_TEMPLATE}`;
       setSuccessData(data.data);
       setSubmitState('success');
       setForm(initialForm());
+      setAttachments([]);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
       setSubmitState('error');
@@ -536,6 +614,63 @@ ${PO_ASSESSMENT_TEMPLATE}`;
               disabled={!form.materials.has('__other__')}
             />
           </div>
+        </div>
+
+        {/* ── File upload ── */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs text-gray-500 mb-2">
+            Optionally attach files (PDF, Word, diagrams…) ·{' '}
+            <em>
+              Voeg optioneel bestanden toe — max. {MAX_ATTACHMENTS} bestanden van elk max.{' '}
+              {MAX_ATTACHMENT_MB} MB.
+            </em>
+          </p>
+          <div
+            ref={attachmentDropRef}
+            onDrop={handleAttachmentDrop}
+            onDragOver={handleAttachmentDragOver}
+            onDragLeave={handleAttachmentDragLeave}
+            onClick={() => attachmentInputRef.current?.click()}
+            className="border-2 border-dashed border-gray-300 rounded-lg px-4 py-3 text-center cursor-pointer transition-colors hover:border-gray-400 hover:bg-gray-50"
+          >
+            <p className="text-sm text-gray-400">
+              Sleep bestanden hier of{' '}
+              <span className="underline" style={{ color: 'var(--color-primary, #0046ad)' }}>
+                kies bestanden
+              </span>
+            </p>
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => e.target.files && addAttachments(e.target.files)}
+            />
+          </div>
+
+          {attachmentError && <p className="text-xs text-red-600 mt-1">{attachmentError}</p>}
+
+          {attachments.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {attachments.map((a) => (
+                <li key={a.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className="text-gray-400">📎</span>
+                  <span className="truncate flex-1">{a.file.name}</span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">
+                    {(a.file.size / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(a.id)}
+                    className="flex-shrink-0 w-4 h-4 rounded-full bg-gray-200 text-gray-400 text-xs flex items-center justify-center hover:bg-red-100 hover:text-red-500 transition-colors"
+                    title="Verwijderen"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </Card>
 

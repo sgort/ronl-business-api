@@ -9,12 +9,19 @@ import { getProductenDienstenItems } from '@services/productenDiensten.service';
 import multer from 'multer';
 import FormData from 'form-data';
 
+// Used by /feedback — images only
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 5 }, // 10MB per file, max 5
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
   fileFilter: (_req, file, cb) => {
     cb(null, file.mimetype.startsWith('image/'));
   },
+});
+
+// Used by /use-case — any file type (PDF, Word, diagrams, etc.)
+const uploadAny = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
 });
 
 const router = Router();
@@ -250,6 +257,52 @@ router.post('/use-case', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /v1/public/upload-file
+ * Uploads a single file to the GitLab project and returns the markdown reference.
+ * Used by the use-case form to pre-upload attachments before JSON submission.
+ * No authentication required.
+ */
+router.post('/upload-file', uploadAny.single('file'), async (req: Request, res: Response) => {
+  const token = process.env.GITLAB_TOKEN;
+  const projectPath = process.env.GITLAB_PROJECT_PATH;
+  const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
+
+  if (!token || !projectPath) {
+    return res.status(503).json({
+      success: false,
+      error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+    });
+  }
+
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'NO_FILE', message: 'No file provided.' },
+    });
+  }
+
+  try {
+    const form = new FormData();
+    form.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
+    const uploadRes = await axios.post(
+      `${gitlabBase}/api/v4/projects/${projectPath}/uploads`,
+      form,
+      { headers: { 'PRIVATE-TOKEN': token, ...form.getHeaders() }, timeout: 15_000 }
+    );
+    const { markdown } = uploadRes.data as { markdown: string };
+    return res.json({ success: true, data: { markdown } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to upload file to GitLab', { error: message });
+    return res.status(502).json({
+      success: false,
+      error: { code: 'GITLAB_UNREACHABLE', message: `Could not reach GitLab: ${message}` },
+    });
+  }
+});
+
+/**
  * GET /v1/public/use-cases
  * List GitLab issues for the IOU Architecture project.
  * Query param: state=opened (default) | closed
@@ -395,7 +448,7 @@ ${description.trim()}${screenshotsSection}`;
     const issueRes = await axios.post(
       `${gitlabBase}/api/v4/projects/${projectPath}/issues`,
       {
-        title: `[Feedback] ${name.trim()} — ${new Date().toISOString().slice(0, 10)}`,
+        title: `[Feedback] ${name.trim()}`,
         description: markdownBody,
         labels: 'Feedback',
       },
