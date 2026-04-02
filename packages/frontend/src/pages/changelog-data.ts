@@ -31,7 +31,7 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
-      version: '2.9."6"',
+      version: '2.9.6',
       status: 'Enhancement',
       statusColor: 'green',
       borderColor: 'green',
