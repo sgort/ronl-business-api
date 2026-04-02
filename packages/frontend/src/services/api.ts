@@ -534,17 +534,25 @@ export interface BundleDeployedDocument {
   name: string;
 }
 
+export interface BundleSubprocess {
+  id: string;
+  name: string;
+  bpmnProcessId: string;
+  status: string;
+}
+
 export interface ProcessBundle {
   id: string;
   bpmnProcessId: string;
   name: string;
+  description?: string;
   processRole: string;
   status: string;
   deployedAt: string;
   operatonUrl: string;
   operatonDeploymentId: string;
-  linkedDmnTemplates: unknown[];
+  linkedDmnTemplates: string[];
   deployedForms: BundleDeployedForm[];
   deployedDocuments: BundleDeployedDocument[];
-  subprocesses: unknown[];
+  subprocesses: BundleSubprocess[];
 }

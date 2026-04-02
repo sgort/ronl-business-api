@@ -83,7 +83,7 @@ export default function ProductenDienstenCatalogus() {
   const onlineCount = filtered.filter((i) => i.onlineAanvragen).length;
 
   return (
-    <div className="max-w-4xl space-y-4">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h2 className="text-lg font-bold text-gray-800">Producten & Diensten</h2>
@@ -136,7 +136,7 @@ export default function ProductenDienstenCatalogus() {
           Geen producten gevonden voor deze zoekopdracht.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map((item) => {
             const isExpanded = expanded === item.id;
             return (

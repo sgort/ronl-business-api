@@ -49,6 +49,16 @@ const PLATFORM_TOOLS: PlatformTool[] = [
     statusWidget: true,
   },
   {
+    id: 'RoPA',
+    label: 'Register van verwerkingsactiviteiten',
+    description:
+      'Dit register geeft inzicht in de verwerkingsactiviteiten waarbij de Provincie Flevoland persoonsgegevens verwerkt.',
+    url: 'https://acc.ropa.open-regels.nl/',
+    icon: '🛡️',
+    roles: [],
+    statusWidget: true,
+  },
+  {
     id: 'operaton',
     label: 'Operaton Cockpit',
     description: 'Procesbeheer en monitoring van BPMN-instanties.',
@@ -129,8 +139,8 @@ export default function GereedschapSection({ user }: Props) {
   );
 
   return (
-    <div className="max-w-5xl">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {visibleTools.map((tool) => {
           const isPlaceholder = tool.url === null;
           return (
