@@ -31,7 +31,9 @@
         "home": [
           { "id": "berichten", "label": "Berichten", "isPublic": true },
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true },
+          { "id": "gegevenswoordenboek", "label": "Gegevenswoordenboek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -76,7 +78,8 @@
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -121,7 +124,8 @@
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -166,7 +170,8 @@
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -212,7 +217,9 @@
           { "id": "berichten", "label": "Berichten", "isPublic": true },
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "producten-diensten", "label": "Producten & Diensten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true },
+          { "id": "gegevenswoordenboek", "label": "Gegevenswoordenboek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },

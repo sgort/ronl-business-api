@@ -404,6 +404,23 @@ export const businessApi = {
   getBaseUrl: () => API_BASE_URL,
 };
 
+// ── LDE public API (no auth required, CORS open) ─────────────────────────
+
+const LDE_API_URL = import.meta.env.VITE_LDE_API_URL as string;
+
+const ldePublic = axios.create({
+  baseURL: LDE_API_URL,
+});
+
+export const ldeApi = {
+  bundles: {
+    public: async (): Promise<ApiResponse<ProcessBundle[]>> => {
+      const response = await ldePublic.get<ApiResponse<ProcessBundle[]>>('/bundles/public');
+      return response.data;
+    },
+  },
+};
+
 // ── Shared public content types (used by portal methods and the dashboard) ──
 
 export interface NieuwsItem {
@@ -505,4 +522,29 @@ export interface ProductDienstItem {
   audience: ('ondernemer' | 'particulier')[];
   onlineAanvragen: boolean;
   modified: string | null;
+}
+
+export interface BundleDeployedForm {
+  id: string;
+  name: string;
+}
+
+export interface BundleDeployedDocument {
+  id: string;
+  name: string;
+}
+
+export interface ProcessBundle {
+  id: string;
+  bpmnProcessId: string;
+  name: string;
+  processRole: string;
+  status: string;
+  deployedAt: string;
+  operatonUrl: string;
+  operatonDeploymentId: string;
+  linkedDmnTemplates: unknown[];
+  deployedForms: BundleDeployedForm[];
+  deployedDocuments: BundleDeployedDocument[];
+  subprocesses: unknown[];
 }

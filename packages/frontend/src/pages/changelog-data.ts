@@ -31,6 +31,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '2.9.7',
+      status: 'Feature Release',
+      statusColor: 'teal',
+      borderColor: 'teal',
+      date: 'April 2, 2026',
+      sections: [
+        {
+          title: 'Caseworker Dashboard — Procesbibliotheek',
+          icon: '📦',
+          iconColor: 'blue',
+          items: [
+            'New Procesbibliotheek section added to the Home tab for all tenants with Regelcatalogus — public (no login required), isPublic: true',
+            'Fetches deployed BPMN process bundles from the LDE public API (VITE_LDE_API_URL, CORS-open, no auth); separate ldeApi axios instance added to api.ts',
+            'Cards show process name, bpmnProcessId, status badge (WIP/Actief/Concept), role badge (Standalone/Subprocess), and deployment date; expand to reveal forms, documents, DMN templates, and deployment ID',
+            'ProcessBundle, BundleDeployedForm, BundleDeployedDocument types exported from api.ts; VITE_LDE_API_URL added to all env files and vite-env.d.ts',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.6',
       status: 'Enhancement',
       statusColor: 'green',
