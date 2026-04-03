@@ -9,6 +9,25 @@ import type {
 } from './LlmProvider';
 import type { ToolDefinition } from '@services/mcp/McpProvider';
 
+function flattenForOpenAI(messages: AgentMessage[]): OpenAI.ChatCompletionMessageParam[] {
+  const result: OpenAI.ChatCompletionMessageParam[] = [];
+  for (const m of messages) {
+    if (m.role === 'tool_results') {
+      // OpenAI requires one tool message per result
+      for (const r of m.results) {
+        result.push({
+          role: 'tool',
+          tool_call_id: r.toolUseId,
+          content: r.content,
+        });
+      }
+    } else {
+      result.push(toOpenAIMessage(m));
+    }
+  }
+  return result;
+}
+
 export class OpenAILlmProvider implements LlmProvider {
   readonly meta: LlmProviderMeta = {
     id: 'openai',
@@ -32,7 +51,7 @@ export class OpenAILlmProvider implements LlmProvider {
 
     const messages: OpenAI.ChatCompletionMessageParam[] = [
       { role: 'system', content: params.systemPrompt },
-      ...params.messages.map(toOpenAIMessage),
+      ...flattenForOpenAI(params.messages),
     ];
 
     const stream = await client.chat.completions.create(
@@ -66,6 +85,7 @@ export class OpenAILlmProvider implements LlmProvider {
             args: '',
           });
         }
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const acc = toolCallAccumulators.get(tc.index)!;
         if (tc.id) acc.id = tc.id;
         if (tc.function?.name) acc.name = tc.function.name;
@@ -114,12 +134,9 @@ function toOpenAIMessage(m: AgentMessage): OpenAI.ChatCompletionMessageParam {
           function: { name: t.name, arguments: JSON.stringify(t.input) },
         })),
       };
-    case 'tool_results':
-      // OpenAI requires one message per tool result
-      return {
-        role: 'tool',
-        tool_call_id: m.results[0].toolUseId,
-        content: m.results[0].content,
-      };
+    default:
+      throw new Error(
+        `toOpenAIMessage: unexpected role '${(m as AgentMessage).role}' — handle tool_results via flattenForOpenAI`
+      );
   }
 }
