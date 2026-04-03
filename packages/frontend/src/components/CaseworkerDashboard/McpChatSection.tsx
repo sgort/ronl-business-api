@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { businessApi } from '../../services/api';
-import type { McpSourceMeta } from '../../services/api';
+import type { McpSourceMeta, LlmModelEntry } from '../../services/api';
 import type { KeycloakUser } from '@ronl/shared';
+import remarkGfm from 'remark-gfm';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -24,13 +25,20 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
   const [availableSources, setAvailableSources] = useState<McpSourceMeta[]>([]);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [sourcesLoading, setSourcesLoading] = useState(true);
+  const [availableModels, setAvailableModels] = useState<LlmModelEntry[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const streamingRef = useRef('');
   const abortRef = useRef<AbortController | null>(null);
 
-  // Fetch available sources once on mount
+  // Fetch available models and sources once on mount
   useEffect(() => {
     let cancelled = false;
+    businessApi.mcp.getModels().then((res) => {
+      const models = res.data ?? [];
+      setAvailableModels(models);
+      if (models.length > 0) setSelectedModelId(models[0].id);
+    });
     businessApi.mcp
       .getSources()
       .then((res) => {
@@ -110,6 +118,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
         trimmed,
         history,
         sources,
+        selectedModelId,
         abort.signal
       )) {
         if (abort.signal.aborted) break;
@@ -190,7 +199,24 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
           </div>
           <div>
             <h2 className="text-base font-semibold text-gray-800">AI Assistant</h2>
-            <p className="text-xs text-gray-400">{subtitle}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
+            {availableModels.length > 1 && (
+              <select
+                value={selectedModelId}
+                onChange={(e) => setSelectedModelId(e.target.value)}
+                disabled={loading}
+                className="text-xs border border-gray-200 rounded-md px-1.5 py-0.5 mt-1 bg-white text-gray-500 focus:outline-none focus:ring-1 focus:border-transparent disabled:opacity-50"
+                style={
+                  { '--tw-ring-color': 'var(--color-primary, #154273)' } as React.CSSProperties
+                }
+              >
+                {availableModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.providerDisplayName} — {m.displayName}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -243,7 +269,11 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
                 msg.role === 'user' ? { backgroundColor: 'var(--color-primary, #154273)' } : {}
               }
             >
-              {msg.role === 'user' ? msg.content : <ReactMarkdown>{msg.content}</ReactMarkdown>}
+              {msg.role === 'user' ? (
+                msg.content
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              )}
             </div>
           </div>
         ))}
@@ -258,7 +288,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
               AI
             </div>
             <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed text-gray-800 max-w-[80%] prose prose-sm max-w-none">
-              <ReactMarkdown>{streamingContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
               <span className="inline-block w-0.5 h-3.5 bg-gray-400 ml-0.5 align-text-bottom animate-pulse" />
             </div>
           </div>

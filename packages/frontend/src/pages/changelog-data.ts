@@ -35,7 +35,7 @@ export const changelog: Changelog = {
       status: 'Feature Release',
       statusColor: 'teal',
       borderColor: 'teal',
-      date: 'April 2, 2026',
+      date: 'April 3, 2026',
       sections: [
         {
           title: 'AI Assistant — CPRMV Legislation Provider',
@@ -47,6 +47,46 @@ export const changelog: Changelog = {
             'Three tools exposed: rules_rules__rule_id_path__get (retrieve rules from BWB, CVDR, or EU CELLAR by rule ID path), ref_ref__referencemethod___reference__get (resolve rules by Juriconnect reference), celex_cellar_by_celex__celexid___language___format__get (look up EU CELLAR publications by CELEX id)',
             'config.cprmv added to Config interface and config object: enabled (CPRMV_MCP_ENABLED, default false), url (CPRMV_URL, default https://acc.cprmv.open-regels.nl/mcp)',
             'CprmvMcpProvider registered in index.ts inside the existing if (config.mcp.enabled) block, conditional on config.cprmv.enabled',
+          ],
+        },
+        {
+          title: 'AI Assistant — LDE Process Library Provider',
+          icon: '📦',
+          iconColor: 'teal',
+          items: [
+            'LdeMcpProvider added — spawns a custom lde-mcp stdio subprocess that connects directly to the LDE PostgreSQL database (lde_assets); enabled via LDE_MCP_ENABLED=true and LDE_DATABASE_URL',
+            'Custom lde-mcp server in packages/backend/src/mcp-servers/lde/index.ts — exposes 6 tools: bundle_list, bundle_get (deployed BPMN bundles with forms, documents, subprocesses, DMN keys), form_list, form_get (full Camunda Form JSON schema), document_list, document_get (zones and bindings)',
+            'Bundle SQL query mirrors the LDE listPublicBundles() query exactly — shell/standalone filter, subprocess join via called_element, form and document expansion via subqueries',
+            'SSL handled by stripping sslmode from the connection URL and passing ssl: { rejectUnauthorized: true } directly to the pg Pool constructor — avoids the pg-connection-string sslmode=require deprecation warning',
+            'config.lde added to Config interface and config object: enabled (LDE_MCP_ENABLED, default false), databaseUrl (LDE_DATABASE_URL)',
+            'LdeMcpProvider registered in index.ts inside the existing if (config.mcp.enabled) block, conditional on config.lde.enabled',
+          ],
+        },
+        {
+          title: 'AI Assistant — LLM Provider Architecture',
+          icon: '🤖',
+          iconColor: 'purple',
+          items: [
+            'LlmProvider interface introduced in packages/backend/src/services/llm/LlmProvider.ts — decouples the agentic loop from any specific LLM SDK; defines AgentMessage, AgentToolUse, AgentToolResult, LlmStreamParams, and LlmTurnResult as provider-agnostic types',
+            'LlmRegistry singleton maps model IDs to their owning provider; getAvailableModels() returns only models from providers where isAvailable() is true',
+            'AnthropicLlmProvider registered with three models: claude-sonnet-4-20250514, claude-opus-4-20250514, claude-haiku-4-5-20251001; enabled when ANTHROPIC_API_KEY is set',
+            'OpenAILlmProvider registered with gpt-4o and gpt-4o-mini; enabled when OPENAI_API_KEY is set; requires npm install openai --workspace=@ronl/backend',
+            'mcpChat.service.ts refactored — runChatStream() now accepts modelId and resolves the correct LlmProvider from LlmRegistry; no direct SDK imports remain in the service',
+            'GET /v1/mcp/models added — returns all available models with providerId and providerDisplayName; used by the frontend to populate the model selector',
+            'POST /v1/mcp/chat body extended with modelId: string — required field; returns 400 INVALID_REQUEST when absent',
+            'config.openai added to Config interface and config object: apiKey (OPENAI_API_KEY)',
+          ],
+        },
+        {
+          title: 'AI Assistant — Model Selector UI',
+          icon: '🎛️',
+          iconColor: 'blue',
+          items: [
+            'McpChatSection fetches available models from GET /v1/mcp/models on mount alongside sources; first model pre-selected by default',
+            'Model selector rendered as a compact dropdown directly below the subtitle line in the header — inline with the Claude + source names, one line beneath',
+            'Selector hidden when only one model is available; visible and labelled with providerDisplayName — modelDisplayName when multiple providers are registered',
+            'selectedModelId sent with every POST /v1/mcp/chat request; LlmModelEntry type added to api.ts and imported in McpChatSection',
+            'chatStream() signature in api.ts extended with modelId parameter; body includes modelId in the JSON payload',
           ],
         },
         {

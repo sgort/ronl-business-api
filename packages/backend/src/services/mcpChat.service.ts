@@ -1,11 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
+import { llmRegistry } from '@services/llm/LlmRegistry';
+import type { AgentMessage, AgentToolResult } from '@services/llm/LlmProvider';
 
 const logger = createLogger('mcp-chat');
 
-const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 4096;
 const MAX_TOOL_ROUNDS = 10;
 const MAX_TOOL_RESULT_CHARS = 12_000;
@@ -36,9 +35,14 @@ export async function runChatStream(
   userMessage: string,
   emit: ChatEventCallback,
   selectedProviderIds: string[],
+  modelId: string,
   signal?: AbortSignal
 ): Promise<void> {
-  const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+  const provider = llmRegistry.getProvider(modelId);
+  if (!provider) {
+    emit({ type: 'error', message: `Unknown model: ${modelId}` });
+    return;
+  }
 
   const tools = await mcpRegistry.getToolDefinitions(
     selectedProviderIds.length > 0 ? selectedProviderIds : undefined
@@ -47,8 +51,8 @@ export async function runChatStream(
     selectedProviderIds.length > 0 ? selectedProviderIds : undefined
   );
 
-  const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({ role: m.role, content: m.content })),
+  const messages: AgentMessage[] = [
+    ...history.map((m): AgentMessage => ({ role: m.role, content: m.content })),
     { role: 'user', content: userMessage },
   ];
 
@@ -58,68 +62,43 @@ export async function runChatStream(
     if (signal?.aborted) return;
     round++;
 
-    let roundText = '';
-
-    const stream = client.messages.stream(
-      {
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt,
-        tools: tools as Anthropic.Tool[],
-        messages,
-      },
-      { signal }
+    const turnResult = await provider.streamTurn(
+      { modelId, messages, systemPrompt, tools, maxTokens: MAX_TOKENS },
+      (text) => emit({ type: 'delta', text }),
+      signal
     );
 
-    stream.on('text', (text) => {
-      roundText += text;
-    });
-
-    const response = await stream.finalMessage();
-
-    const toolUseBlocks = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-    );
-
-    if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
-      if (roundText) {
-        emit({ type: 'delta', text: roundText });
-      }
+    if (turnResult.stopReason === 'end_turn' || turnResult.toolUses.length === 0) {
       return;
     }
 
-    // Tool round — discard buffered text, execute tools
-    messages.push({ role: 'assistant', content: response.content });
+    // Tool round
+    messages.push({ role: 'assistant_tool_use', toolUses: turnResult.toolUses });
 
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    const toolResults: AgentToolResult[] = [];
 
-    for (const toolUse of toolUseBlocks) {
+    for (const toolUse of turnResult.toolUses) {
       if (signal?.aborted) return;
 
       emit({ type: 'status', message: `Calling ${toolUse.name}…` });
       logger.info('Executing tool', { tool: toolUse.name });
 
       try {
-        const result = await mcpRegistry.callTool(
-          toolUse.name,
-          toolUse.input as Record<string, unknown>
-        );
+        const result = await mcpRegistry.callTool(toolUse.name, toolUse.input);
         toolResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
+          toolUseId: toolUse.id,
           content: truncateToolResult(result.content.map((c) => c.text).join('\n')),
         });
       } catch (err) {
         toolResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          is_error: true,
+          toolUseId: toolUse.id,
           content: err instanceof Error ? err.message : 'Tool call failed',
+          isError: true,
         });
       }
     }
 
-    messages.push({ role: 'user', content: toolResults });
+    messages.push({ role: 'tool_results', results: toolResults });
   }
 
   emit({ type: 'delta', text: 'Maximum tool call rounds reached. Please refine your question.' });

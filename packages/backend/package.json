@@ -48,6 +48,7 @@
     "keycloak-connect": "^23.0.4",
     "multer": "^2.1.1",
     "node-cache": "^5.1.2",
+    "openai": "^6.33.0",
     "operaton-mcp": "^1.1.0",
     "pg": "^8.11.3",
     "pg-promise": "^11.5.4",

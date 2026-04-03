@@ -20,6 +20,10 @@ import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
 import { TriplyDbMcpProvider } from '@services/mcp/TriplyDbMcpProvider';
 import { CprmvMcpProvider } from '@services/mcp/CprmvMcpProvider';
+import { LdeMcpProvider } from '@services/mcp/LdeMcpProvider';
+import { llmRegistry } from '@services/llm/LlmRegistry';
+import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
+import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
@@ -203,6 +207,9 @@ const startServer = async () => {
 
   externalTaskWorker.start();
 
+  llmRegistry.register(new AnthropicLlmProvider());
+  llmRegistry.register(new OpenAILlmProvider());
+
   if (config.mcp.enabled) {
     mcpRegistry.register(new OperatonMcpProvider());
     if (config.triplydb.enabled) {
@@ -210,6 +217,9 @@ const startServer = async () => {
     }
     if (config.cprmv.enabled) {
       mcpRegistry.register(new CprmvMcpProvider());
+    }
+    if (config.lde.enabled) {
+      mcpRegistry.register(new LdeMcpProvider());
     }
     await mcpRegistry.connectAll();
     appLogger.info('MCP registry ready');

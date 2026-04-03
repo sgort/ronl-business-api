@@ -318,10 +318,16 @@ export const businessApi = {
       return response.data;
     },
 
+    getModels: async (): Promise<ApiResponse<LlmModelEntry[]>> => {
+      const response = await api.get('/mcp/models');
+      return response.data;
+    },
+
     async *chatStream(
       message: string,
       history: Array<{ role: 'user' | 'assistant'; content: string }>,
       sources: string[],
+      modelId: string,
       signal?: AbortSignal
     ): AsyncGenerator<McpChatStreamEvent> {
       if (keycloak.authenticated) {
@@ -341,7 +347,7 @@ export const businessApi = {
             'Content-Type': 'application/json',
             ...(keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {}),
           },
-          body: JSON.stringify({ message, history, sources }),
+          body: JSON.stringify({ message, history, sources, modelId }),
           signal,
         });
       } catch (err) {
@@ -512,6 +518,13 @@ export interface McpSourceMeta {
   displayName: string;
   description: string;
   connected: boolean;
+}
+
+export interface LlmModelEntry {
+  id: string;
+  displayName: string;
+  providerId: string;
+  providerDisplayName: string;
 }
 
 export interface ProductDienstItem {

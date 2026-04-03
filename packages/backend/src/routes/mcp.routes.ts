@@ -3,6 +3,7 @@ import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { createLogger } from '@utils/logger';
 import { runChatStream } from '@services/mcpChat.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
+import { llmRegistry } from '@services/llm/LlmRegistry';
 import { config } from '@utils/config';
 
 const router = express.Router();
@@ -11,7 +12,7 @@ const logger = createLogger('mcp-routes');
 router.use(jwtMiddleware);
 router.use(requireRoles('caseworker', 'admin'));
 
-const CHAT_TIMEOUT_MS = 240_000;
+const CHAT_TIMEOUT_MS = 480_000;
 
 /**
  * GET /v1/mcp/sources
@@ -23,6 +24,14 @@ router.get('/sources', (_req, res) => {
     return res.json({ success: true, data: [] });
   }
   return res.json({ success: true, data: mcpRegistry.getProviderMeta() });
+});
+
+/**
+ * GET /v1/mcp/models
+ * Returns all available LLM models with their provider.
+ */
+router.get('/models', (_req, res) => {
+  return res.json({ success: true, data: llmRegistry.getAvailableModels() });
 });
 
 /**
@@ -52,16 +61,25 @@ router.post('/chat', async (req, res) => {
     message,
     history = [],
     sources = [],
+    modelId,
   } = req.body as {
     message: string;
     history: Array<{ role: 'user' | 'assistant'; content: string }>;
     sources: string[];
+    modelId: string;
   };
 
   if (!message?.trim()) {
     return res.status(400).json({
       success: false,
       error: { code: 'INVALID_REQUEST', message: 'message is required' },
+    });
+  }
+
+  if (!modelId) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'modelId is required' },
     });
   }
 
@@ -105,7 +123,7 @@ router.post('/chat', async (req, res) => {
   });
 
   try {
-    await runChatStream(history, message, send, sources, abortController.signal);
+    await runChatStream(history, message, send, sources, modelId, abortController.signal);
     send({ type: 'done' });
   } catch (error) {
     if (!abortController.signal.aborted) {

@@ -93,6 +93,9 @@ interface Config {
   anthropic: {
     apiKey: string;
   };
+  openai: {
+    apiKey: string;
+  };
   gitlab: {
     token: string;
     baseUrl: string;
@@ -102,6 +105,10 @@ interface Config {
   cprmv: {
     enabled: boolean;
     url: string;
+  };
+  lde: {
+    enabled: boolean;
+    databaseUrl: string;
   };
 }
 
@@ -229,8 +236,17 @@ export const config: Config = {
     url: process.env.CPRMV_URL ?? 'https://acc.cprmv.open-regels.nl/mcp',
   },
 
+  lde: {
+    enabled: parseEnvBool(process.env.LDE_MCP_ENABLED, false),
+    databaseUrl: process.env.LDE_DATABASE_URL ?? '',
+  },
+
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  },
+
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY ?? '',
   },
 
   gitlab: {
