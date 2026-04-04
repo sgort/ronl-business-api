@@ -31,6 +31,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'April 4, 2026',
+      sections: [
+        {
+          title: 'Gegevenswoordenboek — Skosmos Vocabulary Browser',
+          icon: '📚',
+          iconColor: 'blue',
+          items: [
+            'Skosmos 3 deployed as a Docker container on the VM (quay.io/natlibfi/skosmos:latest), proxied by Caddy at skosmos.open-regels.nl with automatic TLS',
+            'Skosmos configured against the RONL TriplyDB Speedy SPARQL endpoint, pointing at the cp-taxonomy named graph containing the Company Passport Thesaurus for Legal Company Verifiable Credentials',
+            'New public Gegevenswoordenboek section added to the caseworker dashboard home panel, embedding Skosmos as an iframe micro-frontend — accessible without login (isPublic: true)',
+            'Caddy skosmos_security_headers snippet configured with CSP frame-ancestors allowing embedding from mijn.open-regels.nl, acc.mijn.open-regels.nl, and localhost:5173',
+          ],
+        },
+      ],
+    },
+    {
       version: '2.9.7',
       status: 'Feature Release',
       statusColor: 'teal',

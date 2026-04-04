@@ -32,6 +32,7 @@ import IouGebruiksscenarioSection from '../components/CaseworkerDashboard/IouGeb
 import IouFeedbackSection from '../components/CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../components/CaseworkerDashboard/IouZakenSection';
 import ProcesBibliotheek from '../components/CaseworkerDashboard/ProcesBibliotheek';
+import GegevenswoordenboekSection from '../components/CaseworkerDashboard/GegevenswoordenboekSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap' | 'iou';
 
@@ -208,6 +209,8 @@ export default function CaseworkerDashboard() {
         return <RegelCatalogus />;
       case 'procesbibliotheek':
         return <ProcesBibliotheek />;
+      case 'gegevenswoordenboek':
+        return <GegevenswoordenboekSection />;
       case 'profiel':
         return <ProfielSection user={user} tenantConfig={tenantConfig} />;
       case 'rollen':

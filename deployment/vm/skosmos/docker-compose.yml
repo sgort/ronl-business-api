@@ -1,0 +1,22 @@
+name: skosmos
+
+services:
+  skosmos-web:
+    image: quay.io/natlibfi/skosmos:latest
+    container_name: skosmos-web
+    restart: unless-stopped
+    volumes:
+      - ./config.ttl:/var/www/html/config.ttl:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - npm-network
+
+networks:
+  npm-network:
+    external: true
+    name: npm-network
