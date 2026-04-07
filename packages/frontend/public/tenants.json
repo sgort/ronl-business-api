@@ -1,5 +1,5 @@
 {
-  "default": "utrecht",
+  "default": "flevoland",
   "tenants": {
     "utrecht": {
       "id": "utrecht",
@@ -29,9 +29,11 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true },
+          { "id": "gegevenswoordenboek", "label": "Gegevenswoordenboek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -76,7 +78,8 @@
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -121,7 +124,8 @@
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -166,7 +170,8 @@
         "home": [
           { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -209,9 +214,12 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
           { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
+          { "id": "producten-diensten", "label": "Producten & Diensten", "isPublic": true },
+          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
+          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true },
+          { "id": "gegevenswoordenboek", "label": "Gegevenswoordenboek", "isPublic": true }
         ],
         "personal-info": [
           { "id": "profiel", "label": "Profiel", "isPublic": false },
@@ -226,6 +234,12 @@
           { "id": "rip-fase1-gereed", "label": "RIP Fase 1 gereed", "isPublic": false },
           { "id": "actief", "label": "Actieve zaken", "isPublic": false },
           { "id": "archief", "label": "Archief", "isPublic": false }
+        ],
+        "iou": [
+          { "id": "iou-gebruiksscenario", "label": "Gebruiksscenario indienen", "isPublic": false },
+          { "id": "iou-feedback", "label": "Feedback geven", "isPublic": false },
+          { "id": "iou-actieve-zaken", "label": "Actieve zaken", "isPublic": true },
+          { "id": "iou-archief", "label": "Archief", "isPublic": true }
         ]
       }
     },

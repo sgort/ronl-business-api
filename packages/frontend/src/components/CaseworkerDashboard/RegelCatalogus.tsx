@@ -22,7 +22,7 @@ export default function RegelCatalogus() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<CatalogTab>('diensten');
+  const [activeTab, setActiveTab] = useState<CatalogTab>('organisaties');
   const [expandedService, setExpandedService] = useState<string | null>(null);
 
   // Concepten filter state — can be driven externally via cross-tab click
@@ -75,7 +75,7 @@ export default function RegelCatalogus() {
   }
 
   return (
-    <div className="max-w-4xl space-y-4">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h2 className="text-lg font-bold text-gray-800">Regelcatalogus</h2>
@@ -164,7 +164,7 @@ function DienstenTab({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
       {services.map((svc) => {
         const isExpanded = expanded === svc.uri;
         return (
@@ -224,7 +224,7 @@ function OrganisatiesTab({ organizations }: { organizations: CatalogOrganization
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
       {organizations.map((org) => (
         <OrgCard key={org.uri} org={org} />
       ))}
@@ -321,7 +321,7 @@ function ConceptenTab({
   });
 
   return (
-    <div className="space-y-3">
+    <div className="max-w-4xl space-y-3">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
@@ -468,7 +468,7 @@ function RegelsTab({ rules }: { rules: CatalogRule[] }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="max-w-4xl space-y-3">
       {/* Search */}
       <input
         type="text"

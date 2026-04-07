@@ -25,8 +25,16 @@ import RipFase1Section from '../components/CaseworkerDashboard/RipFase1Section';
 import ProfielSection from '../components/CaseworkerDashboard/ProfielSection';
 import RollenSection from '../components/CaseworkerDashboard/RollenSection';
 import AuditSection from '../components/CaseworkerDashboard/AuditSection';
+import type { Message as McpMessage } from '../components/CaseworkerDashboard/McpChatSection';
+import McpChatSection from '../components/CaseworkerDashboard/McpChatSection';
+import ProductenDienstenCatalogus from '../components/CaseworkerDashboard/ProductenDienstenCatalogus';
+import IouGebruiksscenarioSection from '../components/CaseworkerDashboard/IouGebruiksscenarioSection';
+import IouFeedbackSection from '../components/CaseworkerDashboard/IouFeedbackSection';
+import IouZakenSection from '../components/CaseworkerDashboard/IouZakenSection';
+import ProcesBibliotheek from '../components/CaseworkerDashboard/ProcesBibliotheek';
+import GegevenswoordenboekSection from '../components/CaseworkerDashboard/GegevenswoordenboekSection';
 
-type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap';
+type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap' | 'iou';
 
 const TOP_NAV_ITEMS: { id: TopNavPage; label: string }[] = [
   { id: 'home', label: 'Home' },
@@ -34,6 +42,7 @@ const TOP_NAV_ITEMS: { id: TopNavPage; label: string }[] = [
   { id: 'projects', label: 'Projecten' },
   { id: 'audit-log', label: 'Audit log' },
   { id: 'gereedschap', label: 'Gereedschap' },
+  { id: 'iou', label: 'IOU' },
 ];
 
 const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
@@ -42,7 +51,8 @@ const AUDIT_LOG_SECTIONS: LeftPanelSection[] = [
 ];
 
 const GEREEDSCHAP_SECTIONS: LeftPanelSection[] = [
-  { id: 'gereedschap-overzicht', label: 'Overzicht' },
+  { id: 'gereedschap-overzicht', label: 'Overview' },
+  { id: 'mcp-chat', label: 'AI Assistant' },
 ];
 
 export default function CaseworkerDashboard() {
@@ -58,6 +68,8 @@ export default function CaseworkerDashboard() {
   // Remembers last selected section per top-nav page
   const [sectionMemory, setSectionMemory] = useState<Record<string, string>>({});
 
+  const [mcpMessages, setMcpMessages] = useState<McpMessage[]>([]);
+
   // Wrap setActiveSection so every explicit user click also saves to memory
   function selectSection(id: string) {
     setActiveSection(id);
@@ -66,8 +78,9 @@ export default function CaseworkerDashboard() {
 
   const [changelogOpen, setChangelogOpen] = useState(false);
 
-  // Task counter
+  // Task & IOU counter
   const [taskCount, setTaskCount] = useState(0);
+  const [iouCount, setIouCount] = useState(0);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -190,8 +203,14 @@ export default function CaseworkerDashboard() {
         return <NieuwsSection />;
       case 'berichten':
         return <BerichtenSection />;
+      case 'producten-diensten':
+        return <ProductenDienstenCatalogus />;
       case 'regelcatalogus':
         return <RegelCatalogus />;
+      case 'procesbibliotheek':
+        return <ProcesBibliotheek />;
+      case 'gegevenswoordenboek':
+        return <GegevenswoordenboekSection />;
       case 'profiel':
         return <ProfielSection user={user} tenantConfig={tenantConfig} />;
       case 'rollen':
@@ -216,6 +235,18 @@ export default function CaseworkerDashboard() {
         );
       case 'gereedschap-overzicht':
         return <GereedschapSection user={user} />;
+      case 'mcp-chat':
+        return (
+          <McpChatSection user={user} messages={mcpMessages} onMessagesChange={setMcpMessages} />
+        );
+      case 'iou-gebruiksscenario':
+        return <IouGebruiksscenarioSection />;
+      case 'iou-feedback':
+        return <IouFeedbackSection />;
+      case 'iou-actieve-zaken':
+        return <IouZakenSection state="opened" onCountChange={setIouCount} />;
+      case 'iou-archief':
+        return <IouZakenSection state="closed" />;
       default: {
         const sectionLabel =
           leftPanelSections.find((s) => s.id === activeSection)?.label ?? activeSection;
@@ -235,7 +266,7 @@ export default function CaseworkerDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="h-screen bg-gray-100 flex flex-col">
       <SessionExpiryWarning />
       {/* ── Top navigation bar ── */}
       <header
@@ -328,6 +359,14 @@ export default function CaseworkerDashboard() {
                       {taskCount}
                     </span>
                   )}
+                {iouCount > 0 &&
+                  tenantConfig?.leftPanelSections?.[item.id]?.some(
+                    (s) => s.id === 'iou-actieve-zaken'
+                  ) && (
+                    <span className="ml-2 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">
+                      {iouCount}
+                    </span>
+                  )}
               </button>
             ))}
           </div>
@@ -337,7 +376,7 @@ export default function CaseworkerDashboard() {
       <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
 
       {/* ── Body: left panel + content ── */}
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-h-0">
         {/* ── Left panel ── */}
         <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200">
           {leftPanelSections.length > 0 ? (
@@ -393,7 +432,7 @@ export default function CaseworkerDashboard() {
         </aside>
 
         {/* ── Main content area ── */}
-        <main className="flex-1 p-6 overflow-auto">{renderContent()}</main>
+        <main className="flex-1 min-h-0 p-6 overflow-y-auto">{renderContent()}</main>
       </div>
     </div>
   );

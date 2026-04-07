@@ -1,0 +1,46 @@
+@prefix void:     <http://rdfs.org/ns/void#> .
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dc:       <http://purl.org/dc/terms/> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix skosmos:  <http://purl.org/net/skosmos#> .
+@prefix :         <#> .
+
+:config a skosmos:Configuration ;
+    skosmos:sparqlEndpoint <https://api.open-regels.triply.cc/datasets/stevengort/RONL/sparql> ;
+    skosmos:sparqlDialect "Generic" ;
+    skosmos:sparqlCollationEnabled false ;
+    skosmos:sparqlTimeout 30 ;
+    skosmos:httpTimeout 10 ;
+    skosmos:serviceName "Gegevenswoordenboek — RONL" ;
+    skosmos:languages (
+        [ rdfs:label "nl" ; rdf:value "nl-NL" ]
+        [ rdfs:label "en" ; rdf:value "en-GB" ]
+    ) ;
+    skosmos:searchResultsSize 20 ;
+    skosmos:transitiveLimit 1000 ;
+    skosmos:logCaughtExceptions false ;
+    skosmos:logBrowserConsole false ;
+    skosmos:templateCache "/tmp/skosmos-template-cache" ;
+    skosmos:feedbackAddress "" ;
+    skosmos:feedbackSender "" ;
+    skosmos:feedbackEnvelopeSender "" ;
+    skosmos:uiLanguageDropdown false ;
+    skosmos:uiDevMode false ;
+    skosmos:feedbackHoneypotEnabled true ;
+    skosmos:feedbackHoneypotTime 5 ;
+    skosmos:globalPlugins () .
+
+:ronl a skosmos:Vocabulary, void:Dataset ;
+    dc:title "RONL Concepten"@nl ;
+    dc:title "RONL Concepts"@en ;
+    skosmos:language "nl", "en" ;
+    skosmos:defaultLanguage "nl" ;
+    skosmos:showTopConcepts "true" ;
+    skosmos:showStatistics "false" ;
+    skosmos:loadExternalResources "false" ;
+    skosmos:shortName "RONL" ;
+    void:uriSpace "http://taxonomie.companypassport.nl" ;
+    void:sparqlEndpoint <https://api.open-regels.triply.cc/datasets/stevengort/RONL/sparql> ;
+    skosmos:sparqlGraph <https://open-regels.triply.cc/stevengort/RONL/graphs/cp-taxonomy> .
+

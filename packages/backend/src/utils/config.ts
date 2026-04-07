@@ -81,6 +81,35 @@ interface Config {
     password: string;
     stubMode: boolean;
   };
+  mcp: {
+    enabled: boolean;
+    skipHealthCheck: boolean;
+  };
+  triplydb: {
+    enabled: boolean;
+    endpoint: string;
+    token: string;
+  };
+  anthropic: {
+    apiKey: string;
+  };
+  openai: {
+    apiKey: string;
+  };
+  gitlab: {
+    token: string;
+    baseUrl: string;
+    projectPath: string;
+    ucLabel: string;
+  };
+  cprmv: {
+    enabled: boolean;
+    url: string;
+  };
+  lde: {
+    enabled: boolean;
+    databaseUrl: string;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -190,6 +219,42 @@ export const config: Config = {
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
   },
+
+  mcp: {
+    enabled: parseEnvBool(process.env.MCP_ENABLED, false),
+    skipHealthCheck: parseEnvBool(process.env.MCP_SKIP_HEALTH_CHECK, false),
+  },
+
+  triplydb: {
+    enabled: parseEnvBool(process.env.TRIPLYDB_MCP_ENABLED, false),
+    endpoint: process.env.TRIPLYDB_ENDPOINT ?? '',
+    token: process.env.TRIPLYDB_TOKEN ?? '',
+  },
+
+  cprmv: {
+    enabled: parseEnvBool(process.env.CPRMV_MCP_ENABLED, false),
+    url: process.env.CPRMV_URL ?? 'https://acc.cprmv.open-regels.nl/mcp',
+  },
+
+  lde: {
+    enabled: parseEnvBool(process.env.LDE_MCP_ENABLED, false),
+    databaseUrl: process.env.LDE_DATABASE_URL ?? '',
+  },
+
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  },
+
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY ?? '',
+  },
+
+  gitlab: {
+    token: process.env.GITLAB_TOKEN || '',
+    baseUrl: process.env.GITLAB_BASE_URL || 'https://git.open-regels.nl',
+    projectPath: process.env.GITLAB_PROJECT_PATH || 'showcases%2Fiou-architectuur',
+    ucLabel: process.env.GITLAB_UC_LABEL || 'uc::submitted',
+  },
 };
 
 // Validate required configuration
@@ -206,6 +271,10 @@ function validateConfig() {
 
   if (!config.operaton.baseUrl) {
     errors.push('OPERATON_BASE_URL is required');
+  }
+
+  if (!config.anthropic.apiKey) {
+    errors.push('ANTHROPIC_API_KEY is required');
   }
 
   if (errors.length > 0) {

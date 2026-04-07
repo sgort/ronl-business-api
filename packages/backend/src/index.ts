@@ -16,9 +16,18 @@ import hrRoutes from './routes/hr.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
+import { mcpRegistry } from '@services/mcp/McpRegistry';
+import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
+import { TriplyDbMcpProvider } from '@services/mcp/TriplyDbMcpProvider';
+import { CprmvMcpProvider } from '@services/mcp/CprmvMcpProvider';
+import { LdeMcpProvider } from '@services/mcp/LdeMcpProvider';
+import { llmRegistry } from '@services/llm/LlmRegistry';
+import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
+import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
 import { initDb } from '@services/audit.service';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
+import mcpRoutes from './routes/mcp.routes';
 
 const appLogger = createLogger('app');
 
@@ -144,6 +153,7 @@ app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
 app.use('/v1/admin', adminRoutes);
 app.use('/v1/m2m', m2mRoutes);
+app.use('/v1/mcp', mcpRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -179,12 +189,41 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
+// Suppress EPIPE errors from MCP child process stdio pipes closing
+process.on('SIGPIPE', () => {});
+process.stdout.on('error', (err) => {
+  if (err.code !== 'EPIPE') throw err;
+});
+process.stderr.on('error', (err) => {
+  if (err.code !== 'EPIPE') throw err;
+});
+
 // Start server
 const startServer = async () => {
   const port = config.port;
   const host = config.host;
 
   await initDb();
+
+  externalTaskWorker.start();
+
+  llmRegistry.register(new AnthropicLlmProvider());
+  llmRegistry.register(new OpenAILlmProvider());
+
+  if (config.mcp.enabled) {
+    mcpRegistry.register(new OperatonMcpProvider());
+    if (config.triplydb.enabled) {
+      mcpRegistry.register(new TriplyDbMcpProvider());
+    }
+    if (config.cprmv.enabled) {
+      mcpRegistry.register(new CprmvMcpProvider());
+    }
+    if (config.lde.enabled) {
+      mcpRegistry.register(new LdeMcpProvider());
+    }
+    await mcpRegistry.connectAll();
+    appLogger.info('MCP registry ready');
+  }
 
   app.listen(port, host, () => {
     appLogger.info('Server started', {
@@ -214,12 +253,14 @@ const startServer = async () => {
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
   externalTaskWorker.stop();
+  void mcpRegistry.disconnectAll();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
   externalTaskWorker.stop();
+  void mcpRegistry.disconnectAll();
   process.exit(0);
 });
 

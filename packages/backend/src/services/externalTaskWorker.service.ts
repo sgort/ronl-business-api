@@ -52,7 +52,8 @@ export class ExternalTaskWorker {
   private running = false;
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  private readonly asyncResponseTimeout = 20_000;
+  // Reduce the long-poll window in dev below the network timeout threshold
+  private readonly asyncResponseTimeout = process.env.NODE_ENV === 'production' ? 20_000 : 5_000;
   private readonly lockDuration = 60_000;
   private readonly idlePollInterval = 5_000;
 

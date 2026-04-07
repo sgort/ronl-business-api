@@ -194,6 +194,18 @@ export const businessApi = {
       return response.data;
     },
 
+    productenDiensten: async (
+      limit: number = 50
+    ): Promise<
+      ApiResponse<{
+        items: ProductDienstItem[];
+        pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+      }>
+    > => {
+      const response = await api.get(`/public/producten-diensten?limit=${limit}`);
+      return response.data;
+    },
+
     regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
       const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
       return response.data;
@@ -300,6 +312,94 @@ export const businessApi = {
     },
   },
 
+  mcp: {
+    async getSources(): Promise<ApiResponse<McpSourceMeta[]>> {
+      const response = await api.get('/mcp/sources');
+      return response.data;
+    },
+
+    getModels: async (): Promise<ApiResponse<LlmModelEntry[]>> => {
+      const response = await api.get('/mcp/models');
+      return response.data;
+    },
+
+    async *chatStream(
+      message: string,
+      history: Array<{ role: 'user' | 'assistant'; content: string }>,
+      sources: string[],
+      modelId: string,
+      signal?: AbortSignal
+    ): AsyncGenerator<McpChatStreamEvent> {
+      if (keycloak.authenticated) {
+        try {
+          await keycloak.updateToken(120);
+        } catch {
+          keycloak.login();
+          return;
+        }
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE_URL}/mcp/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {}),
+          },
+          body: JSON.stringify({ message, history, sources, modelId }),
+          signal,
+        });
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        yield { type: 'error', message: (err as Error).message ?? 'Network error' };
+        return;
+      }
+
+      if (!response.ok) {
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const errData = (await response.json()) as { error?: { message?: string } };
+          errorMsg = errData?.error?.message ?? errorMsg;
+        } catch {
+          // ignore
+        }
+        yield { type: 'error', message: errorMsg };
+        return;
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr) {
+                try {
+                  yield JSON.parse(jsonStr) as McpChatStreamEvent;
+                } catch {
+                  // ignore malformed SSE line
+                }
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  },
+
   externalStatus: async (): Promise<
     ApiResponse<Record<string, { status: 'up' | 'down'; latency: number }>>
   > => {
@@ -308,6 +408,23 @@ export const businessApi = {
   },
 
   getBaseUrl: () => API_BASE_URL,
+};
+
+// ── LDE public API (no auth required, CORS open) ─────────────────────────
+
+const LDE_API_URL = import.meta.env.VITE_LDE_API_URL as string;
+
+const ldePublic = axios.create({
+  baseURL: LDE_API_URL,
+});
+
+export const ldeApi = {
+  bundles: {
+    public: async (): Promise<ApiResponse<ProcessBundle[]>> => {
+      const response = await ldePublic.get<ApiResponse<ProcessBundle[]>>('/bundles/public');
+      return response.data;
+    },
+  },
 };
 
 // ── Shared public content types (used by portal methods and the dashboard) ──
@@ -388,4 +505,67 @@ export interface AuditLogRecord {
   result: 'success' | 'failure' | 'error';
   error_message: string | null;
   request_id: string | null;
+}
+
+export type McpChatStreamEvent =
+  | { type: 'status'; message: string }
+  | { type: 'delta'; text: string }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
+
+export interface McpSourceMeta {
+  id: string;
+  displayName: string;
+  description: string;
+  connected: boolean;
+}
+
+export interface LlmModelEntry {
+  id: string;
+  displayName: string;
+  providerId: string;
+  providerDisplayName: string;
+}
+
+export interface ProductDienstItem {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  audience: ('ondernemer' | 'particulier')[];
+  onlineAanvragen: boolean;
+  modified: string | null;
+}
+
+export interface BundleDeployedForm {
+  id: string;
+  name: string;
+}
+
+export interface BundleDeployedDocument {
+  id: string;
+  name: string;
+}
+
+export interface BundleSubprocess {
+  id: string;
+  name: string;
+  bpmnProcessId: string;
+  status: string;
+}
+
+export interface ProcessBundle {
+  id: string;
+  bpmnProcessId: string;
+  name: string;
+  description?: string;
+  processRole: string;
+  status: string;
+  deployedAt: string;
+  operatonUrl: string;
+  operatonDeploymentId: string;
+  linkedDmnTemplates: string[];
+  deployedForms: BundleDeployedForm[];
+  deployedDocuments: BundleDeployedDocument[];
+  subprocesses: BundleSubprocess[];
 }
