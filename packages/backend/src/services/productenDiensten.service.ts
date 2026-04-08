@@ -3,7 +3,7 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('producten-diensten-service');
 
-const FLEVOLAND_SC_URL = 'https://flevoland.nl/loket/loketoverview?sc40=true';
+const FLEVOLAND_SC_URL = 'https://www.flevoland.nl/loket/loketoverview?sc40=true';
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes — these change infrequently
 

@@ -3,7 +3,7 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('berichten-service');
 
-const FLEVOLAND_RSS_URL = 'https://flevoland.nl/Content/Pages/Loket?rss=news';
+const FLEVOLAND_RSS_URL = 'https://www.flevoland.nl/Content/Pages/Loket?rss=news';
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
