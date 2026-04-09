@@ -17,6 +17,7 @@ export interface TenantFeatures {
   vergunningen: boolean;
   subsidies: boolean;
   meldingen: boolean;
+  dvtp: boolean;
 }
 
 export interface TenantContact {

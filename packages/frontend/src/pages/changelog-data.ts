@@ -31,6 +31,36 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.1',
+      status: 'Patch',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'April 9, 2025',
+      sections: [
+        {
+          icon: '🏛️',
+          iconColor: 'blue',
+          title: 'DvTP — Citizen consent flow',
+          items: [
+            'New "Mijn toestemming" tab in the citizen dashboard: citizens can complete the full DvTP Flow A (Toestemming geven) process without caseworker involvement.',
+            'DvtpStartSection: starts the DvtpToestemmingGevenProcess via the deployed start form (initiator, service, scope, delegation options) with direct navigation to the task queue after submission.',
+            'DvtpTakenSection: filtered task queue showing only DvTP tasks. Tasks are auto-claimed on selection — no manual claim step required.',
+            'After completing the information form (consent-info) the decision form (consent-decision) appears automatically in the queue.',
+            'Tab visibility is controlled by the "dvtp" feature flag in tenants.json, enabled by default for all tenants.',
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: 'gray',
+          title: 'Improvements',
+          items: [
+            'Vernieuwen button added to "Mijn aanvragen": after completing a DvTP procedure the citizen can immediately reload the list to see the new decision.',
+            'New "dvtp" feature flag added to TenantFeatures (tenant.ts and tenants.json) for tenant-level control over the consent flow.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.0',
       status: 'Feature Release',
       statusColor: 'purple',

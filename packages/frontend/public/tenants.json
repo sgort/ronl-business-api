@@ -19,7 +19,8 @@
         "zorgtoeslag": true,
         "vergunningen": true,
         "subsidies": true,
-        "meldingen": true
+        "meldingen": true,
+        "dvtp": true
       },
       "contact": {
         "phone": "14 030",
@@ -29,22 +30,70 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
-          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true },
-          { "id": "gegevenswoordenboek", "label": "Gegevenswoordenboek", "isPublic": true }
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          },
+          {
+            "id": "gegevenswoordenboek",
+            "label": "Gegevenswoordenboek",
+            "isPublic": true
+          }
         ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
-          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ]
       }
     },
@@ -66,7 +115,8 @@
         "zorgtoeslag": true,
         "vergunningen": true,
         "subsidies": true,
-        "meldingen": true
+        "meldingen": true,
+        "dvtp": true
       },
       "contact": {
         "phone": "14 020",
@@ -76,21 +126,65 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
-          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          }
         ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
-          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ]
       }
     },
@@ -112,7 +206,8 @@
         "zorgtoeslag": true,
         "vergunningen": true,
         "subsidies": true,
-        "meldingen": true
+        "meldingen": true,
+        "dvtp": true
       },
       "contact": {
         "phone": "14 010",
@@ -122,21 +217,65 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
-          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          }
         ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
-          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ]
       }
     },
@@ -158,7 +297,8 @@
         "zorgtoeslag": true,
         "vergunningen": true,
         "subsidies": true,
-        "meldingen": true
+        "meldingen": true,
+        "dvtp": true
       },
       "contact": {
         "phone": "14 070",
@@ -168,21 +308,65 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
-          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true }
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          }
         ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
-          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ]
       }
     },
@@ -204,7 +388,8 @@
         "zorgtoeslag": false,
         "vergunningen": true,
         "subsidies": true,
-        "meldingen": true
+        "meldingen": true,
+        "dvtp": true
       },
       "contact": {
         "phone": "0320 265 265",
@@ -214,32 +399,112 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "producten-diensten", "label": "Producten & Diensten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true },
-          { "id": "procesbibliotheek", "label": "Procesbibliotheek", "isPublic": true },
-          { "id": "gegevenswoordenboek", "label": "Gegevenswoordenboek", "isPublic": true }
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "producten-diensten",
+            "label": "Producten & Diensten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          },
+          {
+            "id": "gegevenswoordenboek",
+            "label": "Gegevenswoordenboek",
+            "isPublic": true
+          }
         ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
-          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "rip-fase1", "label": "RIP Fase 1 starten", "isPublic": false },
-          { "id": "rip-fase1-wip", "label": "RIP Fase 1 WIP", "isPublic": false },
-          { "id": "rip-fase1-gereed", "label": "RIP Fase 1 gereed", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "rip-fase1",
+            "label": "RIP Fase 1 starten",
+            "isPublic": false
+          },
+          {
+            "id": "rip-fase1-wip",
+            "label": "RIP Fase 1 WIP",
+            "isPublic": false
+          },
+          {
+            "id": "rip-fase1-gereed",
+            "label": "RIP Fase 1 gereed",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ],
         "iou": [
-          { "id": "iou-gebruiksscenario", "label": "Gebruiksscenario indienen", "isPublic": false },
-          { "id": "iou-feedback", "label": "Feedback geven", "isPublic": false },
-          { "id": "iou-actieve-zaken", "label": "Actieve zaken", "isPublic": true },
-          { "id": "iou-archief", "label": "Archief", "isPublic": true }
+          {
+            "id": "iou-gebruiksscenario",
+            "label": "Gebruiksscenario indienen",
+            "isPublic": false
+          },
+          {
+            "id": "iou-feedback",
+            "label": "Feedback geven",
+            "isPublic": false
+          },
+          {
+            "id": "iou-actieve-zaken",
+            "label": "Actieve zaken",
+            "isPublic": true
+          },
+          {
+            "id": "iou-archief",
+            "label": "Archief",
+            "isPublic": true
+          }
         ]
       }
     },
@@ -261,7 +526,8 @@
         "zorgtoeslag": false,
         "vergunningen": false,
         "subsidies": false,
-        "meldingen": false
+        "meldingen": false,
+        "dvtp": false
       },
       "contact": {
         "phone": "0800 0543",
@@ -270,15 +536,41 @@
         "openingHours": "Ma-Vr 08:00-20:00"
       },
       "leftPanelSections": {
-        "home": [{ "id": "nieuws", "label": "Nieuws", "isPublic": true }],
+        "home": [
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          }
+        ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ]
       }
     },
@@ -300,7 +592,8 @@
         "zorgtoeslag": true,
         "vergunningen": false,
         "subsidies": false,
-        "meldingen": false
+        "meldingen": false,
+        "dvtp": false
       },
       "contact": {
         "phone": "0900 1513",
@@ -309,9 +602,27 @@
         "openingHours": "Ma-Vr 08:00-20:00, Za 09:00-17:00"
       },
       "leftPanelSections": {
-        "home": [{ "id": "nieuws", "label": "Nieuws", "isPublic": true }],
-        "personal-info": [{ "id": "profiel", "label": "Profiel", "isPublic": false }],
-        "projects": [{ "id": "aanvragen", "label": "Mijn aanvragen", "isPublic": false }]
+        "home": [
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          }
+        ],
+        "personal-info": [
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          }
+        ],
+        "projects": [
+          {
+            "id": "aanvragen",
+            "label": "Mijn aanvragen",
+            "isPublic": false
+          }
+        ]
       }
     },
     "uwv": {
@@ -332,7 +643,8 @@
         "zorgtoeslag": false,
         "vergunningen": false,
         "subsidies": true,
-        "meldingen": true
+        "meldingen": true,
+        "dvtp": true
       },
       "contact": {
         "phone": "088 898 20 00",
@@ -342,20 +654,60 @@
       },
       "leftPanelSections": {
         "home": [
-          { "id": "nieuws", "label": "Nieuws", "isPublic": true },
-          { "id": "berichten", "label": "Berichten", "isPublic": true },
-          { "id": "regelcatalogus", "label": "Regelcatalogus", "isPublic": true }
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          }
         ],
         "personal-info": [
-          { "id": "profiel", "label": "Profiel", "isPublic": false },
-          { "id": "rollen", "label": "Rollen & rechten", "isPublic": false },
-          { "id": "hr-onboarding", "label": "Medewerker onboarden", "isPublic": false },
-          { "id": "onboarding-archief", "label": "Afgeronde onboardingen", "isPublic": false }
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
         ],
         "projects": [
-          { "id": "taken", "label": "Taken", "isPublic": false },
-          { "id": "actief", "label": "Actieve zaken", "isPublic": false },
-          { "id": "archief", "label": "Archief", "isPublic": false }
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
         ]
       }
     }

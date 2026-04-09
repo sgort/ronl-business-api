@@ -15,9 +15,10 @@ export interface TenantTheme {
 
 export interface TenantFeatures {
   zorgtoeslag: boolean;
-  kinderbijslag: boolean;
-  huurtoeslag: boolean;
-  processes: string[];
+  vergunningen: boolean;
+  subsidies: boolean;
+  meldingen: boolean;
+  dvtp: boolean;
 }
 
 export interface TenantContact {
