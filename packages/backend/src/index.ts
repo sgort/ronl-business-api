@@ -13,6 +13,7 @@ import brpRoutes from './routes/brp.routes';
 import taskRoutes from '@routes/task.routes';
 import publicRoutes from '@routes/public.routes';
 import hrRoutes from './routes/hr.routes';
+import capacityRoutes from './routes/capacity.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
@@ -132,6 +133,7 @@ app.get('/', (req: Request, res: Response) => {
       tasks: '/v1/task',
       public: '/v1/public',
       hr: '/v1/hr',
+      hrCapacity: '/v1/hr-capacity',
     },
     security: {
       authentication: 'JWT (Keycloak)',
@@ -149,6 +151,7 @@ app.use('/v1/task', taskRoutes);
 app.use('/v1/brp', brpRoutes);
 app.use('/v1/public', publicRoutes);
 app.use('/v1/hr', hrRoutes);
+app.use('/v1/hr-capacity', capacityRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
 app.use('/v1/admin', adminRoutes);

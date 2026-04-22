@@ -450,6 +450,16 @@
             "id": "onboarding-archief",
             "label": "Afgeronde onboardingen",
             "isPublic": false
+          },
+          {
+            "id": "capacity-claim",
+            "label": "Start capacity claim",
+            "isPublic": false
+          },
+          {
+            "id": "capacity-claim-archief",
+            "label": "Completed capacity claims",
+            "isPublic": false
           }
         ],
         "projects": [

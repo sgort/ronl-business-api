@@ -252,6 +252,42 @@
       {
         "name": "infra-medewerker",
         "description": "Infrastructure employee role assigned via HR onboarding DMN"
+      },
+      {
+        "name": "manager",
+        "description": "Line manager — can start a management capacity claim and prepare intake/staffing/hiring forms"
+      },
+      {
+        "name": "board-secretary",
+        "description": "Board Secretary — schedules capacity claims on the Board of Directors agenda"
+      },
+      {
+        "name": "board-director",
+        "description": "Board of Directors member — decides approval/rejection of capacity claims"
+      },
+      {
+        "name": "hrm-unit",
+        "description": "HRM unit — handles recruitment handover for approved staffing claims"
+      },
+      {
+        "name": "procurement-unit",
+        "description": "Procurement unit — handles procurement handover for approved hiring claims"
+      },
+      {
+        "name": "planning-control-officer",
+        "description": "Planning & Control officer — co-recipient of procurement handover"
+      },
+      {
+        "name": "financial-controller",
+        "description": "Financial controller — registers the financial reservation for approved claims"
+      },
+      {
+        "name": "hr-business-partner",
+        "description": "HR Business Partner — participates in the reconsideration meeting on rejected claims"
+      },
+      {
+        "name": "personnel-controller",
+        "description": "Personnel Controller — participates in the reconsideration meeting on rejected claims"
       }
     ]
   },
@@ -439,7 +475,13 @@
       "lastName": "Medewerker Den Haag",
       "email": "hr@denhaag.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["denhaag"],
         "organisation_type": ["municipality"],
@@ -455,7 +497,13 @@
       "lastName": "Medewerker Den Haag",
       "email": "onboarded@denhaag.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["denhaag"],
         "organisation_type": ["municipality"],
@@ -471,7 +519,13 @@
       "lastName": "Flevolander",
       "email": "test@flevoland.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["flevoland"],
         "organisation_type": ["province"],
@@ -487,14 +541,53 @@
       "lastName": "Medewerker Flevoland",
       "email": "hr@flevoland.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["flevoland"],
         "organisation_type": ["province"],
         "assurance_level": ["hoog"],
         "employee_id": ["emp-hr-01"]
       },
-      "realmRoles": ["caseworker", "hr-medewerker"]
+      "realmRoles": [
+        "caseworker",
+        "hr-medewerker",
+        "board-secretary",
+        "board-director",
+        "hrm-unit",
+        "procurement-unit",
+        "planning-control-officer",
+        "financial-controller",
+        "hr-business-partner",
+        "personnel-controller"
+      ]
+    },
+    {
+      "username": "test-mngr-flevoland",
+      "enabled": true,
+      "firstName": "Manager",
+      "lastName": "Flevoland",
+      "email": "manager@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["EMP-FLV-002"]
+      },
+      "realmRoles": ["caseworker", "manager"]
     },
     {
       "username": "test-caseworker-flevoland",
@@ -503,7 +596,13 @@
       "lastName": "Medewerker Flevoland",
       "email": "medewerker@flevoland.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["flevoland"],
         "organisation_type": ["province"],
@@ -519,7 +618,13 @@
       "lastName": "Medewerker Flevoland",
       "email": "infra@flevoland.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["flevoland"],
         "organisation_type": ["province"],
@@ -535,7 +640,13 @@
       "lastName": "UWV Aanvrager",
       "email": "test@uwv.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["uwv"],
         "organisation_type": ["national"],
@@ -551,7 +662,13 @@
       "lastName": "Medewerker UWV",
       "email": "medewerker@uwv.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["uwv"],
         "organisation_type": ["national"],
@@ -567,7 +684,13 @@
       "lastName": "Toeslagen Aanvrager",
       "email": "test@toeslagen.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["toeslagen"],
         "organisation_type": ["national"],
@@ -583,7 +706,13 @@
       "lastName": "Medewerker Toeslagen",
       "email": "medewerker@toeslagen.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["toeslagen"],
         "organisation_type": ["national"],
@@ -599,7 +728,13 @@
       "lastName": "Unive Klant",
       "email": "test@unive.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["unive"],
         "organisation_type": ["commercial"],

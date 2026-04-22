@@ -826,6 +826,151 @@ export class OperatonService {
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
     }));
   }
+
+  /**
+   * List active (unfinished) ManagementCapacityClaimProcess instances for a tenant,
+   * enriched with jobTitle, requestType, boardDecision, advisoryGroup.
+   */
+  async getCapacityClaimActiveList(tenantId: string): Promise<
+    {
+      id: string;
+      startTime: string;
+      jobTitle: string;
+      requestType: string;
+      boardDecision: string;
+      advisoryGroup: string;
+    }[]
+  > {
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'ManagementCapacityClaimProcess',
+      unfinished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceIdIn: ids, deserializeValues: true },
+    });
+
+    const wanted = ['jobTitle', 'requestType', 'boardDecision', 'advisoryGroup'];
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!wanted.includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      jobTitle: varMap[i.id]?.jobTitle ?? '—',
+      requestType: varMap[i.id]?.requestType ?? '—',
+      boardDecision: varMap[i.id]?.boardDecision ?? '—',
+      advisoryGroup: varMap[i.id]?.advisoryGroup ?? '—',
+    }));
+  }
+
+  /**
+   * List completed ManagementCapacityClaimProcess instances for a tenant,
+   * enriched with jobTitle, requestType, boardDecision, advisoryGroup.
+   */
+  async getCapacityClaimCompletedList(tenantId: string): Promise<
+    {
+      id: string;
+      startTime: string;
+      endTime: string;
+      jobTitle: string;
+      requestType: string;
+      boardDecision: string;
+      advisoryGroup: string;
+    }[]
+  > {
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'ManagementCapacityClaimProcess',
+      finished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string; endTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceIdIn: ids, deserializeValues: true },
+    });
+
+    const wanted = ['jobTitle', 'requestType', 'boardDecision', 'advisoryGroup'];
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!wanted.includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      endTime: i.endTime,
+      jobTitle: varMap[i.id]?.jobTitle ?? '—',
+      requestType: varMap[i.id]?.requestType ?? '—',
+      boardDecision: varMap[i.id]?.boardDecision ?? '—',
+      advisoryGroup: varMap[i.id]?.advisoryGroup ?? '—',
+    }));
+  }
+
+  /**
+   * Fetch both document templates (board-decision-notification, capacity-claim-handover)
+   * for a ManagementCapacityClaimProcess instance, together with current process variables.
+   * Either template may be null if not present in the deployment bundle.
+   * Variables come from the history API, so active and completed instances both work.
+   */
+  async getCapacityClaimDocuments(processInstanceId: string): Promise<{
+    variables: Record<string, unknown>;
+    boardDecisionNotification: Record<string, unknown> | null;
+    capacityClaimHandover: Record<string, unknown> | null;
+  }> {
+    // 1. Variables
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceId, deserializeValues: true },
+    });
+    const variables: Record<string, unknown> = {};
+    for (const v of varsRes.data as { name: string; value: unknown }[]) {
+      variables[v.name] = v.value;
+    }
+
+    // 2. Resolve deployment
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const deploymentId: string = procDefRes.data.deploymentId;
+
+    // 3. List resources
+    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resources: Array<{ id: string; name: string }> = resourcesRes.data;
+
+    // 4. Fetch each named .document resource, null if absent
+    const fetchDoc = async (name: string): Promise<Record<string, unknown> | null> => {
+      const resource = resources.find((r) => r.name === `${name}.document`);
+      if (!resource) return null;
+      const dataRes = await this.client.get(
+        `/deployment/${deploymentId}/resources/${resource.id}/data`,
+        { responseType: 'text' }
+      );
+      return JSON.parse(dataRes.data) as Record<string, unknown>;
+    };
+
+    const [boardDecisionNotification, capacityClaimHandover] = await Promise.all([
+      fetchDoc('board-decision-notification'),
+      fetchDoc('capacity-claim-handover'),
+    ]);
+
+    return { variables, boardDecisionNotification, capacityClaimHandover };
+  }
 }
 
 export const operatonService = new OperatonService();
