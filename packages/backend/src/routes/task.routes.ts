@@ -28,7 +28,15 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const tasks = await operatonService.getUserTasks(req.user.userId, req.user.tenantId);
+    // Filter Operaton's task list by the caller's Keycloak realm roles so users
+    // only see tasks they could actually claim. Candidate groups in the BPMN
+    // map 1:1 to realm role names in this platform (manager, hr-medewerker,
+    // board-secretary, etc.), so passing req.user.roles verbatim is correct.
+    const tasks = await operatonService.getUserTasks(
+      req.user.userId,
+      req.user.tenantId,
+      req.user.roles
+    );
 
     auditLog(req, 'task.list', 'success', { tenantId: req.user.tenantId, count: tasks.length });
 

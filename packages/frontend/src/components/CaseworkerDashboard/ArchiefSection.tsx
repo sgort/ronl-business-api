@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { businessApi } from '../../services/api';
 import type { HistoricTask } from '@ronl/shared';
 
-const EXCLUDED_VARS = ['municipality', 'initiator', 'assuranceLevel', 'roleResult'];
+const EXCLUDED_VARS = [
+  'municipality',
+  'organisationType',
+  'initiator',
+  'applicantId',
+  'assuranceLevel',
+  'roleResult',
+  'routingResult',
+];
 
 export default function ArchiefSection() {
   const [tasks, setTasks] = useState<HistoricTask[]>([]);

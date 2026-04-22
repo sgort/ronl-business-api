@@ -417,13 +417,25 @@ export class OperatonService {
   }
 
   /**
-   * Get tasks for a user
+   * Get tasks for a user, filtered by tenant (via process variable) and, if
+   * provided, by candidate groups. When candidateGroups is a non-empty array,
+   * Operaton returns only tasks assigned to at least one of those groups.
+   * Passing an empty array returns no tasks — callers should omit the argument
+   * (or pass undefined) if they want no group filter applied.
    */
-  async getUserTasks(userId?: string, tenantId?: string): Promise<Task[]> {
+  async getUserTasks(
+    userId?: string,
+    tenantId?: string,
+    candidateGroups?: string[]
+  ): Promise<Task[]> {
     try {
       const params: Record<string, string> = {};
       if (tenantId) {
         params['processVariables'] = `municipality_eq_${tenantId}`;
+      }
+      if (candidateGroups && candidateGroups.length > 0) {
+        // Operaton's candidateGroups parameter does an OR match across the list
+        params['candidateGroups'] = candidateGroups.join(',');
       }
 
       const response = await this.client.get('/task', { params });

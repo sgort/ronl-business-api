@@ -3,7 +3,15 @@ import { businessApi } from '../../services/api';
 import type { KeycloakUser, Task } from '@ronl/shared';
 import TaskFormViewer from './TaskFormViewer';
 
-const EXCLUDED_VARS = ['municipality', 'initiator', 'assuranceLevel', 'roleResult'];
+const EXCLUDED_VARS = [
+  'municipality',
+  'organisationType',
+  'initiator',
+  'applicantId',
+  'assuranceLevel',
+  'roleResult',
+  'routingResult',
+];
 
 interface Props {
   user: KeycloakUser | null;
