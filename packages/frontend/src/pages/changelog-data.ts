@@ -63,7 +63,7 @@ export const changelog: Changelog = {
       status: 'Released',
       statusColor: 'green',
       borderColor: 'green',
-      date: '2026-04-24',
+      date: 'April 22, 2026',
       sections: [
         {
           icon: '🏛️',
