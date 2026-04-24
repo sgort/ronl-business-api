@@ -31,6 +31,92 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.3',
+      status: 'Bugfix',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: 'April 24, 2026',
+      sections: [
+        {
+          title: 'AI Assistant — CPRMV Session Recovery',
+          icon: '📜',
+          iconColor: 'teal',
+          items: [
+            'CprmvMcpProvider now recovers automatically from remote session expiry — "Session not found" errors in callTool() and getToolDefinitions() trigger a disconnect/reconnect cycle and retry the call transparently',
+            'isConnected() returning true on a stale client was the root cause: StreamableHTTPClientTransport session IDs are invalidated when the remote CPRMV server restarts or upgrades, independently of the local backend process',
+            'One reconnect attempt per call; if the reconnect itself fails the error propagates normally and the provider shows as disconnected in GET /v1/mcp/sources',
+          ],
+        },
+        {
+          title: 'AI Assistant — OpenAI Provider Tool Result Flattening',
+          icon: '🤖',
+          iconColor: 'purple',
+          items: [
+            'flattenForOpenAI() added to OpenAILlmProvider — expands tool_results messages with multiple results into individual tool messages before passing to the OpenAI API; OpenAI requires exactly one tool message per tool_call_id',
+            'toOpenAIMessage() tool_results case removed — now unreachable; replaced with an explicit default: throw to maintain TypeScript exhaustiveness and surface any future bypasses immediately',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.2',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-04-24',
+      sections: [
+        {
+          icon: '🏛️',
+          iconColor: 'purple',
+          title: 'Management Capacity Claim process (Provincie Flevoland)',
+          items: [
+            'New HR-capacity BPMN bundle deployed to Operaton: line managers can submit staffing or hiring claims, consult HR Business Partner and Personnel Controller, route to the Board of Directors, and record the financial reservation after approval.',
+            'DMN decision CapacityClaimRouting (FIRST hit policy, 9 rules) derives the handover route (recruitment vs procurement), candidate groups, and a human-readable advisory group label from requestType and department.',
+            'Rejected claims loop back through a reconsideration meeting; a script task on the proceed path clears all stale claim-specific variables so switching from staffing to hiring on revision leaves no ghost data in the final handover document.',
+            'Two document templates bound to user tasks: board-decision-notification (Board → requesting manager) and capacity-claim-handover (shared by the recruitment and procurement handover tasks), each rendered from the current process variables.',
+          ],
+        },
+        {
+          icon: '🔌',
+          iconColor: 'blue',
+          title: 'Backend — /v1/hr-capacity routes',
+          items: [
+            'New route module capacity.routes.ts mounted at /v1/hr-capacity, exposing three endpoints: /active and /completed (enriched with jobTitle, requestType, boardDecision, advisoryGroup) and /:instanceId/documents (returns both document templates plus current process variables in one call).',
+            'OperatonService extended with getCapacityClaimActiveList, getCapacityClaimCompletedList, and getCapacityClaimDocuments. The documents method resolves the deployment from the process definition and fetches both .document resources concurrently; either template may be null if not present in the deployment bundle.',
+            "Document endpoint enforces tenant isolation by checking the process-instance municipality variable against the caller's JWT tenant claim.",
+          ],
+        },
+        {
+          icon: '🖥️',
+          iconColor: 'green',
+          title: 'Frontend — MijnOmgeving caseworker views',
+          items: [
+            'Two new sections under Personal info for Flevoland: "Start capacity claim" (manager-only role gate) and "Completed capacity claims" (open to all participants of the capacity claim process).',
+            'New CapacityClaimDocumentsViewer renders both document templates side by side from a single endpoint call, with collapsible sections for the board-decision-notification and the capacity-claim-handover.',
+            'Archive cards show request type, advisory group, and a colour-coded decision badge (approved/rejected), with an expandable documents panel per claim.',
+          ],
+        },
+        {
+          icon: '🔐',
+          iconColor: 'orange',
+          title: 'Role-based task filtering',
+          items: [
+            "GET /v1/task now filters by the caller's Keycloak realm roles, not just the tenant. Users see only tasks whose candidate groups match at least one of their roles, matching Operaton's claim-time authorisation.",
+            'Nine new realm roles added to ronl-realm.json: manager, board-secretary, board-director, hrm-unit, procurement-unit, planning-control-officer, financial-controller, hr-business-partner, personnel-controller.',
+            'New test user test-mngr-flevoland (roles: caseworker, manager) for the Flevoland capacity claim flow; test-hr-flevoland picked up the eight non-manager process roles so it can handle board, handover, reservation, and reconsideration tasks end-to-end.',
+          ],
+        },
+        {
+          icon: '🧹',
+          iconColor: 'gray',
+          title: 'Cleaner process variable display',
+          items: [
+            'TakenSection and ArchiefSection no longer show tenant-context variables (municipality, organisationType, initiator, applicantId, assuranceLevel) or raw DMN output blobs (roleResult, routingResult) — these are noise once their hoisted top-level fields are displayed.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.1',
       status: 'Patch',
       statusColor: 'green',
