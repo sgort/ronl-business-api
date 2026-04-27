@@ -977,8 +977,8 @@ export class OperatonService {
     };
 
     const [boardDecisionNotification, capacityClaimHandover] = await Promise.all([
-      fetchDoc('board-decision-notification'),
-      fetchDoc('capacity-claim-handover'),
+      fetchDoc('board-decision-notification-nl'),
+      fetchDoc('capacity-claim-handover-nl'),
     ]);
 
     return { variables, boardDecisionNotification, capacityClaimHandover };
