@@ -31,6 +31,25 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.4',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-04-28',
+      sections: [
+        {
+          icon: '📰',
+          iconColor: 'orange',
+          title: 'Nieuws — Rijksoverheid feed migration',
+          items: [
+            'Rijksoverheid retired the legacy `feeds.rijksoverheid.nl` subdomain on 2026-04-28. The Nieuws section is now backed by the new RSS API at `/api/rss` on rijksoverheid.nl, which takes a JSON-encoded query parameter to filter on content_type `pro:newsDocument`.',
+            'Cold-cache failure handling improved: when the upstream RSS feed is unreachable and there is no cached fallback, the route now returns 500 instead of an empty list, so the frontend shows the retry button rather than a blank "Geen nieuwsberichten beschikbaar" state.',
+            'Source label corrected from "Government.nl" to "Rijksoverheid".',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.3',
       status: 'Bugfix',
       statusColor: 'orange',

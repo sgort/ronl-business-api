@@ -3,7 +3,14 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('nieuws-service');
 
-const GOVERNMENT_RSS_URL = 'https://feeds.rijksoverheid.nl/nieuws.rss';
+const GOVERNMENT_RSS_URL = 'https://www.rijksoverheid.nl/api/rss';
+
+// New (April 2026) Rijksoverheid RSS API uses a JSON-encoded `query` parameter.
+// This filter selects newsDocument content — equivalent to the old /nieuws.rss feed.
+const GOVERNMENT_RSS_QUERY = {
+  filters: [{ field: 'content_type', values: ['pro:newsDocument'], type: 'all' }],
+  resultSearchTerm: '',
+};
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -55,7 +62,7 @@ function parseItems(rss: string): NieuwsItem[] {
         category: null,
         publishedAt: pubDate ? new Date(pubDate).toISOString() : '',
         url: link || null,
-        source: { id: 'government', name: 'Government.nl' },
+        source: { id: 'government', name: 'Rijksoverheid' },
       };
     })
     .filter((item) => item.title);
@@ -73,6 +80,7 @@ export async function getNieuwsItems(
     logger.info('Fetching nieuws from Government.nl RSS');
     try {
       const response = await axios.get<string>(GOVERNMENT_RSS_URL, {
+        params: { query: JSON.stringify(GOVERNMENT_RSS_QUERY) },
         timeout: 8_000,
         headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
         responseType: 'text',
@@ -85,10 +93,16 @@ export async function getNieuwsItems(
       logger.error('Failed to fetch nieuws', {
         error: error instanceof Error ? error.message : String(error),
       });
-      return {
-        items: cache?.items.slice(offset, offset + limit) ?? [],
-        total: cache?.items.length ?? 0,
-      };
+      // Fall back to stale cache if we have one — better than an empty page.
+      if (cache) {
+        return {
+          items: cache.items.slice(offset, offset + limit),
+          total: cache.items.length,
+        };
+      }
+      // Cold cache + upstream down: throw so the route returns 500
+      // and the frontend shows the retry button instead of an empty state.
+      throw error;
     }
   }
 
