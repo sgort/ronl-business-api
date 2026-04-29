@@ -103,13 +103,21 @@ export default function SectionRouter({
   if (sectionId === 'capacity-claim-archief') return <CapacityClaimArchiefSection user={user} />;
 
   // ── DVTP ──────────────────────────────────────────────────────────
-  if (sectionId === 'dvtp-start') return <DvtpStartSection user={user} />;
+  if (sectionId === 'dvtp-start')
+    return (
+      <DvtpStartSection
+        user={user}
+        onNavigateToTasks={function (): void {
+          throw new Error('Function not implemented.');
+        }}
+      />
+    );
   if (sectionId === 'dvtp-taken') return <DvtpTakenSection user={user} />;
 
   // ── Hulpmiddelen ──────────────────────────────────────────────────
   // GereedschapSection is a launcher: each tile opens an external product
   // in a new tab. Lives in Beheer → Hulpmiddelen.
-  if (sectionId === 'gereedschap-overzicht') return <GereedschapSection />;
+  if (sectionId === 'gereedschap-overzicht') return <GereedschapSection user={null} />;
 
   // Audit log is admin-only — modes.config gates the rail item, but we
   // also gate here so deep-links / palette can't bypass it.
@@ -124,7 +132,7 @@ export default function SectionRouter({
         </div>
       );
     }
-    return <AuditSection user={user} />;
+    return <AuditSection user={user} activeTab={'audit-overzicht'} />;
   }
 
   // Fallback for ids we don't yet route (audit, gereedschap, etc.)
