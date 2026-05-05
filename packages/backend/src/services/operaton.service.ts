@@ -476,6 +476,8 @@ export class OperatonService {
 
   /**
    * Get completed (historic) tasks for a tenant, most recent first.
+   * Joins the historic task list with historic process instances to surface
+   * each task's process businessKey (used as the dossier identifier in the UI).
    */
   async getCompletedTasks(tenantId: string): Promise<
     Array<{
@@ -485,13 +487,15 @@ export class OperatonService {
       taskDefinitionKey: string;
       processDefinitionKey: string | null;
       processInstanceId: string;
+      businessKey: string | null;
       startTime: string;
       endTime: string;
       duration: number;
     }>
   > {
     try {
-      const response = await this.client.get('/history/task', {
+      // 1. Historic tasks for this tenant.
+      const taskResponse = await this.client.get('/history/task', {
         params: {
           finished: true,
           processVariables: `municipality_eq_${tenantId}`,
@@ -500,7 +504,41 @@ export class OperatonService {
           maxResults: 200,
         },
       });
-      return response.data;
+      const tasks = taskResponse.data as Array<{
+        id: string;
+        name: string;
+        assignee: string | null;
+        taskDefinitionKey: string;
+        processDefinitionKey: string | null;
+        processInstanceId: string;
+        startTime: string;
+        endTime: string;
+        duration: number;
+      }>;
+
+      if (tasks.length === 0) {
+        return [];
+      }
+
+      // 2. Look up businessKey per process instance. Distinct ids only — multiple
+      //    completed tasks frequently share one process instance.
+      const distinctIds = Array.from(new Set(tasks.map((t) => t.processInstanceId)));
+      const instancesRes = await this.client.post('/history/process-instance', {
+        processInstanceIds: distinctIds,
+      });
+      const businessKeyById = new Map<string, string | null>();
+      for (const inst of instancesRes.data as Array<{
+        id: string;
+        businessKey: string | null;
+      }>) {
+        businessKeyById.set(inst.id, inst.businessKey ?? null);
+      }
+
+      // 3. Merge businessKey into each task.
+      return tasks.map((t) => ({
+        ...t,
+        businessKey: businessKeyById.get(t.processInstanceId) ?? null,
+      }));
     } catch (error) {
       logger.error('Failed to get completed tasks', {
         tenantId,

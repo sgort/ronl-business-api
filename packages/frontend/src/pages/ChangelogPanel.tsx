@@ -183,12 +183,43 @@ function SectionCard({ section }: { section: ChangelogSection }) {
 
       {/* Items */}
       <ul className="space-y-2 ml-9">
-        {section.items.map((item, itemIndex) => (
-          <li key={itemIndex} className="flex items-start gap-2">
-            <span className="text-blue-500 mt-1 flex-shrink-0">•</span>
-            <span className="text-gray-700 text-sm leading-relaxed">{item}</span>
-          </li>
-        ))}
+        {section.items.map((item, itemIndex) => {
+          if (typeof item === 'string') {
+            return (
+              <li key={itemIndex} className="flex items-start gap-2">
+                <span className="text-blue-500 mt-1 flex-shrink-0">•</span>
+                <span className="text-gray-700 text-sm leading-relaxed">{item}</span>
+              </li>
+            );
+          }
+
+          // Work item — clickable link with kind-specific chip
+          const chipClass =
+            item.type === 'usecase'
+              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200';
+          const chipLabel = item.type === 'usecase' ? 'Use Case' : 'Feedback';
+
+          return (
+            <li key={itemIndex} className="flex items-start gap-2">
+              <span className="text-blue-500 mt-1 flex-shrink-0">•</span>
+
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-2 text-sm leading-relaxed text-gray-700 hover:text-blue-700 hover:underline group"
+              >
+                <span
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0 mt-0.5 ${chipClass}`}
+                >
+                  {chipLabel} #{item.iid}
+                </span>
+                <span className="group-hover:underline">{item.title}</span>
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

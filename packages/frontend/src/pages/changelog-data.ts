@@ -1,18 +1,20 @@
 // RONL Business API Changelog Data
 // Format matches CPSV Editor and Linked Data Explorer
 
-export interface ChangelogItem {
+export interface FeedbackItem {
+  type: 'feedback' | 'usecase';
+  iid: number;
   title: string;
-  icon: string;
-  iconColor: string;
-  items: string[];
+  url: string;
 }
 
+export type ChangelogItem = string | FeedbackItem;
+
 export interface ChangelogSection {
-  title: string;
   icon: string;
   iconColor: string;
-  items: string[];
+  title: string;
+  items: ChangelogItem[];
 }
 
 export interface ChangelogVersion {
@@ -30,6 +32,61 @@ export interface Changelog {
 
 export const changelog: Changelog = {
   versions: [
+    {
+      version: '3.X.Y',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-05-XX',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 22,
+              title: 'In het projecten archief zie ik rare bestandsnamen (?) staan',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/22',
+            },
+            {
+              type: 'usecase',
+              iid: 25,
+              title: 'Default met taken openen',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/25',
+            },
+            {
+              type: 'usecase',
+              iid: 26,
+              title: 'Gereedschap naast de taken',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/26',
+            },
+          ],
+        },
+        {
+          icon: '📦',
+          iconColor: 'blue',
+          title: 'Archief',
+          items: [
+            'Archive rows now show the process business key as the primary dossier identifier (e.g. `flevoland-1777905361680`), making completed cases recognisable at a glance.',
+            'End time now includes time of day in addition to the date, so multiple completions on the same day are distinguishable in the row meta.',
+            'Assignee is dimmed and rendered in monospace as trailing metadata; UUID-shaped assignees are truncated to the first 8 characters with the full value available on hover.',
+            'Backend `getCompletedTasks` joins historic tasks with historic process instances to surface `businessKey` on the `HistoricTask` projection.',
+          ],
+        },
+        {
+          icon: '✨',
+          iconColor: 'purple',
+          title: 'Changelog',
+          items: [
+            'The changelog now supports linking to handled GitLab work items via a new `FeedbackItem` entry type in `changelog-data.ts`, distinguishing feedback from use cases.',
+            'Each work item renders as a clickable row with a color-coded chip — amber `Feedback #N` for feedback items, indigo `Use Case #N` for use cases — opening the source work item in a new tab.',
+            'String items in section `items` arrays continue to work unchanged; the `ChangelogItem` type is a string-or-object union, so existing entries needed no migration.',
+          ],
+        },
+      ],
+    },
     {
       version: '3.0.4',
       status: 'Released',
