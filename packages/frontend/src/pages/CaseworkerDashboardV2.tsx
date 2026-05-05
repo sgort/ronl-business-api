@@ -6,7 +6,7 @@
  *   ┌────────────────────────────────────────────────────────────┐
  *   │ Top bar (logo · ⌘K search · user)                          │
  *   ├────────────────────────────────────────────────────────────┤
- *   │ Werk · Zoeken · Beheer                             [tenant]│
+ *   │ Werk · Zoeken · Beheer                              [tenant]│
  *   ├──────────┬─────────────────────────────────┬───────────────┤
  *   │ Rail     │ Main (section content)          │ Assistant ▶   │
  *   │ (mode-   │                                 │ (toggleable)  │
@@ -41,6 +41,7 @@ import { MODES, findModeForSection, type ModeId } from './caseworker-v2/modes.co
 import SectionRouter from '../components/CaseworkerDashboardV2/SectionRouter';
 import CommandPalette from '../components/CaseworkerDashboardV2/CommandPalette';
 import AssistantDock from '../components/CaseworkerDashboardV2/AssistantDock';
+import ChangelogPanel from './ChangelogPanel';
 
 import './caseworker-v2/dashboard-v2.css';
 
@@ -71,6 +72,8 @@ export default function CaseworkerDashboardV2() {
 
   const [taskCount, setTaskCount] = useState<number>(0);
   const [iouCount, setIouCount] = useState<number>(0);
+
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   // ── Tenant theme + user once we know auth state ─────────
   useEffect(() => {
@@ -224,8 +227,19 @@ export default function CaseworkerDashboardV2() {
               </button>
             </>
           )}
+          <button
+            type="button"
+            className="v2-changelog-btn"
+            onClick={() => setChangelogOpen(true)}
+            aria-label="Open changelog"
+            title="Changelog"
+          >
+            <span aria-hidden="true">📋</span>
+          </button>
         </div>
       </header>
+
+      <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
 
       {/* ── Mode tabs ── */}
       <nav className="v2-tabs" aria-label="Werkmodus">
@@ -329,8 +343,8 @@ export default function CaseworkerDashboardV2() {
         {dockOpen && <AssistantDock user={user} onClose={() => setDockOpen(false)} />}
       </div>
 
-      {/* Floating dock toggle (only when dock is closed) */}
-      {!dockOpen && (
+      {/* Floating dock toggle (only when dock is closed and no overlay panel is open) */}
+      {!dockOpen && !changelogOpen && (
         <button type="button" className="v2-dock-toggle" onClick={() => setDockOpen(true)}>
           Vraag de assistent
         </button>

@@ -32,6 +32,14 @@ export default function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps)
 
   if (!isOpen) return null;
 
+  // Tenant-aware header. V2 sets --color-primary / --color-primary-dark on
+  // :root via initializeTenantTheme; V1 inherits the same tokens. When neither
+  // is present (e.g. preview mocks), the legacy blue gradient is the fallback.
+  const headerStyle: React.CSSProperties = {
+    background:
+      'linear-gradient(to right, var(--color-primary, #2563eb), var(--color-primary-dark, #1d4ed8))',
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -48,8 +56,8 @@ export default function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps)
         aria-modal="true"
         aria-labelledby="changelog-title"
       >
-        {/* Header */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 shadow-md">
+        {/* Header — tenant-aware gradient */}
+        <div className="flex-shrink-0 text-white px-6 py-4 shadow-md" style={headerStyle}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-2xl">📋</span>
@@ -57,7 +65,9 @@ export default function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps)
                 <h2 id="changelog-title" className="text-xl font-bold">
                   Changelog
                 </h2>
-                <p className="text-sm text-blue-100">RONL Business API Updates</p>
+                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                  RONL Business API Updates
+                </p>
               </div>
             </div>
             <button
@@ -92,7 +102,8 @@ export default function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps)
               href="https://iou-architectuur.open-regels.nl/ronl-business-api/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              style={{ color: 'var(--color-primary, #2563eb)' }}
+              className="hover:underline"
             >
               iou-architectuur.open-regels.nl
             </a>

@@ -164,6 +164,29 @@
   border: none;
   padding: 0;
 }
+.cwd-v2 .v2-changelog-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  padding: 0;
+}
+.cwd-v2 .v2-changelog-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.cwd-v2 .v2-changelog-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
 
 /* ── Mode tabs ──────────────────────────────────────────── */
 .cwd-v2 .v2-tabs {
