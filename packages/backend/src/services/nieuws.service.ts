@@ -3,14 +3,21 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('nieuws-service');
 
-const GOVERNMENT_RSS_URL = 'https://www.rijksoverheid.nl/api/rss';
+// 2026-04-28: Rijksoverheid migrated to /api/rss with a JSON query param.
+// 2026-04-29: Reverted to the legacy feeds.rijksoverheid.nl subdomain due to
+// technical issues with the new API. The migration may resume later — when it
+// does, swap the URL back to 'https://www.rijksoverheid.nl/api/rss' and pass
+// `params: { query: JSON.stringify({ filters: [{ field: "content_type",
+// values: ["pro:newsDocument"], type: "all" }], resultSearchTerm: "" }) }` to
+// axios.get. The fall-through error handling is feed-shape agnostic.
+const GOVERNMENT_RSS_URL = 'https://feeds.rijksoverheid.nl/nieuws.rss';
 
 // New (April 2026) Rijksoverheid RSS API uses a JSON-encoded `query` parameter.
 // This filter selects newsDocument content — equivalent to the old /nieuws.rss feed.
-const GOVERNMENT_RSS_QUERY = {
-  filters: [{ field: 'content_type', values: ['pro:newsDocument'], type: 'all' }],
-  resultSearchTerm: '',
-};
+// const GOVERNMENT_RSS_QUERY = {
+//  filters: [{ field: 'content_type', values: ['pro:newsDocument'], type: 'all' }],
+//  resultSearchTerm: '',
+// };
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -80,13 +87,18 @@ export async function getNieuwsItems(
     logger.info('Fetching nieuws from Government.nl RSS');
     try {
       const response = await axios.get<string>(GOVERNMENT_RSS_URL, {
-        params: { query: JSON.stringify(GOVERNMENT_RSS_QUERY) },
         timeout: 8_000,
         headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
         responseType: 'text',
       });
 
       const items = parseItems(response.data);
+      if (items.length === 0) {
+        // Upstream returned a 200 but the body was empty or in a shape parseItems
+        // doesn't recognise. Treat as a failure rather than caching an empty list
+        // for the next 10 minutes.
+        throw new Error('Nieuws RSS returned 0 items — upstream format may have changed');
+      }
       cache = { items, fetchedAt: now };
       logger.info('Nieuws cache refreshed', { count: items.length });
     } catch (error) {

@@ -33,11 +33,11 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
-      version: '3.X.Y',
+      version: '3.0.5',
       status: 'Released',
       statusColor: 'green',
       borderColor: 'green',
-      date: '2026-05-XX',
+      date: '2026-05-06',
       sections: [
         {
           icon: '💬',
@@ -83,6 +83,14 @@ export const changelog: Changelog = {
             'The changelog now supports linking to handled GitLab work items via a new `FeedbackItem` entry type in `changelog-data.ts`, distinguishing feedback from use cases.',
             'Each work item renders as a clickable row with a color-coded chip — amber `Feedback #N` for feedback items, indigo `Use Case #N` for use cases — opening the source work item in a new tab.',
             'String items in section `items` arrays continue to work unchanged; the `ChangelogItem` type is a string-or-object union, so existing entries needed no migration.',
+          ],
+        },
+        {
+          icon: '📰',
+          iconColor: 'orange',
+          title: 'Nieuws — Rijksoverheid feed migration',
+          items: [
+            'Rijksoverheid reverted the API migration on 2026-04-29 due to technical issues; the Nieuws service was switched back to the legacy feeds.rijksoverheid.nl/nieuws.rss feed. The cold-cache error handling improvements and source-label correction remain in place.',
           ],
         },
       ],
