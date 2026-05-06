@@ -188,6 +188,123 @@
   outline-offset: 2px;
 }
 
+/* ── Gegevenswoordenboek wrapper ─────────────────────────── */
+/* Special-case: when this section is mounted, the main pad
+   gives up its padding/scroll so the iframe can fill edge-to-edge.
+   Targets the wrapper's parent via :has() — supported in all
+   modern browsers (Chrome 105+, Safari 15.4+, Firefox 121+). */
+.cwd-v2 .v2-main:has(> .v2-main-pad > .v2-gw),
+.cwd-v2 .v2-main:has(> .v2-main-pad > .v2-gw) > .v2-main-pad {
+  overflow: hidden;
+  padding: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cwd-v2 .v2-gw {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--v2-paper);
+}
+.cwd-v2 .v2-gw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--v2-rule-2);
+  background: var(--v2-bg);
+  flex-shrink: 0;
+}
+.cwd-v2 .v2-gw-title { min-width: 0; }
+.cwd-v2 .v2-gw-source {
+  font-size: 12px;
+  color: var(--v2-ink-3);
+  margin-top: 2px;
+}
+.cwd-v2 .v2-gw-source a {
+  color: var(--v2-ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--v2-rule);
+}
+.cwd-v2 .v2-gw-source-dot { margin: 0 8px; color: var(--v2-rule); }
+.cwd-v2 .v2-gw-search {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  max-width: 540px;
+}
+.cwd-v2 .v2-gw-search input {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--v2-rule);
+  border-radius: 6px;
+  background: var(--v2-paper);
+  font-size: 13px;
+  color: var(--v2-ink);
+}
+.cwd-v2 .v2-gw-search input:focus {
+  outline: none;
+  border-color: var(--v2-accent);
+  box-shadow: 0 0 0 3px var(--v2-accent-50);
+}
+.cwd-v2 .v2-btn-sm { padding: 6px 12px; font-size: 12px; }
+.cwd-v2 .v2-gw-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.cwd-v2 .v2-gw-lang {
+  display: inline-flex;
+  border: 1px solid var(--v2-rule);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cwd-v2 .v2-gw-lang button {
+  background: var(--v2-paper);
+  color: var(--v2-ink-2);
+  border: none;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.cwd-v2 .v2-gw-lang button + button { border-left: 1px solid var(--v2-rule); }
+.cwd-v2 .v2-gw-lang button.active {
+  background: var(--v2-accent);
+  color: #fff;
+}
+.cwd-v2 .v2-gw-external {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--v2-rule);
+  border-radius: 6px;
+  color: var(--v2-ink-2);
+  text-decoration: none;
+  background: var(--v2-paper);
+  font-size: 14px;
+}
+.cwd-v2 .v2-gw-external:hover { color: var(--v2-accent); border-color: var(--v2-accent); }
+.cwd-v2 .v2-gw-frame {
+  flex: 1;
+  min-height: 0;
+  background: var(--v2-paper);
+}
+.cwd-v2 .v2-gw-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
 /* ── Mode tabs ──────────────────────────────────────────── */
 .cwd-v2 .v2-tabs {
   background: var(--v2-chrome-d);

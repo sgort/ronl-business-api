@@ -33,6 +33,37 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.6',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-05-06',
+      sections: [
+        {
+          icon: '📚',
+          iconColor: 'blue',
+          title: 'Gegevenswoordenboek',
+          items: [
+            'New rail item under **Zoeken** that embeds the Skosmos thesaurus (RONL Concepten) directly inside the dashboard — no more context-switching to a separate tab.',
+            'Toolbar above the iframe carries the source label, an in-context search box that submits straight into Skosmos, an NL/EN language toggle, and an "open in new tab" escape hatch.',
+            'Iframe fills the full main area edge-to-edge — `:has()` selector strips the default content padding only when this section is mounted, so the rest of the dashboard is unaffected.',
+          ],
+        },
+        {
+          icon: '🎨',
+          iconColor: 'purple',
+          title: 'Skosmos embed theme',
+          items: [
+            'Custom Twig partial at `custom-templates/html-head/embed.twig` injects an embed-mode flag + inline CSS on every Skosmos page. Activated by `?embed=1` on first load and persisted in `sessionStorage`; also auto-activates when Skosmos is rendered inside an iframe (catches the `/ronl/` → `/ronl/en/` redirect that strips the query string).',
+            'Skosmos chrome hidden when in embed mode: top nav, vocabulary header, language switcher, footer, feedback links — leaves only the A-Z / Hiërarchie / Groepen / Nieuw tabs and the concept content.',
+            'Tokens overridden to match V2: Flevoland blue (`#0046ad`) for links and primary buttons, magenta (`#e70077`) for active tab underline and input focus rings, neutral greys for borders and labels.',
+            'Concept-page typography rebalanced: row labels (Voorkeursterm, Verwante concepten, In andere talen, URI, Download dit concept, Woordenlijstinformatie) collapse to 13px small-caps grey so they read as siblings; `#concept-preflabel` (the term itself) stays at 22px bold as the page anchor.',
+            'Tighter sidebar list rows, 6px border-radius on inputs and buttons, table headers in small-caps — all aligned with the V2 design tokens.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.5',
       status: 'Released',
       statusColor: 'green',

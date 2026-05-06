@@ -20,7 +20,7 @@ import TakenInbox from './TakenInbox';
 // Names match the actual files under components/CaseworkerDashboard/.
 import RegelCatalogus from '../CaseworkerDashboard/RegelCatalogus';
 import ProcesBibliotheek from '../CaseworkerDashboard/ProcesBibliotheek';
-import GegevenswoordenboekSection from '../CaseworkerDashboard/GegevenswoordenboekSection';
+import GegevenswoordenboekV2 from './GegevenswoordenboekV2';
 import ArchiefSection from '../CaseworkerDashboard/ArchiefSection';
 import BerichtenSection from '../CaseworkerDashboard/BerichtenSection';
 import NieuwsSection from '../CaseworkerDashboard/NieuwsSection';
@@ -69,7 +69,7 @@ export default function SectionRouter({
   // ── Public / shared library (no props) ────────────────────────────
   if (sectionId === 'regelcatalogus') return <RegelCatalogus />;
   if (sectionId === 'procesbibliotheek') return <ProcesBibliotheek />;
-  if (sectionId === 'gegevenswoordenboek') return <GegevenswoordenboekSection />;
+  if (sectionId === 'gegevenswoordenboek') return <GegevenswoordenboekV2 />;
   if (sectionId === 'producten-diensten') return <ProductenDienstenCatalogus />;
   if (sectionId === 'nieuws') return <NieuwsSection />;
   if (sectionId === 'berichten') return <BerichtenSection />;
