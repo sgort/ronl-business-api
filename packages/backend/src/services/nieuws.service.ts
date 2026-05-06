@@ -88,7 +88,10 @@ export async function getNieuwsItems(
     try {
       const response = await axios.get<string>(GOVERNMENT_RSS_URL, {
         timeout: 8_000,
-        headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
+        headers: {
+          Accept: 'application/rss+xml, application/xml, text/xml',
+          'User-Agent': 'ronl-business-api/1.0 (+https://acc.open-regels.nl)',
+        },
         responseType: 'text',
       });
 
