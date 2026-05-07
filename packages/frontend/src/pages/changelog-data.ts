@@ -33,6 +33,45 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.7',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-05-07',
+      sections: [
+        {
+          icon: '🔐',
+          iconColor: 'blue',
+          title: 'Caseworker V2 — permissions & multi-tenant',
+          items: [
+            'Rail items and the command palette share a single gate predicate: a section appears only if the user is signed in (when required), the active tenant supports the section, the user has the right role, and the organisation type matches. What is hidden in the rail is also hidden in ⌘K.',
+            'Per-section role gates wired to match V1: `hr-onboarding` / `onboarding-archief` → `hr-medewerker`, `capacity-claim` → `manager`, `capacity-claim-archief` → 9-role set, `rip-fase1*` → `infra-projectteam`, `audit-overzicht` / `audit-details` → `admin`. No more lock screens in the main pad — rail items disappear directly when the role is missing.',
+            'Tenant gate: rail items only appear if their id exists in `tenants.json` for the active tenant. Shell-global items (audit, gereedschap, taken, DVTP, quick filters) bypass this gate. Result: Toeslagen, UWV and the municipalities now see exactly what V1 shows them.',
+            '`audit-details` added as a second admin rail item alongside `audit-overzicht` (matches V1).',
+            '`SectionRouter` has a generic `findGateFor()` lookup and renders `<NoAccessPanel>` for every gated section — no longer just audit. Defence-in-depth for deep links and URL paste.',
+          ],
+        },
+        {
+          icon: '🌐',
+          iconColor: 'green',
+          title: 'Public library',
+          items: [
+            'The six library sections (Berichten, Nieuws, Producten & Diensten, Regelcatalogus, Procesbibliotheek, Gegevenswoordenboek) are publicly accessible via "Verken openbare bibliotheek" under the login wall. No `authRequired`, no organisation-type gate. Civil-servant intent is enforced at the shell level (commercial tenants do not have a caseworker dashboard at all).',
+            'IOU rail items "Actieve zaken" and "Archief" marked as `authRequired` so they no longer leak into the anonymous Beheer rail. The entire IOU group disappears for unauthenticated users.',
+          ],
+        },
+        {
+          icon: '🏢',
+          iconColor: 'purple',
+          title: 'Tenant scope & demo flows',
+          items: [
+            'Caseworker V2 explicitly scoped to civil-servant tenants: `municipality`, `province`, `national`. Commercial tenants (Unive) are out of scope — they only have the citizen MijnOmgeving (including the cross-org zorgtoeslag demo handled by Dienst Toeslagen).',
+            'DVTP scoped to `municipality` caseworkers via `requiredOrgTypes`. Visible for Utrecht / Amsterdam / Rotterdam / Den Haag; hidden for Flevoland (province) and the national tenants. Demonstration flow only.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.6',
       status: 'Released',
       statusColor: 'green',

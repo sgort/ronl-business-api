@@ -15,6 +15,8 @@
 import type { KeycloakUser } from '@ronl/shared';
 import type { TenantConfig } from '../../services/tenant';
 import TakenInbox from './TakenInbox';
+import NoAccessPanel from './NoAccessPanel';
+import { MODES } from '../../pages/caseworker-v2/modes.config';
 
 // ── Existing section components (re-used as-is) ─────────────────────
 // Names match the actual files under components/CaseworkerDashboard/.
@@ -57,6 +59,30 @@ export default function SectionRouter({
   onTaskCountChange,
   onIouCountChange,
 }: Props) {
+  // ── Defence-in-depth gate ─────────────────────────────────────────
+  // The rail and the command palette already filter by role + org-type.
+  // This second check protects sections reached by URL paste, stale
+  // bookmarks, or a future direct-link surface that bypasses the rail.
+  // Should never fire during normal use — if it does, it's the right
+  // failure (no-access panel, not a crash).
+  const gate = findGateFor(sectionId);
+  if (gate) {
+    const roles = user?.roles ?? [];
+    const orgType = user?.organisation_type ?? null;
+    const roleOk = !gate.requiredRoles?.length || gate.requiredRoles.some((r) => roles.includes(r));
+    const orgOk =
+      !gate.requiredOrgTypes?.length ||
+      (orgType !== null && gate.requiredOrgTypes.includes(orgType));
+    if (!roleOk || !orgOk) {
+      return (
+        <NoAccessPanel
+          requiredRoles={gate.requiredRoles}
+          requiredOrgTypes={gate.requiredOrgTypes}
+        />
+      );
+    }
+  }
+
   // ── V2 Taken (with quick-filter aliases) ──────────────────────────
   if (sectionId === 'taken') {
     return <TakenInbox user={user} onCountChange={onTaskCountChange} />;
@@ -103,39 +129,21 @@ export default function SectionRouter({
   if (sectionId === 'capacity-claim-archief') return <CapacityClaimArchiefSection user={user} />;
 
   // ── DVTP ──────────────────────────────────────────────────────────
-  if (sectionId === 'dvtp-start')
-    return (
-      <DvtpStartSection
-        user={user}
-        onNavigateToTasks={function (): void {
-          throw new Error('Function not implemented.');
-        }}
-      />
-    );
+  if (sectionId === 'dvtp-start') return <DvtpStartSection user={user} />;
   if (sectionId === 'dvtp-taken') return <DvtpTakenSection user={user} />;
 
   // ── Hulpmiddelen ──────────────────────────────────────────────────
   // GereedschapSection is a launcher: each tile opens an external product
   // in a new tab. Lives in Beheer → Hulpmiddelen.
-  if (sectionId === 'gereedschap-overzicht') return <GereedschapSection user={null} />;
+  if (sectionId === 'gereedschap-overzicht') return <GereedschapSection />;
 
-  // Audit log is admin-only — modes.config gates the rail item, but we
-  // also gate here so deep-links / palette can't bypass it.
-  if (sectionId === 'audit-overzicht') {
-    const roles = user?.roles ?? [];
-    if (!roles.includes('admin')) {
-      return (
-        <div style={{ padding: '24px 0', color: '#6b7280' }}>
-          <p style={{ fontSize: 14 }}>
-            Geen toegang. Audit log is alleen beschikbaar voor beheerders.
-          </p>
-        </div>
-      );
-    }
-    return <AuditSection user={user} activeTab={'audit-overzicht'} />;
+  // Audit log — both tabs render the same component with the active tab
+  // selected. Role gating handled by the defence-in-depth check above.
+  if (sectionId === 'audit-overzicht' || sectionId === 'audit-details') {
+    return <AuditSection activeTab={sectionId} user={user} />;
   }
 
-  // Fallback for ids we don't yet route (audit, gereedschap, etc.)
+  // Fallback for ids we don't yet route.
   return (
     <div style={{ padding: '24px 0', color: '#6b7280' }}>
       <p style={{ fontSize: 14 }}>
@@ -144,4 +152,32 @@ export default function SectionRouter({
       </p>
     </div>
   );
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Look up a section's role/org-type gate by walking MODES. Returns null
+ * for ungated sections so we can short-circuit the defence-in-depth check.
+ */
+function findGateFor(
+  sectionId: string
+): { requiredRoles?: string[]; requiredOrgTypes?: string[] } | null {
+  for (const mode of MODES) {
+    for (const group of mode.groups) {
+      for (const item of group.items) {
+        if (item.id !== sectionId) continue;
+        const hasGate =
+          (item.requiredRoles && item.requiredRoles.length > 0) ||
+          (item.requiredOrgTypes && item.requiredOrgTypes.length > 0);
+        return hasGate
+          ? {
+              requiredRoles: item.requiredRoles,
+              requiredOrgTypes: item.requiredOrgTypes,
+            }
+          : null;
+      }
+    }
+  }
+  return null;
 }

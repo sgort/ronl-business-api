@@ -389,7 +389,7 @@
         "vergunningen": true,
         "subsidies": true,
         "meldingen": true,
-        "dvtp": true
+        "dvtp": false
       },
       "contact": {
         "phone": "0320 265 265",

@@ -14,6 +14,8 @@
 
 export type ModeId = 'werk' | 'zoeken' | 'beheer';
 
+export type OrgTypeGate = 'municipality' | 'province' | 'national' | 'commercial';
+
 export interface RailItem {
   /** Section id (matches existing activeSection strings) */
   id: string;
@@ -25,6 +27,13 @@ export interface RailItem {
   authRequired?: boolean;
   /** Required Keycloak realm roles (any-of). Empty/undefined = no role gate. */
   requiredRoles?: string[];
+  /**
+   * Required organisation types (any-of), read from `user.organisation_type`.
+   * Empty/undefined = no org-type gate. Use sparingly — prefer the tenant
+   * gate (via tenants.json) for tenant-specific features. This is for
+   * cross-tenant rules like "all government" or "not commercial".
+   */
+  requiredOrgTypes?: OrgTypeGate[];
   /** Subtle visual variant */
   variant?: 'default' | 'overdue';
 }
@@ -72,13 +81,24 @@ export const MODES: ModeConfig[] = [
         ],
       },
       {
-        // DVTP exists as components but isn't wired in V1's Flevoland config —
-        // gated by tenant feature flag (`features.dvtp`) in V1. Phase 2 will
-        // verify and port the gate; for now keep visible but auth-required.
+        // DVTP is a demonstration-only flow scoped to municipality
+        // caseworkers (e.g. utrecht, amsterdam). Out of scope for
+        // Flevoland (province) and the national tenants. Gate by
+        // organisation type — `municipality` only.
         label: 'DVTP',
         items: [
-          { id: 'dvtp-start', label: 'DVTP starten', authRequired: true },
-          { id: 'dvtp-taken', label: 'DVTP taken', authRequired: true },
+          {
+            id: 'dvtp-start',
+            label: 'DVTP starten',
+            authRequired: true,
+            requiredOrgTypes: ['municipality'],
+          },
+          {
+            id: 'dvtp-taken',
+            label: 'DVTP taken',
+            authRequired: true,
+            requiredOrgTypes: ['municipality'],
+          },
         ],
       },
     ],
@@ -90,6 +110,13 @@ export const MODES: ModeConfig[] = [
     groups: [
       {
         // V1 Home order: Berichten → Nieuws → Producten → Regels → Processen → Woordenboek
+        // **Public library** — these six sections are accessible to
+        // anonymous users via the "Verken openbare bibliotheek"
+        // entry under the login wall, AND to all signed-in caseworkers.
+        // No `authRequired`, no `requiredOrgTypes` (the org-type gate
+        // would block anonymous users since `userOrgType` is null).
+        // Civil-servant-only intent is enforced at the shell level
+        // (commercial tenants don't have a caseworker dashboard at all).
         items: [
           { id: 'berichten', label: 'Berichten', badgeKey: 'unread' },
           { id: 'nieuws', label: 'Nieuws' },
@@ -118,25 +145,72 @@ export const MODES: ModeConfig[] = [
         // V1 "Persoonlijke info" → Onboarding
         label: 'Onboarding',
         items: [
-          { id: 'hr-onboarding', label: 'Medewerker onboarden', authRequired: true },
-          { id: 'onboarding-archief', label: 'Afgeronde onboardingen', authRequired: true },
+          {
+            id: 'hr-onboarding',
+            label: 'Medewerker onboarden',
+            authRequired: true,
+            requiredRoles: ['hr-medewerker'],
+          },
+          {
+            id: 'onboarding-archief',
+            label: 'Afgeronde onboardingen',
+            authRequired: true,
+            requiredRoles: ['hr-medewerker'],
+          },
         ],
       },
       {
         // V1 "Persoonlijke info" → Capaciteit (Flevoland-specific)
         label: 'Capaciteit',
         items: [
-          { id: 'capacity-claim', label: 'Start capacity claim', authRequired: true },
-          { id: 'capacity-claim-archief', label: 'Completed capacity claims', authRequired: true },
+          {
+            id: 'capacity-claim',
+            label: 'Start capacity claim',
+            authRequired: true,
+            requiredRoles: ['manager'],
+          },
+          {
+            id: 'capacity-claim-archief',
+            label: 'Completed capacity claims',
+            authRequired: true,
+            // Any participant in the capacity-claim process. Mirrors
+            // AUTHORISED_ROLES in CapacityClaimArchiefSection.tsx.
+            requiredRoles: [
+              'manager',
+              'board-secretary',
+              'board-director',
+              'hrm-unit',
+              'procurement-unit',
+              'planning-control-officer',
+              'financial-controller',
+              'hr-business-partner',
+              'personnel-controller',
+            ],
+          },
         ],
       },
       {
         // V1 "Projecten" — RIP flows + Actieve zaken + Archief
         label: 'Projecten',
         items: [
-          { id: 'rip-fase1', label: 'RIP Fase 1 starten', authRequired: true },
-          { id: 'rip-fase1-wip', label: 'RIP Fase 1 WIP', authRequired: true },
-          { id: 'rip-fase1-gereed', label: 'RIP Fase 1 gereed', authRequired: true },
+          {
+            id: 'rip-fase1',
+            label: 'RIP Fase 1 starten',
+            authRequired: true,
+            requiredRoles: ['infra-projectteam'],
+          },
+          {
+            id: 'rip-fase1-wip',
+            label: 'RIP Fase 1 WIP',
+            authRequired: true,
+            requiredRoles: ['infra-projectteam'],
+          },
+          {
+            id: 'rip-fase1-gereed',
+            label: 'RIP Fase 1 gereed',
+            authRequired: true,
+            requiredRoles: ['infra-projectteam'],
+          },
           { id: 'archief', label: 'Archief', authRequired: true },
         ],
       },
@@ -146,8 +220,13 @@ export const MODES: ModeConfig[] = [
         items: [
           { id: 'iou-gebruiksscenario', label: 'Gebruiksscenario indienen', authRequired: true },
           { id: 'iou-feedback', label: 'Feedback geven', authRequired: true },
-          { id: 'iou-actieve-zaken', label: 'Actieve zaken', badgeKey: 'iouCount' },
-          { id: 'iou-archief', label: 'Archief' },
+          {
+            id: 'iou-actieve-zaken',
+            label: 'Actieve zaken',
+            badgeKey: 'iouCount',
+            authRequired: true,
+          },
+          { id: 'iou-archief', label: 'Archief', authRequired: true },
         ],
       },
       {
@@ -161,11 +240,100 @@ export const MODES: ModeConfig[] = [
             authRequired: true,
             requiredRoles: ['admin'],
           },
+          {
+            id: 'audit-details',
+            label: 'Audit details',
+            authRequired: true,
+            requiredRoles: ['admin'],
+          },
         ],
       },
     ],
   },
 ];
+
+/**
+ * Decide whether a rail item is visible to the given user/tenant context.
+ *
+ * Three gates, all must pass:
+ *   1. Auth gate         — if `authRequired`, the user must be signed in
+ *   2. Tenant gate       — the section id must appear in the tenant's
+ *                          `leftPanelSections` (across any top-nav page).
+ *                          Sections with no tenant entry anywhere
+ *                          (`audit-*`, `gereedschap-overzicht`) are
+ *                          considered shell-global and pass automatically.
+ *   3. Role gate         — if `requiredRoles` is set, user.roles must
+ *                          intersect (any-of)
+ *   4. Org-type gate     — if `requiredOrgTypes` is set,
+ *                          user.organisation_type must be in the list
+ *
+ * The same predicate is used by the rail filter AND the command palette,
+ * so what's hidden is hidden everywhere. SectionRouter applies the role +
+ * org-type checks again as defence-in-depth for stale URLs.
+ */
+export interface GateContext {
+  isAuthenticated: boolean;
+  userRoles: string[];
+  userOrgType: OrgTypeGate | null | undefined;
+  /** Section ids the active tenant lists in tenants.json (any page). */
+  tenantSectionIds: ReadonlySet<string> | null;
+}
+
+/**
+ * Section ids that V1 hardcodes in `CaseworkerDashboard.tsx` rather than
+ * reading from `tenants.json`. They appear for every tenant and therefore
+ * bypass the tenant gate.
+ */
+const SHELL_GLOBAL_SECTION_IDS: ReadonlySet<string> = new Set([
+  'audit-overzicht',
+  'audit-details',
+  'gereedschap-overzicht',
+  // V2-native, not in V1 tenants.json:
+  'taken',
+  'filter-overdue',
+  'filter-waiting',
+  'filter-today',
+  'filter-week',
+  'dvtp-start',
+  'dvtp-taken',
+]);
+
+export function isRailItemVisible(item: RailItem, ctx: GateContext): boolean {
+  if (item.authRequired && !ctx.isAuthenticated) return false;
+
+  // Tenant gate — only applied if we know the tenant's section list.
+  // Before tenants.json has loaded, ctx.tenantSectionIds is null and we
+  // skip this gate so the rail isn't empty during the first render.
+  if (ctx.tenantSectionIds && !SHELL_GLOBAL_SECTION_IDS.has(item.id)) {
+    if (!ctx.tenantSectionIds.has(item.id)) return false;
+  }
+
+  if (item.requiredRoles && item.requiredRoles.length > 0) {
+    if (!item.requiredRoles.some((r) => ctx.userRoles.includes(r))) return false;
+  }
+
+  if (item.requiredOrgTypes && item.requiredOrgTypes.length > 0) {
+    if (!ctx.userOrgType || !item.requiredOrgTypes.includes(ctx.userOrgType)) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Build the tenant section-id set from a TenantConfig-like shape. Lives
+ * here (not in services/tenant) to avoid a circular import; modes.config
+ * is the lowest-level layer.
+ */
+export function tenantSectionIdsFrom(
+  leftPanelSections: Record<string, { id: string }[]> | undefined | null
+): ReadonlySet<string> | null {
+  if (!leftPanelSections) return null;
+  const out = new Set<string>();
+  for (const page of Object.values(leftPanelSections)) {
+    for (const s of page) out.add(s.id);
+  }
+  return out;
+}
 
 /** Find which mode owns a given section id (for ⌘K jumps). */
 export function findModeForSection(sectionId: string): ModeId | null {

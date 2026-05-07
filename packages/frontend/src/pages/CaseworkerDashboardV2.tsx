@@ -37,8 +37,16 @@ import {
 import type { TenantConfig } from '../services/tenant';
 import type { KeycloakUser } from '@ronl/shared';
 
-import { MODES, findModeForSection, type ModeId } from './caseworker-v2/modes.config';
+import {
+  MODES,
+  findModeForSection,
+  isRailItemVisible,
+  tenantSectionIdsFrom,
+  type ModeId,
+  type OrgTypeGate,
+} from './caseworker-v2/modes.config';
 import SectionRouter from '../components/CaseworkerDashboardV2/SectionRouter';
+import SectionErrorBoundary from '../components/CaseworkerDashboardV2/SectionErrorBoundary';
 import CommandPalette from '../components/CaseworkerDashboardV2/CommandPalette';
 import AssistantDock from '../components/CaseworkerDashboardV2/AssistantDock';
 import ChangelogPanel from './ChangelogPanel';
@@ -130,22 +138,28 @@ export default function CaseworkerDashboardV2() {
 
   const isAuth = !!user;
 
-  // Filter rail items by auth state + role gates
+  // Build the gate context once, share with rail + palette so what's hidden
+  // is hidden everywhere.
+  const gateContext = useMemo(
+    () => ({
+      isAuthenticated: isAuth,
+      userRoles: user?.roles ?? [],
+      userOrgType: (user?.organisation_type ?? null) as OrgTypeGate | null,
+      tenantSectionIds: tenantSectionIdsFrom(tenantConfig?.leftPanelSections),
+    }),
+    [isAuth, user, tenantConfig]
+  );
+
+  // Filter rail items by auth + tenant + role + org-type gates. Empty
+  // groups are dropped so the rail doesn't show ghost headers.
   const visibleGroups = useMemo(() => {
-    const userRoles = user?.roles ?? [];
     return currentMode.groups
       .map((g) => ({
         ...g,
-        items: g.items.filter((i) => {
-          if (i.authRequired && !isAuth) return false;
-          if (i.requiredRoles && i.requiredRoles.length > 0) {
-            if (!i.requiredRoles.some((r) => userRoles.includes(r))) return false;
-          }
-          return true;
-        }),
+        items: g.items.filter((i) => isRailItemVisible(i, gateContext)),
       }))
       .filter((g) => g.items.length > 0);
-  }, [currentMode, isAuth, user]);
+  }, [currentMode, gateContext]);
 
   // Login goes through the LoginChoice → AuthCallback flow that the rest of
   // the app uses. We can't call keycloak.login() directly here because
@@ -328,13 +342,15 @@ export default function CaseworkerDashboardV2() {
                   : {}
               }
             >
-              <SectionRouter
-                sectionId={activeSection}
-                user={user}
-                tenantConfig={tenantConfig}
-                onTaskCountChange={setTaskCount}
-                onIouCountChange={setIouCount}
-              />
+              <SectionErrorBoundary sectionId={activeSection}>
+                <SectionRouter
+                  sectionId={activeSection}
+                  user={user}
+                  tenantConfig={tenantConfig}
+                  onTaskCountChange={setTaskCount}
+                  onIouCountChange={setIouCount}
+                />
+              </SectionErrorBoundary>
             </div>
           )}
         </main>
@@ -354,6 +370,7 @@ export default function CaseworkerDashboardV2() {
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
+        gateContext={gateContext}
         onSelect={(m, sectionId) => {
           setMode(m);
           setActiveSection(sectionId);

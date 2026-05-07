@@ -16,6 +16,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   allSearchableSections,
   findModeForSection,
+  isRailItemVisible,
+  type GateContext,
   type ModeId,
   type RailItem,
 } from '../../pages/caseworker-v2/modes.config';
@@ -24,26 +26,34 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSelect: (mode: ModeId, sectionId: string) => void;
+  /**
+   * Same gate context the rail uses. Items hidden from the rail are also
+   * hidden from the palette — "what can I do", not "what does this
+   * product hypothetically do".
+   */
+  gateContext: GateContext;
 }
 
 interface Hit extends RailItem {
   mode: ModeId;
 }
 
-export default function CommandPalette({ open, onClose, onSelect }: Props) {
+export default function CommandPalette({ open, onClose, onSelect, gateContext }: Props) {
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Build the searchable list once.
+  // Build the searchable list once — then re-filter through the same gate
+  // predicate the rail uses, so palette and rail agree on what's visible.
   const items: Hit[] = useMemo(() => {
     return allSearchableSections()
+      .filter((it) => isRailItemVisible(it, gateContext))
       .map((it) => {
         const mode = findModeForSection(it.id);
         return mode ? { ...it, mode } : null;
       })
       .filter((x): x is Hit => x !== null);
-  }, []);
+  }, [gateContext]);
 
   const hits: Hit[] = useMemo(() => {
     const q = query.trim().toLowerCase();
