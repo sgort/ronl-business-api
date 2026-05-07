@@ -50,6 +50,8 @@ interface Props {
   tenantConfig: TenantConfig | null;
   onTaskCountChange?: (count: number) => void;
   onIouCountChange?: (count: number) => void;
+  /** Navigate to a different rail item (used by DVTP start → Taken). */
+  onNavigate?: (sectionId: string) => void;
 }
 
 export default function SectionRouter({
@@ -58,6 +60,7 @@ export default function SectionRouter({
   tenantConfig,
   onTaskCountChange,
   onIouCountChange,
+  onNavigate,
 }: Props) {
   // ── Defence-in-depth gate ─────────────────────────────────────────
   // The rail and the command palette already filter by role + org-type.
@@ -129,13 +132,15 @@ export default function SectionRouter({
   if (sectionId === 'capacity-claim-archief') return <CapacityClaimArchiefSection user={user} />;
 
   // ── DVTP ──────────────────────────────────────────────────────────
-  if (sectionId === 'dvtp-start') return <DvtpStartSection user={user} />;
+  if (sectionId === 'dvtp-start') {
+    return <DvtpStartSection user={user} onNavigateToTasks={() => onNavigate?.('taken')} />;
+  }
   if (sectionId === 'dvtp-taken') return <DvtpTakenSection user={user} />;
 
   // ── Hulpmiddelen ──────────────────────────────────────────────────
   // GereedschapSection is a launcher: each tile opens an external product
   // in a new tab. Lives in Beheer → Hulpmiddelen.
-  if (sectionId === 'gereedschap-overzicht') return <GereedschapSection />;
+  if (sectionId === 'gereedschap-overzicht') return <GereedschapSection user={user} />;
 
   // Audit log — both tabs render the same component with the active tab
   // selected. Role gating handled by the defence-in-depth check above.

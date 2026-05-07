@@ -349,6 +349,7 @@ export default function CaseworkerDashboardV2() {
                   tenantConfig={tenantConfig}
                   onTaskCountChange={setTaskCount}
                   onIouCountChange={setIouCount}
+                  onNavigate={setActiveSection}
                 />
               </SectionErrorBoundary>
             </div>
