@@ -8,6 +8,8 @@ import { initializeTenantTheme, loadTenantConfigs, getTenantConfig } from '../se
 import type { TenantConfig } from '../services/tenant';
 import ProcessStartFormViewer from '../components/ProcessStartFormViewer';
 import DecisionViewer from '../components/DecisionViewer';
+import DvtpStartSection from '../components/CaseworkerDashboard/DvtpStartSection';
+import DvtpTakenSection from '../components/CaseworkerDashboard/DvtpTakenSection';
 
 import { Timeline } from '../components/TimeLine';
 import { PersonalDataPanel } from '../components/PersonalDataPanel';
@@ -15,7 +17,8 @@ import { getPersonTimeline, calculateHistoricalState } from '../services/brp.tim
 import type { TimelineConfig, BRPPersonHistoricalData, PersonState } from '../types/brp.types';
 import { getUserBSN } from '../services/bsn.mapping';
 
-type Tab = 'diensten' | 'aanvragen' | 'tijdlijn';
+type Tab = 'diensten' | 'aanvragen' | 'tijdlijn' | 'mijn-toestemming';
+type DvtpSubView = 'start' | 'taken';
 
 const SERVICE_LABELS: Record<string, { label: string; description: string; icon: string }> = {
   zorgtoeslag: {
@@ -142,6 +145,9 @@ export default function Dashboard() {
     dossier: string;
   } | null>(null);
   const [zorgtoeslagAanvraagError, setZorgtoeslagAanvraagError] = useState(false);
+
+  // DvTP sub-view state
+  const [dvtpSubView, setDvtpSubView] = useState<DvtpSubView>('start');
 
   // Zorgtoeslag calculator state
   const [calcLoading, setCalcLoading] = useState(false);
@@ -293,6 +299,15 @@ export default function Dashboard() {
         .map(([key]) => key)
     : [];
 
+  const showDvtp = tenant?.features.dvtp === true;
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'diensten', label: 'Diensten' },
+    { id: 'aanvragen', label: 'Mijn aanvragen' },
+    { id: 'tijdlijn', label: 'Tijdlijn' },
+    ...(showDvtp ? [{ id: 'mijn-toestemming' as Tab, label: 'Mijn toestemming' }] : []),
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -334,13 +349,7 @@ export default function Dashboard() {
         {/* Tab bar */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex gap-1">
-            {(
-              [
-                { id: 'diensten', label: 'Diensten' },
-                { id: 'aanvragen', label: 'Mijn aanvragen' },
-                { id: 'tijdlijn', label: 'Tijdlijn' },
-              ] as { id: Tab; label: string }[]
-            ).map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => {
@@ -700,7 +709,7 @@ export default function Dashboard() {
             onSubmitted={() => {
               setActiveService(null);
               setActiveTab('aanvragen');
-              setApplications(null); // force reload
+              setApplications(null);
             }}
           />
         )}
@@ -729,7 +738,15 @@ export default function Dashboard() {
         {/* ── Mijn aanvragen ── */}
         {activeTab === 'aanvragen' && (
           <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-6">Mijn aanvragen</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-800">Mijn aanvragen</h2>
+              <button
+                onClick={() => setApplications(null)}
+                className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+              >
+                ↺ Vernieuwen
+              </button>
+            </div>
             {appsLoading && (
               <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
                 Aanvragen laden...
@@ -866,6 +883,41 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Mijn toestemming (DvTP) ── */}
+        {activeTab === 'mijn-toestemming' && (
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-xl font-bold text-gray-800">Mijn toestemming</h2>
+              <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
+                <button
+                  onClick={() => setDvtpSubView('start')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    dvtpSubView === 'start' ? 'text-white' : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                  style={dvtpSubView === 'start' ? { backgroundColor: 'var(--color-primary)' } : {}}
+                >
+                  Procedure starten
+                </button>
+                <button
+                  onClick={() => setDvtpSubView('taken')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    dvtpSubView === 'taken' ? 'text-white' : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                  style={dvtpSubView === 'taken' ? { backgroundColor: 'var(--color-primary)' } : {}}
+                >
+                  Mijn taken
+                </button>
+              </div>
+            </div>
+
+            {dvtpSubView === 'start' && (
+              <DvtpStartSection user={user} onNavigateToTasks={() => setDvtpSubView('taken')} />
+            )}
+
+            {dvtpSubView === 'taken' && <DvtpTakenSection user={user} />}
           </div>
         )}
       </main>

@@ -33,6 +33,8 @@ import IouFeedbackSection from '../components/CaseworkerDashboard/IouFeedbackSec
 import IouZakenSection from '../components/CaseworkerDashboard/IouZakenSection';
 import ProcesBibliotheek from '../components/CaseworkerDashboard/ProcesBibliotheek';
 import GegevenswoordenboekSection from '../components/CaseworkerDashboard/GegevenswoordenboekSection';
+import CapacityClaimSection from '../components/CaseworkerDashboard/CapacityClaimSection';
+import CapacityClaimArchiefSection from '../components/CaseworkerDashboard/CapacityClaimArchiefSection';
 
 type TopNavPage = 'home' | 'personal-info' | 'projects' | 'audit-log' | 'gereedschap' | 'iou';
 
@@ -219,6 +221,10 @@ export default function CaseworkerDashboard() {
         return <HrOnboardingSection user={user} />;
       case 'onboarding-archief':
         return <OnboardingArchiefSection user={user} />;
+      case 'capacity-claim':
+        return <CapacityClaimSection user={user} />;
+      case 'capacity-claim-archief':
+        return <CapacityClaimArchiefSection user={user} />;
       case 'rip-fase1':
         return <RipFase1Section user={user} />;
       case 'rip-fase1-wip':

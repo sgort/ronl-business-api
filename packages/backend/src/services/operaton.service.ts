@@ -417,13 +417,25 @@ export class OperatonService {
   }
 
   /**
-   * Get tasks for a user
+   * Get tasks for a user, filtered by tenant (via process variable) and, if
+   * provided, by candidate groups. When candidateGroups is a non-empty array,
+   * Operaton returns only tasks assigned to at least one of those groups.
+   * Passing an empty array returns no tasks — callers should omit the argument
+   * (or pass undefined) if they want no group filter applied.
    */
-  async getUserTasks(userId?: string, tenantId?: string): Promise<Task[]> {
+  async getUserTasks(
+    userId?: string,
+    tenantId?: string,
+    candidateGroups?: string[]
+  ): Promise<Task[]> {
     try {
       const params: Record<string, string> = {};
       if (tenantId) {
         params['processVariables'] = `municipality_eq_${tenantId}`;
+      }
+      if (candidateGroups && candidateGroups.length > 0) {
+        // Operaton's candidateGroups parameter does an OR match across the list
+        params['candidateGroups'] = candidateGroups.join(',');
       }
 
       const response = await this.client.get('/task', { params });
@@ -464,6 +476,8 @@ export class OperatonService {
 
   /**
    * Get completed (historic) tasks for a tenant, most recent first.
+   * Joins the historic task list with historic process instances to surface
+   * each task's process businessKey (used as the dossier identifier in the UI).
    */
   async getCompletedTasks(tenantId: string): Promise<
     Array<{
@@ -473,13 +487,15 @@ export class OperatonService {
       taskDefinitionKey: string;
       processDefinitionKey: string | null;
       processInstanceId: string;
+      businessKey: string | null;
       startTime: string;
       endTime: string;
       duration: number;
     }>
   > {
     try {
-      const response = await this.client.get('/history/task', {
+      // 1. Historic tasks for this tenant.
+      const taskResponse = await this.client.get('/history/task', {
         params: {
           finished: true,
           processVariables: `municipality_eq_${tenantId}`,
@@ -488,7 +504,41 @@ export class OperatonService {
           maxResults: 200,
         },
       });
-      return response.data;
+      const tasks = taskResponse.data as Array<{
+        id: string;
+        name: string;
+        assignee: string | null;
+        taskDefinitionKey: string;
+        processDefinitionKey: string | null;
+        processInstanceId: string;
+        startTime: string;
+        endTime: string;
+        duration: number;
+      }>;
+
+      if (tasks.length === 0) {
+        return [];
+      }
+
+      // 2. Look up businessKey per process instance. Distinct ids only — multiple
+      //    completed tasks frequently share one process instance.
+      const distinctIds = Array.from(new Set(tasks.map((t) => t.processInstanceId)));
+      const instancesRes = await this.client.post('/history/process-instance', {
+        processInstanceIds: distinctIds,
+      });
+      const businessKeyById = new Map<string, string | null>();
+      for (const inst of instancesRes.data as Array<{
+        id: string;
+        businessKey: string | null;
+      }>) {
+        businessKeyById.set(inst.id, inst.businessKey ?? null);
+      }
+
+      // 3. Merge businessKey into each task.
+      return tasks.map((t) => ({
+        ...t,
+        businessKey: businessKeyById.get(t.processInstanceId) ?? null,
+      }));
     } catch (error) {
       logger.error('Failed to get completed tasks', {
         tenantId,
@@ -825,6 +875,151 @@ export class OperatonService {
       projectName: varMap[i.id]?.projectName ?? '—',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
     }));
+  }
+
+  /**
+   * List active (unfinished) ManagementCapacityClaimProcess instances for a tenant,
+   * enriched with jobTitle, requestType, boardDecision, advisoryGroup.
+   */
+  async getCapacityClaimActiveList(tenantId: string): Promise<
+    {
+      id: string;
+      startTime: string;
+      jobTitle: string;
+      requestType: string;
+      boardDecision: string;
+      advisoryGroup: string;
+    }[]
+  > {
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'ManagementCapacityClaimProcess',
+      unfinished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceIdIn: ids, deserializeValues: true },
+    });
+
+    const wanted = ['jobTitle', 'requestType', 'boardDecision', 'advisoryGroup'];
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!wanted.includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      jobTitle: varMap[i.id]?.jobTitle ?? '—',
+      requestType: varMap[i.id]?.requestType ?? '—',
+      boardDecision: varMap[i.id]?.boardDecision ?? '—',
+      advisoryGroup: varMap[i.id]?.advisoryGroup ?? '—',
+    }));
+  }
+
+  /**
+   * List completed ManagementCapacityClaimProcess instances for a tenant,
+   * enriched with jobTitle, requestType, boardDecision, advisoryGroup.
+   */
+  async getCapacityClaimCompletedList(tenantId: string): Promise<
+    {
+      id: string;
+      startTime: string;
+      endTime: string;
+      jobTitle: string;
+      requestType: string;
+      boardDecision: string;
+      advisoryGroup: string;
+    }[]
+  > {
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'ManagementCapacityClaimProcess',
+      finished: true,
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
+    });
+
+    const instances: Array<{ id: string; startTime: string; endTime: string }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceIdIn: ids, deserializeValues: true },
+    });
+
+    const wanted = ['jobTitle', 'requestType', 'boardDecision', 'advisoryGroup'];
+    const varMap: Record<string, Record<string, string>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      if (!wanted.includes(v.name)) continue;
+      if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
+      varMap[v.processInstanceId][v.name] = String(v.value ?? '');
+    }
+
+    return instances.map((i) => ({
+      id: i.id,
+      startTime: i.startTime,
+      endTime: i.endTime,
+      jobTitle: varMap[i.id]?.jobTitle ?? '—',
+      requestType: varMap[i.id]?.requestType ?? '—',
+      boardDecision: varMap[i.id]?.boardDecision ?? '—',
+      advisoryGroup: varMap[i.id]?.advisoryGroup ?? '—',
+    }));
+  }
+
+  /**
+   * Fetch both document templates (board-decision-notification, capacity-claim-handover)
+   * for a ManagementCapacityClaimProcess instance, together with current process variables.
+   * Either template may be null if not present in the deployment bundle.
+   * Variables come from the history API, so active and completed instances both work.
+   */
+  async getCapacityClaimDocuments(processInstanceId: string): Promise<{
+    variables: Record<string, unknown>;
+    boardDecisionNotification: Record<string, unknown> | null;
+    capacityClaimHandover: Record<string, unknown> | null;
+  }> {
+    // 1. Variables
+    const varsRes = await this.client.get('/history/variable-instance', {
+      params: { processInstanceId, deserializeValues: true },
+    });
+    const variables: Record<string, unknown> = {};
+    for (const v of varsRes.data as { name: string; value: unknown }[]) {
+      variables[v.name] = v.value;
+    }
+
+    // 2. Resolve deployment
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const deploymentId: string = procDefRes.data.deploymentId;
+
+    // 3. List resources
+    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resources: Array<{ id: string; name: string }> = resourcesRes.data;
+
+    // 4. Fetch each named .document resource, null if absent
+    const fetchDoc = async (name: string): Promise<Record<string, unknown> | null> => {
+      const resource = resources.find((r) => r.name === `${name}.document`);
+      if (!resource) return null;
+      const dataRes = await this.client.get(
+        `/deployment/${deploymentId}/resources/${resource.id}/data`,
+        { responseType: 'text' }
+      );
+      return JSON.parse(dataRes.data) as Record<string, unknown>;
+    };
+
+    const [boardDecisionNotification, capacityClaimHandover] = await Promise.all([
+      fetchDoc('board-decision-notification-nl'),
+      fetchDoc('capacity-claim-handover-nl'),
+    ]);
+
+    return { variables, boardDecisionNotification, capacityClaimHandover };
   }
 }
 

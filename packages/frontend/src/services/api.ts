@@ -298,6 +298,54 @@ export const businessApi = {
     },
   },
 
+  capacityClaim: {
+    active: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          jobTitle: string;
+          requestType: string;
+          boardDecision: string;
+          advisoryGroup: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/hr-capacity/active');
+      return response.data;
+    },
+
+    completed: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          startTime: string;
+          endTime: string;
+          jobTitle: string;
+          requestType: string;
+          boardDecision: string;
+          advisoryGroup: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/hr-capacity/completed');
+      return response.data;
+    },
+
+    documents: async (
+      instanceId: string
+    ): Promise<
+      ApiResponse<{
+        variables: Record<string, unknown>;
+        boardDecisionNotification: Record<string, unknown> | null;
+        capacityClaimHandover: Record<string, unknown> | null;
+      }>
+    > => {
+      const response = await api.get(`/hr-capacity/${instanceId}/documents`);
+      return response.data;
+    },
+  },
+
   edocs: {
     status: async (): Promise<
       ApiResponse<{

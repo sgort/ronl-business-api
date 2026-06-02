@@ -1,18 +1,20 @@
 // RONL Business API Changelog Data
 // Format matches CPSV Editor and Linked Data Explorer
 
-export interface ChangelogItem {
+export interface FeedbackItem {
+  type: 'feedback' | 'usecase';
+  iid: number;
   title: string;
-  icon: string;
-  iconColor: string;
-  items: string[];
+  url: string;
 }
 
+export type ChangelogItem = string | FeedbackItem;
+
 export interface ChangelogSection {
-  title: string;
   icon: string;
   iconColor: string;
-  items: string[];
+  title: string;
+  items: ChangelogItem[];
 }
 
 export interface ChangelogVersion {
@@ -30,6 +32,274 @@ export interface Changelog {
 
 export const changelog: Changelog = {
   versions: [
+    {
+      version: '3.0.7',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-05-07',
+      sections: [
+        {
+          icon: '🔐',
+          iconColor: 'blue',
+          title: 'Caseworker V2 — permissions & multi-tenant',
+          items: [
+            'Rail items and the command palette share a single gate predicate: a section appears only if the user is signed in (when required), the active tenant supports the section, the user has the right role, and the organisation type matches. What is hidden in the rail is also hidden in ⌘K.',
+            'Per-section role gates wired to match V1: `hr-onboarding` / `onboarding-archief` → `hr-medewerker`, `capacity-claim` → `manager`, `capacity-claim-archief` → 9-role set, `rip-fase1*` → `infra-projectteam`, `audit-overzicht` / `audit-details` → `admin`. No more lock screens in the main pad — rail items disappear directly when the role is missing.',
+            'Tenant gate: rail items only appear if their id exists in `tenants.json` for the active tenant. Shell-global items (audit, gereedschap, taken, DVTP, quick filters) bypass this gate. Result: Toeslagen, UWV and the municipalities now see exactly what V1 shows them.',
+            '`audit-details` added as a second admin rail item alongside `audit-overzicht` (matches V1).',
+            '`SectionRouter` has a generic `findGateFor()` lookup and renders `<NoAccessPanel>` for every gated section — no longer just audit. Defence-in-depth for deep links and URL paste.',
+          ],
+        },
+        {
+          icon: '🌐',
+          iconColor: 'green',
+          title: 'Public library',
+          items: [
+            'The six library sections (Berichten, Nieuws, Producten & Diensten, Regelcatalogus, Procesbibliotheek, Gegevenswoordenboek) are publicly accessible via "Verken openbare bibliotheek" under the login wall. No `authRequired`, no organisation-type gate. Civil-servant intent is enforced at the shell level (commercial tenants do not have a caseworker dashboard at all).',
+            'IOU rail items "Actieve zaken" and "Archief" marked as `authRequired` so they no longer leak into the anonymous Beheer rail. The entire IOU group disappears for unauthenticated users.',
+          ],
+        },
+        {
+          icon: '🏢',
+          iconColor: 'purple',
+          title: 'Tenant scope & demo flows',
+          items: [
+            'Caseworker V2 explicitly scoped to civil-servant tenants: `municipality`, `province`, `national`. Commercial tenants (Unive) are out of scope — they only have the citizen MijnOmgeving (including the cross-org zorgtoeslag demo handled by Dienst Toeslagen).',
+            'DVTP scoped to `municipality` caseworkers via `requiredOrgTypes`. Visible for Utrecht / Amsterdam / Rotterdam / Den Haag; hidden for Flevoland (province) and the national tenants. Demonstration flow only.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.6',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-05-06',
+      sections: [
+        {
+          icon: '📚',
+          iconColor: 'blue',
+          title: 'Gegevenswoordenboek',
+          items: [
+            'New rail item under **Zoeken** that embeds the Skosmos thesaurus (RONL Concepten) directly inside the dashboard — no more context-switching to a separate tab.',
+            'Toolbar above the iframe carries the source label, an in-context search box that submits straight into Skosmos, an NL/EN language toggle, and an "open in new tab" escape hatch.',
+            'Iframe fills the full main area edge-to-edge — `:has()` selector strips the default content padding only when this section is mounted, so the rest of the dashboard is unaffected.',
+          ],
+        },
+        {
+          icon: '🎨',
+          iconColor: 'purple',
+          title: 'Skosmos embed theme',
+          items: [
+            'Custom Twig partial at `custom-templates/html-head/embed.twig` injects an embed-mode flag + inline CSS on every Skosmos page. Activated by `?embed=1` on first load and persisted in `sessionStorage`; also auto-activates when Skosmos is rendered inside an iframe (catches the `/ronl/` → `/ronl/en/` redirect that strips the query string).',
+            'Skosmos chrome hidden when in embed mode: top nav, vocabulary header, language switcher, footer, feedback links — leaves only the A-Z / Hiërarchie / Groepen / Nieuw tabs and the concept content.',
+            'Tokens overridden to match V2: Flevoland blue (`#0046ad`) for links and primary buttons, magenta (`#e70077`) for active tab underline and input focus rings, neutral greys for borders and labels.',
+            'Concept-page typography rebalanced: row labels (Voorkeursterm, Verwante concepten, In andere talen, URI, Download dit concept, Woordenlijstinformatie) collapse to 13px small-caps grey so they read as siblings; `#concept-preflabel` (the term itself) stays at 22px bold as the page anchor.',
+            'Tighter sidebar list rows, 6px border-radius on inputs and buttons, table headers in small-caps — all aligned with the V2 design tokens.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.5',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-05-06',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 22,
+              title: 'In het projecten archief zie ik rare bestandsnamen (?) staan',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/22',
+            },
+            {
+              type: 'usecase',
+              iid: 25,
+              title: 'Default met taken openen',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/25',
+            },
+            {
+              type: 'usecase',
+              iid: 26,
+              title: 'Gereedschap naast de taken',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/26',
+            },
+          ],
+        },
+        {
+          icon: '📦',
+          iconColor: 'blue',
+          title: 'Archief',
+          items: [
+            'Archive rows now show the process business key as the primary dossier identifier (e.g. `flevoland-1777905361680`), making completed cases recognisable at a glance.',
+            'End time now includes time of day in addition to the date, so multiple completions on the same day are distinguishable in the row meta.',
+            'Assignee is dimmed and rendered in monospace as trailing metadata; UUID-shaped assignees are truncated to the first 8 characters with the full value available on hover.',
+            'Backend `getCompletedTasks` joins historic tasks with historic process instances to surface `businessKey` on the `HistoricTask` projection.',
+          ],
+        },
+        {
+          icon: '✨',
+          iconColor: 'purple',
+          title: 'Changelog',
+          items: [
+            'The changelog now supports linking to handled GitLab work items via a new `FeedbackItem` entry type in `changelog-data.ts`, distinguishing feedback from use cases.',
+            'Each work item renders as a clickable row with a color-coded chip — amber `Feedback #N` for feedback items, indigo `Use Case #N` for use cases — opening the source work item in a new tab.',
+            'String items in section `items` arrays continue to work unchanged; the `ChangelogItem` type is a string-or-object union, so existing entries needed no migration.',
+          ],
+        },
+        {
+          icon: '📰',
+          iconColor: 'orange',
+          title: 'Nieuws — Rijksoverheid feed migration',
+          items: [
+            'Rijksoverheid reverted the API migration on 2026-04-29 due to technical issues; the Nieuws service was switched back to the legacy feeds.rijksoverheid.nl/nieuws.rss feed. The cold-cache error handling improvements and source-label correction remain in place.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.4',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-04-28',
+      sections: [
+        {
+          icon: '📰',
+          iconColor: 'orange',
+          title: 'Nieuws — Rijksoverheid feed migration',
+          items: [
+            'Rijksoverheid retired the legacy `feeds.rijksoverheid.nl` subdomain on 2026-04-28. The Nieuws section is now backed by the new RSS API at `/api/rss` on rijksoverheid.nl, which takes a JSON-encoded query parameter to filter on content_type `pro:newsDocument`.',
+            'Cold-cache failure handling improved: when the upstream RSS feed is unreachable and there is no cached fallback, the route now returns 500 instead of an empty list, so the frontend shows the retry button rather than a blank "Geen nieuwsberichten beschikbaar" state.',
+            'Source label corrected from "Government.nl" to "Rijksoverheid".',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.3',
+      status: 'Bugfix',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: 'April 24, 2026',
+      sections: [
+        {
+          title: 'AI Assistant — CPRMV Session Recovery',
+          icon: '📜',
+          iconColor: 'teal',
+          items: [
+            'CprmvMcpProvider now recovers automatically from remote session expiry — "Session not found" errors in callTool() and getToolDefinitions() trigger a disconnect/reconnect cycle and retry the call transparently',
+            'isConnected() returning true on a stale client was the root cause: StreamableHTTPClientTransport session IDs are invalidated when the remote CPRMV server restarts or upgrades, independently of the local backend process',
+            'One reconnect attempt per call; if the reconnect itself fails the error propagates normally and the provider shows as disconnected in GET /v1/mcp/sources',
+          ],
+        },
+        {
+          title: 'AI Assistant — OpenAI Provider Tool Result Flattening',
+          icon: '🤖',
+          iconColor: 'purple',
+          items: [
+            'flattenForOpenAI() added to OpenAILlmProvider — expands tool_results messages with multiple results into individual tool messages before passing to the OpenAI API; OpenAI requires exactly one tool message per tool_call_id',
+            'toOpenAIMessage() tool_results case removed — now unreachable; replaced with an explicit default: throw to maintain TypeScript exhaustiveness and surface any future bypasses immediately',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.2',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'April 22, 2026',
+      sections: [
+        {
+          icon: '🏛️',
+          iconColor: 'purple',
+          title: 'Management Capacity Claim process (Provincie Flevoland)',
+          items: [
+            'New HR-capacity BPMN bundle deployed to Operaton: line managers can submit staffing or hiring claims, consult HR Business Partner and Personnel Controller, route to the Board of Directors, and record the financial reservation after approval.',
+            'DMN decision CapacityClaimRouting (FIRST hit policy, 9 rules) derives the handover route (recruitment vs procurement), candidate groups, and a human-readable advisory group label from requestType and department.',
+            'Rejected claims loop back through a reconsideration meeting; a script task on the proceed path clears all stale claim-specific variables so switching from staffing to hiring on revision leaves no ghost data in the final handover document.',
+            'Two document templates bound to user tasks: board-decision-notification (Board → requesting manager) and capacity-claim-handover (shared by the recruitment and procurement handover tasks), each rendered from the current process variables.',
+          ],
+        },
+        {
+          icon: '🔌',
+          iconColor: 'blue',
+          title: 'Backend — /v1/hr-capacity routes',
+          items: [
+            'New route module capacity.routes.ts mounted at /v1/hr-capacity, exposing three endpoints: /active and /completed (enriched with jobTitle, requestType, boardDecision, advisoryGroup) and /:instanceId/documents (returns both document templates plus current process variables in one call).',
+            'OperatonService extended with getCapacityClaimActiveList, getCapacityClaimCompletedList, and getCapacityClaimDocuments. The documents method resolves the deployment from the process definition and fetches both .document resources concurrently; either template may be null if not present in the deployment bundle.',
+            "Document endpoint enforces tenant isolation by checking the process-instance municipality variable against the caller's JWT tenant claim.",
+          ],
+        },
+        {
+          icon: '🖥️',
+          iconColor: 'green',
+          title: 'Frontend — MijnOmgeving caseworker views',
+          items: [
+            'Two new sections under Personal info for Flevoland: "Start capacity claim" (manager-only role gate) and "Completed capacity claims" (open to all participants of the capacity claim process).',
+            'New CapacityClaimDocumentsViewer renders both document templates side by side from a single endpoint call, with collapsible sections for the board-decision-notification and the capacity-claim-handover.',
+            'Archive cards show request type, advisory group, and a colour-coded decision badge (approved/rejected), with an expandable documents panel per claim.',
+          ],
+        },
+        {
+          icon: '🔐',
+          iconColor: 'orange',
+          title: 'Role-based task filtering',
+          items: [
+            "GET /v1/task now filters by the caller's Keycloak realm roles, not just the tenant. Users see only tasks whose candidate groups match at least one of their roles, matching Operaton's claim-time authorisation.",
+            'Nine new realm roles added to ronl-realm.json: manager, board-secretary, board-director, hrm-unit, procurement-unit, planning-control-officer, financial-controller, hr-business-partner, personnel-controller.',
+            'New test user test-mngr-flevoland (roles: caseworker, manager) for the Flevoland capacity claim flow; test-hr-flevoland picked up the eight non-manager process roles so it can handle board, handover, reservation, and reconsideration tasks end-to-end.',
+          ],
+        },
+        {
+          icon: '🧹',
+          iconColor: 'gray',
+          title: 'Cleaner process variable display',
+          items: [
+            'TakenSection and ArchiefSection no longer show tenant-context variables (municipality, organisationType, initiator, applicantId, assuranceLevel) or raw DMN output blobs (roleResult, routingResult) — these are noise once their hoisted top-level fields are displayed.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.1',
+      status: 'Patch',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'April 9, 2025',
+      sections: [
+        {
+          icon: '🏛️',
+          iconColor: 'blue',
+          title: 'DvTP — Citizen consent flow',
+          items: [
+            'New "Mijn toestemming" tab in the citizen dashboard: citizens can complete the full DvTP Flow A (Toestemming geven) process without caseworker involvement.',
+            'DvtpStartSection: starts the DvtpToestemmingGevenProcess via the deployed start form (initiator, service, scope, delegation options) with direct navigation to the task queue after submission.',
+            'DvtpTakenSection: filtered task queue showing only DvTP tasks. Tasks are auto-claimed on selection — no manual claim step required.',
+            'After completing the information form (consent-info) the decision form (consent-decision) appears automatically in the queue.',
+            'Tab visibility is controlled by the "dvtp" feature flag in tenants.json, enabled by default for all tenants.',
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: 'gray',
+          title: 'Improvements',
+          items: [
+            'Vernieuwen button added to "Mijn aanvragen": after completing a DvTP procedure the citizen can immediately reload the list to see the new decision.',
+            'New "dvtp" feature flag added to TenantFeatures (tenant.ts and tenants.json) for tenant-level control over the consent flow.',
+          ],
+        },
+      ],
+    },
     {
       version: '3.0.0',
       status: 'Feature Release',

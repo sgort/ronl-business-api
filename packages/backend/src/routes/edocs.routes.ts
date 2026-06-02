@@ -28,6 +28,25 @@ router.get('/status', async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /v1/edocs/workspaces
+ * Lists available workspaces from eDOCS.
+ */
+router.get('/workspaces', async (_req: Request, res: Response) => {
+  try {
+    const documents = await edocsService.listWorkspaces();
+    res.json({ success: true, data: documents, timestamp: new Date().toISOString() });
+  } catch (error) {
+    logger.error('listWorkspaces failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      success: false,
+      error: { code: 'EDOCS_ERROR', message: 'Failed to list eDOCS workspaces.' },
+    });
+  }
+});
+
+/**
  * POST /v1/edocs/workspaces/ensure
  * Body: { projectNumber: string, projectName: string }
  */

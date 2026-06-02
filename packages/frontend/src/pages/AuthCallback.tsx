@@ -3,10 +3,38 @@ import { useNavigate } from 'react-router-dom';
 
 import keycloak from '../services/keycloak';
 
+const POST_LOGIN_KEY = 'post_login_redirect';
+
 function getRoleDashboard(): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
   return roles.includes('caseworker') ? '/dashboard/caseworker' : '/dashboard/citizen';
+}
+
+/**
+ * Read & clear the post-login redirect target.
+ *
+ * V2 (and any future dashboards) write this key before navigating to /auth so
+ * users come back to the dashboard they started in instead of always landing
+ * on V1. We whitelist `/dashboard/...` paths to prevent open-redirect abuse.
+ */
+function consumePostLoginRedirect(): string | null {
+  let target: string | null = null;
+  try {
+    target = sessionStorage.getItem(POST_LOGIN_KEY);
+    sessionStorage.removeItem(POST_LOGIN_KEY);
+  } catch {
+    /* sessionStorage unavailable */
+  }
+  if (target && target.startsWith('/dashboard/')) {
+    return target;
+  }
+  return null;
+}
+
+function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean }) => void) {
+  const target = consumePostLoginRedirect() ?? getRoleDashboard();
+  navigate(target, { replace: true });
 }
 
 /**
@@ -22,6 +50,12 @@ function getRoleDashboard(): string {
  *   If already authenticated, go straight to dashboard.
  *   Otherwise call keycloak.login({ loginHint: '__medewerker__' }) so the
  *   login.ftl template can detect the sentinel and show the medewerker banner.
+ *
+ * Post-login redirect:
+ *   If sessionStorage holds a `post_login_redirect` value (set by the calling
+ *   dashboard, e.g. /v2 before sending the user to /auth), and it points at a
+ *   /dashboard/... path, we honour that instead of the default role dashboard.
+ *   This is what lets users log in from /v2 and land back on /v2.
  */
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -41,7 +75,7 @@ export default function AuthCallback() {
 
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
-            navigate(getRoleDashboard(), { replace: true });
+            navigateAfterLogin(navigate);
           } else {
             await keycloak.login({ loginHint: '__medewerker__' });
           }
@@ -60,7 +94,7 @@ export default function AuthCallback() {
 
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
-            navigate(getRoleDashboard(), { replace: true });
+            navigateAfterLogin(navigate);
           } else {
             setError('Authenticatie mislukt. Probeer het opnieuw.');
           }

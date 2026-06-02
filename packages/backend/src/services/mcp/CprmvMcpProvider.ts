@@ -48,21 +48,53 @@ export class CprmvMcpProvider implements McpProvider {
 
   async getToolDefinitions(): Promise<ToolDefinition[]> {
     this.assertConnected();
-    const result = await this.client!.listTools();
-    return result.tools
-      .filter((t) => ALLOWED_TOOLS.has(t.name))
-      .map((t) => ({
-        name: t.name,
-        description: t.description ?? '',
-        input_schema: t.inputSchema as Record<string, unknown>,
-      }));
+
+    try {
+      const result = await this.client!.listTools();
+      return result.tools
+        .filter((t) => ALLOWED_TOOLS.has(t.name))
+        .map((t) => ({
+          name: t.name,
+          description: t.description ?? '',
+          input_schema: t.inputSchema as Record<string, unknown>,
+        }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('Session not found')) {
+        logger.warn('CPRMV session expired during tool listing, reconnecting…');
+        await this.disconnect();
+        await this.connect();
+        const result = await this.client!.listTools();
+        return result.tools
+          .filter((t) => ALLOWED_TOOLS.has(t.name))
+          .map((t) => ({
+            name: t.name,
+            description: t.description ?? '',
+            input_schema: t.inputSchema as Record<string, unknown>,
+          }));
+      }
+      throw err;
+    }
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
     this.assertConnected();
     logger.info('Calling CPRMV tool', { tool: name });
-    const result = await this.client!.callTool({ name, arguments: args });
-    return result as McpToolResult;
+
+    try {
+      const result = await this.client!.callTool({ name, arguments: args });
+      return result as McpToolResult;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('Session not found')) {
+        logger.warn('CPRMV session expired, reconnecting…');
+        await this.disconnect();
+        await this.connect();
+        const result = await this.client!.callTool({ name, arguments: args });
+        return result as McpToolResult;
+      }
+      throw err;
+    }
   }
 
   isConnected(): boolean {

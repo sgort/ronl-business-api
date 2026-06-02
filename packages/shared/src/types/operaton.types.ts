@@ -63,6 +63,7 @@ export interface HistoricTask {
   taskDefinitionKey: string;
   processDefinitionKey: string | null;
   processInstanceId: string;
+  businessKey: string | null;
   startTime: string;
   endTime: string;
   duration: number;

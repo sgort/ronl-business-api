@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { businessApi } from '../../services/api';
 import type { HistoricTask } from '@ronl/shared';
 
-const EXCLUDED_VARS = ['municipality', 'initiator', 'assuranceLevel', 'roleResult'];
+const EXCLUDED_VARS = [
+  'municipality',
+  'organisationType',
+  'initiator',
+  'applicantId',
+  'assuranceLevel',
+  'roleResult',
+  'routingResult',
+];
 
 export default function ArchiefSection() {
   const [tasks, setTasks] = useState<HistoricTask[]>([]);
@@ -127,13 +135,31 @@ export default function ArchiefSection() {
                       <p className="font-medium text-gray-800 truncate text-sm">
                         {task.name || task.taskDefinitionKey}
                       </p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <p className="text-xs text-gray-500">
-                          {new Date(task.endTime).toLocaleDateString('nl-NL')}
-                        </p>
-                        {task.assignee && (
-                          <span className="text-xs text-gray-400">{task.assignee}</span>
+                      <div className="flex items-center gap-3 mt-1 text-xs">
+                        {task.businessKey && (
+                          <span className="font-mono text-gray-600">{task.businessKey}</span>
                         )}
+                        <span className="text-gray-500">
+                          {new Date(task.endTime).toLocaleString('nl-NL', {
+                            day: 'numeric',
+                            month: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        {task.assignee &&
+                          (() => {
+                            const isUuid =
+                              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                                task.assignee
+                              );
+                            return (
+                              <span className="font-mono text-gray-300" title={task.assignee}>
+                                {isUuid ? `${task.assignee.slice(0, 8)}…` : task.assignee}
+                              </span>
+                            );
+                          })()}
                       </div>
                     </div>
                     <span className="text-gray-400 text-lg ml-4 flex-shrink-0">

@@ -56,7 +56,16 @@ export class EdocsService {
 
     this.client.interceptors.request.use((cfg) => {
       if (this.sessionToken) {
-        cfg.headers['X-DM-DST'] = this.sessionToken;
+        // Send all cookies back as Cookie header
+        cfg.headers['Cookie'] = this.sessionToken;
+        // Also send X-DM-DST value alone as a header (some endpoints require this)
+        const dstValue = this.sessionToken
+          .split('; ')
+          .find((c) => c.startsWith('X-DM-DST='))
+          ?.split('=')[1];
+        if (dstValue) {
+          cfg.headers['X-DM-DST'] = dstValue;
+        }
       }
       return cfg;
     });
@@ -80,7 +89,7 @@ export class EdocsService {
       userId: config.edocs.userId,
     });
 
-    const response = await this.client.post('/connect', {
+    const response = await this.client.post('connect', {
       data: {
         userid: config.edocs.userId,
         password: config.edocs.password,
@@ -88,19 +97,24 @@ export class EdocsService {
       },
     });
 
-    // The spec returns the session token as Set-Cookie on /connect.
-    // Extract the token value from the first cookie.
-    const setCookie = response.headers['set-cookie'];
-    const cookieHeader = Array.isArray(setCookie) ? setCookie[0] : setCookie;
-    const token = cookieHeader?.split(';')[0]?.split('=').slice(1).join('=') ?? undefined;
+    const setCookies = response.headers['set-cookie'] ?? [];
+    const cookieArray = Array.isArray(setCookies) ? setCookies : [setCookies];
 
-    if (!token) {
-      throw new Error(
-        'eDOCS connect() succeeded but no session token found in Set-Cookie response header'
-      );
+    // Extract each cookie value by name
+    const findCookie = (name: string): string | undefined => {
+      const match = cookieArray.find((c) => c.startsWith(`${name}=`));
+      return match?.split(';')[0]; // returns "NAME=VALUE"
+    };
+
+    const dmDst = findCookie('X-DM-DST');
+    const dmCsrf = findCookie('X-DM-CSRF-TOKEN');
+
+    if (!dmDst) {
+      throw new Error('eDOCS connect() succeeded but X-DM-DST cookie was absent from response');
     }
 
-    this.sessionToken = token;
+    // Store both cookies to send on subsequent requests
+    this.sessionToken = [dmDst, dmCsrf].filter(Boolean).join('; ');
     logger.info('Connected to eDOCS — session token cached');
   }
 
@@ -128,6 +142,20 @@ export class EdocsService {
 
   // ─── Workspaces ──────────────────────────────────────────────────────────────
 
+  async listWorkspaces(): Promise<unknown[]> {
+    if (this.stubMode) {
+      logger.info('[stub] listWorkspaces()');
+      return [{ id: 'stub-ws-1', name: 'Stub Workspace' }];
+    }
+
+    return this.withAuth(async () => {
+      const response = await this.client.get('workspaces', {
+        params: { library: config.edocs.library, max: 10 },
+      });
+      return response.data?.data?.list ?? [];
+    });
+  }
+
   async ensureWorkspace(projectNumber: string, projectName: string): Promise<EdocsWorkspaceResult> {
     if (this.stubMode) {
       const stubId = `stub-ws-${projectNumber.replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -142,7 +170,7 @@ export class EdocsService {
     return this.withAuth(async () => {
       const workspaceName = `${projectNumber} — ${projectName}`;
 
-      const searchResponse = await this.client.get('/workspaces', {
+      const searchResponse = await this.client.get('workspaces', {
         params: {
           library: config.edocs.library,
           filter: `DOCNAME like '${projectNumber}%'`,
@@ -164,12 +192,12 @@ export class EdocsService {
 
       logger.info('Creating new eDOCS workspace', { workspaceName });
       const createResponse = await this.client.post(
-        '/workspaces',
+        'workspaces',
         {
           data: {
             DOCNAME: workspaceName,
             AUTHOR_ID: config.edocs.userId,
-            APP_ID: 'INFRA',
+            TYPIST_ID: config.edocs.userId,
           },
         },
         { params: { library: config.edocs.library } }
@@ -209,7 +237,7 @@ export class EdocsService {
       });
 
       const response = await this.client.post(
-        '/documents',
+        'documents',
         {
           file: contentBase64,
           data: {
@@ -271,7 +299,7 @@ export class EdocsService {
     }
 
     return this.withAuth(async () => {
-      const response = await this.client.get(`/workspaces/${workspaceId}/documents`, {
+      const response = await this.client.get(`workspaces/${workspaceId}/documents`, {
         params: { library: config.edocs.library },
       });
 
@@ -298,7 +326,7 @@ export class EdocsService {
     }
     try {
       const start = Date.now();
-      await this.client.get('/libraries');
+      await this.client.get('libraries');
       return { status: 'up', latency: Date.now() - start };
     } catch (err) {
       return { status: 'down', error: getErrorMessage(err) };

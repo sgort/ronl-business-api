@@ -54,11 +54,14 @@ jobs:
           cp -r dist deploy/
           cp package.json deploy/
 
-          mkdir -p deploy/node_modules/@ronl
-          cp -r ../shared/dist deploy/node_modules/@ronl/shared
+          # Copy shared package before npm install can overwrite it
+          mkdir -p deploy/node_modules/@ronl/shared
+          cp -r ../shared/dist deploy/node_modules/@ronl/shared/
           cp ../shared/package.json deploy/node_modules/@ronl/shared/
 
+          # Remove @ronl/shared from package.json so npm install doesn't touch it
           cd deploy
+          npm pkg delete dependencies.@ronl/shared
           npm install --production --omit=dev
 
           echo "[config]" > .deployment
