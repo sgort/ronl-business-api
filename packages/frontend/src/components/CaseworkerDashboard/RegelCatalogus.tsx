@@ -14,7 +14,7 @@ const TABS: { id: CatalogTab; label: string }[] = [
   { id: 'organisaties', label: 'Organisaties' },
   { id: 'diensten', label: 'Diensten' },
   { id: 'regels', label: 'Regels' },
-  { id: 'concepten', label: 'Concepten' },
+  { id: 'concepten', label: 'Begrippen' },
 ];
 
 export default function RegelCatalogus() {
