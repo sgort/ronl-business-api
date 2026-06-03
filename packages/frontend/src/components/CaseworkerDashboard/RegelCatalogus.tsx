@@ -90,9 +90,9 @@ export default function RegelCatalogus() {
         {TABS.map((tab) => {
           const count =
             tab.id === 'organisaties'
-              ? data.services.length
+              ? data.organizations.length
               : tab.id === 'diensten'
-                ? data.organizations.length
+                ? data.services.length
                 : tab.id === 'concepten'
                   ? data.concepts.length
                   : data.rules.length;
