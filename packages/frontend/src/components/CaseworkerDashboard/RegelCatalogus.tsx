@@ -14,7 +14,7 @@ const TABS: { id: CatalogTab; label: string }[] = [
   { id: 'organisaties', label: 'Organisaties' },
   { id: 'diensten', label: 'Diensten' },
   { id: 'regels', label: 'Regels' },
-  { id: 'concepten', label: 'Concepten' },
+  { id: 'concepten', label: 'Begrippen' },
 ];
 
 export default function RegelCatalogus() {
@@ -90,9 +90,9 @@ export default function RegelCatalogus() {
         {TABS.map((tab) => {
           const count =
             tab.id === 'organisaties'
-              ? data.services.length
+              ? data.organizations.length
               : tab.id === 'diensten'
-                ? data.organizations.length
+                ? data.services.length
                 : tab.id === 'concepten'
                   ? data.concepts.length
                   : data.rules.length;
