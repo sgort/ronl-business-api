@@ -40,6 +40,20 @@ export const changelog: Changelog = {
       date: '2026-06-06',
       sections: [
         {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 33,
+              title:
+                'Bij sommige publieke routes (/use-case, /upload_file en /feedback) worden verzoeken geaccepteerd zonder authenticatie, rate limiting of een CAPTCHA.',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/33',
+            },
+          ],
+        },
+        {
           icon: '🔐',
           iconColor: 'orange',
           title: 'Security hardening — public write endpoints',
