@@ -1,0 +1,5548 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "68e020c1169246e12d883bf898a36d5d29880363",
+  "generatedAt": "2026-06-05T17:48:54.700Z",
+  "files": {
+    ".claudesync/config.local.json": {
+      "filePath": ".claudesync/config.local.json",
+      "contentHash": "6fe631c85d2bc6af7a69925b18d34ecbd1934bff95b7fc9f247d2e45e43ac4ff",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    },
+    ".env.development": {
+      "filePath": ".env.development",
+      "contentHash": "f5918da9223d65293d532aa3cd5e118636996d98b3eecb3204b33d5ff6856b5c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    ".github/workflows/azure-backend-acc.yml": {
+      "filePath": ".github/workflows/azure-backend-acc.yml",
+      "contentHash": "663fe3cf27af070c4e37e97e4ad044a1860b7c13e18bf5e252ae9e2be0df99d6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 83,
+      "hasStructuralAnalysis": true
+    },
+    ".github/workflows/azure-backend-prod.yml": {
+      "filePath": ".github/workflows/azure-backend-prod.yml",
+      "contentHash": "9109f156f6689eb5b47458ff6fa8c52d1f126b757ac97334584bf58e4eb55100",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    ".github/workflows/azure-frontend-acc.yml": {
+      "filePath": ".github/workflows/azure-frontend-acc.yml",
+      "contentHash": "8be751345574848b890a43f7ee93deef77c872f699b1abf7ce22a33950339871",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 87,
+      "hasStructuralAnalysis": true
+    },
+    ".github/workflows/azure-frontend-prod.yml": {
+      "filePath": ".github/workflows/azure-frontend-prod.yml",
+      "contentHash": "ded3e75194919c3fc3e807599e4a1cf893aad04d5992bbb4e6bba059b1c0d13b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 70,
+      "hasStructuralAnalysis": true
+    },
+    ".husky/pre-commit": {
+      "filePath": ".husky/pre-commit",
+      "contentHash": "c6b995729d85d89d11a3e8312291782a6ec334d63ebe1f6830f3bb2cf61a8216",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": false
+    },
+    ".husky/pre-push": {
+      "filePath": ".husky/pre-push",
+      "contentHash": "3cb0c1e25a88c7a8f80910270808b5d3a47d4f4e4acb6b8c254119be723b953d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 9,
+      "hasStructuralAnalysis": false
+    },
+    ".nvmrc": {
+      "filePath": ".nvmrc",
+      "contentHash": "785f3ec7eb32f30b90cd0fcf3657d388b5ff4297f2f9716ff66e9b69c05ddd09",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    ".understand-anything/.understandignore": {
+      "filePath": ".understand-anything/.understandignore",
+      "contentHash": "58eeb2a51d6b1d59ca5dc08cea1aebed99ffbf787c6af0ac6a262e5d0a9ac4ac",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": false
+    },
+    "backend-publish-profile-new.xml": {
+      "filePath": "backend-publish-profile-new.xml",
+      "contentHash": "4e301400eb8b16e646d9fb31a1307869533da4683cbd80ed36e0010857b705ee",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": false
+    },
+    "Caddyfile": {
+      "filePath": "Caddyfile",
+      "contentHash": "64c6aa04eefe47222cfd67954ce7daa41510faf2a80d88165f37eaad7b03b37a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 173,
+      "hasStructuralAnalysis": false
+    },
+    "config/copilot-studio/ronl-edocs-connector.json": {
+      "filePath": "config/copilot-studio/ronl-edocs-connector.json",
+      "contentHash": "07afb06975ded6c46c9bf94907fa82306a9bc422516421af6b8574bb3fd4354f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 297,
+      "hasStructuralAnalysis": true
+    },
+    "config/keycloak/ronl-realm.json": {
+      "filePath": "config/keycloak/ronl-realm.json",
+      "contentHash": "1cbb453852ab415b77f3c4ccaa7d09f76b1232095604bae1678f02ad889782e6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 795,
+      "hasStructuralAnalysis": true
+    },
+    "config/postgres/init-databases.sql": {
+      "filePath": "config/postgres/init-databases.sql",
+      "contentHash": "51086945792f1aa334f11dbbe64bfc2efd7c07b139cefb8acce1756a6b36ec92",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 96,
+      "hasStructuralAnalysis": true
+    },
+    "deployment/vm/caddy/Caddyfile": {
+      "filePath": "deployment/vm/caddy/Caddyfile",
+      "contentHash": "b23fe41921649ef24f26c0b5fe39825e5214222f637f4b55d29512b14f94f036",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 236,
+      "hasStructuralAnalysis": false
+    },
+    "deployment/vm/keycloak/acc/.env.example": {
+      "filePath": "deployment/vm/keycloak/acc/.env.example",
+      "contentHash": "0049325e8190a5ae52a84b0c274571a998ba7ee2b7fce182bcf5f3c54fe87f96",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    },
+    "deployment/vm/keycloak/acc/docker-compose.yml": {
+      "filePath": "deployment/vm/keycloak/acc/docker-compose.yml",
+      "contentHash": "9fc36ceba8fa245078537be49545f43e421ed29848527389aff461f0e70b5bb7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "deployment/vm/keycloak/prod/.env.example": {
+      "filePath": "deployment/vm/keycloak/prod/.env.example",
+      "contentHash": "ba9f8b5a0e6e7b052803f99b768df7eaaaabb571c2b50fad34b5d377c597a104",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 9,
+      "hasStructuralAnalysis": true
+    },
+    "deployment/vm/keycloak/prod/docker-compose.yml": {
+      "filePath": "deployment/vm/keycloak/prod/docker-compose.yml",
+      "contentHash": "c13038817ef6d6694a2b474a8f6fab7596e4b2c40e7f2616947eb9ca4a3cc99d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "deployment/vm/keycloak/themes/ronl/login/login.ftl": {
+      "filePath": "deployment/vm/keycloak/themes/ronl/login/login.ftl",
+      "contentHash": "022689c32d1b2e7e1a8cb8d9575364ffb11c83ac4b9739f4d9896fbd6245ab94",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 143,
+      "hasStructuralAnalysis": false
+    },
+    "deployment/vm/keycloak/themes/ronl/login/messages/messages_nl.properties": {
+      "filePath": "deployment/vm/keycloak/themes/ronl/login/messages/messages_nl.properties",
+      "contentHash": "1a6dd469bf8ed74962fd46e1019e4852277a2dd7445a0b8411ea4f925123facb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": false
+    },
+    "deployment/vm/keycloak/themes/ronl/login/resources/css/login.css": {
+      "filePath": "deployment/vm/keycloak/themes/ronl/login/resources/css/login.css",
+      "contentHash": "efe57a2898d478932d2ff1a00dc8fd581e31eb393106a20d1c01c8758710d973",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 442,
+      "hasStructuralAnalysis": false
+    },
+    "deployment/vm/keycloak/themes/ronl/login/theme.properties": {
+      "filePath": "deployment/vm/keycloak/themes/ronl/login/theme.properties",
+      "contentHash": "15f5e16a7d8c90596b32fee163e0fd0a67c48e128cb234b2caa0f1e696498ea6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 25,
+      "hasStructuralAnalysis": false
+    },
+    "deployment/vm/README.md": {
+      "filePath": "deployment/vm/README.md",
+      "contentHash": "8550d4057181cc4030381011d0981b7b00cf303dc78164f11896427f949eafdd",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 363,
+      "hasStructuralAnalysis": true
+    },
+    "deployment/vm/skosmos/config.ttl": {
+      "filePath": "deployment/vm/skosmos/config.ttl",
+      "contentHash": "4ce9bf11a6aabc3b1db8aa57050c430cdb870fa9d192f431b60146b2b7540b76",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": false
+    },
+    "deployment/vm/skosmos/docker-compose.yml": {
+      "filePath": "deployment/vm/skosmos/docker-compose.yml",
+      "contentHash": "b87d76eb134f1d06b78852285180c556ea330204091d25d28f77718d197707e1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 22,
+      "hasStructuralAnalysis": true
+    },
+    "docker-compose.yml": {
+      "filePath": "docker-compose.yml",
+      "contentHash": "701d9064a5c96893ade4f89973627a74e51d5aa6da189147e3d5323821e4611b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 93,
+      "hasStructuralAnalysis": true
+    },
+    "docs/DvTP/Flow-A-Toestemming-geven.md": {
+      "filePath": "docs/DvTP/Flow-A-Toestemming-geven.md",
+      "contentHash": "3295216d97552eb29a6061b305e6e469168a5d6ff6451559b17ca413f3459d68",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "docs/DvTP/Flow-B-Data-ophalen.md": {
+      "filePath": "docs/DvTP/Flow-B-Data-ophalen.md",
+      "contentHash": "3ac99bbf16c1d4e3e22c9c4492f2e1c07e634cbaae9fcfd883e8fae8ddbc716f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 80,
+      "hasStructuralAnalysis": true
+    },
+    "docs/DvTP/Flow-C-Toestemming-beheren.md": {
+      "filePath": "docs/DvTP/Flow-C-Toestemming-beheren.md",
+      "contentHash": "08106904b6bbe8ef4653598bb406af4194f88b83e97811e3dff28ee7da942503",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 64,
+      "hasStructuralAnalysis": true
+    },
+    "docs/DvTP/Flow-D-Onboarden-private-dienstverlener.md": {
+      "filePath": "docs/DvTP/Flow-D-Onboarden-private-dienstverlener.md",
+      "contentHash": "9c10e1a9d8a614948689a9955cd6008edcc520145c8677ba0992dd585c4d8b98",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 71,
+      "hasStructuralAnalysis": true
+    },
+    "docs/DvTP/Flow-E-Inrichting-gegevensbehoefte.md": {
+      "filePath": "docs/DvTP/Flow-E-Inrichting-gegevensbehoefte.md",
+      "contentHash": "bdaf17b59394f3101aaccc7ec432609c271f114eac56da3a9a7fea518484cda2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 67,
+      "hasStructuralAnalysis": true
+    },
+    "docs/Haalcentraal-BRP/OAS3-BRP-API-Bewoning-openapi.yaml": {
+      "filePath": "docs/Haalcentraal-BRP/OAS3-BRP-API-Bewoning-openapi.yaml",
+      "contentHash": "fbde8cce3328c691a5e285e03ca1ce83fc971dc34cf00a9e1146657d5c3d3679",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 532,
+      "hasStructuralAnalysis": true
+    },
+    "docs/Haalcentraal-BRP/OAS3-BRP-API-Personen-openapi.yaml": {
+      "filePath": "docs/Haalcentraal-BRP/OAS3-BRP-API-Personen-openapi.yaml",
+      "contentHash": "3c4350e00d89ed5945b2047bda132b7ed3853d3dde79636ea9dca11df255b15f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1954,
+      "hasStructuralAnalysis": true
+    },
+    "docs/Haalcentraal-BRP/OAS3-BRP-API-Verblijfplaatshistorie-openapi.yaml": {
+      "filePath": "docs/Haalcentraal-BRP/OAS3-BRP-API-Verblijfplaatshistorie-openapi.yaml",
+      "contentHash": "598475e197bdf4b632be29d05b72f75a2edaf23cc4680c24f2f1857cd0638303",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 991,
+      "hasStructuralAnalysis": true
+    },
+    "examples/organizations/flevoland/archives-act-retention.dmn": {
+      "filePath": "examples/organizations/flevoland/archives-act-retention.dmn",
+      "contentHash": "ad0b9b7b18fe3ef0869c6e5b90ca2eb4f1f0f09f8a91b58efb9bf8261f7d89ce",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 147,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/awb-completeness-check.dmn": {
+      "filePath": "examples/organizations/flevoland/awb-completeness-check.dmn",
+      "contentHash": "2f21838a7775f88e8cc91b58ed29fffba7dd2b2fb45a61ab643e9b82d418a6df",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 108,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/EmployeeRoleAssignment.dmn": {
+      "filePath": "examples/organizations/flevoland/EmployeeRoleAssignment.dmn",
+      "contentHash": "24c14fe84e30ea5ca39546979193de4fa76fce79c8ab62d5a9c931878735266d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 149,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/hr-it-handover.document": {
+      "filePath": "examples/organizations/flevoland/hr-it-handover.document",
+      "contentHash": "991a6dfa28f3ca9f4388a465278b5103c138322d192016d115c4df45af24694a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 802,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/hr-notify-employee.form": {
+      "filePath": "examples/organizations/flevoland/hr-notify-employee.form",
+      "contentHash": "06f1c2bc8e2cc3706ca8f821e439497617d8309a2df88f93742a45303fc4ec46",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 65,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/hr-onboarding-start.form": {
+      "filePath": "examples/organizations/flevoland/hr-onboarding-start.form",
+      "contentHash": "9441396b3be2a04b9d2314dd1fb6e04a5cde29dee92825b676f0271b6bfe5a61",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 117,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/hr-role-review.form": {
+      "filePath": "examples/organizations/flevoland/hr-role-review.form",
+      "contentHash": "59b1868b4845e8b599059656086eb1d68b36176a582c72894650f7f499446543",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 62,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/HrOnboardingProcess.bpmn": {
+      "filePath": "examples/organizations/flevoland/HrOnboardingProcess.bpmn",
+      "contentHash": "9ad0618b92c946cc82d7a1e469536abfd918ef5a76507d1dcbc8446130eed177",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 144,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/inform-applicant-form.html": {
+      "filePath": "examples/organizations/flevoland/inform-applicant-form.html",
+      "contentHash": "b7b12cb9dede5be3d09e575ac32c67f8d482cf30fa27e2a1b835e89f3c972703",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 182,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/replacement-tree-decision.dmn": {
+      "filePath": "examples/organizations/flevoland/replacement-tree-decision.dmn",
+      "contentHash": "d4b3511ad331600409aa0da32edc9b821e42626929d2a3b02ff4a92c602dd918",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 42,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-approval.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-approval.form",
+      "contentHash": "852fc89c12d659664da7b032f578ee150e9f305ce648ab55b6f85c2547525a70",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 38,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-intake-meeting.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-intake-meeting.form",
+      "contentHash": "2b270f29ef2f3b9b46af39c3ecb5293ac173fc1331faa169c1f42fa9bfd34891",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 56,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-intake-report.document": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-intake-report.document",
+      "contentHash": "d9775b77d5a0f06d2ae24b4a5e42a4b6debe3becdfc111198faa07c49c5ddc12",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 263,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-intake-report.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-intake-report.form",
+      "contentHash": "3748898b1d00840aa6326c3cf182b504e20beeb9b21223b982986b8f0ce19e36",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 83,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-intake.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-intake.form",
+      "contentHash": "b6a2ee40167aa964ff7204e4b25f2b750ece217dc3f595bfdfac7e689c1a7719",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 113,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-pdp.document": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-pdp.document",
+      "contentHash": "d4ee5f0f607d910c618c8ca6fb8fffc069046470f87f278414aa3715758ff6b9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 252,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-psu-execution.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-psu-execution.form",
+      "contentHash": "7219e3da69e9696f7b82708288ef6cafb9547a30712d4584bd8c4e24829df8ee",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 81,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-psu-organize.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-psu-organize.form",
+      "contentHash": "45cedb388f397cdf8302112eacd6343ff6a9190cf0eb40451772636ad1b3d098",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 56,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-psu-report.document": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-psu-report.document",
+      "contentHash": "0cc65c1c8882a2dc4e44714ee621a5adbb3030b00a8133f59adb66fdd114f053",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 225,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/rip-risk-file.form": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/rip-risk-file.form",
+      "contentHash": "21f2f82ea64c21ba8e790f1b61c295888876cc23e9163c348553ef4c587d84ec",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 57,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/RipPhase1Process.bpmn": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/RipPhase1Process.bpmn",
+      "contentHash": "fda93ed730a898c06eec3db4934e67f02878bc229365f3a857d4869293d01dfb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 487,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/rip-phase1/RipProjectTypeAssignment.dmn": {
+      "filePath": "examples/organizations/flevoland/rip-phase1/RipProjectTypeAssignment.dmn",
+      "contentHash": "ce5c322317c3e7b1ce139083e15b2b1be90a8718bf6da8d8d988c30644d4ad8b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 111,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/start-form.html": {
+      "filePath": "examples/organizations/flevoland/start-form.html",
+      "contentHash": "07a0b9ccd1533184d7283a88c2e9868b8aba641ed18beeb7dc9a1b10a1e2b144",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 230,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/tree-felling-decision.dmn": {
+      "filePath": "examples/organizations/flevoland/tree-felling-decision.dmn",
+      "contentHash": "d2cdf425570619c2b9fe054c059f7360a73728a63e8d97ef850e5f083ebbac24",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 79,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/tree-felling-permit-docs.md": {
+      "filePath": "examples/organizations/flevoland/tree-felling-permit-docs.md",
+      "contentHash": "3cdfc269b1adc115370feef7b01ce30183ba7dac2123d7264faf25ba982cb5d7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 44,
+      "hasStructuralAnalysis": true
+    },
+    "examples/organizations/flevoland/tree-felling-permit.bpmn": {
+      "filePath": "examples/organizations/flevoland/tree-felling-permit.bpmn",
+      "contentHash": "05dcfc88f6bef3996af7b201be582a6423bea64f2c962b02b229a8ff3db4efb8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 153,
+      "hasStructuralAnalysis": false
+    },
+    "examples/organizations/flevoland/tree-felling-subprocess-enhanced.bpmn": {
+      "filePath": "examples/organizations/flevoland/tree-felling-subprocess-enhanced.bpmn",
+      "contentHash": "c930f43db08d405834360918ba32850361750e02fa40d4e4c09e6b2a139d911a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 244,
+      "hasStructuralAnalysis": false
+    },
+    "keycloak-themes/ronl/login/login.ftl": {
+      "filePath": "keycloak-themes/ronl/login/login.ftl",
+      "contentHash": "022689c32d1b2e7e1a8cb8d9575364ffb11c83ac4b9739f4d9896fbd6245ab94",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 143,
+      "hasStructuralAnalysis": false
+    },
+    "keycloak-themes/ronl/login/messages/messages_nl.properties": {
+      "filePath": "keycloak-themes/ronl/login/messages/messages_nl.properties",
+      "contentHash": "1a6dd469bf8ed74962fd46e1019e4852277a2dd7445a0b8411ea4f925123facb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": false
+    },
+    "keycloak-themes/ronl/login/resources/css/login.css": {
+      "filePath": "keycloak-themes/ronl/login/resources/css/login.css",
+      "contentHash": "efe57a2898d478932d2ff1a00dc8fd581e31eb393106a20d1c01c8758710d973",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 442,
+      "hasStructuralAnalysis": false
+    },
+    "keycloak-themes/ronl/login/theme.properties": {
+      "filePath": "keycloak-themes/ronl/login/theme.properties",
+      "contentHash": "15f5e16a7d8c90596b32fee163e0fd0a67c48e128cb234b2caa0f1e696498ea6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 25,
+      "hasStructuralAnalysis": false
+    },
+    "package.json": {
+      "filePath": "package.json",
+      "contentHash": "ee639b3f9aefbfb131c3225e97c7b1ee6e44011a421ed8d9269d0493d4276d80",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 73,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/.env.example": {
+      "filePath": "packages/backend/.env.example",
+      "contentHash": "d9435bae3b7f3b4e6ffac3daf44043b75e9b6b5ca059d199aec98b960da84763",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 113,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/eslint.config.mjs": {
+      "filePath": "packages/backend/eslint.config.mjs",
+      "contentHash": "3669f879ab4357a41c9645e0698beda881d5a3190820dd7b49434e2c8826304d",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@eslint/js",
+          "specifiers": ["eslint"]
+        },
+        {
+          "source": "typescript-eslint",
+          "specifiers": ["tseslint"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/package.json": {
+      "filePath": "packages/backend/package.json",
+      "contentHash": "33effd094193668b4cf72447c93c71f630ee0648d0f7cf85646cf2c08d87bba0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 86,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/SETUP.md": {
+      "filePath": "packages/backend/SETUP.md",
+      "contentHash": "92af578ef4be82b899c15d1e0e206fa522cf4f1bdeb3a79324adb972a3e2ca0c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 373,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/auth/jwt.middleware.ts": {
+      "filePath": "packages/backend/src/auth/jwt.middleware.ts",
+      "contentHash": "d9e3487b5f9f65d80178bb2c4e2e914a98ae243f85d14c08b300bb606dd2364d",
+      "functions": [
+        {
+          "name": "getKey",
+          "params": ["header", "callback"],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "validateToken",
+          "params": ["token"],
+          "returnType": "Promise<JWTPayload>",
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "extractUser",
+          "params": ["payload"],
+          "returnType": "AuthenticatedUser",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "jwtMiddleware",
+          "params": ["req", "res", "next"],
+          "exported": true,
+          "lineCount": 69
+        },
+        {
+          "name": "optionalJwtMiddleware",
+          "params": ["req", "res", "next"],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "requireRoles",
+          "params": ["...roles"],
+          "exported": true,
+          "lineCount": 33
+        },
+        {
+          "name": "requireAssuranceLevel",
+          "params": ["minLevel"],
+          "exported": true,
+          "lineCount": 37
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["Request", "Response", "NextFunction"]
+        },
+        {
+          "source": "jsonwebtoken",
+          "specifiers": ["jwt"]
+        },
+        {
+          "source": "jwks-rsa",
+          "specifiers": ["jwksClient"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "../types/auth.types",
+          "specifiers": ["JWTPayload", "AuthenticatedUser", "AssuranceLevel"]
+        }
+      ],
+      "exports": [
+        "jwtMiddleware",
+        "optionalJwtMiddleware",
+        "requireRoles",
+        "requireAssuranceLevel"
+      ],
+      "totalLines": 247,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/index.ts": {
+      "filePath": "packages/backend/src/index.ts",
+      "contentHash": "3f3b72e8e85cc5297415f2c97e9189389b1613bae70facb3af0e95d6467cdb71",
+      "functions": [
+        {
+          "name": "startServer",
+          "params": [],
+          "exported": false,
+          "lineCount": 49
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express", "Express", "Request", "Response", "NextFunction"]
+        },
+        {
+          "source": "cors",
+          "specifiers": ["cors"]
+        },
+        {
+          "source": "helmet",
+          "specifiers": ["helmet"]
+        },
+        {
+          "source": "express-rate-limit",
+          "specifiers": ["rateLimit"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["logger", "createLogger"]
+        },
+        {
+          "source": "@routes/health.routes",
+          "specifiers": ["healthRoutes"]
+        },
+        {
+          "source": "@routes/process.routes",
+          "specifiers": ["processRoutes"]
+        },
+        {
+          "source": "@routes/decision.routes",
+          "specifiers": ["decisionRoutes"]
+        },
+        {
+          "source": "@middleware/audit.middleware",
+          "specifiers": ["auditMiddleware"]
+        },
+        {
+          "source": "../package.json",
+          "specifiers": ["packageJson"]
+        },
+        {
+          "source": "./routes/brp.routes",
+          "specifiers": ["brpRoutes"]
+        },
+        {
+          "source": "@routes/task.routes",
+          "specifiers": ["taskRoutes"]
+        },
+        {
+          "source": "@routes/public.routes",
+          "specifiers": ["publicRoutes"]
+        },
+        {
+          "source": "./routes/hr.routes",
+          "specifiers": ["hrRoutes"]
+        },
+        {
+          "source": "./routes/capacity.routes",
+          "specifiers": ["capacityRoutes"]
+        },
+        {
+          "source": "./routes/rip.routes",
+          "specifiers": ["ripRoutes"]
+        },
+        {
+          "source": "./routes/edocs.routes",
+          "specifiers": ["edocsRoutes"]
+        },
+        {
+          "source": "@services/externalTaskWorker.service",
+          "specifiers": ["externalTaskWorker"]
+        },
+        {
+          "source": "@services/mcp/McpRegistry",
+          "specifiers": ["mcpRegistry"]
+        },
+        {
+          "source": "@services/mcp/OperatonMcpProvider",
+          "specifiers": ["OperatonMcpProvider"]
+        },
+        {
+          "source": "@services/mcp/TriplyDbMcpProvider",
+          "specifiers": ["TriplyDbMcpProvider"]
+        },
+        {
+          "source": "@services/mcp/CprmvMcpProvider",
+          "specifiers": ["CprmvMcpProvider"]
+        },
+        {
+          "source": "@services/mcp/LdeMcpProvider",
+          "specifiers": ["LdeMcpProvider"]
+        },
+        {
+          "source": "@services/llm/LlmRegistry",
+          "specifiers": ["llmRegistry"]
+        },
+        {
+          "source": "@services/llm/AnthropicLlmProvider",
+          "specifiers": ["AnthropicLlmProvider"]
+        },
+        {
+          "source": "@services/llm/OpenAILlmProvider",
+          "specifiers": ["OpenAILlmProvider"]
+        },
+        {
+          "source": "@services/audit.service",
+          "specifiers": ["initDb"]
+        },
+        {
+          "source": "@routes/admin.routes",
+          "specifiers": ["adminRoutes"]
+        },
+        {
+          "source": "./routes/m2m.routes",
+          "specifiers": ["m2mRoutes"]
+        },
+        {
+          "source": "./routes/mcp.routes",
+          "specifiers": ["mcpRoutes"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 279,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/mcp-servers/lde/index.ts": {
+      "filePath": "packages/backend/src/mcp-servers/lde/index.ts",
+      "contentHash": "db994b840118b9fd199a22103b1d5ab8ae42a2809b534ac5e6127e672afbba08",
+      "functions": [
+        {
+          "name": "query",
+          "params": ["sql", "params"],
+          "returnType": "Promise<T[]>",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "mapBundle",
+          "params": ["r"],
+          "exported": false,
+          "lineCount": 17
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/index.js",
+          "specifiers": ["Server"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/server/stdio.js",
+          "specifiers": ["StdioServerTransport"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/types.js",
+          "specifiers": ["CallToolRequestSchema", "ListToolsRequestSchema"]
+        },
+        {
+          "source": "pg",
+          "specifiers": ["Pool"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 266,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/mcp-servers/triplydb/index.ts": {
+      "filePath": "packages/backend/src/mcp-servers/triplydb/index.ts",
+      "contentHash": "e4f3b64e6997994d6ecddd05f6267f86f6ae5952783018124db931f3b1499d44",
+      "functions": [
+        {
+          "name": "dmnListQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "dmnGetQuery",
+          "params": ["uri", "identifier"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 37
+        },
+        {
+          "name": "dmnChainLinksQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "dmnEnhancedChainLinksQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 47
+        },
+        {
+          "name": "dmnSemanticEquivalencesQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 37
+        },
+        {
+          "name": "organizationListQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "serviceListQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "ruleListQuery",
+          "params": ["serviceTitle"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "conceptListQuery",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "serviceRulesMetadataQuery",
+          "params": ["serviceId"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 38
+        },
+        {
+          "name": "executeSparql",
+          "params": ["query", "endpoint"],
+          "returnType": "Promise<string>",
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/index.js",
+          "specifiers": ["Server"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/server/stdio.js",
+          "specifiers": ["StdioServerTransport"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/types.js",
+          "specifiers": ["CallToolRequestSchema", "ListToolsRequestSchema"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 581,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/middleware/audit.middleware.ts": {
+      "filePath": "packages/backend/src/middleware/audit.middleware.ts",
+      "contentHash": "a13a9fa900a2999a3fd4a0edcf10025a5bf582a8192e7541c6f615f754765966",
+      "functions": [
+        {
+          "name": "createAuditLog",
+          "params": ["entry"],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "auditMiddleware",
+          "params": ["req", "res", "next"],
+          "exported": true,
+          "lineCount": 81
+        },
+        {
+          "name": "extractErrorMessage",
+          "params": ["body"],
+          "returnType": "string | undefined",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "auditLog",
+          "params": ["req", "action", "result", "details"],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "getAuditLogs",
+          "params": ["limit"],
+          "returnType": "AuditLogEntry[]",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "pruneAuditQueue",
+          "params": [],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["Request", "Response", "NextFunction"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@services/audit.service",
+          "specifiers": ["persistAuditLog"]
+        },
+        {
+          "source": "@/types/audit.types",
+          "specifiers": ["AuditLogEntry"]
+        }
+      ],
+      "exports": [
+        "AuditLogEntry",
+        "createAuditLog",
+        "auditMiddleware",
+        "auditLog",
+        "getAuditLogs",
+        "pruneAuditQueue"
+      ],
+      "totalLines": 163,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/middleware/tenant.middleware.ts": {
+      "filePath": "packages/backend/src/middleware/tenant.middleware.ts",
+      "contentHash": "c366dc7fb1cb9e60506a48bfba31912add100e5b1b8fe9cf41e7fe118147f954",
+      "functions": [
+        {
+          "name": "tenantMiddleware",
+          "params": ["req", "res", "next"],
+          "exported": true,
+          "lineCount": 49
+        },
+        {
+          "name": "validateTenantParam",
+          "params": ["paramName"],
+          "exported": true,
+          "lineCount": 35
+        },
+        {
+          "name": "addTenantToProcessVariables",
+          "params": ["req", "res", "next"],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["Request", "Response", "NextFunction"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": ["tenantMiddleware", "validateTenantParam", "addTenantToProcessVariables"],
+      "totalLines": 134,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/admin.routes.ts": {
+      "filePath": "packages/backend/src/routes/admin.routes.ts",
+      "contentHash": "dcb24e4ad5b8c22eac8fe38e3fb170ccb7f5c450a8abf24d221f2ad6b4947632",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["Router"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["requireRoles"]
+        },
+        {
+          "source": "@services/audit.service",
+          "specifiers": ["db"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 69,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/brp.routes.ts": {
+      "filePath": "packages/backend/src/routes/brp.routes.ts",
+      "contentHash": "0bad87a00941f50d4f36722c95d8a3297afced1fafa97c6d99598056ac894692",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express", "Request", "Response"]
+        },
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "../auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "../middleware/audit.middleware",
+          "specifiers": ["auditLog"]
+        },
+        {
+          "source": "../utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 92,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/capacity.routes.ts": {
+      "filePath": "packages/backend/src/routes/capacity.routes.ts",
+      "contentHash": "0f573ad2d72b82c2b2024941c59e82c9ccfe3979f2752c17d23e27fa6c4c3254",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@middleware/tenant.middleware",
+          "specifiers": ["tenantMiddleware"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 114,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/decision.routes.ts": {
+      "filePath": "packages/backend/src/routes/decision.routes.ts",
+      "contentHash": "96f1d727a45615fe97ed105ec7079a91b9dd50cc09af21bd8e5793be84cfcc9d",
+      "functions": [
+        {
+          "name": "inferType",
+          "params": ["value"],
+          "returnType": "OperatonVariable['type']",
+          "exported": false,
+          "lineCount": 18
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware", "requireAssuranceLevel"]
+        },
+        {
+          "source": "@middleware/tenant.middleware",
+          "specifiers": ["tenantMiddleware"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@middleware/audit.middleware",
+          "specifiers": ["auditLog"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["OperatonVariable"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 181,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/edocs.routes.ts": {
+      "filePath": "packages/backend/src/routes/edocs.routes.ts",
+      "contentHash": "b5ef53e59e3b33be21369bcfd2ae786bcdf3ac2ae9727b0108f8579dff0638ff",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["Router", "Request", "Response"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@services/edocs.service",
+          "specifiers": ["edocsService"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 150,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/health.routes.ts": {
+      "filePath": "packages/backend/src/routes/health.routes.ts",
+      "contentHash": "ba5cca9c72dd4530fcc1ac4066109335c4b4940b8221b1ae5572f93056efcfe1",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "../../package.json",
+          "specifiers": ["packageJson"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 170,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/hr.routes.ts": {
+      "filePath": "packages/backend/src/routes/hr.routes.ts",
+      "contentHash": "8bd827f4d730902bb6f21bb6171963a485acd66840774f1f6b1bcbcedfefae41",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@middleware/tenant.middleware",
+          "specifiers": ["tenantMiddleware"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/m2m.routes.ts": {
+      "filePath": "packages/backend/src/routes/m2m.routes.ts",
+      "contentHash": "7f6eb984b92b5cc9236f3cc9ab959192574b299e33020c6e092aabaf1de5342f",
+      "functions": [
+        {
+          "name": "isAllowed",
+          "params": ["op"],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "notAllowed",
+          "params": ["res"],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "inferType",
+          "params": ["value"],
+          "returnType": "OperatonVariable['type']",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "toOperatonVariables",
+          "params": ["input"],
+          "returnType": "Record<string, OperatonVariable>",
+          "exported": false,
+          "lineCount": 10
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express", "Request", "Response"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService", "OperatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@middleware/audit.middleware",
+          "specifiers": ["auditLog"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["OperatonVariable"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 554,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/mcp.routes.ts": {
+      "filePath": "packages/backend/src/routes/mcp.routes.ts",
+      "contentHash": "3e5ac3cd4a731a4ac0e13b66ab6ef78e423171972a0246fb0f39d39f4203e782",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware", "requireRoles"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@services/mcpChat.service",
+          "specifiers": ["runChatStream"]
+        },
+        {
+          "source": "@services/mcp/McpRegistry",
+          "specifiers": ["mcpRegistry"]
+        },
+        {
+          "source": "@services/llm/LlmRegistry",
+          "specifiers": ["llmRegistry"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 141,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/process.routes.ts": {
+      "filePath": "packages/backend/src/routes/process.routes.ts",
+      "contentHash": "3c42a5eeb657000704aa3f865ff1078fd13b1a6cc3a13de2120b484c348aaef7",
+      "functions": [
+        {
+          "name": "inferType",
+          "params": ["value"],
+          "returnType": "OperatonVariable['type']",
+          "exported": false,
+          "lineCount": 18
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware", "requireAssuranceLevel"]
+        },
+        {
+          "source": "@middleware/tenant.middleware",
+          "specifiers": ["tenantMiddleware", "addTenantToProcessVariables"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@middleware/audit.middleware",
+          "specifiers": ["auditLog"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["OperatonVariable"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 658,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/public.routes.ts": {
+      "filePath": "packages/backend/src/routes/public.routes.ts",
+      "contentHash": "d9f90c20e56175c52d7674c62ae5ac40f7c6a7ae4669b92bf1395092de81a456",
+      "functions": [
+        {
+          "name": "meta",
+          "params": [],
+          "exported": false,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["Router", "Request", "Response"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@services/nieuws.service",
+          "specifiers": ["getNieuwsItems"]
+        },
+        {
+          "source": "@services/berichten.service",
+          "specifiers": ["getBerichtenItems", "getBerichtById"]
+        },
+        {
+          "source": "@services/regelcatalogus.service",
+          "specifiers": ["getRegelcatalogusData"]
+        },
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@services/productenDiensten.service",
+          "specifiers": ["getProductenDienstenItems"]
+        },
+        {
+          "source": "multer",
+          "specifiers": ["multer"]
+        },
+        {
+          "source": "form-data",
+          "specifiers": ["FormData"]
+        },
+        {
+          "source": "express-rate-limit",
+          "specifiers": ["rateLimit"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 528,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/rip.routes.ts": {
+      "filePath": "packages/backend/src/routes/rip.routes.ts",
+      "contentHash": "db9062b398e683897daa5ae2f5a164a7a39dfcfa427136372fc0fbdd478432f4",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@middleware/tenant.middleware",
+          "specifiers": ["tenantMiddleware"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/routes/task.routes.ts": {
+      "filePath": "packages/backend/src/routes/task.routes.ts",
+      "contentHash": "9e59b08d6362da9e4a623286d8542baa991a1df1c4fba3ddbd76c6cdacda5c1b",
+      "functions": [
+        {
+          "name": "inferType",
+          "params": ["value"],
+          "returnType": "OperatonVariable['type']",
+          "exported": false,
+          "lineCount": 15
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "express",
+          "specifiers": ["express"]
+        },
+        {
+          "source": "@auth/jwt.middleware",
+          "specifiers": ["jwtMiddleware"]
+        },
+        {
+          "source": "@middleware/tenant.middleware",
+          "specifiers": ["tenantMiddleware"]
+        },
+        {
+          "source": "@services/operaton.service",
+          "specifiers": ["operatonService"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@middleware/audit.middleware",
+          "specifiers": ["auditLog"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["OperatonVariable"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 351,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/audit.service.ts": {
+      "filePath": "packages/backend/src/services/audit.service.ts",
+      "contentHash": "43c3bd2a0bd1a96c84873bdb873ea1e3074da3663067b60f8cf4eedb3d6091bd",
+      "functions": [
+        {
+          "name": "initDb",
+          "params": [],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "persistAuditLog",
+          "params": ["entry"],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 37
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pg-promise",
+          "specifiers": ["pgPromise"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@/types/audit.types",
+          "specifiers": ["AuditLogEntry"]
+        }
+      ],
+      "exports": ["db", "initDb", "persistAuditLog"],
+      "totalLines": 70,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/berichten.service.ts": {
+      "filePath": "packages/backend/src/services/berichten.service.ts",
+      "contentHash": "8ad0d9983a3e99a074ddbb96c888fa075a151dbc16858fe0bfe92ec3ce6650b6",
+      "functions": [
+        {
+          "name": "extractTag",
+          "params": ["xml", "tag"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "decodeEntities",
+          "params": ["text"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "parseItems",
+          "params": ["rss"],
+          "returnType": "BerichtItem[]",
+          "exported": false,
+          "lineCount": 31
+        },
+        {
+          "name": "getBerichtenItems",
+          "params": ["limit", "offset"],
+          "returnType": "Promise<{ items: BerichtItem[]; total: number }>",
+          "exported": true,
+          "lineCount": 35
+        },
+        {
+          "name": "getBerichtById",
+          "params": ["id"],
+          "returnType": "BerichtItem | null",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": ["getBerichtenItems", "getBerichtById"],
+      "totalLines": 128,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/edocs.service.ts": {
+      "filePath": "packages/backend/src/services/edocs.service.ts",
+      "contentHash": "b8a0e754507ce3356e44d423b976f2014ddf03d4210220a6714ad1bb0e93b4ae",
+      "functions": [],
+      "classes": [
+        {
+          "name": "EdocsService",
+          "methods": [
+            "constructor",
+            "connect",
+            "ensureConnected",
+            "withAuth",
+            "listWorkspaces",
+            "ensureWorkspace",
+            "uploadDocument",
+            "getWorkspaceDocuments",
+            "healthCheck"
+          ],
+          "properties": ["client", "sessionToken", "stubMode"],
+          "exported": true,
+          "lineCount": 293
+        }
+      ],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios", "AxiosInstance"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@utils/errors",
+          "specifiers": ["getErrorMessage"]
+        }
+      ],
+      "exports": ["EdocsService", "edocsService"],
+      "totalLines": 339,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/externalTaskWorker.service.ts": {
+      "filePath": "packages/backend/src/services/externalTaskWorker.service.ts",
+      "contentHash": "6ba375369818b62baee98774a0b497302810950bfe65957de7bbb0acc6025467",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ExternalTaskWorker",
+          "methods": [
+            "constructor",
+            "start",
+            "stop",
+            "poll",
+            "fetchAndLock",
+            "handleTask",
+            "handleEnsureWorkspace",
+            "handleUploadDocument",
+            "completeTask",
+            "failTask",
+            "renderDocumentContent",
+            "templateIdToLabel"
+          ],
+          "properties": [
+            "workerId",
+            "operatonBaseUrl",
+            "running",
+            "pollTimeout",
+            "asyncResponseTimeout",
+            "lockDuration",
+            "idlePollInterval"
+          ],
+          "exported": true,
+          "lineCount": 312
+        }
+      ],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@utils/errors",
+          "specifiers": ["getErrorMessage"]
+        },
+        {
+          "source": "@services/edocs.service",
+          "specifiers": ["edocsService"]
+        }
+      ],
+      "exports": ["ExternalTaskWorker", "externalTaskWorker"],
+      "totalLines": 364,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/llm/AnthropicLlmProvider.ts": {
+      "filePath": "packages/backend/src/services/llm/AnthropicLlmProvider.ts",
+      "contentHash": "df0e6586f58fc19fbadf5bb8348ce4faf455fb4441403031ff644d6519eb048b",
+      "functions": [
+        {
+          "name": "toAnthropicTool",
+          "params": ["t"],
+          "returnType": "Anthropic.Tool",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "toAnthropicMessage",
+          "params": ["m"],
+          "returnType": "Anthropic.MessageParam",
+          "exported": false,
+          "lineCount": 28
+        }
+      ],
+      "classes": [
+        {
+          "name": "AnthropicLlmProvider",
+          "methods": ["isAvailable", "streamTurn"],
+          "properties": ["meta"],
+          "exported": true,
+          "lineCount": 52
+        }
+      ],
+      "imports": [
+        {
+          "source": "@anthropic-ai/sdk",
+          "specifiers": ["Anthropic"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "./LlmProvider",
+          "specifiers": [
+            "LlmProvider",
+            "LlmProviderMeta",
+            "LlmStreamParams",
+            "LlmTurnResult",
+            "AgentMessage"
+          ]
+        },
+        {
+          "source": "@services/mcp/McpProvider",
+          "specifiers": ["ToolDefinition"]
+        }
+      ],
+      "exports": ["AnthropicLlmProvider"],
+      "totalLines": 101,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/llm/LlmProvider.ts": {
+      "filePath": "packages/backend/src/services/llm/LlmProvider.ts",
+      "contentHash": "aec46e4876cb4f95c2da9624a07297bc48bbb330c00cb1e67722a7c9afcd237a",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@services/mcp/McpProvider",
+          "specifiers": ["ToolDefinition"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 61,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/llm/LlmRegistry.ts": {
+      "filePath": "packages/backend/src/services/llm/LlmRegistry.ts",
+      "contentHash": "ea4d000d495c111fbb1656e403f6325e5d390588e0656c89ad1f482ce9fca479",
+      "functions": [],
+      "classes": [
+        {
+          "name": "LlmRegistry",
+          "methods": ["register", "getProvider", "getAvailableModels"],
+          "properties": ["providers", "modelIndex"],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "imports": [
+        {
+          "source": "./LlmProvider",
+          "specifiers": ["LlmProvider", "LlmModelMeta"]
+        }
+      ],
+      "exports": ["LlmRegistry", "llmRegistry"],
+      "totalLines": 37,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/llm/OpenAILlmProvider.ts": {
+      "filePath": "packages/backend/src/services/llm/OpenAILlmProvider.ts",
+      "contentHash": "a36b8b53d50b5b39be8138ab6335a6f5197138bea114d2e1ffffac3800f9a00d",
+      "functions": [
+        {
+          "name": "flattenForOpenAI",
+          "params": ["messages"],
+          "returnType": "OpenAI.ChatCompletionMessageParam[]",
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "toOpenAITool",
+          "params": ["t"],
+          "returnType": "OpenAI.ChatCompletionTool",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "toOpenAIMessage",
+          "params": ["m"],
+          "returnType": "OpenAI.ChatCompletionMessageParam",
+          "exported": false,
+          "lineCount": 22
+        }
+      ],
+      "classes": [
+        {
+          "name": "OpenAILlmProvider",
+          "methods": ["isAvailable", "streamTurn"],
+          "properties": ["meta"],
+          "exported": true,
+          "lineCount": 78
+        }
+      ],
+      "imports": [
+        {
+          "source": "openai",
+          "specifiers": ["OpenAI"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "./LlmProvider",
+          "specifiers": [
+            "LlmProvider",
+            "LlmProviderMeta",
+            "LlmStreamParams",
+            "LlmTurnResult",
+            "AgentMessage"
+          ]
+        },
+        {
+          "source": "@services/mcp/McpProvider",
+          "specifiers": ["ToolDefinition"]
+        }
+      ],
+      "exports": ["OpenAILlmProvider"],
+      "totalLines": 143,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcp/CprmvMcpProvider.ts": {
+      "filePath": "packages/backend/src/services/mcp/CprmvMcpProvider.ts",
+      "contentHash": "78dbc35c31925aa85f067c17348c358a819ab69c9f0ee43acc9adf898ba41787",
+      "functions": [],
+      "classes": [
+        {
+          "name": "CprmvMcpProvider",
+          "methods": [
+            "connect",
+            "disconnect",
+            "getToolDefinitions",
+            "callTool",
+            "isConnected",
+            "systemPromptContribution",
+            "assertConnected"
+          ],
+          "properties": ["meta", "client"],
+          "exported": true,
+          "lineCount": 114
+        }
+      ],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/client/index.js",
+          "specifiers": ["Client"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/client/streamableHttp.js",
+          "specifiers": ["StreamableHTTPClientTransport"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "./McpProvider",
+          "specifiers": ["McpProvider", "McpProviderMeta", "McpToolResult", "ToolDefinition"]
+        }
+      ],
+      "exports": ["CprmvMcpProvider"],
+      "totalLines": 130,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcp/LdeMcpProvider.ts": {
+      "filePath": "packages/backend/src/services/mcp/LdeMcpProvider.ts",
+      "contentHash": "37b649cb818bed1c1feaad1bc25d3ff1259f35df1131266421b73d62690fbb38",
+      "functions": [
+        {
+          "name": "getServerCommand",
+          "params": [],
+          "returnType": "{ command: string; args: string[] }",
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "LdeMcpProvider",
+          "methods": [
+            "connect",
+            "disconnect",
+            "getToolDefinitions",
+            "callTool",
+            "isConnected",
+            "systemPromptContribution",
+            "assertConnected"
+          ],
+          "properties": ["meta", "client", "transport"],
+          "exported": true,
+          "lineCount": 105
+        }
+      ],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/client/index.js",
+          "specifiers": ["Client"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/client/stdio.js",
+          "specifiers": ["StdioClientTransport"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "path",
+          "specifiers": ["path"]
+        },
+        {
+          "source": "./McpProvider",
+          "specifiers": ["McpProvider", "McpProviderMeta", "McpToolResult", "ToolDefinition"]
+        }
+      ],
+      "exports": ["LdeMcpProvider"],
+      "totalLines": 137,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcp/McpProvider.ts": {
+      "filePath": "packages/backend/src/services/mcp/McpProvider.ts",
+      "contentHash": "813f09098172751f7522b0906f0dffdf583a39d28c5353731aca4a3d3390b80f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcp/McpRegistry.ts": {
+      "filePath": "packages/backend/src/services/mcp/McpRegistry.ts",
+      "contentHash": "27855cc072df2ef0f9ba4f6e27e6c11baa56449cb158e4019d78f62bb4f91b23",
+      "functions": [],
+      "classes": [
+        {
+          "name": "McpRegistry",
+          "methods": [
+            "register",
+            "connectAll",
+            "disconnectAll",
+            "getToolDefinitions",
+            "callTool",
+            "buildSystemPrompt",
+            "getProviderMeta",
+            "isAnyConnected",
+            "resolveProviders"
+          ],
+          "properties": ["providers", "toolIndex"],
+          "exported": true,
+          "lineCount": 84
+        }
+      ],
+      "imports": [
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "./McpProvider",
+          "specifiers": ["McpProvider", "McpProviderMeta", "McpToolResult", "ToolDefinition"]
+        }
+      ],
+      "exports": ["McpRegistry", "mcpRegistry"],
+      "totalLines": 92,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcp/OperatonMcpProvider.ts": {
+      "filePath": "packages/backend/src/services/mcp/OperatonMcpProvider.ts",
+      "contentHash": "04e834745fe72fda3e06332ac7de08ca42ec6216d3b615c9a54c25214761b6ec",
+      "functions": [
+        {
+          "name": "getMcpCommand",
+          "params": [],
+          "returnType": "{ command: string; args: string[] }",
+          "exported": false,
+          "lineCount": 13
+        }
+      ],
+      "classes": [
+        {
+          "name": "OperatonMcpProvider",
+          "methods": [
+            "connect",
+            "disconnect",
+            "getToolDefinitions",
+            "callTool",
+            "isConnected",
+            "systemPromptContribution",
+            "assertConnected"
+          ],
+          "properties": ["meta", "client", "transport"],
+          "exported": true,
+          "lineCount": 96
+        }
+      ],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/client/index.js",
+          "specifiers": ["Client"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/client/stdio.js",
+          "specifiers": ["StdioClientTransport"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "os",
+          "specifiers": ["os"]
+        },
+        {
+          "source": "module",
+          "specifiers": ["createRequire"]
+        },
+        {
+          "source": "./McpProvider",
+          "specifiers": ["McpProvider", "McpProviderMeta", "McpToolResult", "ToolDefinition"]
+        }
+      ],
+      "exports": ["OperatonMcpProvider"],
+      "totalLines": 141,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcp/TriplyDbMcpProvider.ts": {
+      "filePath": "packages/backend/src/services/mcp/TriplyDbMcpProvider.ts",
+      "contentHash": "7a3d798944236658c6a73203087d1b6f5012f052de109563db41ba5fb83dbaa7",
+      "functions": [
+        {
+          "name": "getServerCommand",
+          "params": [],
+          "returnType": "{ command: string; args: string[] }",
+          "exported": false,
+          "lineCount": 12
+        }
+      ],
+      "classes": [
+        {
+          "name": "TriplyDbMcpProvider",
+          "methods": [
+            "connect",
+            "disconnect",
+            "getToolDefinitions",
+            "callTool",
+            "isConnected",
+            "systemPromptContribution",
+            "assertConnected"
+          ],
+          "properties": ["meta", "client", "transport"],
+          "exported": true,
+          "lineCount": 106
+        }
+      ],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/client/index.js",
+          "specifiers": ["Client"]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/client/stdio.js",
+          "specifiers": ["StdioClientTransport"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "path",
+          "specifiers": ["path"]
+        },
+        {
+          "source": "./McpProvider",
+          "specifiers": ["McpProvider", "McpProviderMeta", "McpToolResult", "ToolDefinition"]
+        }
+      ],
+      "exports": ["TriplyDbMcpProvider"],
+      "totalLines": 144,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/mcpChat.service.ts": {
+      "filePath": "packages/backend/src/services/mcpChat.service.ts",
+      "contentHash": "c42f6794aa7d2f3b857e36d35153567f13a7e36f4eb4351315913fd9b9e659d9",
+      "functions": [
+        {
+          "name": "truncateToolResult",
+          "params": ["text"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "runChatStream",
+          "params": ["history", "userMessage", "emit", "selectedProviderIds", "modelId", "signal"],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 73
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@services/mcp/McpRegistry",
+          "specifiers": ["mcpRegistry"]
+        },
+        {
+          "source": "@services/llm/LlmRegistry",
+          "specifiers": ["llmRegistry"]
+        },
+        {
+          "source": "@services/llm/LlmProvider",
+          "specifiers": ["AgentMessage", "AgentToolResult"]
+        }
+      ],
+      "exports": ["runChatStream"],
+      "totalLines": 106,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/nieuws.service.ts": {
+      "filePath": "packages/backend/src/services/nieuws.service.ts",
+      "contentHash": "b4921f8960df4b29dd5e4627c630299ef37d92606cd6bef81abcb181466447ab",
+      "functions": [
+        {
+          "name": "extractTag",
+          "params": ["xml", "tag"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "parseItems",
+          "params": ["rss"],
+          "returnType": "NieuwsItem[]",
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "getNieuwsItems",
+          "params": ["limit", "offset"],
+          "returnType": "Promise<{ items: NieuwsItem[]; total: number }>",
+          "exported": true,
+          "lineCount": 50
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": ["getNieuwsItems"],
+      "totalLines": 130,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/operaton.service.ts": {
+      "filePath": "packages/backend/src/services/operaton.service.ts",
+      "contentHash": "e6689d107f073c01ae1f037532dc5c0a250df9279dd9aaa12bf54d801c4b99bb",
+      "functions": [],
+      "classes": [
+        {
+          "name": "OperatonService",
+          "methods": [
+            "constructor",
+            "listProcessInstances",
+            "queryProcessHistory",
+            "getDecisionDefinition",
+            "startProcess",
+            "getProcessInstance",
+            "getProcessVariables",
+            "deleteProcessInstance",
+            "getProcessHistory",
+            "getHistoricVariables",
+            "getHrOnboardingProfile",
+            "getHrOnboardingCompletedList",
+            "getDecisionDocument",
+            "getVariableHints",
+            "getUserTasks",
+            "getCompletedTasks",
+            "getTask",
+            "getTaskVariables",
+            "completeTask",
+            "claimTask",
+            "evaluateDecision",
+            "healthCheck",
+            "getDeployedStartForm",
+            "getDeployedTaskForm",
+            "getRipPhase1ActiveList",
+            "getRipPhase1Documents",
+            "getRipPhase1CompletedList",
+            "getCapacityClaimActiveList",
+            "getCapacityClaimCompletedList",
+            "getCapacityClaimDocuments"
+          ],
+          "properties": ["client"],
+          "exported": true,
+          "lineCount": 1010
+        }
+      ],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios", "AxiosInstance"]
+        },
+        {
+          "source": "@utils/config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["OperatonVariable", "ProcessStartRequest", "ProcessInstance", "Task"]
+        }
+      ],
+      "exports": ["OperatonService", "operatonService"],
+      "totalLines": 1028,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/productenDiensten.service.ts": {
+      "filePath": "packages/backend/src/services/productenDiensten.service.ts",
+      "contentHash": "b2170389f03c0a5f7c299a06d1a23744fed762e74c6948fb86cf96fda6448bae",
+      "functions": [
+        {
+          "name": "extractTag",
+          "params": ["xml", "tag"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "extractAllTags",
+          "params": ["xml", "tag"],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "decodeEntities",
+          "params": ["text"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "parseItems",
+          "params": ["xml"],
+          "returnType": "ProductDienstItem[]",
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "getProductenDienstenItems",
+          "params": ["limit", "offset"],
+          "returnType": "Promise<{ items: ProductDienstItem[]; total: number }>",
+          "exported": true,
+          "lineCount": 35
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": ["getProductenDienstenItems"],
+      "totalLines": 126,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/services/regelcatalogus.service.ts": {
+      "filePath": "packages/backend/src/services/regelcatalogus.service.ts",
+      "contentHash": "78777a9965b248d7eba7eca010893b22731f2a6b2558faf04154e0012a031d7c",
+      "functions": [
+        {
+          "name": "runQuery",
+          "params": ["query"],
+          "returnType": "Promise<SparqlBinding[]>",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "val",
+          "params": ["row", "key"],
+          "returnType": "string | null",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "fetchServices",
+          "params": [],
+          "returnType": "Promise<CatalogService[]>",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "resolveLogoUrls",
+          "params": [],
+          "returnType": "Promise<Map<string, string>>",
+          "exported": false,
+          "lineCount": 34
+        },
+        {
+          "name": "fetchOrganizations",
+          "params": [],
+          "returnType": "Promise<Omit<CatalogOrganization, 'services'>[]>",
+          "exported": false,
+          "lineCount": 32
+        },
+        {
+          "name": "fetchOrganizationServices",
+          "params": [],
+          "returnType": "Promise<\n  Array<{ organizationUri: string; serviceUri: string; serviceTitle: string }>\n>",
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "fetchConcepts",
+          "params": [],
+          "returnType": "Promise<CatalogConcept[]>",
+          "exported": false,
+          "lineCount": 44
+        },
+        {
+          "name": "fetchRules",
+          "params": [],
+          "returnType": "Promise<CatalogRule[]>",
+          "exported": false,
+          "lineCount": 31
+        },
+        {
+          "name": "getRegelcatalogusData",
+          "params": [],
+          "returnType": "Promise<RegelcatalogusData>",
+          "exported": true,
+          "lineCount": 52
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "@utils/logger",
+          "specifiers": ["createLogger"]
+        }
+      ],
+      "exports": ["getRegelcatalogusData"],
+      "totalLines": 334,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/types/audit.types.ts": {
+      "filePath": "packages/backend/src/types/audit.types.ts",
+      "contentHash": "a8e8581d410dfe30db38f609b757711ffa59023d07f29dfc61ab6b0ac985aa34",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/types/auth.types.ts": {
+      "filePath": "packages/backend/src/types/auth.types.ts",
+      "contentHash": "a383f9f86e58132d68f38ffb724121646c84baa874fde9f30b240b870f236f5b",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["AuthenticatedUser", "AssuranceLevel", "MandateInfo", "OrganisationType"]
+        }
+      ],
+      "exports": ["AuthenticatedUser", "AssuranceLevel", "MandateInfo", "OrganisationType"],
+      "totalLines": 61,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/utils/config.ts": {
+      "filePath": "packages/backend/src/utils/config.ts",
+      "contentHash": "639c7a382ba7a6bacfb742edd4f712b00163f86b532dfb69eabe64901bc2ade6",
+      "functions": [
+        {
+          "name": "parseEnvArray",
+          "params": ["value", "defaultValue"],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "parseEnvInt",
+          "params": ["value", "defaultValue"],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "parseEnvBool",
+          "params": ["value", "defaultValue"],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "validateConfig",
+          "params": [],
+          "exported": false,
+          "lineCount": 23
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "dotenv",
+          "specifiers": ["dotenv"]
+        },
+        {
+          "source": "path",
+          "specifiers": ["path"]
+        }
+      ],
+      "exports": ["config"],
+      "totalLines": 289,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/utils/errors.ts": {
+      "filePath": "packages/backend/src/utils/errors.ts",
+      "contentHash": "bbca8a4b2289d53123ab0afba53e43d30cd36964ae92c95d2a5297dce6e2d0f4",
+      "functions": [
+        {
+          "name": "getErrorMessage",
+          "params": ["err"],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": ["getErrorMessage"],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/src/utils/logger.ts": {
+      "filePath": "packages/backend/src/utils/logger.ts",
+      "contentHash": "abeeb604cb9dfa0411d80d2aea881d1567100fe5270eeb03d7113c89436ae538",
+      "functions": [
+        {
+          "name": "createLogger",
+          "params": ["module"],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "winston",
+          "specifiers": ["winston"]
+        },
+        {
+          "source": "winston-daily-rotate-file",
+          "specifiers": ["DailyRotateFile"]
+        },
+        {
+          "source": "./config",
+          "specifiers": ["config"]
+        },
+        {
+          "source": "path",
+          "specifiers": ["path"]
+        }
+      ],
+      "exports": ["createLogger"],
+      "totalLines": 86,
+      "hasStructuralAnalysis": true
+    },
+    "packages/backend/tsconfig.json": {
+      "filePath": "packages/backend/tsconfig.json",
+      "contentHash": "1b8097adeb5172ff4b3058e9cd6191c5aa0ea6120cf9200d8ea1b4607b603e99",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 38,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/.env.acceptance": {
+      "filePath": "packages/frontend/.env.acceptance",
+      "contentHash": "83419a4dc0a1a84a03501c9865a0d2fa2027e0f8146f631689565e1d45b12f4f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": false
+    },
+    "packages/frontend/.env.development": {
+      "filePath": "packages/frontend/.env.development",
+      "contentHash": "86f057302a8211f45491abff4d4dfa8e9a053961f7baa599d7c8b6a449fc5140",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/.env.production": {
+      "filePath": "packages/frontend/.env.production",
+      "contentHash": "90433152b022215de9a4c77411fc62c0c0f371bd4fc5635b64ff2d3702b4f932",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/index.html": {
+      "filePath": "packages/frontend/index.html",
+      "contentHash": "fdfcacfb1e8e7fd4130233165c67d5b586bff2cac4cac138f06e237db6edf78d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": false
+    },
+    "packages/frontend/package.json": {
+      "filePath": "packages/frontend/package.json",
+      "contentHash": "211f0cf84800051d5a739b1b76f0b0d1c7779da5bf7572b7f8d6a3a445b2e686",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 45,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/postcss.config.js": {
+      "filePath": "packages/frontend/postcss.config.js",
+      "contentHash": "190c877db466995bf1482f4a16abd06e04a89ede3119341e2a86ff96e1737b27",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 7,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/public/staticwebapp.config.json": {
+      "filePath": "packages/frontend/public/staticwebapp.config.json",
+      "contentHash": "157b7ec7f1d1c5c989122b98f02f6183d7cd920e725bffae9d75caafa9754604",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 27,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/public/tenants.json": {
+      "filePath": "packages/frontend/public/tenants.json",
+      "contentHash": "378abb0a2042f496f3a251135c9940b29c9671f92a611807dae321ffc12300cb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 726,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/public/timeline-config.json": {
+      "filePath": "packages/frontend/public/timeline-config.json",
+      "contentHash": "0ea6493424fc7e9f566b3650ecd60cd4a66b68ba03c8731b93eaac81c2107840",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/README.md": {
+      "filePath": "packages/frontend/README.md",
+      "contentHash": "d37e98ed500dcd8af3d21dd07aa87c7e7bb70b30e18ce7f48f1fdb203a19f90b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 292,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/App.tsx": {
+      "filePath": "packages/frontend/src/App.tsx",
+      "contentHash": "3dcf1d62e0c9a5b1b8ecd7b53dedbea1106aabc6fac7b9b5aefe0eb619c23940",
+      "functions": [
+        {
+          "name": "ProtectedRoute",
+          "params": ["{\n  children,\n  requiredRole,\n}"],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "App",
+          "params": [],
+          "exported": false,
+          "lineCount": 42
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react-router-dom",
+          "specifiers": ["BrowserRouter", "Navigate", "Route", "Routes"]
+        },
+        {
+          "source": "./pages/AuthCallback",
+          "specifiers": ["AuthCallback"]
+        },
+        {
+          "source": "./pages/CaseworkerDashboard",
+          "specifiers": ["CaseworkerDashboard"]
+        },
+        {
+          "source": "./pages/CaseworkerDashboardV2",
+          "specifiers": ["CaseworkerDashboardV2"]
+        },
+        {
+          "source": "./pages/Dashboard",
+          "specifiers": ["Dashboard"]
+        },
+        {
+          "source": "./pages/LoginChoice",
+          "specifiers": ["LoginChoice"]
+        },
+        {
+          "source": "./services/keycloak",
+          "specifiers": ["keycloak"]
+        },
+        {
+          "source": "./index.css",
+          "specifiers": []
+        }
+      ],
+      "exports": [],
+      "totalLines": 87,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/ArchiefSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/ArchiefSection.tsx",
+      "contentHash": "ab2719e1779bd0788f18879f607fe2ab9a8e2e9fd23f45495d17d1e44b79ac85",
+      "functions": [
+        {
+          "name": "ArchiefSection",
+          "params": [],
+          "exported": true,
+          "lineCount": 195
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["HistoricTask"]
+        }
+      ],
+      "exports": ["ArchiefSection"],
+      "totalLines": 210,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/AuditSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/AuditSection.tsx",
+      "contentHash": "f344caca1edee32f16b213d54d599399fccfaf82b4b2225d147e6bca5e39c495",
+      "functions": [
+        {
+          "name": "AuditSection",
+          "params": ["{ activeTab, user }"],
+          "exported": true,
+          "lineCount": 173
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["AuditLogRecord"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        }
+      ],
+      "exports": ["AuditSection"],
+      "totalLines": 190,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/BerichtenSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/BerichtenSection.tsx",
+      "contentHash": "eacb3ae234ba7e8dc65be12843734cfa7087576ad40c97c4a0d60c39b911f088",
+      "functions": [
+        {
+          "name": "BerichtenSection",
+          "params": [],
+          "exported": true,
+          "lineCount": 110
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["BerichtItem"]
+        },
+        {
+          "source": "../../utils/formatDate",
+          "specifiers": ["formatDate"]
+        }
+      ],
+      "exports": ["BerichtenSection"],
+      "totalLines": 116,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/CapacityClaimArchiefSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/CapacityClaimArchiefSection.tsx",
+      "contentHash": "9af1eeb05a65efafd15aff82bbbf76d45afbdfa75c431a644af36e8948b2af27",
+      "functions": [
+        {
+          "name": "CapacityClaimArchiefSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 119
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../../utils/formatDate",
+          "specifiers": ["formatDate"]
+        },
+        {
+          "source": "./CapacityClaimDocumentsViewer",
+          "specifiers": ["CapacityClaimDocumentsViewer"]
+        }
+      ],
+      "exports": ["CapacityClaimArchiefSection"],
+      "totalLines": 153,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/CapacityClaimDocumentsViewer.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/CapacityClaimDocumentsViewer.tsx",
+      "contentHash": "07c77d3c8ed49c35fc87d57fb4c9b37f65ce5c196f8268f4f962108d93638cbe",
+      "functions": [
+        {
+          "name": "renderTipTapNode",
+          "params": ["node", "vars", "key"],
+          "returnType": "JSX.Element | null",
+          "exported": false,
+          "lineCount": 50
+        },
+        {
+          "name": "renderBlock",
+          "params": ["block", "vars", "key"],
+          "returnType": "JSX.Element | null",
+          "exported": false,
+          "lineCount": 30
+        },
+        {
+          "name": "renderZone",
+          "params": ["zone", "vars", "prefix"],
+          "returnType": "JSX.Element[]",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "DocumentSection",
+          "params": ["{\n  label,\n  template,\n  vars,\n}"],
+          "exported": false,
+          "lineCount": 66
+        },
+        {
+          "name": "CapacityClaimDocumentsViewer",
+          "params": ["{\n  instanceId,\n}"],
+          "exported": true,
+          "lineCount": 46
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "react",
+          "specifiers": ["JSX"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        }
+      ],
+      "exports": ["CapacityClaimDocumentsViewer"],
+      "totalLines": 256,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/CapacityClaimSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/CapacityClaimSection.tsx",
+      "contentHash": "3679516d257cdd2b74d17e6c570163b264348b351230926c4f0b5fb00daec0a8",
+      "functions": [
+        {
+          "name": "CapacityClaimSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 79
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        }
+      ],
+      "exports": ["CapacityClaimSection"],
+      "totalLines": 88,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/DvtpStartSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/DvtpStartSection.tsx",
+      "contentHash": "dc7604fd85208bf7bd779a11128cc8571441ee9edc4c2be2298ea70a05e0b7f5",
+      "functions": [
+        {
+          "name": "DvtpStartSection",
+          "params": ["{ onNavigateToTasks }"],
+          "exported": true,
+          "lineCount": 62
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../ProcessStartFormViewer",
+          "specifiers": ["ProcessStartFormViewer"]
+        }
+      ],
+      "exports": ["DvtpStartSection"],
+      "totalLines": 74,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/DvtpTakenSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/DvtpTakenSection.tsx",
+      "contentHash": "eab2d77ea2e6cc99d549658f7eb0a10892d8a1f1447cc9a89dba0f6748ad78d1",
+      "functions": [
+        {
+          "name": "DvtpTakenSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 176
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser", "Task"]
+        },
+        {
+          "source": "./TaskFormViewer",
+          "specifiers": ["TaskFormViewer"]
+        }
+      ],
+      "exports": ["DvtpTakenSection"],
+      "totalLines": 188,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/GegevenswoordenboekSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/GegevenswoordenboekSection.tsx",
+      "contentHash": "fdcf91f4fb3311b0d1d785e0f209ac7e5f572c8b6be77de394c0488571e3511c",
+      "functions": [
+        {
+          "name": "GegevenswoordenboekSection",
+          "params": [],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": ["GegevenswoordenboekSection"],
+      "totalLines": 13,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/GereedschapSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/GereedschapSection.tsx",
+      "contentHash": "77504d5095d0fb49a4a43a173d19af56e66ac501ef557e96d093005aa35a6f9a",
+      "functions": [
+        {
+          "name": "GereedschapSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 172
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        }
+      ],
+      "exports": ["GereedschapSection"],
+      "totalLines": 273,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/HrOnboardingSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/HrOnboardingSection.tsx",
+      "contentHash": "1d8c12d1f79c21b63caf8588e1c5c87115505c183d3d6f6970b73f098d5c5015",
+      "functions": [
+        {
+          "name": "HrOnboardingSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 78
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        }
+      ],
+      "exports": ["HrOnboardingSection"],
+      "totalLines": 87,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/IouFeedbackSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/IouFeedbackSection.tsx",
+      "contentHash": "8230535a6e19d57a214c49bb5692807c9f17dc10a84b2d75afe3305f4dcd7de9",
+      "functions": [
+        {
+          "name": "initialForm",
+          "params": [],
+          "returnType": "FormState",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "IouFeedbackSection",
+          "params": [],
+          "exported": true,
+          "lineCount": 338
+        },
+        {
+          "name": "Card",
+          "params": ["{\n  number,\n  label,\n  children,\n}"],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "Field",
+          "params": ["{\n  label,\n  required,\n  children,\n}"],
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useRef", "useState"]
+        }
+      ],
+      "exports": ["IouFeedbackSection"],
+      "totalLines": 413,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/IouGebruiksscenarioSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/IouGebruiksscenarioSection.tsx",
+      "contentHash": "ac35b1b6a1e6cd64ba34235175243db706045aaffdabdad5b0c6af46c2cf4d3f",
+      "functions": [
+        {
+          "name": "initialForm",
+          "params": [],
+          "returnType": "FormState",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "IouGebruiksscenarioSection",
+          "params": [],
+          "exported": true,
+          "lineCount": 631
+        },
+        {
+          "name": "Card",
+          "params": ["{\n  number,\n  en,\n  nl,\n  children,\n}"],
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "Field",
+          "params": ["{\n  label,\n  required,\n  children,\n}"],
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useRef", "useState"]
+        }
+      ],
+      "exports": ["IouGebruiksscenarioSection"],
+      "totalLines": 816,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/IouZakenSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/IouZakenSection.tsx",
+      "contentHash": "a519bfe80cfb44922290fb857b3cc9111834ea372a5799b035c6f5064b2f514c",
+      "functions": [
+        {
+          "name": "extractSection",
+          "params": ["body", "heading"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "IouZakenSection",
+          "params": ["{ state, onCountChange }"],
+          "exported": true,
+          "lineCount": 183
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "react-markdown",
+          "specifiers": ["ReactMarkdown"]
+        },
+        {
+          "source": "remark-gfm",
+          "specifiers": ["remarkGfm"]
+        }
+      ],
+      "exports": ["IouZakenSection"],
+      "totalLines": 244,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/McpChatSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/McpChatSection.tsx",
+      "contentHash": "fad0de67f236b394e5c14976400336fd4b1ad576903b8630326d55ec846a24f3",
+      "functions": [
+        {
+          "name": "McpChatSection",
+          "params": ["{ user, messages, onMessagesChange }"],
+          "exported": true,
+          "lineCount": 383
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState", "useRef", "useEffect"]
+        },
+        {
+          "source": "react-markdown",
+          "specifiers": ["ReactMarkdown"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["McpSourceMeta", "LlmModelEntry"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "remark-gfm",
+          "specifiers": ["remarkGfm"]
+        }
+      ],
+      "exports": ["McpChatSection"],
+      "totalLines": 402,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/NieuwsSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/NieuwsSection.tsx",
+      "contentHash": "45c32f124f5e40a776985937f850d84707540f02c7a37e2934f99f625a8a225a",
+      "functions": [
+        {
+          "name": "NieuwsSection",
+          "params": [],
+          "exported": true,
+          "lineCount": 114
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["NieuwsItem"]
+        },
+        {
+          "source": "../../utils/formatDate",
+          "specifiers": ["formatDate"]
+        }
+      ],
+      "exports": ["NieuwsSection"],
+      "totalLines": 120,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/OnboardingArchiefSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/OnboardingArchiefSection.tsx",
+      "contentHash": "33e0e0508482fd95380f2e676cb53822ae971cf4a12d3aa9ba96b43322b9f3d4",
+      "functions": [
+        {
+          "name": "OnboardingArchiefSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 102
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../../utils/formatDate",
+          "specifiers": ["formatDate"]
+        },
+        {
+          "source": "../DecisionViewer",
+          "specifiers": ["DecisionViewer"]
+        }
+      ],
+      "exports": ["OnboardingArchiefSection"],
+      "totalLines": 122,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/ProcesBibliotheek.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/ProcesBibliotheek.tsx",
+      "contentHash": "063b856bb3651523355e2eba959580b190b533333221b8a526cd1412c7eab82d",
+      "functions": [
+        {
+          "name": "displayName",
+          "params": ["name", "id"],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "StatusBadge",
+          "params": ["{ status }"],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "RoleBadge",
+          "params": ["{ role }"],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "SectionLabel",
+          "params": ["{ label }"],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "FormList",
+          "params": ["{ items }"],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "DocumentList",
+          "params": ["{ items }"],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "SubprocessList",
+          "params": ["{ items }"],
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "DmnList",
+          "params": ["{ items }"],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "BundleCard",
+          "params": ["{\n  bundle,\n  expanded,\n  onToggle,\n}"],
+          "exported": false,
+          "lineCount": 61
+        },
+        {
+          "name": "ProcesBibliotheek",
+          "params": [],
+          "exported": true,
+          "lineCount": 84
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["ldeApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": [
+            "ProcessBundle",
+            "BundleDeployedForm",
+            "BundleDeployedDocument",
+            "BundleSubprocess"
+          ]
+        },
+        {
+          "source": "../../utils/formatDate",
+          "specifiers": ["formatDate"]
+        }
+      ],
+      "exports": ["ProcesBibliotheek"],
+      "totalLines": 269,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/ProductenDienstenCatalogus.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/ProductenDienstenCatalogus.tsx",
+      "contentHash": "f232add12c0b2c22863a730ce68d7225c96f09e58ea337b799585a525bdd4ab9",
+      "functions": [
+        {
+          "name": "ExternalLinkIcon",
+          "params": [],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "ProductenDienstenCatalogus",
+          "params": [],
+          "exported": true,
+          "lineCount": 181
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["ProductDienstItem"]
+        }
+      ],
+      "exports": ["ProductenDienstenCatalogus"],
+      "totalLines": 205,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/ProfielSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/ProfielSection.tsx",
+      "contentHash": "d7a68fef80a2dbb0e64da0a86adc45f3e9718f2c394e1838867cf079c61dfb28",
+      "functions": [
+        {
+          "name": "ProfielSection",
+          "params": ["{ user, tenantConfig }"],
+          "exported": true,
+          "lineCount": 134
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../../services/tenant",
+          "specifiers": ["TenantConfig"]
+        },
+        {
+          "source": "../../hooks/useProfielData",
+          "specifiers": ["useProfielData"]
+        }
+      ],
+      "exports": ["ProfielSection"],
+      "totalLines": 152,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/RegelCatalogus.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/RegelCatalogus.tsx",
+      "contentHash": "9e9f703e1a840bcd3674514abd0285b530d35827162139c231751973360a4e63",
+      "functions": [
+        {
+          "name": "RegelCatalogus",
+          "params": [],
+          "exported": true,
+          "lineCount": 128
+        },
+        {
+          "name": "DienstenTab",
+          "params": ["{\n  services,\n  expanded,\n  onExpand,\n  onLinkConcepten,\n}"],
+          "exported": false,
+          "lineCount": 67
+        },
+        {
+          "name": "OrganisatiesTab",
+          "params": ["{ organizations }"],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "OrgCard",
+          "params": ["{ org }"],
+          "exported": false,
+          "lineCount": 59
+        },
+        {
+          "name": "ConceptenTab",
+          "params": [
+            "{\n  concepts,\n  filter,\n  serviceFilter,\n  onFilterChange,\n  onServiceFilterChange,\n}"
+          ],
+          "exported": false,
+          "lineCount": 122
+        },
+        {
+          "name": "RegelsTab",
+          "params": ["{ rules }"],
+          "exported": false,
+          "lineCount": 154
+        },
+        {
+          "name": "EmptyState",
+          "params": ["{ label }"],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "ExternalLinkIcon",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "ConceptIcon",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": [
+            "RegelcatalogusData",
+            "CatalogService",
+            "CatalogOrganization",
+            "CatalogConcept",
+            "CatalogRule"
+          ]
+        }
+      ],
+      "exports": ["RegelCatalogus"],
+      "totalLines": 613,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/RipFase1GereedSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/RipFase1GereedSection.tsx",
+      "contentHash": "61cab2c85356b511b438ce6389c71b99530c4a54df0859de43b009270918ac6c",
+      "functions": [
+        {
+          "name": "RipFase1GereedSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 105
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "./RipFase1WipViewer",
+          "specifiers": ["RipFase1WipViewer"]
+        }
+      ],
+      "exports": ["RipFase1GereedSection"],
+      "totalLines": 124,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/RipFase1Section.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/RipFase1Section.tsx",
+      "contentHash": "01730bdf4462f27303f111e0b1108f5be1005bba1c4c034bf396435d787e4259",
+      "functions": [
+        {
+          "name": "RipFase1Section",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 80
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        }
+      ],
+      "exports": ["RipFase1Section"],
+      "totalLines": 89,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/RipFase1WipSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/RipFase1WipSection.tsx",
+      "contentHash": "dc60ded171c1a95e6831ebaf8426b005da1fd3081f9528eb0a66e5a1cb1c719a",
+      "functions": [
+        {
+          "name": "RipFase1WipSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 105
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "./RipFase1WipViewer",
+          "specifiers": ["RipFase1WipViewer"]
+        }
+      ],
+      "exports": ["RipFase1WipSection"],
+      "totalLines": 123,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/RipFase1WipViewer.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/RipFase1WipViewer.tsx",
+      "contentHash": "dd3ce07e99b415f44a77d7cf6b4f62e4da6e13e9b2d34d22e9bbc6bdf3f7aede",
+      "functions": [
+        {
+          "name": "renderTipTapNode",
+          "params": ["node", "vars", "key"],
+          "returnType": "JSX.Element | null",
+          "exported": false,
+          "lineCount": 50
+        },
+        {
+          "name": "renderBlock",
+          "params": ["block", "vars", "key"],
+          "returnType": "JSX.Element | null",
+          "exported": false,
+          "lineCount": 30
+        },
+        {
+          "name": "renderZone",
+          "params": ["zone", "vars", "prefix"],
+          "returnType": "JSX.Element[]",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "DocumentSection",
+          "params": ["{\n  label,\n  template,\n  vars,\n}"],
+          "exported": false,
+          "lineCount": 68
+        },
+        {
+          "name": "RipFase1WipViewer",
+          "params": ["{ instanceId }"],
+          "exported": true,
+          "lineCount": 50
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "react",
+          "specifiers": ["JSX"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        }
+      ],
+      "exports": ["RipFase1WipViewer"],
+      "totalLines": 260,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/RollenSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/RollenSection.tsx",
+      "contentHash": "81779c86f2f35dff338bf20edce7684bd2b8bf85f01da2a22d120f68b82e9244",
+      "functions": [
+        {
+          "name": "RollenSection",
+          "params": ["{ user }"],
+          "exported": true,
+          "lineCount": 79
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../../hooks/useProfielData",
+          "specifiers": ["useProfielData"]
+        }
+      ],
+      "exports": ["RollenSection"],
+      "totalLines": 107,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/TakenSection.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/TakenSection.tsx",
+      "contentHash": "4e41d3f16aae8b589196a8d032d00873427e6d369a0f46ae2d4464e1133bf97f",
+      "functions": [
+        {
+          "name": "TakenSection",
+          "params": ["{ user, onCountChange }"],
+          "exported": true,
+          "lineCount": 300
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser", "Task"]
+        },
+        {
+          "source": "./TaskFormViewer",
+          "specifiers": ["TaskFormViewer"]
+        }
+      ],
+      "exports": ["TakenSection"],
+      "totalLines": 321,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboard/TaskFormViewer.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboard/TaskFormViewer.tsx",
+      "contentHash": "0b0a82ea95bae9e79544650d8fba378fa6d4e7af4f00be757f60f1b23140d966",
+      "functions": [
+        {
+          "name": "TaskFormViewer",
+          "params": ["{\n  taskId,\n  variables,\n  onCompleted,\n  onError,\n}"],
+          "exported": true,
+          "lineCount": 133
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@bpmn-io/form-js",
+          "specifiers": ["Form"]
+        },
+        {
+          "source": "@bpmn-io/form-js/dist/assets/form-js.css",
+          "specifiers": []
+        },
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useRef", "useState"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        }
+      ],
+      "exports": ["TaskFormViewer"],
+      "totalLines": 149,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/AssistantDock.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/AssistantDock.tsx",
+      "contentHash": "5a6a35625d980b808c5b5146428b156b7dad2332357a854f092bc74d653a42a9",
+      "functions": [
+        {
+          "name": "AssistantDock",
+          "params": ["{ user, onClose }"],
+          "exported": true,
+          "lineCount": 32
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../CaseworkerDashboard/McpChatSection",
+          "specifiers": ["McpChatSection", "Message"]
+        }
+      ],
+      "exports": ["AssistantDock"],
+      "totalLines": 56,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/CommandPalette.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/CommandPalette.tsx",
+      "contentHash": "444591070394051bc8fe0469dfc68ff0a072a961430e333f8e8ce7e2d977f4b3",
+      "functions": [
+        {
+          "name": "CommandPalette",
+          "params": ["{ open, onClose, onSelect, gateContext }"],
+          "exported": true,
+          "lineCount": 112
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useMemo", "useRef", "useState"]
+        },
+        {
+          "source": "../../pages/caseworker-v2/modes.config",
+          "specifiers": [
+            "allSearchableSections",
+            "findModeForSection",
+            "isRailItemVisible",
+            "GateContext",
+            "ModeId",
+            "RailItem"
+          ]
+        }
+      ],
+      "exports": ["CommandPalette"],
+      "totalLines": 153,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/GegevenswoordenboekV2.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/GegevenswoordenboekV2.tsx",
+      "contentHash": "74604d943abccbccaaac0dd2b329031f270aee41a5689ba764694659712ce437",
+      "functions": [
+        {
+          "name": "GegevenswoordenboekV2",
+          "params": [],
+          "exported": true,
+          "lineCount": 110
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState", "FormEvent"]
+        }
+      ],
+      "exports": ["GegevenswoordenboekV2"],
+      "totalLines": 132,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/NoAccessPanel.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/NoAccessPanel.tsx",
+      "contentHash": "629e3bb417b4adfa0d2874637116904b0e307c5ba3eb2346624a95bb0817c552",
+      "functions": [
+        {
+          "name": "NoAccessPanel",
+          "params": ["{ requiredRoles, requiredOrgTypes }"],
+          "exported": true,
+          "lineCount": 22
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": ["NoAccessPanel"],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/SectionErrorBoundary.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/SectionErrorBoundary.tsx",
+      "contentHash": "dd30036ba4b24715fd7ef16005ef7abf6307b2a155a647cffbcc9f76faeff02f",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SectionErrorBoundary",
+          "methods": [
+            "getDerivedStateFromError",
+            "componentDidUpdate",
+            "componentDidCatch",
+            "render"
+          ],
+          "properties": ["state", "handleRetry"],
+          "exported": false,
+          "lineCount": 51
+        }
+      ],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["Component", "ErrorInfo", "ReactNode"]
+        }
+      ],
+      "exports": ["default"],
+      "totalLines": 73,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/SectionRouter.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/SectionRouter.tsx",
+      "contentHash": "9a3c11b2e75ec58892994cfa3dba5f662df2c4adf6c2a928c0633f0b13feb83a",
+      "functions": [
+        {
+          "name": "SectionRouter",
+          "params": [
+            "{\n  sectionId,\n  user,\n  tenantConfig,\n  onTaskCountChange,\n  onIouCountChange,\n  onNavigate,\n}"
+          ],
+          "exported": true,
+          "lineCount": 104
+        },
+        {
+          "name": "findGateFor",
+          "params": ["sectionId"],
+          "returnType": "{ requiredRoles?: string[]; requiredOrgTypes?: string[] } | null",
+          "exported": false,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../../services/tenant",
+          "specifiers": ["TenantConfig"]
+        },
+        {
+          "source": "./TakenInbox",
+          "specifiers": ["TakenInbox"]
+        },
+        {
+          "source": "./NoAccessPanel",
+          "specifiers": ["NoAccessPanel"]
+        },
+        {
+          "source": "../../pages/caseworker-v2/modes.config",
+          "specifiers": ["MODES"]
+        },
+        {
+          "source": "../CaseworkerDashboard/RegelCatalogus",
+          "specifiers": ["RegelCatalogus"]
+        },
+        {
+          "source": "../CaseworkerDashboard/ProcesBibliotheek",
+          "specifiers": ["ProcesBibliotheek"]
+        },
+        {
+          "source": "./GegevenswoordenboekV2",
+          "specifiers": ["GegevenswoordenboekV2"]
+        },
+        {
+          "source": "../CaseworkerDashboard/ArchiefSection",
+          "specifiers": ["ArchiefSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/BerichtenSection",
+          "specifiers": ["BerichtenSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/NieuwsSection",
+          "specifiers": ["NieuwsSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/ProductenDienstenCatalogus",
+          "specifiers": ["ProductenDienstenCatalogus"]
+        },
+        {
+          "source": "../CaseworkerDashboard/ProfielSection",
+          "specifiers": ["ProfielSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/RollenSection",
+          "specifiers": ["RollenSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/HrOnboardingSection",
+          "specifiers": ["HrOnboardingSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/OnboardingArchiefSection",
+          "specifiers": ["OnboardingArchiefSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/RipFase1Section",
+          "specifiers": ["RipFase1Section"]
+        },
+        {
+          "source": "../CaseworkerDashboard/RipFase1WipSection",
+          "specifiers": ["RipFase1WipSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/RipFase1GereedSection",
+          "specifiers": ["RipFase1GereedSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/IouGebruiksscenarioSection",
+          "specifiers": ["IouGebruiksscenarioSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/IouFeedbackSection",
+          "specifiers": ["IouFeedbackSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/IouZakenSection",
+          "specifiers": ["IouZakenSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/AuditSection",
+          "specifiers": ["AuditSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/CapacityClaimSection",
+          "specifiers": ["CapacityClaimSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/CapacityClaimArchiefSection",
+          "specifiers": ["CapacityClaimArchiefSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/DvtpStartSection",
+          "specifiers": ["DvtpStartSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/DvtpTakenSection",
+          "specifiers": ["DvtpTakenSection"]
+        },
+        {
+          "source": "../CaseworkerDashboard/GereedschapSection",
+          "specifiers": ["GereedschapSection"]
+        }
+      ],
+      "exports": ["SectionRouter"],
+      "totalLines": 189,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/CaseworkerDashboardV2/TakenInbox.tsx": {
+      "filePath": "packages/frontend/src/components/CaseworkerDashboardV2/TakenInbox.tsx",
+      "contentHash": "1641a67cd2648281a007d060ac06f4f05fe77108af26c49492e9fcffc8cb0c29",
+      "functions": [
+        {
+          "name": "TakenInbox",
+          "params": ["{ user, initialFilter = 'all', onCountChange }"],
+          "exported": true,
+          "lineCount": 286
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useMemo", "useState"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser", "Task"]
+        },
+        {
+          "source": "../../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "../CaseworkerDashboard/TaskFormViewer",
+          "specifiers": ["TaskFormViewer"]
+        }
+      ],
+      "exports": ["TakenInbox"],
+      "totalLines": 378,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/DecisionViewer.tsx": {
+      "filePath": "packages/frontend/src/components/DecisionViewer.tsx",
+      "contentHash": "75bf999d65a877c187c73d0f6b35921c47195d48cf5cf79dce405266b8a5e3e3",
+      "functions": [
+        {
+          "name": "renderTipTapNode",
+          "params": ["node", "vars", "key"],
+          "returnType": "JSX.Element | null",
+          "exported": false,
+          "lineCount": 53
+        },
+        {
+          "name": "renderBlock",
+          "params": ["block", "vars", "key"],
+          "returnType": "JSX.Element | null",
+          "exported": false,
+          "lineCount": 30
+        },
+        {
+          "name": "renderZone",
+          "params": ["zone", "vars", "prefix"],
+          "returnType": "JSX.Element[]",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "DecisionViewer",
+          "params": ["{\n  processInstanceId,\n  showFallback = true,\n}"],
+          "exported": true,
+          "lineCount": 109
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@bpmn-io/form-js",
+          "specifiers": ["Form"]
+        },
+        {
+          "source": "@bpmn-io/form-js/dist/assets/form-js.css",
+          "specifiers": []
+        },
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useRef", "useState"]
+        },
+        {
+          "source": "react",
+          "specifiers": ["JSX"]
+        },
+        {
+          "source": "../services/api",
+          "specifiers": ["businessApi"]
+        }
+      ],
+      "exports": ["DecisionViewer"],
+      "totalLines": 309,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/PersonalDataPanel.tsx": {
+      "filePath": "packages/frontend/src/components/PersonalDataPanel.tsx",
+      "contentHash": "96e75b31f14bc95d63a92882ae8ad12d67fc25c32a0f1d5e47160b62d4923e61",
+      "functions": [
+        {
+          "name": "PersonalDataPanel",
+          "params": ["{ personState }"],
+          "exported": true,
+          "lineCount": 113
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["React"]
+        },
+        {
+          "source": "../types/brp.types",
+          "specifiers": ["PersonState", "TimelineConfig"]
+        }
+      ],
+      "exports": ["PersonalDataPanel"],
+      "totalLines": 122,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/ProcessStartFormViewer.tsx": {
+      "filePath": "packages/frontend/src/components/ProcessStartFormViewer.tsx",
+      "contentHash": "78596dd96b696e17ac644afeea0d03f6c1eefc5b018c9970bb4b2a49e49b707f",
+      "functions": [
+        {
+          "name": "ProcessStartFormViewer",
+          "params": ["{\n  processKey,\n  initialData,\n  onStarted,\n  onError,\n}"],
+          "exported": true,
+          "lineCount": 111
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@bpmn-io/form-js",
+          "specifiers": ["Form"]
+        },
+        {
+          "source": "@bpmn-io/form-js/dist/assets/form-js.css",
+          "specifiers": []
+        },
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useRef", "useState"]
+        },
+        {
+          "source": "../services/api",
+          "specifiers": ["businessApi"]
+        }
+      ],
+      "exports": ["ProcessStartFormViewer"],
+      "totalLines": 127,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/SessionExpiryWarning.tsx": {
+      "filePath": "packages/frontend/src/components/SessionExpiryWarning.tsx",
+      "contentHash": "03a4096de11c84a76984c07c48dfea0dc66bf585b33e7872629615647647fb76",
+      "functions": [
+        {
+          "name": "SessionExpiryWarning",
+          "params": [],
+          "exported": true,
+          "lineCount": 67
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "../services/keycloak",
+          "specifiers": ["keycloak"]
+        }
+      ],
+      "exports": ["SessionExpiryWarning"],
+      "totalLines": 75,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/components/TimeLine.tsx": {
+      "filePath": "packages/frontend/src/components/TimeLine.tsx",
+      "contentHash": "0f413ff249c1218cc21fc1706b324f33cecec3f361cd40ce32e5823361a145e9",
+      "functions": [
+        {
+          "name": "Timeline",
+          "params": [
+            "{\n  events,\n  minDate,\n  maxDate,\n  selectedDate,\n  onDateChange,\n  isLoading = false, // Default to false\n}"
+          ],
+          "exported": true,
+          "lineCount": 214
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["React", "useState", "useEffect", "useRef"]
+        },
+        {
+          "source": "../types/brp.types",
+          "specifiers": ["BRPEvent"]
+        }
+      ],
+      "exports": ["Timeline"],
+      "totalLines": 227,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/hooks/useProfielData.ts": {
+      "filePath": "packages/frontend/src/hooks/useProfielData.ts",
+      "contentHash": "94bc8267917bc7179edcea4d6bf8c2f17e00e968d74ce43b813dff49aed5e599",
+      "functions": [
+        {
+          "name": "useProfielData",
+          "params": ["_employeeId"],
+          "returnType": "ProfielData",
+          "exported": true,
+          "lineCount": 22
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useCallback", "useState"]
+        },
+        {
+          "source": "../services/api",
+          "specifiers": ["businessApi"]
+        }
+      ],
+      "exports": ["useProfielData"],
+      "totalLines": 33,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/index.css": {
+      "filePath": "packages/frontend/src/index.css",
+      "contentHash": "82cab980c4c313e307403461ab9437b316f669ac5cc525253164ebb29ab7929c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 26,
+      "hasStructuralAnalysis": false
+    },
+    "packages/frontend/src/main.tsx": {
+      "filePath": "packages/frontend/src/main.tsx",
+      "contentHash": "9e5d7727a7ed58793af7d0f005fd50292422be65cd1d58784dcfd25afcdb0ecc",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react-dom/client",
+          "specifiers": ["ReactDOM"]
+        },
+        {
+          "source": "./App.tsx",
+          "specifiers": ["App"]
+        },
+        {
+          "source": "./index.css",
+          "specifiers": []
+        }
+      ],
+      "exports": [],
+      "totalLines": 6,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/AuthCallback.tsx": {
+      "filePath": "packages/frontend/src/pages/AuthCallback.tsx",
+      "contentHash": "0e834d15ac090e9f8c9c6c3e656d5f026aa79d0cc5134cede3a7ca37170d2d6f",
+      "functions": [
+        {
+          "name": "getRoleDashboard",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "consumePostLoginRedirect",
+          "params": [],
+          "returnType": "string | null",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "navigateAfterLogin",
+          "params": ["navigate"],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "AuthCallback",
+          "params": [],
+          "exported": true,
+          "lineCount": 101
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "react-router-dom",
+          "specifiers": ["useNavigate"]
+        },
+        {
+          "source": "../services/keycloak",
+          "specifiers": ["keycloak"]
+        }
+      ],
+      "exports": ["AuthCallback"],
+      "totalLines": 161,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/caseworker-v2/dashboard-v2.css": {
+      "filePath": "packages/frontend/src/pages/caseworker-v2/dashboard-v2.css",
+      "contentHash": "a3e6fae1e4344e9685218275164679f0d81007c91f4d761a95bde979b2d58c69",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 999,
+      "hasStructuralAnalysis": false
+    },
+    "packages/frontend/src/pages/caseworker-v2/modes.config.ts": {
+      "filePath": "packages/frontend/src/pages/caseworker-v2/modes.config.ts",
+      "contentHash": "441fb5cb24dfa820abbc30907cd657357f272d69c096d37949c8e8408d77e301",
+      "functions": [
+        {
+          "name": "isRailItemVisible",
+          "params": ["item", "ctx"],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "tenantSectionIdsFrom",
+          "params": ["leftPanelSections"],
+          "returnType": "ReadonlySet<string> | null",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "findModeForSection",
+          "params": ["sectionId"],
+          "returnType": "ModeId | null",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "allSearchableSections",
+          "params": [],
+          "returnType": "RailItem[]",
+          "exported": true,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "MODES",
+        "isRailItemVisible",
+        "tenantSectionIdsFrom",
+        "findModeForSection",
+        "allSearchableSections"
+      ],
+      "totalLines": 360,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/CaseworkerDashboard.tsx": {
+      "filePath": "packages/frontend/src/pages/CaseworkerDashboard.tsx",
+      "contentHash": "691b6154330c3cdd5ee34b508cb52bd10e1760df297896a224dec0dc7d52fb52",
+      "functions": [
+        {
+          "name": "CaseworkerDashboard",
+          "params": [],
+          "exported": true,
+          "lineCount": 386
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "react-router-dom",
+          "specifiers": ["useNavigate"]
+        },
+        {
+          "source": "../services/keycloak",
+          "specifiers": ["keycloak", "getUser"]
+        },
+        {
+          "source": "../services/tenant",
+          "specifiers": [
+            "initializeTenantTheme",
+            "loadTenantConfigs",
+            "getTenantConfig",
+            "getDefaultTenantConfig"
+          ]
+        },
+        {
+          "source": "../services/tenant",
+          "specifiers": ["TenantConfig", "LeftPanelSection"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/RegelCatalogus",
+          "specifiers": ["RegelCatalogus"]
+        },
+        {
+          "source": "./ChangelogPanel",
+          "specifiers": ["ChangelogPanel"]
+        },
+        {
+          "source": "../components/SessionExpiryWarning",
+          "specifiers": ["SessionExpiryWarning"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/NieuwsSection",
+          "specifiers": ["NieuwsSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/BerichtenSection",
+          "specifiers": ["BerichtenSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/ArchiefSection",
+          "specifiers": ["ArchiefSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/OnboardingArchiefSection",
+          "specifiers": ["OnboardingArchiefSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/RipFase1WipSection",
+          "specifiers": ["RipFase1WipSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/RipFase1GereedSection",
+          "specifiers": ["RipFase1GereedSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/GereedschapSection",
+          "specifiers": ["GereedschapSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/TakenSection",
+          "specifiers": ["TakenSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/HrOnboardingSection",
+          "specifiers": ["HrOnboardingSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/RipFase1Section",
+          "specifiers": ["RipFase1Section"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/ProfielSection",
+          "specifiers": ["ProfielSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/RollenSection",
+          "specifiers": ["RollenSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/AuditSection",
+          "specifiers": ["AuditSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/McpChatSection",
+          "specifiers": ["McpMessage"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/McpChatSection",
+          "specifiers": ["McpChatSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/ProductenDienstenCatalogus",
+          "specifiers": ["ProductenDienstenCatalogus"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/IouGebruiksscenarioSection",
+          "specifiers": ["IouGebruiksscenarioSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/IouFeedbackSection",
+          "specifiers": ["IouFeedbackSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/IouZakenSection",
+          "specifiers": ["IouZakenSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/ProcesBibliotheek",
+          "specifiers": ["ProcesBibliotheek"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/GegevenswoordenboekSection",
+          "specifiers": ["GegevenswoordenboekSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/CapacityClaimSection",
+          "specifiers": ["CapacityClaimSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/CapacityClaimArchiefSection",
+          "specifiers": ["CapacityClaimArchiefSection"]
+        }
+      ],
+      "exports": ["CaseworkerDashboard"],
+      "totalLines": 446,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/CaseworkerDashboardV2.tsx": {
+      "filePath": "packages/frontend/src/pages/CaseworkerDashboardV2.tsx",
+      "contentHash": "45da3b7471673d6b584e42a56c1c1c30a0ba3bba9dfdc20deade4f728bbe41ee",
+      "functions": [
+        {
+          "name": "CaseworkerDashboardV2",
+          "params": [],
+          "exported": true,
+          "lineCount": 325
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useMemo", "useState"]
+        },
+        {
+          "source": "react-router-dom",
+          "specifiers": ["useNavigate"]
+        },
+        {
+          "source": "../services/keycloak",
+          "specifiers": ["keycloak", "getUser"]
+        },
+        {
+          "source": "../services/tenant",
+          "specifiers": [
+            "initializeTenantTheme",
+            "loadTenantConfigs",
+            "getTenantConfig",
+            "getDefaultTenantConfig"
+          ]
+        },
+        {
+          "source": "../services/tenant",
+          "specifiers": ["TenantConfig"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser"]
+        },
+        {
+          "source": "./caseworker-v2/modes.config",
+          "specifiers": [
+            "MODES",
+            "findModeForSection",
+            "isRailItemVisible",
+            "tenantSectionIdsFrom",
+            "ModeId",
+            "OrgTypeGate"
+          ]
+        },
+        {
+          "source": "../components/CaseworkerDashboardV2/SectionRouter",
+          "specifiers": ["SectionRouter"]
+        },
+        {
+          "source": "../components/CaseworkerDashboardV2/SectionErrorBoundary",
+          "specifiers": ["SectionErrorBoundary"]
+        },
+        {
+          "source": "../components/CaseworkerDashboardV2/CommandPalette",
+          "specifiers": ["CommandPalette"]
+        },
+        {
+          "source": "../components/CaseworkerDashboardV2/AssistantDock",
+          "specifiers": ["AssistantDock"]
+        },
+        {
+          "source": "./ChangelogPanel",
+          "specifiers": ["ChangelogPanel"]
+        },
+        {
+          "source": "./caseworker-v2/dashboard-v2.css",
+          "specifiers": []
+        }
+      ],
+      "exports": ["CaseworkerDashboardV2"],
+      "totalLines": 383,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/changelog-data.ts": {
+      "filePath": "packages/frontend/src/pages/changelog-data.ts",
+      "contentHash": "714f2629f30ef694565884ad742eab6dcf807160b2dfa4959844c9b5b0f7ba1f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": ["changelog"],
+      "totalLines": 1452,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/ChangelogPanel.tsx": {
+      "filePath": "packages/frontend/src/pages/ChangelogPanel.tsx",
+      "contentHash": "05d75b5c77d66dd3f26ca83dafd269d2714b1a7ad54ab3f4e654785738a85fe8",
+      "functions": [
+        {
+          "name": "ChangelogPanel",
+          "params": ["{ isOpen, onClose }"],
+          "exported": true,
+          "lineCount": 107
+        },
+        {
+          "name": "VersionCard",
+          "params": ["{ version, isLatest }"],
+          "exported": false,
+          "lineCount": 55
+        },
+        {
+          "name": "SectionCard",
+          "params": ["{ section }"],
+          "exported": false,
+          "lineCount": 63
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect"]
+        },
+        {
+          "source": "./changelog-data",
+          "specifiers": ["changelog", "ChangelogVersion", "ChangelogSection"]
+        }
+      ],
+      "exports": ["ChangelogPanel"],
+      "totalLines": 238,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/Dashboard.tsx": {
+      "filePath": "packages/frontend/src/pages/Dashboard.tsx",
+      "contentHash": "57d0f92eead3b9b1baf62881b9b2c659d312ee3e3ec865ca9a726de820259ca8",
+      "functions": [
+        {
+          "name": "VergunningForm",
+          "params": ["{\n  user,\n  onBack,\n  onSubmitted,\n}"],
+          "exported": false,
+          "lineCount": 84
+        },
+        {
+          "name": "Dashboard",
+          "params": [],
+          "exported": true,
+          "lineCount": 791
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useEffect", "useState"]
+        },
+        {
+          "source": "react-router-dom",
+          "specifiers": ["useNavigate"]
+        },
+        {
+          "source": "../services/keycloak",
+          "specifiers": ["keycloak", "getUser"]
+        },
+        {
+          "source": "../services/api",
+          "specifiers": ["businessApi"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["KeycloakUser", "OperatonVariable"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["ApiResponse"]
+        },
+        {
+          "source": "../services/tenant",
+          "specifiers": ["initializeTenantTheme", "loadTenantConfigs", "getTenantConfig"]
+        },
+        {
+          "source": "../services/tenant",
+          "specifiers": ["TenantConfig"]
+        },
+        {
+          "source": "../components/ProcessStartFormViewer",
+          "specifiers": ["ProcessStartFormViewer"]
+        },
+        {
+          "source": "../components/DecisionViewer",
+          "specifiers": ["DecisionViewer"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/DvtpStartSection",
+          "specifiers": ["DvtpStartSection"]
+        },
+        {
+          "source": "../components/CaseworkerDashboard/DvtpTakenSection",
+          "specifiers": ["DvtpTakenSection"]
+        },
+        {
+          "source": "../components/TimeLine",
+          "specifiers": ["Timeline"]
+        },
+        {
+          "source": "../components/PersonalDataPanel",
+          "specifiers": ["PersonalDataPanel"]
+        },
+        {
+          "source": "../services/brp.timeline",
+          "specifiers": ["getPersonTimeline", "calculateHistoricalState"]
+        },
+        {
+          "source": "../types/brp.types",
+          "specifiers": ["TimelineConfig", "BRPPersonHistoricalData", "PersonState"]
+        },
+        {
+          "source": "../services/bsn.mapping",
+          "specifiers": ["getUserBSN"]
+        }
+      ],
+      "exports": ["Dashboard"],
+      "totalLines": 927,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/pages/LoginChoice.tsx": {
+      "filePath": "packages/frontend/src/pages/LoginChoice.tsx",
+      "contentHash": "ce1a042f41f51602d48d08edc07dc8643ce3a4b23fdfc26cbc2b9efce6b9ddc1",
+      "functions": [
+        {
+          "name": "LoginChoice",
+          "params": [],
+          "exported": true,
+          "lineCount": 167
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": ["useState"]
+        },
+        {
+          "source": "react-router-dom",
+          "specifiers": ["useNavigate"]
+        },
+        {
+          "source": "./ChangelogPanel",
+          "specifiers": ["ChangelogPanel"]
+        }
+      ],
+      "exports": ["LoginChoice"],
+      "totalLines": 172,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/services/api.ts": {
+      "filePath": "packages/frontend/src/services/api.ts",
+      "contentHash": "2d33e3f6ebdd311b51de33677d474dae7e89b8d0785f582f50a92665795fec39",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios"]
+        },
+        {
+          "source": "./keycloak",
+          "specifiers": ["keycloak"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": [
+            "ApiResponse",
+            "OperatonVariable",
+            "HealthResponse",
+            "ProcessStatusResponse",
+            "Task",
+            "HistoricTask"
+          ]
+        }
+      ],
+      "exports": ["businessApi", "ldeApi"],
+      "totalLines": 620,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/services/brp.api.ts": {
+      "filePath": "packages/frontend/src/services/brp.api.ts",
+      "contentHash": "88fe2f0ddf7939739b5144a774985c45602b2fa58fbb3c223f5ae703a1b53820",
+      "functions": [],
+      "classes": [
+        {
+          "name": "BRPApiService",
+          "methods": ["constructor", "getPersonByBSN", "getBaseUrl"],
+          "properties": ["client"],
+          "exported": false,
+          "lineCount": 72
+        }
+      ],
+      "imports": [
+        {
+          "source": "axios",
+          "specifiers": ["axios", "AxiosInstance"]
+        },
+        {
+          "source": "./keycloak",
+          "specifiers": ["keycloak"]
+        },
+        {
+          "source": "../types/brp.types",
+          "specifiers": ["PersonState", "BRPPersonenResponse"]
+        }
+      ],
+      "exports": ["brpApi"],
+      "totalLines": 85,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/services/brp.timeline.ts": {
+      "filePath": "packages/frontend/src/services/brp.timeline.ts",
+      "contentHash": "acb8d9c82e410415db9c1b083da6a75b3eecfeaa64fced8ab7be3847cfc30bff",
+      "functions": [
+        {
+          "name": "calculateHistoricalState",
+          "params": ["currentState", "targetDate"],
+          "returnType": "PersonState | null",
+          "exported": true,
+          "lineCount": 61
+        },
+        {
+          "name": "extractEvents",
+          "params": ["personState"],
+          "returnType": "BRPEvent[]",
+          "exported": true,
+          "lineCount": 76
+        },
+        {
+          "name": "getPersonTimeline",
+          "params": ["bsn"],
+          "returnType": "Promise<BRPPersonHistoricalData | null>",
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "getHistoricalStateForDate",
+          "params": ["bsn", "targetDate"],
+          "returnType": "Promise<PersonState | null>",
+          "exported": true,
+          "lineCount": 17
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./brp.api",
+          "specifiers": ["brpApi"]
+        },
+        {
+          "source": "../types/brp.types",
+          "specifiers": ["BRPEvent", "BRPPersonHistoricalData", "PersonState"]
+        }
+      ],
+      "exports": [
+        "calculateHistoricalState",
+        "extractEvents",
+        "getPersonTimeline",
+        "getHistoricalStateForDate"
+      ],
+      "totalLines": 210,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/services/bsn.mapping.ts": {
+      "filePath": "packages/frontend/src/services/bsn.mapping.ts",
+      "contentHash": "a8126b145683ea5a97aaa45d50be69a0bca6f40979286c3776bde8fecac658ad",
+      "functions": [
+        {
+          "name": "getUserBSN",
+          "params": ["user"],
+          "returnType": "string | null",
+          "exported": true,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": ["testUserBSNMapping", "getUserBSN"],
+      "totalLines": 39,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/services/keycloak.ts": {
+      "filePath": "packages/frontend/src/services/keycloak.ts",
+      "contentHash": "6abddfec153e8f4060615bf4f340e983ae441f83ac95457224ae05e0729838c2",
+      "functions": [
+        {
+          "name": "getUser",
+          "params": [],
+          "returnType": "KeycloakUser | null",
+          "exported": true,
+          "lineCount": 27
+        },
+        {
+          "name": "getToken",
+          "params": [],
+          "returnType": "string | undefined",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "keycloak-js",
+          "specifiers": ["Keycloak"]
+        },
+        {
+          "source": "@ronl/shared",
+          "specifiers": ["AssuranceLevel", "KeycloakUser", "OrganisationType"]
+        }
+      ],
+      "exports": ["KeycloakUser", "getUser", "getToken"],
+      "totalLines": 60,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/services/tenant.ts": {
+      "filePath": "packages/frontend/src/services/tenant.ts",
+      "contentHash": "5994b3f93900637317e819f5b8fb24820fe2a656f652c3a6ce6c34ddb0266580",
+      "functions": [
+        {
+          "name": "loadTenantConfigs",
+          "params": [],
+          "returnType": "Promise<TenantRegistry>",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "getTenantConfig",
+          "params": ["tenantId"],
+          "returnType": "TenantConfig | null",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "getDefaultTenantConfig",
+          "params": [],
+          "returnType": "TenantConfig | null",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "applyTenantTheme",
+          "params": ["theme"],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "initializeTenantTheme",
+          "params": ["municipalityId"],
+          "returnType": "Promise<boolean>",
+          "exported": true,
+          "lineCount": 22
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "loadTenantConfigs",
+        "getTenantConfig",
+        "getDefaultTenantConfig",
+        "applyTenantTheme",
+        "initializeTenantTheme"
+      ],
+      "totalLines": 122,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/types/brp.types.ts": {
+      "filePath": "packages/frontend/src/types/brp.types.ts",
+      "contentHash": "e7fd50bbcd95ba4e3ea16ce5fb80788e3a3112146cda7e80ca56e80a294350af",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 164,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/utils/formatDate.ts": {
+      "filePath": "packages/frontend/src/utils/formatDate.ts",
+      "contentHash": "0206977f964994910cc3901ff46053cec4cc1d79088a5055d5dacfa122874f1d",
+      "functions": [
+        {
+          "name": "formatDate",
+          "params": ["iso"],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": ["formatDate"],
+      "totalLines": 9,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/src/vite-env.d.ts": {
+      "filePath": "packages/frontend/src/vite-env.d.ts",
+      "contentHash": "1d9584fba9bc76c4a64fb7496f39796a7ca257752d88d3fcd28f033da0e3e1bb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 12,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/tailwind.config.js": {
+      "filePath": "packages/frontend/tailwind.config.js",
+      "contentHash": "d006702903587b714d6e084b9cc59467e67013d918ef44e3ba9157790f4e3d2b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 23,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/tsconfig.json": {
+      "filePath": "packages/frontend/tsconfig.json",
+      "contentHash": "980d6cbe977ddfb52d3ab1bdd3fba30f8c1db9371b3b14aa4557d32bb00ce54b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/tsconfig.node.json": {
+      "filePath": "packages/frontend/tsconfig.node.json",
+      "contentHash": "9e2abb169ea87b7190613a1d4da57ca608463a453bd4231fa3aeee5e308370dd",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "packages/frontend/vite.config.ts": {
+      "filePath": "packages/frontend/vite.config.ts",
+      "contentHash": "3fef5c32ca5806fe55d502d41ebc5ef4767fab34fed5e5b5440d97759043e86d",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vite",
+          "specifiers": ["defineConfig"]
+        },
+        {
+          "source": "@vitejs/plugin-react",
+          "specifiers": ["react"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 12,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/package.json": {
+      "filePath": "packages/shared/package.json",
+      "contentHash": "e2f3340b45a1402ddb697e8aa4da809456e18a38f81c95a4a9a8ee4e5173c575",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 22,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/src/index.ts": {
+      "filePath": "packages/shared/src/index.ts",
+      "contentHash": "cf8c0bcfd3b7921e436e0300ca342df2846c2d4cadc4517ab492a15decbe55a4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/src/types/api.types.ts": {
+      "filePath": "packages/shared/src/types/api.types.ts",
+      "contentHash": "683ca98a55cbe9be9222db703b9aba0d1214fc1be32c35895670a10fb321ef47",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/src/types/auth.types.ts": {
+      "filePath": "packages/shared/src/types/auth.types.ts",
+      "contentHash": "bfa7d0fb00099346fe9793df33160347f86a330d0e8353b47dbc356862268a4e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./tenant.types",
+          "specifiers": ["OrganisationType"]
+        }
+      ],
+      "exports": [],
+      "totalLines": 38,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/src/types/operaton.types.ts": {
+      "filePath": "packages/shared/src/types/operaton.types.ts",
+      "contentHash": "d9ad08a14cd6d4f0f22758fa65a13cffd7018629455fe6adfa447fe37b87336c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 71,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/src/types/tenant.types.ts": {
+      "filePath": "packages/shared/src/types/tenant.types.ts",
+      "contentHash": "1ba13aa1dce82dbbe9ccc2c2684d9c60e210cf972d228334b275489c3c09b47d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "packages/shared/tsconfig.json": {
+      "filePath": "packages/shared/tsconfig.json",
+      "contentHash": "581584516f21fdad373824ebc58cf0b94de97550c908b30b5a5d19f9e6735f7b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": true
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "76ecf3f34770620eee6632254349c862e64283b19b0073b035824a4ddb431e89",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 113,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/check-docker.sh": {
+      "filePath": "scripts/check-docker.sh",
+      "contentHash": "441452f062bfe9ad868f536e991143d7e6cf23c6f2d82fafe7bab08ae3ffcd53",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 55,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/test-m2m-routes.sh": {
+      "filePath": "scripts/test-m2m-routes.sh",
+      "contentHash": "b8b6c51859b5c5a0520f8f530d879cf06453c8f13167e4f07ef2ea7bac67279b",
+      "functions": [
+        {
+          "name": "pass",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "fail",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "check_status",
+          "params": [],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "check_field",
+          "params": [],
+          "exported": false,
+          "lineCount": 13
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 282,
+      "hasStructuralAnalysis": true
+    }
+  }
+}
