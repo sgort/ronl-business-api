@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { createChallenge, verifySolution } from '@utils/altcha';
 import { createLogger } from '@utils/logger';
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
@@ -68,11 +69,72 @@ const publicWriteLimiter = rateLimit({
 const router = Router();
 const logger = createLogger('public-routes');
 
+async function verifyAltcha(req: Request, res: Response, next: NextFunction) {
+  if (!config.altcha.hmacKey) {
+    next();
+    return;
+  }
+  const token = (req.body as Record<string, string>)?.altcha;
+  if (!token) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'ALTCHA_MISSING', message: 'ALTCHA verification is required.' },
+    });
+    return;
+  }
+  try {
+    const ok = await verifySolution(token, config.altcha.hmacKey, true);
+    if (!ok) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'ALTCHA_INVALID', message: 'ALTCHA verification failed.' },
+      });
+      return;
+    }
+    next();
+  } catch {
+    res.status(400).json({
+      success: false,
+      error: { code: 'ALTCHA_ERROR', message: 'ALTCHA verification error.' },
+    });
+  }
+}
+
 function meta() {
   return {
     generatedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * GET /v1/public/altcha/challenge
+ * Issues a fresh proof-of-work challenge for ALTCHA widget on public write forms.
+ * No authentication required.
+ */
+router.get('/altcha/challenge', async (_req: Request, res: Response) => {
+  if (!config.altcha.hmacKey) {
+    res.status(503).json({
+      success: false,
+      error: { code: 'ALTCHA_NOT_CONFIGURED', message: 'ALTCHA is not configured.' },
+    });
+    return;
+  }
+  try {
+    const challenge = await createChallenge({
+      hmacKey: config.altcha.hmacKey,
+      algorithm: 'SHA-256',
+      maxNumber: 50000,
+      expires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+    res.json(challenge);
+  } catch (error) {
+    logger.error('Failed to create ALTCHA challenge', { error: String(error) });
+    res.status(500).json({
+      success: false,
+      error: { code: 'ALTCHA_ERROR', message: 'Could not generate challenge.' },
+    });
+  }
+});
 
 /**
  * GET /v1/public/nieuws
@@ -219,7 +281,7 @@ router.get('/regelcatalogus', async (_req: Request, res: Response) => {
  * Response 400: missing required fields
  * Response 502: GitLab API unreachable or rejected the request
  */
-router.post('/use-case', publicWriteLimiter, async (req: Request, res: Response) => {
+router.post('/use-case', publicWriteLimiter, verifyAltcha, async (req: Request, res: Response) => {
   const { title, description } = req.body as { title?: string; description?: string };
 
   if (!title?.trim() || !description?.trim()) {
@@ -420,6 +482,7 @@ router.post(
   '/feedback',
   publicWriteLimiter,
   upload.array('screenshots', 5),
+  verifyAltcha,
   async (req: Request, res: Response) => {
     const token = process.env.GITLAB_TOKEN;
     const projectPath = process.env.GITLAB_PROJECT_PATH;

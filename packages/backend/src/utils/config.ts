@@ -110,6 +110,9 @@ interface Config {
     enabled: boolean;
     databaseUrl: string;
   };
+  altcha: {
+    hmacKey: string;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -254,6 +257,10 @@ export const config: Config = {
     baseUrl: process.env.GITLAB_BASE_URL || 'https://git.open-regels.nl',
     projectPath: process.env.GITLAB_PROJECT_PATH || 'showcases%2Fiou-architectuur',
     ucLabel: process.env.GITLAB_UC_LABEL || 'uc::submitted',
+  },
+
+  altcha: {
+    hmacKey: process.env.ALTCHA_HMAC_KEY || '',
   },
 };
 

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import AltchaWidget from '../AltchaWidget';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_MB = 10;
@@ -142,6 +143,7 @@ export default function IouGebruiksscenarioSection() {
   const [errorMessage, setErrorMessage] = useState('');
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [altchaPayload, setAltchaPayload] = useState('');
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const attachmentDropRef = useRef<HTMLDivElement>(null);
 
@@ -359,6 +361,7 @@ ${PO_ASSESSMENT_TEMPLATE}`;
         body: JSON.stringify({
           title: form.title.trim(),
           description: markdownBody + attachmentsSection,
+          altcha: altchaPayload,
         }),
       });
 
@@ -372,6 +375,7 @@ ${PO_ASSESSMENT_TEMPLATE}`;
       setSubmitState('success');
       setForm(initialForm());
       setAttachments([]);
+      setAltchaPayload('');
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
       setSubmitState('error');
@@ -734,6 +738,13 @@ ${PO_ASSESSMENT_TEMPLATE}`;
           <strong>❌ Indiening mislukt</strong> — {errorMessage}
         </div>
       )}
+
+      {/* ALTCHA */}
+      <AltchaWidget
+        challengeUrl={`${API_BASE_URL}/public/altcha/challenge`}
+        onVerify={setAltchaPayload}
+        onExpire={() => setAltchaPayload('')}
+      />
 
       {/* Submit */}
       <div className="flex items-center gap-4">

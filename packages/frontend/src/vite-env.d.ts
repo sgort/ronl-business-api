@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="altcha/types/react" />
 
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
