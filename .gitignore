@@ -97,3 +97,6 @@ deployment/vm/**/Thumbs.db
 #deploy theme script
 deploy-theme-to-*.sh
 deploy-backend-to-*.sh
+
+# Knowledge graph (generated tooling output)
+.understand-anything/
