@@ -33,6 +33,35 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.0.8',
+      status: 'Enhancement',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: '2026-06-06',
+      sections: [
+        {
+          icon: '🔐',
+          iconColor: 'orange',
+          title: 'Security hardening — public write endpoints',
+          items: [
+            'ALTCHA proof-of-work challenge added to POST /use-case and POST /feedback — visitors must complete a SHA-256 PoW puzzle before a GitLab work item is created; /upload-file is intentionally excluded as it is a pre-upload step, not the final submission gate.',
+            'GET /altcha/challenge issues a signed challenge (max 50 000 iterations, 10-minute expiry) via altcha-lib; ALTCHA_HMAC_KEY configures the HMAC secret — when unset the check bypasses gracefully so development environments without the key are not blocked.',
+            'Frontend: <altcha-widget> web component rendered above the Indienen button in both the Gebruiksscenario and Feedback forms; verified payload is included in the form submission automatically.',
+            'Upload type whitelist tightened on POST /upload-file: only images, PDF, plain text, Word/ODT, Excel, and XML are accepted — both MIME type and file extension are checked independently, blocking extension spoofing.',
+            'Rate limit on public write endpoints reduced from the global 100 req/min to 10 req per 15 minutes per IP, with standardised RateLimit-* response headers.',
+          ],
+        },
+        {
+          icon: '⚙️',
+          iconColor: 'gray',
+          title: 'Build',
+          items: [
+            'Backend tsconfig upgraded from CommonJS/Node10 to module: node16 / moduleResolution: node16 — enables subpath exports resolution and aligns TypeScript module semantics with the Node.js runtime.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.7',
       status: 'Released',
       statusColor: 'green',
