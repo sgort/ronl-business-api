@@ -33,6 +33,34 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.1.0',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-06-07',
+      sections: [
+        {
+          icon: '🚀',
+          iconColor: 'purple',
+          title: 'Caseworker Dashboard — V2 cutover',
+          items: [
+            '`/dashboard/caseworker` now serves CaseworkerDashboardV2 directly — the V2 shell (3-mode rail, ⌘K command palette, assistant dock, command-driven section routing) is the default and only caseworker portal. The separate `/dashboard/caseworker/v2` route has been removed; all internal redirects (login, logout, "back to dashboard") now point at the canonical `/dashboard/caseworker` path.',
+            "CaseworkerDashboard (V1) and its now-orphaned section components have been deleted: `TakenSection` (superseded by V2's `TakenInbox`) and `GegevenswoordenboekSection` (superseded by `GegevenswoordenboekV2`). All other section components remain in active use, shared between the legacy code path and `SectionRouter`.",
+            '`SessionExpiryWarning` — the "your session is about to expire" widget — was V1-only and would have silently disappeared for caseworkers; it is now rendered inside CaseworkerDashboardV2 so the warning and one-click token refresh keep working.',
+            'Removed the "Klassieke weergave" link from the V2 top bar — there is no classic view to switch back to anymore — and dropped the associated `.v2-classic-link` style.',
+          ],
+        },
+        {
+          icon: '📰',
+          iconColor: 'orange',
+          title: 'Nieuws — Rijksoverheid feed migration (again)',
+          items: [
+            'The legacy `feeds.rijksoverheid.nl` subdomain has been decommissioned — DNS resolution now fails outright, breaking the Nieuws feed. The service has been migrated back to the `/api/rss` endpoint on rijksoverheid.nl with a JSON-encoded `query` parameter filtering on content_type `pro:newsDocument`, which is now stable and returns RSS XML in the same shape the existing parser expects. No parsing changes were required.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.0.8',
       status: 'Enhancement',
       statusColor: 'orange',

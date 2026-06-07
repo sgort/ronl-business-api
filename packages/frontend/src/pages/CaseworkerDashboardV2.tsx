@@ -50,6 +50,7 @@ import SectionErrorBoundary from '../components/CaseworkerDashboardV2/SectionErr
 import CommandPalette from '../components/CaseworkerDashboardV2/CommandPalette';
 import AssistantDock from '../components/CaseworkerDashboardV2/AssistantDock';
 import ChangelogPanel from './ChangelogPanel';
+import SessionExpiryWarning from '../components/SessionExpiryWarning';
 
 import './caseworker-v2/dashboard-v2.css';
 
@@ -57,11 +58,10 @@ const STORAGE_KEY_DOCK = 'cwdV2.dock.open';
 
 export default function CaseworkerDashboardV2() {
   const navigate = useNavigate();
-  // Auth lifecycle is owned by V1's AuthCallback (it runs keycloak.init).
-  // V2 just observes keycloak.authenticated synchronously — same as V1's
-  // CaseworkerDashboard. If we land on /v2 without a session, the gate
-  // page below will show "Inloggen als medewerker", which routes through
-  // /auth (the same path V1 uses).
+  // Auth lifecycle is owned by AuthCallback (it runs keycloak.init).
+  // This page just observes keycloak.authenticated synchronously. If we
+  // land here without a session, the gate page below will show "Inloggen
+  // als medewerker", which routes through /auth.
   const [isAuthenticated] = useState<boolean>(() => !!keycloak.authenticated);
   const [user, setUser] = useState<KeycloakUser | null>(null);
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
@@ -167,24 +167,20 @@ export default function CaseworkerDashboardV2() {
   // it with the right idpHint / loginHint per IdP.
   const handleLogin = (idp: 'digid' | 'eherkenning' | 'eidas' | 'medewerker' = 'medewerker') => {
     sessionStorage.setItem('selected_idp', idp);
-    // Preserve return-to-V2 intent so AuthCallback could honour it later if
-    // we extend it; today AuthCallback always sends caseworkers to
-    // /dashboard/caseworker, which then has a "V2" link in the topbar.
-    sessionStorage.setItem('post_login_redirect', '/dashboard/caseworker/v2');
+    sessionStorage.setItem('post_login_redirect', '/dashboard/caseworker');
     navigate('/auth');
   };
   const handleLogout = () => {
     if (keycloak.authenticated) {
-      // Mixed policy: V2 returns users to the V2 gate after logout, so
-      // logging back in keeps you in V2. (V1 returns to '/'.)
-      keycloak.logout({ redirectUri: window.location.origin + '/dashboard/caseworker/v2' });
+      keycloak.logout({ redirectUri: window.location.origin + '/dashboard/caseworker' });
     } else {
-      navigate('/dashboard/caseworker/v2');
+      navigate('/dashboard/caseworker');
     }
   };
 
   return (
     <div className="cwd-v2">
+      <SessionExpiryWarning />
       {/* ── Top bar ── */}
       <header className="v2-topbar">
         <div className="v2-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
@@ -224,22 +220,13 @@ export default function CaseworkerDashboardV2() {
               </button>
             </>
           ) : (
-            <>
-              <button
-                type="button"
-                className="v2-classic-link"
-                onClick={() => navigate('/dashboard/caseworker')}
-              >
-                Klassieke weergave
-              </button>
-              <button
-                type="button"
-                className="v2-login-btn"
-                onClick={() => handleLogin('medewerker')}
-              >
-                Inloggen
-              </button>
-            </>
+            <button
+              type="button"
+              className="v2-login-btn"
+              onClick={() => handleLogin('medewerker')}
+            >
+              Inloggen
+            </button>
           )}
           <button
             type="button"

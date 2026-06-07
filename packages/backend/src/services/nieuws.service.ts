@@ -5,19 +5,18 @@ const logger = createLogger('nieuws-service');
 
 // 2026-04-28: Rijksoverheid migrated to /api/rss with a JSON query param.
 // 2026-04-29: Reverted to the legacy feeds.rijksoverheid.nl subdomain due to
-// technical issues with the new API. The migration may resume later — when it
-// does, swap the URL back to 'https://www.rijksoverheid.nl/api/rss' and pass
-// `params: { query: JSON.stringify({ filters: [{ field: "content_type",
-// values: ["pro:newsDocument"], type: "all" }], resultSearchTerm: "" }) }` to
-// axios.get. The fall-through error handling is feed-shape agnostic.
-const GOVERNMENT_RSS_URL = 'https://feeds.rijksoverheid.nl/nieuws.rss';
+// technical issues with the new API.
+// 2026-06-07: feeds.rijksoverheid.nl no longer resolves (DNS failure — the
+// subdomain has been decommissioned). Migrated back to /api/rss, which is now
+// stable and returns RSS XML in the same shape as the old /nieuws.rss feed.
+const GOVERNMENT_RSS_URL = 'https://www.rijksoverheid.nl/api/rss';
 
-// New (April 2026) Rijksoverheid RSS API uses a JSON-encoded `query` parameter.
-// This filter selects newsDocument content — equivalent to the old /nieuws.rss feed.
-// const GOVERNMENT_RSS_QUERY = {
-//  filters: [{ field: 'content_type', values: ['pro:newsDocument'], type: 'all' }],
-//  resultSearchTerm: '',
-// };
+// Filters the API result down to newsDocument content — equivalent to the
+// old /nieuws.rss feed. Encoded as a JSON string and sent as the `query` param.
+const GOVERNMENT_RSS_QUERY = {
+  filters: [{ field: 'content_type', values: ['pro:newsDocument'], type: 'all' }],
+  resultSearchTerm: '',
+};
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -88,6 +87,7 @@ export async function getNieuwsItems(
     try {
       const response = await axios.get<string>(GOVERNMENT_RSS_URL, {
         timeout: 8_000,
+        params: { query: JSON.stringify(GOVERNMENT_RSS_QUERY) },
         headers: {
           Accept: 'application/rss+xml, application/xml, text/xml',
           'User-Agent': 'ronl-business-api/1.0 (+https://acc.open-regels.nl)',

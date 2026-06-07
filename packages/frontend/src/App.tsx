@@ -1,7 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AuthCallback from './pages/AuthCallback';
-import CaseworkerDashboard from './pages/CaseworkerDashboard';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
 import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
@@ -57,8 +56,7 @@ function App() {
         />
 
         {/* Caseworker portal is public — auth state is handled inside the component */}
-        <Route path="/dashboard/caseworker" element={<CaseworkerDashboard />} />
-        <Route path="/dashboard/caseworker/v2" element={<CaseworkerDashboardV2 />} />
+        <Route path="/dashboard/caseworker" element={<CaseworkerDashboardV2 />} />
 
         {/* Legacy /dashboard redirect — role-based, falls through to ProtectedRoute logic */}
         <Route

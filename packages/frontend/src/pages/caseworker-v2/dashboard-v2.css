@@ -155,15 +155,6 @@
 .cwd-v2 .v2-login-btn:hover {
   background: rgba(255, 255, 255, 0.25);
 }
-.cwd-v2 .v2-classic-link {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: underline;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-}
 .cwd-v2 .v2-changelog-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.25);
