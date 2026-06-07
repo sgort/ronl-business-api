@@ -263,7 +263,7 @@ export default function CaseworkerDashboardV2() {
       </nav>
 
       {/* ── Body ── */}
-      <div className={`v2-body ${dockOpen ? 'v2-with-dock' : ''}`}>
+      <div className="v2-body">
         {/* Rail */}
         <aside className="v2-rail" aria-label="Sectienavigatie">
           <div className="v2-rail-card">{currentMode.label}</div>

@@ -74,8 +74,10 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
       <div className="max-w-lg">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
           <div className="text-4xl mb-4">🤖</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">AI Assistant</h2>
-          <p className="text-gray-500 text-sm">Log in as a caseworker to use the AI assistant.</p>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">AI-assistent</h2>
+          <p className="text-gray-500 text-sm">
+            Log in als medewerker om de AI-assistent te gebruiken.
+          </p>
         </div>
       </div>
     );
@@ -140,7 +142,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
       }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        setError((err as Error).message ?? 'Request failed. Please try again.');
+        setError((err as Error).message ?? 'Verzoek mislukt. Probeer het opnieuw.');
       }
     } finally {
       abortRef.current = null;
@@ -179,12 +181,12 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
   const subtitle =
     selectedDisplayNames.length > 0
       ? `Claude + ${selectedDisplayNames.join(', ')}`
-      : 'Claude — no sources selected';
+      : 'Claude — geen bronnen geselecteerd';
 
   const emptyStateText =
     selectedDisplayNames.length > 0
-      ? `Ask about ${selectedDisplayNames.join(' or ')}`
-      : 'Select a source below to get started';
+      ? `Vraag over ${selectedDisplayNames.join(' of ')}`
+      : 'Selecteer hieronder een bron om te beginnen';
 
   return (
     <div className="flex flex-col max-w-3xl" style={{ height: '100%' }}>
@@ -193,12 +195,12 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
         <div className="flex items-center gap-3">
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-lg"
-            style={{ backgroundColor: 'var(--color-primary, #154273)' }}
+            style={{ backgroundColor: 'var(--color-secondary, var(--color-primary, #154273))' }}
           >
             🤖
           </div>
           <div>
-            <h2 className="text-base font-semibold text-gray-800">AI Assistant</h2>
+            <h2 className="text-base font-semibold text-gray-800">AI-assistent</h2>
             <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
             {availableModels.length > 1 && (
               <select
@@ -224,9 +226,9 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
           <button
             onClick={handleClear}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1 rounded hover:bg-gray-100"
-            title="Clear conversation"
+            title="Gesprek wissen"
           >
-            Clear chat
+            Chat wissen
           </button>
         )}
       </div>
@@ -243,7 +245,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
             <p className="text-sm font-medium text-gray-500 mb-1">{emptyStateText}</p>
             {selectedDisplayNames.length > 0 && (
               <p className="text-xs text-gray-400 max-w-xs">
-                Query process instances, tasks, decisions, knowledge graph data, and more.
+                Stel vragen over procesinstanties, taken, besluiten, kennisgrafiekgegevens en meer.
               </p>
             )}
           </div>
@@ -372,7 +374,9 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            canSend ? 'Ask a question… (Enter to send)' : 'Select at least one source to continue'
+            canSend
+              ? 'Stel een vraag… (Enter om te verzenden)'
+              : 'Selecteer minstens één bron om door te gaan'
           }
           disabled={loading}
           rows={3}
@@ -384,7 +388,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
           disabled={!canSend || !input.trim()}
           className="absolute right-3 bottom-3 w-8 h-8 rounded-lg flex items-center justify-center text-white transition-opacity disabled:opacity-30"
           style={{ backgroundColor: 'var(--color-primary, #154273)' }}
-          title={selectedSources.size === 0 ? 'Select at least one source' : 'Send'}
+          title={selectedSources.size === 0 ? 'Selecteer minstens één bron' : 'Verzenden'}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
