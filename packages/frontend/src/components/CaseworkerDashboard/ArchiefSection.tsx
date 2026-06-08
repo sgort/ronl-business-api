@@ -149,17 +149,12 @@ export default function ArchiefSection() {
                           })}
                         </span>
                         {task.assignee &&
-                          (() => {
-                            const isUuid =
-                              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                                task.assignee
-                              );
-                            return (
-                              <span className="font-mono text-gray-300" title={task.assignee}>
-                                {isUuid ? `${task.assignee.slice(0, 8)}…` : task.assignee}
-                              </span>
-                            );
-                          })()}
+                          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                            task.assignee
+                          ) &&
+                          !task.assignee.startsWith('ronl-worker-') && (
+                            <span className="font-mono text-gray-300">{task.assignee}</span>
+                          )}
                       </div>
                     </div>
                     <span className="text-gray-400 text-lg ml-4 flex-shrink-0">

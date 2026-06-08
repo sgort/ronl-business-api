@@ -575,6 +575,8 @@ export interface LlmModelEntry {
   providerDisplayName: string;
 }
 
+export type ProductSoort = 'subsidie' | 'vergunning' | 'bezwaar';
+
 export interface ProductDienstItem {
   id: string;
   title: string;
@@ -583,6 +585,7 @@ export interface ProductDienstItem {
   audience: ('ondernemer' | 'particulier')[];
   onlineAanvragen: boolean;
   modified: string | null;
+  soort: ProductSoort;
 }
 
 export interface BundleDeployedForm {

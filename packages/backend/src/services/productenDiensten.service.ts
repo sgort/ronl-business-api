@@ -7,6 +7,8 @@ const FLEVOLAND_SC_URL = 'https://www.flevoland.nl/loket/loketoverview?sc40=true
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes — these change infrequently
 
+export type ProductSoort = 'subsidie' | 'vergunning' | 'bezwaar';
+
 export interface ProductDienstItem {
   id: string;
   title: string;
@@ -15,6 +17,7 @@ export interface ProductDienstItem {
   audience: ('ondernemer' | 'particulier')[];
   onlineAanvragen: boolean;
   modified: string | null;
+  soort: ProductSoort;
 }
 
 interface Cache {
@@ -62,6 +65,20 @@ function decodeEntities(text: string): string {
     .trim();
 }
 
+/**
+ * Derive a coarse product kind from the title. The SC4.0 feed carries no
+ * thematic classification, so the title is the only reliable signal.
+ *   - 'subsidie'   → title mentions a subsidy (high precision)
+ *   - 'bezwaar'    → objection / complaint procedures
+ *   - 'vergunning' → default: Omgevingswet permits, meldingen and activities
+ */
+function deriveSoort(title: string): ProductSoort {
+  const t = title.toLowerCase();
+  if (t.includes('subsidie')) return 'subsidie';
+  if (t.includes('bezwaar') || t.includes('klacht')) return 'bezwaar';
+  return 'vergunning';
+}
+
 function parseItems(xml: string): ProductDienstItem[] {
   const blocks = xml.split('<scproduct').slice(1);
 
@@ -81,7 +98,16 @@ function parseItems(xml: string): ProductDienstItem[] {
         (a): a is 'ondernemer' | 'particulier' => a === 'ondernemer' || a === 'particulier'
       );
 
-      return { id, title, description, url, audience, onlineAanvragen, modified };
+      return {
+        id,
+        title,
+        description,
+        url,
+        audience,
+        onlineAanvragen,
+        modified,
+        soort: deriveSoort(title),
+      };
     })
     .filter((item) => item.title);
 }

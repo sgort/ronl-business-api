@@ -33,6 +33,86 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.1.2',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 8, 2026',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 29,
+              title: 'Bij regelcatalogus kan ik de pagina van de provincie Flevoland niet openen',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/29',
+            },
+            {
+              type: 'feedback',
+              iid: 28,
+              title:
+                'Producten en diensten lijken groen en rijp door elkaar. Kan hiervoor een bepaalde classificatie worden gebruikt zodat het zoeken gemakkelijker wordt?',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/28',
+            },
+            {
+              type: 'feedback',
+              iid: 24,
+              title:
+                'Als ik niet ingelogd ben en ik kies op het tabblad Home voor "Gegevenswoordenboek", krijg ik een melding dat één of meerdere templates geïnstalleerd moeten worden',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/24',
+            },
+            {
+              type: 'feedback',
+              iid: 22,
+              title: 'In het projecten archief zie ik rare bestandsnamen (?) staan',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/22',
+            },
+            {
+              type: 'feedback',
+              iid: 20,
+              title:
+                'In de Regelcatalogus werkt de link flevoland.nl niet. Dat is een bekend probleem op het interne netwerk. www.flevoland.nl werkt wel.',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/20',
+            },
+          ],
+        },
+        {
+          title: 'Producten & Diensten — Classificatie, filters en sortering',
+          icon: '🔧',
+          iconColor: 'green',
+          items: [
+            'Replaced the flat, undifferentiated product list with a grouped view by Soort: Subsidies, Vergunningen/meldingen/activiteiten, and Bezwaar & klacht',
+            'Soort is derived server-side in productenDiensten.service.ts from the title (the SC4.0 feed carries no thematic classification) and cached on ProductDienstItem alongside the other fields',
+            'Added an Aanvraagwijze filter (Online aanvragen / Informatie & op afspraak) driven by the existing onlineAanvragen flag, next to the existing Doelgroep filter',
+            'Added a Sorteren control (Naam A–Z, Naam Z–A, Laatst bijgewerkt) that orders the cards within each Soort group independently',
+          ],
+        },
+        {
+          title: 'Archief — Hide machine-identifiers',
+          icon: '🔧',
+          iconColor: 'green',
+          items: [
+            'Hid the assignee identifier shown on completed-task cards in the Archief section — raw UUIDs and ronl-worker-* external task worker IDs carry no meaning for caseworkers and were confusing',
+            'The assignee is now suppressed entirely when it matches a UUID or worker-ID pattern; the truncated value and its hover tooltip (which exposed the full UUID) are removed',
+            'Genuine human assignee usernames, when present, still render as before',
+          ],
+        },
+        {
+          title: 'Regelcatalogus — Organisatie-homepagelink',
+          icon: '🔧',
+          iconColor: 'green',
+          items: [
+            'Fixed broken organisation homepage link in the Organisaties tab of RegelCatalogus.tsx — Provincie Flevoland resolved to its apex domain (flevoland.nl), which does not serve content without the www subdomain',
+            'New withWww() helper normalises the homepage URL: prepends www. to the hostname when absent, leaves URLs that already carry www. (or any other subdomain) untouched, and falls back to the original value for unparseable strings',
+            'Normalisation applied to both the anchor href and the displayed link text so the visible label matches the actual destination',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.1.1',
       status: 'Released',
       statusColor: 'green',
