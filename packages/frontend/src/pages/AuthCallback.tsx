@@ -8,6 +8,7 @@ const POST_LOGIN_KEY = 'post_login_redirect';
 function getRoleDashboard(): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  if (roles.includes('public-affairs')) return '/dashboard/public-affairs';
   return roles.includes('caseworker') ? '/dashboard/caseworker' : '/dashboard/citizen';
 }
 
@@ -32,8 +33,17 @@ function consumePostLoginRedirect(): string | null {
   return null;
 }
 
+function canAccessRedirect(path: string, roles: string[]): boolean {
+  if (path === '/dashboard/public-affairs') return roles.includes('public-affairs');
+  if (path === '/dashboard/caseworker') return roles.includes('caseworker');
+  return true;
+}
+
 function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean }) => void) {
-  const target = consumePostLoginRedirect() ?? getRoleDashboard();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  const stored = consumePostLoginRedirect();
+  const target = stored && canAccessRedirect(stored, roles) ? stored : getRoleDashboard();
   navigate(target, { replace: true });
 }
 

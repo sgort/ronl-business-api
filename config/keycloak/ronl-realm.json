@@ -288,6 +288,10 @@
       {
         "name": "personnel-controller",
         "description": "Personnel Controller — participates in the reconsideration meeting on rejected claims"
+      },
+      {
+        "name": "public-affairs",
+        "description": "Provincial Public Affairs adviser — access to the PA-cockpit"
       }
     ]
   },
@@ -742,6 +746,21 @@
         "opaque_id": ["opaque-citizen-008"]
       },
       "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-pa-flevoland",
+      "enabled": true,
+      "firstName": "Sanne",
+      "lastName": "Bakker",
+      "email": "pa@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"]
+      },
+      "realmRoles": ["public-affairs"]
     }
   ],
   "identityProviders": [

@@ -33,6 +33,25 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.2.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'June 8, 2026',
+      sections: [
+        {
+          icon: '🏛️',
+          iconColor: 'purple',
+          title: 'PA-Cockpit — first cut (Flevoland)',
+          items: [
+            'New /dashboard/public-affairs route, gated on public-affairs role + province org-type',
+            'Vandaag · Dossiers · Monitoring · Voortgang; Flevolands Kompas radar + 0–2 scorecard',
+            'Reuses tenant theme, ⌘K palette and the IOU assistant (McpChatSection) from the V2 shell',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.1.2',
       status: 'Bug Fix',
       statusColor: 'green',
