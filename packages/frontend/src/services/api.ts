@@ -69,11 +69,18 @@ export const businessApi = {
       variables: Record<string, unknown>,
       businessKey?: string
     ): Promise<ApiResponse<ProcessStatusResponse>> => {
-      const response = await api.post<ApiResponse<ProcessStatusResponse>>(
-        `/process/${processKey}/start`,
-        { variables, businessKey }
-      );
-      return response.data;
+      try {
+        const response = await api.post<ApiResponse<ProcessStatusResponse>>(
+          `/process/${processKey}/start`,
+          { variables, businessKey }
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<ProcessStatusResponse>;
+        }
+        throw error;
+      }
     },
 
     startForm: async (processKey: string): Promise<ApiResponse<unknown>> => {

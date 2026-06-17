@@ -254,6 +254,30 @@
         "description": "Infrastructure employee role assigned via HR onboarding DMN"
       },
       {
+        "name": "rip-aandrager",
+        "description": "RIP Fase 1 (R2.1) — aandrager/indiener: levert het projectplan en intakeformulier aan"
+      },
+      {
+        "name": "rip-projectleider",
+        "description": "RIP Fase 1 (R2.1) — projectleider"
+      },
+      {
+        "name": "rip-ao",
+        "description": "RIP Fase 1 (R2.1) — ambtelijk opdrachtgever"
+      },
+      {
+        "name": "rip-deelnemers-psu",
+        "description": "RIP Fase 1 (R2.1) — deelnemers project start-up (PSU)"
+      },
+      {
+        "name": "rip-manager-pb",
+        "description": "RIP Fase 1 (R2.1) — manager planvoorbereiding"
+      },
+      {
+        "name": "rip-team",
+        "description": "RIP Fase 1 (R2.1) — RIP-team"
+      },
+      {
         "name": "manager",
         "description": "Line manager — can start a management capacity claim and prepare intake/staffing/hiring forms"
       },
@@ -635,7 +659,17 @@
         "assurance_level": ["hoog"],
         "employee_id": ["EMP-FLV-001"]
       },
-      "realmRoles": ["caseworker", "infra-projectteam", "infra-medewerker"]
+      "realmRoles": [
+        "caseworker",
+        "infra-projectteam",
+        "infra-medewerker",
+        "rip-aandrager",
+        "rip-projectleider",
+        "rip-ao",
+        "rip-deelnemers-psu",
+        "rip-manager-pb",
+        "rip-team"
+      ]
     },
     {
       "username": "test-citizen-uwv",

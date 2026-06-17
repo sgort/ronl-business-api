@@ -436,6 +436,11 @@ export class OperatonService {
       if (candidateGroups && candidateGroups.length > 0) {
         // Operaton's candidateGroups parameter does an OR match across the list
         params['candidateGroups'] = candidateGroups.join(',');
+        // By default a candidateGroups query only returns *unassigned* tasks, so a
+        // task vanishes from the list the moment a caseworker claims it. Opt in to
+        // assigned tasks too, so claimed work stays visible (and shows up under the
+        // "Mijn claim" filter for the assignee).
+        params['includeAssignedTasks'] = 'true';
       }
 
       const response = await this.client.get('/task', { params });

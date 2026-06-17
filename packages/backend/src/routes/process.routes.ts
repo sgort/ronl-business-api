@@ -5,6 +5,7 @@ import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenan
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
+import { config } from '@utils/config';
 import { OperatonVariable } from '@ronl/shared';
 
 const router = express.Router();
@@ -119,21 +120,34 @@ router.post(
         },
       });
     } catch (error) {
+      // Prefer Operaton's own error message (e.g. "no matching process definition
+      // deployed with key ...") over the generic axios message, so the caller can
+      // tell a missing deployment apart from a connection failure.
+      const cause =
+        axios.isAxiosError(error) && error.response?.data?.message
+          ? String(error.response.data.message)
+          : error instanceof Error
+            ? error.message
+            : 'Unknown error';
+
       logger.error('Failed to start process', {
         processKey: key,
         tenantId: req.user.tenantId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        instance: config.operaton.baseUrl,
+        error: cause,
       });
 
       auditLog(req, `process.start.${key}`, 'error', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: cause,
       });
 
       res.status(500).json({
         success: false,
         error: {
           code: 'PROCESS_START_FAILED',
-          message: 'Failed to start process',
+          message: `Failed to start process '${key}'`,
+          details: cause,
+          instance: config.operaton.baseUrl,
         },
       });
     }
