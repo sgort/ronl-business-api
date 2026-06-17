@@ -33,6 +33,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.2.1',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 17, 2026',
+      sections: [
+        {
+          icon: '🔋',
+          iconColor: 'green',
+          title: 'Thuisbatterij subsidie — MijnOmgeving (Flevoland)',
+          items: [
+            'Subsidies card now opens a ThuisbatterijSubsidieAanvraagProcess start form instead of the "in ontwikkeling" stub',
+            'Success confirmation shows dossier number and routes to Mijn aanvragen',
+            'Mijn aanvragen tab now labels ThuisbatterijSubsidieAanvraagProcess as "Thuisbatterij subsidie aanvragen"',
+            'Caseworker TakenInbox picks up thuisbatterij tasks automatically — no additional configuration required',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.2.0',
       status: 'Feature Release',
       statusColor: 'purple',
