@@ -407,6 +407,53 @@ router.get('/:id/historic-variables', async (req, res) => {
 });
 
 /**
+ * GET /v1/process/:id/activity-history
+ * Executed steps of a process instance (user/service/external/decision/gateway/event),
+ * oldest first. Lets the UI show what the engine did between user tasks, including the
+ * automated steps a caseworker never sees in the task inbox. Works for running and
+ * completed instances.
+ */
+router.get('/:id/activity-history', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    // Tenant check via the instance's municipality variable (history-based so it
+    // resolves for both running and completed instances).
+    const vars = await operatonService.getHistoricVariables(id);
+    if (vars.municipality && vars.municipality !== req.user.tenantId) {
+      logger.warn('Tenant mismatch on activity-history access', {
+        processInstanceId: id,
+        userTenant: req.user.tenantId,
+        processTenant: vars.municipality,
+      });
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+      });
+    }
+
+    const activities = await operatonService.getActivityHistory(id);
+    res.json({ success: true, data: activities });
+  } catch (error) {
+    logger.error('Failed to get activity history', {
+      processInstanceId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'ACTIVITY_HISTORY_FAILED', message: 'Failed to retrieve activity history' },
+    });
+  }
+});
+
+/**
  * GET /v1/process/:instanceId/decision-document
  * Returns the DocumentTemplate bundled in the deployment that is linked to this process instance
  * via camunda:documentRef on a UserTask. Works for completed instances.

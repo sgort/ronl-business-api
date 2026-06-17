@@ -7,6 +7,7 @@ import type {
   ProcessStatusResponse,
   Task,
   HistoricTask,
+  ActivityHistoryItem,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -121,6 +122,15 @@ export const businessApi = {
     ): Promise<ApiResponse<Record<string, unknown>>> => {
       const response = await api.get<ApiResponse<Record<string, unknown>>>(
         `/process/${processInstanceId}/historic-variables`
+      );
+      return response.data;
+    },
+
+    activityHistory: async (
+      processInstanceId: string
+    ): Promise<ApiResponse<ActivityHistoryItem[]>> => {
+      const response = await api.get<ApiResponse<ActivityHistoryItem[]>>(
+        `/process/${processInstanceId}/activity-history`
       );
       return response.data;
     },

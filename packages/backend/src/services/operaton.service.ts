@@ -1,7 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
-import { OperatonVariable, ProcessStartRequest, ProcessInstance, Task } from '@ronl/shared';
+import {
+  OperatonVariable,
+  ProcessStartRequest,
+  ProcessInstance,
+  Task,
+  ActivityHistoryItem,
+} from '@ronl/shared';
 
 const logger = createLogger('operaton-service');
 
@@ -164,6 +170,56 @@ export class OperatonService {
       return response.data;
     } catch (error) {
       logger.error('Failed to get process variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get the activity history (executed steps) of a process instance, oldest
+   * first. Surfaces the automated steps (service/external tasks, decisions,
+   * gateways, events) that never appear in the task inbox, so callers can show
+   * "what the engine did" between user tasks. Works for running and completed
+   * instances (subject to historyTimeToLive).
+   */
+  async getActivityHistory(processInstanceId: string): Promise<ActivityHistoryItem[]> {
+    try {
+      const response = await this.client.get('/history/activity-instance', {
+        params: {
+          processInstanceId,
+          sortBy: 'startTime',
+          sortOrder: 'asc',
+          maxResults: 500,
+        },
+      });
+
+      const items = response.data as Array<{
+        id: string;
+        activityId: string;
+        activityName: string | null;
+        activityType: string;
+        assignee: string | null;
+        startTime: string;
+        endTime: string | null;
+        durationInMillis: number | null;
+        canceled: boolean;
+      }>;
+
+      return items.map((a) => ({
+        id: a.id,
+        activityId: a.activityId,
+        activityName: a.activityName,
+        activityType: a.activityType,
+        assignee: a.assignee,
+        startTime: a.startTime,
+        endTime: a.endTime,
+        durationInMillis: a.durationInMillis,
+        canceled: a.canceled,
+      }));
+    } catch (error) {
+      logger.error('Failed to get activity history', {
         processInstanceId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });

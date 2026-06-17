@@ -68,3 +68,23 @@ export interface HistoricTask {
   endTime: string;
   duration: number;
 }
+
+/**
+ * A single step in a process instance's activity history (Operaton
+ * /history/activity-instance). Covers user tasks, service/external tasks,
+ * decisions, gateways and events — i.e. everything the engine executed,
+ * including the automated steps a caseworker never sees in the task inbox.
+ */
+export interface ActivityHistoryItem {
+  id: string;
+  activityId: string;
+  activityName: string | null;
+  /** Operaton activity type, e.g. userTask, serviceTask, exclusiveGateway, startEvent. */
+  activityType: string;
+  assignee: string | null;
+  startTime: string;
+  /** null while the step is still running. */
+  endTime: string | null;
+  durationInMillis: number | null;
+  canceled: boolean;
+}
