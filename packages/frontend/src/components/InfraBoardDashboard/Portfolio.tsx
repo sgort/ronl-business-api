@@ -134,6 +134,7 @@ function Kanban({
                   >
                     <div className="top">
                       <span className="pb-proj-nr">{p.nr}</span>
+                      {p.instanceId && <span className="pb-live-badge">live</span>}
                       <span className={`pb-health ${p.health}`} />
                     </div>
                     <div className="nm">{p.naam}</div>
