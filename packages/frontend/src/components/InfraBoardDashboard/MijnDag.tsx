@@ -6,7 +6,13 @@ import {
   getMockPortfolio,
   MIJN_PROJECT_NRS,
 } from '../../pages/infra-board/infra-board.data';
-import { PHASES, STATUS, HEALTH, roleByKey } from '../../pages/infra-board/rip-model';
+import {
+  PHASES,
+  STATUS,
+  HEALTH,
+  roleByKey,
+  type StatusKey,
+} from '../../pages/infra-board/rip-model';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -23,7 +29,7 @@ function TodoRow({
   actie,
   onOpen,
 }: {
-  prio: string;
+  prio: StatusKey;
   titel: string;
   proj: string;
   sub: string;
@@ -32,7 +38,7 @@ function TodoRow({
 }) {
   return (
     <div className="pb-todo-item" onClick={onOpen}>
-      <span className="pb-prio" style={{ background: (STATUS as any)[prio]?.color }} />
+      <span className="pb-prio" style={{ background: STATUS[prio]?.color }} />
       <div className="pb-todo-main">
         <div className="t">
           {titel}
