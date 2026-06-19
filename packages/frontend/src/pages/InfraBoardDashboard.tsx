@@ -34,6 +34,7 @@ import InfraCommandPalette from '../components/InfraBoardDashboard/InfraCommandP
 import InfraDock from '../components/InfraBoardDashboard/InfraDock';
 import InfraNoAccessPanel from '../components/InfraBoardDashboard/InfraNoAccessPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
+import ChangelogPanel from './ChangelogPanel';
 
 import './infra-board/dashboard-infra.css';
 
@@ -125,12 +126,14 @@ export default function InfraBoardDashboard() {
   );
 
   const goToProject = (ref: ProjectRef) => setOpenProject(ref);
-  const initials =
-    (user?.name || user?.preferred_username || 'IF')
-      .split(/[\s-]+/)
-      .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase())
-      .join('') || 'IF';
+  const initials = (user?.name ?? 'U')
+    .split(' ')
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join('')
+    .toUpperCase();
+
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   const handleLogin = () => {
     sessionStorage.setItem('selected_idp', 'medewerker');
@@ -138,29 +141,9 @@ export default function InfraBoardDashboard() {
     navigate('/auth');
   };
 
-  // Auth/role gates
-  if (!isAuth) {
-    return (
-      <div className="cwd-v2 pbd">
-        <div className="v2-empty" style={{ margin: '64px auto' }}>
-          <h2>Infra-board</h2>
-          <p>
-            Log in als medewerker van het infra-projectteam om je dag, portfolio en RIP-projecten te
-            zien.
-          </p>
-          <button type="button" className="v2-btn" onClick={handleLogin}>
-            Inloggen als medewerker
-          </button>
-        </div>
-      </div>
-    );
-  }
-  if (!hasGateRole)
-    return (
-      <div className="cwd-v2 pbd">
-        <InfraNoAccessPanel />
-      </div>
-    );
+  const handleLogout = () => {
+    keycloak.logout({ redirectUri: window.location.origin + '/dashboard/infra-board' });
+  };
 
   return (
     <div
@@ -184,13 +167,34 @@ export default function InfraBoardDashboard() {
           <span className="v2-key">⌘K</span>
         </button>
         <div className="v2-user">
-          {user.loa && <span className="v2-loa">LOA {user.loa}</span>}
-          <span className="v2-username">{user.name || user.preferred_username}</span>
-          <button type="button" className="v2-avatar" title="Account">
-            {initials}
+          {isAuth ? (
+            <>
+              {user?.loa && <span className="v2-loa">LOA {user.loa}</span>}
+              <span className="v2-username">
+                {user?.name ?? user?.preferred_username ?? 'Medewerker'}
+              </span>
+              <button type="button" className="v2-avatar" onClick={handleLogout} title="Uitloggen">
+                {initials}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="v2-login-btn" onClick={handleLogin}>
+              Inloggen
+            </button>
+          )}
+          <button
+            type="button"
+            className="v2-changelog-btn"
+            onClick={() => setChangelogOpen(true)}
+            aria-label="Open changelog"
+            title="Changelog"
+          >
+            <span aria-hidden="true">📋</span>
           </button>
         </div>
       </header>
+
+      <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
 
       <nav className="v2-tabs" aria-label="Weergave">
         {INFRA_MODES.map((m) => (
@@ -214,9 +218,9 @@ export default function InfraBoardDashboard() {
         <aside className="v2-rail" aria-label="Sectienavigatie">
           <div className="v2-rail-card">
             {currentMode.label}
-            {mode === 'mijn-dag' && (
+            {mode === 'mijn-dag' && isAuth && (
               <span className="pb-rail-sub">
-                Persoonlijk · {user.name || user.preferred_username}
+                Persoonlijk · {user?.name ?? user?.preferred_username}
               </span>
             )}
           </div>
@@ -244,19 +248,35 @@ export default function InfraBoardDashboard() {
         </aside>
 
         <main className="v2-main">
-          <InfraSectionRouter
-            mode={mode}
-            section={activeSection}
-            openProject={openProject}
-            user={user}
-            phaseLabels={phaseLabels}
-            onOpenProject={goToProject}
-            onBack={() => setOpenProject(null)}
-            onGotoPortfolio={() => {
-              setOpenProject(null);
-              setMode('portfolio');
-            }}
-          />
+          {!isAuth ? (
+            <div className="v2-main-pad">
+              <div className="v2-crumb">INFRA-BOARD</div>
+              <h1 className="v2-page-title">Inloggen vereist</h1>
+              <p style={{ color: '#4b5563', maxWidth: '52ch', margin: '14px 0 22px' }}>
+                Log in als medewerker van het infra-projectteam om je dag, portfolio en
+                RIP-projecten te bekijken.
+              </p>
+              <button type="button" className="v2-btn" onClick={handleLogin}>
+                Inloggen als medewerker
+              </button>
+            </div>
+          ) : !hasGateRole ? (
+            <InfraNoAccessPanel />
+          ) : (
+            <InfraSectionRouter
+              mode={mode}
+              section={activeSection}
+              openProject={openProject}
+              user={user}
+              phaseLabels={phaseLabels}
+              onOpenProject={goToProject}
+              onBack={() => setOpenProject(null)}
+              onGotoPortfolio={() => {
+                setOpenProject(null);
+                setMode('portfolio');
+              }}
+            />
+          )}
         </main>
 
         {dockOpen && <InfraDock user={user} onClose={() => setDockOpen(false)} />}

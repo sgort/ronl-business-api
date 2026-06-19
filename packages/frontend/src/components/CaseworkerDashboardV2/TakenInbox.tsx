@@ -25,25 +25,7 @@ import type { ActivityHistoryItem, KeycloakUser, Task } from '@ronl/shared';
 import { businessApi } from '../../services/api';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import { activityTypeLabel, AUTOMATED_TYPES } from '../CaseworkerDashboard/processSteps';
-
-const EXCLUDED_VARS = [
-  'municipality',
-  'organisationType',
-  'initiator',
-  'applicantId',
-  'assuranceLevel',
-  'roleResult',
-  'routingResult',
-];
-
-/** Turn a process-variable key (edocsWorkspaceId, psDate) into a readable label. */
-const humanizeKey = (key: string): string => {
-  const spaced = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-};
+import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
 
 type FilterId = 'all' | 'overdue' | 'mine' | 'today' | 'week' | 'unassigned';
 
@@ -345,28 +327,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
 
             <section className="v2-taken-section">
               <h3>Procesgegevens</h3>
-              {detailLoading ? (
-                <p className="v2-taken-state">Laden…</p>
-              ) : taskVariables && Object.keys(taskVariables).length > 0 ? (
-                <dl className="v2-taken-vars">
-                  {Object.entries(taskVariables)
-                    .filter(([k]) => !EXCLUDED_VARS.includes(k))
-                    .map(([k, v]) => (
-                      <div key={k}>
-                        <dt title={k}>{humanizeKey(k)}</dt>
-                        <dd>
-                          {v === null || v === undefined
-                            ? '—'
-                            : typeof v === 'object'
-                              ? JSON.stringify(v)
-                              : String(v)}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
-              ) : (
-                <p className="v2-taken-state">Geen procesgegevens.</p>
-              )}
+              <ProcessVarsSection variables={taskVariables} loading={detailLoading} />
             </section>
 
             <section className="v2-taken-section">

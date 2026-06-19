@@ -615,6 +615,7 @@
 .pbd .pb-gantt-row:hover { background: var(--v2-accent-50); }
 .pbd .pb-gantt-namecol .nm { font-size: 12.5px; font-weight: 600; color: var(--v2-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pbd .pb-gantt-namecol .meta { font-family: var(--v2-mono); font-size: 10px; color: var(--v2-ink-3); margin-top: 1px; }
+.pbd .pb-live-badge { display: inline-block; margin-left: 5px; padding: 0 4px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--v2-accent); color: #fff; border-radius: 3px; vertical-align: middle; }
 .pbd .pb-gantt-namecol .pb-health { position: absolute; }
 .pbd .pb-gantt-row .pb-gantt-namecol { position: relative; padding-left: 26px; }
 .pbd .pb-gantt-row .pb-gantt-namecol .pb-health { left: 14px; top: 50%; transform: translateY(-50%); }
@@ -729,6 +730,30 @@
 .pbd .pb-doc4 .st { font-family: var(--v2-mono); font-size: 10px; margin-top: 2px; }
 .pbd .pb-doc4.ok .st { color: var(--pb-green); }
 .pbd .pb-doc4.na .st { color: var(--v2-ink-3); }
+
+/* In-progress badge on claimed swimlane nodes */
+.pbd .pb-swim-node-claimed { box-shadow: 0 0 0 2px var(--v2-primary); }
+.pbd .pb-swim-inprogress {
+  position: absolute; top: -10px; right: -10px;
+  font-size: 20px; line-height: 1;
+  background: white; border-radius: 50%;
+  border: 2px solid black;
+  padding: 2px;
+  pointer-events: none;
+}
+
+/* Open taken — live task work surface inside ProjectDetail */
+.pbd .pb-taken-section { margin-top: 28px; border-top: 2px solid var(--v2-rule-1); padding-top: 20px; }
+.pbd .pb-taken-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.pbd .pb-taken-head h3 { font-size: 13px; font-weight: 700; color: var(--v2-ink); text-transform: uppercase; letter-spacing: .04em; margin: 0; }
+.pbd .pb-taken-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.pbd .pb-taken-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--v2-bg-2); border: 1px solid var(--v2-rule-2); border-radius: 4px; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+.pbd .pb-taken-item:hover { border-color: var(--v2-primary); }
+.pbd .pb-taken-item.active { border-color: var(--v2-primary); background: #f0f4ff; }
+.pbd .pb-taken-item-name { font-size: 13px; font-weight: 500; color: var(--v2-ink); }
+.pbd .pb-task-panel { background: var(--v2-bg-2); border: 1px solid var(--v2-rule-1); border-radius: 6px; padding: 20px 24px; }
+.pbd .pb-task-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
+.pbd .pb-task-name { font-size: 14px; font-weight: 600; color: var(--v2-ink); }
 
 /* Tweaks: phase labels */
 .pb-tweaks .pb-tweak-labels { display: grid; gap: 6px; }

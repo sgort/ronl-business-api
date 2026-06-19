@@ -8,8 +8,12 @@ import {
   type StatusKey,
 } from '../../pages/infra-board/rip-model';
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
-import { useActivityHistory, usePhase1Documents } from '../../services/infra.api';
+import { useActivityHistory, usePhase1Documents, useOpenTasks } from '../../services/infra.api';
+import { businessApi } from '../../services/api';
+import type { Task } from '@ronl/shared';
 import Fase1Swimlane from './Fase1Swimlane';
+import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
+import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -46,12 +50,116 @@ function deriveMockStatus(project: PortfolioProject | undefined): Record<string,
   return out;
 }
 
+/** Inline claim + complete panel for a single Operaton task. */
+function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
+  const [claiming, setClaiming] = useState(false);
+  const [isClaimed, setIsClaimed] = useState(!!task.assignee);
+  const [variables, setVariables] = useState<Record<string, unknown> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  // Always fetch process variables on mount so they're visible before claiming.
+  useEffect(() => {
+    setDetailLoading(true);
+    businessApi.task.variables(task.id).then((res) => {
+      if (res.success) setVariables(res.data as Record<string, unknown>);
+      setDetailLoading(false);
+    });
+  }, [task.id]);
+
+  const claim = async () => {
+    setClaiming(true);
+    setMsg(null);
+    const res = await businessApi.task.claim(task.id);
+    setClaiming(false);
+    if (res.success) {
+      setIsClaimed(true);
+    } else {
+      setMsg({ type: 'err', text: 'Claimen mislukt.' });
+    }
+  };
+
+  return (
+    <div className="pb-task-panel">
+      <div className="pb-task-panel-head">
+        <span className="pb-task-name">{task.name}</span>
+        <span className={`v2-taken-pill ${isClaimed ? 'claimed' : 'open'}`}>
+          {isClaimed ? 'Geclaimd' : 'Open'}
+        </span>
+      </div>
+
+      <dl className="v2-taken-meta">
+        <div>
+          <dt>Aangemaakt</dt>
+          <dd>{new Date(task.created).toLocaleString('nl-NL')}</dd>
+        </div>
+        {task.due && (
+          <div>
+            <dt>Deadline</dt>
+            <dd className={new Date(task.due).getTime() < Date.now() ? 'v2-taken-overdue' : ''}>
+              {new Date(task.due).toLocaleString('nl-NL')}
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt>Status</dt>
+          <dd>{isClaimed ? 'Geclaimd' : 'Openstaand'}</dd>
+        </div>
+        <div>
+          <dt>Taak ID</dt>
+          <dd className="v2-taken-mono">{task.id}</dd>
+        </div>
+      </dl>
+
+      <section className="v2-taken-section">
+        <h3>Procesgegevens</h3>
+        <ProcessVarsSection variables={variables} loading={detailLoading} />
+      </section>
+
+      {msg && (
+        <div className={`v2-taken-msg v2-taken-msg-${msg.type === 'ok' ? 'success' : 'error'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      <section className="v2-taken-section">
+        <h3>Acties</h3>
+        {!isClaimed ? (
+          <button type="button" className="v2-btn" onClick={claim} disabled={claiming}>
+            {claiming ? 'Claimen…' : 'Taak claimen'}
+          </button>
+        ) : (
+          <TaskFormViewer
+            taskId={task.id}
+            variables={variables}
+            onCompleted={() => {
+              setMsg({ type: 'ok', text: 'Taak voltooid.' });
+              onDone();
+            }}
+            onError={() => setMsg({ type: 'err', text: 'Opslaan mislukt.' })}
+          />
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props) {
   const mock = getMockPortfolio().find((p) => p.nr === projectRef.nr);
   const isLive = !!projectRef.instanceId;
 
-  const { data: history } = useActivityHistory(projectRef.instanceId ?? null);
+  const { data: history, reload: reloadHistory } = useActivityHistory(
+    projectRef.instanceId ?? null
+  );
   const { data: docs } = usePhase1Documents(projectRef.instanceId ?? null);
+  const { data: allTasks, reload: reloadTasks } = useOpenTasks();
+
+  // Tasks belonging to this process instance.
+  const instanceTasks: Task[] = isLive
+    ? (allTasks ?? []).filter((t) => t.processInstanceId === projectRef.instanceId)
+    : [];
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
 
   // live instances are always in Fase 1 (R2.1); mock rows carry their own phase.
   const currentPhase = isLive ? 1 : (mock?.phase ?? 1);
@@ -62,6 +170,13 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
 
   const statusById: Record<string, StatusKey> =
     isLive && history ? nodeStatusFromHistory(history) : deriveMockStatus(mock);
+
+  // Active tasks (open or claimed) → highlight matching swimlane nodes.
+  const activeNodeIds = new Set(
+    instanceTasks.flatMap((t) =>
+      FASE1_NODES.filter((n) => n.bpmnId === t.taskDefinitionKey).map((n) => n.id)
+    )
+  );
 
   const naam = mock?.naam ?? (docs?.variables?.projectName as string) ?? `Project ${projectRef.nr}`;
   const health = mock?.health ?? 'groen';
@@ -153,7 +268,7 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
               Processtappen &amp; rollen — RIP Fase 1 procesmodel{isLive ? ' (live)' : ''}
             </span>
           </div>
-          <Fase1Swimlane statusById={statusById} />
+          <Fase1Swimlane statusById={statusById} claimedNodeIds={activeNodeIds} />
           <div className="pb-deliverables">
             <div className="pb-deliverables-head">Projectplan — onderdelen</div>
             <div className="pb-docrow">
@@ -182,6 +297,41 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
             <b>Fase 1 ({PHASES[0].code})</b> is volledig uitgewerkt — selecteer Fase 1 hierboven
             voor de swimlane met rollen, taken en deliverables.
           </p>
+        </div>
+      )}
+
+      {/* Live task work surface — only shown for live instances with open tasks. */}
+      {isLive && instanceTasks.length > 0 && (
+        <div className="pb-taken-section">
+          <div className="pb-taken-head">
+            <h3>Open taken ({instanceTasks.length})</h3>
+          </div>
+          <div className="pb-taken-list">
+            {instanceTasks.map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                className={`pb-taken-item ${selectedTaskId === t.id ? 'active' : ''}`}
+                onClick={() => setSelectedTaskId((prev) => (prev === t.id ? null : t.id))}
+              >
+                <span className="pb-taken-item-name">{t.name}</span>
+                <span className={`v2-taken-pill ${t.assignee ? 'claimed' : 'open'}`}>
+                  {t.assignee ? 'Geclaimd' : 'Open'}
+                </span>
+              </button>
+            ))}
+          </div>
+          {selectedTask && (
+            <TaskWorkPanel
+              key={selectedTask.id}
+              task={selectedTask}
+              onDone={() => {
+                setSelectedTaskId(null);
+                reloadTasks();
+                reloadHistory();
+              }}
+            />
+          )}
         </div>
       )}
     </div>

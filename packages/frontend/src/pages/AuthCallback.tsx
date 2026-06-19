@@ -37,7 +37,11 @@ function consumePostLoginRedirect(): string | null {
 function canAccessRedirect(path: string, roles: string[]): boolean {
   if (path === '/dashboard/infra-board') return roles.includes('infra-projectteam');
   if (path === '/dashboard/public-affairs') return roles.includes('public-affairs');
-  if (path === '/dashboard/caseworker') return roles.includes('caseworker');
+  // infra-projectteam members also carry the caseworker role (they need the task
+  // API), but their home is /dashboard/infra-board — don't let a stale
+  // caseworker redirect override that.
+  if (path === '/dashboard/caseworker')
+    return roles.includes('caseworker') && !roles.includes('infra-projectteam');
   return true;
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   getMockPortfolio,
+  makePhase1Row,
   MIJN_PROJECT_NRS,
   TL,
   type PortfolioProject,
@@ -50,12 +51,17 @@ function Gantt({
         </div>
         <div className="pb-gantt-body">
           {rows.map((p) => (
-            <div className="pb-gantt-row" key={p.id} onClick={() => onOpenProject({ nr: p.nr })}>
+            <div
+              className="pb-gantt-row"
+              key={p.id}
+              onClick={() => onOpenProject({ nr: p.nr, instanceId: p.instanceId })}
+            >
               <div className="pb-gantt-namecol">
                 <span className={`pb-health ${p.health}`} />
                 <span className="nm">{p.naam}</span>
                 <span className="meta">
                   {p.nr} · {roleByKey(p.role).short}
+                  {p.instanceId && <span className="pb-live-badge">live</span>}
                 </span>
               </div>
               <div className="pb-gantt-track">
@@ -124,7 +130,7 @@ function Kanban({
                     type="button"
                     className="pb-kan-card"
                     key={p.id}
-                    onClick={() => onOpenProject({ nr: p.nr })}
+                    onClick={() => onOpenProject({ nr: p.nr, instanceId: p.instanceId })}
                   >
                     <div className="top">
                       <span className="pb-proj-nr">{p.nr}</span>
@@ -158,11 +164,13 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
   const [scope, setScope] = useState<'alle' | 'mijn' | 'risico'>('alle');
   const [role, setRole] = useState('alle');
 
-  // Live Fase-1 instances exist via this hook; merge into rows once the
-  // backend exposes phase/lifecycle + planning data for the multi-year viz.
   const { data: liveInstances } = useActivePhase1();
 
-  const all = getMockPortfolio();
+  // Convert live instances to portfolio rows and prepend them.
+  // Remove any mock row whose project number matches a live instance (avoid duplicates).
+  const liveRows: PortfolioProject[] = (liveInstances ?? []).map(makePhase1Row);
+  const liveNrs = new Set(liveRows.map((r) => r.nr));
+  const all = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
   const mijn = new Set(MIJN_PROJECT_NRS);
   let rows = all;
   if (scope === 'mijn') rows = rows.filter((p) => mijn.has(p.nr));

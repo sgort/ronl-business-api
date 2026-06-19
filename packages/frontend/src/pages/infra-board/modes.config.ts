@@ -37,7 +37,14 @@ export const INFRA_MODES: InfraModeConfig[] = [
     id: 'mijn-dag',
     label: 'Mijn dag',
     defaultSectionId: 'overzicht',
-    groups: [{ items: [{ id: 'overzicht', label: 'Overzicht', authRequired: true }] }],
+    groups: [
+      {
+        items: [
+          { id: 'overzicht', label: 'Overzicht', authRequired: true },
+          { id: 'project-updates', label: 'Project-updates', authRequired: true },
+        ],
+      },
+    ],
   },
   {
     id: 'portfolio',

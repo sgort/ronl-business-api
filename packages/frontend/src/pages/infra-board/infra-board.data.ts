@@ -15,7 +15,7 @@ import { PHASES, type StatusKey, type HealthKey } from './rip-model';
 export const TL = { startYear: 2022, quarters: 24, todayIdx: 17 };
 const qIdx = (year: number, q: number) => (year - TL.startYear) * 4 + (q - 1);
 /** Mock per-phase durations (quarters). Replace with planning data. */
-const PHASE_DUR = [2, 3, 3, 2, 5, 2];
+export const PHASE_DUR = [2, 3, 3, 2, 5, 2];
 
 export interface GanttSegment {
   phase: number;
@@ -37,6 +37,8 @@ export interface PortfolioProject {
   start: number;
   end: number;
   segments: GanttSegment[];
+  /** Set when this row is backed by a live Operaton process instance. */
+  instanceId?: string;
 }
 
 export interface TodoItem {
@@ -292,6 +294,41 @@ const RAW: Raw[] = [
     1,
   ],
 ];
+
+/** Build a PortfolioProject row from a live RIP Fase 1 process instance. */
+export function makePhase1Row(inst: {
+  id: string;
+  startTime: string;
+  projectNumber: string;
+  projectName: string;
+}): PortfolioProject {
+  const d = new Date(inst.startTime);
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  const fromIdx = qIdx(d.getFullYear(), q);
+  const statuses: StatusKey[] = PHASES.map((p) => (p.n === 1 ? 'active' : 'todo'));
+  let cursor = fromIdx;
+  const segments: GanttSegment[] = PHASES.map((p, i) => {
+    const seg: GanttSegment = { phase: p.n, from: cursor, len: PHASE_DUR[i], status: statuses[i] };
+    cursor += PHASE_DUR[i];
+    return seg;
+  });
+  return {
+    id: 'live-' + inst.id,
+    nr: inst.projectNumber || inst.id.slice(0, 8),
+    naam: inst.projectName || 'RIP Fase 1 project',
+    phase: 1,
+    role: 'projectleider',
+    health: 'groen',
+    phaseStatuses: statuses,
+    milestone: 'Fase 1 lopend',
+    budget: '—',
+    startYear: d.getFullYear(),
+    start: fromIdx,
+    end: cursor,
+    segments,
+    instanceId: inst.id,
+  };
+}
 
 let _projects: PortfolioProject[] | null = null;
 export function getMockPortfolio(): PortfolioProject[] {

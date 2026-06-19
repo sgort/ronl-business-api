@@ -106,6 +106,10 @@ function startOfDay(d: Date) {
   return x;
 }
 
+const PROCESS_DISPLAY_NAMES: Record<string, string> = {
+  RipPhase1Process: 'RIP Fase 1 — R2.1 Projectplan Planvoorbereiding',
+};
+
 /** Bucket the user's open tasks into Vandaag / Deze week / Volgende week by `due`. */
 export function groupTasksByHorizon(tasks: Task[]): {
   vandaag: LiveTodo[];
@@ -129,9 +133,9 @@ export function groupTasksByHorizon(tasks: Task[]): {
     const todo: LiveTodo = {
       taskId: t.id,
       processInstanceId: t.processInstanceId,
-      titel: t.name,
+      titel: PROCESS_DISPLAY_NAMES[t.processDefinitionKey ?? ''] ?? t.name,
       proj: t.processDefinitionKey ?? t.processInstanceId.slice(0, 8),
-      sub: `Open taak · ${t.processDefinitionKey ?? 'proces'}${t.assignee ? ` · ${t.assignee}` : ''}`,
+      sub: t.name,
       prio: overdue ? 'overdue' : t.assignee ? 'active' : 'action',
     };
     if (!due || (due >= today && due <= weekEnd) || overdue)

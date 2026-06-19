@@ -12,8 +12,15 @@ const COL_W = 190,
   NODE_H = 54,
   GATE = 46;
 
-/** SVG swimlane for RIP Fase 1. `statusById` maps node id → status (live or derived). */
-export default function Fase1Swimlane({ statusById }: { statusById: Record<string, StatusKey> }) {
+/** SVG swimlane for RIP Fase 1. `statusById` maps node id → status (live or derived).
+ *  `claimedNodeIds` highlights nodes whose task is currently claimed/in progress. */
+export default function Fase1Swimlane({
+  statusById,
+  claimedNodeIds = new Set(),
+}: {
+  statusById: Record<string, StatusKey>;
+  claimedNodeIds?: Set<string>;
+}) {
   const nodeById = Object.fromEntries(FASE1_NODES.map((n) => [n.id, n]));
   const nCols = Math.max(...FASE1_NODES.map((n) => n.col)) + 1;
   const W = nCols * COL_W;
@@ -147,10 +154,11 @@ export default function Fase1Swimlane({ statusById }: { statusById: Record<strin
                 </div>
               );
             }
+            const claimed = claimedNodeIds.has(n.id);
             return (
               <div
                 key={n.id}
-                className={`pb-swim-node ${st(n.id)} ${n.kind}`}
+                className={`pb-swim-node ${st(n.id)} ${n.kind}${claimed ? ' pb-swim-node-claimed' : ''}`}
                 style={{
                   left: cx(n) - NODE_W / 2,
                   top: cy(n) - NODE_H / 2,
@@ -162,6 +170,11 @@ export default function Fase1Swimlane({ statusById }: { statusById: Record<strin
                 <span className="nlabel">{n.label}</span>
                 {n.doc && <span className="ndoc">{n.doc}</span>}
                 {n.kind === 'service' && <span className="nauto">automatisch</span>}
+                {claimed && (
+                  <span className="pb-swim-inprogress" title="In behandeling">
+                    ✏
+                  </span>
+                )}
               </div>
             );
           })}

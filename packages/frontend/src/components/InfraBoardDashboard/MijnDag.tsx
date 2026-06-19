@@ -3,7 +3,6 @@ import type { KeycloakUser } from '@ronl/shared';
 import { useOpenTasks, groupTasksByHorizon, type LiveTodo } from '../../services/infra.api';
 import {
   getMockTodos,
-  getMockUpdates,
   getMockPortfolio,
   MIJN_PROJECT_NRS,
 } from '../../pages/infra-board/infra-board.data';
@@ -158,27 +157,6 @@ export default function MijnDag({ user, onOpenProject, onGotoPortfolio }: Props)
                     F{ph.n} · {ph.name}
                   </span>
                 </button>
-              );
-            })}
-          </div>
-
-          <div className="pb-side-card">
-            <div className="pb-side-head">
-              <h3 className="pb-card-h">Project-updates</h3>
-            </div>
-            {getMockUpdates().map((up, i) => {
-              const [d1, d2] = up.datum.split(' ');
-              return (
-                <div className="pb-update" key={i}>
-                  <div className="d">
-                    {d1}
-                    <br />
-                    {d2}
-                  </div>
-                  <div className="x">
-                    <span className="proj">{up.proj}</span> — {up.tekst}
-                  </div>
-                </div>
               );
             })}
           </div>

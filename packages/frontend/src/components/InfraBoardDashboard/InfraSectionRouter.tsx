@@ -4,12 +4,40 @@ import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 import MijnDag from './MijnDag';
 import Portfolio from './Portfolio';
 import ProjectDetail from './ProjectDetail';
+import { getMockUpdates } from '../../pages/infra-board/infra-board.data';
 
 // Reused, unchanged V1 components for the Beheer surface:
 import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
 import RipFase1WipSection from '../CaseworkerDashboard/RipFase1WipSection';
 import RipFase1GereedSection from '../CaseworkerDashboard/RipFase1GereedSection';
 import ArchiefSection from '../CaseworkerDashboard/ArchiefSection';
+
+function ProjectUpdatesView() {
+  return (
+    <div className="pb-view">
+      <div className="pb-phase-titlebar">
+        <h3>Project-updates</h3>
+      </div>
+      <div className="pb-updates-list">
+        {getMockUpdates().map((up, i) => {
+          const [d1, d2] = up.datum.split(' ');
+          return (
+            <div className="pb-update" key={i}>
+              <div className="d">
+                {d1}
+                <br />
+                {d2}
+              </div>
+              <div className="x">
+                <span className="proj">{up.proj}</span> — {up.tekst}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   mode: InfraModeId;
@@ -29,6 +57,7 @@ export default function InfraSectionRouter(p: Props) {
     );
   }
   if (p.mode === 'mijn-dag') {
+    if (p.section === 'project-updates') return <ProjectUpdatesView />;
     return (
       <MijnDag user={p.user} onOpenProject={p.onOpenProject} onGotoPortfolio={p.onGotoPortfolio} />
     );
