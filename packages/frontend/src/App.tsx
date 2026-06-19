@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AuthCallback from './pages/AuthCallback';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
 import PADashboardV2 from './pages/PADashboardV2';
+import InfraBoardDashboard from './pages/InfraBoardDashboard';
 import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
 import keycloak from './services/keycloak';
@@ -61,6 +62,9 @@ function App() {
 
         {/* PA cockpit — public route; role gate lives inside the component */}
         <Route path="/dashboard/public-affairs" element={<PADashboardV2 />} />
+
+        {/* Infra project-board — public route; role gate (infra-projectteam) lives inside */}
+        <Route path="/dashboard/infra-board" element={<InfraBoardDashboard />} />
 
         {/* Legacy /dashboard redirect — role-based, falls through to ProtectedRoute logic */}
         <Route

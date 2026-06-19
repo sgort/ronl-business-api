@@ -33,6 +33,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.3.0',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 19, 2026',
+      sections: [
+        {
+          icon: '🏗️',
+          iconColor: 'blue',
+          title: 'Infra-board — first cut (Flevoland)',
+          items: [
+            'New /dashboard/infra-board route, gated on infra-projectteam',
+            'Mijn dag · Portfolio (Gantt + per fase) · Beheer; live Taken via businessApi.task.*',
+            'Project detail renders the RIP Fase 1 swimlane from activity-history + the 4 Projectplan-onderdelen',
+            'Reuses tenant theme, ⌘K palette, RipFase1WipViewer and the IOU assistant',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.2.1',
       status: 'Bug Fix',
       statusColor: 'green',
