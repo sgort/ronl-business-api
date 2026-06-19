@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-kwaliteit-verbetering",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Verbeteren kwaliteit intake-formulier"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Het intake-overleg heeft vastgesteld dat het projectplan aanpassing behoeft. Beschrijf de verbeteringen die zijn doorgevoerd in het projectplan voordat het opnieuw ter accordering wordt aangeboden."
+    },
+    {
+      "id": "Text_Section_Verbeteringen",
+      "type": "text",
+      "text": "### Doorgevoerde verbeteringen"
+    },
+    {
+      "id": "Field_VerbeteringToelichting",
+      "type": "textarea",
+      "label": "Toelichting verbeteringen",
+      "key": "verbeteringToelichting",
+      "validate": { "required": true },
+      "description": "Beschrijf concreet welke onderdelen zijn aangepast en op basis van welke feedback."
+    },
+    {
+      "id": "Field_VerbeteringScope",
+      "type": "textarea",
+      "label": "Aanpassingen scope",
+      "key": "verbeteringScope",
+      "description": "Indien de scope is bijgesteld: beschrijf de wijziging."
+    },
+    {
+      "id": "Field_VerbeteringBudget",
+      "type": "textarea",
+      "label": "Aanpassingen budget",
+      "key": "verbeteringBudget",
+      "description": "Indien het budget is bijgesteld: beschrijf de wijziging."
+    },
+    {
+      "id": "Field_VerbeteringPlanning",
+      "type": "textarea",
+      "label": "Aanpassingen planning",
+      "key": "verbeteringPlanning",
+      "description": "Indien de planning is bijgesteld: beschrijf de wijziging."
+    },
+    {
+      "id": "Field_VerbeteringOverig",
+      "type": "textarea",
+      "label": "Overige aanpassingen",
+      "key": "verbeteringOverig",
+      "description": "Eventuele andere aanpassingen die zijn doorgevoerd."
+    },
+    {
+      "id": "Field_ProjectplanBijgewerkt",
+      "type": "checkbox",
+      "label": "Bijgewerkt projectplan bijgevoegd als bijlage",
+      "key": "projectplanBijgewerkt",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Verbeteringen indienen",
+      "action": "submit"
+    }
+  ]
+}

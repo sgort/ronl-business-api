@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-planning",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Opstellen planning en informeren PL en ondersteuner"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Stel de projectplanning op op basis van de PSU-uitkomsten. Informeer de projectleider en projectondersteuner over de vastgestelde planning en mijlpalen."
+    },
+    {
+      "id": "Text_Section_Planning",
+      "type": "text",
+      "text": "### Planning"
+    },
+    {
+      "id": "Field_PlanningStartdatum",
+      "type": "datetime",
+      "label": "Startdatum VO-fase",
+      "key": "planningStartdatum",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PlanningEinddatum",
+      "type": "datetime",
+      "label": "Verwachte einddatum VO-fase",
+      "key": "planningEinddatum",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_PlanningMijlpalen",
+      "type": "textarea",
+      "label": "Mijlpalen en beslismomenten",
+      "key": "planningMijlpalen",
+      "validate": { "required": true },
+      "description": "Beschrijf de belangrijkste mijlpalen en wanneer beslismomenten worden verwacht."
+    },
+    {
+      "id": "Field_PlanningRisicoReserve",
+      "type": "textfield",
+      "label": "Risicoreserve (weken)",
+      "key": "planningRisicoReserve",
+      "description": "Ingebouwde buffer voor risico's en onvoorziene omstandigheden."
+    },
+    {
+      "id": "Text_Section_Notificatie",
+      "type": "text",
+      "text": "### Notificatie"
+    },
+    {
+      "id": "Field_NotificatiePL",
+      "type": "checkbox",
+      "label": "Projectleider geïnformeerd over planning",
+      "key": "planningNotificatiePL",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_NotificatieOndersteuner",
+      "type": "checkbox",
+      "label": "Projectondersteuner geïnformeerd over planning",
+      "key": "planningNotificatieOndersteuner",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_NotificatieWijze",
+      "type": "select",
+      "label": "Wijze van informatieoverdracht",
+      "key": "planningNotificatieWijze",
+      "validate": { "required": true },
+      "values": [
+        { "label": "E-mail", "value": "email" },
+        { "label": "Overleg", "value": "overleg" },
+        { "label": "Teams-bericht", "value": "teams" },
+        { "label": "Anders", "value": "anders" }
+      ]
+    },
+    {
+      "id": "Field_NotificatieOpmerkingen",
+      "type": "textarea",
+      "label": "Opmerkingen",
+      "key": "planningOpmerkingen",
+      "description": "Eventuele aanvullende opmerkingen bij de planning of notificatie."
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Planning vastleggen",
+      "action": "submit"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-overleg-vo",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Houden overleg uitgangspunten VO-fase"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Leg de uitkomsten vast van het overleg over de uitgangspunten voor de VO-fase. Het RIP-team bespreekt en beoordeelt het aangevulde projectplan (kolom 4) voordat het ter accordering wordt voorgelegd."
+    },
+    {
+      "id": "Text_Section_Overleg",
+      "type": "text",
+      "text": "### Overleg"
+    },
+    {
+      "id": "Field_OverlegDatum",
+      "type": "datetime",
+      "label": "Datum en tijd overleg",
+      "key": "voOverlegDatum",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_OverlegLocatie",
+      "type": "textfield",
+      "label": "Locatie",
+      "key": "voOverlegLocatie",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_OverlegDeelnemers",
+      "type": "textarea",
+      "label": "Deelnemers",
+      "key": "voOverlegDeelnemers",
+      "validate": { "required": true },
+      "description": "Vermeld naam en rol van elk RIP-teamlid dat aanwezig was."
+    },
+    {
+      "id": "Text_Section_Inhoud",
+      "type": "text",
+      "text": "### Inhoud overleg"
+    },
+    {
+      "id": "Field_OverlegNotulen",
+      "type": "textarea",
+      "label": "Notulen",
+      "key": "voOverlegNotulen",
+      "validate": { "required": true },
+      "description": "Samenvatting van de besproken onderwerpen en gevoerde discussies."
+    },
+    {
+      "id": "Field_OverlegBeslissingen",
+      "type": "textarea",
+      "label": "Beslissingen",
+      "key": "voOverlegBeslissingen",
+      "validate": { "required": true },
+      "description": "Welke beslissingen zijn genomen over de uitgangspunten van de VO-fase?"
+    },
+    {
+      "id": "Field_OverlegActiepunten",
+      "type": "textarea",
+      "label": "Actiepunten",
+      "key": "voOverlegActiepunten",
+      "description": "Actiepunten die voortkomen uit het overleg."
+    },
+    {
+      "id": "Text_Section_Advies",
+      "type": "text",
+      "text": "### Advies aan accorderende partijen"
+    },
+    {
+      "id": "Field_OverlegAdvies",
+      "type": "textarea",
+      "label": "Advies RIP-team",
+      "key": "voOverlegAdvies",
+      "validate": { "required": true },
+      "description": "Formuleer het advies van het RIP-team aan de accorderende partijen (PL, Aandrager, AO)."
+    },
+    {
+      "id": "Field_OverlegAkoordVerwacht",
+      "type": "radio",
+      "label": "Verwacht het RIP-team accordering?",
+      "key": "voOverlegAkkoordVerwacht",
+      "validate": { "required": true },
+      "values": [
+        { "label": "Ja — uitgangspunten zijn gereed voor accordering", "value": "ja" },
+        { "label": "Nee — aanvullende afstemming noodzakelijk", "value": "nee" }
+      ]
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Overleg vastleggen",
+      "action": "submit"
+    }
+  ]
+}

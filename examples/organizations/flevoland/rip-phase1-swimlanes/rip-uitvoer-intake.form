@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-uitvoer-intake",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Uitvoeren intake-overleg"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Leg de uitkomsten van het intake-overleg vast. De beslissing onderaan bepaalt de verdere route: akkoord leidt naar het aanvullen van het projectplan, niet-akkoord leidt naar verbetering van het intake-formulier."
+    },
+    {
+      "id": "Text_Section_Overleg",
+      "type": "text",
+      "text": "### Overleg"
+    },
+    {
+      "id": "Field_OverlegDatum",
+      "type": "datetime",
+      "label": "Datum en tijd overleg",
+      "key": "uitvoerIntakeDatum",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Field_OverlegAanwezig",
+      "type": "textarea",
+      "label": "Aanwezigen",
+      "key": "uitvoerIntakeAanwezig",
+      "validate": { "required": true },
+      "description": "Vermeld naam en rol van elke deelnemer."
+    },
+    {
+      "id": "Text_Section_Inhoud",
+      "type": "text",
+      "text": "### Inhoud intake-overleg"
+    },
+    {
+      "id": "Field_Bevindingen",
+      "type": "textarea",
+      "label": "Bevindingen en discussiepunten",
+      "key": "uitvoerIntakeBevindingen",
+      "validate": { "required": true },
+      "description": "Wat is besproken? Welke vragen of zorgen zijn geuit over het projectplan?"
+    },
+    {
+      "id": "Field_Actiepunten",
+      "type": "textarea",
+      "label": "Actiepunten",
+      "key": "uitvoerIntakeActiepunten",
+      "description": "Actiepunten die voortkomen uit het overleg, ongeacht de beslissing."
+    },
+    {
+      "id": "Text_Section_Beslissing",
+      "type": "text",
+      "text": "### Beslissing"
+    },
+    {
+      "id": "Field_IntakeAkkoord",
+      "type": "radio",
+      "label": "Projectplan 1. Intake-formulier akkoord?",
+      "key": "intakeAkkoord",
+      "validate": { "required": true },
+      "values": [
+        { "label": "Ja — projectplan is akkoord, ga verder met aanvullen intake-verslag", "value": "ja" },
+        { "label": "Nee — projectplan behoeft verbetering, aandrager dient bij te stellen", "value": "nee" }
+      ]
+    },
+    {
+      "id": "Field_BeslissingToelichting",
+      "type": "textarea",
+      "label": "Toelichting beslissing",
+      "key": "uitvoerIntakeBeslissingToelichting",
+      "description": "Verplicht bij Nee. Geef aan wat verbeterd moet worden."
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Beslissing vastleggen",
+      "action": "submit"
+    }
+  ]
+}
