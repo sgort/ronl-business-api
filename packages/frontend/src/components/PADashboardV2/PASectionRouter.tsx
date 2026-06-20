@@ -21,14 +21,33 @@ import {
   MONITORING_TABS,
   type MonitoringTabId,
 } from '../../pages/public-affairs-v2/pa.data';
+import type { KeycloakUser } from '@ronl/shared';
+import type { TenantConfig } from '../../services/tenant';
+import ProfielSection from '../CaseworkerDashboard/ProfielSection';
+import RollenSection from '../CaseworkerDashboard/RollenSection';
+import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenarioSection';
+import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
+import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
+import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
 const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-log']);
+const BEHEER_IDS = new Set<string>([
+  'profiel',
+  'rollen',
+  'iou-gebruiksscenario',
+  'iou-feedback',
+  'iou-actieve-zaken',
+  'iou-archief',
+  'gereedschap-overzicht',
+]);
 
 interface Props {
   sectionId: string;
   prioritering: Prioritering;
   kompasViz: KompasViz;
+  user: KeycloakUser | null;
+  tenantConfig: TenantConfig | null;
   onOpenDossier: (id: string) => void;
 }
 
@@ -36,6 +55,8 @@ export default function PASectionRouter({
   sectionId,
   prioritering,
   kompasViz,
+  user,
+  tenantConfig,
   onOpenDossier,
 }: Props) {
   if (sectionId === 'vandaag') {
@@ -48,6 +69,36 @@ export default function PASectionRouter({
 
   if (VOORTGANG_IDS.has(sectionId)) {
     return <Voortgang view={sectionId as VoortgangView} onOpenDossier={onOpenDossier} />;
+  }
+
+  if (BEHEER_IDS.has(sectionId)) {
+    let content: React.ReactNode;
+    switch (sectionId) {
+      case 'profiel':
+        content = <ProfielSection user={user} tenantConfig={tenantConfig} />;
+        break;
+      case 'rollen':
+        content = <RollenSection user={user} />;
+        break;
+      case 'iou-gebruiksscenario':
+        content = <IouGebruiksscenarioSection />;
+        break;
+      case 'iou-feedback':
+        content = <IouFeedbackSection />;
+        break;
+      case 'iou-actieve-zaken':
+        content = <IouZakenSection state="opened" />;
+        break;
+      case 'iou-archief':
+        content = <IouZakenSection state="closed" />;
+        break;
+      case 'gereedschap-overzicht':
+        content = <GereedschapSection user={user} />;
+        break;
+      default:
+        content = <ProfielSection user={user} tenantConfig={tenantConfig} />;
+    }
+    return <div className="v2-main-pad">{content}</div>;
   }
 
   const dossier = getDossier(sectionId);

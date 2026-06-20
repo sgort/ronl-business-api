@@ -419,6 +419,8 @@ export default function PADashboardV2() {
                 sectionId={activeSection}
                 prioritering={prioritering}
                 kompasViz={kompasViz}
+                user={user}
+                tenantConfig={tenantConfig}
                 onOpenDossier={goToDossier}
               />
             )}
