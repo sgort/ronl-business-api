@@ -74,31 +74,45 @@ export default function InfraSectionRouter(p: Props) {
   if (p.mode === 'portfolio') {
     return <Portfolio phaseLabels={p.phaseLabels} onOpenProject={p.onOpenProject} />;
   }
-  // Beheer — reuse the existing V1 components verbatim.
+  // Beheer — reuse the existing V1 components verbatim, wrapped in the
+  // same v2-main-pad padding that CaseworkerDashboardV2 applies.
+  let content: React.ReactNode;
   switch (section) {
     case 'profiel':
-      return <ProfielSection user={user} tenantConfig={tenantConfig} />;
+      content = <ProfielSection user={user} tenantConfig={tenantConfig} />;
+      break;
     case 'rollen':
-      return <RollenSection user={user} />;
+      content = <RollenSection user={user} />;
+      break;
     case 'rip-fase1':
-      return <RipFase1Section user={user} />;
+      content = <RipFase1Section user={user} />;
+      break;
     case 'rip-fase1-wip':
-      return <RipFase1WipSection user={user} />;
+      content = <RipFase1WipSection user={user} />;
+      break;
     case 'rip-fase1-gereed':
-      return <RipFase1GereedSection user={user} />;
+      content = <RipFase1GereedSection user={user} />;
+      break;
     case 'archief':
-      return <ArchiefSection />;
+      content = <ArchiefSection />;
+      break;
     case 'iou-gebruiksscenario':
-      return <IouGebruiksscenarioSection />;
+      content = <IouGebruiksscenarioSection />;
+      break;
     case 'iou-feedback':
-      return <IouFeedbackSection />;
+      content = <IouFeedbackSection />;
+      break;
     case 'iou-actieve-zaken':
-      return <IouZakenSection state="opened" />;
+      content = <IouZakenSection state="opened" />;
+      break;
     case 'iou-archief':
-      return <IouZakenSection state="closed" />;
+      content = <IouZakenSection state="closed" />;
+      break;
     case 'gereedschap-overzicht':
-      return <GereedschapSection user={user} />;
+      content = <GereedschapSection user={user} />;
+      break;
     default:
-      return <ProfielSection user={user} tenantConfig={tenantConfig} />;
+      content = <ProfielSection user={user} tenantConfig={tenantConfig} />;
   }
+  return <div className="v2-main-pad">{content}</div>;
 }
