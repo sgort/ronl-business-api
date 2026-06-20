@@ -13,9 +13,10 @@ const LOA_LABELS: Record<string, string> = {
 interface Props {
   user: KeycloakUser | null;
   tenantConfig: TenantConfig | null;
+  showManualFetch?: boolean;
 }
 
-export default function ProfielSection({ user, tenantConfig }: Props) {
+export default function ProfielSection({ user, tenantConfig, showManualFetch = true }: Props) {
   const { data: profielData, loading, error, load } = useProfielData(user?.employeeId);
   const [employeeIdInput, setEmployeeIdInput] = useState('');
 
@@ -79,31 +80,36 @@ export default function ProfielSection({ user, tenantConfig }: Props) {
 
         {!loading && error && <p className="text-sm text-red-500">{error}</p>}
 
-        {!loading && !user?.employeeId && profielData === undefined && (
-          <>
-            <p className="text-sm text-gray-400 mb-4">
-              Voer uw medewerker-ID in om uw onboardingprofiel op te halen.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={employeeIdInput}
-                onChange={(e) => setEmployeeIdInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleFetchOnboarding()}
-                placeholder="bijv. emp-001"
-                className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-              <button
-                onClick={handleFetchOnboarding}
-                disabled={!employeeIdInput.trim()}
-                className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                Ophalen
-              </button>
-            </div>
-          </>
-        )}
+        {!loading &&
+          !user?.employeeId &&
+          profielData === undefined &&
+          (showManualFetch ? (
+            <>
+              <p className="text-sm text-gray-400 mb-4">
+                Voer uw medewerker-ID in om uw onboardingprofiel op te halen.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={employeeIdInput}
+                  onChange={(e) => setEmployeeIdInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFetchOnboarding()}
+                  placeholder="bijv. emp-001"
+                  className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button
+                  onClick={handleFetchOnboarding}
+                  disabled={!employeeIdInput.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  Ophalen
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">Geen onboardingprofiel gevonden.</p>
+          ))}
 
         {!loading && profielData === null && !error && (
           <p className="text-sm text-gray-400">

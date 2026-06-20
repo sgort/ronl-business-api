@@ -151,6 +151,7 @@ export default function PADashboardV2() {
     else if (m === 'dossiers') setActiveSection(dossierId);
     else if (m === 'monitoring') setActiveSection('politiek');
     else if (m === 'voortgang') setActiveSection('voortgang');
+    else if (m === 'beheer') setActiveSection('profiel');
   };
 
   const goToDossier = (id: string) => {

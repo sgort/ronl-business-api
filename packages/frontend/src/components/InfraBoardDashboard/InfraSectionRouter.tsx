@@ -79,7 +79,7 @@ export default function InfraSectionRouter(p: Props) {
   let content: React.ReactNode;
   switch (section) {
     case 'profiel':
-      content = <ProfielSection user={user} tenantConfig={tenantConfig} />;
+      content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
       break;
     case 'rollen':
       content = <RollenSection user={user} />;
@@ -112,7 +112,7 @@ export default function InfraSectionRouter(p: Props) {
       content = <GereedschapSection user={user} />;
       break;
     default:
-      content = <ProfielSection user={user} tenantConfig={tenantConfig} />;
+      content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
   }
   return <div className="v2-main-pad">{content}</div>;
 }
