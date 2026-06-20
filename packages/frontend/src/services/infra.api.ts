@@ -110,6 +110,8 @@ const PROCESS_DISPLAY_NAMES: Record<string, string> = {
   RipPhase1Process: 'RIP Fase 1 — R2.1 Projectplan Planvoorbereiding',
 };
 
+const INFRA_PROCESS_KEYS = new Set(Object.keys(PROCESS_DISPLAY_NAMES));
+
 /** Bucket the user's open tasks into Vandaag / Deze week / Volgende week by `due`. */
 export function groupTasksByHorizon(tasks: Task[]): {
   vandaag: LiveTodo[];
@@ -127,7 +129,7 @@ export function groupTasksByHorizon(tasks: Task[]): {
     volgende_week: [] as LiveTodo[],
   };
 
-  for (const t of tasks) {
+  for (const t of tasks.filter((t) => INFRA_PROCESS_KEYS.has(t.processDefinitionKey ?? ''))) {
     const due = t.due ? new Date(t.due) : null;
     const overdue = due ? due < today : false;
     const todo: LiveTodo = {

@@ -76,7 +76,9 @@ export default function MijnDag({ user, onOpenProject, onGotoPortfolio }: Props)
     Boolean
   ) as ReturnType<typeof getMockPortfolio>;
 
-  const liveCount = tasks?.length ?? 0;
+  const liveCount = liveGroups
+    ? liveGroups.vandaag.length + liveGroups.deze_week.length + liveGroups.volgende_week.length
+    : 0;
 
   const renderLive = (items: LiveTodo[]) =>
     items.map((it) => (
