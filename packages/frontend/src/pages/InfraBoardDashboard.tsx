@@ -50,7 +50,7 @@ export default function InfraBoardDashboard() {
   const navigate = useNavigate();
   const [isAuthenticated] = useState<boolean>(() => !!keycloak.authenticated);
   const [user, setUser] = useState<KeycloakUser | null>(null);
-  const [, setTenantConfig] = useState<TenantConfig | null>(null);
+  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
 
   const [mode, setMode] = useState<InfraModeId>('mijn-dag');
   const [activeSection, setActiveSection] = useState<string>('overzicht');
@@ -268,6 +268,7 @@ export default function InfraBoardDashboard() {
               section={activeSection}
               openProject={openProject}
               user={user}
+              tenantConfig={tenantConfig}
               phaseLabels={phaseLabels}
               onOpenProject={goToProject}
               onBack={() => setOpenProject(null)}

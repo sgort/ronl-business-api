@@ -1,6 +1,7 @@
 import type { KeycloakUser } from '@ronl/shared';
 import type { InfraModeId } from '../../pages/infra-board/modes.config';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
+import type { TenantConfig } from '../../services/tenant';
 import MijnDag from './MijnDag';
 import Portfolio from './Portfolio';
 import ProjectDetail from './ProjectDetail';
@@ -11,6 +12,12 @@ import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
 import RipFase1WipSection from '../CaseworkerDashboard/RipFase1WipSection';
 import RipFase1GereedSection from '../CaseworkerDashboard/RipFase1GereedSection';
 import ArchiefSection from '../CaseworkerDashboard/ArchiefSection';
+import ProfielSection from '../CaseworkerDashboard/ProfielSection';
+import RollenSection from '../CaseworkerDashboard/RollenSection';
+import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenarioSection';
+import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
+import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
+import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
 
 function ProjectUpdatesView() {
   return (
@@ -44,6 +51,7 @@ interface Props {
   section: string;
   openProject: ProjectRef | null;
   user: KeycloakUser | null;
+  tenantConfig: TenantConfig | null;
   phaseLabels: string[];
   onOpenProject: (ref: ProjectRef) => void;
   onBack: () => void;
@@ -51,31 +59,46 @@ interface Props {
 }
 
 export default function InfraSectionRouter(p: Props) {
+  const { user, tenantConfig, section } = p;
   if (p.openProject) {
     return (
       <ProjectDetail projectRef={p.openProject} phaseLabels={p.phaseLabels} onBack={p.onBack} />
     );
   }
   if (p.mode === 'mijn-dag') {
-    if (p.section === 'project-updates') return <ProjectUpdatesView />;
+    if (section === 'project-updates') return <ProjectUpdatesView />;
     return (
-      <MijnDag user={p.user} onOpenProject={p.onOpenProject} onGotoPortfolio={p.onGotoPortfolio} />
+      <MijnDag user={user} onOpenProject={p.onOpenProject} onGotoPortfolio={p.onGotoPortfolio} />
     );
   }
   if (p.mode === 'portfolio') {
     return <Portfolio phaseLabels={p.phaseLabels} onOpenProject={p.onOpenProject} />;
   }
-  // Beheer — reuse the existing role-gated V1 components verbatim.
-  switch (p.section) {
+  // Beheer — reuse the existing V1 components verbatim.
+  switch (section) {
+    case 'profiel':
+      return <ProfielSection user={user} tenantConfig={tenantConfig} />;
+    case 'rollen':
+      return <RollenSection user={user} />;
     case 'rip-fase1':
-      return <RipFase1Section user={p.user} />;
+      return <RipFase1Section user={user} />;
     case 'rip-fase1-wip':
-      return <RipFase1WipSection user={p.user} />;
+      return <RipFase1WipSection user={user} />;
     case 'rip-fase1-gereed':
-      return <RipFase1GereedSection user={p.user} />;
+      return <RipFase1GereedSection user={user} />;
     case 'archief':
       return <ArchiefSection />;
+    case 'iou-gebruiksscenario':
+      return <IouGebruiksscenarioSection />;
+    case 'iou-feedback':
+      return <IouFeedbackSection />;
+    case 'iou-actieve-zaken':
+      return <IouZakenSection state="opened" />;
+    case 'iou-archief':
+      return <IouZakenSection state="closed" />;
+    case 'gereedschap-overzicht':
+      return <GereedschapSection user={user} />;
     default:
-      return <RipFase1WipSection user={p.user} />;
+      return <ProfielSection user={user} tenantConfig={tenantConfig} />;
   }
 }

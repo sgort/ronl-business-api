@@ -58,6 +58,13 @@ export const INFRA_MODES: InfraModeConfig[] = [
     defaultSectionId: 'rip-fase1-wip',
     groups: [
       {
+        label: 'Account',
+        items: [
+          { id: 'profiel', label: 'Profiel', authRequired: true },
+          { id: 'rollen', label: 'Rollen & rechten', authRequired: true },
+        ],
+      },
+      {
         label: 'Projecten',
         items: [
           {
@@ -80,6 +87,19 @@ export const INFRA_MODES: InfraModeConfig[] = [
           },
           { id: 'archief', label: 'Archief', authRequired: true },
         ],
+      },
+      {
+        label: 'IOU',
+        items: [
+          { id: 'iou-gebruiksscenario', label: 'Gebruiksscenario indienen', authRequired: true },
+          { id: 'iou-feedback', label: 'Feedback geven', authRequired: true },
+          { id: 'iou-actieve-zaken', label: 'Actieve zaken', authRequired: true },
+          { id: 'iou-archief', label: 'Archief', authRequired: true },
+        ],
+      },
+      {
+        label: 'Hulpmiddelen',
+        items: [{ id: 'gereedschap-overzicht', label: 'Gereedschap', authRequired: true }],
       },
     ],
   },
