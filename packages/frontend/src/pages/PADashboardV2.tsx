@@ -172,7 +172,7 @@ export default function PADashboardV2() {
   };
   const handleLogout = () => {
     if (keycloak.authenticated) {
-      keycloak.logout({ redirectUri: window.location.origin + '/dashboard/public-affairs' });
+      keycloak.logout({ redirectUri: window.location.origin + '/' });
     } else {
       navigate('/dashboard/public-affairs');
     }

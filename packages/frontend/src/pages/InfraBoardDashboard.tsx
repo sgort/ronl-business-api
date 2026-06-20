@@ -142,7 +142,7 @@ export default function InfraBoardDashboard() {
   };
 
   const handleLogout = () => {
-    keycloak.logout({ redirectUri: window.location.origin + '/dashboard/infra-board' });
+    keycloak.logout({ redirectUri: window.location.origin + '/' });
   };
 
   return (

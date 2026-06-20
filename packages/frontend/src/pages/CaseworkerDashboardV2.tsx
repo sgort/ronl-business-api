@@ -172,7 +172,7 @@ export default function CaseworkerDashboardV2() {
   };
   const handleLogout = () => {
     if (keycloak.authenticated) {
-      keycloak.logout({ redirectUri: window.location.origin + '/dashboard/caseworker' });
+      keycloak.logout({ redirectUri: window.location.origin + '/' });
     } else {
       navigate('/dashboard/caseworker');
     }

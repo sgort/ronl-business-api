@@ -33,6 +33,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.4.0',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 20, 2026',
+      sections: [
+        {
+          icon: '🏠',
+          iconColor: 'blue',
+          title: 'Nieuwe landingspagina — borden-overzicht (Flevoland)',
+          items: [
+            'Landingspagina (/) toont de drie borden: Caseworker, PA-Cockpit, Infra-board',
+            'Herkenbare CSS mini-preview + korte uitleg + beschikbaarheid per bord',
+            '"Inloggen" en "Openen" starten de medewerker-login; "Openen <bord>" onthoudt het bord na inloggen',
+            'Stille "Inwoner? Log in met DigiD" link in de topbar voor burgers',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.3.0',
       status: 'Feature Release',
       statusColor: 'blue',

@@ -91,9 +91,12 @@ export default function AuthCallback() {
 
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
+            sessionStorage.removeItem('username_hint');
             navigateAfterLogin(navigate);
           } else {
-            await keycloak.login({ loginHint: '__medewerker__' });
+            const usernameHint = sessionStorage.getItem('username_hint') ?? undefined;
+            sessionStorage.removeItem('username_hint');
+            await keycloak.login({ loginHint: usernameHint ?? '__medewerker__' });
           }
         } else {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
