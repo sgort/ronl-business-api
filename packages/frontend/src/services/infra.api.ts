@@ -110,7 +110,13 @@ const PROCESS_DISPLAY_NAMES: Record<string, string> = {
   RipPhase1Process: 'RIP Fase 1 — R2.1 Projectplan Planvoorbereiding',
 };
 
-const INFRA_PROCESS_KEYS = new Set(Object.keys(PROCESS_DISPLAY_NAMES));
+/**
+ * Process-definition keys owned by the Infra-board. Single source of truth for
+ * "which processes belong to the infra surface" — used both to narrow the live
+ * task list and to split the shared Archief between the caseworker and infra
+ * boards (infra shows only these; caseworker hides them).
+ */
+export const INFRA_PROCESS_KEYS: ReadonlySet<string> = new Set(Object.keys(PROCESS_DISPLAY_NAMES));
 
 /** Bucket the user's open tasks into Vandaag / Deze week / Volgende week by `due`. */
 export function groupTasksByHorizon(tasks: Task[]): {

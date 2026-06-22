@@ -6,6 +6,7 @@ import MijnDag from './MijnDag';
 import Portfolio from './Portfolio';
 import ProjectDetail from './ProjectDetail';
 import { getMockUpdates } from '../../pages/infra-board/infra-board.data';
+import { INFRA_PROCESS_KEYS } from '../../services/infra.api';
 
 // Reused, unchanged V1 components for the Beheer surface:
 import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
@@ -94,7 +95,7 @@ export default function InfraSectionRouter(p: Props) {
       content = <RipFase1GereedSection user={user} />;
       break;
     case 'archief':
-      content = <ArchiefSection />;
+      content = <ArchiefSection allowProcessKeys={INFRA_PROCESS_KEYS} />;
       break;
     case 'iou-gebruiksscenario':
       content = <IouGebruiksscenarioSection />;

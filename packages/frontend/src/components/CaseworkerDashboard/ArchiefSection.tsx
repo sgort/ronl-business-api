@@ -12,7 +12,20 @@ const EXCLUDED_VARS = [
   'routingResult',
 ];
 
-export default function ArchiefSection() {
+interface Props {
+  /**
+   * When set, only completed tasks whose processDefinitionKey is in this set are
+   * shown (allowlist). Used by the Infra-board to show RIP processes only.
+   */
+  allowProcessKeys?: ReadonlySet<string>;
+  /**
+   * When set, completed tasks whose processDefinitionKey is in this set are
+   * hidden (denylist). Used by the caseworker board to exclude infra processes.
+   */
+  denyProcessKeys?: ReadonlySet<string>;
+}
+
+export default function ArchiefSection({ allowProcessKeys, denyProcessKeys }: Props = {}) {
   const [tasks, setTasks] = useState<HistoricTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +89,16 @@ export default function ArchiefSection() {
     );
   }
 
-  if (tasks.length === 0) {
+  // Split the shared archive by process ownership (board), keyed on
+  // processDefinitionKey — the same notion the live task list uses.
+  const visibleTasks = tasks.filter((t) => {
+    const key = t.processDefinitionKey ?? t.taskDefinitionKey;
+    if (allowProcessKeys && !allowProcessKeys.has(key)) return false;
+    if (denyProcessKeys && denyProcessKeys.has(key)) return false;
+    return true;
+  });
+
+  if (visibleTasks.length === 0) {
     return (
       <div className="max-w-3xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
         Geen afgeronde taken gevonden.
@@ -84,7 +106,7 @@ export default function ArchiefSection() {
     );
   }
 
-  const grouped = tasks
+  const grouped = visibleTasks
     .slice()
     .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())
     .reduce<Record<string, typeof tasks>>((acc, task) => {
