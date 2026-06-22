@@ -36,6 +36,21 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+const BOARD_STYLES: Record<string, string> = {
+  'infra-board': 'bg-indigo-50 text-indigo-700',
+  caseworker: 'bg-rose-50 text-rose-700',
+  'public-affairs': 'bg-purple-50 text-purple-700',
+};
+
+function BoardBadge({ board }: { board: string }) {
+  const style = BOARD_STYLES[board] ?? 'bg-slate-100 text-slate-600';
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${style}`} title="Board owner">
+      {board}
+    </span>
+  );
+}
+
 // ── Asset sections ─────────────────────────────────────────────────────────
 
 function SectionLabel({ label }: { label: string }) {
@@ -154,7 +169,8 @@ function BundleCard({
           <p className="text-xs text-gray-400 mt-2">Deployed on {formatDate(bundle.deployedAt)}</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            {bundle.boardOwner && <BoardBadge board={bundle.boardOwner} />}
             <StatusBadge status={bundle.status} />
             <RoleBadge role={bundle.processRole} />
           </div>

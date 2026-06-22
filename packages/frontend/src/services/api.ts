@@ -629,6 +629,8 @@ export interface ProcessBundle {
   description?: string;
   processRole: string;
   status: string;
+  /** Owning board, tagged at deploy time in LDE (e.g. 'infra-board', 'caseworker'). */
+  boardOwner?: string;
   deployedAt: string;
   operatonUrl: string;
   operatonDeploymentId: string;
