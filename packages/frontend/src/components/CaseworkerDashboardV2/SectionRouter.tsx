@@ -103,7 +103,8 @@ export default function SectionRouter({
   if (sectionId === 'producten-diensten') return <ProductenDienstenCatalogus />;
   if (sectionId === 'nieuws') return <NieuwsSection />;
   if (sectionId === 'berichten') return <BerichtenSection />;
-  if (sectionId === 'archief') return <ArchiefSection denyProcessKeys={INFRA_PROCESS_KEYS} />;
+  if (sectionId === 'archief')
+    return <ArchiefSection boardId="caseworker" denyProcessKeys={INFRA_PROCESS_KEYS} />;
 
   // ── IOU "Mijn zaken" — IouZakenSection takes a `state` prop ───────
   if (sectionId === 'iou-actieve-zaken') {

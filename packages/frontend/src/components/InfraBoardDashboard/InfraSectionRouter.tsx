@@ -95,7 +95,7 @@ export default function InfraSectionRouter(p: Props) {
       content = <RipFase1GereedSection user={user} />;
       break;
     case 'archief':
-      content = <ArchiefSection allowProcessKeys={INFRA_PROCESS_KEYS} />;
+      content = <ArchiefSection boardId="infra-board" allowProcessKeys={INFRA_PROCESS_KEYS} />;
       break;
     case 'iou-gebruiksscenario':
       content = <IouGebruiksscenarioSection />;

@@ -14,18 +14,25 @@ const EXCLUDED_VARS = [
 
 interface Props {
   /**
-   * When set, only completed tasks whose processDefinitionKey is in this set are
-   * shown (allowlist). Used by the Infra-board to show RIP processes only.
+   * Board consuming this archive (e.g. 'infra-board', 'caseworker'). When a task
+   * carries a deploy-time `boardOwner` tag, it's shown only on its owning board —
+   * this is the authoritative split. Untagged/legacy tasks fall back to the
+   * allow/deny process-key sets below.
+   */
+  boardId?: string;
+  /**
+   * Fallback allowlist for untagged tasks: only completed tasks whose
+   * processDefinitionKey is in this set are shown. Used by the Infra-board.
    */
   allowProcessKeys?: ReadonlySet<string>;
   /**
-   * When set, completed tasks whose processDefinitionKey is in this set are
-   * hidden (denylist). Used by the caseworker board to exclude infra processes.
+   * Fallback denylist for untagged tasks: completed tasks whose
+   * processDefinitionKey is in this set are hidden. Used by the caseworker board.
    */
   denyProcessKeys?: ReadonlySet<string>;
 }
 
-export default function ArchiefSection({ allowProcessKeys, denyProcessKeys }: Props = {}) {
+export default function ArchiefSection({ boardId, allowProcessKeys, denyProcessKeys }: Props = {}) {
   const [tasks, setTasks] = useState<HistoricTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,9 +96,11 @@ export default function ArchiefSection({ allowProcessKeys, denyProcessKeys }: Pr
     );
   }
 
-  // Split the shared archive by process ownership (board), keyed on
-  // processDefinitionKey — the same notion the live task list uses.
+  // Split the shared archive by board ownership. The deploy-time `boardOwner` tag
+  // is authoritative when present; untagged/legacy tasks fall back to the static
+  // processDefinitionKey allow/deny split (mirrors the live task list).
   const visibleTasks = tasks.filter((t) => {
+    if (t.boardOwner) return boardId ? t.boardOwner === boardId : true;
     const key = t.processDefinitionKey ?? t.taskDefinitionKey;
     if (allowProcessKeys && !allowProcessKeys.has(key)) return false;
     if (denyProcessKeys && denyProcessKeys.has(key)) return false;

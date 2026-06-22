@@ -67,6 +67,12 @@ export interface HistoricTask {
   startTime: string;
   endTime: string;
   duration: number;
+  /**
+   * Owning board, read from the process definition's `boardOwner` extension
+   * property (tagged at deploy time by LDE). Null for untagged/legacy processes,
+   * in which case consumers fall back to a static processDefinitionKey split.
+   */
+  boardOwner?: string | null;
 }
 
 /**

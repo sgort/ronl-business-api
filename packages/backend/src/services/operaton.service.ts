@@ -21,6 +21,13 @@ export interface TaskCompleteRequest {
 export class OperatonService {
   private client: AxiosInstance;
 
+  /**
+   * Cache of processDefinitionKey → boardOwner. Process-definition XML is
+   * immutable per key/version, so a deployment-lifetime cache is safe and avoids
+   * re-fetching BPMN on every archive load. `null` (no tag) is cached too.
+   */
+  private boardOwnerCache = new Map<string, string | null>();
+
   constructor(baseUrl?: string, username?: string, password?: string) {
     const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
     const resolvedUsername = username ?? config.operaton.username;
@@ -552,6 +559,7 @@ export class OperatonService {
       startTime: string;
       endTime: string;
       duration: number;
+      boardOwner: string | null;
     }>
   > {
     try {
@@ -595,10 +603,25 @@ export class OperatonService {
         businessKeyById.set(inst.id, inst.businessKey ?? null);
       }
 
-      // 3. Merge businessKey into each task.
+      // 3. Resolve the owning board per distinct process-definition key (cached),
+      //    so the archive can be split by board without a hardcoded allowlist.
+      const distinctKeys = Array.from(
+        new Set(tasks.map((t) => t.processDefinitionKey).filter((k): k is string => !!k))
+      );
+      const boardOwnerByKey = new Map<string, string | null>();
+      await Promise.all(
+        distinctKeys.map(async (key) => {
+          boardOwnerByKey.set(key, await this.getBoardOwner(key));
+        })
+      );
+
+      // 4. Merge businessKey + boardOwner into each task.
       return tasks.map((t) => ({
         ...t,
         businessKey: businessKeyById.get(t.processInstanceId) ?? null,
+        boardOwner: t.processDefinitionKey
+          ? (boardOwnerByKey.get(t.processDefinitionKey) ?? null)
+          : null,
       }));
     } catch (error) {
       logger.error('Failed to get completed tasks', {
@@ -607,6 +630,40 @@ export class OperatonService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Resolve the owning board of a process by reading the `boardOwner` extension
+   * property from its deployed BPMN (tagged at deploy time by LDE). Cached per key.
+   * Returns null for untagged/legacy processes or on any lookup failure, so callers
+   * can fall back to their static split without the archive ever breaking.
+   */
+  async getBoardOwner(processDefinitionKey: string): Promise<string | null> {
+    if (!processDefinitionKey) return null;
+    const cached = this.boardOwnerCache.get(processDefinitionKey);
+    if (cached !== undefined) return cached;
+
+    let owner: string | null = null;
+    try {
+      const res = await this.client.get(
+        `/process-definition/key/${encodeURIComponent(processDefinitionKey)}/xml`
+      );
+      const xml: string = res.data?.bpmn20Xml ?? '';
+      // Match the property regardless of name/value attribute order.
+      const m =
+        xml.match(/<camunda:property\b[^>]*\bname="boardOwner"[^>]*\bvalue="([^"]*)"/) ??
+        xml.match(/<camunda:property\b[^>]*\bvalue="([^"]*)"[^>]*\bname="boardOwner"/);
+      owner = m ? m[1] : null;
+    } catch (error) {
+      logger.warn('Failed to resolve boardOwner; treating as untagged', {
+        processDefinitionKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      owner = null;
+    }
+
+    this.boardOwnerCache.set(processDefinitionKey, owner);
+    return owner;
   }
 
   /**
