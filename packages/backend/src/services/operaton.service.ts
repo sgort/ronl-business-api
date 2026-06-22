@@ -867,6 +867,7 @@ export class OperatonService {
       projectNumber: string;
       projectName: string;
       edocsWorkspaceId: string;
+      leadRole: string;
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
@@ -886,7 +887,8 @@ export class OperatonService {
 
     const varMap: Record<string, Record<string, string>> = {};
     for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
-      if (!['projectNumber', 'projectName', 'edocsWorkspaceId'].includes(v.name)) continue;
+      if (!['projectNumber', 'projectName', 'edocsWorkspaceId', 'leadRole'].includes(v.name))
+        continue;
       if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
       varMap[v.processInstanceId][v.name] = String(v.value ?? '');
     }
@@ -897,6 +899,9 @@ export class OperatonService {
       projectNumber: varMap[i.id]?.projectNumber ?? '—',
       projectName: varMap[i.id]?.projectName ?? '—',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
+      // Ownership signal (B): the process's declared lead role. Empty when the
+      // instance predates the leadRole contract — the frontend defaults it.
+      leadRole: varMap[i.id]?.leadRole ?? '',
     }));
   }
 

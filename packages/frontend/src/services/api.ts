@@ -262,6 +262,7 @@ export const businessApi = {
           projectNumber: string;
           projectName: string;
           edocsWorkspaceId: string;
+          leadRole: string;
         }>
       >
     > => {

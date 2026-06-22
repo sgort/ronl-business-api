@@ -50,6 +50,27 @@ export const changelog: Changelog = {
             'INFRA_PROCESS_KEYS is the single source of truth shared by the task list and the Archief filter',
           ],
         },
+        {
+          icon: '🏷️',
+          iconColor: 'blue',
+          title: 'Board ownership — deploy-time tag (durable split)',
+          items: [
+            'Archief split is now driven by the deploy-time boardOwner tag read from each process definition, authoritative over the static INFRA_PROCESS_KEYS fallback',
+            'Untagged/legacy processes keep working — they fall back to the processDefinitionKey split until redeployed with a tag',
+            'Procesbibliotheek shows a board-owner badge per deployed bundle (infra-board, caseworker, public-affairs)',
+            'HistoricTask carries boardOwner, resolved per process key (cached) from the deployed BPMN',
+          ],
+        },
+        {
+          icon: '👤',
+          iconColor: 'blue',
+          title: 'Infra-board Portfolio — ROL filter driven by process ownership',
+          items: [
+            'Live RIP Fase 1 projects now carry their lead role from a leadRole process variable (derived in-process) instead of a hardcoded "projectleider"',
+            'The Portfolio ROL dropdown is data-driven — it lists the roles actually present instead of two fixed options',
+            'Instances without leadRole (legacy/running) default to Projectleider, so nothing breaks before redeploy',
+          ],
+        },
       ],
     },
     {

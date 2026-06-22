@@ -183,6 +183,12 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
     );
   if (role !== 'alle') rows = rows.filter((p) => p.role === role);
 
+  // Role filter options are derived from the projects actually present, so live
+  // rows carrying any declared leadRole surface here (not just the two mock roles).
+  const roleOptions = Array.from(new Set(all.map((p) => p.role))).sort((a, b) =>
+    roleByKey(a).label.localeCompare(roleByKey(b).label)
+  );
+
   const counts = {
     total: all.length,
     mijn: MIJN_PROJECT_NRS.length,
@@ -230,8 +236,11 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
           Rol
           <select value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="alle">Alle rollen</option>
-            <option value="projectleider">Projectleider</option>
-            <option value="manager-pb">Manager Projectbeheersing</option>
+            {roleOptions.map((k) => (
+              <option key={k} value={k}>
+                {roleByKey(k).label}
+              </option>
+            ))}
           </select>
         </label>
         <div className="pb-legend">

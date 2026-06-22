@@ -9,7 +9,18 @@
  * Swap each accessor for an async service one view at a time (same shape).
  */
 
-import { PHASES, type StatusKey, type HealthKey } from './rip-model';
+import { PHASES, ROLES, type StatusKey, type HealthKey } from './rip-model';
+
+/** Valid portfolio lead-role keys (rip-model vocabulary). */
+const ROLE_KEYS = new Set(ROLES.map((r) => r.key));
+
+/**
+ * Resolve a live instance's declared `leadRole` to a portfolio role key.
+ * Ownership signal (B): the process sets `leadRole` to a rip-model key. Unknown
+ * or absent values fall back to 'projectleider' so legacy instances still render.
+ */
+export const normalizeLeadRole = (raw?: string): string =>
+  raw && ROLE_KEYS.has(raw) ? raw : 'projectleider';
 
 // ── Timeline window: 2022 Q1 … 2027 Q4 ──────────────────────────────────────
 export const TL = { startYear: 2022, quarters: 24, todayIdx: 17 };
@@ -301,6 +312,7 @@ export function makePhase1Row(inst: {
   startTime: string;
   projectNumber: string;
   projectName: string;
+  leadRole?: string;
 }): PortfolioProject {
   const d = new Date(inst.startTime);
   const q = Math.floor(d.getMonth() / 3) + 1;
@@ -317,7 +329,7 @@ export function makePhase1Row(inst: {
     nr: inst.projectNumber || inst.id.slice(0, 8),
     naam: inst.projectName || 'RIP Fase 1 project',
     phase: 1,
-    role: 'projectleider',
+    role: normalizeLeadRole(inst.leadRole),
     health: 'groen',
     phaseStatuses: statuses,
     milestone: 'Fase 1 lopend',

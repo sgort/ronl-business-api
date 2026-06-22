@@ -18,6 +18,8 @@ export interface Phase1Instance {
   projectNumber: string;
   projectName: string;
   edocsWorkspaceId: string;
+  /** Declared portfolio lead role (rip-model key); '' when the instance predates the contract. */
+  leadRole: string;
 }
 
 interface AsyncState<T> {
