@@ -1,7 +1,7 @@
 import { createLogger } from '@utils/logger';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { llmRegistry } from '@services/llm/LlmRegistry';
-import type { AgentMessage, AgentToolResult } from '@services/llm/LlmProvider';
+import { LlmError, type AgentMessage, type AgentToolResult } from '@services/llm/LlmProvider';
 
 const logger = createLogger('mcp-chat');
 
@@ -18,7 +18,7 @@ export type ChatStreamEvent =
   | { type: 'status'; message: string }
   | { type: 'delta'; text: string }
   | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; code?: string };
 
 export type ChatEventCallback = (event: ChatStreamEvent) => void;
 
@@ -62,11 +62,31 @@ export async function runChatStream(
     if (signal?.aborted) return;
     round++;
 
-    const turnResult = await provider.streamTurn(
-      { modelId, messages, systemPrompt, tools, maxTokens: MAX_TOKENS },
-      (text) => emit({ type: 'delta', text }),
-      signal
-    );
+    let turnResult;
+    try {
+      turnResult = await provider.streamTurn(
+        { modelId, messages, systemPrompt, tools, maxTokens: MAX_TOKENS },
+        (text) => emit({ type: 'delta', text }),
+        signal
+      );
+    } catch (err) {
+      if (signal?.aborted) return;
+      if (err instanceof LlmError) {
+        logger.warn('LLM turn failed', { code: err.code, modelId });
+        emit({ type: 'error', message: err.userMessage, code: err.code });
+      } else {
+        logger.error('LLM turn failed', {
+          modelId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        emit({
+          type: 'error',
+          message: 'De AI-assistent kon geen antwoord genereren. Probeer het opnieuw.',
+          code: 'llm_failure',
+        });
+      }
+      return;
+    }
 
     if (turnResult.stopReason === 'end_turn' || turnResult.toolUses.length === 0) {
       return;

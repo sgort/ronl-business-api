@@ -71,6 +71,16 @@ export const changelog: Changelog = {
             'Instances without leadRole (legacy/running) default to Projectleider, so nothing breaks before redeploy',
           ],
         },
+        {
+          icon: '🤖',
+          iconColor: 'green',
+          title: 'AI-assistant — retired models replaced, friendlier errors',
+          items: [
+            'Fixed the sudden 404 (not_found_error): Claude Sonnet 4 and Opus 4 dated snapshots were retired by Anthropic on June 15, 2026; the registry now uses the claude-sonnet-4-6 and claude-opus-4-8 aliases, which do not expire',
+            'Provider errors (retired model, auth, rate limit, overload) are translated to clear Dutch messages with a code-driven badge instead of the raw API payload',
+            'Assistant runs at medium effort for faster responses without a noticeable quality drop',
+          ],
+        },
       ],
     },
     {

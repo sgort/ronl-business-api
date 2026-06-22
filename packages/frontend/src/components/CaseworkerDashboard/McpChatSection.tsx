@@ -10,6 +10,24 @@ export interface Message {
   content: string;
 }
 
+/** Pick a badge icon for a chat error based on its backend `code`. */
+function errorBadgeIcon(code: string | null): string {
+  switch (code) {
+    case 'model_unavailable':
+      return '🛠️'; // model retired / misconfigured — needs a config change
+    case 'auth':
+    case 'forbidden':
+      return '🔒';
+    case 'rate_limit':
+    case 'overloaded':
+      return '⏳';
+    case 'llm_failure':
+      return '🐛'; // unexpected provider failure
+    default:
+      return '⚠️';
+  }
+}
+
 interface Props {
   user: KeycloakUser | null;
   messages: Message[];
@@ -22,6 +40,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
   const [streamingContent, setStreamingContent] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [availableSources, setAvailableSources] = useState<McpSourceMeta[]>([]);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [sourcesLoading, setSourcesLoading] = useState(true);
@@ -104,6 +123,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
     onMessagesChange(nextMessages);
     setInput('');
     setError(null);
+    setErrorCode(null);
     setLoading(true);
     setStreamingContent('');
     setStatusMessage(null);
@@ -138,6 +158,7 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
           setStatusMessage(null);
         } else if (event.type === 'error') {
           setError(event.message);
+          setErrorCode(event.code ?? null);
         }
       }
     } catch (err) {
@@ -324,7 +345,13 @@ export default function McpChatSection({ user, messages, onMessagesChange }: Pro
 
         {error && (
           <div className="flex justify-center">
-            <span className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-full">{error}</span>
+            <span
+              role="alert"
+              className="inline-flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full max-w-md"
+            >
+              <span aria-hidden="true">{errorBadgeIcon(errorCode)}</span>
+              <span>{error}</span>
+            </span>
           </div>
         )}
 

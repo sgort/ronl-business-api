@@ -577,7 +577,7 @@ export type McpChatStreamEvent =
   | { type: 'status'; message: string }
   | { type: 'delta'; text: string }
   | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; code?: string };
 
 export interface McpSourceMeta {
   id: string;
