@@ -33,6 +33,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.4.1',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 22, 2026',
+      sections: [
+        {
+          icon: '🗂️',
+          iconColor: 'green',
+          title: 'Beheer › Projecten › Archief — split by board ownership',
+          items: [
+            'The shared Archief now filters completed tasks by processDefinitionKey, mirroring the open-task split',
+            'Infra-board Archief shows only RIP Phase 1 processes',
+            'Caseworker Archief hides RIP Phase 1 and keeps its own processes (Thuisbatterij, AWB Shell, onboarding, …)',
+            'INFRA_PROCESS_KEYS is the single source of truth shared by the task list and the Archief filter',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.4.0',
       status: 'Feature Release',
       statusColor: 'blue',
@@ -42,12 +62,12 @@ export const changelog: Changelog = {
         {
           icon: '🏠',
           iconColor: 'blue',
-          title: 'Nieuwe landingspagina — borden-overzicht (Flevoland)',
+          title: 'New landing page — board catalogue (Flevoland)',
           items: [
-            'Landingspagina (/) toont de drie borden: Caseworker, PA-Cockpit, Infra-board',
-            'Herkenbare CSS mini-preview + korte uitleg + beschikbaarheid per bord',
-            '"Inloggen" en "Openen" starten de medewerker-login; "Openen <bord>" onthoudt het bord na inloggen',
-            'Stille "Inwoner? Log in met DigiD" link in de topbar voor burgers',
+            'Landing page (/) shows the three boards: Caseworker, PA-Cockpit, Infra-board',
+            'Recognisable CSS mini-preview + short description + availability per board',
+            '"Log in" and "Open" start the employee login; "Open <board>" remembers the board after login',
+            'Quiet "Resident? Log in with DigiD" link in the topbar for citizens',
           ],
         },
       ],
