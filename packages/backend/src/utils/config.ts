@@ -113,6 +113,12 @@ interface Config {
   altcha: {
     hmacKey: string;
   };
+  pa: {
+    tkApiBase: string;
+    cacheTtlTk: number;
+    cacheTtlStatic: number;
+    useMock: boolean;
+  };
 }
 
 function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
@@ -261,6 +267,13 @@ export const config: Config = {
 
   altcha: {
     hmacKey: process.env.ALTCHA_HMAC_KEY || '',
+  },
+
+  pa: {
+    tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0',
+    cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
+    cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
+    useMock: parseEnvBool(process.env.PA_USE_MOCK, false),
   },
 };
 

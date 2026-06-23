@@ -6,8 +6,11 @@
  * and a progress glance. The `prioritering` prop flips the ranking.
  */
 
+import { useState, useEffect } from 'react';
 import { getDossiers, getAgenda, kompasTotal, type Momentum } from './pa.data';
 import { Trend } from './Kompas';
+import { fetchSignals, fetchInbox } from '../../services/pa.api';
+import type { Signal } from '@ronl/shared';
 
 export type Prioritering = 'kompas' | 'momentum';
 
@@ -20,6 +23,15 @@ const MOM_WEIGHT: Record<Momentum, number> = { up: 1.5, flat: 0, down: -1 };
 
 export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Props) {
   const dossiers = getDossiers();
+  const [topSignals, setTopSignals] = useState<Signal[]>([]);
+  const [inboxCount, setInboxCount] = useState(0);
+
+  useEffect(() => {
+    void Promise.all([fetchSignals(), fetchInbox()]).then(([sigs, inb]) => {
+      setTopSignals(sigs.slice(0, 3));
+      setInboxCount(inb.length);
+    });
+  }, []);
 
   const topIssues = [...dossiers]
     .map((d) => ({ d, total: kompasTotal(d.kompas) }))
@@ -104,6 +116,64 @@ export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Prop
           ))}
         </div>
       </section>
+
+      {/* 1b — Signalen vandaag */}
+      {(topSignals.length > 0 || inboxCount > 0) && (
+        <section className="pac-section">
+          <div className="pac-section-head">
+            <h2 className="pac-section-title">
+              Signalen vandaag{' '}
+              <span className="pac-q">— vers uit Tweede Kamer &amp; Officiële Bekendmakingen</span>
+            </h2>
+            <span className="pac-total">{topSignals.length} gecureerd</span>
+          </div>
+          {inboxCount > 0 && (
+            <div className="pac-inbox-banner">
+              <span>
+                <b>{inboxCount} nieuwe signalen</b> wachten op duiding en bevestiging in Monitoring.
+              </span>
+              <span className="pac-inbox-banner-pipe">regels → AI-concept → bevestigen</span>
+            </div>
+          )}
+          <div className="pac-cards">
+            {topSignals.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="pac-issue"
+                onClick={() => s.dossierId && onOpenDossier(s.dossierId)}
+              >
+                <span
+                  className="pac-issue-rank"
+                  style={{ fontFamily: 'var(--pac-serif)', fontWeight: 700 }}
+                >
+                  {s.rel}
+                </span>
+                <span className="pac-issue-body">
+                  <span className="pac-issue-title">{s.title}</span>
+                  <span className="pac-issue-meta">
+                    <span>{s.src}</span>
+                  </span>
+                </span>
+                <span className="pac-issue-right">
+                  {s.impact && <span className={`pac-impact ${s.impact}`}>{s.impactLabel}</span>}
+                  {s.dossierId && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--pac-ink-3)',
+                        fontFamily: 'var(--pac-mono)',
+                      }}
+                    >
+                      {s.dossierId}
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 2 — Recommended interventions */}
       <section className="pac-section">

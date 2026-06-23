@@ -6,12 +6,21 @@
  * resets when the dossier changes.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getTemplates, kompasTotal, type Dossier } from './pa.data';
 import Kompas, { Trend, type KompasViz } from './Kompas';
+import {
+  fetchSignals,
+  fetchInbox,
+  confirmSignal,
+  signalTag,
+  signalTagLabel,
+} from '../../services/pa.api';
+import type { Signal } from '@ronl/shared';
 
 const ISSUE_SUBTABS = [
   { id: 'overzicht', label: 'Issuekaart' },
+  { id: 'monitoring', label: 'Monitoring' },
   { id: 'narratief', label: 'Narratief' },
   { id: 'actie', label: 'Actie & co-creatie' },
   { id: 'overleg', label: 'OverlegBox' },
@@ -73,6 +82,7 @@ export default function Issuekaart({ dossier, kompasViz = 'radar' }: Props) {
       </div>
 
       {sub === 'overzicht' && <IssueOverzicht d={d} kompasViz={kompasViz} />}
+      {sub === 'monitoring' && <DossierMonitoring d={d} />}
       {sub === 'narratief' && <Narratief d={d} />}
       {sub === 'actie' && <ActieCocreatie d={d} />}
       {sub === 'overleg' && <OverlegBox d={d} />}
@@ -378,6 +388,208 @@ function OverlegBox({ d }: { d: Dossier }) {
       <div className="pac-archief-note">
         ⛁ Conversatie wordt gelogd · resultaten → SharePoint + Archiefwet-metadata
       </div>
+    </div>
+  );
+}
+
+function DossierMonitoring({ d }: { d: Dossier }) {
+  const [gecureerd, setGecureerd] = useState<Signal[]>([]);
+  const [inbox, setInbox] = useState<Signal[]>([]);
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    const [sigs, inb] = await Promise.all([
+      fetchSignals({ dossierId: d.id }),
+      fetchInbox({ dossierId: d.id }),
+    ]);
+    setGecureerd(sigs);
+    setInbox(inb);
+  }, [d.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const visibleInbox = inbox.filter((s) => !confirmedIds.has(s.id) && !dismissedIds.has(s.id));
+
+  const handleConfirm = async (s: Signal) => {
+    try {
+      await confirmSignal(s.id);
+      setConfirmedIds((prev) => new Set([...prev, s.id]));
+      setGecureerd((prev) =>
+        [...prev, { ...s, status: 'confirmed' as const }].sort((a, b) => b.rel - a.rel)
+      );
+    } catch {
+      /* keep in inbox */
+    }
+  };
+
+  return (
+    <div>
+      <p className="pac-page-sub" style={{ marginTop: 0, marginBottom: 16 }}>
+        Signalen uit Tweede Kamer en Officiële Bekendmakingen, gefilterd op dit dossier. Bevestigde
+        signalen tellen mee in het kompas en de tijdlijn.
+      </p>
+
+      {visibleInbox.length > 0 && (
+        <section className="pac-section" style={{ marginTop: 18 }}>
+          <div className="pac-section-head">
+            <h2 className="pac-section-title">
+              Te bevestigen <span className="pac-q">— nieuw binnen voor dit dossier</span>
+            </h2>
+            <span className="pac-total">{visibleInbox.length} in inbox</span>
+          </div>
+          <div className="pac-cards">
+            {visibleInbox.map((s) => (
+              <div key={s.id} className="pac-signal pac-signal-inbox">
+                <div className="pac-signal-rel">
+                  <div className="pac-signal-rel-num">{s.rel}</div>
+                  <div className="pac-signal-rel-lbl">
+                    {s.status === 'ai_drafted' ? 'AI-rel.' : 'regel-rel.'}
+                  </div>
+                </div>
+                <div className="pac-signal-body">
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      marginBottom: 6,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span className={`pac-sigstatus ${s.status === 'ai_drafted' ? 'ai' : 'cand'}`}>
+                      {s.status === 'ai_drafted' ? '✦ AI-concept' : 'Regel-kandidaat'}
+                    </span>
+                    <span className={`pac-bron pac-bron-${s.bron ?? ''}`}>
+                      {s.bron === 'tk'
+                        ? 'Tweede Kamer'
+                        : s.bron === 'ob'
+                          ? 'Off. Bekendmakingen'
+                          : ''}
+                    </span>
+                  </div>
+                  <div className="pac-signal-title">{s.title}</div>
+                  <div className="pac-signal-src">
+                    {s.src}
+                    {s.ref && (
+                      <a
+                        className="pac-prov"
+                        href={s.ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {s.ref.nr} ↗
+                      </a>
+                    )}
+                  </div>
+                  {s.status === 'ai_drafted' && s.duiding ? (
+                    <div className="pac-signal-duiding ai">
+                      <span className="lbl">AI-duiding · concept</span>
+                      {s.duiding}
+                    </div>
+                  ) : (
+                    <div className="pac-duiding-empty">
+                      Door regels geselecteerd. <b>Handmatige duiding nodig.</b>
+                    </div>
+                  )}
+                </div>
+                <div className="pac-signal-impact">
+                  {s.status === 'ai_drafted' && s.impact && (
+                    <span className={`pac-impact ${s.impact}`}>{s.impactLabel}</span>
+                  )}
+                  <div className="pac-inbox-actions">
+                    <button
+                      type="button"
+                      className="pac-btn pac-btn-sm"
+                      onClick={() => void handleConfirm(s)}
+                    >
+                      Bevestigen
+                    </button>
+                    <button
+                      type="button"
+                      className="pac-btn pac-btn-sm pac-btn-ghost"
+                      onClick={() => setDismissedIds((prev) => new Set([...prev, s.id]))}
+                    >
+                      Negeren
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="pac-section" style={{ marginTop: 18 }}>
+        <div className="pac-section-head">
+          <h2 className="pac-section-title">
+            Gecureerd <span className="pac-q">— bevestigde signalen</span>
+          </h2>
+          <span className="pac-total">{gecureerd.length} signalen</span>
+        </div>
+        {gecureerd.length ? (
+          <div className="pac-cards">
+            {gecureerd.map((s) => (
+              <div key={s.id} className="pac-signal">
+                <div className="pac-signal-rel">
+                  <div className="pac-signal-rel-num">{s.rel}</div>
+                  <div className="pac-signal-rel-lbl">relevantie</div>
+                </div>
+                <div className="pac-signal-body">
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      marginBottom: 6,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span className={`pac-tag ${signalTag(s.tab)}`}>{signalTagLabel(s.tab)}</span>
+                    {s.bron && (
+                      <span className={`pac-bron pac-bron-${s.bron}`}>
+                        {s.bron === 'tk' ? 'Tweede Kamer' : 'Off. Bekendmakingen'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="pac-signal-title">{s.title}</div>
+                  <div className="pac-signal-src">
+                    {s.src}
+                    {s.ref && (
+                      <a
+                        className="pac-prov"
+                        href={s.ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {s.ref.nr} ↗
+                      </a>
+                    )}
+                  </div>
+                  {s.duiding && (
+                    <div className="pac-signal-duiding">
+                      <span className="lbl">Duiding</span>
+                      {s.duiding}
+                    </div>
+                  )}
+                  {s.confirmedBy && (
+                    <div className="pac-confirmed-by">
+                      ✓ Bevestigd door {s.confirmedBy} · {s.confirmedAt}
+                    </div>
+                  )}
+                </div>
+                <div className="pac-signal-impact">
+                  {s.impact && <span className={`pac-impact ${s.impact}`}>{s.impactLabel}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="pac-page-sub">Nog geen bevestigde signalen voor dit dossier.</p>
+        )}
+      </section>
     </div>
   );
 }

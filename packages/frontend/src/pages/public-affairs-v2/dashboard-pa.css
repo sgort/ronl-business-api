@@ -1116,3 +1116,67 @@
   border: 1px solid var(--pac-rule-2);
   padding: 1px 6px;
 }
+
+/* ── PlatO integration tokens ───────────────────────────────── */
+
+/* Source badges */
+.pac .pac-bron { display: inline-block; font-size: 10.5px; font-family: var(--pac-mono); padding: 2px 7px; border-radius: 3px; border: 1px solid var(--pac-rule); color: var(--pac-ink-3); }
+.pac .pac-bron-tk  { border-color: #0046ad40; color: #0046ad; background: #0046ad0d; }
+.pac .pac-bron-ob  { border-color: #e7007740; color: #b00060; background: #e700770d; }
+
+/* Provenance link */
+.pac .pac-prov { margin-left: 8px; font-size: 11px; color: var(--pac-chrome); text-decoration: none; font-family: var(--pac-mono); }
+.pac .pac-prov:hover { text-decoration: underline; }
+
+/* Confirmed-by footer */
+.pac .pac-confirmed-by { font-size: 11px; color: var(--pac-green-d, #1a7a1a); margin-top: 6px; font-family: var(--pac-mono); }
+
+/* Segmented control */
+.pac .pac-seg { display: flex; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--pac-rule); }
+.pac .pac-seg-btn { background: none; border: none; padding: 8px 16px; font-size: 13px; font-family: var(--pac-sans); color: var(--pac-ink-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s, border-color .15s; }
+.pac .pac-seg-btn:hover { color: var(--pac-ink); }
+.pac .pac-seg-btn.active { color: var(--pac-chrome); border-bottom-color: var(--pac-chrome); font-weight: 600; }
+.pac .pac-seg-count { display: inline-block; background: var(--pac-paper); border: 1px solid var(--pac-rule); border-radius: 10px; font-size: 10.5px; padding: 0 6px; margin-left: 5px; color: var(--pac-ink-3); font-family: var(--pac-mono); }
+.pac .pac-seg-btn.active .pac-seg-count { background: #0046ad15; border-color: #0046ad40; color: var(--pac-chrome); }
+
+/* Inbox card variant */
+.pac .pac-signal-inbox { border-left: 3px solid #e7007740; }
+.pac .pac-signal-fresh { border-left: 3px solid var(--pac-green-d, #1a7a1a); animation: pac-fresh-fade 2s ease-out forwards; }
+@keyframes pac-fresh-fade { 0% { background: #1a7a1a0d; } 100% { background: transparent; } }
+
+/* Status chips */
+.pac .pac-sigstatus { display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 3px; font-weight: 600; }
+.pac .pac-sigstatus.ai   { background: #f0e6ff; color: #6a0dad; border: 1px solid #c080ff60; }
+.pac .pac-sigstatus.cand { background: var(--pac-paper); color: var(--pac-ink-3); border: 1px solid var(--pac-rule); }
+
+/* AI-drafted duiding block */
+.pac .pac-signal-duiding.ai { background: #f5f0ff; border-left: 2px solid #9060e0; }
+.pac .pac-duiding-empty { font-size: 12.5px; color: var(--pac-ink-3); padding: 8px 10px; background: var(--pac-paper); border: 1px dashed var(--pac-rule); border-radius: 4px; margin-top: 6px; line-height: 1.5; }
+
+/* Inbox action buttons */
+.pac .pac-inbox-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+/* Empty-state */
+.pac .pac-empty { max-width: 52ch; margin: 48px auto; text-align: center; }
+.pac .pac-empty-mark { font-size: 36px; color: var(--pac-ink-3); margin-bottom: 12px; }
+.pac .pac-empty-title { font-family: var(--pac-serif); font-weight: 700; font-size: 20px; color: var(--pac-ink); margin: 0 0 10px; }
+.pac .pac-empty-body { font-size: 14px; line-height: 1.65; color: var(--pac-ink-2); margin: 0 0 10px; }
+.pac .pac-empty-foot { font-size: 12.5px; color: var(--pac-ink-3); font-family: var(--pac-mono); }
+
+/* Pipeline note */
+.pac .pac-pipeline-note { font-size: 12.5px; color: var(--pac-ink-2); background: var(--pac-paper); border: 1px solid var(--pac-rule); border-left: 3px solid var(--pac-chrome); padding: 10px 14px; border-radius: 4px; margin-bottom: 16px; line-height: 1.55; }
+
+/* Coverage label */
+.pac .pac-coverage { font-size: 11px; color: var(--pac-ink-3); font-family: var(--pac-mono); }
+.pac .pac-coverage.off { color: var(--pac-ink-3); }
+.pac .pac-coverage.mock { color: #b06000; }
+
+/* Inbox banner on Vandaag */
+.pac .pac-inbox-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid #e7007730; border-radius: 4px; background: #e700770a; margin-bottom: 12px; font-size: 13px; }
+.pac .pac-inbox-banner-pipe { font-size: 11.5px; color: var(--pac-ink-3); font-family: var(--pac-mono); white-space: nowrap; }
+
+/* Saved-query strip (Issuekaart Monitoring sub-tab) */
+.pac .pac-savedquery { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--pac-paper); border: 1px solid var(--pac-rule); border-radius: 4px; margin-bottom: 14px; flex-wrap: wrap; font-size: 12.5px; }
+.pac .pac-savedquery code { font-family: var(--pac-mono); font-size: 12px; color: var(--pac-ink-2); }
+.pac .pac-savedquery-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.pac .pac-minitag { font-size: 10.5px; font-family: var(--pac-mono); padding: 1px 6px; border-radius: 10px; background: #0046ad12; color: var(--pac-chrome); border: 1px solid #0046ad30; }
