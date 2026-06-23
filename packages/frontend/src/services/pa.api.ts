@@ -348,16 +348,15 @@ const MOCK_SEARCHES: SavedSearch[] = [
 
 export async function fetchSearches(): Promise<SavedSearch[]> {
   if (USE_MOCK) return MOCK_SEARCHES;
-  const rows =
-    await paGet<
-      {
-        id: string;
-        dossier_id: string | null;
-        query: SavedSearch['query'];
-        tags: string[];
-        scope: 'tenant' | 'user';
-      }[]
-    >('/pa/searches');
+  const rows = await paGet<
+    {
+      id: string;
+      dossier_id: string | null;
+      query: SavedSearch['query'];
+      tags: string[];
+      scope: 'tenant' | 'user';
+    }[]
+  >('/pa/searches');
   return rows.map((r) => ({
     id: r.id,
     dossierId: r.dossier_id,
