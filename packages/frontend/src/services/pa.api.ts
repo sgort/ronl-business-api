@@ -1,7 +1,7 @@
 /**
  * PA Monitoring API service.
  * VITE_PA_USE_MOCK=true  → static fixtures (same Signal shape, no backend needed)
- * VITE_PA_USE_MOCK=false → calls /v1/pa/* via the shared axios instance
+ * VITE_PA_USE_MOCK=false → calls /pa/* endpoints (VITE_API_URL already includes /v1)
  */
 
 import axios from 'axios';
@@ -287,7 +287,7 @@ export async function fetchSignals(params?: {
   const qs = new URLSearchParams({ status: 'confirmed' });
   if (params?.tab) qs.set('tab', params.tab);
   if (params?.dossierId) qs.set('dossierId', params.dossierId);
-  return paGet<Signal[]>(`/v1/pa/signals?${qs}`);
+  return paGet<Signal[]>(`/pa/signals?${qs}`);
 }
 
 export async function fetchInbox(params?: { tab?: string; dossierId?: string }): Promise<Signal[]> {
@@ -300,7 +300,71 @@ export async function fetchInbox(params?: { tab?: string; dossierId?: string }):
   const qs = new URLSearchParams({ status: 'candidate,ai_drafted' });
   if (params?.tab) qs.set('tab', params.tab);
   if (params?.dossierId) qs.set('dossierId', params.dossierId);
-  return paGet<Signal[]>(`/v1/pa/signals?${qs}`);
+  return paGet<Signal[]>(`/pa/signals?${qs}`);
+}
+
+export interface SavedSearch {
+  id: string;
+  dossierId: string | null;
+  query: { q: string; types: string[]; source: string[] };
+  tags: string[];
+  scope: 'tenant' | 'user';
+}
+
+const MOCK_SEARCHES: SavedSearch[] = [
+  {
+    id: 'seed-stikstof',
+    dossierId: 'stikstof',
+    query: { q: 'stikstof OR gebiedsproces OR reductiekader', types: [], source: ['tk', 'ob'] },
+    tags: ['stikstof', 'landbouw', 'natuur'],
+    scope: 'tenant',
+  },
+  {
+    id: 'seed-lelystad',
+    dossierId: 'lelystad',
+    query: {
+      q: 'Lelystad Airport OR laagvliegroutes OR luchthavenbesluit',
+      types: [],
+      source: ['tk', 'ob'],
+    },
+    tags: ['luchtvaart', 'lelystad'],
+    scope: 'tenant',
+  },
+  {
+    id: 'seed-energie',
+    dossierId: 'energie',
+    query: { q: 'netcongestie OR netcapaciteit OR "energy hub"', types: [], source: ['tk', 'ob'] },
+    tags: ['energie', 'netcongestie'],
+    scope: 'tenant',
+  },
+  {
+    id: 'seed-jeugdzorg',
+    dossierId: 'jeugdzorg',
+    query: { q: 'jeugdzorg OR hervormingsagenda jeugd', types: [], source: ['tk', 'ob'] },
+    tags: ['jeugdzorg', 'zorg'],
+    scope: 'tenant',
+  },
+];
+
+export async function fetchSearches(): Promise<SavedSearch[]> {
+  if (USE_MOCK) return MOCK_SEARCHES;
+  const rows =
+    await paGet<
+      {
+        id: string;
+        dossier_id: string | null;
+        query: SavedSearch['query'];
+        tags: string[];
+        scope: 'tenant' | 'user';
+      }[]
+    >('/pa/searches');
+  return rows.map((r) => ({
+    id: r.id,
+    dossierId: r.dossier_id,
+    query: r.query,
+    tags: r.tags,
+    scope: r.scope,
+  }));
 }
 
 export async function confirmSignal(
@@ -312,5 +376,5 @@ export async function confirmSignal(
     if (!mock) throw new Error(`Mock signal ${id} not found`);
     return { ...mock, status: 'confirmed' as const, ...patch };
   }
-  return paPost<Signal>(`/v1/pa/signals/${id}/confirm`, patch ?? {});
+  return paPost<Signal>(`/pa/signals/${id}/confirm`, patch ?? {});
 }

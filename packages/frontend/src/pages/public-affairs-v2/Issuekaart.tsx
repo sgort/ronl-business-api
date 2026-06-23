@@ -12,9 +12,11 @@ import Kompas, { Trend, type KompasViz } from './Kompas';
 import {
   fetchSignals,
   fetchInbox,
+  fetchSearches,
   confirmSignal,
   signalTag,
   signalTagLabel,
+  type SavedSearch,
 } from '../../services/pa.api';
 import type { Signal } from '@ronl/shared';
 
@@ -395,16 +397,19 @@ function OverlegBox({ d }: { d: Dossier }) {
 function DossierMonitoring({ d }: { d: Dossier }) {
   const [gecureerd, setGecureerd] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
+  const [savedSearch, setSavedSearch] = useState<SavedSearch | null>(null);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
-    const [sigs, inb] = await Promise.all([
+    const [sigs, inb, searches] = await Promise.all([
       fetchSignals({ dossierId: d.id }),
       fetchInbox({ dossierId: d.id }),
+      fetchSearches(),
     ]);
     setGecureerd(sigs);
     setInbox(inb);
+    setSavedSearch(searches.find((s) => s.dossierId === d.id) ?? null);
   }, [d.id]);
 
   useEffect(() => {
@@ -431,6 +436,20 @@ function DossierMonitoring({ d }: { d: Dossier }) {
         Signalen uit Tweede Kamer en Officiële Bekendmakingen, gefilterd op dit dossier. Bevestigde
         signalen tellen mee in het kompas en de tijdlijn.
       </p>
+
+      {savedSearch && (
+        <div className="pac-savedquery">
+          <span className="lbl">Opgeslagen zoekvraag</span>
+          <code>{savedSearch.query.q}</code>
+          <span className="pac-savedquery-tags">
+            {savedSearch.tags.map((t) => (
+              <span key={t} className="pac-minitag">
+                #{t}
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
 
       {visibleInbox.length > 0 && (
         <section className="pac-section" style={{ marginTop: 18 }}>

@@ -33,6 +33,40 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.4.2',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 23, 2026',
+      sections: [
+        {
+          icon: '📡',
+          iconColor: 'blue',
+          title: 'PlatO integration — live TK & OB signals in PA-Cockpit (stages 1+2)',
+          items: [
+            'TK OData v4 and OB SRU source clients ported from PlatO into the business-api backend as a native Express module',
+            'Curation pipeline: retrieve (saved queries per dossier) → rules scoring → persist candidates; AI duiding stubbed off by default',
+            'New endpoints: GET /v1/pa/feed, GET /v1/pa/signals, POST /v1/pa/signals/:id/confirm, GET/POST/DELETE /v1/pa/searches, GET /v1/pa/types',
+            'pa_saved_searches and pa_signals tables created on startup; Flevoland dossier taxonomy seeded automatically',
+            'Fail-soft Redis cache — upstream unavailability falls through to a live fetch without taking the service down',
+            'VITE_PA_USE_MOCK toggle: true keeps the static mock fixtures, false routes to the live endpoints',
+          ],
+        },
+        {
+          icon: '🖥️',
+          iconColor: 'blue',
+          title: 'PA-Cockpit — Monitoring, Vandaag & Issuekaart updated',
+          items: [
+            'Monitoring: Gecureerd/Inbox segmented control replaces the flat signal list; source badges (Tweede Kamer / Off. Bekendmakingen) and provenance links per signal',
+            'Inbox shows rule-scored candidates and AI-drafted concepts; Bevestigen/Negeren actions write to the signal store',
+            'Europa and Media tabs show an honest empty-state explaining which connector is missing — no fake data',
+            'Vandaag: new "Signalen vandaag" section with top-3 confirmed signals and an inbox banner when candidates are waiting',
+            'Issuekaart: new Monitoring sub-tab with per-dossier confirmed signals and inbox',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.4.1',
       status: 'Bug Fix',
       statusColor: 'green',
