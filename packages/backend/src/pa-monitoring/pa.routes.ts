@@ -12,6 +12,7 @@ import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
 import { runCurationCycle } from './curation.service';
+import { fetchAgenda } from './sources/agenda.client';
 import type { Signal } from '@ronl/shared';
 
 const router = express.Router();
@@ -138,6 +139,58 @@ router.get('/types', (_req, res) => {
       ob: [...OB_PUBLICATION_TYPES],
     },
   });
+});
+
+// ── GET /v1/pa/agenda ────────────────────────────────────────────────────────
+// Read-only TK schedule: plenaire + commissiedebatten ±14/+30 days from today.
+// No curation loop — straight fetch → normalise → taxonomy match → respond.
+router.get('/agenda', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(today.getDate() - 14);
+  const to = new Date(today);
+  to.setDate(today.getDate() + 30);
+  const dateFrom = from.toISOString().substring(0, 10);
+  const dateTo = to.toISOString().substring(0, 10);
+
+  try {
+    const [items, searches] = await Promise.all([
+      fetchAgenda(dateFrom, dateTo),
+      db.any<{ dossier_id: string; query: { q: string } }>(
+        `SELECT dossier_id, query FROM pa_saved_searches
+         WHERE tenant_id = $1 AND scope = 'tenant' AND dossier_id IS NOT NULL`,
+        [req.user.tenantId]
+      ),
+    ]);
+
+    const enriched = items.map((item) => {
+      for (const s of searches) {
+        const terms = s.query.q
+          .split(/\s+OR\s+/i)
+          .map((t) => t.replace(/^"|"$/g, '').trim())
+          .filter(Boolean);
+        const lower = item.titel.toLowerCase();
+        for (const term of terms) {
+          if (lower.includes(term.toLowerCase())) {
+            return { ...item, dossier: s.dossier_id, matchTerm: term };
+          }
+        }
+      }
+      return item;
+    });
+
+    res.json({ success: true, data: enriched });
+  } catch (err) {
+    logger.error('Agenda error', { error: err instanceof Error ? err.message : String(err) });
+    res
+      .status(502)
+      .json({
+        success: false,
+        error: { code: 'AGENDA_ERROR', message: 'Upstream agenda unavailable' },
+      });
+  }
 });
 
 // ── GET /v1/pa/signals ───────────────────────────────────────────────────────

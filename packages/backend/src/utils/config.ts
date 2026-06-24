@@ -116,6 +116,7 @@ interface Config {
   pa: {
     tkApiBase: string;
     cacheTtlTk: number;
+    cacheTtlAgenda: number;
     cacheTtlStatic: number;
     useMock: boolean;
   };
@@ -272,6 +273,7 @@ export const config: Config = {
   pa: {
     tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v5',
     cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
+    cacheTtlAgenda: parseEnvInt(process.env.CACHE_TTL_AGENDA, 1800),
     cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
     useMock: parseEnvBool(process.env.PA_USE_MOCK, false),
   },
