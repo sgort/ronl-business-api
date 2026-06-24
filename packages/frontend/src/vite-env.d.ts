@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL: string;
   readonly VITE_KEYCLOAK_URL: string;
   readonly VITE_LDE_API_URL: string;
+  readonly VITE_PA_SIGNALS_MOCK?: string;
+  readonly VITE_PA_DOSSIERS_MOCK?: string;
 }
 
 interface ImportMeta {

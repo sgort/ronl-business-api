@@ -13,7 +13,7 @@ import {
   findPaModeForSection,
   type PaModeId,
 } from '../../pages/public-affairs-v2/modes.config';
-import { getDossiers } from '../../pages/public-affairs-v2/pa.data';
+import { usePaData } from '../../pages/public-affairs-v2/PaDataProvider';
 
 interface Hit {
   id: string;
@@ -28,6 +28,7 @@ interface Props {
 }
 
 export default function PACommandPalette({ open, onClose, onSelect }: Props) {
+  const { dossiers } = usePaData();
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,11 +39,11 @@ export default function PACommandPalette({ open, onClose, onSelect }: Props) {
       const mode = findPaModeForSection(s.id);
       if (mode) out.push({ id: s.id, label: s.label, mode });
     }
-    for (const d of getDossiers()) {
+    for (const d of dossiers.data) {
       out.push({ id: d.id, label: d.naam, mode: 'dossiers' });
     }
     return out;
-  }, []);
+  }, [dossiers.data]);
 
   const hits: Hit[] = useMemo(() => {
     const q = query.trim().toLowerCase();

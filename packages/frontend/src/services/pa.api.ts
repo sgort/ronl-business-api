@@ -6,7 +6,8 @@
 
 import axios from 'axios';
 import keycloak from './keycloak';
-import type { Signal } from '@ronl/shared';
+import type { Dossier, Signal } from '@ronl/shared';
+import { MOCK_DOSSIERS } from '../pages/public-affairs-v2/pa.data';
 
 const API_BASE = import.meta.env.VITE_API_URL as string;
 
@@ -38,7 +39,8 @@ async function paPost<T>(path: string, body: unknown): Promise<T> {
   return res.data.data;
 }
 
-const USE_MOCK = import.meta.env.VITE_PA_USE_MOCK === 'true';
+const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
+const DOSSIERS_MOCK = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
 
 // ── Mock fixtures ────────────────────────────────────────────────────
 
@@ -278,7 +280,7 @@ export async function fetchSignals(params?: {
   tab?: string;
   dossierId?: string;
 }): Promise<Signal[]> {
-  if (USE_MOCK) {
+  if (SIGNALS_MOCK) {
     let rows = MOCK_CONFIRMED.filter((s) => s.bron === 'tk' || s.bron === 'ob');
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
@@ -291,7 +293,7 @@ export async function fetchSignals(params?: {
 }
 
 export async function fetchInbox(params?: { tab?: string; dossierId?: string }): Promise<Signal[]> {
-  if (USE_MOCK) {
+  if (SIGNALS_MOCK) {
     let rows = MOCK_INBOX.slice();
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
@@ -347,7 +349,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
 ];
 
 export async function fetchSearches(): Promise<SavedSearch[]> {
-  if (USE_MOCK) return MOCK_SEARCHES;
+  if (SIGNALS_MOCK) return MOCK_SEARCHES;
   const rows = await paGet<
     {
       id: string;
@@ -366,11 +368,25 @@ export async function fetchSearches(): Promise<SavedSearch[]> {
   }));
 }
 
+export async function fetchDossiers(): Promise<Dossier[]> {
+  if (DOSSIERS_MOCK) return MOCK_DOSSIERS;
+  return paGet<Dossier[]>('/pa/dossiers');
+}
+
+export async function fetchDossier(id: string): Promise<Dossier | undefined> {
+  if (DOSSIERS_MOCK) return MOCK_DOSSIERS.find((d) => d.id === id);
+  try {
+    return await paGet<Dossier>(`/pa/dossiers/${id}`);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function confirmSignal(
   id: string,
   patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
 ): Promise<Signal> {
-  if (USE_MOCK) {
+  if (SIGNALS_MOCK) {
     const mock = MOCK_INBOX.find((s) => s.id === id);
     if (!mock) throw new Error(`Mock signal ${id} not found`);
     return { ...mock, status: 'confirmed' as const, ...patch };

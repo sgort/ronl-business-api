@@ -10,137 +10,32 @@
  *          packages/shared so frontend and backend agree on the contract.
  */
 
-// ── Domain types ────────────────────────────────────────────────────
+// ── Domain types (canonical definitions live in @ronl/shared) ───────
 
-/** The six Flevolands Kompas criteria. Fixed in the MVP. */
-export type KompasCriterionKey =
-  | 'opgaven'
-  | 'momentum'
-  | 'coalitie'
-  | 'uitvoering'
-  | 'zichtbaar'
-  | 'opbrengst';
+export type {
+  KompasCriterionKey,
+  KompasCriterionDef,
+  KompasScore,
+  KompasScores,
+  Momentum,
+  DossierStatus,
+  Sentiment,
+  StakeholderPrio,
+  RitmeItem,
+  DossierRitme,
+  Mijlpaal,
+  Stakeholder,
+  Frame,
+  DossierNarratief,
+  Interventie,
+  TimelineEvent,
+  KompasLogEntry,
+  InterventieLogEntry,
+  OverlegMessage,
+  Dossier,
+} from '@ronl/shared';
 
-export interface KompasCriterionDef {
-  key: KompasCriterionKey;
-  /** Short label for the radar/scorecard. */
-  short: string;
-  /** Full criterion name. */
-  name: string;
-  /** One-line explainer. */
-  hint: string;
-}
-
-/** Score 0–2 per criterion, with a written duiding (explanation). */
-export interface KompasScore {
-  score: 0 | 1 | 2;
-  duiding: string;
-}
-
-export type KompasScores = Record<KompasCriterionKey, KompasScore>;
-
-export type Momentum = 'up' | 'flat' | 'down';
-export type DossierStatus = 'actief' | 'sluimerend';
-export type Sentiment = 'pos' | 'neu' | 'neg';
-export type StakeholderPrio = 'nu' | 'kort' | 'warm';
-
-export interface RitmeItem {
-  t: string;
-  when: string;
-}
-
-export interface DossierRitme {
-  lobby: RitmeItem[];
-  communicatie: RitmeItem[];
-  events: RitmeItem[];
-}
-
-export interface Mijlpaal {
-  label: string;
-  date: string;
-  done: boolean;
-  soon?: boolean;
-}
-
-export interface Stakeholder {
-  naam: string;
-  rol: string;
-  prio: StakeholderPrio;
-  laatste: string;
-  senti: Sentiment;
-}
-
-export interface Frame {
-  text: string;
-  meta: string;
-  kind: 'frame' | 'tegen';
-}
-
-export interface DossierNarratief {
-  onsVerhaal: string;
-  frames: Frame[];
-  tegenframes: Frame[];
-}
-
-export interface Interventie {
-  titel: string;
-  motiv: string;
-  /** Short Kompas rationale, e.g. "Momentum 2 · Zichtbaarheid 2". */
-  kompas: string;
-}
-
-export interface TimelineEvent {
-  date: string;
-  title: string;
-  desc: string;
-  docs: string[];
-  future: boolean;
-}
-
-export interface KompasLogEntry {
-  date: string;
-  text: string;
-}
-
-export interface InterventieLogEntry {
-  date: string;
-  who: string;
-  what: string;
-  /** What the AI advised. */
-  ai: string;
-  /** What the human decided. */
-  mens: string;
-}
-
-export interface OverlegMessage {
-  name: string;
-  init: string;
-  time: string;
-  text: string;
-}
-
-export interface Dossier {
-  id: string;
-  naam: string;
-  onderwerp: string;
-  status: DossierStatus;
-  momentum: Momentum;
-  waaromNu: string;
-  waarover: string;
-  kompas: KompasScores;
-  doel: string;
-  ritme: DossierRitme;
-  mijlpalen: Mijlpaal[];
-  progressPct: number;
-  next: string;
-  stakeholders: Stakeholder[];
-  narratief: DossierNarratief;
-  interventies: Interventie[];
-  timeline: TimelineEvent[];
-  kompasLog: KompasLogEntry[];
-  intervLog: InterventieLogEntry[];
-  overleg: OverlegMessage[];
-}
+import type { KompasCriterionDef, KompasScores, Dossier } from '@ronl/shared';
 
 export type MonitoringTabId = 'politiek' | 'europa' | 'regionaal' | 'media';
 export type SignalImpact = 'kans' | 'risico';

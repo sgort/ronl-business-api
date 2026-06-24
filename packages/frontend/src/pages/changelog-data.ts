@@ -33,6 +33,36 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.5.0',
+      status: 'Refactor',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '⚙️',
+          iconColor: 'purple',
+          title: 'PA cockpit — async data layer (PaDataProvider)',
+          items: [
+            'Resource<T> pattern: dependency-free async state (data / status / refetch) via useResource hook — no external state library',
+            'PaDataProvider / usePaData() context: signals and dossiers fetched once at shell mount; all screens read from the provider instead of calling APIs directly',
+            'confirmSignal wired into the provider: confirm calls the API then triggers signals.refetch(), eliminating the onSignalConfirmed prop chain across PASectionRouter → Monitoring',
+            'Dossier types (Dossier, Kompas*, Stakeholder, Mijlpaal, …) lifted to @ronl/shared; pa.data.ts re-exports them — import paths unchanged',
+            'fetchDossiers / fetchDossier added to pa.api.ts; all getDossiers / getDossier call sites migrated to usePaData().dossiers.data',
+            'VITE_PA_USE_MOCK split into VITE_PA_SIGNALS_MOCK + VITE_PA_DOSSIERS_MOCK; VITE_PA_DOSSIERS_MOCK=true in dev and ACC until /pa/dossiers endpoint ships',
+          ],
+        },
+        {
+          icon: '🔐',
+          iconColor: 'red',
+          title: 'Security — curator diagnostic endpoints gated',
+          items: [
+            'GET /v1/pa/curator/status and POST /v1/pa/curator/run now require a valid Keycloak JWT and the public-affairs realm role (previously unauthenticated for ACC diagnostics)',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.4.2',
       status: 'Feature Release',
       statusColor: 'blue',

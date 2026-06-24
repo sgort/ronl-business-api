@@ -5,7 +5,7 @@
  */
 
 import express from 'express';
-import { jwtMiddleware } from '@auth/jwt.middleware';
+import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
@@ -17,9 +17,9 @@ import type { Signal } from '@ronl/shared';
 const router = express.Router();
 const logger = createLogger('pa-routes');
 
-// ── POST /v1/pa/curator/run (unauthenticated) ─────────────────────────────────
-// Diagnostic: triggers curation for flevoland tenant. Runs in background.
-router.post('/curator/run', async (_req, res) => {
+// ── POST /v1/pa/curator/run ───────────────────────────────────────────────────
+// Triggers curation for flevoland tenant. Runs in background.
+router.post('/curator/run', jwtMiddleware, requireRoles('public-affairs'), async (_req, res) => {
   void runCurationCycle('flevoland').catch((err) =>
     logger.error('Curation cycle failed', {
       error: err instanceof Error ? err.message : String(err),
@@ -29,8 +29,7 @@ router.post('/curator/run', async (_req, res) => {
 });
 
 // ── GET /v1/pa/curator/status ─────────────────────────────────────────────────
-// Diagnostic: unauthenticated — returns DB row counts only.
-router.get('/curator/status', async (_req, res) => {
+router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), async (_req, res) => {
   try {
     const [signalCounts, searchCounts] = await Promise.all([
       db.one<{ total: string; candidate: string; confirmed: string }>(

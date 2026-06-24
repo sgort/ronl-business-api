@@ -16,11 +16,8 @@ import Issuekaart from '../../pages/public-affairs-v2/Issuekaart';
 import Monitoring from '../../pages/public-affairs-v2/Monitoring';
 import Voortgang, { type VoortgangView } from '../../pages/public-affairs-v2/Voortgang';
 import type { KompasViz } from '../../pages/public-affairs-v2/Kompas';
-import {
-  getDossier,
-  MONITORING_TABS,
-  type MonitoringTabId,
-} from '../../pages/public-affairs-v2/pa.data';
+import { MONITORING_TABS, type MonitoringTabId } from '../../pages/public-affairs-v2/pa.data';
+import { usePaData } from '../../pages/public-affairs-v2/PaDataProvider';
 import type { KeycloakUser } from '@ronl/shared';
 import type { TenantConfig } from '../../services/tenant';
 import ProfielSection from '../CaseworkerDashboard/ProfielSection';
@@ -49,7 +46,6 @@ interface Props {
   user: KeycloakUser | null;
   tenantConfig: TenantConfig | null;
   onOpenDossier: (id: string) => void;
-  onSignalConfirmed?: () => void;
 }
 
 export default function PASectionRouter({
@@ -59,20 +55,14 @@ export default function PASectionRouter({
   user,
   tenantConfig,
   onOpenDossier,
-  onSignalConfirmed,
 }: Props) {
+  const { dossiers } = usePaData();
   if (sectionId === 'vandaag') {
     return <Vandaag onOpenDossier={onOpenDossier} prioritering={prioritering} />;
   }
 
   if (MONITORING_IDS.has(sectionId)) {
-    return (
-      <Monitoring
-        activeTab={sectionId as MonitoringTabId}
-        onOpenDossier={onOpenDossier}
-        onSignalConfirmed={onSignalConfirmed}
-      />
-    );
+    return <Monitoring activeTab={sectionId as MonitoringTabId} onOpenDossier={onOpenDossier} />;
   }
 
   if (VOORTGANG_IDS.has(sectionId)) {
@@ -113,7 +103,7 @@ export default function PASectionRouter({
     return <div className="v2-main-pad">{content}</div>;
   }
 
-  const dossier = getDossier(sectionId);
+  const dossier = dossiers.data.find((d) => d.id === sectionId);
   if (dossier) {
     return <Issuekaart dossier={dossier} kompasViz={kompasViz} />;
   }

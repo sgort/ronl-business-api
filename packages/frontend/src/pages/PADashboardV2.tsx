@@ -42,9 +42,8 @@ import {
   type PaModeId,
   type OrgTypeGate,
 } from './public-affairs-v2/modes.config';
-import { getDossiers, kompasTotal, type Dossier } from './public-affairs-v2/pa.data';
-import { fetchSignals } from '../services/pa.api';
-import type { Signal } from '@ronl/shared';
+import { getDossiers, kompasTotal } from './public-affairs-v2/pa.data';
+import { PaDataProvider, usePaData } from './public-affairs-v2/PaDataProvider';
 import { Trend } from './public-affairs-v2/Kompas';
 import type { Prioritering } from './public-affairs-v2/Vandaag';
 import type { KompasViz } from './public-affairs-v2/Kompas';
@@ -58,6 +57,78 @@ import ChangelogPanel from './ChangelogPanel';
 
 import './public-affairs-v2/dashboard-pa.css';
 
+function SignalCountBadge({ tabId }: { tabId: string }) {
+  const { signals } = usePaData();
+  return (
+    <span className="pac-rail-score">{signals.data.filter((s) => s.tab === tabId).length}</span>
+  );
+}
+
+function VandaagDossierRail({ onGoToDossier }: { onGoToDossier: (id: string) => void }) {
+  const { dossiers } = usePaData();
+  return (
+    <div className="pac-rail-group">
+      <div className="pac-rail-group-label">Snel naar dossier</div>
+      <ul className="pac-rail-list">
+        {dossiers.data
+          .filter((d) => d.status === 'actief')
+          .map((d) => (
+            <li key={d.id}>
+              <button type="button" className="pac-rail-item" onClick={() => onGoToDossier(d.id)}>
+                <span className="pac-rail-label">{d.naam}</span>
+                <span className="pac-rail-score">
+                  {kompasTotal(d.kompas)}
+                  <Trend dir={d.momentum} />
+                </span>
+              </button>
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
+
+function DossiersModeRail({
+  activeSection,
+  onSelectDossier,
+}: {
+  activeSection: string;
+  onSelectDossier: (id: string) => void;
+}) {
+  const { dossiers } = usePaData();
+  const activeDossiers = dossiers.data.filter((d) => d.status === 'actief');
+  const sluimerend = dossiers.data.filter((d) => d.status === 'sluimerend');
+  const railItem = (d: (typeof dossiers.data)[number]) => (
+    <li key={d.id}>
+      <button
+        type="button"
+        className={`pac-rail-item ${activeSection === d.id ? 'active' : ''}`}
+        onClick={() => onSelectDossier(d.id)}
+      >
+        <span className="pac-rail-label">{d.naam}</span>
+        <span className="pac-rail-score">
+          {kompasTotal(d.kompas)}
+          <Trend dir={d.momentum} />
+        </span>
+      </button>
+    </li>
+  );
+  return (
+    <>
+      <div className="pac-rail-group">
+        <div className="pac-rail-group-label">Actief</div>
+        <ul className="pac-rail-list">{activeDossiers.map(railItem)}</ul>
+      </div>
+      {sluimerend.length > 0 && (
+        <div className="pac-rail-group">
+          <div className="pac-rail-group-label">Sluimerend</div>
+          <ul className="pac-rail-list">{sluimerend.map(railItem)}</ul>
+        </div>
+      )}
+    </>
+  );
+}
+
 const STORAGE_KEY_DOCK = 'paV2.dock.open';
 const REQUIRED_ROLES = ['public-affairs'];
 const REQUIRED_ORG_TYPES: OrgTypeGate[] = ['province'];
@@ -69,10 +140,11 @@ export default function PADashboardV2() {
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
 
   const [mode, setMode] = useState<PaModeId>('vandaag');
-  const dossiers: Dossier[] = getDossiers();
-  const firstDossierId = dossiers.find((d) => d.status === 'actief')?.id ?? dossiers[0]?.id ?? '';
   const [activeSection, setActiveSection] = useState<string>('vandaag');
-  const [dossierId, setDossierId] = useState<string>(firstDossierId);
+  const [dossierId, setDossierId] = useState<string>(() => {
+    const ds = getDossiers();
+    return ds.find((d) => d.status === 'actief')?.id ?? ds[0]?.id ?? '';
+  });
 
   // Tweakable axes (rail-driven). Kept in shell state so they survive nav.
   const [prioritering, setPrioritering] = useState<Prioritering>('kompas');
@@ -162,20 +234,7 @@ export default function PADashboardV2() {
     setActiveSection(id);
   };
 
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const refreshSignals = () => {
-    void fetchSignals()
-      .then(setSignals)
-      .catch(() => {});
-  };
-  useEffect(() => {
-    if (!isAuth) return;
-    refreshSignals();
-  }, [isAuth]);
-
   const currentMode = PA_MODES.find((m) => m.id === mode)!;
-  const activeDossiers = dossiers.filter((d) => d.status === 'actief');
-  const sluimerend = dossiers.filter((d) => d.status === 'sluimerend');
 
   const handleLogin = () => {
     sessionStorage.setItem('selected_idp', 'medewerker');
@@ -223,61 +282,25 @@ export default function PADashboardV2() {
               ))}
             </ul>
           </div>
-          <div className="pac-rail-group">
-            <div className="pac-rail-group-label">Snel naar dossier</div>
-            <ul className="pac-rail-list">
-              {activeDossiers.map((d) => (
-                <li key={d.id}>
-                  <button type="button" className="pac-rail-item" onClick={() => goToDossier(d.id)}>
-                    <span className="pac-rail-label">{d.naam}</span>
-                    <span className="pac-rail-score">
-                      {kompasTotal(d.kompas)}
-                      <Trend dir={d.momentum} />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <VandaagDossierRail onGoToDossier={goToDossier} />
         </>
       );
     }
 
     if (mode === 'dossiers') {
-      const railItem = (d: Dossier) => (
-        <li key={d.id}>
-          <button
-            type="button"
-            className={`pac-rail-item ${activeSection === d.id ? 'active' : ''}`}
-            onClick={() => {
-              setDossierId(d.id);
-              setActiveSection(d.id);
-            }}
-          >
-            <span className="pac-rail-label">{d.naam}</span>
-            <span className="pac-rail-score">
-              {kompasTotal(d.kompas)}
-              <Trend dir={d.momentum} />
-            </span>
-          </button>
-        </li>
-      );
       return (
         <>
           <div className="pac-rail-card">
             <small>PA-Cockpit</small>
             Dossiers
           </div>
-          <div className="pac-rail-group">
-            <div className="pac-rail-group-label">Actief</div>
-            <ul className="pac-rail-list">{activeDossiers.map(railItem)}</ul>
-          </div>
-          {sluimerend.length > 0 && (
-            <div className="pac-rail-group">
-              <div className="pac-rail-group-label">Sluimerend</div>
-              <ul className="pac-rail-list">{sluimerend.map(railItem)}</ul>
-            </div>
-          )}
+          <DossiersModeRail
+            activeSection={activeSection}
+            onSelectDossier={(id) => {
+              setDossierId(id);
+              setActiveSection(id);
+            }}
+          />
         </>
       );
     }
@@ -299,10 +322,6 @@ export default function PADashboardV2() {
               {g.label && <div className="pac-rail-group-label">{g.label}</div>}
               <ul className="pac-rail-list">
                 {items.map((it) => {
-                  const count =
-                    it.badgeKey === 'signalCount'
-                      ? signals.filter((s) => s.tab === it.id).length
-                      : null;
                   return (
                     <li key={it.id}>
                       <button
@@ -311,7 +330,7 @@ export default function PADashboardV2() {
                         onClick={() => setActiveSection(it.id)}
                       >
                         <span className="pac-rail-label">{it.label}</span>
-                        {count !== null && <span className="pac-rail-score">{count}</span>}
+                        {it.badgeKey === 'signalCount' && <SignalCountBadge tabId={it.id} />}
                       </button>
                     </li>
                   );
@@ -403,62 +422,63 @@ export default function PADashboardV2() {
       </nav>
 
       {/* ── Body ── */}
-      <div className="pac-body">
-        <aside className="pac-rail" aria-label="Sectienavigatie">
-          {renderRail()}
-        </aside>
+      <PaDataProvider>
+        <div className="pac-body">
+          <aside className="pac-rail" aria-label="Sectienavigatie">
+            {renderRail()}
+          </aside>
 
-        <main className="pac-main">
-          <div className="pac-main-pad">
-            {!isAuth ? (
-              <div>
-                <div className="pac-crumb">PA-Cockpit</div>
-                <h1 className="pac-page-title">Inloggen vereist</h1>
-                <p style={{ color: 'var(--pac-ink-2)', maxWidth: '54ch', margin: '14px 0 22px' }}>
-                  De PA-Cockpit bevat strategische dossierinformatie. Log in als medewerker om
-                  verder te gaan.
-                </p>
-                <button type="button" className="pac-btn" onClick={handleLogin}>
-                  Inloggen als medewerker
-                </button>
-              </div>
-            ) : !hasAccess ? (
-              <PANoAccessPanel
-                requiredRoles={REQUIRED_ROLES}
-                requiredOrgTypes={REQUIRED_ORG_TYPES}
-              />
-            ) : (
-              <PASectionRouter
-                sectionId={activeSection}
-                prioritering={prioritering}
-                kompasViz={kompasViz}
-                user={user}
-                tenantConfig={tenantConfig}
-                onOpenDossier={goToDossier}
-                onSignalConfirmed={refreshSignals}
-              />
-            )}
-          </div>
-        </main>
+          <main className="pac-main">
+            <div className="pac-main-pad">
+              {!isAuth ? (
+                <div>
+                  <div className="pac-crumb">PA-Cockpit</div>
+                  <h1 className="pac-page-title">Inloggen vereist</h1>
+                  <p style={{ color: 'var(--pac-ink-2)', maxWidth: '54ch', margin: '14px 0 22px' }}>
+                    De PA-Cockpit bevat strategische dossierinformatie. Log in als medewerker om
+                    verder te gaan.
+                  </p>
+                  <button type="button" className="pac-btn" onClick={handleLogin}>
+                    Inloggen als medewerker
+                  </button>
+                </div>
+              ) : !hasAccess ? (
+                <PANoAccessPanel
+                  requiredRoles={REQUIRED_ROLES}
+                  requiredOrgTypes={REQUIRED_ORG_TYPES}
+                />
+              ) : (
+                <PASectionRouter
+                  sectionId={activeSection}
+                  prioritering={prioritering}
+                  kompasViz={kompasViz}
+                  user={user}
+                  tenantConfig={tenantConfig}
+                  onOpenDossier={goToDossier}
+                />
+              )}
+            </div>
+          </main>
 
-        {hasAccess && dockOpen && <PADock user={user} onClose={() => setDockOpen(false)} />}
-      </div>
+          {hasAccess && dockOpen && <PADock user={user} onClose={() => setDockOpen(false)} />}
+        </div>
 
-      {hasAccess && !dockOpen && (
-        <button type="button" className="pac-dock-toggle" onClick={() => setDockOpen(true)}>
-          Vraag de assistent
-        </button>
-      )}
+        {hasAccess && !dockOpen && (
+          <button type="button" className="pac-dock-toggle" onClick={() => setDockOpen(true)}>
+            Vraag de assistent
+          </button>
+        )}
 
-      <PACommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-        onSelect={(m, sectionId) => {
-          setMode(m);
-          if (m === 'dossiers') setDossierId(sectionId);
-          setActiveSection(sectionId);
-        }}
-      />
+        <PACommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          onSelect={(m, sectionId) => {
+            setMode(m);
+            if (m === 'dossiers') setDossierId(sectionId);
+            setActiveSection(sectionId);
+          }}
+        />
+      </PaDataProvider>
     </div>
   );
 }

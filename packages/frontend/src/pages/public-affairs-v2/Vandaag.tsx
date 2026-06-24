@@ -7,7 +7,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getDossiers, getAgenda, kompasTotal, type Momentum } from './pa.data';
+import { getAgenda, kompasTotal, type Momentum } from './pa.data';
+import { usePaData } from './PaDataProvider';
 import { Trend } from './Kompas';
 import { fetchSignals, fetchInbox } from '../../services/pa.api';
 import type { Signal } from '@ronl/shared';
@@ -22,7 +23,7 @@ interface Props {
 const MOM_WEIGHT: Record<Momentum, number> = { up: 1.5, flat: 0, down: -1 };
 
 export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Props) {
-  const dossiers = getDossiers();
+  const { dossiers } = usePaData();
   const [topSignals, setTopSignals] = useState<Signal[]>([]);
   const [inboxCount, setInboxCount] = useState(0);
 
@@ -33,7 +34,7 @@ export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Prop
     });
   }, []);
 
-  const topIssues = [...dossiers]
+  const topIssues = [...dossiers.data]
     .map((d) => ({ d, total: kompasTotal(d.kompas) }))
     .sort((a, b) => {
       if (prioritering === 'momentum') {
@@ -48,7 +49,7 @@ export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Prop
     .slice(0, 3)
     .map((x) => ({ ...x.d.interventies[0], dossier: x.d }));
 
-  const actief = dossiers.filter((d) => d.status === 'actief');
+  const actief = dossiers.data.filter((d) => d.status === 'actief');
 
   return (
     <div>

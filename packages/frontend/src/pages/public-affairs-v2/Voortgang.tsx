@@ -7,7 +7,8 @@
  *   interventie-log  — chosen action + who decided (AI adviseerde / mens besloot)
  */
 
-import { getDossiers, kompasTotal } from './pa.data';
+import { kompasTotal } from './pa.data';
+import { usePaData } from './PaDataProvider';
 
 export type VoortgangView = 'voortgang' | 'kompas-log' | 'interventie-log';
 
@@ -23,7 +24,7 @@ export default function Voortgang({ view = 'voortgang', onOpenDossier }: Props) 
 }
 
 function LobbydoelenView({ onOpenDossier }: { onOpenDossier: (id: string) => void }) {
-  const dossiers = getDossiers().filter((d) => d.status === 'actief');
+  const dossiers = usePaData().dossiers.data.filter((d) => d.status === 'actief');
   return (
     <div>
       <div className="pac-crumb">Voortgang · lobbydoelen</div>
@@ -109,7 +110,7 @@ function LobbydoelenView({ onOpenDossier }: { onOpenDossier: (id: string) => voi
 }
 
 function KompasLogView() {
-  const dossiers = getDossiers().filter((d) => d.kompasLog.length > 0);
+  const dossiers = usePaData().dossiers.data.filter((d) => d.kompasLog.length > 0);
   return (
     <div>
       <div className="pac-crumb">Voortgang · Kompas-log</div>
@@ -149,7 +150,7 @@ function KompasLogView() {
 }
 
 function IntervLogView({ onOpenDossier }: { onOpenDossier: (id: string) => void }) {
-  const dossiers = getDossiers().filter((d) => d.intervLog.length > 0);
+  const dossiers = usePaData().dossiers.data.filter((d) => d.intervLog.length > 0);
   return (
     <div>
       <div className="pac-crumb">Voortgang · Interventie-log</div>

@@ -9,19 +9,18 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   fetchSignals,
   fetchInbox,
-  confirmSignal,
   paTabConnected,
   paTabBronnen,
   signalTag,
   signalTagLabel,
 } from '../../services/pa.api';
-import { getDossier, MONITORING_TABS, type MonitoringTabId } from './pa.data';
+import { usePaData } from './PaDataProvider';
+import { MONITORING_TABS, type MonitoringTabId } from './pa.data';
 import type { Signal } from '@ronl/shared';
 
 interface Props {
   activeTab?: MonitoringTabId;
   onOpenDossier: (id: string) => void;
-  onSignalConfirmed?: () => void;
 }
 
 function BronBadge({ bron }: { bron: string | null }) {
@@ -189,11 +188,8 @@ function InboxCard({
   );
 }
 
-export default function Monitoring({
-  activeTab = 'politiek',
-  onOpenDossier,
-  onSignalConfirmed,
-}: Props) {
+export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Props) {
+  const { confirmSignal, dossiers } = usePaData();
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
   const connected = paTabConnected(tab.id);
 
@@ -226,7 +222,7 @@ export default function Monitoring({
 
   const dossierNaam = (id: string | null) => {
     if (!id) return '';
-    return getDossier(id)?.naam ?? id;
+    return dossiers.data.find((d) => d.id === id)?.naam ?? id;
   };
 
   const handleConfirm = async (s: Signal) => {
@@ -244,7 +240,6 @@ export default function Monitoring({
       setSignals((prev) =>
         [...prev, { ...s, status: 'confirmed' as const }].sort((a, b) => b.rel - a.rel)
       );
-      onSignalConfirmed?.();
     } catch {
       // keep item in inbox on error
     }
