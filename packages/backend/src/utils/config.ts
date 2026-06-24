@@ -270,7 +270,7 @@ export const config: Config = {
   },
 
   pa: {
-    tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0',
+    tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v5',
     cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
     cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
     useMock: parseEnvBool(process.env.PA_USE_MOCK, false),

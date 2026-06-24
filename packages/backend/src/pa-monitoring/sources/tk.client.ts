@@ -1,12 +1,12 @@
 /**
- * Tweede Kamer OData v4 client.
+ * Tweede Kamer OData v5 client.
  * Ported from PlatO services/tk_client.py — preserving all upstream quirks.
  *
  * Quirks:
  * - OData $-params must NOT be percent-encoded. Build query string by hand.
  *   encodeURIComponent() would encode $ signs and break the OData protocol.
- * - URL for the TK website uses DocumentNummer, never the internal UUID Id.
- * - Negative Volgnummer (-1) means "no value" — hide it.
+ * - URL for the TK website uses Nummer (was DocumentNummer in v4), never the internal UUID Id.
+ * - Negative Ondernummer (-1) means "no value" — hide it (was Volgnummer in v4).
  * - Filter always includes `Verwijderd eq false`.
  */
 
@@ -84,7 +84,7 @@ function cacheKey(q: string | null, types: string[], skip: number, top: number):
 }
 
 function documentUrl(item: Record<string, unknown>): string | null {
-  const nr = item['DocumentNummer'] as string | undefined;
+  const nr = item['Nummer'] as string | undefined;
   if (nr) return `https://www.tweedekamer.nl/kamerstukken/detail?id=${nr}&did=${nr}`;
   return null;
 }
@@ -105,12 +105,8 @@ function normalise(rawItems: Record<string, unknown>[]): FeedItem[] {
       (item['Naam'] as string) ||
       '(geen onderwerp)',
     type: (item['Soort'] as string | null) ?? null,
-    number: cleanNumber(item['Volgnummer']),
-    date:
-      (item['GewijzigdOp'] as string | null) ??
-      (item['DatumRegistratie'] as string | null) ??
-      (item['Datum'] as string | null) ??
-      null,
+    number: cleanNumber(item['Ondernummer']),
+    date: (item['GewijzigdOp'] as string | null) ?? (item['Datum'] as string | null) ?? null,
     url: documentUrl(item),
     source: 'tk' as const,
   }));

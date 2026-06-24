@@ -33,6 +33,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.5.1',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '🔌',
+          iconColor: 'green',
+          title: 'TK OData v5 migration',
+          items: [
+            'API base updated from /OData/v4/2.0 to /OData/v5 — old URL returns no results as of the October 2025 deadline',
+            'Document.DocumentNummer renamed to Nummer in v5 — provenance URL construction updated accordingly',
+            'Document.Volgnummer renamed to Ondernummer in v5 — sub-document number field updated',
+            'Document.DatumRegistratie discontinued in v5 — removed from date fallback chain (GewijzigdOp → Datum)',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.5.0',
       status: 'Refactor',
       statusColor: 'purple',
