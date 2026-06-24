@@ -1,12 +1,14 @@
 /**
  * PA Monitoring API service.
- * VITE_PA_USE_MOCK=true  → static fixtures (same Signal shape, no backend needed)
- * VITE_PA_USE_MOCK=false → calls /pa/* endpoints (VITE_API_URL already includes /v1)
+ * Per-resource mock flags (all default false):
+ *   VITE_PA_SIGNALS_MOCK=true  → signal/inbox/search fixtures
+ *   VITE_PA_DOSSIERS_MOCK=true → dossier fixtures (backend endpoint not yet live)
+ *   VITE_PA_AGENDA_MOCK=true   → agenda fixtures
  */
 
 import axios from 'axios';
 import keycloak from './keycloak';
-import type { Dossier, Signal } from '@ronl/shared';
+import type { Dossier, PlenaryItem, Signal } from '@ronl/shared';
 import { MOCK_DOSSIERS } from '../pages/public-affairs-v2/pa.data';
 
 const API_BASE = import.meta.env.VITE_API_URL as string;
@@ -41,6 +43,7 @@ async function paPost<T>(path: string, body: unknown): Promise<T> {
 
 const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
 const DOSSIERS_MOCK = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
+const AGENDA_MOCK = import.meta.env.VITE_PA_AGENDA_MOCK === 'true';
 
 // ── Mock fixtures ────────────────────────────────────────────────────
 
@@ -380,6 +383,211 @@ export async function fetchDossier(id: string): Promise<Dossier | undefined> {
   } catch {
     return undefined;
   }
+}
+
+const MOCK_AGENDA: PlenaryItem[] = [
+  {
+    id: 'ag01',
+    nummer: '2026A03210',
+    soort: 'vragenuur',
+    soortLabel: 'Mondelinge vragen',
+    titel: 'Vragenuur — o.a. tijdpad herziene stikstofkaart',
+    iso: '2026-06-10',
+    tijd: '14:00',
+    commissie: null,
+    status: 'uitgevoerd',
+    dossier: 'stikstof',
+    matchTerm: 'stikstof',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03210',
+    live: null,
+  },
+  {
+    id: 'ag02',
+    nummer: '2026A03244',
+    soort: 'commissie',
+    soortLabel: 'Commissiedebat',
+    titel: 'Commissiedebat Luchtvaart',
+    iso: '2026-06-11',
+    tijd: '10:15',
+    commissie: 'cie. Infrastructuur & Waterstaat',
+    status: 'uitgevoerd',
+    dossier: 'lelystad',
+    matchTerm: 'Lelystad Airport',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=2026A03244',
+    live: null,
+  },
+  {
+    id: 'ag03',
+    nummer: '2026A03255',
+    soort: 'plenair',
+    soortLabel: 'Plenair debat',
+    titel: 'Debat over netcongestie en verduurzaming van de industrie',
+    iso: '2026-06-12',
+    tijd: '11:00',
+    commissie: null,
+    status: 'uitgevoerd',
+    dossier: 'energie',
+    matchTerm: 'netcongestie',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03255',
+    live: null,
+  },
+  {
+    id: 'ag04',
+    nummer: '2026A03301',
+    soort: 'commissie',
+    soortLabel: 'Commissiedebat',
+    titel: 'Commissiedebat Hervormingsagenda Jeugd',
+    iso: '2026-06-18',
+    tijd: '13:45',
+    commissie: 'cie. VWS',
+    status: 'uitgevoerd',
+    dossier: 'jeugdzorg',
+    matchTerm: 'hervormingsagenda jeugd',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=2026A03301',
+    live: null,
+  },
+  {
+    id: 'ag05',
+    nummer: '2026A03318',
+    soort: 'plenair',
+    soortLabel: 'Tweeminutendebat',
+    titel: 'Tweeminutendebat Stikstof (VAO)',
+    iso: '2026-06-19',
+    tijd: '10:00',
+    commissie: null,
+    status: 'uitgevoerd',
+    dossier: 'stikstof',
+    matchTerm: 'stikstof',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03318',
+    live: null,
+  },
+  {
+    id: 'ag06',
+    nummer: '2026A03362',
+    soort: 'vragenuur',
+    soortLabel: 'Mondelinge vragen',
+    titel: 'Vragenuur',
+    iso: '2026-06-24',
+    tijd: '14:00',
+    commissie: null,
+    status: 'uitgevoerd',
+    dossier: null,
+    matchTerm: null,
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03362',
+    live: null,
+  },
+  {
+    id: 'ag07',
+    nummer: '2026A03364',
+    soort: 'plenair',
+    soortLabel: 'Plenair debat',
+    titel: 'Debat over de herziene stikstofkaart',
+    iso: '2026-06-24',
+    tijd: '15:30',
+    commissie: null,
+    status: 'gepland',
+    dossier: 'stikstof',
+    matchTerm: 'stikstof',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03364',
+    live: 'live',
+    stream: 'https://debatdirect.tweedekamer.nl/2026-06-24/plenair',
+  },
+  {
+    id: 'ag08',
+    nummer: '2026A03365',
+    soort: 'plenair',
+    soortLabel: 'Stemmingen',
+    titel: 'Stemmingen — o.a. moties laagvliegroutes Lelystad',
+    iso: '2026-06-24',
+    tijd: '17:00',
+    commissie: null,
+    status: 'gepland',
+    dossier: 'lelystad',
+    matchTerm: 'laagvliegroutes',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03365',
+    live: 'binnenkort',
+    stream: 'https://debatdirect.tweedekamer.nl/2026-06-24/plenair',
+  },
+  {
+    id: 'ag09',
+    nummer: '2026A03377',
+    soort: 'commissie',
+    soortLabel: 'Commissiedebat',
+    titel: 'Commissiedebat Netcongestie',
+    iso: '2026-06-25',
+    tijd: '10:15',
+    commissie: 'cie. Economische Zaken & Klimaat',
+    status: 'gepland',
+    dossier: 'energie',
+    matchTerm: 'netcongestie',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=2026A03377',
+    live: null,
+  },
+  {
+    id: 'ag10',
+    nummer: '2026A03390',
+    soort: 'plenair',
+    soortLabel: 'Plenair debat',
+    titel: 'Debat over het openingsbesluit Lelystad Airport',
+    iso: '2026-06-26',
+    tijd: '11:00',
+    commissie: null,
+    status: 'gepland',
+    dossier: 'lelystad',
+    matchTerm: 'luchthavenbesluit',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03390',
+    live: null,
+  },
+  {
+    id: 'ag11',
+    nummer: '2026A03421',
+    soort: 'vragenuur',
+    soortLabel: 'Mondelinge vragen',
+    titel: 'Vragenuur',
+    iso: '2026-07-01',
+    tijd: '14:00',
+    commissie: null,
+    status: 'gepland',
+    dossier: null,
+    matchTerm: null,
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/plenaire_vergaderingen/details/activiteit?id=2026A03421',
+    live: null,
+  },
+  {
+    id: 'ag12',
+    nummer: '2026A03433',
+    soort: 'commissie',
+    soortLabel: 'Commissiedebat',
+    titel: 'Commissiedebat Jeugd',
+    iso: '2026-07-02',
+    tijd: '13:30',
+    commissie: 'cie. VWS',
+    status: 'gepland',
+    dossier: 'jeugdzorg',
+    matchTerm: 'jeugdzorg',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=2026A03433',
+    live: null,
+  },
+  {
+    id: 'ag13',
+    nummer: '2026A03470',
+    soort: 'commissie',
+    soortLabel: 'Commissiedebat',
+    titel: 'Commissiedebat Luchtvaart',
+    iso: '2026-07-09',
+    tijd: '10:15',
+    commissie: 'cie. Infrastructuur & Waterstaat',
+    status: 'geannuleerd',
+    dossier: 'lelystad',
+    matchTerm: 'Lelystad Airport',
+    url: 'https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=2026A03470',
+    live: null,
+  },
+];
+
+export async function fetchAgenda(): Promise<PlenaryItem[]> {
+  if (AGENDA_MOCK) return MOCK_AGENDA;
+  return paGet<PlenaryItem[]>('/pa/agenda');
 }
 
 export async function confirmSignal(
