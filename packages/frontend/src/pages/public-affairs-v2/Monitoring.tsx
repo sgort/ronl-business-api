@@ -231,7 +231,15 @@ export default function Monitoring({
 
   const handleConfirm = async (s: Signal) => {
     try {
-      await confirmSignal(s.id);
+      const patch = s.aiDraft
+        ? {
+            duiding: s.aiDraft.duiding ?? undefined,
+            impact: (s.aiDraft.impact as Signal['impact']) ?? undefined,
+            impactLabel: s.aiDraft.impactLabel ?? undefined,
+            rel: s.aiDraft.rel ?? undefined,
+          }
+        : undefined;
+      await confirmSignal(s.id, patch);
       setConfirmedIds((prev) => new Set([...prev, s.id]));
       setSignals((prev) =>
         [...prev, { ...s, status: 'confirmed' as const }].sort((a, b) => b.rel - a.rel)

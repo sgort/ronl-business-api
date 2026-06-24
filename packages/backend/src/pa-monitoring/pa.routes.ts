@@ -216,7 +216,7 @@ router.post('/signals/:id/confirm', async (req, res) => {
     if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
 
     const confirmedAt = new Date().toISOString();
-    const confirmedBy = req.user.displayName ?? req.user.userId;
+    const confirmedBy = req.user.displayName ?? req.user.preferredUsername ?? req.user.userId;
 
     await db.none(
       `UPDATE pa_signals
