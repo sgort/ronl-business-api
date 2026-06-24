@@ -128,6 +128,25 @@ export interface OverlegMessage {
   text: string;
 }
 
+// ── Tweede Kamer agenda types ────────────────────────────────────────
+
+export interface PlenaryItem {
+  id: string;
+  nummer: string;
+  soort: 'plenair' | 'vragenuur' | 'commissie';
+  soortLabel: string;
+  titel: string;
+  iso: string;
+  tijd: string | null;
+  commissie: string | null;
+  status: 'gepland' | 'uitgevoerd' | 'geannuleerd';
+  dossier: string | null;
+  matchTerm: string | null;
+  url: string;
+  live?: 'live' | 'binnenkort' | null;
+  stream?: string | null;
+}
+
 export interface Dossier {
   id: string;
   naam: string;
