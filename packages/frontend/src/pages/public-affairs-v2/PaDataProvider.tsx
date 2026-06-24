@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   confirmSignal as apiConfirmSignal,
+  fetchAgenda,
   fetchDossiers,
   fetchSignals,
 } from '../../services/pa.api';
-import type { Dossier, Signal } from '@ronl/shared';
+import type { Dossier, PlenaryItem, Signal } from '@ronl/shared';
 
 type Status = 'loading' | 'ok' | 'error';
 
@@ -17,6 +18,7 @@ export interface Resource<T> {
 interface PaDataContextValue {
   signals: Resource<Signal[]>;
   dossiers: Resource<Dossier[]>;
+  agenda: Resource<PlenaryItem[]>;
   confirmSignal: (
     id: string,
     patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
@@ -61,6 +63,7 @@ function useResource<T>(fetcher: () => Promise<T>, initial: T): Resource<T> {
 export function PaDataProvider({ children }: { children: React.ReactNode }) {
   const signalsResource = useResource<Signal[]>(fetchSignals, []);
   const dossiersResource = useResource<Dossier[]>(fetchDossiers, []);
+  const agendaResource = useResource<PlenaryItem[]>(fetchAgenda, []);
 
   const confirmSignal = useCallback(
     async (
@@ -78,7 +81,12 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PaDataContext.Provider
-      value={{ signals: signalsResource, dossiers: dossiersResource, confirmSignal }}
+      value={{
+        signals: signalsResource,
+        dossiers: dossiersResource,
+        agenda: agendaResource,
+        confirmSignal,
+      }}
     >
       {children}
     </PaDataContext.Provider>
