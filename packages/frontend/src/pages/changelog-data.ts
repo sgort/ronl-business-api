@@ -46,10 +46,11 @@ export const changelog: Changelog = {
           items: [
             'TK OData v4 client: OR-expanded contains() filter per term, DocumentNummer-based provenance URLs, negative Volgnummer hidden',
             'OB SRU client: namespace-prefix stripping (removeNSPrefix) fixed so owmskern/owmsmantel/tpmeta fields now parse correctly; w.jaargang year filter dynamic',
-            'Curation pipeline: saved queries → TK + OB fetch → rules score (rel ≥ 4 threshold) → persist candidates; POST /v1/pa/curator/run endpoint added; cycle fires on server startup',
+            'Curation pipeline: saved queries → TK + OB fetch → rules score (rel ≥ 4 threshold) → persist candidates; cycle fires on server startup; POST /v1/pa/curator/run triggers a new cycle on demand',
             'Signals route: comma-separated status filter (candidate,ai_drafted) now handled as SQL ANY() — inbox fetch was previously broken',
             'pa_saved_searches and pa_signals tables; Flevoland taxonomy (stikstof, lelystad, energie, jeugdzorg) seeded on first run',
-            'Fail-soft Redis cache; VITE_PA_USE_MOCK=false routes to live endpoints',
+            'Fail-soft Redis cache; VITE_PA_USE_MOCK=false baked into ACC build via .env.acceptance',
+            'Diagnostic endpoints: GET /v1/pa/curator/status (unauthenticated DB row counts), POST /v1/pa/curator/run (unauthenticated cycle trigger) — added during ACC rollout',
           ],
         },
         {
