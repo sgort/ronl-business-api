@@ -17,6 +17,17 @@ import type { Signal } from '@ronl/shared';
 const router = express.Router();
 const logger = createLogger('pa-routes');
 
+// ── POST /v1/pa/curator/run (unauthenticated) ─────────────────────────────────
+// Diagnostic: triggers curation for flevoland tenant. Runs in background.
+router.post('/curator/run', async (_req, res) => {
+  void runCurationCycle('flevoland').catch((err) =>
+    logger.error('Curation cycle failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  );
+  res.json({ success: true, data: { started: true, tenantId: 'flevoland' } });
+});
+
 // ── GET /v1/pa/curator/status ─────────────────────────────────────────────────
 // Diagnostic: unauthenticated — returns DB row counts only.
 router.get('/curator/status', async (_req, res) => {
@@ -327,20 +338,6 @@ router.delete('/searches/:id', async (req, res) => {
     });
     res.status(500).json({ success: false, error: { code: 'SEARCH_DELETE_ERROR' } });
   }
-});
-
-// ── POST /v1/pa/curator/run ───────────────────────────────────────────────────
-// Triggers a curation cycle for the caller's tenant. Runs in background; returns immediately.
-router.post('/curator/run', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
-  const tenantId = req.user.tenantId;
-  void runCurationCycle(tenantId).catch((err) =>
-    logger.error('Curation cycle failed', {
-      tenantId,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  );
-  res.json({ success: true, data: { started: true, tenantId } });
 });
 
 function rowToSignal(row: Record<string, unknown>): Signal {
