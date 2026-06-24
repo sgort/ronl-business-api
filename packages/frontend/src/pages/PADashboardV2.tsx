@@ -22,7 +22,7 @@
  *   - Kompas radar + 0–2 scorecard, signal duiding, lobby-canon timeline
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
 import {
@@ -42,7 +42,7 @@ import {
   type PaModeId,
   type OrgTypeGate,
 } from './public-affairs-v2/modes.config';
-import { getDossiers, kompasTotal } from './public-affairs-v2/pa.data';
+import { kompasTotal } from './public-affairs-v2/pa.data';
 import { PaDataProvider, usePaData } from './public-affairs-v2/PaDataProvider';
 import { Trend } from './public-affairs-v2/Kompas';
 import type { Prioritering } from './public-affairs-v2/Vandaag';
@@ -129,6 +129,16 @@ function DossiersModeRail({
   );
 }
 
+function DossierIdSyncer({ onReady }: { onReady: (id: string) => void }) {
+  const { dossiers } = usePaData();
+  useEffect(() => {
+    if (dossiers.status !== 'ok') return;
+    const first = dossiers.data.find((d) => d.status === 'actief') ?? dossiers.data[0];
+    if (first) onReady(first.id);
+  }, [dossiers.status, dossiers.data, onReady]);
+  return null;
+}
+
 const STORAGE_KEY_DOCK = 'paV2.dock.open';
 const REQUIRED_ROLES = ['public-affairs'];
 const REQUIRED_ORG_TYPES: OrgTypeGate[] = ['province'];
@@ -141,10 +151,13 @@ export default function PADashboardV2() {
 
   const [mode, setMode] = useState<PaModeId>('vandaag');
   const [activeSection, setActiveSection] = useState<string>('vandaag');
-  const [dossierId, setDossierId] = useState<string>(() => {
-    const ds = getDossiers();
-    return ds.find((d) => d.status === 'actief')?.id ?? ds[0]?.id ?? '';
-  });
+  const [dossierId, setDossierId] = useState<string>('');
+  // Seeded to '' at mount; DossierIdSyncer picks the first actief dossier once
+  // the provider's dossiers.status becomes 'ok'. Using prev || id ensures
+  // a user-selected id is never overwritten by a late-arriving init.
+  const initDossierId = useCallback((id: string) => {
+    setDossierId((prev) => prev || id);
+  }, []);
 
   // Tweakable axes (rail-driven). Kept in shell state so they survive nav.
   const [prioritering, setPrioritering] = useState<Prioritering>('kompas');
@@ -423,6 +436,7 @@ export default function PADashboardV2() {
 
       {/* ── Body ── */}
       <PaDataProvider>
+        <DossierIdSyncer onReady={initDossierId} />
         <div className="pac-body">
           <aside className="pac-rail" aria-label="Sectienavigatie">
             {renderRail()}
