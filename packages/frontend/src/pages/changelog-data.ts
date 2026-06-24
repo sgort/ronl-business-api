@@ -57,6 +57,19 @@ export const changelog: Changelog = {
             'Removes the last synchronous getDossiers() call from PADashboardV2',
           ],
         },
+        {
+          icon: '📅',
+          iconColor: 'blue',
+          title: 'PA cockpit — Tweede Kamer agenda (Monitoring → Agenda)',
+          items: [
+            'New read-only Agenda tab under Monitoring shows the plenaire and commissie schedule sourced from Gegevensmagazijn OData v5 /Activiteit (13 Soort values: Plenair debat, Stemmingen, Hamerstukken, Regeling van werkzaamheden, Tweeminutendebat, Mondelinge vragen, Commissiedebat, Wetgevingsoverleg, Notaoverleg, Rondetafelgesprek, Technische briefing, Procedurevergadering)',
+            'Items are date-grouped; today is marked; past items are dimmed; each item shows time, soort badge, title, commissie, activiteit number and a tweedekamer.nl provenance link',
+            'Items matching a saved-search term are badged with the matched dossier name and keyword — unmatched items still render so the complete schedule is always visible',
+            'Type filter chips are derived dynamically from the soortLabel values present in the fetched window — a new session type in the OData feed appears automatically without a code change',
+            'OData pagination: TK API caps at 100 results per page; the backend loops with $skip until a short page signals the end (up to 600 items across 6 pages)',
+            'Backend route GET /v1/pa/agenda is JWT-gated; Redis cache TTL controlled by CACHE_TTL_AGENDA (default 1800 s); VITE_PA_AGENDA_MOCK=true serves local fixtures',
+          ],
+        },
       ],
     },
     {

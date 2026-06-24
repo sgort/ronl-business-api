@@ -37,7 +37,7 @@ export type {
 
 import type { KompasCriterionDef, KompasScores, Dossier } from '@ronl/shared';
 
-export type MonitoringTabId = 'politiek' | 'europa' | 'regionaal' | 'media';
+export type MonitoringTabId = 'agenda' | 'politiek' | 'europa' | 'regionaal' | 'media';
 export type SignalImpact = 'kans' | 'risico';
 
 export interface Signal {
@@ -107,6 +107,7 @@ export function kompasTotal(k: KompasScores): number {
 }
 
 export const MONITORING_TABS: { id: MonitoringTabId; label: string }[] = [
+  { id: 'agenda', label: 'Agenda' },
   { id: 'politiek', label: 'Politiek (NL)' },
   { id: 'europa', label: 'Europa (EU)' },
   { id: 'regionaal', label: 'Regionaal' },

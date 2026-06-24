@@ -80,6 +80,10 @@ export const PA_MODES: PaModeConfig[] = [
     defaultSectionId: 'politiek',
     groups: [
       {
+        label: 'Tweede Kamer',
+        items: [{ id: 'agenda', label: 'Agenda', authRequired: true }],
+      },
+      {
         label: 'Signaalbronnen',
         items: [
           { id: 'politiek', label: 'Politiek (NL)', badgeKey: 'signalCount', authRequired: true },

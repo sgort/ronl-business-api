@@ -14,6 +14,7 @@
 import Vandaag, { type Prioritering } from '../../pages/public-affairs-v2/Vandaag';
 import Issuekaart from '../../pages/public-affairs-v2/Issuekaart';
 import Monitoring from '../../pages/public-affairs-v2/Monitoring';
+import AgendaView from '../../pages/public-affairs-v2/AgendaView';
 import Voortgang, { type VoortgangView } from '../../pages/public-affairs-v2/Voortgang';
 import type { KompasViz } from '../../pages/public-affairs-v2/Kompas';
 import { MONITORING_TABS, type MonitoringTabId } from '../../pages/public-affairs-v2/pa.data';
@@ -59,6 +60,10 @@ export default function PASectionRouter({
   const { dossiers } = usePaData();
   if (sectionId === 'vandaag') {
     return <Vandaag onOpenDossier={onOpenDossier} prioritering={prioritering} />;
+  }
+
+  if (sectionId === 'agenda') {
+    return <AgendaView onOpenDossier={onOpenDossier} />;
   }
 
   if (MONITORING_IDS.has(sectionId)) {

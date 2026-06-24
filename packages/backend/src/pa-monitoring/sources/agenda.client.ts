@@ -102,12 +102,13 @@ function normalise(rawItems: Record<string, unknown>[]): PlenaryItem[] {
       soortLabel: norm.label,
       titel: (item['Onderwerp'] as string) || '(geen onderwerp)',
       iso: extractDate(item['Datum']),
-      tijd: extractTime(item['Aanvangstijd']),
+      tijd: extractTime(item['Datum']),
       commissie: (item['VoortouwCommissieNaam'] as string | null) ?? null,
       status: normaliseStatus(item['Status']),
       dossier: null,
       matchTerm: null,
       url: buildItemUrl(nummer, norm.kind),
+      // Datum carries the full datetime; Aanvangstijd is not selected
       live: null,
       stream: null,
     });
@@ -117,7 +118,11 @@ function normalise(rawItems: Record<string, unknown>[]): PlenaryItem[] {
 
 // ── OData URL builder ────────────────────────────────────────────────────────
 
-function buildQueryUrl(dateFrom: string, dateTo: string): string {
+// TK OData API hard-caps $top at 100; requests above that return HTTP 400.
+const PAGE_SIZE = 100;
+const MAX_ITEMS = 600; // safety cap across pages
+
+function buildPageUrl(dateFrom: string, dateTo: string, skip: number): string {
   const soortClauses = ALL_SOORTEN.map((s) => `Soort eq '${s}'`).join(' or ');
   const filterStr = [
     'Verwijderd eq false',
@@ -138,9 +143,10 @@ function buildQueryUrl(dateFrom: string, dateTo: string): string {
 
   return (
     `${config.pa.tkApiBase}/Activiteit` +
-    `?$orderby=Datum asc,Aanvangstijd asc` +
-    `&$top=100` +
-    `&$select=Id,Soort,Nummer,Onderwerp,Datum,Aanvangstijd,Status,VoortouwCommissieNaam` +
+    `?$orderby=Datum asc` +
+    `&$top=${PAGE_SIZE}` +
+    `&$skip=${skip}` +
+    `&$select=Id,Soort,Nummer,Onderwerp,Datum,Status,VoortouwCommissieNaam` +
     `&$filter=${encodedFilter}`
   );
 }
@@ -157,24 +163,35 @@ export async function fetchAgenda(dateFrom: string, dateTo: string): Promise<Ple
   const cached = await cacheGet<PlenaryItem[]>(key);
   if (cached) return cached;
 
-  const url = buildQueryUrl(dateFrom, dateTo);
   logger.info('Agenda fetch', { dateFrom, dateTo });
 
+  // Paginate: TK API caps at 100 per page; loop until a short page signals end.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
-  let data: Record<string, unknown>;
+
+  const raw: Record<string, unknown>[] = [];
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    let skip = 0;
+    while (raw.length < MAX_ITEMS) {
+      const url = buildPageUrl(dateFrom, dateTo, skip);
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error(`TK Agenda API ${res.status} (skip=${skip})`);
+      const page = ((await res.json()) as Record<string, unknown>)['value'] as Record<
+        string,
+        unknown
+      >[];
+      raw.push(...(page ?? []));
+      if ((page?.length ?? 0) < PAGE_SIZE) break; // last page
+      skip += PAGE_SIZE;
+    }
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`TK Agenda API ${res.status}`);
-    data = (await res.json()) as Record<string, unknown>;
   } catch (err) {
     clearTimeout(timer);
     logger.error('Agenda API error', { error: err instanceof Error ? err.message : String(err) });
     throw err;
   }
 
-  const items = normalise((data['value'] as Record<string, unknown>[]) ?? []);
+  const items = normalise(raw);
   await cacheSet(key, items, config.pa.cacheTtlAgenda);
   return items;
 }
