@@ -40,6 +40,15 @@ export const changelog: Changelog = {
       date: 'June 24, 2026',
       sections: [
         {
+          icon: '🔐',
+          iconColor: 'green',
+          title: 'Logout now redirects to homepage',
+          items: [
+            'Clicking "Uitloggen" in the session-expiry modal previously returned the user to the current dashboard path instead of the homepage — fixed by passing redirectUri: window.location.origin to keycloak.logout()',
+            'Applies to PA-cockpit, Infra-board, and Caseworker dashboard',
+          ],
+        },
+        {
           icon: '🗂️',
           iconColor: 'green',
           title: 'PA cockpit — dossierId no longer seeded from mock',
