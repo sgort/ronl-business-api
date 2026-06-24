@@ -184,12 +184,10 @@ router.get('/agenda', async (req, res) => {
     res.json({ success: true, data: enriched });
   } catch (err) {
     logger.error('Agenda error', { error: err instanceof Error ? err.message : String(err) });
-    res
-      .status(502)
-      .json({
-        success: false,
-        error: { code: 'AGENDA_ERROR', message: 'Upstream agenda unavailable' },
-      });
+    res.status(502).json({
+      success: false,
+      error: { code: 'AGENDA_ERROR', message: 'Upstream agenda unavailable' },
+    });
   }
 });
 
