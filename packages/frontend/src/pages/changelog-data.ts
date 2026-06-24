@@ -33,6 +33,24 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.5.2',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '🗂️',
+          iconColor: 'green',
+          title: 'PA cockpit — dossierId no longer seeded from mock',
+          items: [
+            'Shell now starts with dossierId="" and derives the initial selection via an effect once dossiers.status==="ok" — with VITE_PA_DOSSIERS_MOCK=false the opening view no longer points at a mock id absent from the live dataset',
+            'Removes the last synchronous getDossiers() call from PADashboardV2',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.5.1',
       status: 'Bug Fix',
       statusColor: 'green',
