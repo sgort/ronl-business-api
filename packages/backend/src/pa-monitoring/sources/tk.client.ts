@@ -35,8 +35,20 @@ const HTTP_TIMEOUT_MS = 15_000;
 function buildFilter(q: string | null, types: string[]): string {
   const parts: string[] = ['Verwijderd eq false'];
   if (q?.trim()) {
-    const safe = q.trim().replace(/'/g, "''");
-    parts.push(`contains(Onderwerp,'${safe}')`);
+    // Split on OR — OData contains() is a literal match, not a boolean search.
+    const terms = q
+      .trim()
+      .split(/\s+OR\s+/i)
+      .map((t) => t.replace(/^"|"$/g, '').trim())
+      .filter(Boolean);
+    if (terms.length === 1) {
+      parts.push(`contains(Onderwerp,'${terms[0].replace(/'/g, "''")}')`);
+    } else {
+      const orClauses = terms
+        .map((t) => `contains(Onderwerp,'${t.replace(/'/g, "''")}')`)
+        .join(' or ');
+      parts.push(`(${orClauses})`);
+    }
   }
   if (types.length) {
     const typeClauses = types.map((t) => `Soort eq '${t}'`).join(' or ');

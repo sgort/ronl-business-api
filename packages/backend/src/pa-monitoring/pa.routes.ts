@@ -9,10 +9,9 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
-import { fetchTkFeed } from './sources/tk.client';
-import { fetchObFeed } from './sources/ob.client';
-import { TK_DOCUMENT_TYPES } from './sources/tk.client';
-import { OB_PUBLICATION_TYPES } from './sources/ob.client';
+import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
+import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
+import { runCurationCycle } from './curation.service';
 import type { Signal } from '@ronl/shared';
 
 const router = express.Router();
@@ -113,8 +112,17 @@ router.get('/signals', async (req, res) => {
       values.push(dossierId);
     }
     if (status !== 'all') {
-      conditions.push(`status = $${idx++}`);
-      values.push(status);
+      const statuses = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (statuses.length === 1) {
+        conditions.push(`status = $${idx++}`);
+        values.push(statuses[0]);
+      } else {
+        conditions.push(`status = ANY($${idx++})`);
+        values.push(statuses);
+      }
     }
 
     const rows = await db.any<Record<string, unknown>>(
@@ -278,6 +286,20 @@ router.delete('/searches/:id', async (req, res) => {
     });
     res.status(500).json({ success: false, error: { code: 'SEARCH_DELETE_ERROR' } });
   }
+});
+
+// ── POST /v1/pa/curator/run ───────────────────────────────────────────────────
+// Triggers a curation cycle for the caller's tenant. Runs in background; returns immediately.
+router.post('/curator/run', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  const tenantId = req.user.tenantId;
+  void runCurationCycle(tenantId).catch((err) =>
+    logger.error('Curation cycle failed', {
+      tenantId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  );
+  res.json({ success: true, data: { started: true, tenantId } });
 });
 
 function rowToSignal(row: Record<string, unknown>): Signal {

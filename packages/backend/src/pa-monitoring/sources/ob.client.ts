@@ -40,8 +40,14 @@ function buildCql(q: string | null, pubTypes: string[]): string {
   const year = new Date().getFullYear();
   const parts: string[] = ['c.product-area == "officielepublicaties"', `w.jaargang == "${year}"`];
   if (q?.trim()) {
-    const safe = q.trim().replace(/"/g, '\\"');
-    parts.push(`cql.textAndIndexes any "${safe}"`);
+    // CQL `any` already does OR on space-separated terms — strip boolean keywords.
+    const terms = q
+      .trim()
+      .split(/\s+(?:OR|AND)\s+/i)
+      .map((t) => t.replace(/^"|"$/g, '').trim())
+      .filter(Boolean)
+      .join(' ');
+    parts.push(`cql.textAndIndexes any "${terms.replace(/"/g, '\\"')}"`);
   }
   if (pubTypes.length) {
     const typeClauses = pubTypes.map((t) => `w.publicatienaam == "${t}"`).join(' OR ');
@@ -57,10 +63,12 @@ function cacheKey(q: string | null, pubTypes: string[], skip: number, top: numbe
 
 // fast-xml-parser config to handle namespaced XML.
 // We instruct it to keep namespace prefixes intact.
+// removeNSPrefix: true strips sru:, gzd:, overheidwetgeving:, dcterms: etc.
+// so all dig() paths use bare element names.
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
-  removeNSPrefix: false,
+  removeNSPrefix: true,
   parseTagValue: true,
   trimValues: true,
 });
@@ -93,34 +101,32 @@ interface ParsedRecord {
 }
 
 function parseRecord(recordData: unknown): ParsedRecord | null {
-  // Walk to the ow:wetgevingContainer or the root content element.
-  // The structure under recordData varies; we use dig() to navigate paths
-  // and fall back gracefully when a path doesn't exist.
-
+  // With removeNSPrefix: true, namespace prefixes are stripped.
+  // Actual structure: gzd > originalData > meta > owmskern/owmsmantel/tpmeta
+  //                   gzd > enrichedData > preferredUrl
   const kern =
-    dig(recordData, 'ow:wetgevingContainer', 'ow:owmskern') ??
-    dig(recordData, 'ow:wetgeving', 'ow:owmskern') ??
-    findDeep(recordData, 'ow:owmskern');
+    dig(recordData, 'gzd', 'originalData', 'meta', 'owmskern') ?? findDeep(recordData, 'owmskern');
 
   const mantel =
-    dig(recordData, 'ow:wetgevingContainer', 'ow:owmsmantel') ??
-    dig(recordData, 'ow:wetgeving', 'ow:owmsmantel') ??
-    findDeep(recordData, 'ow:owmsmantel');
+    dig(recordData, 'gzd', 'originalData', 'meta', 'owmsmantel') ??
+    findDeep(recordData, 'owmsmantel');
 
-  const tpmeta = findDeep(recordData, 'ow:tpmeta');
-  const enriched = findDeep(recordData, 'gzd:enrichedData');
+  const tpmeta =
+    dig(recordData, 'gzd', 'originalData', 'meta', 'tpmeta') ?? findDeep(recordData, 'tpmeta');
+
+  const enriched = dig(recordData, 'gzd', 'enrichedData') ?? findDeep(recordData, 'enrichedData');
 
   if (!kern) return null;
 
-  const identifier = str(dig(kern, 'dcterms:identifier'));
-  const title = str(dig(kern, 'dcterms:title'));
-  const dateVal = str(dig(mantel, 'dcterms:date'));
-  const description = str(dig(mantel, 'dcterms:abstract'));
-  const pubType = str(dig(tpmeta, 'ow:publicatienaam'));
+  const identifier = str(dig(kern, 'identifier'));
+  const title = str(dig(kern, 'title'));
+  const dateVal = str(dig(mantel, 'date'));
+  const description = str(dig(mantel, 'abstract'));
+  const pubType = str(dig(tpmeta, 'publicatienaam'));
 
   let url: string | null = null;
   if (enriched) {
-    url = str(dig(enriched, 'gzd:preferredUrl'));
+    url = str(dig(enriched, 'preferredUrl'));
   }
   if (!url && identifier) {
     url = `https://zoek.officielebekendmakingen.nl/${identifier}.html`;

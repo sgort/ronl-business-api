@@ -46,6 +46,16 @@ async function loadSearches(tenantId: string): Promise<SavedSearch[]> {
   }
 }
 
+function displayNr(item: FeedItem): string {
+  // For TK, DocumentNummer is encoded in the URL (?id=2026D12345); use that.
+  // For OB, item.id is already the meaningful publication identifier (stb-2026-123).
+  if (item.source === 'tk' && item.url) {
+    const m = item.url.match(/[?&]id=([^&]+)/);
+    if (m) return decodeURIComponent(m[1]);
+  }
+  return item.id;
+}
+
 async function persistCandidate(
   item: FeedItem,
   scored: { rel: number; tab: Signal['tab']; dossierId: string | null }
@@ -69,7 +79,9 @@ async function persistCandidate(
         item.title,
         srcLabel,
         item.source,
-        item.url ? JSON.stringify({ type: item.type ?? '', nr: item.id, url: item.url }) : null,
+        item.url
+          ? JSON.stringify({ type: item.type ?? '', nr: displayNr(item), url: item.url })
+          : null,
         scored.rel,
         sourceKey,
       ]

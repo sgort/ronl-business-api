@@ -53,7 +53,7 @@ const MOCK_CONFIRMED: Signal[] = [
     ref: {
       type: 'Kamervraag',
       nr: '2026Z11842',
-      url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2026Z11842&did=2026Z11842',
+      url: 'https://www.tweedekamer.nl/zoeken?q=stikstof+herziene+stikstofkaart&Types=Kamervraag',
     },
     rel: 9,
     impact: 'kans',
@@ -74,7 +74,7 @@ const MOCK_CONFIRMED: Signal[] = [
     ref: {
       type: 'Motie',
       nr: '2026D16594',
-      url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2026D16594&did=2026D16594',
+      url: 'https://www.tweedekamer.nl/zoeken?q=Lelystad+Airport+laagvliegroutes+heroverweging&Types=Motie',
     },
     rel: 8,
     impact: 'risico',
@@ -95,7 +95,7 @@ const MOCK_CONFIRMED: Signal[] = [
     ref: {
       type: 'Gemeenteblad',
       nr: 'gmb-2026-241188',
-      url: 'https://zoek.officielebekendmakingen.nl/gmb-2026-241188.html',
+      url: 'https://zoek.officielebekendmakingen.nl/?q=stikstof+gebiedsgrens+Noordoostpolder&product-area=gemeenteblad',
     },
     rel: 7,
     impact: 'risico',
@@ -147,7 +147,7 @@ const MOCK_INBOX: Signal[] = [
     ref: {
       type: 'Motie',
       nr: '2026D17021',
-      url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2026D17021&did=2026D17021',
+      url: 'https://www.tweedekamer.nl/zoeken?q=stikstof+reductietempo+landbouwperspectief&Types=Motie',
     },
     rel: 8,
     impact: 'kans',
@@ -171,7 +171,7 @@ const MOCK_INBOX: Signal[] = [
     ref: {
       type: 'Kamervraag',
       nr: '2026Z11907',
-      url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2026Z11907&did=2026Z11907',
+      url: 'https://www.tweedekamer.nl/zoeken?q=Lelystad+Airport+geluidsnormen+meetmethode&Types=Kamervraag',
     },
     rel: 7,
     impact: 'risico',
@@ -196,7 +196,7 @@ const MOCK_INBOX: Signal[] = [
     ref: {
       type: 'Provinciaal blad',
       nr: 'prb-2026-8841',
-      url: 'https://zoek.officielebekendmakingen.nl/prb-2026-8841.html',
+      url: 'https://zoek.officielebekendmakingen.nl/?q=netcongestie+subsidieregeling+pilot&product-area=provinciaalblad',
     },
     rel: 6,
     impact: 'kans',
@@ -220,7 +220,7 @@ const MOCK_INBOX: Signal[] = [
     ref: {
       type: 'Brief',
       nr: '2026D16777',
-      url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2026D16777&did=2026D16777',
+      url: 'https://www.tweedekamer.nl/zoeken?q=netcongestie+Landelijk+Actieprogramma+EZK&Types=Brief',
     },
     rel: 5,
     impact: null,

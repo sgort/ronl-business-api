@@ -42,7 +42,9 @@ import {
   type PaModeId,
   type OrgTypeGate,
 } from './public-affairs-v2/modes.config';
-import { getDossiers, getSignals, kompasTotal, type Dossier } from './public-affairs-v2/pa.data';
+import { getDossiers, kompasTotal, type Dossier } from './public-affairs-v2/pa.data';
+import { fetchSignals } from '../services/pa.api';
+import type { Signal } from '@ronl/shared';
 import { Trend } from './public-affairs-v2/Kompas';
 import type { Prioritering } from './public-affairs-v2/Vandaag';
 import type { KompasViz } from './public-affairs-v2/Kompas';
@@ -160,10 +162,20 @@ export default function PADashboardV2() {
     setActiveSection(id);
   };
 
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const refreshSignals = () => {
+    void fetchSignals()
+      .then(setSignals)
+      .catch(() => {});
+  };
+  useEffect(() => {
+    if (!isAuth) return;
+    refreshSignals();
+  }, [isAuth]);
+
   const currentMode = PA_MODES.find((m) => m.id === mode)!;
   const activeDossiers = dossiers.filter((d) => d.status === 'actief');
   const sluimerend = dossiers.filter((d) => d.status === 'sluimerend');
-  const signals = getSignals();
 
   const handleLogin = () => {
     sessionStorage.setItem('selected_idp', 'medewerker');
@@ -423,6 +435,7 @@ export default function PADashboardV2() {
                 user={user}
                 tenantConfig={tenantConfig}
                 onOpenDossier={goToDossier}
+                onSignalConfirmed={refreshSignals}
               />
             )}
           </div>

@@ -27,6 +27,7 @@ import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
 import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
 import { initDb } from '@services/audit.service';
 import { initPaDb } from './pa-monitoring/pa-monitoring.db';
+import { runCurationCycle } from './pa-monitoring/curation.service';
 import paRoutes from './pa-monitoring/pa.routes';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
@@ -211,6 +212,7 @@ const startServer = async () => {
 
   await initDb();
   await initPaDb();
+  void runCurationCycle().catch(() => {});
 
   externalTaskWorker.start();
 

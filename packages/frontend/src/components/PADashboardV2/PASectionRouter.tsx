@@ -49,6 +49,7 @@ interface Props {
   user: KeycloakUser | null;
   tenantConfig: TenantConfig | null;
   onOpenDossier: (id: string) => void;
+  onSignalConfirmed?: () => void;
 }
 
 export default function PASectionRouter({
@@ -58,13 +59,20 @@ export default function PASectionRouter({
   user,
   tenantConfig,
   onOpenDossier,
+  onSignalConfirmed,
 }: Props) {
   if (sectionId === 'vandaag') {
     return <Vandaag onOpenDossier={onOpenDossier} prioritering={prioritering} />;
   }
 
   if (MONITORING_IDS.has(sectionId)) {
-    return <Monitoring activeTab={sectionId as MonitoringTabId} onOpenDossier={onOpenDossier} />;
+    return (
+      <Monitoring
+        activeTab={sectionId as MonitoringTabId}
+        onOpenDossier={onOpenDossier}
+        onSignalConfirmed={onSignalConfirmed}
+      />
+    );
   }
 
   if (VOORTGANG_IDS.has(sectionId)) {

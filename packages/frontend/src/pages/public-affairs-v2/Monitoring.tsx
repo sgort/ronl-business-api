@@ -21,6 +21,7 @@ import type { Signal } from '@ronl/shared';
 interface Props {
   activeTab?: MonitoringTabId;
   onOpenDossier: (id: string) => void;
+  onSignalConfirmed?: () => void;
 }
 
 function BronBadge({ bron }: { bron: string | null }) {
@@ -188,7 +189,11 @@ function InboxCard({
   );
 }
 
-export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Props) {
+export default function Monitoring({
+  activeTab = 'politiek',
+  onOpenDossier,
+  onSignalConfirmed,
+}: Props) {
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
   const connected = paTabConnected(tab.id);
 
@@ -231,6 +236,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
       setSignals((prev) =>
         [...prev, { ...s, status: 'confirmed' as const }].sort((a, b) => b.rel - a.rel)
       );
+      onSignalConfirmed?.();
     } catch {
       // keep item in inbox on error
     }
