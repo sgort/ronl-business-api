@@ -302,6 +302,48 @@ router.post('/curator/run', async (req, res) => {
   res.json({ success: true, data: { started: true, tenantId } });
 });
 
+// ── GET /v1/pa/curator/status ─────────────────────────────────────────────────
+// Diagnostic: returns DB row counts for signals and saved searches.
+router.get('/curator/status', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  try {
+    const [signalCounts, searchCounts] = await Promise.all([
+      db.one<{ total: string; candidate: string; confirmed: string }>(
+        `SELECT
+           COUNT(*)::text AS total,
+           COUNT(*) FILTER (WHERE status = 'candidate' OR status = 'ai_drafted')::text AS candidate,
+           COUNT(*) FILTER (WHERE status = 'confirmed')::text AS confirmed
+         FROM pa_signals`
+      ),
+      db.one<{ total: string; flevoland: string }>(
+        `SELECT
+           COUNT(*)::text AS total,
+           COUNT(*) FILTER (WHERE tenant_id = 'flevoland')::text AS flevoland
+         FROM pa_saved_searches`
+      ),
+    ]);
+    res.json({
+      success: true,
+      data: {
+        signals: {
+          total: Number(signalCounts.total),
+          inbox: Number(signalCounts.candidate),
+          confirmed: Number(signalCounts.confirmed),
+        },
+        searches: {
+          total: Number(searchCounts.total),
+          flevoland: Number(searchCounts.flevoland),
+        },
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: { code: 'STATUS_ERROR', message: err instanceof Error ? err.message : String(err) },
+    });
+  }
+});
+
 function rowToSignal(row: Record<string, unknown>): Signal {
   return {
     id: row['id'] as string,

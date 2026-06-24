@@ -212,7 +212,11 @@ const startServer = async () => {
 
   await initDb();
   await initPaDb();
-  void runCurationCycle().catch(() => {});
+  void runCurationCycle().catch((err) =>
+    appLogger.error('Startup curation cycle failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  );
 
   externalTaskWorker.start();
 

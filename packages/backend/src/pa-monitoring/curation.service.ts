@@ -122,17 +122,24 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
   const queries = [...new Set(searches.map((s) => s.query.q).filter(Boolean))];
 
   for (const q of queries) {
-    try {
-      const [tkResult, obResult] = await Promise.allSettled([
-        fetchTkFeed(q, [], 0, 20),
-        fetchObFeed(q, [], 0, 20),
-      ]);
-      if (tkResult.status === 'fulfilled') allItems.push(...tkResult.value.items);
-      if (obResult.status === 'fulfilled') allItems.push(...obResult.value.items);
-    } catch (err) {
-      logger.warn('Feed fetch failed for query', {
+    const [tkResult, obResult] = await Promise.allSettled([
+      fetchTkFeed(q, [], 0, 20),
+      fetchObFeed(q, [], 0, 20),
+    ]);
+    if (tkResult.status === 'fulfilled') {
+      allItems.push(...tkResult.value.items);
+    } else {
+      logger.error('TK feed fetch failed', {
         q,
-        error: err instanceof Error ? err.message : String(err),
+        error: tkResult.reason instanceof Error ? tkResult.reason.message : String(tkResult.reason),
+      });
+    }
+    if (obResult.status === 'fulfilled') {
+      allItems.push(...obResult.value.items);
+    } else {
+      logger.error('OB feed fetch failed', {
+        q,
+        error: obResult.reason instanceof Error ? obResult.reason.message : String(obResult.reason),
       });
     }
   }
