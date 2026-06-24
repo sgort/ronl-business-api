@@ -25,6 +25,7 @@ interface PaDataContextValue {
 
 const PaDataContext = createContext<PaDataContextValue | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePaData(): PaDataContextValue {
   const ctx = useContext(PaDataContext);
   if (!ctx) throw new Error('usePaData must be used inside PaDataProvider');
