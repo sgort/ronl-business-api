@@ -23,13 +23,15 @@ interface Props {
   onOpenDossier: (id: string) => void;
 }
 
+const BRON_DISPLAY: Record<string, string> = {
+  tk: 'Tweede Kamer',
+  ob: 'Off. Bekendmakingen',
+  eu: 'Europees Parlement',
+};
+
 function BronBadge({ bron }: { bron: string | null }) {
   if (!bron) return null;
-  return (
-    <span className={`pac-bron pac-bron-${bron}`}>
-      {bron === 'tk' ? 'Tweede Kamer' : 'Off. Bekendmakingen'}
-    </span>
-  );
+  return <span className={`pac-bron pac-bron-${bron}`}>{BRON_DISPLAY[bron] ?? bron}</span>;
 }
 
 function SignalCard({
@@ -189,7 +191,8 @@ function InboxCard({
 }
 
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Props) {
-  const { confirmSignal, dossiers } = usePaData();
+  const { confirmSignal, dossiers, inbox: providerInbox } = usePaData();
+  const refetchProviderInbox = providerInbox.refetch;
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
   const connected = paTabConnected(tab.id);
 
@@ -209,7 +212,9 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
     setSignals(sigs);
     setInbox(inb);
     setLoading(false);
-  }, [tab.id]);
+    // Sync the shared provider inbox so rail badges reflect the fresh count
+    refetchProviderInbox();
+  }, [tab.id, refetchProviderInbox]);
 
   useEffect(() => {
     void load();

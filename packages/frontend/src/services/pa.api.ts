@@ -240,13 +240,14 @@ const MOCK_INBOX: Signal[] = [
 const TAB_SOURCES: Record<string, string[]> = {
   politiek: ['tk', 'ob'],
   regionaal: ['ob'],
-  europa: [],
+  europa: ['eu'],
   media: [],
 };
 
 export const BRON_LABEL: Record<string, string> = {
   tk: 'Tweede Kamer',
   ob: 'Officiële Bekendmakingen',
+  eu: 'Europees Parlement',
 };
 
 export function paTabConnected(tabId: string): boolean {

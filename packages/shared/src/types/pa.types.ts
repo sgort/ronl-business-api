@@ -4,7 +4,7 @@ export interface Signal {
   dossierId: string | null;
   title: string;
   src: string;
-  bron: 'tk' | 'ob' | null;
+  bron: 'tk' | 'ob' | 'eu' | null;
   ref?: { type: string; nr: string; url: string } | null;
   rel: number;
   impact: 'kans' | 'risico' | null;
@@ -23,7 +23,7 @@ export interface FeedItem {
   number: string | null;
   date: string | null;
   url: string | null;
-  source: 'tk' | 'ob';
+  source: 'tk' | 'ob' | 'eu';
   description?: string;
 }
 

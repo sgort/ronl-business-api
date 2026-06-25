@@ -40,13 +40,19 @@ export const changelog: Changelog = {
       date: 'June 25, 2026',
       sections: [
         {
-          icon: '🔔',
-          iconColor: 'pink',
-          title: 'PA cockpit — Monitoring rail counter badges',
+          icon: '🇪🇺',
+          iconColor: 'blue',
+          title: 'PA cockpit — Europa (EU) source: European Parliament RSS feeds',
           items: [
-            'Unconnected tabs (Europa, Media & omgeving) now render a dimmed — instead of a misleading 0',
-            'Tabs with pending inbox candidates show an accent pill with the candidate count; confirming a candidate decrements the pill immediately (provider now refetches inbox alongside signals)',
-            'Inbox resource added to PaDataProvider — fetchInbox is now a first-class resource alongside signals, dossiers and agenda',
+            'Europa tab is now a live connected source (bron: eu) via the EP plenary-documents RSS feed (CC BY 4.0, no authentication, ~1-2 s); press-release feed included but currently empty',
+            'Normalises RSS items to FeedItem: ref from guid (e.g. A-10-2026-0181), English title, Dutch type label from <category domain="type">, doceo _NL.html provenance link; agenda items filtered out (no EP document ref in guid)',
+            'Scoring: high-value types (Verslag, Motie, Aangenomen tekst, Resolutie) get +2; Dutch term expansion (EU_TO_NL_TERMS) appends Dutch equivalents of English EU-policy vocabulary to FeedItem.description for desc-match scoring; only rel ≥ 4 persists',
+            'EU_SOURCE_ENABLED env flag (default true); EU_API_BASE retained for future fallback; bron-eu badge style added to Monitoring CSS',
+            'Fixture-based unit test (eu.client.test.ts, 12 cases): non-empty titles, ref extraction, doceo URL, date parsing, Dutch type labels, term expansion, agenda filtering',
+            'Seed searches broadened: four EU-specific saved searches added (eu-klimaat, eu-landbouw, eu-energie, eu-plenary) using English vocabulary that directly matches EP title patterns; these are source-routed to EU only — TK/OB are no longer queried with English terms',
+            'Curation cycle is now source-aware: each saved search declares its source(s); TK and OB fetch only their own query sets; EU is fetched once per cycle regardless of search count; fetch window raised to top=50',
+            'Candidates are re-scored on subsequent cycles (ON CONFLICT DO UPDATE) so search changes take effect without manual DB cleanup',
+            'Rail badge sync: Monitoring component triggers a provider inbox refetch after loading tab data, keeping the rail pill count current when new EU candidates arrive after page load',
           ],
         },
         {
@@ -57,6 +63,16 @@ export const changelog: Changelog = {
             'Agenda rail item now shows the count of upcoming (today + future, non-cancelled) activiteiten, with a live pulse dot when a debate is currently in session',
             'AgendaView opens in Aankomend scope by default — badge count and view count now match; Alle periodes remains available to browse the full historical schedule',
             'Type filter chips (Commissiedebat, Plenair, …) derive their counts from the active time scope, so numbers stay consistent across all filters',
+          ],
+        },
+        {
+          icon: '🔔',
+          iconColor: 'pink',
+          title: 'PA cockpit — Monitoring rail counter badges',
+          items: [
+            'Unconnected tabs (Europa, Media & omgeving) now render a dimmed — instead of a misleading 0',
+            'Tabs with pending inbox candidates show an accent pill with the candidate count; confirming a candidate decrements the pill immediately (provider now refetches inbox alongside signals)',
+            'Inbox resource added to PaDataProvider — fetchInbox is now a first-class resource alongside signals, dossiers and agenda',
           ],
         },
       ],

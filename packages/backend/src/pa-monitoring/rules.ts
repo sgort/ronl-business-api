@@ -21,17 +21,22 @@ interface RulesResult {
 const TAB_BY_SOURCE: Record<string, Signal['tab']> = {
   tk: 'politiek',
   ob: 'regionaal',
+  eu: 'europa',
 };
 
 const HIGH_VALUE_TK_TYPES = new Set(['Motie', 'Kamervraag', 'Brief', 'Amendement']);
+const HIGH_VALUE_EU_TYPES = new Set(['Verslag', 'Motie', 'Aangenomen tekst', 'Resolutie']);
 
 export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult {
   let rel = 3;
   const tab: Signal['tab'] = TAB_BY_SOURCE[item.source] ?? 'politiek';
   let dossierId: string | null = null;
 
-  // Bump for high-value TK document types
+  // Bump for high-value document types per source
   if (item.source === 'tk' && item.type && HIGH_VALUE_TK_TYPES.has(item.type)) {
+    rel += 2;
+  }
+  if (item.source === 'eu' && item.type && HIGH_VALUE_EU_TYPES.has(item.type)) {
     rel += 2;
   }
 

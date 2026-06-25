@@ -1126,6 +1126,7 @@
 .pac .pac-bron { display: inline-block; font-size: 10.5px; font-family: var(--pac-mono); padding: 2px 7px; border-radius: 3px; border: 1px solid var(--pac-rule); color: var(--pac-ink-3); }
 .pac .pac-bron-tk  { border-color: #0046ad40; color: #0046ad; background: #0046ad0d; }
 .pac .pac-bron-ob  { border-color: #e7007740; color: #b00060; background: #e700770d; }
+.pac .pac-bron-eu  { border-color: #c5c4e8; color: #3b3a8f; background: #eeeefa; }
 
 /* Provenance link */
 .pac .pac-prov { margin-left: 8px; font-size: 11px; color: var(--pac-chrome); text-decoration: none; font-family: var(--pac-mono); }

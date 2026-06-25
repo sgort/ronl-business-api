@@ -7,6 +7,8 @@ import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
+import { fetchEuFeed } from './sources/eu.client';
+import { config } from '@utils/config';
 import { scoreItem } from './rules';
 import type { FeedItem, Signal } from '@ronl/shared';
 
@@ -64,14 +66,18 @@ async function persistCandidate(
   const srcLabel =
     item.source === 'tk'
       ? `Tweede Kamer · ${item.type ?? 'Document'} · ${formatAge(item.date)}`
-      : `Officiële Bekendmakingen · ${item.type ?? 'Publicatie'} · ${formatAge(item.date)}`;
+      : item.source === 'eu'
+        ? `Europees Parlement · ${item.type ?? 'Document'} · ${formatAge(item.date)}`
+        : `Officiële Bekendmakingen · ${item.type ?? 'Publicatie'} · ${formatAge(item.date)}`;
 
   try {
     await db.none(
       `INSERT INTO pa_signals
          (id, tab, dossier_id, title, src, bron, ref, rel, status, source_key, created_at, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'candidate',$9,NOW(),NOW())
-       ON CONFLICT (source_key) DO NOTHING`,
+       ON CONFLICT (source_key) DO UPDATE
+         SET rel = EXCLUDED.rel, dossier_id = EXCLUDED.dossier_id, updated_at = NOW()
+         WHERE pa_signals.status = 'candidate'`,
       [
         `sig-${item.source}-${item.id}`,
         scored.tab,
@@ -118,30 +124,52 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
 
   const allItems: FeedItem[] = [];
 
-  // Merge unique queries across all searches
-  const queries = [...new Set(searches.map((s) => s.query.q).filter(Boolean))];
+  // Build per-source query sets — prevents English EU-only queries from hitting TK/OB
+  const tkQueries = new Set<string>();
+  const obQueries = new Set<string>();
+  let hasEuSearches = false;
 
-  for (const q of queries) {
-    const [tkResult, obResult] = await Promise.allSettled([
-      fetchTkFeed(q, [], 0, 20),
-      fetchObFeed(q, [], 0, 20),
-    ]);
-    if (tkResult.status === 'fulfilled') {
-      allItems.push(...tkResult.value.items);
-    } else {
+  for (const s of searches) {
+    const src: string[] = Array.isArray(s.query.source) ? s.query.source : ['tk', 'ob'];
+    if (!s.query.q) continue;
+    if (src.includes('tk')) tkQueries.add(s.query.q);
+    if (src.includes('ob')) obQueries.add(s.query.q);
+    if (src.includes('eu')) hasEuSearches = true;
+  }
+
+  // Fetch TK for TK-enabled queries
+  for (const q of tkQueries) {
+    const result = await fetchTkFeed(q, [], 0, 20).catch((err: unknown) => {
       logger.error('TK feed fetch failed', {
         q,
-        error: tkResult.reason instanceof Error ? tkResult.reason.message : String(tkResult.reason),
+        error: err instanceof Error ? err.message : String(err),
       });
-    }
-    if (obResult.status === 'fulfilled') {
-      allItems.push(...obResult.value.items);
-    } else {
+      return null;
+    });
+    if (result) allItems.push(...result.items);
+  }
+
+  // Fetch OB for OB-enabled queries
+  for (const q of obQueries) {
+    const result = await fetchObFeed(q, [], 0, 20).catch((err: unknown) => {
       logger.error('OB feed fetch failed', {
         q,
-        error: obResult.reason instanceof Error ? obResult.reason.message : String(obResult.reason),
+        error: err instanceof Error ? err.message : String(err),
       });
-    }
+      return null;
+    });
+    if (result) allItems.push(...result.items);
+  }
+
+  // Fetch EU once — fetchEuFeed ignores the query string and returns the full cached feed
+  if (hasEuSearches && config.pa.euSourceEnabled) {
+    const result = await fetchEuFeed(null, [], 0, 50).catch((err: unknown) => {
+      logger.error('EU feed fetch failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    });
+    if (result) allItems.push(...result.items);
   }
 
   // Deduplicate by source:id

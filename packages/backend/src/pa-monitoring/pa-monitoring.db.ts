@@ -9,12 +9,21 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('pa-monitoring-db');
 
-const PA_TAXONOMY_SEED = [
+interface SeedEntry {
+  id: string;
+  /** Dossier to link matched signals to. Null for topic-searches not tied to a dossier. */
+  dossierId?: string | null;
+  query: string;
+  tags: string[];
+  bronnen: string[];
+}
+
+const PA_TAXONOMY_SEED: SeedEntry[] = [
   {
     id: 'stikstof',
-    query: 'stikstof OR gebiedsproces OR reductiekader',
+    query: 'stikstof OR gebiedsproces OR reductiekader OR natuurherstelverordening',
     tags: ['stikstof', 'landbouw', 'natuur'],
-    bronnen: ['tk', 'ob'],
+    bronnen: ['tk', 'ob', 'eu'],
   },
   {
     id: 'lelystad',
@@ -24,15 +33,48 @@ const PA_TAXONOMY_SEED = [
   },
   {
     id: 'energie',
-    query: 'netcongestie OR netcapaciteit OR "energy hub"',
+    query: 'netcongestie OR netcapaciteit OR "energy hub" OR flexibiliteit',
     tags: ['energie', 'netcongestie'],
-    bronnen: ['tk', 'ob'],
+    bronnen: ['tk', 'ob', 'eu'],
   },
   {
     id: 'jeugdzorg',
     query: 'jeugdzorg OR hervormingsagenda jeugd',
     tags: ['jeugdzorg', 'zorg'],
     bronnen: ['tk', 'ob'],
+  },
+  // EU-specific searches — English vocabulary that directly matches EP plenary titles.
+  // TK/OB documents are in Dutch so these terms do not create cross-source noise.
+  // dossierId is null: these are topic filters, not linked to a specific dossier.
+  {
+    id: 'eu-klimaat',
+    dossierId: null,
+    query: 'climate OR carbon OR emissions OR "green deal" OR "net zero"',
+    tags: ['klimaat', 'emissies', 'duurzaamheid'],
+    bronnen: ['eu'],
+  },
+  {
+    id: 'eu-landbouw',
+    dossierId: null,
+    query: 'agriculture OR farming OR farmers OR pesticide OR "plant protection" OR "food safety"',
+    tags: ['landbouw', 'voedsel', 'agrarisch'],
+    bronnen: ['eu'],
+  },
+  {
+    id: 'eu-energie',
+    dossierId: null,
+    query: 'energy OR electricity OR nuclear OR hydrogen OR renewable',
+    tags: ['energie', 'energietransitie'],
+    bronnen: ['eu'],
+  },
+  // Catch-all: EP document titles always start with "REPORT on...", "MOTION FOR A RESOLUTION...",
+  // or "RECOMMENDATION on..." — these English structural words never appear in Dutch TK/OB docs.
+  {
+    id: 'eu-plenary',
+    dossierId: null,
+    query: 'REPORT OR MOTION OR RECOMMENDATION OR RESOLUTION OR OPINION',
+    tags: [],
+    bronnen: ['eu'],
   },
 ];
 
@@ -84,14 +126,17 @@ export async function initPaDb(): Promise<void> {
 
 async function seedTaxonomy(): Promise<void> {
   for (const entry of PA_TAXONOMY_SEED) {
+    // dossierId: explicit null for EU topic-searches; falls back to entry.id for dossier-linked searches
+    const dossierId = 'dossierId' in entry ? entry.dossierId : entry.id;
     try {
       await db.none(
         `INSERT INTO pa_saved_searches (id, tenant_id, scope, dossier_id, query, tags)
          VALUES ($1, 'flevoland', 'tenant', $2, $3, $4)
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (id) DO UPDATE
+           SET dossier_id = EXCLUDED.dossier_id`,
         [
           `seed-${entry.id}`,
-          entry.id,
+          dossierId,
           JSON.stringify({ q: entry.query, types: [], source: entry.bronnen }),
           entry.tags,
         ]
