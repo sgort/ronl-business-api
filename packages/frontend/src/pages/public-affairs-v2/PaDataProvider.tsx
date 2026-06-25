@@ -3,6 +3,7 @@ import {
   confirmSignal as apiConfirmSignal,
   fetchAgenda,
   fetchDossiers,
+  fetchInbox,
   fetchSignals,
 } from '../../services/pa.api';
 import type { Dossier, PlenaryItem, Signal } from '@ronl/shared';
@@ -17,6 +18,7 @@ export interface Resource<T> {
 
 interface PaDataContextValue {
   signals: Resource<Signal[]>;
+  inbox: Resource<Signal[]>;
   dossiers: Resource<Dossier[]>;
   agenda: Resource<PlenaryItem[]>;
   confirmSignal: (
@@ -62,6 +64,7 @@ function useResource<T>(fetcher: () => Promise<T>, initial: T): Resource<T> {
 
 export function PaDataProvider({ children }: { children: React.ReactNode }) {
   const signalsResource = useResource<Signal[]>(fetchSignals, []);
+  const inboxResource = useResource<Signal[]>(fetchInbox, []);
   const dossiersResource = useResource<Dossier[]>(fetchDossiers, []);
   const agendaResource = useResource<PlenaryItem[]>(fetchAgenda, []);
 
@@ -72,17 +75,19 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     ): Promise<Signal> => {
       const result = await apiConfirmSignal(id, patch);
       signalsResource.refetch();
+      inboxResource.refetch();
       return result;
     },
     // refetch is stable (created with useCallback(fn, []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [signalsResource.refetch]
+    [signalsResource.refetch, inboxResource.refetch]
   );
 
   return (
     <PaDataContext.Provider
       value={{
         signals: signalsResource,
+        inbox: inboxResource,
         dossiers: dossiersResource,
         agenda: agendaResource,
         confirmSignal,

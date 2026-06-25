@@ -41,7 +41,7 @@ async function paPost<T>(path: string, body: unknown): Promise<T> {
   return res.data.data;
 }
 
-const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
+export const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
 const DOSSIERS_MOCK = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
 const AGENDA_MOCK = import.meta.env.VITE_PA_AGENDA_MOCK === 'true';
 

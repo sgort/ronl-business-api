@@ -28,7 +28,7 @@ export interface PaRailItem {
   id: string;
   label: string;
   /** Optional count badge, filled at render time. */
-  badgeKey?: 'dossierCount' | 'signalCount';
+  badgeKey?: 'dossierCount' | 'signalCount' | 'agendaCount';
   authRequired?: boolean;
   requiredRoles?: string[];
   requiredOrgTypes?: OrgTypeGate[];
@@ -81,7 +81,7 @@ export const PA_MODES: PaModeConfig[] = [
     groups: [
       {
         label: 'Tweede Kamer',
-        items: [{ id: 'agenda', label: 'Agenda', authRequired: true }],
+        items: [{ id: 'agenda', label: 'Agenda', badgeKey: 'agendaCount', authRequired: true }],
       },
       {
         label: 'Signaalbronnen',

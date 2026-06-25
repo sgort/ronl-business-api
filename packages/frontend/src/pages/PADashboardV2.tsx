@@ -42,6 +42,7 @@ import {
   type PaModeId,
   type OrgTypeGate,
 } from './public-affairs-v2/modes.config';
+import { paTabConnected, SIGNALS_MOCK } from '../services/pa.api';
 import { kompasTotal } from './public-affairs-v2/pa.data';
 import { PaDataProvider, usePaData } from './public-affairs-v2/PaDataProvider';
 import { Trend } from './public-affairs-v2/Kompas';
@@ -58,9 +59,28 @@ import ChangelogPanel from './ChangelogPanel';
 import './public-affairs-v2/dashboard-pa.css';
 
 function SignalCountBadge({ tabId }: { tabId: string }) {
-  const { signals } = usePaData();
+  const { signals, inbox } = usePaData();
+  const connected = paTabConnected(tabId);
+  const count = signals.data.filter((s) => s.tab === tabId).length;
+  const inboxCount = inbox.data.filter((s) => s.tab === tabId).length;
   return (
-    <span className="pac-rail-score">{signals.data.filter((s) => s.tab === tabId).length}</span>
+    <span className="pac-rail-score">
+      {!SIGNALS_MOCK && !connected ? <span className="pac-rail-dim">—</span> : count}
+      {inboxCount > 0 && <span className="pac-rail-inbox">{inboxCount}</span>}
+    </span>
+  );
+}
+
+function AgendaCountBadge() {
+  const { agenda } = usePaData();
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = agenda.data.filter((a) => a.iso >= today && a.status !== 'geannuleerd').length;
+  const live = agenda.data.some((a) => a.live === 'live');
+  return (
+    <span className="pac-rail-score">
+      {upcoming}
+      {live && <span className="pac-rail-live" title="Nu in de zaal" />}
+    </span>
   );
 }
 
@@ -344,6 +364,7 @@ export default function PADashboardV2() {
                       >
                         <span className="pac-rail-label">{it.label}</span>
                         {it.badgeKey === 'signalCount' && <SignalCountBadge tabId={it.id} />}
+                        {it.badgeKey === 'agendaCount' && <AgendaCountBadge />}
                       </button>
                     </li>
                   );

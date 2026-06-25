@@ -105,27 +105,47 @@ interface DateGroup {
 
 export default function AgendaView({ onOpenDossier }: { onOpenDossier: (id: string) => void }) {
   const { agenda, dossiers } = usePaData();
+  const [timeScope, setTimeScope] = useState<'aankomend' | 'alle'>('aankomend');
   const [soortFilter, setSoortFilter] = useState<string>('alle');
 
   const today = new Date().toISOString().substring(0, 10);
 
-  // Derive filter chips with counts from whatever soortLabels are present.
+  const aankomendCount = useMemo(
+    () => agenda.data.filter((a) => a.iso >= today && a.status !== 'geannuleerd').length,
+    [agenda.data, today]
+  );
+
+  // Base dataset for the current time scope.
+  const baseItems = useMemo(
+    () =>
+      timeScope === 'aankomend'
+        ? agenda.data.filter((a) => a.iso >= today && a.status !== 'geannuleerd')
+        : agenda.data,
+    [agenda.data, timeScope, today]
+  );
+
+  // Derive type chips from the current base (counts shift with scope).
   const soortChips = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const item of agenda.data) {
+    for (const item of baseItems) {
       counts[item.soortLabel] = (counts[item.soortLabel] ?? 0) + 1;
     }
     return Object.keys(counts)
       .sort((a, b) => a.localeCompare(b, 'nl'))
       .map((label) => ({ id: label, label, n: counts[label] }));
-  }, [agenda.data]);
+  }, [baseItems]);
+
+  const switchScope = (scope: 'aankomend' | 'alle') => {
+    setTimeScope(scope);
+    setSoortFilter('alle');
+  };
 
   const dossierNaam = (id: string | null): string => {
     if (!id) return '';
     return dossiers.data.find((d) => d.id === id)?.naam ?? id;
   };
 
-  const rows = agenda.data.filter(
+  const rows = baseItems.filter(
     (item) => soortFilter === 'alle' || item.soortLabel === soortFilter
   );
   const matched = rows.filter((r) => r.dossier !== null).length;
@@ -176,7 +196,26 @@ export default function AgendaView({ onOpenDossier }: { onOpenDossier: (id: stri
 
       <div className="pac-agenda-filters">
         <div className="pac-ag-chips">
-          {[{ id: 'alle', label: 'Alle', n: agenda.data.length }, ...soortChips].map((s) => (
+          {/* Time scope */}
+          <button
+            type="button"
+            className={`pac-ag-chip${timeScope === 'aankomend' ? ' active' : ''}`}
+            onClick={() => switchScope('aankomend')}
+          >
+            Aankomend
+            <span className="pac-ag-chip-n">{aankomendCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`pac-ag-chip${timeScope === 'alle' ? ' active' : ''}`}
+            onClick={() => switchScope('alle')}
+          >
+            Alle periodes
+            <span className="pac-ag-chip-n">{agenda.data.length}</span>
+          </button>
+          <span className="pac-ag-chip-sep" aria-hidden="true" />
+          {/* Type filter within current scope */}
+          {[{ id: 'alle', label: 'Alle typen', n: baseItems.length }, ...soortChips].map((s) => (
             <button
               key={s.id}
               type="button"

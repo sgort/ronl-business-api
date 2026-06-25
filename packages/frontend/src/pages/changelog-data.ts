@@ -33,6 +33,35 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.5.3',
+      status: 'Feature',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 25, 2026',
+      sections: [
+        {
+          icon: '🔔',
+          iconColor: 'pink',
+          title: 'PA cockpit — Monitoring rail counter badges',
+          items: [
+            'Unconnected tabs (Europa, Media & omgeving) now render a dimmed — instead of a misleading 0',
+            'Tabs with pending inbox candidates show an accent pill with the candidate count; confirming a candidate decrements the pill immediately (provider now refetches inbox alongside signals)',
+            'Inbox resource added to PaDataProvider — fetchInbox is now a first-class resource alongside signals, dossiers and agenda',
+          ],
+        },
+        {
+          icon: '📅',
+          iconColor: 'blue',
+          title: 'PA cockpit — Agenda rail badge and view default',
+          items: [
+            'Agenda rail item now shows the count of upcoming (today + future, non-cancelled) activiteiten, with a live pulse dot when a debate is currently in session',
+            'AgendaView opens in Aankomend scope by default — badge count and view count now match; Alle periodes remains available to browse the full historical schedule',
+            'Type filter chips (Commissiedebat, Plenair, …) derive their counts from the active time scope, so numbers stay consistent across all filters',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.5.2',
       status: 'Bug Fix',
       statusColor: 'green',
