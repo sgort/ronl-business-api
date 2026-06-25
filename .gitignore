@@ -75,6 +75,7 @@ dump.rdb
 .parcel-cache/
 .next/
 .nuxt/
+pa-cockpit-handoff
 
 #flatten script & dir
 flatten_directory.sh
