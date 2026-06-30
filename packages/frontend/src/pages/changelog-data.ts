@@ -50,6 +50,28 @@ export const changelog: Changelog = {
             'Route-level test suite added (pa.routes.test.ts, 7 cases): anonymous → 401, non-PA role → 403, public-affairs role → 200/404 on both GET /signals and POST /signals/:id/confirm',
           ],
         },
+        {
+          icon: '🐛',
+          iconColor: 'orange',
+          title: 'PA cockpit — dossierId null-carryover bug fix in scoring',
+          items: [
+            'Fixed a bug in scoreItem (rules.ts) where a lower-scoring saved search could leak its dossierId onto a signal when a higher-scoring search won but had dossierId: null',
+            'Root cause: the guard `if (search.dossierId) dossierId = search.dossierId` never cleared the value when the winning search had no linked dossier — replaced with an unconditional assignment so the winner always sets the dossierId (including null)',
+            'Discovered via the new rules.test.ts unit test suite; no user-visible signal was incorrectly linked in production because EU topic-searches (dossierId: null) currently score lower than dossier-linked searches on the same items',
+          ],
+        },
+        {
+          icon: '🧪',
+          iconColor: 'green',
+          title: 'PA cockpit — automated test suite (65 cases)',
+          items: [
+            'rules.test.ts (29 cases): full coverage of scoreItem — tab assignment, no-match floor, title/description/tag scoring, high-value type bonuses for TK and EU, bestScore cap at 5, rel ceiling at 10, and all dossierId assignment paths; pure function, no mocks needed',
+            'curation.service.test.ts (17 cases): pipeline orchestration — source routing (EU-only searches never reach TK/OB APIs), EU fetched once per cycle regardless of search count, euSourceEnabled config flag, TK/OB query deduplication, rel ≥ 4 persistence threshold, item deduplication by source:id, and feed error resilience',
+            'pa.routes.test.ts (7 cases): route-level auth gating — anonymous → 401, non-PA role → 403, public-affairs role → 200; covers GET /signals and POST /signals/:id/confirm including the confirm happy path',
+            'eu.client.test.ts (12 cases): RSS parser for the EP plenary feed — title extraction, ref parsing, doceo URL, date handling, Dutch type labels, EU_TO_NL_TERMS expansion, agenda-item filtering; fixture-based, no network',
+            'Run with: npm test --workspace=@ronl/backend; see docs/TESTS.md for per-file breakdown and watch-mode instructions',
+          ],
+        },
       ],
     },
     {

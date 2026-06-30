@@ -66,7 +66,7 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
 
     if (score > bestScore) {
       bestScore = score;
-      if (search.dossierId) dossierId = search.dossierId;
+      dossierId = search.dossierId;
     }
   }
 
