@@ -71,6 +71,7 @@ router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), asy
 
 router.use(jwtMiddleware);
 router.use(tenantMiddleware);
+router.use(requireRoles('public-affairs'));
 
 // ── GET /v1/pa/feed ──────────────────────────────────────────────────────────
 // Raw merged TK+OB feed. Query params: q, types (csv), source (tk|ob), skip, top.

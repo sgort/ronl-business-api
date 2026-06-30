@@ -33,6 +33,26 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.5.4',
+      status: 'Security',
+      statusColor: 'red',
+      borderColor: 'red',
+      date: 'June 30, 2026',
+      sections: [
+        {
+          icon: '🔒',
+          iconColor: 'red',
+          title: 'PA cockpit — role-gate all PA data routes',
+          items: [
+            'All PA data endpoints (GET /signals, POST /signals/:id/confirm, GET /feed, GET /agenda, GET /searches, POST /searches, DELETE /searches/:id) now require the public-affairs Keycloak realm role in addition to a valid JWT — matching the curator routes that were already gated',
+            'Previously any logged-in user (caseworker, infra board, etc.) could read and confirm Flevoland PA signals; unauthenticated requests → 401 MISSING_TOKEN, authenticated non-PA requests → 403 FORBIDDEN',
+            "Role claim verified to be the same realm_access.roles path used by the frontend route gate in App.tsx — a PA officer's access is unchanged",
+            'Route-level test suite added (pa.routes.test.ts, 7 cases): anonymous → 401, non-PA role → 403, public-affairs role → 200/404 on both GET /signals and POST /signals/:id/confirm',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.5.3',
       status: 'Feature',
       statusColor: 'blue',
