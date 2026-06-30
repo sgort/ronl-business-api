@@ -5,9 +5,11 @@
  */
 
 // --- mocks must be hoisted above imports ---
+// import type is erased at compile time, so it is safe to reference here before the hoisted mocks
+import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
-  jwtMiddleware: (req: any, res: any, next: any) => {
+  jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
@@ -25,11 +27,12 @@ jest.mock('@auth/jwt.middleware', () => ({
   },
   requireRoles:
     (...required: string[]) =>
-    (req: any, res: any, next: any) => {
-      if (!req.user) {
+    (req: Request, res: Response, next: NextFunction) => {
+      const user = req.user;
+      if (!user) {
         return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
       }
-      const has = required.some((r) => (req.user.roles as string[]).includes(r));
+      const has = required.some((r) => user.roles.includes(r));
       if (!has) {
         return res.status(403).json({ success: false, error: { code: 'FORBIDDEN' } });
       }
@@ -38,7 +41,7 @@ jest.mock('@auth/jwt.middleware', () => ({
 }));
 
 jest.mock('@middleware/tenant.middleware', () => ({
-  tenantMiddleware: (_req: any, _res: any, next: any) => next(),
+  tenantMiddleware: (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
 const mockDb = {
