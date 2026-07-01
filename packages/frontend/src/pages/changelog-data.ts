@@ -33,6 +33,25 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.5.5',
+      status: 'Enhancement',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: 'July 1, 2026',
+      sections: [
+        {
+          icon: '⚙️',
+          iconColor: 'gray',
+          title: 'Dev tooling — dependency preflight check',
+          items: [
+            'npm run dev now runs a deps:check preflight before the Docker check — it fails fast with a clear "run npm install" message when the installed dependencies are out of sync, instead of crashing mid-boot with a MODULE_NOT_FOUND (e.g. fast-xml-parser) after a git pull that added dependencies',
+            'scripts/check-deps.sh mirrors the existing check-docker.sh pattern: verifies node_modules exists and compares the root package-lock.json against the node_modules/.package-lock.json install marker npm writes after each install — a newer lockfile means the tree is stale',
+            'Added standalone npm run deps:check script; the check is advisory and non-destructive (it never installs on its own), so the fix stays an explicit npm install',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.5.4',
       status: 'Security',
       statusColor: 'red',

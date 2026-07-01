@@ -76,6 +76,7 @@ dump.rdb
 .next/
 .nuxt/
 pa-cockpit-handoff
+signalen-search-handoff/
 
 #flatten script & dir
 flatten_directory.sh
