@@ -8,7 +8,7 @@
 
 import axios from 'axios';
 import keycloak from './keycloak';
-import type { Dossier, PlenaryItem, Signal } from '@ronl/shared';
+import type { Dossier, FeedItem, PlenaryItem, Signal } from '@ronl/shared';
 import { MOCK_DOSSIERS } from '../pages/public-affairs-v2/pa.data';
 
 const API_BASE = import.meta.env.VITE_API_URL as string;
@@ -39,6 +39,33 @@ async function paPost<T>(path: string, body: unknown): Promise<T> {
     headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
   });
   return res.data.data;
+}
+
+async function paPatch<T>(path: string, body: unknown): Promise<T> {
+  if (keycloak.authenticated) {
+    try {
+      await keycloak.updateToken(120);
+    } catch {
+      /* expired */
+    }
+  }
+  const res = await axios.patch<{ success: boolean; data: T }>(`${API_BASE}${path}`, body, {
+    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+  });
+  return res.data.data;
+}
+
+async function paDelete(path: string): Promise<void> {
+  if (keycloak.authenticated) {
+    try {
+      await keycloak.updateToken(120);
+    } catch {
+      /* expired */
+    }
+  }
+  await axios.delete(`${API_BASE}${path}`, {
+    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+  });
 }
 
 export const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
@@ -370,6 +397,116 @@ export async function fetchSearches(): Promise<SavedSearch[]> {
     tags: r.tags,
     scope: r.scope,
   }));
+}
+
+// ── Blanco zoekfunctie — raw cross-source feed + promote/save ────────
+
+/**
+ * Free-text search over the raw merged bronfeed (TK + OB), independent of the
+ * curated streams. Hits GET /pa/feed. In mock mode, filters the local
+ * inbox/confirmed fixtures by title so the band is demoable offline.
+ */
+/** Sources the raw feed can search. 'both' = every searchable bron at once. */
+export type FeedSource = 'both' | 'tk' | 'ob' | 'eu';
+
+export async function fetchFeed(params: {
+  q: string;
+  source?: FeedSource;
+  types?: string[];
+  skip?: number;
+  top?: number;
+}): Promise<{ items: FeedItem[]; total: number | null }> {
+  if (SIGNALS_MOCK) {
+    const q = params.q.toLowerCase();
+    const src = params.source ?? 'both';
+    const items: FeedItem[] = [...MOCK_INBOX, ...MOCK_CONFIRMED]
+      .filter((s) => s.title.toLowerCase().includes(q))
+      .map((s) => ({
+        id: s.id,
+        title: s.title,
+        type: s.ref?.type ?? null,
+        number: s.ref?.nr ?? null,
+        date: null,
+        url: s.ref?.url ?? null,
+        source: (s.bron === 'ob' ? 'ob' : s.bron === 'eu' ? 'eu' : 'tk') as FeedItem['source'],
+      }))
+      .filter((it) => src === 'both' || it.source === src);
+    return { items, total: items.length };
+  }
+  const qs = new URLSearchParams({
+    q: params.q,
+    source: params.source ?? 'both',
+    top: String(params.top ?? 30),
+  });
+  if (params.types?.length) qs.set('types', params.types.join(','));
+  if (params.skip) qs.set('skip', String(params.skip));
+  return paGet<{ items: FeedItem[]; total: number | null }>(`/pa/feed?${qs}`);
+}
+
+/** "Bewaar als zoekopdracht" → POST /pa/searches (user scope). */
+export async function createSavedSearch(input: {
+  q: string;
+  source?: string[];
+  types?: string[];
+  dossierId?: string | null;
+}): Promise<{ id: string }> {
+  if (SIGNALS_MOCK) return { id: `srch-mock-${Date.now()}` };
+  return paPost<{ id: string }>('/pa/searches', {
+    scope: 'user',
+    dossierId: input.dossierId ?? null,
+    query: { q: input.q, types: input.types ?? [], source: input.source ?? ['tk', 'ob'] },
+    tags: [],
+  });
+}
+
+/** "Naar inbox" → promote one raw hit into the curation inbox as a candidate. */
+export async function promoteToInbox(item: FeedItem): Promise<Signal> {
+  if (SIGNALS_MOCK) {
+    return {
+      id: `sig-${item.source}-${item.id}`,
+      tab: item.source === 'ob' ? 'regionaal' : item.source === 'eu' ? 'europa' : 'politiek',
+      dossierId: null,
+      title: item.title,
+      src: `${item.source.toUpperCase()} · ${item.type ?? ''}`,
+      bron: item.source,
+      ref: item.url ? { type: item.type ?? '', nr: item.number ?? item.id, url: item.url } : null,
+      rel: 5,
+      impact: null,
+      impactLabel: null,
+      duiding: null,
+      status: 'candidate',
+    };
+  }
+  return paPost<Signal>('/pa/signals', item);
+}
+
+/**
+ * The bronnen the raw feed can actually search, derived from GET /pa/types
+ * (its keys are the sources /pa/feed merges). Drives the source chips so a
+ * new source (e.g. eu) appears automatically once the backend exposes it —
+ * no dead/hardcoded chip. Falls back to tk+ob if the call fails.
+ */
+export async function fetchFeedSources(): Promise<string[]> {
+  if (SIGNALS_MOCK) return ['tk', 'ob'];
+  try {
+    const types = await paGet<Record<string, unknown>>('/pa/types');
+    const keys = Object.keys(types);
+    return keys.length ? keys : ['tk', 'ob'];
+  } catch {
+    return ['tk', 'ob'];
+  }
+}
+
+/** Mijn zoekopdrachten: remove a personal saved search. */
+export async function deleteSavedSearch(id: string): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paDelete(`/pa/searches/${id}`);
+}
+
+/** "↗ team": flip a personal search to tenant scope — only then does it feed the cron. */
+export async function promoteSearchToTenant(id: string): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paPatch(`/pa/searches/${id}`, { scope: 'tenant' });
 }
 
 export async function fetchDossiers(): Promise<Dossier[]> {

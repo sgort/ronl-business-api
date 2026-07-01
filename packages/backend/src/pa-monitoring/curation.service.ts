@@ -195,3 +195,19 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
 export function draftAiDuiding(_item: FeedItem): null {
   return null;
 }
+
+/**
+ * Promote a single raw feed item into the inbox as a candidate.
+ * Reuses the same scoring + persist path as the cron, but bypasses the
+ * `rel >= 4` threshold (that gate lives in runCurationCycle, not in
+ * persistCandidate) — a human decided this item is worth reviewing, so we
+ * floor the rel to ≥5 and keep any matched dossier. Returns the signal id;
+ * the shared source_key means a later curation cycle updates this row via
+ * `ON CONFLICT (source_key) … WHERE status = 'candidate'` instead of duplicating.
+ */
+export async function promoteToInbox(tenantId: string, item: FeedItem): Promise<string> {
+  const searches = await loadSearches(tenantId);
+  const scored = scoreItem(item, searches);
+  await persistCandidate(item, { ...scored, rel: Math.max(scored.rel, 5) });
+  return `sig-${item.source}-${item.id}`;
+}

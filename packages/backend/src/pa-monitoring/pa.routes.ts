@@ -11,9 +11,9 @@ import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
-import { runCurationCycle } from './curation.service';
+import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
-import type { Signal } from '@ronl/shared';
+import type { FeedItem, Signal } from '@ronl/shared';
 
 const router = express.Router();
 const logger = createLogger('pa-routes');
@@ -248,6 +248,34 @@ router.get('/signals', async (req, res) => {
   }
 });
 
+// ── POST /v1/pa/signals ──────────────────────────────────────────────────────
+// Promote one raw feed item (body = FeedItem) into the inbox as a candidate.
+// Scoring/persist stays in curation.service; this route stays thin.
+router.post('/signals', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const item = req.body as Partial<FeedItem>;
+  if (!item?.id || !item.title || !item.source) {
+    return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
+  }
+
+  try {
+    const id = await promoteToInbox(req.user.tenantId, item as FeedItem);
+    const row = await db.one<Record<string, unknown>>(
+      `SELECT id, tab, dossier_id, title, src, bron, ref, rel, impact, impact_label,
+              duiding, status, ai_draft, confirmed_by, confirmed_at
+       FROM pa_signals WHERE id = $1`,
+      [id]
+    );
+    res.status(201).json({ success: true, data: rowToSignal(row) });
+  } catch (err) {
+    logger.error('Promote to inbox error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'PROMOTE_ERROR' } });
+  }
+});
+
 // ── POST /v1/pa/signals/:id/confirm ──────────────────────────────────────────
 router.post('/signals/:id/confirm', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
@@ -388,6 +416,35 @@ router.delete('/searches/:id', async (req, res) => {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'SEARCH_DELETE_ERROR' } });
+  }
+});
+
+// ── PATCH /v1/pa/searches/:id ─────────────────────────────────────────────────
+// Flip a personal (user) search to a team (tenant) bron, or back. Owner-only via
+// the user_id clause. A tenant-scoped search is what the curation cron consumes.
+router.patch('/searches/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { scope } = req.body as { scope?: 'tenant' | 'user' };
+  if (scope !== 'tenant' && scope !== 'user') {
+    return res.status(400).json({ success: false, error: { code: 'BAD_SCOPE' } });
+  }
+
+  try {
+    const result = await db.result(
+      `UPDATE pa_saved_searches SET scope = $1, updated_at = NOW()
+       WHERE id = $2 AND user_id = $3 AND tenant_id = $4`,
+      [scope, req.params.id, req.user.userId, req.user.tenantId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Search scope update error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'SEARCH_UPDATE_ERROR' } });
   }
 });
 

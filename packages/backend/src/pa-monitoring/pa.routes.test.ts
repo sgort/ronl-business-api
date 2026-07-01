@@ -64,7 +64,11 @@ jest.mock('@utils/logger', () => ({
 
 jest.mock('./sources/tk.client', () => ({ fetchTkFeed: jest.fn(), TK_DOCUMENT_TYPES: [] }));
 jest.mock('./sources/ob.client', () => ({ fetchObFeed: jest.fn(), OB_PUBLICATION_TYPES: [] }));
-jest.mock('./curation.service', () => ({ runCurationCycle: jest.fn() }));
+const mockPromoteToInbox = jest.fn();
+jest.mock('./curation.service', () => ({
+  runCurationCycle: jest.fn(),
+  promoteToInbox: mockPromoteToInbox,
+}));
 jest.mock('./sources/agenda.client', () => ({ fetchAgenda: jest.fn() }));
 
 // --- imports after mocks ---
@@ -101,6 +105,102 @@ describe('PA routes — role gating', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
+    });
+  });
+
+  describe('POST /v1/pa/signals (promote raw hit)', () => {
+    const rawHit = { id: 'ob-1', title: 'Publicatie X', source: 'ob' };
+
+    it('anonymous → 401', async () => {
+      const res = await request(app).post('/v1/pa/signals').send(rawHit);
+      expect(res.status).toBe(401);
+    });
+
+    it('authenticated non-PA role → 403', async () => {
+      const res = await request(app).post('/v1/pa/signals').set(NON_PA).send(rawHit);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('public-affairs role, missing fields → 400', async () => {
+      const res = await request(app).post('/v1/pa/signals').set(PA).send({ id: 'ob-1' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('MISSING_FIELDS');
+      expect(mockPromoteToInbox).not.toHaveBeenCalled();
+    });
+
+    it('public-affairs role, valid item → 201 with promoted signal', async () => {
+      mockPromoteToInbox.mockResolvedValue('sig-ob-ob-1');
+      mockDb.one.mockResolvedValue({
+        id: 'sig-ob-ob-1',
+        tab: 'regionaal',
+        dossier_id: null,
+        title: 'Publicatie X',
+        src: 'Officiële Bekendmakingen · Publicatie',
+        bron: 'ob',
+        ref: null,
+        rel: 5,
+        impact: null,
+        impact_label: null,
+        duiding: null,
+        status: 'candidate',
+        ai_draft: null,
+        confirmed_by: null,
+        confirmed_at: null,
+      });
+      const res = await request(app).post('/v1/pa/signals').set(PA).send(rawHit);
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('candidate');
+      expect(res.body.data.tab).toBe('regionaal');
+      expect(mockPromoteToInbox).toHaveBeenCalledWith('flevoland', expect.objectContaining(rawHit));
+    });
+  });
+
+  describe('PATCH /v1/pa/searches/:id (scope flip)', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).patch('/v1/pa/searches/srch-1').send({ scope: 'tenant' });
+      expect(res.status).toBe(401);
+    });
+
+    it('authenticated non-PA role → 403', async () => {
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(NON_PA)
+        .send({ scope: 'tenant' });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('public-affairs role, invalid scope → 400', async () => {
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ scope: 'bogus' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('BAD_SCOPE');
+      expect(mockDb.result).not.toHaveBeenCalled();
+    });
+
+    it('public-affairs role, not owner / unknown id → 404', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 0 });
+      const res = await request(app)
+        .patch('/v1/pa/searches/unknown')
+        .set(PA)
+        .send({ scope: 'tenant' });
+      expect(res.status).toBe(404);
+    });
+
+    it('public-affairs role, owned search → 200 (scoped to owner + tenant)', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ scope: 'tenant' });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const [, values] = mockDb.result.mock.calls[0];
+      expect(values).toEqual(['tenant', 'srch-1', 'test-user', 'flevoland']);
     });
   });
 

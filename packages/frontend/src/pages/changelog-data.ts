@@ -40,6 +40,30 @@ export const changelog: Changelog = {
       date: 'July 1, 2026',
       sections: [
         {
+          icon: '🔎',
+          iconColor: 'blue',
+          title: 'PA cockpit — blanco zoekfunctie in Monitoring',
+          items: [
+            'New free-text search band under the Gecureerd/Inbox segmented control that searches all signaalbronnen at once (Tweede Kamer + Officiële Bekendmakingen) via the existing GET /pa/feed — an escape hatch separate from the curated streams, with bron-scope chips (Alle / Tweede Kamer / Off. Bekendmakingen)',
+            'Results are shown as honestly raw: source badge, no relevance score, no duiding, and an amber note making clear these hits are uncurated — "geen ruis" stays the promise of the curated stream',
+            'Naar inbox promotes a single raw hit into the curation inbox as a candidate via the new thin POST /pa/signals route → curation.service.promoteToInbox, reusing scoreItem + persistCandidate but bypassing the rel ≥ 4 cron threshold (human-floored to ≥ 5); it lands in the tab its source maps to (tk→Politiek, ob→Regionaal, eu→Europa), a toast names the destination, and the rail/inbox counts refresh',
+            "Promoting the same item twice — or one already confirmed — does not duplicate or clobber, thanks to the existing ON CONFLICT (source_key) … WHERE status = 'candidate' guard; Bewaar als zoekopdracht persists a user-scope saved search via POST /pa/searches",
+            "Saved searches now have a home: a Mijn zoekopdrachten chip strip under the band lists the user's personal (scope=user) searches — click to re-run, ✕ to delete (DELETE /pa/searches/:id), and ↗ team to flip one to a tenant bron via the new owner-only PATCH /pa/searches/:id (only a tenant-scope search feeds the curation cron; a personal save does not auto-curate)",
+            'Source chips are data-derived from GET /pa/types (the sources /pa/feed actually merges) rather than hardcoded — TK + OB today, with no dead Europa/Media chip, and an Europa chip appears automatically once the backend exposes an eu feed source',
+            'Tests added: promoteToInbox rel-floor/dossier-preservation cases in curation.service.test.ts, plus role-gate + validation cases for POST /pa/signals and the PATCH /pa/searches/:id scope flip in pa.routes.test.ts',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: 'orange',
+          title: 'PA cockpit — Naar inbox count now ticks the seg control too',
+          items: [
+            'Fixed: promoting a raw hit with Naar inbox updated the left-rail inbox badge but left the Gecureerd/Inbox segmented-control "Inbox" count stale (e.g. rail went 57→59 while the seg still showed 57)',
+            "Root cause: the two counts read different state — the rail badge reads the shared usePaData() provider inbox (refreshed via providerInbox.refetch()), while the seg count reads Monitoring's local inbox state, which the promote handler never refreshed",
+            "Now, on a successful promote, the local inbox is also refetched when the item lands in the currently viewed tab (sig.tab === tab.id), so both counts move together; a promote into another tab still updates that tab's rail badge only, as expected",
+          ],
+        },
+        {
           icon: '⚙️',
           iconColor: 'gray',
           title: 'Dev tooling — dependency preflight check',

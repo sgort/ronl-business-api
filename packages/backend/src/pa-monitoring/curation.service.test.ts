@@ -25,7 +25,7 @@ jest.mock('./sources/eu.client', () => ({ fetchEuFeed: mockFetchEuFeed }));
 const mockScoreItem = jest.fn();
 jest.mock('./rules', () => ({ scoreItem: mockScoreItem }));
 
-import { runCurationCycle } from './curation.service';
+import { runCurationCycle, promoteToInbox } from './curation.service';
 import type { FeedItem } from '@ronl/shared';
 
 // Default score: above threshold, no dossier
@@ -233,5 +233,37 @@ describe('runCurationCycle — feed error resilience', () => {
     mockFetchEuFeed.mockRejectedValue(new Error('RSS unreachable'));
     mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT', sources: ['eu'] })]);
     await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+});
+
+describe('promoteToInbox — human override', () => {
+  // persistCandidate's db.none values array: [id, tab, dossierId, title, src, source, ref, rel, sourceKey]
+  const REL_IDX = 7;
+
+  it('floors rel to 5 when the rule score is below 5', async () => {
+    mockScoreItem.mockReturnValue({ rel: 3, tab: 'regionaal', dossierId: null });
+    mockDb.any.mockResolvedValue([]);
+    const id = await promoteToInbox('flevoland', feedItem({ id: 'x1', source: 'ob' }));
+    expect(id).toBe('sig-ob-x1');
+    expect(mockDb.none).toHaveBeenCalledTimes(1);
+    const values = mockDb.none.mock.calls[0][1] as unknown[];
+    expect(values[REL_IDX]).toBe(5);
+    expect(values[0]).toBe('sig-ob-x1');
+  });
+
+  it('keeps a rule score above the floor and preserves the matched dossier', async () => {
+    mockScoreItem.mockReturnValue({ rel: 8, tab: 'politiek', dossierId: 'energie' });
+    mockDb.any.mockResolvedValue([]);
+    await promoteToInbox('flevoland', feedItem({ id: 'x2', source: 'tk' }));
+    const values = mockDb.none.mock.calls[0][1] as unknown[];
+    expect(values[REL_IDX]).toBe(8);
+    expect(values[2]).toBe('energie');
+  });
+
+  it('loads the tenant saved searches before scoring', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await promoteToInbox('flevoland', feedItem());
+    expect(mockDb.any).toHaveBeenCalledTimes(1);
+    expect(mockScoreItem).toHaveBeenCalledTimes(1);
   });
 });

@@ -1244,3 +1244,45 @@
 .pac.pac-density-compact .pac-ag-item { padding: 8px 12px; }
 .pac.pac-density-compact .pac-ag-day { padding: 12px 0; }
 @media (prefers-reduced-motion: reduce) { .pac .pac-ag-live-dot { animation: none; } }
+
+/* ── Blanco zoekfunctie — cross-source raw search ─────────── */
+.pac .pac-sigsearch { border: 1px solid var(--pac-rule-2); border-left: 3px solid var(--pac-chrome); background: #fbfcfe; padding: 13px 15px; margin-bottom: 18px; }
+.pac .pac-sigsearch-row { display: flex; align-items: center; gap: 10px; }
+.pac .pac-sigsearch-ico { font-size: 16px; color: var(--pac-ink-3); line-height: 1; }
+.pac .pac-sigsearch-input { flex: 1; border: 1px solid var(--pac-rule); background: #fff; padding: 9px 12px; font-family: var(--pac-sans); font-size: 13.5px; color: var(--pac-ink); outline: none; }
+.pac .pac-sigsearch-input::placeholder { color: var(--pac-ink-4); }
+.pac .pac-sigsearch-input.filled { border-color: var(--pac-chrome); box-shadow: 0 0 0 3px #0046ad18; }
+.pac .pac-sigsearch-meta { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 11px; flex-wrap: wrap; }
+.pac .pac-sigsearch-scope { display: flex; align-items: center; gap: 7px; }
+.pac .pac-sigsearch-scope .lbl { font-family: var(--pac-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pac-ink-3); }
+.pac .pac-sigsearch-hint { font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-3); }
+.pac .pac-chip { font-family: var(--pac-sans); font-size: 11.5px; font-weight: 600; color: var(--pac-ink-2); background: var(--pac-paper); border: 1px solid var(--pac-rule); padding: 4px 10px; cursor: pointer; }
+.pac .pac-chip:hover { border-color: #0046ad55; }
+.pac .pac-chip.active { background: #0046ad12; border-color: #0046ad55; color: var(--pac-chrome); }
+.pac .pac-searchres-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--pac-rule-2); }
+.pac .pac-searchres-title { font-family: var(--pac-serif); font-weight: 700; font-size: 17px; display: flex; align-items: baseline; gap: 9px; }
+.pac .pac-searchres-title q { font-style: normal; color: var(--pac-accent-d); }
+.pac .pac-searchres-title q::before { content: '\201C'; }
+.pac .pac-searchres-title q::after { content: '\201D'; }
+.pac .pac-searchres-title .scope { font-family: var(--pac-sans); font-weight: 400; font-size: 12px; color: var(--pac-ink-3); font-style: italic; }
+.pac .pac-searchres-actions { display: flex; align-items: center; gap: 12px; }
+.pac .pac-link { font-size: 12px; color: var(--pac-accent); background: none; border: none; font-weight: 600; cursor: pointer; font-family: inherit; }
+.pac .pac-link:hover { text-decoration: underline; }
+.pac .pac-rawnote { font-size: 12px; color: var(--pac-ink-2); background: var(--pac-bg); border: 1px solid var(--pac-rule-2); border-left: 3px solid var(--pac-amber); padding: 9px 13px; margin-bottom: 14px; line-height: 1.5; }
+.pac .pac-rawnote b { color: var(--pac-ink); }
+.pac .pac-signal-raw { border-left: 3px solid #0046ad33; }
+.pac .pac-raw-src { font-family: var(--pac-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.04em; padding: 5px 0; }
+.pac .pac-raw-src.tk { color: #92400e; }
+.pac .pac-raw-src.ob { color: var(--pac-green-d); }
+.pac .pac-raw-src.eu { color: #3b3a8f; }
+/* Mijn zoekopdrachten strip */
+.pac .pac-savedrow { display: flex; align-items: center; gap: 8px; margin: -2px 0 18px; flex-wrap: wrap; }
+.pac .pac-savedrow .lbl { font-family: var(--pac-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pac-ink-3); }
+.pac .pac-savedchip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--pac-sans); font-size: 11.5px; font-weight: 600; color: var(--pac-chrome); background: #0046ad0d; border: 1px solid #0046ad33; padding: 4px 5px 4px 10px; cursor: pointer; }
+.pac .pac-savedchip-run { background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 0; }
+.pac .pac-savedchip .promo { font-family: var(--pac-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pac-accent-d); background: #fce3ef; border: 1px solid #f4b8d4; padding: 2px 5px; cursor: pointer; }
+.pac .pac-savedchip .x { color: var(--pac-ink-3); font-weight: 400; padding: 0 4px; background: none; border: none; cursor: pointer; font-family: inherit; font-size: inherit; }
+.pac .pac-btn.done, .pac .pac-btn.done:hover { background: #e6f4ec; color: var(--pac-green-d); border-color: #bfe3cd; cursor: default; }
+.pac .pac-toast { position: fixed; right: 24px; bottom: 24px; z-index: 60; background: #12151c; color: #fff; font-family: var(--pac-sans); font-size: 12.5px; padding: 11px 15px; border-radius: 6px; display: flex; align-items: center; gap: 9px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3); }
+.pac .pac-toast .ok { color: #7ee2a0; font-weight: 700; font-size: 14px; }
+.pac .pac-toast b { font-weight: 700; }
