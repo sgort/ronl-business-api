@@ -28,11 +28,13 @@ import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
 import KompasSpecSection from './KompasSpecSection';
+import CuratieSpecSection from './CuratieSpecSection';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
 const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-log']);
 const BEHEER_IDS = new Set<string>([
   'kompas-spec',
+  'curatie-spec',
   'profiel',
   'rollen',
   'iou-gebruiksscenario',
@@ -49,6 +51,10 @@ interface Props {
   user: KeycloakUser | null;
   tenantConfig: TenantConfig | null;
   onOpenDossier: (id: string) => void;
+  onNavigate?: (
+    mode: import('../../pages/public-affairs-v2/modes.config').PaModeId,
+    sectionId: string
+  ) => void;
 }
 
 export default function PASectionRouter({
@@ -58,6 +64,7 @@ export default function PASectionRouter({
   user,
   tenantConfig,
   onOpenDossier,
+  onNavigate,
 }: Props) {
   const { dossiers } = usePaData();
   if (sectionId === 'vandaag') {
@@ -69,7 +76,13 @@ export default function PASectionRouter({
   }
 
   if (MONITORING_IDS.has(sectionId)) {
-    return <Monitoring activeTab={sectionId as MonitoringTabId} onOpenDossier={onOpenDossier} />;
+    return (
+      <Monitoring
+        activeTab={sectionId as MonitoringTabId}
+        onOpenDossier={onOpenDossier}
+        onNavigate={onNavigate}
+      />
+    );
   }
 
   if (VOORTGANG_IDS.has(sectionId)) {
@@ -81,6 +94,9 @@ export default function PASectionRouter({
     switch (sectionId) {
       case 'kompas-spec':
         content = <KompasSpecSection />;
+        break;
+      case 'curatie-spec':
+        content = <CuratieSpecSection />;
         break;
       case 'profiel':
         content = (

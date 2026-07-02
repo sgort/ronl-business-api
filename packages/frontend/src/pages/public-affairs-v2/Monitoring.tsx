@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import CuratiePijplijnFlow from '../../components/PADashboardV2/CuratiePijplijnFlow';
 import {
   fetchSignals,
   fetchInbox,
@@ -28,9 +29,12 @@ import { usePaData } from './PaDataProvider';
 import { MONITORING_TABS, type MonitoringTabId } from './pa.data';
 import type { FeedItem, Signal } from '@ronl/shared';
 
+import type { PaModeId } from './modes.config';
+
 interface Props {
   activeTab?: MonitoringTabId;
   onOpenDossier: (id: string) => void;
+  onNavigate?: (mode: PaModeId, sectionId: string) => void;
 }
 
 const BRON_DISPLAY: Record<string, string> = {
@@ -244,6 +248,7 @@ function SignalSearch({
   sources,
   onSource,
   onSubmit,
+  onHelp,
 }: {
   inputValue: string;
   onInput: (v: string) => void;
@@ -251,6 +256,7 @@ function SignalSearch({
   sources: string[]; // searchable bronnen, data-derived (no dead options)
   onSource: (s: FeedSource) => void;
   onSubmit: () => void;
+  onHelp: () => void;
 }) {
   // 'Alle' first, then one chip per searchable bron.
   const chips: FeedSource[] = ['both', ...(sources as FeedSource[])];
@@ -269,6 +275,15 @@ function SignalSearch({
         />
         <button type="button" className="pac-btn" onClick={onSubmit}>
           Zoek
+        </button>
+        <button
+          type="button"
+          className="pac-help"
+          title="Hoe werkt de curatiepijplijn?"
+          aria-label="Hoe werkt de curatiepijplijn?"
+          onClick={onHelp}
+        >
+          ?
         </button>
       </div>
       <div className="pac-sigsearch-meta">
@@ -345,10 +360,12 @@ function RawHitCard({
   item,
   done,
   onPromote,
+  onHelp,
 }: {
   item: FeedItem;
   done: boolean;
   onPromote: (item: FeedItem) => void;
+  onHelp: () => void;
 }) {
   const age = feedAge(item.date);
   return (
@@ -382,16 +399,27 @@ function RawHitCard({
             In inbox ✓
           </button>
         ) : (
-          <button type="button" className="pac-btn pac-btn-sm" onClick={() => onPromote(item)}>
-            Naar inbox
-          </button>
+          <div className="pac-inbox-actions">
+            <button type="button" className="pac-btn pac-btn-sm" onClick={() => onPromote(item)}>
+              Naar inbox
+            </button>
+            <button
+              type="button"
+              className="pac-help sm"
+              title="Wat gebeurt er bij Naar inbox?"
+              aria-label="Wat gebeurt er bij Naar inbox?"
+              onClick={onHelp}
+            >
+              ?
+            </button>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Props) {
+export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
   const { confirmSignal, dossiers, updateInboxCount } = usePaData();
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
   const connected = paTabConnected(tab.id);
@@ -415,6 +443,8 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
   const [savedSearch, setSavedSearch] = useState(false);
   const [mySearches, setMySearches] = useState<SavedSearch[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const openPipeline = () => setPipelineOpen(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -644,6 +674,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
             sources={feedSources}
             onSource={handleScope}
             onSubmit={() => void runSearch(searchInput)}
+            onHelp={openPipeline}
           />
           <SavedSearchStrip
             searches={mySearches}
@@ -651,6 +682,36 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
             onPromote={(id) => void handlePromoteSaved(id)}
             onDelete={(id) => void handleDeleteSaved(id)}
           />
+          <div className="pac-pipe-explainer">
+            <button
+              type="button"
+              className="pac-pipe-toggle"
+              aria-expanded={pipelineOpen}
+              onClick={() => setPipelineOpen((o) => !o)}
+            >
+              <span className="chev">{pipelineOpen ? '▾' : '▸'}</span>
+              <b>Hoe werkt de curatiepijplijn?</b>
+              <span className="pac-pipe-sum">
+                opgehaald → geregeld &amp; gescoord → AI stelt duiding voor → u bevestigt ·{' '}
+                <span className="mono">AI adviseerde · mens besloot</span>
+              </span>
+            </button>
+            {pipelineOpen && (
+              <div className="pac-pipe-body">
+                <CuratiePijplijnFlow />
+                {onNavigate && (
+                  <button
+                    type="button"
+                    className="pac-link"
+                    style={{ marginTop: 10 }}
+                    onClick={() => onNavigate('beheer', 'curatie-spec')}
+                  >
+                    Bekijk als pagina in Beheer →
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -711,6 +772,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
                   item={item}
                   done={promotedKeys.has(`${item.source}:${item.id}`)}
                   onPromote={(x) => void handlePromote(x)}
+                  onHelp={openPipeline}
                 />
               ))}
             </div>
@@ -722,11 +784,6 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
         <p className="pac-page-sub">Signalen ophalen…</p>
       ) : view === 'inbox' ? (
         <>
-          <div className="pac-pipeline-note">
-            <b>Curatiepijplijn</b> · opgehaald via opgeslagen zoekvraag → regels filteren &amp;
-            scoren → AI stelt duiding voor → u bevestigt. Bevestigen legt de beslissing vast als{' '}
-            <span style={{ fontFamily: 'var(--pac-mono)' }}>AI adviseerde · mens besloot</span>.
-          </div>
           {visibleInbox.length ? (
             <div className="pac-cards">
               {visibleInbox.map((s) => (

@@ -119,6 +119,10 @@ export const PA_MODES: PaModeConfig[] = [
         items: [{ id: 'kompas-spec', label: 'Afwegingskader', authRequired: true }],
       },
       {
+        label: 'Monitoring',
+        items: [{ id: 'curatie-spec', label: 'Curatiepijplijn', authRequired: true }],
+      },
+      {
         label: 'Account',
         items: [
           { id: 'profiel', label: 'Profiel', authRequired: true },

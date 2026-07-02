@@ -1312,3 +1312,101 @@
 .pac .pac-toast { position: fixed; right: 24px; bottom: 24px; z-index: 60; background: #12151c; color: #fff; font-family: var(--pac-sans); font-size: 12.5px; padding: 11px 15px; border-radius: 6px; display: flex; align-items: center; gap: 9px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3); }
 .pac .pac-toast .ok { color: #7ee2a0; font-weight: 700; font-size: 14px; }
 .pac .pac-toast b { font-weight: 700; }
+/* ============================================================
+   Curatiepijplijn spec (Beheer · Monitoring)
+   Append verbatim to packages/frontend/src/pages/public-affairs-v2/dashboard-pa.css
+   (same .pac scope as the rest of that file). Powers CuratieSpecSection.tsx.
+   Uses only existing --pac-* tokens, so it inherits the tenant theme.
+   ============================================================ */
+
+.pac .pac-cspec .pac-cspec-legend { display: flex; gap: 20px; margin: 14px 0 18px; }
+.pac .pac-cspec .cs-lg { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--pac-ink-2); }
+.pac .pac-cspec .cs-lg .sw { width: 26px; height: 9px; display: inline-block; }
+.pac .pac-cspec .cs-lg .sw.sys { background: var(--pac-chrome); }
+.pac .pac-cspec .cs-lg .sw.man { background: var(--pac-accent); }
+
+/* Fluid vertical flow — reads at full size at any pane width */
+.pac .pac-cspec-flow { max-width: 940px; margin: 8px 0 4px; }
+.pac .pac-cspec-flow .fr { display: grid; grid-template-columns: minmax(160px, 235px) 34px minmax(280px, 1fr); align-items: center; }
+.pac .pac-cspec-flow .st { grid-column: 3; background: var(--pac-paper); border: 1px solid var(--pac-rule); border-top: 3px solid var(--pac-rule); padding: 12px 15px; display: flex; flex-direction: column; gap: 5px; }
+.pac .pac-cspec-flow .st > .kn { font-family: var(--pac-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pac-ink-4); line-height: 1.3; }
+.pac .pac-cspec-flow .st > .nt { font-weight: 700; font-size: 16px; color: var(--pac-ink); letter-spacing: -0.01em; }
+.pac .pac-cspec-flow .st > .nd { font-size: 12.5px; color: var(--pac-ink-2); line-height: 1.45; }
+.pac .pac-cspec-flow .st .row-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1px; }
+.pac .pac-cspec-flow .st .ntag { font-family: var(--pac-mono); font-size: 9.5px; color: var(--pac-ink-3); border: 1px solid var(--pac-rule-2); background: var(--pac-bg); padding: 2px 7px; }
+.pac .pac-cspec-flow .st.sys { border-top-color: var(--pac-chrome); }
+.pac .pac-cspec-flow .st.sys > .kn { color: var(--pac-chrome); }
+.pac .pac-cspec-flow .st.gate { border-top-color: var(--pac-amber); }
+.pac .pac-cspec-flow .st.gate > .kn { color: var(--pac-amber); }
+.pac .pac-cspec-flow .st.out { border-top-color: var(--pac-green); }
+.pac .pac-cspec-flow .st.out > .kn { color: var(--pac-green-d); }
+.pac .pac-cspec-flow .st.hub { border: 2px solid var(--pac-accent); border-top-width: 3px; box-shadow: 0 6px 18px rgba(231, 0, 119, 0.10); }
+.pac .pac-cspec-flow .st.hub > .kn { color: var(--pac-accent); }
+.pac .pac-cspec-flow .st.hub > .nt { font-size: 18px; }
+
+.pac .pac-cspec-flow .srcline { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-ink-2); display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dotted var(--pac-rule-2); }
+.pac .pac-cspec-flow .srcline:last-child { border-bottom: none; }
+.pac .pac-cspec-flow .srcline b { color: var(--pac-ink); font-weight: 600; }
+.pac .pac-cspec-flow .srcline .live { color: var(--pac-green); font-weight: 600; }
+.pac .pac-cspec-flow .gate-badge { font-family: var(--pac-mono); font-size: 10.5px; font-weight: 600; color: #fff; background: var(--pac-amber); padding: 3px 9px; }
+.pac .pac-cspec-flow .off-badge { font-family: var(--pac-mono); font-size: 10px; color: var(--pac-ink-3); border: 1px solid var(--pac-rule); background: var(--pac-bg); padding: 2px 8px; }
+.pac .pac-cspec-flow .prov-badge { font-family: var(--pac-mono); font-size: 10px; color: var(--pac-green-d); background: #f1f9f3; border: 1px solid #c3e6cd; padding: 2px 8px; }
+
+/* Left lane (col 1) — team-zoekvragen + manual search chain */
+.pac .pac-cspec-flow .side { grid-column: 1; background: #f8f9fb; border: 1px solid var(--pac-rule-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.pac .pac-cspec-flow .side > .kn { font-family: var(--pac-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pac-ink-4); }
+.pac .pac-cspec-flow .side > .nt { font-weight: 700; font-size: 13.5px; color: var(--pac-ink); }
+.pac .pac-cspec-flow .side > .nd { font-size: 11.5px; color: var(--pac-ink-2); line-height: 1.4; }
+.pac .pac-cspec-flow .side-chain { grid-column: 1; display: flex; flex-direction: column; align-items: stretch; }
+.pac .pac-cspec-flow .side-chain .st { grid-column: auto; padding: 10px 12px; }
+.pac .pac-cspec-flow .side-chain .st > .nt { font-size: 14px; }
+.pac .pac-cspec-flow .side-chain .st > .nd { font-size: 11.5px; }
+.pac .pac-cspec-flow .side-chain .st.man { border: 1px solid var(--pac-accent); border-top: 3px solid var(--pac-accent); }
+.pac .pac-cspec-flow .side-chain .st.man > .kn { color: var(--pac-accent-d); }
+.pac .pac-cspec-flow .side-chain .st.raw { border: 1px dashed var(--pac-accent); background: var(--pac-accent-50); }
+.pac .pac-cspec-flow .side-chain .st.raw > .kn { color: var(--pac-accent-d); }
+.pac .pac-cspec-flow .side-chain .chain-conn { align-self: center; width: 2px; height: 16px; background: var(--pac-accent); }
+
+/* Vertical connectors (col 3, between spine stages) */
+.pac .pac-cspec-flow .fr.conn .line { grid-column: 3; justify-self: center; width: 2px; height: 24px; background: var(--pac-chrome); position: relative; }
+.pac .pac-cspec-flow .fr.conn .line::after { content: ""; position: absolute; bottom: 0; left: 50%; width: 7px; height: 7px; border-right: 2px solid var(--pac-chrome); border-bottom: 2px solid var(--pac-chrome); transform: translate(-50%, 40%) rotate(45deg); }
+.pac .pac-cspec-flow .fr.conn .line.green { background: var(--pac-green); }
+.pac .pac-cspec-flow .fr.conn .line.green::after { border-right-color: var(--pac-green); border-bottom-color: var(--pac-green); }
+
+/* Injection arrows (col 2, left lane → spine stage) */
+.pac .pac-cspec-flow .arm { grid-column: 2; align-self: center; justify-self: stretch; height: 2px; background: var(--pac-accent); position: relative; margin-right: 3px; }
+.pac .pac-cspec-flow .arm::after { content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%); border-left: 7px solid var(--pac-accent); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.pac .pac-cspec-flow .arm.blue { background: var(--pac-chrome); }
+.pac .pac-cspec-flow .arm.blue::after { border-left-color: var(--pac-chrome); }
+.pac .pac-cspec-flow .cspec-inject { margin-top: 6px; padding-top: 7px; border-top: 1px dashed var(--pac-accent); font-size: 11.5px; color: var(--pac-accent-d); line-height: 1.4; }
+.pac .pac-cspec-flow .cspec-inject b { color: var(--pac-accent); }
+
+/* Footnotes */
+.pac .pac-cspec-notes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 24px; }
+.pac .pac-cspec-notes .note { display: flex; gap: 11px; }
+.pac .pac-cspec-notes .note .num { font-family: var(--pac-mono); font-weight: 600; font-size: 12px; color: #fff; background: var(--pac-ink); width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.pac .pac-cspec-notes .note.man .num { background: var(--pac-accent); }
+.pac .pac-cspec-notes .note p { margin: 0; font-size: 12.5px; color: var(--pac-ink-2); line-height: 1.5; }
+.pac .pac-cspec-notes .note p b { color: var(--pac-ink); }
+.pac .pac-cspec-notes .note code { font-family: var(--pac-mono); font-size: 11px; background: var(--pac-bg); border: 1px solid var(--pac-rule-2); padding: 1px 5px; color: var(--pac-ink); }
+
+/* Narrow panes: stack the footnotes */
+@media (max-width: 720px) {
+  .pac .pac-cspec-notes { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* ------------------------------------------------------------
+   Monitoring inline explainer + ? help affordances
+   (used by the "Hoe werkt de curatiepijplijn?" collapsible on the
+   Inbox / search view, and the ? next to the zoekbalk + Naar inbox)
+   ------------------------------------------------------------ */
+.pac .pac-pipe-explainer { border: 1px solid var(--pac-rule-2); background: var(--pac-bg); margin-bottom: 16px; }
+.pac .pac-pipe-toggle { width: 100%; display: flex; align-items: center; gap: 10px; background: transparent; border: none; border-left: 3px solid var(--pac-chrome); padding: 10px 14px; cursor: pointer; text-align: left; font-family: var(--pac-sans); color: var(--pac-ink); }
+.pac .pac-pipe-toggle .chev { font-size: 11px; color: var(--pac-chrome); width: 12px; flex-shrink: 0; }
+.pac .pac-pipe-toggle b { font-size: 13px; white-space: nowrap; }
+.pac .pac-pipe-sum { font-size: 12px; color: var(--pac-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pac .pac-pipe-sum .mono { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-green-d); }
+.pac .pac-pipe-body { padding: 4px 16px 16px; border-top: 1px solid var(--pac-rule-2); background: var(--pac-paper); }
+.pac .pac-help { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--pac-rule); background: var(--pac-paper); color: var(--pac-ink-3); font-size: 11px; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; }
+.pac .pac-help:hover { border-color: var(--pac-chrome); color: var(--pac-chrome); }
+.pac .pac-help.sm { width: 18px; height: 18px; font-size: 10px; }

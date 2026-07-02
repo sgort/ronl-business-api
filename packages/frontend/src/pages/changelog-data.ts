@@ -59,6 +59,16 @@ export const changelog: Changelog = {
           ],
         },
         {
+          icon: '🔍',
+          iconColor: '#0046ad',
+          title: 'New: Curatiepijplijn documentation + inline explainer',
+          items: [
+            'Read-only Beheer → Monitoring → Curatiepijplijn page: vertical flow diagram from raw source to curated signal, documenting the full curation pipeline.',
+            'Inline "Hoe werkt de curatiepijplijn?" collapsible on every connected Monitoring source tab, with a "Bekijk als pagina in Beheer →" deep-link.',
+            '? help affordances next to the blanco zoekbalk and each Naar inbox button — both open the pipeline explainer at the moment of need.',
+          ],
+        },
+        {
           icon: '🐛',
           iconColor: '#dc2626',
           title: 'Fix: signal count sync between Vandaag and Monitoring',

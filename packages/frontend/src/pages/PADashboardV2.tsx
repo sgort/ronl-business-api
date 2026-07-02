@@ -490,6 +490,10 @@ export default function PADashboardV2() {
                   user={user}
                   tenantConfig={tenantConfig}
                   onOpenDossier={goToDossier}
+                  onNavigate={(m, s) => {
+                    setMode(m);
+                    setActiveSection(s);
+                  }}
                 />
               )}
             </div>
