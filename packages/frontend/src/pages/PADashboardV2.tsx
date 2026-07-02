@@ -171,6 +171,7 @@ export default function PADashboardV2() {
 
   const [mode, setMode] = useState<PaModeId>('vandaag');
   const [activeSection, setActiveSection] = useState<string>('vandaag');
+  const [lastSection, setLastSection] = useState<Partial<Record<PaModeId, string>>>({});
   const [dossierId, setDossierId] = useState<string>('');
   // Seeded to '' at mount; DossierIdSyncer picks the first actief dossier once
   // the provider's dossiers.status becomes 'ok'. Using prev || id ensures
@@ -251,10 +252,17 @@ export default function PADashboardV2() {
     !!orgType &&
     REQUIRED_ORG_TYPES.includes(orgType);
 
-  // When switching modes, jump to that mode's default section.
+  // Track the last visited section per mode so switching back restores it.
+  useEffect(() => {
+    setLastSection((prev) => ({ ...prev, [mode]: activeSection }));
+  }, [mode, activeSection]);
+
+  // When switching modes, restore the last visited section or fall back to default.
   const switchMode = (m: PaModeId) => {
     setMode(m);
-    if (m === 'vandaag') setActiveSection('vandaag');
+    const restore = lastSection[m];
+    if (restore) setActiveSection(restore);
+    else if (m === 'vandaag') setActiveSection('vandaag');
     else if (m === 'dossiers') setActiveSection(dossierId);
     else if (m === 'monitoring') setActiveSection('politiek');
     else if (m === 'voortgang') setActiveSection('voortgang');

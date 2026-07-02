@@ -71,6 +71,14 @@ export const changelog: Changelog = {
         {
           icon: '🐛',
           iconColor: '#dc2626',
+          title: 'Fix: top-nav switching restores last visited sub-page',
+          items: [
+            'Switching between top-nav modes (Vandaag, Dossiers, Monitoring, Voortgang, Beheer) now restores the last visited sub-page instead of always jumping back to the mode default.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
           title: 'Fix: signal count sync between Vandaag and Monitoring',
           items: [
             'Inbox count on Vandaag now sums accurate per-tab counts (politiek / europa / regionaal / media) instead of a capped all-tabs snapshot, fixing the mismatch with Monitoring inbox badges.',
