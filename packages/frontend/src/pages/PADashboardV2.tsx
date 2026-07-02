@@ -59,10 +59,10 @@ import ChangelogPanel from './ChangelogPanel';
 import './public-affairs-v2/dashboard-pa.css';
 
 function SignalCountBadge({ tabId }: { tabId: string }) {
-  const { signals, inbox } = usePaData();
+  const { signals, inboxCounts } = usePaData();
   const connected = paTabConnected(tabId);
   const count = signals.data.filter((s) => s.tab === tabId).length;
-  const inboxCount = inbox.data.filter((s) => s.tab === tabId).length;
+  const inboxCount = inboxCounts[tabId] ?? 0;
   return (
     <span className="pac-rail-score">
       {!SIGNALS_MOCK && !connected ? <span className="pac-rail-dim">—</span> : count}

@@ -115,6 +115,10 @@ export const PA_MODES: PaModeConfig[] = [
     defaultSectionId: 'profiel',
     groups: [
       {
+        label: 'Strategisch kompas',
+        items: [{ id: 'kompas-spec', label: 'Afwegingskader', authRequired: true }],
+      },
+      {
         label: 'Account',
         items: [
           { id: 'profiel', label: 'Profiel', authRequired: true },

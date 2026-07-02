@@ -33,6 +33,45 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.6.0',
+      status: 'New',
+      statusColor: '#7c3aed',
+      borderColor: '#ddd6fe',
+      date: 'July 2, 2026',
+      sections: [
+        {
+          icon: '🧭',
+          iconColor: '#0046ad',
+          title: 'Kompas v2.0 — 8 criteria, max 16, four threshold bands',
+          items: [
+            'Flevolands Kompas expanded from 6 to 8 criteria (max 16): Reputation & strategic positioning replaces Strategic visibility; Synergy with other dossiers and Risk management are new additions.',
+            'Four threshold bands drive the recommended PA effort: Strategic core dossier · top priority (≥14), Promising (10–13), Background · monitor (5–9), Do not pursue (0–4).',
+            'Band badge shown on the Kompas radar, Issuekaart and Vandaag; badge displays the threshold label in the band colour.',
+            'All mock dossiers migrated to 8 criteria with revised scores: stikstof 14 (kern), lelystad 10 (kans), energie 12 (kans), jeugdzorg 5 (monitor), oostvaarders 6 (monitor).',
+          ],
+        },
+        {
+          icon: '📖',
+          iconColor: '#059669',
+          title: 'New: Beheer → Strategisch kompas → Afwegingskader',
+          items: [
+            'New read-only page under Beheer documents the full Flevolands assessment framework: criteria table (8 rows) and threshold bands table (4 bands), data-driven from KOMPAS_CRITERIA and KOMPAS_BANDS.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: signal count sync between Vandaag and Monitoring',
+          items: [
+            'Inbox count on Vandaag now sums accurate per-tab counts (politiek / europa / regionaal / media) instead of a capped all-tabs snapshot, fixing the mismatch with Monitoring inbox badges.',
+            'Gecureerd count on Vandaag now reflects the full confirmed-signal total from the shared provider, not just the 3 items shown on screen.',
+            'Rail inbox badges now read per-tab counts written back by Monitoring on each load, so badge and page tab count are always in sync.',
+            'PaDataProvider seeds per-tab inbox counts at startup so badges are populated before Monitoring is first visited.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.5.5',
       status: 'Enhancement',
       statusColor: 'orange',

@@ -7,7 +7,7 @@
  *   interventie-log  — chosen action + who decided (AI adviseerde / mens besloot)
  */
 
-import { kompasTotal } from './pa.data';
+import { kompasTotal, kompasMax } from './pa.data';
 import { usePaData } from './PaDataProvider';
 
 export type VoortgangView = 'voortgang' | 'kompas-log' | 'interventie-log';
@@ -130,7 +130,7 @@ function KompasLogView() {
               {d.naam}
             </h2>
             <span className="pac-total">
-              nu Kompas <b>{kompasTotal(d.kompas)}</b>/12
+              nu Kompas <b>{kompasTotal(d.kompas)}</b>/{kompasMax()}
             </span>
           </div>
           <div className="pac-log">

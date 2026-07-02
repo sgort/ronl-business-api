@@ -392,8 +392,7 @@ function RawHitCard({
 }
 
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Props) {
-  const { confirmSignal, dossiers, inbox: providerInbox } = usePaData();
-  const refetchProviderInbox = providerInbox.refetch;
+  const { confirmSignal, dossiers, updateInboxCount } = usePaData();
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
   const connected = paTabConnected(tab.id);
 
@@ -426,9 +425,8 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
     setSignals(sigs);
     setInbox(inb);
     setLoading(false);
-    // Sync the shared provider inbox so rail badges reflect the fresh count
-    refetchProviderInbox();
-  }, [tab.id, refetchProviderInbox]);
+    updateInboxCount(tab.id, inb.length);
+  }, [tab.id, updateInboxCount]);
 
   useEffect(() => {
     void load();
@@ -548,13 +546,14 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
         showToast('Staat al in Gecureerd');
       } else {
         showToast(`Toegevoegd aan inbox · ${signalTagLabel(sig.tab)}`);
-        // Rail badges read the shared provider inbox (all tabs)…
-        refetchProviderInbox();
-        // …but the seg "Inbox" count reads this component's local state, so
-        // refresh it too when the promoted item landed in the current tab.
         if (sig.tab === tab.id) {
           const inb = await fetchInbox({ tab: tab.id });
           setInbox(inb);
+          updateInboxCount(tab.id, inb.length);
+        } else {
+          // Promoted to a different tab — fetch that tab's updated count.
+          const inb = await fetchInbox({ tab: sig.tab });
+          updateInboxCount(sig.tab, inb.length);
         }
       }
     } catch {
@@ -582,6 +581,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
       setSignals((prev) =>
         [...prev, { ...s, status: 'confirmed' as const }].sort((a, b) => b.rel - a.rel)
       );
+      updateInboxCount(tab.id, visibleInbox.length - 1);
     } catch {
       // keep item in inbox on error
     }
@@ -589,6 +589,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier }: Pr
 
   const handleDismiss = (id: string) => {
     setDismissedIds((prev) => new Set([...prev, id]));
+    updateInboxCount(tab.id, visibleInbox.length - 1);
   };
 
   const visibleInbox = inbox.filter((s) => !confirmedIds.has(s.id) && !dismissedIds.has(s.id));

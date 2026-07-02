@@ -34,8 +34,20 @@ export type KompasCriterionKey =
   | 'momentum'
   | 'coalitie'
   | 'uitvoering'
-  | 'zichtbaar'
-  | 'opbrengst';
+  | 'reputatie'
+  | 'synergie'
+  | 'opbrengst'
+  | 'risico';
+
+export type KompasBandKey = 'kern' | 'kans' | 'monitor' | 'niet';
+
+export interface KompasBand {
+  key: KompasBandKey;
+  min: number;
+  kort: string;
+  label: string;
+  inzet: string;
+}
 
 export interface KompasCriterionDef {
   key: KompasCriterionKey;

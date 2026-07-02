@@ -27,10 +27,12 @@ import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenar
 import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
+import KompasSpecSection from './KompasSpecSection';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
 const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-log']);
 const BEHEER_IDS = new Set<string>([
+  'kompas-spec',
   'profiel',
   'rollen',
   'iou-gebruiksscenario',
@@ -77,6 +79,9 @@ export default function PASectionRouter({
   if (BEHEER_IDS.has(sectionId)) {
     let content: React.ReactNode;
     switch (sectionId) {
+      case 'kompas-spec':
+        content = <KompasSpecSection />;
+        break;
       case 'profiel':
         content = (
           <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />

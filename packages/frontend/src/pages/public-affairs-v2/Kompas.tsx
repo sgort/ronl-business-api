@@ -5,7 +5,14 @@
  * reuse across the other PA screens.
  */
 
-import { KOMPAS_CRITERIA, kompasTotal, type KompasScores, type Momentum } from './pa.data';
+import {
+  KOMPAS_CRITERIA,
+  kompasTotal,
+  kompasMax,
+  kompasBand,
+  type KompasScores,
+  type Momentum,
+} from './pa.data';
 
 export function Dots({ score }: { score: 0 | 1 | 2 }) {
   return (
@@ -102,7 +109,7 @@ export function KompasRadar({ kompas, size = 240 }: { kompas: KompasScores; size
 function KompasBars({ kompas }: { kompas: KompasScores }) {
   const crit = KOMPAS_CRITERIA;
   return (
-    <svg viewBox="0 0 240 200" role="img" aria-label="Flevolands Kompas staafdiagram">
+    <svg viewBox="0 0 240 262" role="img" aria-label="Flevolands Kompas staafdiagram">
       {crit.map((c, i) => {
         const s = kompas[c.key]?.score ?? 0;
         const y = 14 + i * 31;
@@ -142,6 +149,7 @@ export default function Kompas({
 }) {
   const crit = KOMPAS_CRITERIA;
   const total = kompasTotal(kompas);
+  const band = kompasBand(total);
 
   return (
     <div className="pac-kompas">
@@ -149,8 +157,9 @@ export default function Kompas({
         {viz === 'radar' ? <KompasRadar kompas={kompas} /> : <KompasBars kompas={kompas} />}
         <div className="pac-kompas-total">
           {total}
-          <span> / 12</span>
+          <span> / {kompasMax()}</span>
         </div>
+        <div className={`pac-kompas-band tone-${band.key}`}>{band.label}</div>
         <div className="pac-kompas-caption">Kompas-totaalscore</div>
       </div>
 

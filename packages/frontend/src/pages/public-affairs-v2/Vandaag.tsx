@@ -6,12 +6,9 @@
  * and a progress glance. The `prioritering` prop flips the ranking.
  */
 
-import { useState, useEffect } from 'react';
-import { getAgenda, kompasTotal, type Momentum } from './pa.data';
+import { getAgenda, kompasTotal, kompasMax, type Momentum } from './pa.data';
 import { usePaData } from './PaDataProvider';
 import { Trend } from './Kompas';
-import { fetchSignals, fetchInbox } from '../../services/pa.api';
-import type { Signal } from '@ronl/shared';
 
 export type Prioritering = 'kompas' | 'momentum';
 
@@ -23,16 +20,13 @@ interface Props {
 const MOM_WEIGHT: Record<Momentum, number> = { up: 1.5, flat: 0, down: -1 };
 
 export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Props) {
-  const { dossiers } = usePaData();
-  const [topSignals, setTopSignals] = useState<Signal[]>([]);
-  const [inboxCount, setInboxCount] = useState(0);
-
-  useEffect(() => {
-    void Promise.all([fetchSignals(), fetchInbox()]).then(([sigs, inb]) => {
-      setTopSignals(sigs.slice(0, 3));
-      setInboxCount(inb.length);
-    });
-  }, []);
+  const { dossiers, signals, inbox, inboxCounts } = usePaData();
+  const topSignals = signals.data.slice(0, 3);
+  // Use accurate per-tab counts once seeded; fall back to the all-tabs snapshot while loading.
+  const inboxCount =
+    Object.keys(inboxCounts).length > 0
+      ? Object.values(inboxCounts).reduce((sum, c) => sum + c, 0)
+      : inbox.data.length;
 
   const topIssues = [...dossiers.data]
     .map((d) => ({ d, total: kompasTotal(d.kompas) }))
@@ -98,7 +92,7 @@ export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Prop
               </span>
               <span className="pac-issue-right">
                 <span className="pac-total">
-                  Kompas <b>{total}</b>/12
+                  Kompas <b>{total}</b>/{kompasMax()}
                 </span>
                 <span
                   style={{
@@ -126,7 +120,7 @@ export default function Vandaag({ onOpenDossier, prioritering = 'kompas' }: Prop
               Signalen vandaag{' '}
               <span className="pac-q">— vers uit Tweede Kamer &amp; Officiële Bekendmakingen</span>
             </h2>
-            <span className="pac-total">{topSignals.length} gecureerd</span>
+            <span className="pac-total">{signals.data.length} gecureerd</span>
           </div>
           {inboxCount > 0 && (
             <div className="pac-inbox-banner">

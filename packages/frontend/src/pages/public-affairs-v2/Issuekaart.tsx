@@ -7,7 +7,14 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { getTemplates, kompasTotal, type Dossier } from './pa.data';
+import {
+  getTemplates,
+  kompasTotal,
+  kompasMax,
+  kompasBand,
+  KOMPAS_CRITERIA,
+  type Dossier,
+} from './pa.data';
 import Kompas, { Trend, type KompasViz } from './Kompas';
 import {
   fetchSignals,
@@ -53,7 +60,10 @@ export default function Issuekaart({ dossier, kompasViz = 'radar' }: Props) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           <span className="pac-total">
-            Kompas <b>{kompasTotal(d.kompas)}</b>/12
+            Kompas <b>{kompasTotal(d.kompas)}</b>/{kompasMax()}
+          </span>
+          <span className={`pac-kompas-band tone-${kompasBand(kompasTotal(d.kompas)).key}`}>
+            {kompasBand(kompasTotal(d.kompas)).kort}
           </span>
           <span
             style={{
@@ -123,7 +133,7 @@ function IssueOverzicht({ d, kompasViz }: { d: Dossier; kompasViz: KompasViz }) 
           <h2 className="pac-section-title">
             Flevolands Kompas <span className="pac-q">— hoe belangrijk is dit voor Flevoland?</span>
           </h2>
-          <span className="pac-total">6 criteria · score 0–2</span>
+          <span className="pac-total">{KOMPAS_CRITERIA.length} criteria · score 0–2</span>
         </div>
         <Kompas kompas={d.kompas} viz={kompasViz} />
       </section>

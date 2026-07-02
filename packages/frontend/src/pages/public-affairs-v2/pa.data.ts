@@ -17,6 +17,8 @@ export type {
   KompasCriterionDef,
   KompasScore,
   KompasScores,
+  KompasBandKey,
+  KompasBand,
   Momentum,
   DossierStatus,
   Sentiment,
@@ -35,7 +37,7 @@ export type {
   Dossier,
 } from '@ronl/shared';
 
-import type { KompasCriterionDef, KompasScores, Dossier } from '@ronl/shared';
+import type { KompasBand, KompasCriterionDef, KompasScores, Dossier } from '@ronl/shared';
 
 export type MonitoringTabId = 'agenda' | 'politiek' | 'europa' | 'regionaal' | 'media';
 export type SignalImpact = 'kans' | 'risico';
@@ -77,34 +79,95 @@ export const KOMPAS_CRITERIA: KompasCriterionDef[] = [
   {
     key: 'opgaven',
     short: 'Opgaven',
-    name: 'Bijdrage aan opgaven',
-    hint: 'Regionaal / nationaal / EU',
+    name: 'Bijdrage aan regionale, nationale & EU-opgaven',
+    hint: 'Energietransitie, economie, landbouwtransitie, woningbouw, bereikbaarheid, leefbaarheid?',
   },
-  { key: 'momentum', short: 'Momentum', name: 'Momentum & timing', hint: 'Speelt het nú?' },
+  {
+    key: 'momentum',
+    short: 'Momentum',
+    name: 'Momentum & timing',
+    hint: 'Is dit nú het moment? Rijk in beweging, nieuwe EU-call, formatie-effecten, crisis/urgentie?',
+  },
   {
     key: 'coalitie',
     short: 'Coalitie',
     name: 'Coalitiekracht & eigenaarschap',
-    hint: 'Wie trekt mee?',
+    hint: 'Logische (mede-)trekker? Sterker met partners? Bestuurlijk draagvlak?',
   },
-  { key: 'uitvoering', short: 'Uitvoering', name: 'Uitvoeringskracht', hint: 'Kunnen we leveren?' },
   {
-    key: 'zichtbaar',
-    short: 'Zichtbaar',
-    name: 'Strategische zichtbaarheid',
-    hint: 'Helpt het ons verhaal?',
+    key: 'uitvoering',
+    short: 'Uitvoering',
+    name: 'Uitvoeringskracht binnen provincie & partners',
+    hint: 'Mandaat, capaciteit, financiën, projectstructuur, organisatiekracht?',
+  },
+  {
+    key: 'reputatie',
+    short: 'Reputatie',
+    name: 'Reputatie & strategische positionering',
+    hint: 'Onderscheidend voor Flevoland? Versterkt het Flevoland als wendbare, innovatieve provincie?',
+  },
+  {
+    key: 'synergie',
+    short: 'Synergie',
+    name: 'Synergie met andere dossiers',
+    hint: "Koppelbaar aan andere dossiers/lobbythema's? Welke impact op andere thema's?",
   },
   {
     key: 'opbrengst',
     short: 'Opbrengst',
-    name: 'Opbrengst',
-    hint: 'Regel- / investerings- / experimenteerruimte',
+    name: 'Opbrengst in regel-, investerings- of leerruimte',
+    hint: 'Opent het deuren voor experimenten, financiering of pilots?',
+  },
+  {
+    key: 'risico',
+    short: 'Risico',
+    name: 'Risicobeheersing',
+    hint: "Helpt dit dossier aantoonbaar om risico's te verlagen?",
   },
 ];
 
 export function kompasTotal(k: KompasScores): number {
   return KOMPAS_CRITERIA.reduce((sum, c) => sum + (k[c.key]?.score ?? 0), 0);
 }
+
+export const kompasMax = () => KOMPAS_CRITERIA.length * 2; // 16
+
+// Spec bands (>14 / 10–13 / <10 / 0–4) overlap and leave 14 uncovered → contiguous, top = ≥14.
+export const KOMPAS_BANDS: KompasBand[] = [
+  {
+    key: 'kern',
+    min: 14,
+    kort: 'Topprioriteit',
+    label: 'Strategisch kerndossier · topprioriteit',
+    inzet:
+      'Intensieve lobby, bestuurlijke zichtbaarheid, opbouw coalities, Den Haag én Brussel, verhaallijn uitdragen.',
+  },
+  {
+    key: 'kans',
+    min: 10,
+    kort: 'Kansrijk',
+    label: 'Kansrijk dossier',
+    inzet: 'Gericht lobbywerk, timing-afhankelijk zichtbaar maken, beperkte bestuurlijke inzet.',
+  },
+  {
+    key: 'monitor',
+    min: 5,
+    kort: 'Monitoren',
+    label: 'Achtergrond · monitoren',
+    inzet:
+      'Signalen blijven volgen, klein netwerk activeren, alleen inzetten bij onverwacht momentum.',
+  },
+  {
+    key: 'niet',
+    min: 0,
+    kort: 'Niet oppakken',
+    label: 'Niet oppakken',
+    inzet: 'Geen PA-inzet, tenzij politieke of externe omstandigheden acuut veranderen.',
+  },
+];
+
+export const kompasBand = (total: number): KompasBand =>
+  KOMPAS_BANDS.find((b) => total >= b.min) ?? KOMPAS_BANDS[KOMPAS_BANDS.length - 1];
 
 export const MONITORING_TABS: { id: MonitoringTabId; label: string }[] = [
   { id: 'agenda', label: 'Agenda' },
@@ -138,21 +201,32 @@ export const MOCK_DOSSIERS: Dossier[] = [
         duiding: 'Herziene kaart en Kamerdebat binnen drie weken — het venster is nú open.',
       },
       coalitie: {
-        score: 1,
-        duiding: 'LTO en waterschap trekken mee; gemeenten nog verdeeld over gebiedsgrenzen.',
+        score: 2,
+        duiding:
+          'LTO, waterschap en gemeenten trekken nu structureel mee; coalitie verbreed met Regio Zwolle.',
       },
       uitvoering: {
         score: 1,
         duiding: 'Gebiedsprocessen lopen, maar capaciteit en grondposities blijven krap.',
       },
-      zichtbaar: {
+      reputatie: {
         score: 2,
         duiding:
-          'Sterke kans om Flevoland te positioneren als provincie van uitvoerbaar perspectief.',
+          'Sterke kans om Flevoland te positioneren als provincie van uitvoerbaar perspectief — onderscheidend verhaal.',
+      },
+      synergie: {
+        score: 2,
+        duiding:
+          'Koppelbaar aan energie- en waterdossiers en het OVP-gebiedsproces; versterkt meerdere lobbylijnen.',
       },
       opbrengst: {
         score: 1,
         duiding: 'Reëel zicht op experimenteerruimte; investeringsruimte afhankelijk van Rijk.',
+      },
+      risico: {
+        score: 2,
+        duiding:
+          'Actieve inzet verlaagt het politieke risico van uitsluiting bij landelijke besluitvorming.',
       },
     },
     doel: 'Een door het Rijk erkend Flevolands gebiedsperspectief dat reductie koppelt aan een uitvoerbaar verdienmodel voor boeren — vastgelegd vóór de zomer.',
@@ -247,7 +321,7 @@ export const MOCK_DOSSIERS: Dossier[] = [
         titel: 'Position paper nu delen met coalitiewoordvoerders',
         motiv:
           'Het momentum is maximaal vóór de herziene kaart. Vroege framing vergroot de kans dat het Flevolandse perspectief in het debat landt.',
-        kompas: 'Momentum 2 · Zichtbaarheid 2',
+        kompas: 'Momentum 2 · Reputatie 2',
       },
       {
         titel: 'Werkbezoek koppelen aan dataverhaal proefbedrijf',
@@ -297,7 +371,7 @@ export const MOCK_DOSSIERS: Dossier[] = [
       { date: '12 mei', text: 'Momentum 1 → bij start: kaart nog niet aangekondigd.' },
       {
         date: '28 mei',
-        text: 'Momentum 1 → 2 na aankondiging herziene kaart; zichtbaarheid 1 → 2.',
+        text: 'Momentum 1 → 2 na aankondiging herziene kaart; reputatie 1 → 2.',
       },
       {
         date: '5 jun',
@@ -369,13 +443,23 @@ export const MOCK_DOSSIERS: Dossier[] = [
         score: 0,
         duiding: 'Besluit ligt volledig bij het Rijk; provincie heeft geen directe sturing.',
       },
-      zichtbaar: {
+      reputatie: {
         score: 2,
-        duiding: 'Maximaal zichtbaar dossier — bepalend voor het beeld van Flevoland.',
+        duiding:
+          'Maximaal zichtbaar dossier — bepalend voor het beeld van Flevoland als open en ondernemende provincie.',
+      },
+      synergie: {
+        score: 1,
+        duiding:
+          "Beperkt koppelbaar aan bereikbaarheidsdossiers; staat grotendeels los van andere lobbythema's.",
       },
       opbrengst: {
         score: 1,
         duiding: 'Investeringsruimte mogelijk bij opening; politiek hoog-risico.',
+      },
+      risico: {
+        score: 1,
+        duiding: 'Proactieve inzet op routes en hinder beperkt reputatierisico bij buurprovincies.',
       },
     },
     doel: 'Een openingsbesluit dat de Flevolandse werkgelegenheid borgt mét een hardere afspraak over laagvliegroutes en hinderbeperking.',
@@ -470,7 +554,7 @@ export const MOCK_DOSSIERS: Dossier[] = [
         titel: 'Feitenkaart routes vóór het Kamerdebat verspreiden',
         motiv:
           'De discussie wordt nu gevoerd op beeldvorming, niet op feiten. Een neutrale feitenkaart vergroot de geloofwaardigheid van het Flevolandse geluid.',
-        kompas: 'Zichtbaarheid 2 · Momentum 2',
+        kompas: 'Reputatie 2 · Momentum 2',
       },
       {
         titel: 'Bestuurlijk overleg met buurprovincies initiëren',
@@ -571,13 +655,23 @@ export const MOCK_DOSSIERS: Dossier[] = [
         score: 1,
         duiding: 'Pilots mogelijk; structurele oplossing vraagt nationale keuzes.',
       },
-      zichtbaar: {
-        score: 1,
-        duiding: 'Technisch dossier; minder mediagevoelig dan stikstof of luchthaven.',
+      reputatie: {
+        score: 2,
+        duiding: 'Sterke proeftuin-positionering: Flevoland als koploper in de energietransitie.',
+      },
+      synergie: {
+        score: 2,
+        duiding:
+          'Nauw verbonden met klimaat-, landbouw- en economische ontwikkelingsdossiers; hoge synergiewaarde.',
       },
       opbrengst: {
         score: 2,
         duiding: 'Reële investerings- en experimenteerruimte via pilots energy hubs.',
+      },
+      risico: {
+        score: 0,
+        duiding:
+          "Nog geen directe risicoreductie; energy-hub-pilots creëren eerder nieuwe onzekerheden dan dat ze risico's verlagen.",
       },
     },
     doel: 'Een regionale congestie-aanpak met prioriteringsafspraken en minimaal twee energy-hub-pilots, gedragen door netbeheerder en bedrijfsleven.',
@@ -635,7 +729,7 @@ export const MOCK_DOSSIERS: Dossier[] = [
       {
         titel: 'Pilot energy hubs als landelijk voorbeeld positioneren',
         motiv:
-          'Opbrengst (2) en coalitie (2) zijn sterk. Door de pilot landelijk te framen vergroot je zichtbaarheid (nu 1) zonder extra uitvoeringslast.',
+          'Opbrengst (2) en coalitie (2) zijn sterk. Door de pilot landelijk te framen versterk je de reputatie (nu 2) en synergie met andere dossiers zonder extra uitvoeringslast.',
         kompas: 'Opbrengst 2 · Coalitie 2',
       },
     ],
@@ -708,13 +802,22 @@ export const MOCK_DOSSIERS: Dossier[] = [
         score: 1,
         duiding: 'Provincie kan verbinden en agenderen, niet zelf bekostigen.',
       },
-      zichtbaar: {
+      reputatie: {
         score: 1,
-        duiding: 'Gevoelig dossier; zichtbaarheid kan twee kanten op werken.',
+        duiding: 'Gevoelig dossier; zichtbaarheid kan twee kanten op werken — bewust laag profiel.',
+      },
+      synergie: {
+        score: 0,
+        duiding: 'Beperkte koppeling met andere dossiers; staat grotendeels op zichzelf.',
       },
       opbrengst: {
         score: 0,
         duiding: 'Weinig directe regel- of investeringsruimte voor de provincie.',
+      },
+      risico: {
+        score: 1,
+        duiding:
+          'Duidelijke rolafbakening verlaagt het risico op onhaalbare verwachtingen en politieke exposuur.',
       },
     },
     doel: 'Een heldere, afgebakende provinciale rol als verbinder tussen gemeenten en VWS — zonder oneigenlijke verwachtingen over bekostiging.',
@@ -828,8 +931,21 @@ export const MOCK_DOSSIERS: Dossier[] = [
       momentum: { score: 0, duiding: 'Geen acuut beslismoment; beheer loopt.' },
       coalitie: { score: 1, duiding: 'Staatsbosbeheer en provincie afgestemd.' },
       uitvoering: { score: 2, duiding: 'Beheerorganisatie staat; uitvoering op orde.' },
-      zichtbaar: { score: 1, duiding: 'Kan oplaaien bij incidenten; nu rustig.' },
+      reputatie: {
+        score: 1,
+        duiding: 'Kan oplaaien bij incidenten; nu rustig — bewust laag profiel.',
+      },
+      synergie: {
+        score: 1,
+        duiding:
+          'Raakvlak met het stikstof-gebiedsproces Noordoostpolder; koppeling activeren bij momentum.',
+      },
       opbrengst: { score: 0, duiding: 'Geen nieuwe regel- of investeringsruimte aan de orde.' },
+      risico: {
+        score: 0,
+        duiding:
+          'Geen aantoonbare risicoreductie; beheer is stabiel maar niet risicoverkleining-gedreven.',
+      },
     },
     doel: 'Stabiel beheer en een positief bezoekersperspectief; klaar om te schakelen als het stikstofdossier raakvlakken oplevert.',
     ritme: {

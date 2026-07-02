@@ -16,11 +16,17 @@ export interface Resource<T> {
   refetch: () => void;
 }
 
+// Tabs that carry an inbox badge (agenda uses a separate agendaCount badge).
+const INBOX_TABS = ['politiek', 'europa', 'regionaal', 'media'] as const;
+
 interface PaDataContextValue {
   signals: Resource<Signal[]>;
   inbox: Resource<Signal[]>;
   dossiers: Resource<Dossier[]>;
   agenda: Resource<PlenaryItem[]>;
+  /** Per-tab inbox counts — always accurate; updated by Monitoring on each load. */
+  inboxCounts: Record<string, number>;
+  updateInboxCount: (tab: string, count: number) => void;
   confirmSignal: (
     id: string,
     patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
@@ -68,6 +74,19 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
   const dossiersResource = useResource<Dossier[]>(fetchDossiers, []);
   const agendaResource = useResource<PlenaryItem[]>(fetchAgenda, []);
 
+  const [inboxCounts, setInboxCounts] = useState<Record<string, number>>({});
+
+  const updateInboxCount = useCallback((tab: string, count: number) => {
+    setInboxCounts((prev) => ({ ...prev, [tab]: count }));
+  }, []);
+
+  // Seed per-tab counts at startup so badges are populated before Monitoring is visited.
+  useEffect(() => {
+    INBOX_TABS.forEach((tabId) => {
+      void fetchInbox({ tab: tabId }).then((inb) => updateInboxCount(tabId, inb.length));
+    });
+  }, [updateInboxCount]);
+
   const confirmSignal = useCallback(
     async (
       id: string,
@@ -90,6 +109,8 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
         inbox: inboxResource,
         dossiers: dossiersResource,
         agenda: agendaResource,
+        inboxCounts,
+        updateInboxCount,
         confirmSignal,
       }}
     >
