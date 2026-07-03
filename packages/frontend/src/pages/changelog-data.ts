@@ -60,6 +60,15 @@ export const changelog: Changelog = {
             'ON CONFLICT clause updated: title and src are now also refreshed for candidate signals, so the Dutch title appears in the inbox card automatically once the EP listing publishes it.',
           ],
         },
+        {
+          icon: '🧪',
+          iconColor: '#6b7280',
+          title: 'Tests: ep-texts-submitted unit tests + ep-teksten curation cycle coverage',
+          items: [
+            'New ep-texts-submitted.client.test.ts (16 tests): normaliseEpRef covers A/B ref conversion, number padding, pass-through, whitespace, and invalid inputs; parsePageHtml uses an HTML fixture with 6 cards — 4 valid, 2 skipped — verifying Verslag/Aanbeveling/Ontwerpresolutie classification, committee extraction, date parsing, and English-titled card handling.',
+            'curation.service.test.ts extended with 6 ep-teksten tests: fetched when flag + EU searches active, skipped when flag off or no EU searches, items flow through scoring and persist, error resilience (cycle continues if EP listing unreachable), deduplication against ep-rss items sharing the same ref id.',
+          ],
+        },
       ],
     },
     {
