@@ -70,6 +70,15 @@ export const changelog: Changelog = {
           ],
         },
         {
+          icon: '▶',
+          iconColor: '#0046ad',
+          title: 'New: manual curation trigger in Beheer',
+          items: [
+            'Beheer → Monitoring → Curatiepijplijn now has a "Curatie nu uitvoeren" button that fires the curation cycle on demand — useful after a deployment or for diagnosis without waiting for the 6-hour cron.',
+            'Status feedback appears below the button: a green confirmation line shows the exact start time and a reminder that the cycle runs in the background (~30 s); after it clears, the last manual start time is retained for the session. Error state guides the user to check their role if the call fails.',
+          ],
+        },
+        {
           icon: '🔧',
           iconColor: '#dc2626',
           title: 'Fix: code-review hardening (PA cache + curation pipeline)',

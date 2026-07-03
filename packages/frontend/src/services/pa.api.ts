@@ -886,6 +886,10 @@ export async function fetchAgenda(): Promise<PlenaryItem[]> {
   return paGet<PlenaryItem[]>('/pa/agenda');
 }
 
+export async function triggerCurationCycle(): Promise<{ started: boolean; tenantId: string }> {
+  return paPost<{ started: boolean; tenantId: string }>('/pa/curator/run', {});
+}
+
 export async function confirmSignal(
   id: string,
   patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
