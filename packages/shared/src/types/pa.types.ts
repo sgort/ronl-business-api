@@ -5,6 +5,10 @@ export interface Signal {
   title: string;
   src: string;
   bron: 'tk' | 'ob' | 'eu' | null;
+  /** EU sub-source identifier: 'ep-rss' (plenary RSS) or 'ep-teksten' (texts-submitted). */
+  subbron?: string | null;
+  /** EP committee code (ITRE, ENVI, …). Display only — not used for scoring. */
+  commissie?: string | null;
   ref?: { type: string; nr: string; url: string } | null;
   rel: number;
   impact: 'kans' | 'risico' | null;
@@ -25,6 +29,10 @@ export interface FeedItem {
   url: string | null;
   source: 'tk' | 'ob' | 'eu';
   description?: string;
+  /** EU sub-source identifier passed through from the scraper; stored on Signal. */
+  subbron?: string | null;
+  /** EP committee code passed through from the scraper; stored on Signal. */
+  commissie?: string | null;
 }
 
 // ── Dossier + Kompas domain types ───────────────────────────────────

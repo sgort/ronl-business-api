@@ -117,6 +117,7 @@ interface Config {
     tkApiBase: string;
     euApiBase: string;
     euSourceEnabled: boolean;
+    epTextsSubmittedEnabled: boolean;
     cacheTtlTk: number;
     cacheTtlAgenda: number;
     cacheTtlStatic: number;
@@ -276,6 +277,7 @@ export const config: Config = {
     tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v5',
     euApiBase: process.env.EU_API_BASE || 'https://data.europarl.europa.eu/api/v2',
     euSourceEnabled: parseEnvBool(process.env.EU_SOURCE_ENABLED, true),
+    epTextsSubmittedEnabled: parseEnvBool(process.env.EP_TEXTS_SUBMITTED_ENABLED, true),
     cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
     cacheTtlAgenda: parseEnvInt(process.env.CACHE_TTL_AGENDA, 1800),
     cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),

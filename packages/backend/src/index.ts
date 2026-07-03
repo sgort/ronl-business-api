@@ -218,6 +218,19 @@ const startServer = async () => {
     })
   );
 
+  // Periodic curation refresh — picks up new EP teksten, TK, and OB candidates.
+  // EP teksten fetch is gated inside runCurationCycle on epTextsSubmittedEnabled.
+  setInterval(
+    () => {
+      void runCurationCycle().catch((err) =>
+        appLogger.error('Periodic curation cycle failed', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    },
+    6 * 60 * 60 * 1000
+  );
+
   externalTaskWorker.start();
 
   llmRegistry.register(new AnthropicLlmProvider());

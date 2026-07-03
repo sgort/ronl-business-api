@@ -90,7 +90,7 @@ const EU_TO_NL_TERMS: Array<[RegExp, string[]]> = [
   [/\bpfas\b|\bperfluoro/i, ['pfas', 'waterkwaliteit']],
 ];
 
-function addDutchContext(text: string): string {
+export function addDutchContext(text: string): string {
   const extras: string[] = [];
   for (const [pattern, dutchTerms] of EU_TO_NL_TERMS) {
     if (pattern.test(text)) extras.push(...dutchTerms);
@@ -183,6 +183,7 @@ function normaliseRssItem(item: RssItem): FeedItem | null {
     date,
     url: doceoUrl(ref),
     source: 'eu' as const,
+    subbron: 'ep-rss',
     description,
   };
 }

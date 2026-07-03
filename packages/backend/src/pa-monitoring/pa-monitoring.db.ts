@@ -100,6 +100,8 @@ export async function initPaDb(): Promise<void> {
         title         TEXT NOT NULL,
         src           TEXT NOT NULL,
         bron          TEXT,
+        subbron       TEXT,
+        commissie     TEXT,
         ref           JSONB,
         rel           INTEGER NOT NULL DEFAULT 5,
         impact        TEXT,
@@ -113,7 +115,14 @@ export async function initPaDb(): Promise<void> {
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS subbron TEXT;
+      ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS commissie TEXT;
     `);
+
+    // Backfill: all EU signals created before the subbron column existed came from
+    // the EP plenary RSS feed. Tag them so EpMeta badges appear for existing signals.
+    await db.none(`UPDATE pa_signals SET subbron = 'ep-rss' WHERE bron = 'eu' AND subbron IS NULL`);
 
     logger.info('PA monitoring tables ready');
     await seedTaxonomy();

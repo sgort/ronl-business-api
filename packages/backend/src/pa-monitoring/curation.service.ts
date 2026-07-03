@@ -8,6 +8,7 @@ import { createLogger } from '@utils/logger';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
 import { fetchEuFeed } from './sources/eu.client';
+import { fetchAllNewSubmittedTexts } from './sources/ep-texts-submitted.client';
 import { config } from '@utils/config';
 import { scoreItem } from './rules';
 import type { FeedItem, Signal } from '@ronl/shared';
@@ -63,20 +64,26 @@ async function persistCandidate(
   scored: { rel: number; tab: Signal['tab']; dossierId: string | null }
 ): Promise<void> {
   const sourceKey = `${item.source}:${item.id}`;
-  const srcLabel =
-    item.source === 'tk'
-      ? `Tweede Kamer · ${item.type ?? 'Document'} · ${formatAge(item.date)}`
-      : item.source === 'eu'
-        ? `Europees Parlement · ${item.type ?? 'Document'} · ${formatAge(item.date)}`
-        : `Officiële Bekendmakingen · ${item.type ?? 'Publicatie'} · ${formatAge(item.date)}`;
+  let srcLabel: string;
+  if (item.source === 'tk') {
+    srcLabel = `Tweede Kamer · ${item.type ?? 'Document'} · ${formatAge(item.date)}`;
+  } else if (item.source === 'eu') {
+    const subbronLabel = item.subbron === 'ep-teksten' ? ' · Ingediende teksten' : '';
+    srcLabel = `Europees Parlement · ${item.type ?? 'Document'}${subbronLabel} · ${formatAge(item.date)}`;
+  } else {
+    srcLabel = `Officiële Bekendmakingen · ${item.type ?? 'Publicatie'} · ${formatAge(item.date)}`;
+  }
 
   try {
     await db.none(
       `INSERT INTO pa_signals
-         (id, tab, dossier_id, title, src, bron, ref, rel, status, source_key, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'candidate',$9,NOW(),NOW())
+         (id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, status, source_key, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'candidate',$11,NOW(),NOW())
        ON CONFLICT (source_key) DO UPDATE
-         SET rel = EXCLUDED.rel, dossier_id = EXCLUDED.dossier_id, updated_at = NOW()
+         SET rel = EXCLUDED.rel, dossier_id = EXCLUDED.dossier_id,
+             title = EXCLUDED.title, src = EXCLUDED.src,
+             subbron = EXCLUDED.subbron, commissie = EXCLUDED.commissie,
+             updated_at = NOW()
          WHERE pa_signals.status = 'candidate'`,
       [
         `sig-${item.source}-${item.id}`,
@@ -85,6 +92,8 @@ async function persistCandidate(
         item.title,
         srcLabel,
         item.source,
+        item.subbron ?? null,
+        item.commissie ?? null,
         item.url
           ? JSON.stringify({ type: item.type ?? '', nr: displayNr(item), url: item.url })
           : null,
@@ -97,6 +106,23 @@ async function persistCandidate(
       sourceKey,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+}
+
+async function getSeenEpTekstenRefs(): Promise<string[]> {
+  try {
+    // Exclude refs whose stored title is still in English (starts with an EP English
+    // doc-type prefix) so those items are re-fetched on the next cycle. Once the
+    // Dutch translation is published on the EP listing page, the title gets updated
+    // via the ON CONFLICT SET below.
+    const rows = await db.any<{ ref: { nr: string } | null }>(
+      `SELECT ref FROM pa_signals
+       WHERE subbron = 'ep-teksten' AND ref IS NOT NULL
+         AND NOT (title ~* '^(REPORT|MOTION FOR|RECOMMENDATION|OPINION)\\s')`
+    );
+    return rows.map((r) => r.ref?.nr).filter((nr): nr is string => !!nr);
+  } catch {
+    return [];
   }
 }
 
@@ -170,6 +196,18 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
       return null;
     });
     if (result) allItems.push(...result.items);
+  }
+
+  // Fetch EP "Ingediende teksten" — pages through Verslagen + Ontwerpresoluties tabs
+  if (hasEuSearches && config.pa.epTextsSubmittedEnabled) {
+    const sinceRefs = new Set(await getSeenEpTekstenRefs());
+    const teksten = await fetchAllNewSubmittedTexts({ sinceRefs }).catch((err: unknown) => {
+      logger.error('EP teksten fetch failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [] as FeedItem[];
+    });
+    allItems.push(...teksten);
   }
 
   // Deduplicate by source:id

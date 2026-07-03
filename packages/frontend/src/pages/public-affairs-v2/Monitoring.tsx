@@ -48,6 +48,29 @@ function BronBadge({ bron }: { bron: string | null }) {
   return <span className={`pac-bron pac-bron-${bron}`}>{BRON_DISPLAY[bron] ?? bron}</span>;
 }
 
+const EP_SUBBRON_LABEL: Record<string, string> = {
+  'ep-teksten': 'Ingediende teksten',
+  'ep-rss': 'Plenaire RSS',
+};
+
+function EpMeta({ s }: { s: Signal }) {
+  if (s.bron !== 'eu') return null;
+  return (
+    <>
+      {s.subbron && (
+        <span className={`pac-subbron${s.subbron === 'ep-teksten' ? ' teksten' : ''}`}>
+          {EP_SUBBRON_LABEL[s.subbron] ?? s.subbron}
+        </span>
+      )}
+      {s.commissie && (
+        <span className="pac-commissie" title={`Bevoegde commissie · ${s.commissie}`}>
+          {s.commissie}
+        </span>
+      )}
+    </>
+  );
+}
+
 function SignalCard({
   s,
   onOpenDossier,
@@ -87,6 +110,7 @@ function SignalCard({
             </button>
           )}
           <BronBadge bron={s.bron} />
+          <EpMeta s={s} />
         </div>
         <div className="pac-signal-title">{s.title}</div>
         <div className="pac-signal-src">
@@ -163,6 +187,7 @@ function InboxCard({
           </span>
           {s.dossierId && <span className="pac-tag">{dossierNaam(s.dossierId)}</span>}
           <BronBadge bron={s.bron} />
+          <EpMeta s={s} />
         </div>
         <div className="pac-signal-title">{s.title}</div>
         <div className="pac-signal-src">

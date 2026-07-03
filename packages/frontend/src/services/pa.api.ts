@@ -142,15 +142,47 @@ const MOCK_CONFIRMED: Signal[] = [
     id: 'sg3',
     tab: 'europa',
     dossierId: 'energie',
-    title: 'EU-richtlijn netcapaciteit: concept-herziening gepubliceerd',
-    src: 'Europese Commissie · DG ENER · deze week',
-    bron: null,
+    bron: 'eu',
+    subbron: 'ep-rss',
+    commissie: 'ITRE',
     rel: 6,
+    title: 'Ontwerpverslag ITRE: flexibiliteit en netcapaciteit in de interne energiemarkt',
+    src: 'Europees Parlement · Verslag (cie. ITRE) · deze week',
+    ref: {
+      type: 'Verslag',
+      nr: 'A-10-2026-0094',
+      url: 'https://www.europarl.europa.eu/doceo/document/A-10-2026-0094_NL.html',
+    },
     impact: 'kans',
     impactLabel: 'Kans',
     duiding:
-      'Biedt op termijn ruimte voor flexibele aansluitvoorwaarden. Relevant als onderbouwing voor de energy-hub-pilots.',
+      'Opent ruimte voor flexibele aansluitvoorwaarden in de interne markt. Bruikbaar als EU-onderbouwing voor de energy-hub-pilots richting EZK.',
     status: 'confirmed',
+    confirmedBy: 'Sanne Bakker',
+    confirmedAt: 'vandaag 09:05',
+  },
+  {
+    id: 'sg8',
+    tab: 'europa',
+    dossierId: 'stikstof',
+    bron: 'eu',
+    subbron: 'ep-rss',
+    commissie: 'ENVI',
+    rel: 7,
+    title: 'Aangenomen resolutie over uitvoering van de natuurherstelverordening',
+    src: 'Europees Parlement · Aangenomen tekst · gisteren',
+    ref: {
+      type: 'Aangenomen tekst',
+      nr: 'P10_TA(2026)0188',
+      url: 'https://www.europarl.europa.eu/doceo/document/TA-10-2026-0188_NL.html',
+    },
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Uitvoeringsdeadlines kunnen de gebiedsgerichte aanpak versnellen én verzwaren. Relevant voor het stikstof-gebiedsperspectief en het natuurherstel rond de randmeren.',
+    status: 'confirmed',
+    confirmedBy: 'Joost Veenstra',
+    confirmedAt: 'vandaag 08:52',
   },
   {
     id: 'sg5',
@@ -260,6 +292,131 @@ const MOCK_INBOX: Signal[] = [
     duiding: null,
     status: 'candidate',
   },
+  {
+    id: 'in5',
+    tab: 'regionaal',
+    dossierId: 'stikstof',
+    bron: 'ob',
+    title: 'Waterschapsblad Zuiderzeeland: peilbesluit randmeren',
+    src: 'Officiële Bekendmakingen · Waterschapsblad · 2 dgn',
+    ref: {
+      type: 'Waterschapsblad',
+      nr: 'wsb-2026-6620',
+      url: 'https://zoek.officielebekendmakingen.nl/wsb-2026-6620.html',
+    },
+    rel: 4,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+    aiDraft: null,
+  },
+  {
+    id: 'in6',
+    tab: 'europa',
+    dossierId: 'energie',
+    bron: 'eu',
+    subbron: 'ep-rss',
+    title: 'Schriftelijke vraag aan de Commissie over het staatssteunkader voor netuitbreiding',
+    src: 'Europees Parlement · Schriftelijke vraag · 1 dg',
+    ref: {
+      type: 'Schriftelijke vraag',
+      nr: 'E-002145/2026',
+      url: 'https://www.europarl.europa.eu/doceo/document/E-10-2026-002145_NL.html',
+    },
+    rel: 5,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Het antwoord van de Commissie kan staatssteunruimte verduidelijken voor regionale netuitbreiding — volg het en koppel aan het energy-hub-dossier.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 6,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding:
+        'Het antwoord van de Commissie kan staatssteunruimte verduidelijken voor regionale netuitbreiding — volg het en koppel aan het energy-hub-dossier.',
+    },
+  },
+  {
+    id: 'in7',
+    tab: 'europa',
+    dossierId: 'energie',
+    bron: 'eu',
+    subbron: 'ep-teksten',
+    commissie: 'ITRE',
+    title:
+      'Ontwerpverslag over versnelde vergunningverlening voor grensoverschrijdende netinfrastructuur',
+    src: 'Europees Parlement · Verslag · Ingediende teksten · 2 u geleden',
+    ref: {
+      type: 'Verslag',
+      nr: 'A-10-2026-0170',
+      url: 'https://www.europarl.europa.eu/doceo/document/A-10-2026-0170_NL.html',
+    },
+    rel: 6,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Ontwerpverslag met stemming in zicht — vroeg venster om het Flevolandse energy-hub-verhaal aan de EU-lijn te koppelen vóór de plenaire behandeling.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding:
+        'Ontwerpverslag met stemming in zicht — vroeg venster om het Flevolandse energy-hub-verhaal aan de EU-lijn te koppelen vóór de plenaire behandeling.',
+    },
+  },
+  {
+    id: 'in8',
+    tab: 'europa',
+    dossierId: 'stikstof',
+    bron: 'eu',
+    subbron: 'ep-teksten',
+    commissie: 'ENVI',
+    title: 'Ontwerpresolutie over de uitvoering van de natuurherstelverordening in de lidstaten',
+    src: 'Europees Parlement · Ontwerpresolutie · Ingediende teksten · 6 u geleden',
+    ref: {
+      type: 'Ontwerpresolutie',
+      nr: 'B-10-2026-0351',
+      url: 'https://www.europarl.europa.eu/doceo/document/B-10-2026-0351_NL.html',
+    },
+    rel: 5,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Ontwerpresolutie kan de uitvoeringsdruk op de gebiedsgerichte aanpak vergroten. Volg de amendementen; relevant voor het stikstof-gebiedsperspectief en het natuurherstel rond de randmeren.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 6,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding:
+        'Ontwerpresolutie kan de uitvoeringsdruk op de gebiedsgerichte aanpak vergroten. Volg de amendementen; relevant voor het stikstof-gebiedsperspectief en het natuurherstel rond de randmeren.',
+    },
+  },
+  {
+    id: 'in9',
+    tab: 'europa',
+    dossierId: 'stikstof',
+    bron: 'eu',
+    subbron: 'ep-teksten',
+    commissie: 'AGRI',
+    title:
+      'Verslag over een toekomstbestendig perspectief voor de landbouw en stikstofreductie in de EU',
+    src: 'Europees Parlement · Verslag · Ingediende teksten · 1 dg',
+    ref: {
+      type: 'Verslag',
+      nr: 'A-10-2026-0175',
+      url: 'https://www.europarl.europa.eu/doceo/document/A-10-2026-0175_NL.html',
+    },
+    rel: 5,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+    aiDraft: null,
+  },
 ];
 
 // ── Tab → connector metadata ─────────────────────────────────────────
@@ -267,6 +424,7 @@ const MOCK_INBOX: Signal[] = [
 const TAB_SOURCES: Record<string, string[]> = {
   politiek: ['tk', 'ob'],
   regionaal: ['ob'],
+  // Twee EU-subbronnen: (1) EP plenaire RSS-feed (ep-rss) en (2) EP "Ingediende teksten" (ep-teksten)
   europa: ['eu'],
   media: [],
 };
@@ -312,7 +470,7 @@ export async function fetchSignals(params?: {
   dossierId?: string;
 }): Promise<Signal[]> {
   if (SIGNALS_MOCK) {
-    let rows = MOCK_CONFIRMED.filter((s) => s.bron === 'tk' || s.bron === 'ob');
+    let rows = MOCK_CONFIRMED.filter((s) => s.bron === 'tk' || s.bron === 'ob' || s.bron === 'eu');
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
     return rows.sort((a, b) => b.rel - a.rel);

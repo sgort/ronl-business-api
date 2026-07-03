@@ -237,8 +237,8 @@ describe('runCurationCycle — feed error resilience', () => {
 });
 
 describe('promoteToInbox — human override', () => {
-  // persistCandidate's db.none values array: [id, tab, dossierId, title, src, source, ref, rel, sourceKey]
-  const REL_IDX = 7;
+  // persistCandidate's db.none values array: [id, tab, dossierId, title, src, bron, subbron, commissie, ref, rel, sourceKey]
+  const REL_IDX = 9;
 
   it('floors rel to 5 when the rule score is below 5', async () => {
     mockScoreItem.mockReturnValue({ rel: 3, tab: 'regionaal', dossierId: null });

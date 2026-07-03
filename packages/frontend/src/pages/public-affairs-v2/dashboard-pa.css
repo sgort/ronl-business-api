@@ -1410,3 +1410,16 @@
 .pac .pac-help { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--pac-rule); background: var(--pac-paper); color: var(--pac-ink-3); font-size: 11px; font-weight: 700; cursor: pointer; line-height: 1; flex-shrink: 0; }
 .pac .pac-help:hover { border-color: var(--pac-chrome); color: var(--pac-chrome); }
 .pac .pac-help.sm { width: 18px; height: 18px; font-size: 10px; }
+
+/* ── EP subbron & commissie badges ──────────────────────────────────── */
+.pac .pac-subbron {
+  display: inline-block; font-family: var(--pac-mono); font-size: 10px;
+  padding: 2px 6px; border-radius: 3px;
+  background: #eef3fb; color: #1e40af; border: 1px solid #cddcf5;
+}
+.pac .pac-subbron.teksten { background: #f4f0fb; color: #5b21b6; border-color: #ded2f4; }
+.pac .pac-commissie {
+  display: inline-block; font-family: var(--pac-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em; padding: 2px 6px; border-radius: 3px;
+  background: #fbeee0; color: #b45309; border: 1px solid #f0d5b0;
+}
