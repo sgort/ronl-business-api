@@ -70,6 +70,19 @@ export const changelog: Changelog = {
           ],
         },
         {
+          icon: '🔧',
+          iconColor: '#dc2626',
+          title: 'Fix: code-review hardening (PA cache + curation pipeline)',
+          items: [
+            'PA cache startup race: connectAttempted is now reset to false when the initial Redis connection fails, allowing the cache to retry on the next curation cycle instead of remaining permanently disabled for the lifetime of the process.',
+            'PA cache timer leak: withTimeout now clears the fallback setTimeout when Redis responds within the 2 s window, and attaches a rejection handler to the losing side so a late Redis error never surfaces as a spurious unhandledRejection log.',
+            'Curation dedup ordering: ep-teksten items are now pushed to allItems before the plenary RSS items. Since the dedup Set is first-seen-wins, the richer ep-teksten entry (which carries the committee code) now takes priority over the RSS entry when the same EP document appears in both feeds.',
+            'Signal re-fetch after English→Dutch translation: getSeenEpTekstenRefs now only excludes English-titled signals that are still candidates. Confirmed or archived signals are always included in sinceRefs, preventing a permanent re-crawl loop for documents that were reviewed before their Dutch translation was published.',
+            'src label frozen at ingestion: src (e.g. "Tweede Kamer · Document · vandaag") is no longer updated on conflict — it records the time of first indexing and does not drift on subsequent curation cycles.',
+            'Taxonomy seed propagation: the ON CONFLICT clause for PA_TAXONOMY_SEED now also updates query and tags, so changes to search terms or topic tags take effect on the next app restart without requiring a manual database update.',
+          ],
+        },
+        {
           icon: '🧪',
           iconColor: '#6b7280',
           title: 'Tests: ep-texts-submitted unit tests + ep-teksten curation cycle coverage',

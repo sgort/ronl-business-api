@@ -24,6 +24,7 @@ async function getClient(): Promise<ReturnType<typeof createClient> | null> {
     redisClient = client;
     logger.info('PA cache Redis connected');
   } catch (err) {
+    connectAttempted = false; // allow retry on next curation cycle
     logger.warn('PA cache Redis unavailable — live fetch only', {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -38,10 +39,19 @@ async function getClient(): Promise<ReturnType<typeof createClient> | null> {
 const CACHE_OP_TIMEOUT_MS = 2_000;
 
 function withTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), CACHE_OP_TIMEOUT_MS)),
-  ]);
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), CACHE_OP_TIMEOUT_MS);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {

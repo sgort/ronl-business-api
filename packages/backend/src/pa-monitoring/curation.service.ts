@@ -81,7 +81,7 @@ async function persistCandidate(
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'candidate',$11,NOW(),NOW())
        ON CONFLICT (source_key) DO UPDATE
          SET rel = EXCLUDED.rel, dossier_id = EXCLUDED.dossier_id,
-             title = EXCLUDED.title, src = EXCLUDED.src,
+             title = EXCLUDED.title,
              subbron = EXCLUDED.subbron, commissie = EXCLUDED.commissie,
              updated_at = NOW()
          WHERE pa_signals.status = 'candidate'`,
@@ -118,7 +118,7 @@ async function getSeenEpTekstenRefs(): Promise<string[]> {
     const rows = await db.any<{ ref: { nr: string } | null }>(
       `SELECT ref FROM pa_signals
        WHERE subbron = 'ep-teksten' AND ref IS NOT NULL
-         AND NOT (title ~* '^(REPORT|MOTION FOR|RECOMMENDATION|OPINION)\\s')`
+         AND NOT (status = 'candidate' AND title ~* '^(REPORT|MOTION FOR|RECOMMENDATION|OPINION)\\s')`
     );
     return rows.map((r) => r.ref?.nr).filter((nr): nr is string => !!nr);
   } catch {
@@ -187,18 +187,8 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
     if (result) allItems.push(...result.items);
   }
 
-  // Fetch EU once — fetchEuFeed ignores the query string and returns the full cached feed
-  if (hasEuSearches && config.pa.euSourceEnabled) {
-    const result = await fetchEuFeed(null, [], 0, 50).catch((err: unknown) => {
-      logger.error('EU feed fetch failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    });
-    if (result) allItems.push(...result.items);
-  }
-
-  // Fetch EP "Ingediende teksten" — pages through Verslagen + Ontwerpresoluties tabs
+  // Fetch EP "Ingediende teksten" first — its richer metadata (commissie) wins dedup over
+  // the plenary RSS feed when the same document appears in both.
   if (hasEuSearches && config.pa.epTextsSubmittedEnabled) {
     const sinceRefs = new Set(await getSeenEpTekstenRefs());
     const teksten = await fetchAllNewSubmittedTexts({ sinceRefs }).catch((err: unknown) => {
@@ -208,6 +198,17 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
       return [] as FeedItem[];
     });
     allItems.push(...teksten);
+  }
+
+  // Fetch EU plenary RSS — ep-teksten entries already pushed above take priority in dedup.
+  if (hasEuSearches && config.pa.euSourceEnabled) {
+    const result = await fetchEuFeed(null, [], 0, 50).catch((err: unknown) => {
+      logger.error('EU feed fetch failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    });
+    if (result) allItems.push(...result.items);
   }
 
   // Deduplicate by source:id

@@ -142,7 +142,10 @@ async function seedTaxonomy(): Promise<void> {
         `INSERT INTO pa_saved_searches (id, tenant_id, scope, dossier_id, query, tags)
          VALUES ($1, 'flevoland', 'tenant', $2, $3, $4)
          ON CONFLICT (id) DO UPDATE
-           SET dossier_id = EXCLUDED.dossier_id`,
+           SET dossier_id = EXCLUDED.dossier_id,
+               query = EXCLUDED.query,
+               tags = EXCLUDED.tags,
+               updated_at = NOW()`,
         [
           `seed-${entry.id}`,
           dossierId,
