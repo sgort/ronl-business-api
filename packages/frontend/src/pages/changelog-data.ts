@@ -33,6 +33,36 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.6.1',
+      status: 'New',
+      statusColor: '#7c3aed',
+      borderColor: '#ddd6fe',
+      date: 'July 3, 2026',
+      sections: [
+        {
+          icon: '🇪🇺',
+          iconColor: '#0046ad',
+          title: 'EP Ingediende teksten — second EU sub-source',
+          items: [
+            'Second sub-source alongside the existing Plenary RSS: the PA-Cockpit now also ingests "Ingediende teksten" from the EP plenary page (Reports + Draft Resolutions tabs) via a Cheerio scraper on server-rendered HTML.',
+            'Each EP signal now carries a sub-source badge ("Plenaire RSS" or "Ingediende teksten") and — for reports — an orange committee badge (e.g. ITRE, JURI, ENVI) in both the Signal card and Inbox card.',
+            'Scraper paginates both tabs automatically (up to 10 pages per tab, 800 ms delay between requests) and stops early once all cards are already seen. Polling interval: every 6 hours via a setInterval alongside the existing Plenary RSS poll.',
+            "Sub-source and committee are display-only metadata and are not inputs to the scoring algorithm. Existing EU signals have been backfilled with subbron = 'ep-rss' via an idempotent migration.",
+            'Document type is derived from the reference prefix: A-prefix → Verslag or Aanbeveling (based on title prefix), B-prefix → Ontwerpresolutie.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: English-language titles refresh automatically once translated',
+          items: [
+            'The EP publishes documents in the original submission language; the Dutch translation appears later on the listing page. Signals with an English title (detected by the prefix REPORT, MOTION FOR, RECOMMENDATION, or OPINION) are now re-fetched on every curation cycle until the translation becomes available.',
+            'ON CONFLICT clause updated: title and src are now also refreshed for candidate signals, so the Dutch title appears in the inbox card automatically once the EP listing publishes it.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.6.0',
       status: 'New',
       statusColor: '#7c3aed',
