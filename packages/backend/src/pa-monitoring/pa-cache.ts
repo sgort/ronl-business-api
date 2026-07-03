@@ -31,11 +31,24 @@ async function getClient(): Promise<ReturnType<typeof createClient> | null> {
   return redisClient;
 }
 
+// node-redis v4 queues commands while reconnecting after ECONNRESET, so an
+// awaited client.get() can hang indefinitely. Race against a 2 s timeout so a
+// dead Redis always falls through to the live fetch instead of blocking the
+// curation cycle.
+const CACHE_OP_TIMEOUT_MS = 2_000;
+
+function withTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), CACHE_OP_TIMEOUT_MS)),
+  ]);
+}
+
 export async function cacheGet<T>(key: string): Promise<T | null> {
   try {
     const client = await getClient();
     if (!client) return null;
-    const raw = await client.get(key);
+    const raw = await withTimeout(client.get(key), null);
     if (!raw) return null;
     return JSON.parse(raw) as T;
   } catch {
@@ -47,7 +60,7 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number):
   try {
     const client = await getClient();
     if (!client) return;
-    await client.set(key, JSON.stringify(value), { EX: ttlSeconds });
+    await withTimeout(client.set(key, JSON.stringify(value), { EX: ttlSeconds }), undefined);
   } catch {
     // fail-soft
   }

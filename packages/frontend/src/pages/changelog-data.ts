@@ -61,6 +61,15 @@ export const changelog: Changelog = {
           ],
         },
         {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: curation cycle no longer hangs when Redis is unavailable',
+          items: [
+            'node-redis v4 queues commands while reconnecting after an ECONNRESET, causing cacheGet() to await indefinitely and blocking the entire curation cycle — no TK, OB, EU RSS, or ep-teksten fetches would run until the Redis connection recovered.',
+            'Fixed by racing every cache get/set against a 2-second timeout: a dead or slow Redis now falls through to the live fetch within 2 s instead of hanging forever. The cache remains fail-soft — a Redis outage degrades performance (no caching) but never stalls the pipeline.',
+          ],
+        },
+        {
           icon: '🧪',
           iconColor: '#6b7280',
           title: 'Tests: ep-texts-submitted unit tests + ep-teksten curation cycle coverage',
