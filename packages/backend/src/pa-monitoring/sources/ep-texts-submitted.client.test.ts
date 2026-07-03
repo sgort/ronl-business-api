@@ -80,42 +80,40 @@ describe('parsePageHtml (fixture: ep-texts-submitted.html)', () => {
 
   it('parses the ITRE Verslag correctly', () => {
     const doc = docs.find((d) => d.id === 'A-10-2026-0151');
-    expect(doc).toBeDefined();
-    expect(doc!.title).toBe(
-      'VERSLAG over de aanbeveling van de Raad inzake energie-infrastructuur'
-    );
-    expect(doc!.docType).toBe('Verslag');
-    expect(doc!.committee).toBe('ITRE');
-    expect(doc!.date).toBe('2026-06-05');
-    expect(doc!.doceoUrl).toContain('A-10-2026-0151_NL.html');
+    if (!doc) throw new Error('A-10-2026-0151 not found in parsed output');
+    expect(doc.title).toBe('VERSLAG over de aanbeveling van de Raad inzake energie-infrastructuur');
+    expect(doc.docType).toBe('Verslag');
+    expect(doc.committee).toBe('ITRE');
+    expect(doc.date).toBe('2026-06-05');
+    expect(doc.doceoUrl).toContain('A-10-2026-0151_NL.html');
   });
 
   // ── Aanbeveling ─────────────────────────────────────────────────────────────
 
   it('classifies AANBEVELING-titled A-refs as Aanbeveling, not Verslag', () => {
     const doc = docs.find((d) => d.id === 'A-10-2026-0156');
-    expect(doc).toBeDefined();
-    expect(doc!.docType).toBe('Aanbeveling');
-    expect(doc!.committee).toBe('JURI');
+    if (!doc) throw new Error('A-10-2026-0156 not found in parsed output');
+    expect(doc.docType).toBe('Aanbeveling');
+    expect(doc.committee).toBe('JURI');
   });
 
   // ── B-ref Ontwerpresolutie ───────────────────────────────────────────────────
 
   it('classifies B-refs as Ontwerpresolutie with null committee', () => {
     const doc = docs.find((d) => d.id === 'B-10-2026-0333');
-    expect(doc).toBeDefined();
-    expect(doc!.docType).toBe('Ontwerpresolutie');
-    expect(doc!.committee).toBeNull();
-    expect(doc!.date).toBe('2026-07-01');
+    if (!doc) throw new Error('B-10-2026-0333 not found in parsed output');
+    expect(doc.docType).toBe('Ontwerpresolutie');
+    expect(doc.committee).toBeNull();
+    expect(doc.date).toBe('2026-07-01');
   });
 
   // ── English title (Dutch translation not yet available) ──────────────────────
 
   it('parses an English-titled card without modification — title is preserved as-is', () => {
     const doc = docs.find((d) => d.id === 'A-10-2026-0168');
-    expect(doc).toBeDefined();
-    expect(doc!.title).toMatch(/^REPORT on/);
-    expect(doc!.committee).toBe('SANT');
+    if (!doc) throw new Error('A-10-2026-0168 not found in parsed output');
+    expect(doc.title).toMatch(/^REPORT on/);
+    expect(doc.committee).toBe('SANT');
   });
 
   // ── Edge cases ───────────────────────────────────────────────────────────────
