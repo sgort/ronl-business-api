@@ -5,7 +5,7 @@
  * Europa/Media tabs show an honest empty-state (no connector yet).
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import CuratiePijplijnFlow from '../../components/PADashboardV2/CuratiePijplijnFlow';
 import {
   fetchSignals,
@@ -17,6 +17,7 @@ import {
   deleteSavedSearch,
   promoteSearchToTenant,
   promoteToInbox,
+  linkSignalDossier,
   paTabConnected,
   paTabBronnen,
   signalTag,
@@ -27,7 +28,7 @@ import {
 } from '../../services/pa.api';
 import { usePaData } from './PaDataProvider';
 import { MONITORING_TABS, type MonitoringTabId } from './pa.data';
-import type { FeedItem, Signal } from '@ronl/shared';
+import type { Dossier, FeedItem, Signal } from '@ronl/shared';
 
 import type { PaModeId } from './modes.config';
 
@@ -71,19 +72,79 @@ function EpMeta({ s }: { s: Signal }) {
   );
 }
 
+function OrphanActions({
+  id,
+  dossiers,
+  onLink,
+}: {
+  id: string;
+  dossiers: Dossier[];
+  onLink: (id: string, dossierId: string) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const handleKoppel = async () => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      await onLink(id, selected);
+      setSelected('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pac-orphan-actions">
+      <span className="pac-orphan-pick">⚑ Koppel aan dossier</span>
+      <select
+        className="pac-orphan-select"
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        disabled={busy}
+      >
+        <option value="">— kies dossier —</option>
+        {dossiers.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.naam}
+          </option>
+        ))}
+      </select>
+      {selected && (
+        <button
+          type="button"
+          className="pac-btn pac-btn-sm"
+          disabled={busy}
+          onClick={() => void handleKoppel()}
+        >
+          {busy ? '…' : 'Koppelen'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function SignalCard({
   s,
   onOpenDossier,
   dossierNaam,
   justConfirmed,
+  dossiers,
+  onLink,
 }: {
   s: Signal;
   onOpenDossier: (id: string) => void;
   dossierNaam: (id: string | null) => string;
   justConfirmed: boolean;
+  dossiers: Dossier[];
+  onLink: (id: string, dossierId: string) => Promise<void>;
 }) {
+  const isWatchlist = s.routing === 'watchlist';
   return (
-    <div className={`pac-signal ${justConfirmed ? 'pac-signal-fresh' : ''}`}>
+    <div
+      className={`pac-signal ${justConfirmed ? 'pac-signal-fresh' : ''} ${isWatchlist ? 'pac-signal-orphan' : ''}`}
+    >
       <div className="pac-signal-rel">
         <div className="pac-signal-rel-num">{s.rel}</div>
         <div className="pac-signal-rel-lbl">relevantie</div>
@@ -109,6 +170,7 @@ function SignalCard({
               {dossierNaam(s.dossierId)}
             </button>
           )}
+          {isWatchlist && <span className="pac-orphan-chip">⚑ Watchlist</span>}
           <BronBadge bron={s.bron} />
           <EpMeta s={s} />
         </div>
@@ -127,6 +189,12 @@ function SignalCard({
             {s.duiding}
           </div>
         )}
+        {isWatchlist && (
+          <div className="pac-orphan-note">
+            Bevestigd zonder dossier — staat op de watchlist. Koppel aan een dossier om het te
+            activeren.
+          </div>
+        )}
         {s.confirmedBy && !justConfirmed && (
           <div className="pac-confirmed-by">
             ✓ Bevestigd door {s.confirmedBy} · {s.confirmedAt}
@@ -137,6 +205,7 @@ function SignalCard({
             ✓ Zojuist bevestigd · vastgelegd in interventie-log (AI adviseerde · mens besloot)
           </div>
         )}
+        {isWatchlist && <OrphanActions id={s.id} dossiers={dossiers} onLink={onLink} />}
       </div>
       <div className="pac-signal-impact">
         {s.impact && <span className={`pac-impact ${s.impact}`}>{s.impactLabel}</span>}
@@ -185,7 +254,11 @@ function InboxCard({
           <span className={`pac-sigstatus ${isAi ? 'ai' : 'cand'}`}>
             {isAi ? '✦ AI-concept' : 'Regel-kandidaat'}
           </span>
-          {s.dossierId && <span className="pac-tag">{dossierNaam(s.dossierId)}</span>}
+          {s.dossierId ? (
+            <span className="pac-tag">{dossierNaam(s.dossierId)}</span>
+          ) : (
+            <span className="pac-nodossier-chip">⚑ Geen dossier-match</span>
+          )}
           <BronBadge bron={s.bron} />
           <EpMeta s={s} />
         </div>
@@ -452,8 +525,10 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
   const [signals, setSignals] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
+  const inboxCountRef = useRef(0);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [orphanOnly, setOrphanOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // ── Blanco zoekfunctie (cross-source raw search) ──────────────────
@@ -473,12 +548,14 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
 
   const load = useCallback(async () => {
     setLoading(true);
+    setOrphanOnly(false);
     const [sigs, inb] = await Promise.all([
       fetchSignals({ tab: tab.id }),
       fetchInbox({ tab: tab.id }),
     ]);
     setSignals(sigs);
     setInbox(inb);
+    inboxCountRef.current = inb.length;
     setLoading(false);
     updateInboxCount(tab.id, inb.length);
   }, [tab.id, updateInboxCount]);
@@ -596,15 +673,21 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     const key = `${item.source}:${item.id}`;
     try {
       const sig = await promoteToInbox(item);
-      setPromotedKeys((prev) => new Set([...prev, key]));
       if (sig.status === 'confirmed') {
         showToast('Staat al in Gecureerd');
+        // Do not mark as "In Inbox" — it's in Gecureerd, not inbox.
       } else {
+        setPromotedKeys((prev) => new Set([...prev, key]));
         showToast(`Toegevoegd aan inbox · ${signalTagLabel(sig.tab)}`);
         if (sig.tab === tab.id) {
-          const inb = await fetchInbox({ tab: tab.id });
-          setInbox(inb);
-          updateInboxCount(tab.id, inb.length);
+          // Check isNew synchronously against the current closure — functional-update
+          // callbacks run asynchronously and cannot set outer variables reliably.
+          const isNew = !inbox.some((s) => s.id === sig.id);
+          setInbox((prev) => (prev.some((s) => s.id === sig.id) ? prev : [sig, ...prev]));
+          if (isNew) {
+            inboxCountRef.current += 1;
+            updateInboxCount(tab.id, inboxCountRef.current);
+          }
         } else {
           // Promoted to a different tab — fetch that tab's updated count.
           const inb = await fetchInbox({ tab: sig.tab });
@@ -631,12 +714,11 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
             rel: s.aiDraft.rel ?? undefined,
           }
         : undefined;
-      await confirmSignal(s.id, patch);
+      const confirmed = await confirmSignal(s.id, patch);
       setConfirmedIds((prev) => new Set([...prev, s.id]));
-      setSignals((prev) =>
-        [...prev, { ...s, status: 'confirmed' as const }].sort((a, b) => b.rel - a.rel)
-      );
-      updateInboxCount(tab.id, visibleInbox.length - 1);
+      setSignals((prev) => [...prev, confirmed].sort((a, b) => b.rel - a.rel));
+      inboxCountRef.current = Math.max(0, inboxCountRef.current - 1);
+      updateInboxCount(tab.id, inboxCountRef.current);
     } catch {
       // keep item in inbox on error
     }
@@ -644,7 +726,22 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
 
   const handleDismiss = (id: string) => {
     setDismissedIds((prev) => new Set([...prev, id]));
-    updateInboxCount(tab.id, visibleInbox.length - 1);
+    inboxCountRef.current = Math.max(0, inboxCountRef.current - 1);
+    updateInboxCount(tab.id, inboxCountRef.current);
+  };
+
+  const handleLinkDossier = async (id: string, dossierId: string) => {
+    try {
+      const updated = await linkSignalDossier(id, dossierId);
+      setSignals((prev) => {
+        const next = prev.map((s) => (s.id === id ? updated : s));
+        if (!next.some((s) => s.routing === 'watchlist')) setOrphanOnly(false);
+        return next;
+      });
+      showToast(`Gekoppeld aan ${dossierNaam(dossierId)}`);
+    } catch {
+      showToast('Koppelen mislukt — herstart de server en probeer opnieuw');
+    }
   };
 
   const visibleInbox = inbox.filter((s) => !confirmedIds.has(s.id) && !dismissedIds.has(s.id));
@@ -675,14 +772,20 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           <button
             type="button"
             className={`pac-seg-btn ${view === 'gecureerd' ? 'active' : ''}`}
-            onClick={() => setView('gecureerd')}
+            onClick={() => {
+              setView('gecureerd');
+              clearSearch();
+            }}
           >
             Gecureerd <span className="pac-seg-count">{signals.length}</span>
           </button>
           <button
             type="button"
             className={`pac-seg-btn ${view === 'inbox' ? 'active' : ''}`}
-            onClick={() => setView('inbox')}
+            onClick={() => {
+              setView('inbox');
+              clearSearch();
+            }}
           >
             Inbox <span className="pac-seg-count">{visibleInbox.length}</span>
           </button>
@@ -828,17 +931,47 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           )}
         </>
       ) : signals.length ? (
-        <div className="pac-cards">
-          {signals.map((s) => (
-            <SignalCard
-              key={s.id}
-              s={s}
-              onOpenDossier={onOpenDossier}
-              dossierNaam={dossierNaam}
-              justConfirmed={confirmedIds.has(s.id)}
-            />
-          ))}
-        </div>
+        <>
+          {(() => {
+            const watchlistCount = signals.filter((s) => s.routing === 'watchlist').length;
+            const shown = orphanOnly ? signals.filter((s) => s.routing === 'watchlist') : signals;
+            return (
+              <>
+                {watchlistCount > 0 && (
+                  <div className="pac-orphan-filter">
+                    <button
+                      type="button"
+                      className={`pac-orphan-fbtn ${!orphanOnly ? 'active' : ''}`}
+                      onClick={() => setOrphanOnly(false)}
+                    >
+                      Alle
+                    </button>
+                    <button
+                      type="button"
+                      className={`pac-orphan-fbtn ${orphanOnly ? 'active' : ''}`}
+                      onClick={() => setOrphanOnly(true)}
+                    >
+                      ⚑ Watchlist <span className="pac-orphan-fcount">{watchlistCount}</span>
+                    </button>
+                  </div>
+                )}
+                <div className="pac-cards">
+                  {shown.map((s) => (
+                    <SignalCard
+                      key={s.id}
+                      s={s}
+                      onOpenDossier={onOpenDossier}
+                      dossierNaam={dossierNaam}
+                      justConfirmed={confirmedIds.has(s.id)}
+                      dossiers={dossiers.data}
+                      onLink={handleLinkDossier}
+                    />
+                  ))}
+                </div>
+              </>
+            );
+          })()}
+        </>
       ) : (
         <p className="pac-page-sub">Geen gecureerde signalen in deze categorie vandaag.</p>
       )}

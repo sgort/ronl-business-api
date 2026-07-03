@@ -100,6 +100,31 @@ export const changelog: Changelog = {
             'curation.service.test.ts extended with 6 ep-teksten tests: fetched when flag + EU searches active, skipped when flag off or no EU searches, items flow through scoring and persist, error resilience (cycle continues if EP listing unreachable), deduplication against ep-rss items sharing the same ref id.',
           ],
         },
+        {
+          icon: '⚑',
+          iconColor: '#7c3aed',
+          title: 'New: Watchlist — bevestigen zonder dossier',
+          items: [
+            'Signals confirmed without a linked dossier now enter a Watchlist state (routing = \'watchlist\' in pa_signals). The Gecureerd tab shows an "⚑ Alle" / "⚑ Watchlist" filter toggle when watchlist signals are present; clicking "⚑ Watchlist" narrows the view to only those signals.',
+            'Watchlist signal cards carry an "⚑ Watchlist" chip and an inline dossier-picker (OrphanActions): select a dossier from the dropdown and click "Koppelen" to link it via PATCH /v1/pa/signals/:id — this clears the routing field and moves the signal into the normal confirmed flow.',
+            'The orphan filter resets automatically when (a) the user switches to a different Monitoring tab, (b) the last watchlist signal is linked to a dossier, or (c) the search term is cleared.',
+            "DB: routing TEXT column added with ALTER TABLE … ADD COLUMN IF NOT EXISTS; confirm endpoint sets routing = CASE WHEN dossier_id IS NULL THEN 'watchlist' ELSE NULL END; all four SELECT fetch paths include the routing column.",
+            'Backend: new PATCH /v1/pa/signals/:id endpoint sets dossier_id and clears routing = NULL, returning the refreshed signal. Tests: 5 new cases in pa.routes.test.ts (auth gating, missing dossierId → 400, unknown signal → 404, links dossier → routing cleared); total 106 backend tests pass.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: live-testing bugfixes — counter, Koppelen, search, orphan filter',
+          items: [
+            'Watchlist chip not shown immediately after confirm: handleConfirm was discarding the return value of confirmSignal(); the routing field on the returned signal was never applied to local state. Fixed by capturing the returned signal and using it directly in setSignals.',
+            'Koppelen button did nothing: (1) OrphanActions had no loading state — added busy flag so the button shows "…" during the PATCH and is disabled to prevent double-submit; (2) errors were swallowed silently — added an error toast. (3) CORS preflight rejected PATCH: Access-Control-Allow-Methods in index.ts was missing PATCH; added it.',
+            "Inbox counter not updating after Naar inbox: two compounding bugs — (a) setPromotedKeys was called before the status check, so signals already in Gecureerd (returned as status: 'confirmed' via the ON CONFLICT guard) falsely showed \"In Inbox ✓\" and never incremented the count; fixed by moving setPromotedKeys inside the status !== 'confirmed' branch. (b) The isNew flag was computed inside the setInbox functional-update callback, which React runs asynchronously — the synchronous if (added) check always saw false. Fixed by computing isNew synchronously from the closure before calling setInbox.",
+            'Inbox capped at 100 after promote: refetching inbox after a promote hit the LIMIT 100 query cap, so newly promoted low-relevance items were lost from local state. Fixed by prepending the promoted signal directly to local inbox state and tracking the live count in an inboxCountRef (useRef) to avoid stale-closure reads across concurrent promotes.',
+            'Orphan filter trapping empty view: after linking the last watchlist signal, orphanOnly stayed true and the shown list became empty with no way to exit. Fixed by resetting orphanOnly inside handleLinkDossier when no watchlist signals remain, and resetting it in load() on every tab switch.',
+            'Search results staying visible when switching Gecureerd / Inbox tabs: segmented-tab onClick handlers now call clearSearch() alongside setView(), so the search band clears on every tab change.',
+          ],
+        },
       ],
     },
     {

@@ -185,6 +185,30 @@ const MOCK_CONFIRMED: Signal[] = [
     confirmedAt: 'vandaag 08:52',
   },
   {
+    id: 'sg9',
+    tab: 'europa',
+    dossierId: null,
+    bron: 'eu',
+    subbron: 'ep-teksten',
+    commissie: 'SANT',
+    rel: 5,
+    title: 'Verslag over versterking van het Europees gezondheidspersoneel — stand van uitvoering',
+    src: 'Europees Parlement · Verslag · Ingediende teksten · gisteren',
+    ref: {
+      type: 'Verslag',
+      nr: 'A-10-2026-0203',
+      url: 'https://www.europarl.europa.eu/doceo/document/A-10-2026-0203_NL.html',
+    },
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Bevestigd zonder dossier — staat op de EU-watchlist. Raakt breed arbeidsmarktbeleid; volg de stemming en koppel aan een dossier als dit Flevolands relevant wordt.',
+    status: 'confirmed',
+    confirmedBy: 'Sanne Bakker',
+    confirmedAt: 'gisteren 14:30',
+    routing: 'watchlist',
+  },
+  {
     id: 'sg5',
     tab: 'media',
     dossierId: 'lelystad',
@@ -398,7 +422,7 @@ const MOCK_INBOX: Signal[] = [
   {
     id: 'in9',
     tab: 'europa',
-    dossierId: 'stikstof',
+    dossierId: null,
     bron: 'eu',
     subbron: 'ep-teksten',
     commissie: 'AGRI',
@@ -897,7 +921,18 @@ export async function confirmSignal(
   if (SIGNALS_MOCK) {
     const mock = MOCK_INBOX.find((s) => s.id === id);
     if (!mock) throw new Error(`Mock signal ${id} not found`);
-    return { ...mock, status: 'confirmed' as const, ...patch };
+    const confirmed: Signal = { ...mock, status: 'confirmed' as const, ...patch };
+    if (!confirmed.dossierId) confirmed.routing = 'watchlist';
+    return confirmed;
   }
   return paPost<Signal>(`/pa/signals/${id}/confirm`, patch ?? {});
+}
+
+export async function linkSignalDossier(id: string, dossierId: string): Promise<Signal> {
+  if (SIGNALS_MOCK) {
+    const mock = [...MOCK_CONFIRMED, ...MOCK_INBOX].find((s) => s.id === id);
+    if (!mock) throw new Error(`Mock signal ${id} not found`);
+    return { ...mock, dossierId, routing: null };
+  }
+  return paPatch<Signal>(`/pa/signals/${id}`, { dossierId });
 }

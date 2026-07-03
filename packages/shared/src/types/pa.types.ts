@@ -18,6 +18,8 @@ export interface Signal {
   aiDraft?: { rel: number; impact: string; impactLabel: string; duiding: string } | null;
   confirmedBy?: string | null;
   confirmedAt?: string | null;
+  /** 'watchlist' when confirmed without a dossier; null once linked to one. */
+  routing?: 'watchlist' | null;
 }
 
 export interface FeedItem {

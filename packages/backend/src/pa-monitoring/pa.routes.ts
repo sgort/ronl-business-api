@@ -230,7 +230,7 @@ router.get('/signals', async (req, res) => {
 
     const rows = await db.any<Record<string, unknown>>(
       `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
-              duiding, status, ai_draft, confirmed_by, confirmed_at
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals
        WHERE ${conditions.join(' AND ')}
        ORDER BY rel DESC, created_at DESC
@@ -263,7 +263,7 @@ router.post('/signals', async (req, res) => {
     const id = await promoteToInbox(req.user.tenantId, item as FeedItem);
     const row = await db.one<Record<string, unknown>>(
       `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
-              duiding, status, ai_draft, confirmed_by, confirmed_at
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals WHERE id = $1`,
       [id]
     );
@@ -306,6 +306,7 @@ router.post('/signals/:id/confirm', async (req, res) => {
            rel = COALESCE($4, rel),
            confirmed_by = $5,
            confirmed_at = $6,
+           routing = CASE WHEN dossier_id IS NULL THEN 'watchlist' ELSE NULL END,
            updated_at = NOW()
        WHERE id = $7`,
       [
@@ -321,7 +322,7 @@ router.post('/signals/:id/confirm', async (req, res) => {
 
     const updated = await db.one<Record<string, unknown>>(
       `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
-              duiding, status, ai_draft, confirmed_by, confirmed_at
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals WHERE id = $1`,
       [id]
     );
@@ -448,6 +449,45 @@ router.patch('/searches/:id', async (req, res) => {
   }
 });
 
+// ── PATCH /v1/pa/signals/:id ─────────────────────────────────────────────────
+// Link a watchlist signal to a dossier; clears routing.
+router.patch('/signals/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { id } = req.params;
+  const { dossierId } = req.body as { dossierId?: string };
+  if (!dossierId) {
+    return res.status(400).json({ success: false, error: { code: 'MISSING_DOSSIER_ID' } });
+  }
+
+  try {
+    const result = await db.result(
+      `UPDATE pa_signals
+       SET dossier_id = $1,
+           routing = NULL,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [dossierId, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    }
+    const updated = await db.one<Record<string, unknown>>(
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+       FROM pa_signals WHERE id = $1`,
+      [id]
+    );
+    res.json({ success: true, data: rowToSignal(updated) });
+  } catch (err) {
+    logger.error('Signal link dossier error', {
+      id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'LINK_DOSSIER_ERROR' } });
+  }
+});
+
 function rowToSignal(row: Record<string, unknown>): Signal {
   return {
     id: row['id'] as string,
@@ -467,6 +507,7 @@ function rowToSignal(row: Record<string, unknown>): Signal {
     aiDraft: row['ai_draft'] ? (row['ai_draft'] as Signal['aiDraft']) : null,
     confirmedBy: (row['confirmed_by'] as string | null) ?? null,
     confirmedAt: row['confirmed_at'] ? String(row['confirmed_at']) : null,
+    routing: (row['routing'] as 'watchlist' | null) ?? null,
   };
 }
 

@@ -118,6 +118,7 @@ export async function initPaDb(): Promise<void> {
 
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS subbron TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS commissie TEXT;
+      ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS routing TEXT;
     `);
 
     // Backfill: all EU signals created before the subbron column existed came from

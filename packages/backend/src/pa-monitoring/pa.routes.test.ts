@@ -241,11 +241,142 @@ describe('PA routes — role gating', () => {
         ai_draft: null,
         confirmed_by: 'Test User',
         confirmed_at: new Date().toISOString(),
+        routing: null,
       });
       const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('confirmed');
+    });
+
+    it('confirms without dossierId → routing:watchlist in UPDATE SQL', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-eu' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue({
+        id: 'sig-eu',
+        tab: 'europa',
+        dossier_id: null,
+        title: 'EU verslag zonder dossier',
+        src: 'Europees Parlement · Verslag',
+        bron: 'eu',
+        subbron: 'ep-teksten',
+        commissie: 'SANT',
+        ref: null,
+        rel: 5,
+        impact: 'kans',
+        impact_label: 'Kans',
+        duiding: 'Bevestigd zonder dossier',
+        status: 'confirmed',
+        ai_draft: null,
+        confirmed_by: 'Test User',
+        confirmed_at: new Date().toISOString(),
+        routing: 'watchlist',
+      });
+      const res = await request(app).post('/v1/pa/signals/sig-eu/confirm').set(PA).send({});
+      expect(res.status).toBe(200);
+      expect(res.body.data.routing).toBe('watchlist');
+      expect(res.body.data.dossierId).toBeNull();
+      // The UPDATE SQL must contain the CASE expression for routing
+      const updateSql: string = mockDb.none.mock.calls[0][0] as string;
+      expect(updateSql).toMatch(/routing\s*=\s*CASE/i);
+    });
+
+    it('confirmed watchlist signal appears in GET /signals (not filtered out)', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'sig-eu',
+          tab: 'europa',
+          dossier_id: null,
+          title: 'EU verslag zonder dossier',
+          src: 'Europees Parlement · Verslag',
+          bron: 'eu',
+          subbron: 'ep-teksten',
+          commissie: 'SANT',
+          ref: null,
+          rel: 5,
+          impact: 'kans',
+          impact_label: 'Kans',
+          duiding: 'Bevestigd zonder dossier',
+          status: 'confirmed',
+          ai_draft: null,
+          confirmed_by: 'Test User',
+          confirmed_at: new Date().toISOString(),
+          routing: 'watchlist',
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/signals?tab=europa').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].routing).toBe('watchlist');
+      expect(res.body.data[0].dossierId).toBeNull();
+      // SELECT must NOT filter by dossier_id IS NOT NULL
+      const selectSql: string = mockDb.any.mock.calls[0][0] as string;
+      expect(selectSql).not.toMatch(/dossier_id\s+IS\s+NOT\s+NULL/i);
+    });
+  });
+
+  describe('PATCH /v1/pa/signals/:id (link dossier)', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).patch('/v1/pa/signals/sig-eu').send({ dossierId: 'energie' });
+      expect(res.status).toBe(401);
+    });
+
+    it('authenticated non-PA role → 403', async () => {
+      const res = await request(app)
+        .patch('/v1/pa/signals/sig-eu')
+        .set(NON_PA)
+        .send({ dossierId: 'energie' });
+      expect(res.status).toBe(403);
+    });
+
+    it('missing dossierId → 400', async () => {
+      const res = await request(app).patch('/v1/pa/signals/sig-eu').set(PA).send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('MISSING_DOSSIER_ID');
+    });
+
+    it('unknown signal → 404', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 0 });
+      const res = await request(app)
+        .patch('/v1/pa/signals/unknown')
+        .set(PA)
+        .send({ dossierId: 'energie' });
+      expect(res.status).toBe(404);
+    });
+
+    it('links dossier → 200, routing cleared', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.one.mockResolvedValue({
+        id: 'sig-eu',
+        tab: 'europa',
+        dossier_id: 'energie',
+        title: 'EU verslag',
+        src: 'Europees Parlement · Verslag',
+        bron: 'eu',
+        subbron: 'ep-teksten',
+        commissie: 'SANT',
+        ref: null,
+        rel: 5,
+        impact: 'kans',
+        impact_label: 'Kans',
+        duiding: 'Nu gekoppeld aan energie',
+        status: 'confirmed',
+        ai_draft: null,
+        confirmed_by: 'Test User',
+        confirmed_at: new Date().toISOString(),
+        routing: null,
+      });
+      const res = await request(app)
+        .patch('/v1/pa/signals/sig-eu')
+        .set(PA)
+        .send({ dossierId: 'energie' });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.dossierId).toBe('energie');
+      expect(res.body.data.routing).toBeNull();
+      // UPDATE SQL must set routing = NULL
+      const updateSql: string = mockDb.result.mock.calls[0][0] as string;
+      expect(updateSql).toMatch(/routing\s*=\s*NULL/i);
     });
   });
 });
