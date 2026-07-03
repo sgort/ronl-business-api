@@ -5,7 +5,7 @@
  */
 
 jest.mock('@utils/config', () => ({
-  config: { pa: { euSourceEnabled: true } },
+  config: { pa: { euSourceEnabled: true, epTextsSubmittedEnabled: true } },
 }));
 
 jest.mock('@utils/logger', () => ({
@@ -24,6 +24,11 @@ jest.mock('./sources/eu.client', () => ({ fetchEuFeed: mockFetchEuFeed }));
 
 const mockScoreItem = jest.fn();
 jest.mock('./rules', () => ({ scoreItem: mockScoreItem }));
+
+const mockFetchAllNewSubmittedTexts = jest.fn();
+jest.mock('./sources/ep-texts-submitted.client', () => ({
+  fetchAllNewSubmittedTexts: mockFetchAllNewSubmittedTexts,
+}));
 
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import type { FeedItem } from '@ronl/shared';
@@ -67,7 +72,10 @@ beforeEach(() => {
   mockFetchTkFeed.mockResolvedValue({ items: [], total: 0 });
   mockFetchObFeed.mockResolvedValue({ items: [], total: 0 });
   mockFetchEuFeed.mockResolvedValue({ items: [], total: 0 });
+  mockFetchAllNewSubmittedTexts.mockResolvedValue([]);
   mockDb.none.mockResolvedValue(undefined);
+  // getSeenEpTekstenRefs calls db.any; default to empty seen-set
+  mockDb.any.mockResolvedValue([]);
 });
 
 describe('runCurationCycle — no searches', () => {
@@ -233,6 +241,61 @@ describe('runCurationCycle — feed error resilience', () => {
     mockFetchEuFeed.mockRejectedValue(new Error('RSS unreachable'));
     mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT', sources: ['eu'] })]);
     await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+});
+
+describe('runCurationCycle — EP Ingediende teksten routing', () => {
+  it('fetches ep-teksten when there are EU searches and flag is enabled', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
+    await runCurationCycle();
+    expect(mockFetchAllNewSubmittedTexts).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fetch ep-teksten when there are no EU searches', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    await runCurationCycle();
+    expect(mockFetchAllNewSubmittedTexts).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch ep-teksten when the flag is disabled', async () => {
+    const { config } = jest.requireMock('@utils/config');
+    config.pa.epTextsSubmittedEnabled = false;
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
+    await runCurationCycle();
+    expect(mockFetchAllNewSubmittedTexts).not.toHaveBeenCalled();
+    config.pa.epTextsSubmittedEnabled = true; // restore
+  });
+
+  it('ep-teksten items flow through scoring and are persisted', async () => {
+    const epItem = feedItem({
+      id: 'A-10-2026-0151',
+      source: 'eu',
+      subbron: 'ep-teksten',
+      commissie: 'ITRE',
+    });
+    mockFetchAllNewSubmittedTexts.mockResolvedValue([epItem]);
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
+    await runCurationCycle();
+    expect(mockScoreItem).toHaveBeenCalledWith(epItem, expect.any(Array));
+    expect(mockDb.none).toHaveBeenCalledTimes(1);
+  });
+
+  it('ep-teksten fetch failure does not abort the cycle', async () => {
+    mockFetchAllNewSubmittedTexts.mockRejectedValue(new Error('EP listing unreachable'));
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+
+  it('ep-teksten items are deduplicated against eu-rss items with the same id', async () => {
+    const sharedId = 'A-10-2026-0151';
+    const rssItem = feedItem({ id: sharedId, source: 'eu', subbron: 'ep-rss' });
+    const tekstenItem = feedItem({ id: sharedId, source: 'eu', subbron: 'ep-teksten' });
+    mockFetchEuFeed.mockResolvedValue({ items: [rssItem], total: 1 });
+    mockFetchAllNewSubmittedTexts.mockResolvedValue([tekstenItem]);
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
+    await runCurationCycle();
+    // Same source+id — only the first one (from RSS) should be persisted
+    expect(mockDb.none).toHaveBeenCalledTimes(1);
   });
 });
 
