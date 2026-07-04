@@ -1110,7 +1110,7 @@ export const MOCK_SIGNALS: Signal[] = [
     tagLabel: 'Media (sociaal)',
     rel: 5,
     title: 'Toename positief sentiment rond proefbedrijf Swifterbant',
-    src: 'Sociale media · monitoring (Polpo) · 24 u',
+    src: 'Sociale media · monitoring  · 24 u',
     duiding:
       'Het dataverhaal over reductie én rendement resoneert. Versterk dit vóór en tijdens het werkbezoek.',
     impact: 'kans',

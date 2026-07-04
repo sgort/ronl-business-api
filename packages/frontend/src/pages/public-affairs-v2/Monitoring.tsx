@@ -810,7 +810,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         <div className="pac-media-note">
           <b>Nieuws</b> (landelijk + regionaal) is live via de nieuws-aggregator, regio-gescoopt op
           Flevoland (<span className="mono">GET /search · regio=Flevoland</span>).{' '}
-          <b>Sociale media &amp; omgeving</b> (Polpo) volgt als tweede subbron.
+          <b>Sociale media &amp; omgeving</b> volgt als tweede subbron.
         </div>
       )}
 

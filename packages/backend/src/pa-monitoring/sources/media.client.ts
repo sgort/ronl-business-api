@@ -3,7 +3,7 @@
  * Consumes a region-scoped GET /search from the Dutch news-aggregator
  * (100+ national + regional RSS feeds, AI dedup/region-tagging).
  * Maps AggregatorArticle → FeedItem; bron:'media'.
- * Social / omgeving (Polpo) stays a later second sub-source.
+ * Social / omgeving  stays a later second sub-source.
  */
 
 import axios from 'axios';

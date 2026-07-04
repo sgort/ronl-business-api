@@ -616,7 +616,7 @@ const TAB_SOURCES: Record<string, string[]> = {
   // Twee EU-subbronnen: (1) EP plenaire RSS-feed (ep-rss) en (2) EP "Ingediende teksten" (ep-teksten)
   europa: ['eu'],
   // Nieuws-aggregator (100+ landelijke + regionale RSS-feeds), regio-gescoopt op Flevoland via GET /search.
-  // Sociale media/omgeving (Polpo) volgt als tweede subbron.
+  // Sociale media/omgeving  volgt als tweede subbron.
   media: ['media'],
 };
 
