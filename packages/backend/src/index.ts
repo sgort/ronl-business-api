@@ -138,6 +138,11 @@ app.get('/', (req: Request, res: Response) => {
       public: '/v1/public',
       hr: '/v1/hr',
       hrCapacity: '/v1/hr-capacity',
+      curator: '/v1/pa',
+      mediaAggregator: '/v1/media-aggregator',
+      admin: '/v1/admin',
+      m2m: '/v1/m2m',
+      mcp: '/v1/mcp',
     },
     security: {
       authentication: 'JWT (Keycloak)',
