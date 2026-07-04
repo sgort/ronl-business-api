@@ -120,7 +120,10 @@ export const PA_MODES: PaModeConfig[] = [
       },
       {
         label: 'Monitoring',
-        items: [{ id: 'curatie-spec', label: 'Curatiepijplijn', authRequired: true }],
+        items: [
+          { id: 'zoekcriteria', label: 'Zoekcriteria', authRequired: true },
+          { id: 'curatie-spec', label: 'Curatiepijplijn', authRequired: true },
+        ],
       },
       {
         label: 'Account',

@@ -29,10 +29,12 @@ import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
 import KompasSpecSection from './KompasSpecSection';
 import CuratieSpecSection from './CuratieSpecSection';
+import ZoekcriteriaSection from './ZoekcriteriaSection';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
 const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-log']);
 const BEHEER_IDS = new Set<string>([
+  'zoekcriteria',
   'kompas-spec',
   'curatie-spec',
   'profiel',
@@ -94,6 +96,9 @@ export default function PASectionRouter({
     switch (sectionId) {
       case 'kompas-spec':
         content = <KompasSpecSection />;
+        break;
+      case 'zoekcriteria':
+        content = <ZoekcriteriaSection />;
         break;
       case 'curatie-spec':
         content = <CuratieSpecSection />;

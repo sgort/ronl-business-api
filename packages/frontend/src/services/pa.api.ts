@@ -849,6 +849,43 @@ export async function fetchFeedSources(): Promise<string[]> {
   }
 }
 
+/** Mijn zoekcriteria: create a new search with full metadata. */
+export async function createSearch(input: {
+  q: string;
+  source: string[];
+  tags: string[];
+  dossierId: string | null;
+  scope: 'tenant' | 'user';
+}): Promise<{ id: string }> {
+  if (SIGNALS_MOCK) return { id: `srch-mock-${Date.now()}` };
+  return paPost<{ id: string }>('/pa/searches', {
+    scope: input.scope,
+    dossierId: input.dossierId,
+    query: { q: input.q, types: [], source: input.source },
+    tags: input.tags,
+  });
+}
+
+/** Mijn zoekcriteria: edit one or more fields of an existing search. */
+export async function updateSearch(
+  id: string,
+  patch: {
+    q?: string;
+    source?: string[];
+    tags?: string[];
+    dossierId?: string | null;
+    scope?: 'tenant' | 'user';
+  }
+): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paPatch(`/pa/searches/${id}`, {
+    ...(patch.scope !== undefined && { scope: patch.scope }),
+    ...(patch.dossierId !== undefined && { dossierId: patch.dossierId }),
+    ...(patch.q !== undefined && { query: { q: patch.q, types: [], source: patch.source ?? [] } }),
+    ...(patch.tags !== undefined && { tags: patch.tags }),
+  });
+}
+
 /** Mijn zoekopdrachten: remove a personal saved search. */
 export async function deleteSavedSearch(id: string): Promise<void> {
   if (SIGNALS_MOCK) return;

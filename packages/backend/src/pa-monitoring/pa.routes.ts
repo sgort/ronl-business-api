@@ -345,7 +345,7 @@ router.get('/searches', async (req, res) => {
     const rows = await db.any(
       `SELECT id, tenant_id, user_id, scope, dossier_id, query, tags, created_at, updated_at
        FROM pa_saved_searches
-       WHERE tenant_id = $1 AND (scope = 'tenant' OR user_id = $2)
+       WHERE tenant_id = $1 AND (scope = 'tenant' OR user_id = $2 OR user_id IS NULL)
        ORDER BY created_at`,
       [req.user.tenantId, req.user.userId]
     );
@@ -421,28 +421,61 @@ router.delete('/searches/:id', async (req, res) => {
 });
 
 // ── PATCH /v1/pa/searches/:id ─────────────────────────────────────────────────
-// Flip a personal (user) search to a team (tenant) bron, or back. Owner-only via
-// the user_id clause. A tenant-scoped search is what the curation cron consumes.
+// Edit scope, query, tags, and/or dossierId in place.
+// Tenant-guarded (not user_id-only) so team criteria are editable by any PA officer.
 router.patch('/searches/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
-  const { scope } = req.body as { scope?: 'tenant' | 'user' };
-  if (scope !== 'tenant' && scope !== 'user') {
+  const { scope, query, tags, dossierId } = req.body as {
+    scope?: 'tenant' | 'user';
+    query?: { q: string; types?: string[]; source?: string[] };
+    tags?: string[];
+    dossierId?: string | null;
+  };
+
+  if (scope === undefined && query === undefined && tags === undefined && dossierId === undefined) {
+    return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
+  }
+  if (scope !== undefined && scope !== 'tenant' && scope !== 'user') {
     return res.status(400).json({ success: false, error: { code: 'BAD_SCOPE' } });
+  }
+  if (query !== undefined && !query.q?.trim()) {
+    return res.status(400).json({ success: false, error: { code: 'EMPTY_QUERY' } });
   }
 
   try {
+    const sets: string[] = ['updated_at = NOW()'];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (scope !== undefined) {
+      sets.push(`scope = $${idx++}`);
+      values.push(scope);
+    }
+    if (query !== undefined) {
+      sets.push(`query = $${idx++}`);
+      values.push(JSON.stringify(query));
+    }
+    if (tags !== undefined) {
+      sets.push(`tags = $${idx++}`);
+      values.push(tags);
+    }
+    if (dossierId !== undefined) {
+      sets.push(`dossier_id = $${idx++}`);
+      values.push(dossierId);
+    }
+
+    values.push(req.params.id, req.user.tenantId);
     const result = await db.result(
-      `UPDATE pa_saved_searches SET scope = $1, updated_at = NOW()
-       WHERE id = $2 AND user_id = $3 AND tenant_id = $4`,
-      [scope, req.params.id, req.user.userId, req.user.tenantId]
+      `UPDATE pa_saved_searches SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = $${idx + 1}`,
+      values
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
     res.json({ success: true });
   } catch (err) {
-    logger.error('Search scope update error', {
+    logger.error('Search update error', {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'SEARCH_UPDATE_ERROR' } });

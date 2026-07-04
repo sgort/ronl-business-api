@@ -33,6 +33,38 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.7.1',
+      status: 'New',
+      statusColor: '#1d4ed8',
+      borderColor: '#bfdbfe',
+      date: 'July 5, 2026',
+      sections: [
+        {
+          icon: '🔍',
+          iconColor: '#1d4ed8',
+          title: 'New: Zoekcriteria — search criteria management screen in Beheer',
+          items: [
+            'New screen Beheer → Monitoring → Zoekcriteria gives PA officers full control over pa_saved_searches without direct database access. Search criteria determine what the curation pipeline fetches; the screen makes the configuration visible and editable.',
+            'Four live stats at the top: team criteria active in the cron, dossiers covered (n/total), active sources (TK · OB · EU · Media), and watchlist criteria without a dossier.',
+            'Criteria grouped by dossier (team scope), followed by "topic & watchlist" (no dossier, team), followed by personal criteria not yet in the cron. Each card shows search terms as OR-tokens, source badges, tags, scope label, and a representative rel score.',
+            'Three actions per card: Edit (in-place editor), ↗ team / ↩ personal (scope toggle, bidirectional), Delete. A demoted team criterion parks in the personal group and can be re-promoted at any time.',
+            'In-place editor with chip fields for search terms (Enter to add, × to remove) and tags; source toggle buttons (TK / OB / EU / Media); dossier select; scope segmented control. Validates that at least one term and one source are present before saving.',
+            'Scoring preview in the editor shows how the cron would score a strong hit: base relevance 3, +2 for high-value document types (TK/EU), +2 province + +1 municipality for media (gazetteer), +1 per term/tag match on title. Verdict: "becomes candidate" when representative score ≥ 4.',
+            'Backend PATCH /pa/searches/:id extended from scope-only to full edit payload: accepts scope, query, tags, and dossierId as a partial patch with a dynamic SET clause. WHERE now guards on tenant_id only (no longer user_id), so team criteria are editable by any PA officer.',
+            'New frontend API helpers createSearch() and updateSearch() alongside the existing createSavedSearch() and promoteSearchToTenant().',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#b45309',
+          title: 'Fix: demoted seed criteria remain visible after scope change',
+          items: [
+            "GET /pa/searches was not returning seed criteria (user_id IS NULL) after they were demoted to scope user — they disappeared from the list. The WHERE clause filtered on scope = 'tenant' OR user_id = $current_user; NULL matches neither. Fixed by adding OR user_id IS NULL so ownerless searches are always returned regardless of their scope.",
+          ],
+        },
+      ],
+    },
+    {
       version: '3.7.0',
       status: 'New',
       statusColor: '#2d7a33',
