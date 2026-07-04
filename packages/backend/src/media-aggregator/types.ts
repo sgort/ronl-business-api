@@ -44,6 +44,8 @@ export interface FeedSource {
   params?: Record<string, string>;
   /** Regional Flevoland desks — force province = 'Flevoland' even without a name hit. */
   alwaysFlevoland?: boolean;
+  /** When set, only RSS items whose <category> matches this string (case-insensitive) are kept. */
+  categoryFilter?: string;
 }
 
 /** A normalised RSS/Atom item before enrichment. */

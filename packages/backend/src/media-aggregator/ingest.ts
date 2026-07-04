@@ -63,6 +63,7 @@ export function parseFeedXml(xml: string, source: FeedSource): RawItem[] {
     | undefined;
   if (channel) {
     const items = (channel['item'] as Record<string, unknown>[] | undefined) ?? [];
+    const cat = source.categoryFilter?.toLowerCase();
     return items
       .map((it) => ({
         title: text(it['title']),
@@ -70,9 +71,10 @@ export function parseFeedXml(xml: string, source: FeedSource): RawItem[] {
         description: text(it['description']) || text(it['summary']),
         pubDate: text(it['pubDate']) || text(it['date']),
         guid: text(it['guid']) || text(it['link']),
+        category: text(it['category']),
         source,
       }))
-      .filter((r) => r.title && r.link);
+      .filter((r) => r.title && r.link && (!cat || r.category.toLowerCase() === cat));
   }
 
   // Atom

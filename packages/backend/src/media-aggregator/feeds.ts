@@ -35,8 +35,9 @@ export const FEEDS: FeedSource[] = [
     name: 'Omroep Flevoland',
     homepage: 'omroepflevoland.nl',
     type: 'regional',
-    url: 'https://www.omroepflevoland.nl/rss', // VERIFY exact path in prod
+    url: 'https://www.omroepflevoland.nl/RSS/',
     alwaysFlevoland: true,
+    categoryFilter: 'Nieuws',
   },
 
   // ── National — region-scoped by gazetteer match (enrich.ts) ──────────────
@@ -61,5 +62,12 @@ export const FEEDS: FeedSource[] = [
     homepage: 'nu.nl',
     type: 'national',
     url: 'https://www.nu.nl/rss/Algemeen',
+  },
+  {
+    id: 'rtl-nieuws',
+    name: 'RTL Nieuws',
+    homepage: 'rtl.nl',
+    type: 'national',
+    url: 'https://www.rtl.nl/rss.xml',
   },
 ];
