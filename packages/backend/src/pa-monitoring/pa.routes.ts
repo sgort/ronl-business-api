@@ -13,6 +13,7 @@ import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
+import { config } from '@utils/config';
 import type { FeedItem, Signal } from '@ronl/shared';
 
 const router = express.Router();
@@ -545,5 +546,21 @@ function rowToSignal(row: Record<string, unknown>): Signal {
     routing: (row['routing'] as 'watchlist' | null) ?? null,
   };
 }
+
+// ── GET /v1/pa/sources/status ─────────────────────────────────────────────────
+// Read-only connector health: reflects actual env flags so the Signaalbronnen
+// screen never shows a status that contradicts the deployed configuration.
+router.get('/sources/status', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      tk: true,
+      ob: true,
+      eu: config.pa.euSourceEnabled,
+      epTeksten: config.pa.epTextsSubmittedEnabled,
+      media: config.pa.mediaSourceEnabled,
+    },
+  });
+});
 
 export default router;

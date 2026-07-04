@@ -1117,6 +1117,19 @@ export async function fetchAgenda(): Promise<PlenaryItem[]> {
   return paGet<PlenaryItem[]>('/pa/agenda');
 }
 
+export interface SourcesStatus {
+  tk: boolean;
+  ob: boolean;
+  eu: boolean;
+  epTeksten: boolean;
+  media: boolean;
+}
+
+export async function fetchSourcesStatus(): Promise<SourcesStatus> {
+  if (SIGNALS_MOCK) return { tk: true, ob: true, eu: true, epTeksten: true, media: true };
+  return paGet<SourcesStatus>('/pa/sources/status');
+}
+
 export async function triggerCurationCycle(): Promise<{ started: boolean; tenantId: string }> {
   return paPost<{ started: boolean; tenantId: string }>('/pa/curator/run', {});
 }

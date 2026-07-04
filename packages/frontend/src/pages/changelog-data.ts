@@ -55,6 +55,19 @@ export const changelog: Changelog = {
           ],
         },
         {
+          icon: '🔌',
+          iconColor: '#1d4ed8',
+          title: 'New: Signaalbronnen — connector registry screen in Beheer → Monitoring',
+          items: [
+            'New read-only screen Beheer → Monitoring → Signaalbronnen lists every signal connector in one place, grouped by the Monitoring tab the signals land in (Politiek NL, Regionaal, Europa EU, Media & omgeving).',
+            'Each row shows status (Actief / Uitgeschakeld / Verwacht), connector name and description, protocol tag, live environment flag value, and polling cadence.',
+            'Status is derived from live configuration: core connectors (TK, OB, Agenda) are always Actief; EU, EP Ingediende teksten, and Media connectors reflect the EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, and MEDIA_SOURCE_ENABLED flags as deployed — no hardcoding.',
+            'Planned connectors without an implementation (Sociale media & omgeving) render as Verwacht with a dashed "geen connector" tag.',
+            'New backend endpoint GET /v1/pa/sources/status reads config.pa.* flags and returns { tk, ob, eu, epTeksten, media } booleans; consumed by the frontend on mount.',
+            'Summary strip above the groups shows active, disabled, and planned counts plus a dot legend.',
+          ],
+        },
+        {
           icon: '🐛',
           iconColor: '#b45309',
           title: 'Fix: demoted seed criteria remain visible after scope change',
@@ -97,7 +110,7 @@ export const changelog: Changelog = {
             'New media.client.ts: AggregatorArticle → FeedItem pure mapper with duplicate_group_id collapse; fetchFlevolandNews hits GET /search?region=Flevoland, 15 s timeout, 2 retries, per-article try/catch so one malformed article never drops the batch.',
             'Geographic relevance bump in rules.ts: media items get +2 when "Flevoland" appears anywhere in the haystack (title + description + regio), +1 for a matched Flevoland municipality (with town aliases: Emmeloord → Noordoostpolder, etc.). The bestScore === 0 floor is enforced — geographic context alone never surfaces noise.',
             'Two new display-only signal fields: regio (e.g. "Flevoland · Lelystad") and sentiment (positief / neutraal / negatief) stored in pa_signals via ALTER TABLE … ADD COLUMN IF NOT EXISTS. Both surface as MediaMeta badge strips on SignalCard and InboxCard; neither is a scoring input. Sentiment is phase-2 (null in v1; stub in enrich.ts ready to wire to Anthropic).',
-            'Eleven media seed searches: topic-linked (media-stikstof, media-lelystad, media-energie), province catch-all (media-flevoland — now includes Zuiderzeeland), and per-bestuurseenheid watchlists for all six Flevoland municipalities (Almere, Lelystad, Dronten, Noordoostpolder with Emmeloord, Urk, Zeewolde) plus Waterschap Zuiderzeeland. Each watchlist entry has dossierId: null; curators link signals to dossiers during review. MEDIA_SOURCE_ENABLED=true in dev (loopback ready). Sociale media / omgeving (Polpo) noted in the UI as a planned second sub-source.',
+            'Eleven media seed searches: topic-linked (media-stikstof, media-lelystad, media-energie), province catch-all (media-flevoland — now includes Zuiderzeeland), and per-bestuurseenheid watchlists for all six Flevoland municipalities (Almere, Lelystad, Dronten, Noordoostpolder with Emmeloord, Urk, Zeewolde) plus Waterschap Zuiderzeeland. Each watchlist entry has dossierId: null; curators link signals to dossiers during review. MEDIA_SOURCE_ENABLED=true in dev (loopback ready). Sociale media / omgeving noted in the UI as a planned second sub-source.',
             'Waterschap Zuiderzeeland added to the aggregator gazetteer (enrich.ts) and the scoring set (rules.ts) — articles mentioning it are region-tagged as Flevoland and receive the +1 geographic bump alongside the province +2.',
             'Tests: media-aggregator.test.ts (14 cases — RSS parse, mapping, region tagging with town aliases, dedup clustering, summary capping, malformed-skip, filter semantics), media.client.test.ts (11 cases), rules.test.ts +8 media scoring cases, curation.service.test.ts +7 media pipeline cases. All 148 backend tests pass.',
           ],

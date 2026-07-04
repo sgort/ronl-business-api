@@ -1631,3 +1631,71 @@
   .pac .pac-zc-card-main { grid-template-columns: 1fr; }
   .pac .pac-zc-card-side { flex-direction: row; align-items: center; }
 }
+
+/* ── Beheer · Signaalbronnen (source registry) ─────────────── */
+.pac .pac-src { max-width: 940px; }
+.pac .pac-src-summary {
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  margin: 18px 0 22px; padding: 14px 16px;
+  background: var(--pac-bg); border: 1px solid var(--pac-rule-2);
+}
+.pac .pac-src-stat { font-size: 13px; color: var(--pac-ink-2); display: flex; align-items: baseline; gap: 6px; }
+.pac .pac-src-statnum { font-family: var(--pac-mono); font-size: 18px; font-weight: 700; line-height: 1; }
+.pac .pac-src-statnum.ok { color: var(--pac-green); }
+.pac .pac-src-statnum.off { color: var(--pac-amber); }
+.pac .pac-src-statnum.plan { color: var(--pac-ink-3); }
+.pac .pac-src-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-left: auto; }
+.pac .pac-src-lg { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--pac-ink-3); }
+
+.pac .pac-src-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.pac .pac-src-dot.ok { background: var(--pac-green); }
+.pac .pac-src-dot.off { background: var(--pac-amber); }
+.pac .pac-src-dot.plan { background: transparent; border: 1.5px dashed var(--pac-ink-4); }
+
+.pac .pac-src-group { padding: 0; overflow: hidden; }
+.pac .pac-src-group + .pac-src-group { margin-top: 14px; }
+.pac .pac-src-grouphead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 11px 16px; background: var(--pac-bg); border-bottom: 1px solid var(--pac-rule-2);
+}
+.pac .pac-src-grouptab { font-size: 13px; font-weight: 700; color: var(--pac-ink); letter-spacing: -0.01em; }
+.pac .pac-src-groupcount { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-ink-3); }
+
+.pac .pac-src-rows { display: flex; flex-direction: column; }
+.pac .pac-src-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) 150px 210px 90px;
+  align-items: center; gap: 14px;
+  padding: 13px 16px; border-bottom: 1px solid var(--pac-rule-2);
+}
+.pac .pac-src-row:last-child { border-bottom: none; }
+.pac .pac-src-row.status-verwacht { background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); }
+
+.pac .pac-src-status { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--pac-ink-2); }
+.pac .pac-src-row.status-actief .pac-src-status { color: var(--pac-green-d); }
+.pac .pac-src-row.status-uit .pac-src-status { color: var(--pac-amber); }
+.pac .pac-src-row.status-verwacht .pac-src-status { color: var(--pac-ink-3); }
+
+.pac .pac-src-name { font-size: 13.5px; font-weight: 600; color: var(--pac-ink); }
+.pac .pac-src-note { font-size: 12px; color: var(--pac-ink-2); line-height: 1.45; margin-top: 2px; }
+.pac .pac-src-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 5px; font-size: 11px; color: var(--pac-ink-3); }
+.pac .pac-src-key { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-chrome); background: #eaf1fb; border: 1px solid #cadcf6; padding: 1px 6px; }
+.pac .pac-src-file { font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-4); }
+.pac .pac-src-sep { color: var(--pac-rule); }
+
+.pac .pac-src-tag {
+  font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-2);
+  border: 1px solid var(--pac-rule); background: var(--pac-bg); padding: 3px 8px;
+  justify-self: start; white-space: nowrap;
+}
+.pac .pac-src-env { font-family: var(--pac-mono); font-size: 10.5px; padding: 3px 8px; white-space: nowrap; }
+.pac .pac-src-env.on { color: var(--pac-green-d); background: #eef7f1; border: 1px solid #c3e6cd; }
+.pac .pac-src-env.off { color: var(--pac-amber); background: #fbf3e1; border: 1px solid #ecd9a8; }
+.pac .pac-src-env.core { color: var(--pac-ink-3); background: var(--pac-bg); border: 1px solid var(--pac-rule-2); }
+.pac .pac-src-env.plan { color: var(--pac-ink-4); background: transparent; border: 1px dashed var(--pac-ink-4); }
+.pac .pac-src-cadence { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-ink-3); justify-self: end; white-space: nowrap; }
+
+@media (max-width: 880px) {
+  .pac .pac-src-row { grid-template-columns: 110px 1fr; }
+  .pac .pac-src-tag, .pac .pac-src-flag, .pac .pac-src-cadence { grid-column: 2; justify-self: start; }
+}
