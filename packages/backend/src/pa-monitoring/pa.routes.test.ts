@@ -115,6 +115,24 @@ describe('PA routes — role gating', () => {
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
     });
+
+    it('response includes meta envelope with total, cap, and capped=false when under cap', async () => {
+      mockDb.any
+        .mockResolvedValueOnce([]) // rows (LIMIT query)
+        .mockResolvedValueOnce([{ count: '42' }]); // COUNT(*) query
+      const res = await request(app).get('/v1/pa/signals').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.meta).toEqual({ total: 42, cap: 100, capped: false });
+    });
+
+    it('meta.capped=true and total reflects full count when COUNT(*) exceeds cap', async () => {
+      mockDb.any
+        .mockResolvedValueOnce([]) // rows (100-row LIMIT result)
+        .mockResolvedValueOnce([{ count: '142' }]); // COUNT(*) query
+      const res = await request(app).get('/v1/pa/signals').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.meta).toEqual({ total: 142, cap: 100, capped: true });
+    });
   });
 
   describe('POST /v1/pa/signals (promote raw hit)', () => {
