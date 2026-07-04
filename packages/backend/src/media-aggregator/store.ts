@@ -44,8 +44,7 @@ async function refresh(): Promise<AggregatorArticle[]> {
 
 /** Return the current article set, refreshing if the cache is cold or stale. */
 export async function getArticles(): Promise<AggregatorArticle[]> {
-  const fresh = cache && Date.now() - cache.fetchedAt < ttlMs();
-  if (fresh) return cache!.articles;
+  if (cache && Date.now() - cache.fetchedAt < ttlMs()) return cache.articles;
 
   // Coalesce concurrent refreshes into one in-flight fetch.
   if (!inflight) {

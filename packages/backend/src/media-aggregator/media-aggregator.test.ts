@@ -108,8 +108,9 @@ describe('dedup', () => {
     const articles = items.map(toArticle);
     assignDuplicateGroups(articles);
     // items[1] and items[2] share the "stikstofkader provincies" title
-    const nu = articles.find((a) => a.canonical_url.includes('nu.nl/politiek'))!;
-    const nos = articles.find((a) => a.canonical_url.includes('nos.nl'))!;
+    const nu = articles.find((a) => a.canonical_url.includes('nu.nl/politiek'));
+    const nos = articles.find((a) => a.canonical_url.includes('nos.nl'));
+    if (!nu || !nos) throw new Error('expected duplicate articles not found');
     expect(nu.duplicate_group_id).not.toBeNull();
     expect(nu.duplicate_group_id).toBe(nos.duplicate_group_id);
   });
@@ -118,7 +119,8 @@ describe('dedup', () => {
     const items = parseFeedXml(XML, NATIONAL);
     const articles = items.map(toArticle);
     assignDuplicateGroups(articles);
-    const airport = articles.find((a) => a.canonical_url.includes('luchthavenbesluit'))!;
+    const airport = articles.find((a) => a.canonical_url.includes('luchthavenbesluit'));
+    if (!airport) throw new Error('expected airport article not found');
     expect(airport.duplicate_group_id).toBeNull();
   });
 
