@@ -899,7 +899,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           <p className="pac-empty-body">
             {tab.id === 'europa'
               ? 'Voor Europese signalen is nog geen connector aangesloten. De TK- en OB-bronnen dekken nationaal en regionaal; een EU-bron volgt in een latere cyclus.'
-              : 'Media- en omgevingssignalen vergen een aparte connector (bijv. Polpo). Die landt in cyclus 2 — achter dezelfde curatiepijplijn, zonder schermwijziging.'}
+              : 'Media- en omgevingssignalen vergen een aparte connector. Die landt in cyclus 2 — achter dezelfde curatiepijplijn, zonder schermwijziging.'}
           </p>
           <p className="pac-empty-foot">
             PlatO-integratie dekt nu: <b>Politiek (NL)</b> via Tweede Kamer · <b>Regionaal</b> via
