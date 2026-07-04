@@ -1652,7 +1652,7 @@
 .pac .pac-src-dot.off { background: var(--pac-amber); }
 .pac .pac-src-dot.plan { background: transparent; border: 1.5px dashed var(--pac-ink-4); }
 
-.pac .pac-src-group { padding: 0; overflow: hidden; }
+.pac .pac-src-group { padding: 0; overflow: hidden; border: 1px solid var(--pac-rule-2); border-radius: 8px; background: var(--pac-paper); }
 .pac .pac-src-group + .pac-src-group { margin-top: 14px; }
 .pac .pac-src-grouphead {
   display: flex; align-items: baseline; justify-content: space-between;

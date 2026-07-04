@@ -271,7 +271,7 @@ export default function BronnenSection() {
       </div>
 
       {BRON_GROEPEN.map((g) => (
-        <div key={g.route} className="pac-beheer-card pac-src-group">
+        <div key={g.route} className="pac-src-group">
           <div className="pac-src-grouphead">
             <span className="pac-src-grouptab">{g.tab}</span>
             <span className="pac-src-groupcount">
