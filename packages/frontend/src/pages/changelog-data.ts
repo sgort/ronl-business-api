@@ -57,15 +57,16 @@ export const changelog: Changelog = {
         {
           icon: '📰',
           iconColor: '#2f5d3a',
-          title: 'New: Media & omgeving — nieuws-aggregator as seventh PA source',
+          title: 'New: Media & omgeving — in-house nieuws-aggregator as seventh PA source',
           items: [
-            'Media tab in PA-Cockpit Monitoring is now a live connected source (bron: media) via an external Dutch news-aggregator (100+ national + regional RSS feeds, AI-dedup and region-tagging). The tab was previously an honest empty state; it now runs a full curation cycle alongside TK, OB, and EU.',
-            'New media.client.ts: AggregatorArticle → FeedItem pure mapper (articleToFeedItem) with duplicate_group_id collapse (syndicated copies of the same story merge to one FeedItem); fetchFlevolandNews hits GET /search?region=Flevoland with an OR-joined query term list, Bearer auth, 15 s timeout, 2 retries with 1.5 s backoff, and per-article try/catch so one malformed article never drops the batch.',
-            'Geographic relevance bump in rules.ts: media items get +2 when "Flevoland" appears anywhere in the haystack (title + description + regio field), and an additional +1 for any matched Flevoland municipality (Almere, Lelystad, Dronten, Noordoostpolder, Urk, Zeewolde). The bestScore === 0 floor is fully enforced — geographic context alone never surfaces noise; a term match is also required.',
-            'Two new display-only signal fields: regio (e.g. "Flevoland · Lelystad") and sentiment (positief / neutraal / negatief) stored in pa_signals via two ALTER TABLE … ADD COLUMN IF NOT EXISTS migrations. Both are surfaced in MediaMeta badge strips (sibling of EpMeta) on SignalCard and InboxCard; neither is an input to scoring.',
-            'Four media seed searches added: media-flevoland (dossierId null, watchlist entry), media-stikstof, media-lelystad, media-energie — all with source: ["media"].',
-            'MEDIA_SOURCE_ENABLED=false default — ships dark; flip to true and set MEDIA_AGGREGATOR_BASE + MEDIA_AGGREGATOR_API_KEY once the aggregator is live. Social media / omgeving (Polpo) noted in the UI as a planned second sub-source.',
-            'Tests: media.client.test.ts (11 cases — mapper, dedup collapse, malformed-skip, resilience), rules.test.ts extended with 8 media scoring cases, curation.service.test.ts updated for the two new INSERT columns. All 127 backend tests pass.',
+            'Media tab in PA-Cockpit Monitoring is now a live connected source (bron: media) backed by a minimal in-house aggregator (src/media-aggregator/) that ships as a module in the same backend process. The tab was previously an honest empty state; it now runs the full curation cycle alongside TK, OB, and EU. No external SaaS dependency.',
+            'The aggregator (GET /v1/media-aggregator/search) fetches a curated set of Dutch RSS feeds in parallel: Provincie Flevoland and Omroep Flevoland (regional, always Flevoland-tagged), plus Rijksoverheid, NOS Nieuws, and NU.nl (national, Flevoland-scoped by the gazetteer). Near-duplicate syndicated stories receive a shared duplicate_group_id so the cockpit collapses them to one candidate. In-memory TTL cache (15 min, lazy refresh, stale-on-error). Zero new npm dependencies — axios, fast-xml-parser, and express are already present.',
+            'The aggregator serves the same AggregatorArticle contract media.client.ts already expects, so the cockpit connector needed no changes — MEDIA_AGGREGATOR_BASE now points at the loopback URL. Optional M2M bearer key (MEDIA_AGGREGATOR_ACCEPT_KEY / MEDIA_AGGREGATOR_API_KEY); left unset in dev for open loopback access. GET /v1/media-aggregator/health returns { ok, cached } for ops.',
+            'New media.client.ts: AggregatorArticle → FeedItem pure mapper with duplicate_group_id collapse; fetchFlevolandNews hits GET /search?region=Flevoland, 15 s timeout, 2 retries, per-article try/catch so one malformed article never drops the batch.',
+            'Geographic relevance bump in rules.ts: media items get +2 when "Flevoland" appears anywhere in the haystack (title + description + regio), +1 for a matched Flevoland municipality (with town aliases: Emmeloord → Noordoostpolder, etc.). The bestScore === 0 floor is enforced — geographic context alone never surfaces noise.',
+            'Two new display-only signal fields: regio (e.g. "Flevoland · Lelystad") and sentiment (positief / neutraal / negatief) stored in pa_signals via ALTER TABLE … ADD COLUMN IF NOT EXISTS. Both surface as MediaMeta badge strips on SignalCard and InboxCard; neither is a scoring input. Sentiment is phase-2 (null in v1; stub in enrich.ts ready to wire to Anthropic).',
+            'Four media seed searches added (media-flevoland, media-stikstof, media-lelystad, media-energie). MEDIA_SOURCE_ENABLED=true in dev (loopback ready). Social media / omgeving (Polpo) noted in the UI as a planned second sub-source.',
+            'Tests: media-aggregator.test.ts (14 cases — RSS parse, mapping, region tagging with town aliases, dedup clustering, summary capping, malformed-skip, filter semantics), media.client.test.ts (11 cases), rules.test.ts +8 media scoring cases, curation.service.test.ts +7 media pipeline cases. All 148 backend tests pass.',
           ],
         },
         {
@@ -73,7 +74,7 @@ export const changelog: Changelog = {
           iconColor: '#6b7280',
           title: 'Fix: environment files — PA section missing',
           items: [
-            '.env.example and .env.development were missing the entire PA Monitoring section. Added EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, MEDIA_SOURCE_ENABLED, MEDIA_AGGREGATOR_BASE, and MEDIA_AGGREGATOR_API_KEY with comments. .env.example uses placeholder values; .env.development ships with MEDIA_SOURCE_ENABLED=false and empty credentials.',
+            '.env.example and .env.development were missing the entire PA Monitoring section. Added EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, MEDIA_SOURCE_ENABLED, MEDIA_AGGREGATOR_BASE, MEDIA_AGGREGATOR_API_KEY, MEDIA_AGGREGATOR_ACCEPT_KEY, MEDIA_AGGREGATOR_CACHE_TTL_MS, and MEDIA_AGGREGATOR_SENTIMENT_ENABLED with comments. .env.development ships with loopback defaults and MEDIA_SOURCE_ENABLED=true; .env.example uses placeholder values.',
             '.env.production was missing the three frontend mock flags (VITE_PA_SIGNALS_MOCK, VITE_PA_DOSSIERS_MOCK, VITE_PA_AGENDA_MOCK) that dev and acceptance already had explicitly set to false.',
           ],
         },

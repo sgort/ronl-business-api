@@ -43,6 +43,10 @@ export default function CuratiePijplijnFlow() {
               <b>Europees Parlement</b>
               <span className="live">RSS ✓</span>
             </div>
+            <div className="srcline">
+              <b>Nieuws &amp; media</b>
+              <span className="live">aggregator ✓</span>
+            </div>
           </div>
         </div>
         <div className="fr conn">

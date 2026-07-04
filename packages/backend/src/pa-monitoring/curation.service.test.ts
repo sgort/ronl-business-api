@@ -5,7 +5,9 @@
  */
 
 jest.mock('@utils/config', () => ({
-  config: { pa: { euSourceEnabled: true, epTextsSubmittedEnabled: true } },
+  config: {
+    pa: { euSourceEnabled: true, epTextsSubmittedEnabled: true, mediaSourceEnabled: true },
+  },
 }));
 
 jest.mock('@utils/logger', () => ({
@@ -28,6 +30,11 @@ jest.mock('./rules', () => ({ scoreItem: mockScoreItem }));
 const mockFetchAllNewSubmittedTexts = jest.fn();
 jest.mock('./sources/ep-texts-submitted.client', () => ({
   fetchAllNewSubmittedTexts: mockFetchAllNewSubmittedTexts,
+}));
+
+const mockFetchFlevolandNews = jest.fn();
+jest.mock('./sources/media.client', () => ({
+  fetchFlevolandNews: mockFetchFlevolandNews,
 }));
 
 import { runCurationCycle, promoteToInbox } from './curation.service';
@@ -73,6 +80,7 @@ beforeEach(() => {
   mockFetchObFeed.mockResolvedValue({ items: [], total: 0 });
   mockFetchEuFeed.mockResolvedValue({ items: [], total: 0 });
   mockFetchAllNewSubmittedTexts.mockResolvedValue([]);
+  mockFetchFlevolandNews.mockResolvedValue([]);
   mockDb.none.mockResolvedValue(undefined);
   // getSeenEpTekstenRefs calls db.any; default to empty seen-set
   mockDb.any.mockResolvedValue([]);
@@ -295,6 +303,72 @@ describe('runCurationCycle — EP Ingediende teksten routing', () => {
     mockDb.any.mockResolvedValue([savedSearch({ q: 'REPORT OR MOTION', sources: ['eu'] })]);
     await runCurationCycle();
     // Same source+id — only the first one (from RSS) should be persisted
+    expect(mockDb.none).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runCurationCycle — media source routing', () => {
+  it('fetches media when there are media searches and flag is enabled', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
+    await runCurationCycle();
+    expect(mockFetchFlevolandNews).toHaveBeenCalledTimes(1);
+    expect(mockFetchFlevolandNews).toHaveBeenCalledWith({ terms: ['stikstof'] });
+  });
+
+  it('does not fetch media when there are no media searches', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    await runCurationCycle();
+    expect(mockFetchFlevolandNews).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch media when the flag is disabled', async () => {
+    const { config } = jest.requireMock('@utils/config');
+    config.pa.mediaSourceEnabled = false;
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
+    await runCurationCycle();
+    expect(mockFetchFlevolandNews).not.toHaveBeenCalled();
+    config.pa.mediaSourceEnabled = true; // restore
+  });
+
+  it('multiple media searches pass all terms in one call', async () => {
+    mockDb.any.mockResolvedValue([
+      savedSearch({ id: 's1', q: 'stikstof', sources: ['media'] }),
+      savedSearch({ id: 's2', q: 'lelystad airport', sources: ['media'] }),
+    ]);
+    await runCurationCycle();
+    expect(mockFetchFlevolandNews).toHaveBeenCalledTimes(1);
+    const { terms } = mockFetchFlevolandNews.mock.calls[0][0] as { terms: string[] };
+    expect(terms).toContain('stikstof');
+    expect(terms).toContain('lelystad airport');
+  });
+
+  it('media items flow through scoring and are persisted', async () => {
+    const mediaItem = feedItem({
+      id: 'art-abc123',
+      source: 'media',
+      regio: 'Flevoland · Almere',
+      sentiment: 'neutraal',
+    });
+    mockFetchFlevolandNews.mockResolvedValue([mediaItem]);
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'netcongestie', sources: ['media'] })]);
+    await runCurationCycle();
+    expect(mockScoreItem).toHaveBeenCalledWith(mediaItem, expect.any(Array));
+    expect(mockDb.none).toHaveBeenCalledTimes(1);
+  });
+
+  it('media fetch failure does not abort the cycle', async () => {
+    mockFetchFlevolandNews.mockRejectedValue(new Error('aggregator unreachable'));
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+
+  it('media items are deduplicated against each other by source:id', async () => {
+    const sharedId = 'dup-cluster-1';
+    const a = feedItem({ id: sharedId, source: 'media' });
+    const b = feedItem({ id: sharedId, source: 'media' });
+    mockFetchFlevolandNews.mockResolvedValue([a, b]);
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
+    await runCurationCycle();
     expect(mockDb.none).toHaveBeenCalledTimes(1);
   });
 });
