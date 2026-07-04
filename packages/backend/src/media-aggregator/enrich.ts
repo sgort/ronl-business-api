@@ -35,6 +35,7 @@ const MUNICIPALITY_ALIASES: Record<string, string[]> = {
   ],
   Urk: ['urk'],
   Zeewolde: ['zeewolde'],
+  'Waterschap Zuiderzeeland': ['waterschap zuiderzeeland', 'zuiderzeeland'],
 };
 
 export interface RegionTag {

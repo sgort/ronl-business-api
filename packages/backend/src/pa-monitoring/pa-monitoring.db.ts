@@ -82,7 +82,8 @@ const PA_TAXONOMY_SEED: SeedEntry[] = [
   {
     id: 'media-flevoland',
     dossierId: null,
-    query: 'Flevoland OR Almere OR Lelystad OR Dronten OR Noordoostpolder OR Urk OR Zeewolde',
+    query:
+      'Flevoland OR Almere OR Lelystad OR Dronten OR Noordoostpolder OR Urk OR Zeewolde OR Zuiderzeeland',
     tags: ['flevoland', 'provincie'],
     bronnen: ['media'],
   },
@@ -105,6 +106,57 @@ const PA_TAXONOMY_SEED: SeedEntry[] = [
     dossierId: 'energie',
     query: 'netcongestie OR netcapaciteit OR "energy hub" OR flexibiliteit',
     tags: ['energie', 'netcongestie'],
+    bronnen: ['media'],
+  },
+  // Per-gemeente watchlist searches — dossierId null so signals land on the watchlist.
+  // Curators can link individual signals to a dossier during review.
+  {
+    id: 'media-gemeente-almere',
+    dossierId: null,
+    query: 'Almere',
+    tags: ['almere', 'gemeente'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-gemeente-lelystad',
+    dossierId: null,
+    query: 'Lelystad',
+    tags: ['lelystad', 'gemeente'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-gemeente-dronten',
+    dossierId: null,
+    query: 'Dronten OR Swifterbant OR Biddinghuizen',
+    tags: ['dronten', 'gemeente'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-gemeente-noordoostpolder',
+    dossierId: null,
+    query: 'Noordoostpolder OR Emmeloord',
+    tags: ['noordoostpolder', 'gemeente'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-gemeente-urk',
+    dossierId: null,
+    query: 'Urk',
+    tags: ['urk', 'gemeente'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-gemeente-zeewolde',
+    dossierId: null,
+    query: 'Zeewolde',
+    tags: ['zeewolde', 'gemeente'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-waterschap-zuiderzeeland',
+    dossierId: null,
+    query: 'Waterschap Zuiderzeeland OR Zuiderzeeland',
+    tags: ['waterschap', 'zuiderzeeland'],
     bronnen: ['media'],
   },
 ];

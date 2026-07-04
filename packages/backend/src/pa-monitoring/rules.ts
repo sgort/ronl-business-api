@@ -37,6 +37,7 @@ const FLEVOLAND_MUNICIPALITIES = new Set([
   'noordoostpolder',
   'urk',
   'zeewolde',
+  'zuiderzeeland',
 ]);
 
 export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult {
