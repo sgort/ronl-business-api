@@ -40,6 +40,17 @@ export const changelog: Changelog = {
       date: 'July 5, 2026',
       sections: [
         {
+          icon: '🔢',
+          iconColor: '#1d4ed8',
+          title: 'Fix: Inbox count honest — 100+ pill and cap banner when inbox exceeds limit',
+          items: [
+            'GET /v1/pa/signals now runs a parallel COUNT(*) over the same WHERE conditions and returns meta: { total, cap: 100, capped } alongside the existing data array — back-compat, no change to the LIMIT, ordering, or WHERE.',
+            'Inbox tab pill shows "100+" instead of "100" when the total exceeds the query cap, making the silent truncation visible at a glance.',
+            'A "Top 100" banner appears above the candidate list when capped, stating the true total and how many candidates fall outside the current view: "N kandidaten in deze inbox, gesorteerd op relevantie (rel, aflopend). De weergave toont de bovenste 100; M met lagere relevantie vallen nu buiten beeld."',
+            'Rail badge and per-tab seed counts in PaDataProvider now use meta.total (true count) instead of the array length (capped at 100).',
+          ],
+        },
+        {
           icon: '📊',
           iconColor: '#2f8f4e',
           title: 'New: Feiten & cijfers — Feitelijk Flevoland monitor library',

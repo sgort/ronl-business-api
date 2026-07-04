@@ -229,18 +229,28 @@ router.get('/signals', async (req, res) => {
       }
     }
 
-    const rows = await db.any<Record<string, unknown>>(
-      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
-              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
-       FROM pa_signals
-       WHERE ${conditions.join(' AND ')}
-       ORDER BY rel DESC, created_at DESC
-       LIMIT 100`,
-      values
-    );
+    const CAP = 100;
+    const where = conditions.join(' AND ');
+    const [rows, countRows] = await Promise.all([
+      db.any<Record<string, unknown>>(
+        `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
+                duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+         FROM pa_signals
+         WHERE ${where}
+         ORDER BY rel DESC, created_at DESC
+         LIMIT ${CAP}`,
+        values
+      ),
+      db.any<{ count: string }>(`SELECT COUNT(*) AS count FROM pa_signals WHERE ${where}`, values),
+    ]);
 
     const signals: Signal[] = rows.map(rowToSignal);
-    res.json({ success: true, data: signals });
+    const total = parseInt(countRows[0]?.count ?? '0', 10);
+    res.json({
+      success: true,
+      data: signals,
+      meta: { total, cap: CAP, capped: total > CAP },
+    });
   } catch (err) {
     logger.error('Signals fetch error', {
       error: err instanceof Error ? err.message : String(err),

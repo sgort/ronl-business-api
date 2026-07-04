@@ -27,6 +27,20 @@ async function paGet<T>(path: string): Promise<T> {
   return res.data.data;
 }
 
+async function paGetRaw<T>(path: string): Promise<T> {
+  if (keycloak.authenticated) {
+    try {
+      await keycloak.updateToken(120);
+    } catch {
+      /* expired — proceed anyway */
+    }
+  }
+  const res = await axios.get<T>(`${API_BASE}${path}`, {
+    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+  });
+  return res.data;
+}
+
 async function paPost<T>(path: string, body: unknown): Promise<T> {
   if (keycloak.authenticated) {
     try {
@@ -675,17 +689,34 @@ export async function fetchSignals(params?: {
   return paGet<Signal[]>(`/pa/signals?${qs}`);
 }
 
-export async function fetchInbox(params?: { tab?: string; dossierId?: string }): Promise<Signal[]> {
+export interface InboxMeta {
+  total: number;
+  cap: number;
+  capped: boolean;
+}
+
+export interface InboxResult {
+  data: Signal[];
+  meta: InboxMeta;
+}
+
+export async function fetchInbox(params?: {
+  tab?: string;
+  dossierId?: string;
+}): Promise<InboxResult> {
   if (SIGNALS_MOCK) {
     let rows = MOCK_INBOX.slice();
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
-    return rows;
+    return { data: rows, meta: { total: rows.length, cap: 100, capped: false } };
   }
   const qs = new URLSearchParams({ status: 'candidate,ai_drafted' });
   if (params?.tab) qs.set('tab', params.tab);
   if (params?.dossierId) qs.set('dossierId', params.dossierId);
-  return paGet<Signal[]>(`/pa/signals?${qs}`);
+  const env = await paGetRaw<{ success: boolean; data: Signal[]; meta: InboxMeta }>(
+    `/pa/signals?${qs}`
+  );
+  return { data: env.data, meta: env.meta };
 }
 
 export interface SavedSearch {

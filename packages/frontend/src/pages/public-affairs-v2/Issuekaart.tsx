@@ -435,7 +435,7 @@ function DossierMonitoring({ d }: { d: Dossier }) {
       fetchSearches(),
     ]);
     setGecureerd(sigs);
-    setInbox(inb);
+    setInbox(inb.data);
     setSavedSearch(searches.find((s) => s.dossierId === d.id) ?? null);
   }, [d.id]);
 

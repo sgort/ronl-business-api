@@ -10,6 +10,7 @@ import CuratiePijplijnFlow from '../../components/PADashboardV2/CuratiePijplijnF
 import {
   fetchSignals,
   fetchInbox,
+  type InboxMeta,
   fetchFeed,
   fetchFeedSources,
   fetchSearches,
@@ -564,6 +565,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
   const [signals, setSignals] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
+  const [inboxMeta, setInboxMeta] = useState<InboxMeta | null>(null);
   const inboxCountRef = useRef(0);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -593,10 +595,11 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
       fetchInbox({ tab: tab.id }),
     ]);
     setSignals(sigs);
-    setInbox(inb);
-    inboxCountRef.current = inb.length;
+    setInbox(inb.data);
+    setInboxMeta(inb.meta);
+    inboxCountRef.current = inb.meta.total;
     setLoading(false);
-    updateInboxCount(tab.id, inb.length);
+    updateInboxCount(tab.id, inb.meta.total);
   }, [tab.id, updateInboxCount]);
 
   useEffect(() => {
@@ -730,7 +733,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         } else {
           // Promoted to a different tab — fetch that tab's updated count.
           const inb = await fetchInbox({ tab: sig.tab });
-          updateInboxCount(sig.tab, inb.length);
+          updateInboxCount(sig.tab, inb.meta.total);
         }
       }
     } catch {
@@ -835,7 +838,10 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
               clearSearch();
             }}
           >
-            Inbox <span className="pac-seg-count">{visibleInbox.length}</span>
+            Inbox{' '}
+            <span className="pac-seg-count">
+              {inboxMeta?.capped ? '100+' : visibleInbox.length}
+            </span>
           </button>
         </div>
       )}
@@ -960,6 +966,16 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         <p className="pac-page-sub">Signalen ophalen…</p>
       ) : view === 'inbox' ? (
         <>
+          {inboxMeta?.capped && (
+            <div className="pac-inbox-cap">
+              <span className="pac-inbox-cap-badge">Top {inboxMeta.cap}</span>
+              <span>
+                {inboxMeta.total} kandidaten in deze inbox, gesorteerd op relevantie (rel,
+                aflopend). De weergave toont de bovenste {inboxMeta.cap};{' '}
+                {inboxMeta.total - inboxMeta.cap} met lagere relevantie vallen nu buiten beeld.
+              </span>
+            </div>
+          )}
           {visibleInbox.length ? (
             <div className="pac-cards">
               {visibleInbox.map((s) => (

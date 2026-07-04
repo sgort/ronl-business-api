@@ -70,7 +70,7 @@ function useResource<T>(fetcher: () => Promise<T>, initial: T): Resource<T> {
 
 export function PaDataProvider({ children }: { children: React.ReactNode }) {
   const signalsResource = useResource<Signal[]>(fetchSignals, []);
-  const inboxResource = useResource<Signal[]>(fetchInbox, []);
+  const inboxResource = useResource<Signal[]>(() => fetchInbox().then((r) => r.data), []);
   const dossiersResource = useResource<Dossier[]>(fetchDossiers, []);
   const agendaResource = useResource<PlenaryItem[]>(fetchAgenda, []);
 
@@ -83,7 +83,7 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
   // Seed per-tab counts at startup so badges are populated before Monitoring is visited.
   useEffect(() => {
     INBOX_TABS.forEach((tabId) => {
-      void fetchInbox({ tab: tabId }).then((inb) => updateInboxCount(tabId, inb.length));
+      void fetchInbox({ tab: tabId }).then((inb) => updateInboxCount(tabId, inb.meta.total));
     });
   }, [updateInboxCount]);
 
