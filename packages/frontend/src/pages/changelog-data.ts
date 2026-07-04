@@ -54,6 +54,29 @@ export const changelog: Changelog = {
             'AuthCallback role routing: woo-coordinatie now redirects to /dashboard/woo before infra-projectteam in the priority chain.',
           ],
         },
+        {
+          icon: '📰',
+          iconColor: '#2f5d3a',
+          title: 'New: Media & omgeving — nieuws-aggregator as seventh PA source',
+          items: [
+            'Media tab in PA-Cockpit Monitoring is now a live connected source (bron: media) via an external Dutch news-aggregator (100+ national + regional RSS feeds, AI-dedup and region-tagging). The tab was previously an honest empty state; it now runs a full curation cycle alongside TK, OB, and EU.',
+            'New media.client.ts: AggregatorArticle → FeedItem pure mapper (articleToFeedItem) with duplicate_group_id collapse (syndicated copies of the same story merge to one FeedItem); fetchFlevolandNews hits GET /search?region=Flevoland with an OR-joined query term list, Bearer auth, 15 s timeout, 2 retries with 1.5 s backoff, and per-article try/catch so one malformed article never drops the batch.',
+            'Geographic relevance bump in rules.ts: media items get +2 when "Flevoland" appears anywhere in the haystack (title + description + regio field), and an additional +1 for any matched Flevoland municipality (Almere, Lelystad, Dronten, Noordoostpolder, Urk, Zeewolde). The bestScore === 0 floor is fully enforced — geographic context alone never surfaces noise; a term match is also required.',
+            'Two new display-only signal fields: regio (e.g. "Flevoland · Lelystad") and sentiment (positief / neutraal / negatief) stored in pa_signals via two ALTER TABLE … ADD COLUMN IF NOT EXISTS migrations. Both are surfaced in MediaMeta badge strips (sibling of EpMeta) on SignalCard and InboxCard; neither is an input to scoring.',
+            'Four media seed searches added: media-flevoland (dossierId null, watchlist entry), media-stikstof, media-lelystad, media-energie — all with source: ["media"].',
+            'MEDIA_SOURCE_ENABLED=false default — ships dark; flip to true and set MEDIA_AGGREGATOR_BASE + MEDIA_AGGREGATOR_API_KEY once the aggregator is live. Social media / omgeving (Polpo) noted in the UI as a planned second sub-source.',
+            'Tests: media.client.test.ts (11 cases — mapper, dedup collapse, malformed-skip, resilience), rules.test.ts extended with 8 media scoring cases, curation.service.test.ts updated for the two new INSERT columns. All 127 backend tests pass.',
+          ],
+        },
+        {
+          icon: '⚙️',
+          iconColor: '#6b7280',
+          title: 'Fix: environment files — PA section missing',
+          items: [
+            '.env.example and .env.development were missing the entire PA Monitoring section. Added EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, MEDIA_SOURCE_ENABLED, MEDIA_AGGREGATOR_BASE, and MEDIA_AGGREGATOR_API_KEY with comments. .env.example uses placeholder values; .env.development ships with MEDIA_SOURCE_ENABLED=false and empty credentials.',
+            '.env.production was missing the three frontend mock flags (VITE_PA_SIGNALS_MOCK, VITE_PA_DOSSIERS_MOCK, VITE_PA_AGENDA_MOCK) that dev and acceptance already had explicitly set to false.',
+          ],
+        },
       ],
     },
     {
