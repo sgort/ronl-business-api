@@ -400,6 +400,19 @@
 }
 .pac .pac-btn-ghost:hover { background: #f0f5fc; }
 .pac .pac-btn-sm { padding: 6px 11px; font-size: 12px; }
+.pac .pac-btn-primary {
+  background: var(--pac-chrome);
+  color: #fff;
+  border: 1px solid var(--pac-chrome);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pac .pac-btn-primary:hover { background: var(--pac-chrome-d); border-color: var(--pac-chrome-d); }
+.pac .pac-btn-primary:disabled { background: var(--pac-rule); border-color: var(--pac-rule); cursor: not-allowed; }
 
 /* ── Score dots (0–2 per criterion) ─────────────────────── */
 .pac .pac-dots { display: inline-flex; gap: 3px; }
