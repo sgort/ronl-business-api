@@ -69,15 +69,6 @@ export const changelog: Changelog = {
             'Tests: media-aggregator.test.ts (14 cases — RSS parse, mapping, region tagging with town aliases, dedup clustering, summary capping, malformed-skip, filter semantics), media.client.test.ts (11 cases), rules.test.ts +8 media scoring cases, curation.service.test.ts +7 media pipeline cases. All 148 backend tests pass.',
           ],
         },
-        {
-          icon: '⚙️',
-          iconColor: '#6b7280',
-          title: 'Fix: environment files — PA section missing',
-          items: [
-            '.env.example and .env.development were missing the entire PA Monitoring section. Added EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, MEDIA_SOURCE_ENABLED, MEDIA_AGGREGATOR_BASE, MEDIA_AGGREGATOR_API_KEY, MEDIA_AGGREGATOR_ACCEPT_KEY, MEDIA_AGGREGATOR_CACHE_TTL_MS, and MEDIA_AGGREGATOR_SENTIMENT_ENABLED with comments. .env.development ships with loopback defaults and MEDIA_SOURCE_ENABLED=true; .env.example uses placeholder values.',
-            '.env.production was missing the three frontend mock flags (VITE_PA_SIGNALS_MOCK, VITE_PA_DOSSIERS_MOCK, VITE_PA_AGENDA_MOCK) that dev and acceptance already had explicitly set to false.',
-          ],
-        },
       ],
     },
     {
