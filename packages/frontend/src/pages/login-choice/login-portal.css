@@ -200,7 +200,7 @@
 
 .lcp .boards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 22px;
   padding-bottom: 8px;
 }
@@ -362,6 +362,29 @@
 
 .lcp .lane .pcard.g::before { background: #1f9d57; }
 .lcp .lane .pcard.r::before { background: var(--pink); }
+
+/* Woo-dashboard — stoplicht KPI grid */
+.lcp .pv-woo { background: linear-gradient(160deg, #eef8ef 0%, #d9f0da 100%); }
+.lcp .pv-woo .ptag { color: #2d7a33; }
+.lcp .woo-mini {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 14px; top: 38px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-content: start;
+}
+.lcp .woo-kpi {
+  display: flex; align-items: center; gap: 6px;
+  background: #fff; padding: 6px 8px;
+}
+.lcp .woo-kpi .wlbl { font-size: 10px; color: #6b7280; flex: 1; }
+.lcp .woo-kpi b { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; color: #111827; }
+.lcp .wdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.lcp .wdot.groen { background: #3fa535; }
+.lcp .wdot.geel  { background: #e5b700; }
+.lcp .wdot.rood  { background: #b0103c; }
+.lcp .wdot.blauw { background: #0046ad; }
 
 /* card body */
 .lcp .body {

@@ -316,6 +316,10 @@
       {
         "name": "public-affairs",
         "description": "Provincial Public Affairs adviser — access to the PA-cockpit"
+      },
+      {
+        "name": "woo-coordinatie",
+        "description": "Woo-coördinator — beheert en verantwoordt Woo-verzoeken (Wet open overheid)"
       }
     ]
   },
@@ -788,13 +792,40 @@
       "lastName": "Bakker",
       "email": "pa@flevoland.nl",
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "test123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
       "attributes": {
         "municipality": ["flevoland"],
         "organisation_type": ["province"],
         "assurance_level": ["hoog"]
       },
       "realmRoles": ["public-affairs"]
+    },
+    {
+      "username": "test-woo-flevoland",
+      "enabled": true,
+      "firstName": "Ravi",
+      "lastName": "de Wit",
+      "email": "woo@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"]
+      },
+      "realmRoles": ["woo-coordinatie"]
     }
   ],
   "identityProviders": [

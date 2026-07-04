@@ -8,6 +8,7 @@ const POST_LOGIN_KEY = 'post_login_redirect';
 function getRoleDashboard(): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  if (roles.includes('woo-coordinatie')) return '/dashboard/woo';
   if (roles.includes('infra-projectteam')) return '/dashboard/infra-board';
   if (roles.includes('public-affairs')) return '/dashboard/public-affairs';
   return roles.includes('caseworker') ? '/dashboard/caseworker' : '/dashboard/citizen';
@@ -35,6 +36,7 @@ function consumePostLoginRedirect(): string | null {
 }
 
 function canAccessRedirect(path: string, roles: string[]): boolean {
+  if (path === '/dashboard/woo') return roles.includes('woo-coordinatie');
   if (path === '/dashboard/infra-board') return roles.includes('infra-projectteam');
   if (path === '/dashboard/public-affairs') return roles.includes('public-affairs');
   // infra-projectteam members also carry the caseworker role (they need the task

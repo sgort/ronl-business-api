@@ -33,6 +33,30 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.7.0',
+      status: 'New',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 4, 2026',
+      sections: [
+        {
+          icon: '📋',
+          iconColor: '#2d7a33',
+          title: 'New: Woo-dashboard — Wet open overheid compliance & management board',
+          items: [
+            'Fourth board added at /dashboard/woo, gated on the woo-coordinatie Keycloak realm role. Login portal updated from three to four cards in a 2×2 grid.',
+            'Six views: Overzicht (8 traffic-light KPIs, monthly intake/throughput columns, open backlog trend, ageing profile), Verzoeken (requests by department/topic/source, repeat requesters), Tijdigheid (SLA gauge vs. 90% target, lead-time distribution buckets, core metrics), Proces (9-step workflow funnel with bottleneck highlighting), Publicatie (17 mandatory disclosure categories, progress bar), Bezwaar & beroep (decision-type donut, objection-to-penalty funnel).',
+            'Verzoekenregister reachable from the rail and ⌘K palette. Register upgraded to full 218 rows generated deterministically from a seeded PRNG weighted to the afdeling/onderwerp/bron distributions — all rows consistent across sessions.',
+            'Rail filters (year, quarter, department, topic, source, status) are fully functional: changing any filter auto-navigates to the filtered register; the rail shows the live count and a reset button; active filters render as chips above the table with a "Wis filters" action; empty state shown when no rows match.',
+            'Provenance footnote below every aggregate chart view clarifies that chart figures are fixed illustrative aggregates and that filters operate on the register.',
+            'Woo assistant dock with three contextual suggestions (timeliness, bottleneck, active disclosure).',
+            'New Keycloak realm role woo-coordinatie; test user test-woo-flevoland (Ravi de Wit, woo@flevoland.nl, password test123) added to ronl-realm.json.',
+            'AuthCallback role routing: woo-coordinatie now redirects to /dashboard/woo before infra-projectteam in the priority chain.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.6.1',
       status: 'New',
       statusColor: '#7c3aed',

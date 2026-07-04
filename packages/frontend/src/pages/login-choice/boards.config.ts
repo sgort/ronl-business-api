@@ -1,5 +1,5 @@
-export type BoardId = 'caseworker' | 'public-affairs' | 'infra-board';
-export type PreviewKind = 'case' | 'pa' | 'infra';
+export type BoardId = 'caseworker' | 'public-affairs' | 'infra-board' | 'woo';
+export type PreviewKind = 'case' | 'pa' | 'infra' | 'woo';
 
 export interface BoardEntry {
   id: BoardId;
@@ -48,5 +48,18 @@ export const BOARDS: BoardEntry[] = [
       'Portfoliosturing op infrastructuurprojecten: fase-swimlanes, status ' +
       'per project en RIP-beheer — van planvorming tot oplevering.',
     testUser: 'test-infra-flevoland',
+  },
+  {
+    id: 'woo',
+    role: 'woo-coordinatie',
+    route: '/dashboard/woo',
+    roleLabel: 'Bestuur & Verantwoording',
+    title: 'Woo-dashboard',
+    preview: 'woo',
+    blurb:
+      'Sturing op de Wet open overheid: compliance, doorlooptijden, ' +
+      'procesknelpunten en actieve openbaarmaking — met stoplichten en een ' +
+      'benchmark op "Woo in cijfers".',
+    testUser: 'test-woo-flevoland',
   },
 ];

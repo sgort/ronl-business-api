@@ -4,6 +4,7 @@ import AuthCallback from './pages/AuthCallback';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
 import PADashboardV2 from './pages/PADashboardV2';
 import InfraBoardDashboard from './pages/InfraBoardDashboard';
+import WooDashboard from './pages/WooDashboard';
 import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
 import keycloak from './services/keycloak';
@@ -65,6 +66,9 @@ function App() {
 
         {/* Infra project-board — public route; role gate (infra-projectteam) lives inside */}
         <Route path="/dashboard/infra-board" element={<InfraBoardDashboard />} />
+
+        {/* Woo-dashboard — public route; role gate (woo-coordinatie) lives inside */}
+        <Route path="/dashboard/woo" element={<WooDashboard />} />
 
         {/* Legacy /dashboard redirect — role-based, falls through to ProtectedRoute logic */}
         <Route

@@ -72,8 +72,39 @@ function InfraPreview() {
   );
 }
 
+function WooPreview() {
+  return (
+    <div className="preview pv-woo">
+      <span className="ptag">Woo · Compliance</span>
+      <div className="woo-mini">
+        <div className="woo-kpi">
+          <span className="wdot geel" />
+          <span className="wlbl">Open</span>
+          <b>34</b>
+        </div>
+        <div className="woo-kpi">
+          <span className="wdot rood" />
+          <span className="wlbl">Doorlooptijd</span>
+          <b>31d</b>
+        </div>
+        <div className="woo-kpi">
+          <span className="wdot geel" />
+          <span className="wlbl">Op tijd</span>
+          <b>87%</b>
+        </div>
+        <div className="woo-kpi">
+          <span className="wdot blauw" />
+          <span className="wlbl">Publicaties</span>
+          <b>1.284</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BoardPreview({ kind }: { kind: PreviewKind }) {
   if (kind === 'pa') return <PaPreview />;
   if (kind === 'infra') return <InfraPreview />;
+  if (kind === 'woo') return <WooPreview />;
   return <CasePreview />;
 }

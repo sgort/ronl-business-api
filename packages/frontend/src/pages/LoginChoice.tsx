@@ -71,11 +71,11 @@ export default function LoginChoice() {
       <main className="wrap">
         <section className="hero">
           <p className="eyebrow">Eén werkomgeving · Provincie Flevoland</p>
-          <h1>Drie borden voor het werk van de provincie.</h1>
+          <h1>Vier borden voor het werk van de provincie.</h1>
           <p>
             ronl. brengt het dagelijkse werk samen in overzichtelijke borden — van zaakbehandeling
-            tot bestuurlijke afstemming en projectsturing. Log in met uw medewerkersaccount om het
-            bord te openen dat bij uw rol hoort.
+            tot bestuurlijke afstemming, projectsturing en Woo-verantwoording. Log in met uw
+            medewerkersaccount om het bord te openen dat bij uw rol hoort.
           </p>
           <div className="hero-actions">
             <a className="btn-primary" href="#boards">
