@@ -9,6 +9,7 @@ import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
 import { fetchEuFeed } from './sources/eu.client';
 import { fetchAllNewSubmittedTexts } from './sources/ep-texts-submitted.client';
+import { fetchFlevolandNews } from './sources/media.client';
 import { config } from '@utils/config';
 import { scoreItem } from './rules';
 import type { FeedItem, Signal } from '@ronl/shared';
@@ -70,6 +71,10 @@ async function persistCandidate(
   } else if (item.source === 'eu') {
     const subbronLabel = item.subbron === 'ep-teksten' ? ' · Ingediende teksten' : '';
     srcLabel = `Europees Parlement · ${item.type ?? 'Document'}${subbronLabel} · ${formatAge(item.date)}`;
+  } else if (item.source === 'media') {
+    const subbronLabel =
+      item.subbron === 'nieuws-regionaal' ? 'Regionaal nieuws' : 'Landelijk nieuws';
+    srcLabel = `${item.number ?? 'Nieuws & media'} · ${subbronLabel} · ${formatAge(item.date)}`;
   } else {
     srcLabel = `Officiële Bekendmakingen · ${item.type ?? 'Publicatie'} · ${formatAge(item.date)}`;
   }
@@ -77,12 +82,13 @@ async function persistCandidate(
   try {
     await db.none(
       `INSERT INTO pa_signals
-         (id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, status, source_key, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'candidate',$11,NOW(),NOW())
+         (id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, status, source_key, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'candidate',$13,NOW(),NOW())
        ON CONFLICT (source_key) DO UPDATE
          SET rel = EXCLUDED.rel, dossier_id = EXCLUDED.dossier_id,
              title = EXCLUDED.title,
              subbron = EXCLUDED.subbron, commissie = EXCLUDED.commissie,
+             regio = EXCLUDED.regio, sentiment = EXCLUDED.sentiment,
              updated_at = NOW()
          WHERE pa_signals.status = 'candidate'`,
       [
@@ -94,6 +100,8 @@ async function persistCandidate(
         item.source,
         item.subbron ?? null,
         item.commissie ?? null,
+        item.regio ?? null,
+        item.sentiment ?? null,
         item.url
           ? JSON.stringify({ type: item.type ?? '', nr: displayNr(item), url: item.url })
           : null,
@@ -150,10 +158,12 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
 
   const allItems: FeedItem[] = [];
 
-  // Build per-source query sets — prevents English EU-only queries from hitting TK/OB
+  // Build per-source query sets — prevents cross-source noise from source-specific queries
   const tkQueries = new Set<string>();
   const obQueries = new Set<string>();
+  const mediaTerms = new Set<string>();
   let hasEuSearches = false;
+  let hasMediaSearches = false;
 
   for (const s of searches) {
     const src: string[] = Array.isArray(s.query.source) ? s.query.source : ['tk', 'ob'];
@@ -161,6 +171,10 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
     if (src.includes('tk')) tkQueries.add(s.query.q);
     if (src.includes('ob')) obQueries.add(s.query.q);
     if (src.includes('eu')) hasEuSearches = true;
+    if (src.includes('media')) {
+      hasMediaSearches = true;
+      mediaTerms.add(s.query.q);
+    }
   }
 
   // Fetch TK for TK-enabled queries
@@ -198,6 +212,18 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
       return [] as FeedItem[];
     });
     allItems.push(...teksten);
+  }
+
+  // Fetch Media & omgeving — the news-aggregator, region-scoped to Flevoland.
+  if (hasMediaSearches && config.pa.mediaSourceEnabled) {
+    const terms = [...mediaTerms];
+    const media = await fetchFlevolandNews({ terms }).catch((err: unknown) => {
+      logger.error('Media feed fetch failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [] as FeedItem[];
+    });
+    allItems.push(...media);
   }
 
   // Fetch EU plenary RSS — ep-teksten entries already pushed above take priority in dedup.

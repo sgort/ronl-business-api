@@ -208,19 +208,103 @@ const MOCK_CONFIRMED: Signal[] = [
     confirmedAt: 'gisteren 14:30',
     routing: 'watchlist',
   },
+  // ── Media & omgeving — nieuws-aggregator (landelijk + regionaal RSS) ──
   {
     id: 'sg5',
     tab: 'media',
     dossierId: 'lelystad',
     title: 'Landelijk dagblad: "Lelystad Airport, het vliegveld dat maar niet opent"',
-    src: 'Traditionele media · opinie · gisteren',
-    bron: null,
+    src: 'NRC · opinie · gisteren',
+    bron: 'media',
+    subbron: 'nieuws-nationaal',
+    regio: 'Flevoland · Lelystad',
+    sentiment: 'negatief',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'nrc.nl',
+      url: 'https://www.nrc.nl/nieuws/2026/06/lelystad-airport-opinie',
+    },
     rel: 8,
     impact: 'risico',
     impactLabel: 'Risico',
     duiding:
       'Versterkt het frame "vliegveld zonder bestaansrecht". Tegenframe met banen + hinderafspraken nu inzetten.',
     status: 'confirmed',
+    confirmedBy: 'Joost Veenstra',
+    confirmedAt: 'vandaag 07:50',
+  },
+  {
+    id: 'sgm1',
+    tab: 'media',
+    dossierId: 'stikstof',
+    title: 'Omroep Flevoland: boeren Noordoostpolder bezorgd over gewijzigde gebiedsgrenzen',
+    src: 'Omroep Flevoland · regionaal nieuws · vandaag',
+    bron: 'media',
+    subbron: 'nieuws-regionaal',
+    regio: 'Flevoland · Noordoostpolder',
+    sentiment: 'neutraal',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'omroepflevoland.nl',
+      url: 'https://www.omroepflevoland.nl/nieuws/2026/noordoostpolder-gebiedsgrenzen',
+    },
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Regionale weerklank van de gewijzigde gebiedsgrenzen. Vraagt om een feitenlijn richting de betrokken agrariërs vóór het werkbezoek.',
+    status: 'confirmed',
+    confirmedBy: 'Sanne Bakker',
+    confirmedAt: 'vandaag 09:20',
+  },
+  {
+    id: 'sgm2',
+    tab: 'media',
+    dossierId: 'energie',
+    title: 'Netcongestie remt uitgifte bedrijventerrein Almere, meldt regionale pers',
+    src: 'Geclusterd · Omroep Flevoland + De Stentor · 6 u',
+    bron: 'media',
+    subbron: 'nieuws-regionaal',
+    regio: 'Flevoland · Almere',
+    sentiment: 'negatief',
+    ref: {
+      type: 'Nieuwsartikel · 2 bronnen',
+      nr: 'omroepflevoland.nl',
+      url: 'https://www.omroepflevoland.nl/nieuws/2026/almere-netcongestie',
+    },
+    rel: 6,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Onderstreept de urgentie van het energy-hub-verhaal met een concreet regionaal voorbeeld. Bruikbaar als illustratie richting EZK.',
+    status: 'confirmed',
+    confirmedBy: 'Sanne Bakker',
+    confirmedAt: 'gisteren 15:10',
+  },
+  {
+    id: 'sgm3',
+    tab: 'media',
+    dossierId: null,
+    title: 'Reportage: zorgen over voorzieningen en leefbaarheid in kleine kernen',
+    src: 'De Stentor · reportage · 2 dgn',
+    bron: 'media',
+    subbron: 'nieuws-regionaal',
+    regio: 'Flevoland · Urk',
+    sentiment: 'neutraal',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'destentor.nl',
+      url: 'https://www.destentor.nl/flevoland/2026/leefbaarheid-kleine-kernen',
+    },
+    rel: 6,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Bevestigd zonder dossier — staat op de watchlist. Raakt leefbaarheid/omgeving breed; koppel aan een dossier zodra het een lopend thema wordt.',
+    status: 'confirmed',
+    routing: 'watchlist',
+    confirmedBy: 'test-pa-flevoland',
+    confirmedAt: 'vandaag 11:05',
   },
 ];
 
@@ -441,6 +525,87 @@ const MOCK_INBOX: Signal[] = [
     status: 'candidate',
     aiDraft: null,
   },
+  // ── Media & omgeving · nieuws-aggregator kandidaten ──────────────────
+  {
+    id: 'inm1',
+    tab: 'media',
+    dossierId: 'lelystad',
+    bron: 'media',
+    subbron: 'nieuws-regionaal',
+    regio: 'Flevoland · Lelystad',
+    sentiment: 'negatief',
+    title: 'Omroep Flevoland: provinciebestuur onder druk na uitstel luchthavenbesluit',
+    src: 'Omroep Flevoland · regionaal nieuws · 2 u geleden',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'omroepflevoland.nl',
+      url: 'https://www.omroepflevoland.nl/nieuws/2026/luchthavenbesluit-uitstel',
+    },
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Regionale druk loopt op; het frame "besluiteloosheid" wint terrein. Praatpunten met banen + tijdlijn nu klaarzetten.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding:
+        'Regionale druk loopt op; het frame "besluiteloosheid" wint terrein. Praatpunten met banen + tijdlijn nu klaarzetten.',
+    },
+  },
+  {
+    id: 'inm2',
+    tab: 'media',
+    dossierId: 'stikstof',
+    bron: 'media',
+    subbron: 'nieuws-nationaal',
+    regio: 'Flevoland',
+    sentiment: 'neutraal',
+    title: 'NU.nl: kabinet licht tijdpad stikstofmaatregelen toe',
+    src: 'Geclusterd · NU.nl + NOS · 5 u geleden',
+    ref: {
+      type: 'Nieuwsartikel · 2 bronnen',
+      nr: 'nu.nl',
+      url: 'https://www.nu.nl/politiek/2026/stikstof-tijdpad',
+    },
+    rel: 5,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+    aiDraft: null,
+  },
+  {
+    id: 'inm3',
+    tab: 'media',
+    dossierId: 'energie',
+    bron: 'media',
+    subbron: 'nieuws-regionaal',
+    regio: 'Flevoland · Dronten',
+    sentiment: 'positief',
+    title: 'Regionale pers: brede steun voor energie-pilot bij Dronten',
+    src: 'De Stentor · regionaal nieuws · 1 dg',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'destentor.nl',
+      url: 'https://www.destentor.nl/flevoland/2026/energie-pilot-dronten',
+    },
+    rel: 6,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Positief sentiment rond de pilot — momentum om het energy-hub-verhaal breder te agenderen.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 6,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding:
+        'Positief sentiment rond de pilot — momentum om het energy-hub-verhaal breder te agenderen.',
+    },
+  },
 ];
 
 // ── Tab → connector metadata ─────────────────────────────────────────
@@ -450,13 +615,16 @@ const TAB_SOURCES: Record<string, string[]> = {
   regionaal: ['ob'],
   // Twee EU-subbronnen: (1) EP plenaire RSS-feed (ep-rss) en (2) EP "Ingediende teksten" (ep-teksten)
   europa: ['eu'],
-  media: [],
+  // Nieuws-aggregator (100+ landelijke + regionale RSS-feeds), regio-gescoopt op Flevoland via GET /search.
+  // Sociale media/omgeving (Polpo) volgt als tweede subbron.
+  media: ['media'],
 };
 
 export const BRON_LABEL: Record<string, string> = {
   tk: 'Tweede Kamer',
   ob: 'Officiële Bekendmakingen',
   eu: 'Europees Parlement',
+  media: 'Nieuws & media',
 };
 
 export function paTabConnected(tabId: string): boolean {
@@ -494,7 +662,9 @@ export async function fetchSignals(params?: {
   dossierId?: string;
 }): Promise<Signal[]> {
   if (SIGNALS_MOCK) {
-    let rows = MOCK_CONFIRMED.filter((s) => s.bron === 'tk' || s.bron === 'ob' || s.bron === 'eu');
+    let rows = MOCK_CONFIRMED.filter(
+      (s) => s.bron === 'tk' || s.bron === 'ob' || s.bron === 'eu' || s.bron === 'media'
+    );
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
     return rows.sort((a, b) => b.rel - a.rel);

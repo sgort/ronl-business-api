@@ -4,11 +4,16 @@ export interface Signal {
   dossierId: string | null;
   title: string;
   src: string;
-  bron: 'tk' | 'ob' | 'eu' | null;
-  /** EU sub-source identifier: 'ep-rss' (plenary RSS) or 'ep-teksten' (texts-submitted). */
+  bron: 'tk' | 'ob' | 'eu' | 'media' | null;
+  /** EU sub-source identifier: 'ep-rss' (plenary RSS) or 'ep-teksten' (texts-submitted).
+   *  Media sub-source: 'nieuws-nationaal' | 'nieuws-regionaal'. */
   subbron?: string | null;
   /** EP committee code (ITRE, ENVI, …). Display only — not used for scoring. */
   commissie?: string | null;
+  /** Province · municipality from the news-aggregator gazetteer. Display only. */
+  regio?: string | null;
+  /** Sentiment from the news-aggregator AI pipeline. Display only — not used for scoring. */
+  sentiment?: 'positief' | 'neutraal' | 'negatief' | null;
   ref?: { type: string; nr: string; url: string } | null;
   rel: number;
   impact: 'kans' | 'risico' | null;
@@ -29,12 +34,16 @@ export interface FeedItem {
   number: string | null;
   date: string | null;
   url: string | null;
-  source: 'tk' | 'ob' | 'eu';
+  source: 'tk' | 'ob' | 'eu' | 'media';
   description?: string;
   /** EU sub-source identifier passed through from the scraper; stored on Signal. */
   subbron?: string | null;
   /** EP committee code passed through from the scraper; stored on Signal. */
   commissie?: string | null;
+  /** Province · municipality from the news-aggregator gazetteer. Display only. */
+  regio?: string | null;
+  /** Sentiment from the news-aggregator AI pipeline. Display only — not used for scoring. */
+  sentiment?: 'positief' | 'neutraal' | 'negatief' | null;
 }
 
 // ── Dossier + Kompas domain types ───────────────────────────────────

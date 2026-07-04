@@ -16,10 +16,12 @@ import { scoreItem } from './rules';
 function item(
   overrides: Partial<{
     id: string;
-    source: 'tk' | 'ob' | 'eu';
+    source: 'tk' | 'ob' | 'eu' | 'media';
     title: string;
     description: string;
     type: string | null;
+    regio: string | null;
+    sentiment: 'positief' | 'neutraal' | 'negatief' | null;
   }>
 ) {
   return {
@@ -31,6 +33,8 @@ function item(
     number: null,
     date: null,
     url: null,
+    regio: null,
+    sentiment: null,
     ...overrides,
   };
 }
@@ -269,5 +273,85 @@ describe('scoreItem — dossierId assignment', () => {
       search({ q: 'stikstof OR natuur OR gebied', dossierId: null }), // score 9 → wins
     ]);
     expect(result.dossierId).toBeNull();
+  });
+});
+
+describe('scoreItem — media source (geographic bump)', () => {
+  const mediaSearch = [search({ q: 'netcongestie', dossierId: 'energie' })];
+
+  it('media → tab is media', () => {
+    expect(
+      scoreItem(item({ source: 'media', title: 'netcongestie Flevoland' }), mediaSearch).tab
+    ).toBe('media');
+  });
+
+  it('Flevoland province in regio grants +2 bump', () => {
+    // regio 'Flevoland' only — no municipality match, just the province bump.
+    const withFlevoland = scoreItem(
+      item({ source: 'media', title: 'netcongestie', regio: 'Flevoland' }),
+      mediaSearch
+    );
+    const withoutFlevoland = scoreItem(
+      item({ source: 'media', title: 'netcongestie', regio: 'Utrecht · Amersfoort' }),
+      mediaSearch
+    );
+    expect(withFlevoland.rel).toBe(withoutFlevoland.rel + 2);
+  });
+
+  it('Flevoland in title also grants +2 province bump', () => {
+    const result = scoreItem(
+      item({ source: 'media', title: 'netcongestie remt Flevoland', regio: null }),
+      mediaSearch
+    );
+    // 3 base + 2 flevoland + min(3 title match, 5) = 8
+    expect(result.rel).toBe(8);
+  });
+
+  it('Flevoland municipality in haystack grants additional +1', () => {
+    const withMunicipality = scoreItem(
+      item({ source: 'media', title: 'netcongestie in Almere', regio: 'Flevoland · Almere' }),
+      mediaSearch
+    );
+    const withoutMunicipality = scoreItem(
+      item({ source: 'media', title: 'netcongestie', regio: 'Flevoland' }),
+      mediaSearch
+    );
+    expect(withMunicipality.rel).toBe(withoutMunicipality.rel + 1);
+  });
+
+  it('regio and sentiment are not scoring inputs', () => {
+    const base = scoreItem(
+      item({ source: 'media', title: 'netcongestie', regio: 'Flevoland', sentiment: null }),
+      mediaSearch
+    );
+    const withSentiment = scoreItem(
+      item({ source: 'media', title: 'netcongestie', regio: 'Flevoland', sentiment: 'negatief' }),
+      mediaSearch
+    );
+    expect(base.rel).toBe(withSentiment.rel);
+  });
+
+  it('no Flevoland, no matching term → rel stays at floor 3', () => {
+    const result = scoreItem(
+      item({
+        source: 'media',
+        title: 'voetbal in Utrecht',
+        regio: 'Utrecht',
+        sentiment: 'positief',
+      }),
+      [search({ q: 'stikstof', dossierId: 'stikstof' })]
+    );
+    expect(result.rel).toBe(3);
+  });
+
+  it('Flevoland article with no term match clears rel ≥ 4 via province bump alone is impossible — stays at 3 floor when no term match', () => {
+    // Geographic bump: 3 base + 2 province = 5. BUT bestScore=0 caps rel at 3.
+    // This confirms the geographic bump alone is not enough to surface noise;
+    // a term match is also required to clear the floor.
+    const result = scoreItem(
+      item({ source: 'media', title: 'honden in Almere', regio: 'Flevoland · Almere' }),
+      [search({ q: 'stikstof', dossierId: 'stikstof' })]
+    );
+    expect(result.rel).toBe(3);
   });
 });

@@ -22,10 +22,22 @@ const TAB_BY_SOURCE: Record<string, Signal['tab']> = {
   tk: 'politiek',
   ob: 'regionaal',
   eu: 'europa',
+  media: 'media',
 };
 
 const HIGH_VALUE_TK_TYPES = new Set(['Motie', 'Kamervraag', 'Brief', 'Amendement']);
 const HIGH_VALUE_EU_TYPES = new Set(['Verslag', 'Motie', 'Aangenomen tekst', 'Resolutie']);
+
+// Flevoland gazetteer for geographic relevance bump on media items.
+// regio/sentiment are display-only; only the province/municipality bump counts toward rel.
+const FLEVOLAND_MUNICIPALITIES = new Set([
+  'almere',
+  'lelystad',
+  'dronten',
+  'noordoostpolder',
+  'urk',
+  'zeewolde',
+]);
 
 export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult {
   let rel = 3;
@@ -38,6 +50,20 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
   }
   if (item.source === 'eu' && item.type && HIGH_VALUE_EU_TYPES.has(item.type)) {
     rel += 2;
+  }
+
+  // Geographic bump for media items: province match +2, municipality match +1.
+  // regio and sentiment are never fed into this calculation.
+  if (item.source === 'media') {
+    const regio = (item.regio ?? '').toLowerCase();
+    const haystack = `${item.title} ${item.description ?? ''} ${regio}`.toLowerCase();
+    if (regio.includes('flevoland') || haystack.includes('flevoland')) rel += 2;
+    for (const gemeente of FLEVOLAND_MUNICIPALITIES) {
+      if (haystack.includes(gemeente)) {
+        rel += 1;
+        break;
+      }
+    }
   }
 
   // Score against saved searches

@@ -72,6 +72,43 @@ function EpMeta({ s }: { s: Signal }) {
   );
 }
 
+const MEDIA_SUBBRON_LABEL: Record<string, string> = {
+  'nieuws-nationaal': 'Landelijk',
+  'nieuws-regionaal': 'Regionaal',
+  social: 'Sociaal',
+};
+const SENTIMENT_LABEL: Record<string, string> = {
+  positief: 'Positief',
+  neutraal: 'Neutraal',
+  negatief: 'Negatief',
+};
+
+/** Media-provenance: subbron chip, region badge, subtle sentiment chip.
+ *  All three are display-only — not used for scoring, exactly like the EP commissie. */
+function MediaMeta({ s }: { s: Signal }) {
+  if (s.bron !== 'media') return null;
+  return (
+    <>
+      {s.subbron && (
+        <span className="pac-subbron media">{MEDIA_SUBBRON_LABEL[s.subbron] ?? s.subbron}</span>
+      )}
+      {s.regio && (
+        <span className="pac-regio" title={`Regio · ${s.regio}`}>
+          ◎ {s.regio}
+        </span>
+      )}
+      {s.sentiment && (
+        <span
+          className={`pac-sentiment ${s.sentiment}`}
+          title="Sentiment · informatief, niet gescoord"
+        >
+          {SENTIMENT_LABEL[s.sentiment] ?? s.sentiment}
+        </span>
+      )}
+    </>
+  );
+}
+
 function OrphanActions({
   id,
   dossiers,
@@ -173,6 +210,7 @@ function SignalCard({
           {isWatchlist && <span className="pac-orphan-chip">⚑ Watchlist</span>}
           <BronBadge bron={s.bron} />
           <EpMeta s={s} />
+          <MediaMeta s={s} />
         </div>
         <div className="pac-signal-title">{s.title}</div>
         <div className="pac-signal-src">
@@ -261,6 +299,7 @@ function InboxCard({
           )}
           <BronBadge bron={s.bron} />
           <EpMeta s={s} />
+          <MediaMeta s={s} />
         </div>
         <div className="pac-signal-title">{s.title}</div>
         <div className="pac-signal-src">
@@ -765,6 +804,15 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           )}
         </div>
       </div>
+
+      {/* Media & omgeving — honest sub-source coverage note */}
+      {connected && tab.id === 'media' && (
+        <div className="pac-media-note">
+          <b>Nieuws</b> (landelijk + regionaal) is live via de nieuws-aggregator, regio-gescoopt op
+          Flevoland (<span className="mono">GET /search · regio=Flevoland</span>).{' '}
+          <b>Sociale media &amp; omgeving</b> (Polpo) volgt als tweede subbron.
+        </div>
+      )}
 
       {/* Segmented control — only for connected tabs */}
       {connected && (

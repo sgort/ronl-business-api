@@ -229,7 +229,7 @@ router.get('/signals', async (req, res) => {
     }
 
     const rows = await db.any<Record<string, unknown>>(
-      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
               duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals
        WHERE ${conditions.join(' AND ')}
@@ -262,7 +262,7 @@ router.post('/signals', async (req, res) => {
   try {
     const id = await promoteToInbox(req.user.tenantId, item as FeedItem);
     const row = await db.one<Record<string, unknown>>(
-      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
               duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals WHERE id = $1`,
       [id]
@@ -321,7 +321,7 @@ router.post('/signals/:id/confirm', async (req, res) => {
     );
 
     const updated = await db.one<Record<string, unknown>>(
-      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
               duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals WHERE id = $1`,
       [id]
@@ -473,7 +473,7 @@ router.patch('/signals/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
     const updated = await db.one<Record<string, unknown>>(
-      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, ref, rel, impact, impact_label,
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
               duiding, status, ai_draft, confirmed_by, confirmed_at, routing
        FROM pa_signals WHERE id = $1`,
       [id]
@@ -498,6 +498,8 @@ function rowToSignal(row: Record<string, unknown>): Signal {
     bron: (row['bron'] as Signal['bron']) ?? null,
     subbron: (row['subbron'] as string | null) ?? null,
     commissie: (row['commissie'] as string | null) ?? null,
+    regio: (row['regio'] as string | null) ?? null,
+    sentiment: (row['sentiment'] as Signal['sentiment']) ?? null,
     ref: row['ref'] ? (row['ref'] as Signal['ref']) : null,
     rel: row['rel'] as number,
     impact: (row['impact'] as Signal['impact']) ?? null,

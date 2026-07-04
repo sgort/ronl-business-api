@@ -1,0 +1,96 @@
+{
+  "articles": [
+    {
+      "id": "art-001",
+      "duplicate_group_id": null,
+      "canonical_url": "https://www.omroepflevoland.nl/nieuws/2026/luchthavenbesluit-uitstel",
+      "title": "Omroep Flevoland: provinciebestuur onder druk na uitstel luchthavenbesluit",
+      "summary_short": "Het provinciebestuur van Flevoland staat onder druk nadat het kabinet het luchthavenbesluit voor Lelystad Airport opnieuw heeft uitgesteld.",
+      "published_at": "2026-07-04T08:00:00Z",
+      "province": "Flevoland",
+      "municipality": "Lelystad",
+      "sentiment": "negatief",
+      "source": {
+        "name": "Omroep Flevoland",
+        "type": "regional",
+        "homepage": "omroepflevoland.nl"
+      }
+    },
+    {
+      "id": "art-002",
+      "duplicate_group_id": "dup-stikstof-1",
+      "canonical_url": "https://www.nu.nl/politiek/2026/stikstof-tijdpad",
+      "title": "NU.nl: kabinet licht tijdpad stikstofmaatregelen toe",
+      "summary_short": "Het kabinet heeft het tijdpad voor de stikstofmaatregelen nader toegelicht in een Kamerbrief.",
+      "published_at": "2026-07-04T06:30:00Z",
+      "province": "Flevoland",
+      "municipality": null,
+      "sentiment": "neutraal",
+      "source": {
+        "name": "NU.nl",
+        "type": "national",
+        "homepage": "nu.nl"
+      }
+    },
+    {
+      "id": "dup-stikstof-1",
+      "duplicate_group_id": "dup-stikstof-1",
+      "canonical_url": "https://www.nos.nl/artikel/2026/stikstof-tijdpad",
+      "title": "NOS: kabinet presenteert tijdpad voor stikstofbeleid",
+      "summary_short": "Dezelfde Kamerbrief, gesyndikeerd via NOS.",
+      "published_at": "2026-07-04T06:35:00Z",
+      "province": "Flevoland",
+      "municipality": null,
+      "sentiment": "neutraal",
+      "source": {
+        "name": "NOS",
+        "type": "national",
+        "homepage": "nos.nl"
+      }
+    },
+    {
+      "id": "art-003",
+      "duplicate_group_id": null,
+      "canonical_url": "https://www.destentor.nl/flevoland/2026/energie-pilot-dronten",
+      "title": "Regionale pers: brede steun voor energie-pilot bij Dronten",
+      "summary_short": "De energie-pilot bij Dronten kan rekenen op brede steun van ondernemers en gemeenteraad.",
+      "published_at": "2026-07-03T14:00:00Z",
+      "province": "Flevoland",
+      "municipality": "Dronten",
+      "sentiment": "positief",
+      "source": {
+        "name": "De Stentor",
+        "type": "regional",
+        "homepage": "destentor.nl"
+      }
+    },
+    {
+      "id": "art-004",
+      "duplicate_group_id": null,
+      "canonical_url": "https://www.nrc.nl/nieuws/2026/06/lelystad-airport-opinie",
+      "title": "Landelijk dagblad: Lelystad Airport, het vliegveld dat maar niet opent",
+      "summary_short": "Opiniestuk over het aanslepende dossier rondom de opening van Lelystad Airport.",
+      "published_at": "2026-07-03T10:00:00Z",
+      "province": null,
+      "municipality": null,
+      "sentiment": "negatief",
+      "source": {
+        "name": "NRC",
+        "type": "national",
+        "homepage": "nrc.nl"
+      }
+    },
+    {
+      "id": "art-malformed",
+      "duplicate_group_id": null,
+      "canonical_url": null,
+      "title": null,
+      "summary_short": null,
+      "published_at": null,
+      "province": null,
+      "municipality": null,
+      "sentiment": null,
+      "source": null
+    }
+  ]
+}

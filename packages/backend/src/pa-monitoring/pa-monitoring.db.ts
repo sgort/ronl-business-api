@@ -76,6 +76,37 @@ const PA_TAXONOMY_SEED: SeedEntry[] = [
     tags: [],
     bronnen: ['eu'],
   },
+  // Media seed searches — region-scoped to Flevoland via the news-aggregator GET /search.
+  // source:['media'] keeps these from hitting TK/OB/EU. The region gazetteer provides
+  // the "geen ruis" filter; without it a national firehose adds noise.
+  {
+    id: 'media-flevoland',
+    dossierId: null,
+    query: 'Flevoland OR Almere OR Lelystad OR Dronten OR Noordoostpolder OR Urk OR Zeewolde',
+    tags: ['flevoland', 'provincie'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-stikstof',
+    dossierId: 'stikstof',
+    query: 'stikstof OR gebiedsproces OR reductiekader OR natuurherstel',
+    tags: ['stikstof', 'landbouw', 'natuur'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-lelystad',
+    dossierId: 'lelystad',
+    query: 'Lelystad Airport OR laagvliegroutes OR luchthavenbesluit',
+    tags: ['luchtvaart', 'lelystad'],
+    bronnen: ['media'],
+  },
+  {
+    id: 'media-energie',
+    dossierId: 'energie',
+    query: 'netcongestie OR netcapaciteit OR "energy hub" OR flexibiliteit',
+    tags: ['energie', 'netcongestie'],
+    bronnen: ['media'],
+  },
 ];
 
 export async function initPaDb(): Promise<void> {
@@ -119,6 +150,8 @@ export async function initPaDb(): Promise<void> {
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS subbron TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS commissie TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS routing TEXT;
+      ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS regio TEXT;
+      ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS sentiment TEXT;
     `);
 
     // Backfill: all EU signals created before the subbron column existed came from

@@ -118,6 +118,9 @@ interface Config {
     euApiBase: string;
     euSourceEnabled: boolean;
     epTextsSubmittedEnabled: boolean;
+    mediaSourceEnabled: boolean;
+    mediaAggregatorBase: string;
+    mediaAggregatorApiKey: string;
     cacheTtlTk: number;
     cacheTtlAgenda: number;
     cacheTtlStatic: number;
@@ -278,6 +281,9 @@ export const config: Config = {
     euApiBase: process.env.EU_API_BASE || 'https://data.europarl.europa.eu/api/v2',
     euSourceEnabled: parseEnvBool(process.env.EU_SOURCE_ENABLED, true),
     epTextsSubmittedEnabled: parseEnvBool(process.env.EP_TEXTS_SUBMITTED_ENABLED, true),
+    mediaSourceEnabled: parseEnvBool(process.env.MEDIA_SOURCE_ENABLED, false),
+    mediaAggregatorBase: process.env.MEDIA_AGGREGATOR_BASE || '',
+    mediaAggregatorApiKey: process.env.MEDIA_AGGREGATOR_API_KEY || '',
     cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
     cacheTtlAgenda: parseEnvInt(process.env.CACHE_TTL_AGENDA, 1800),
     cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
