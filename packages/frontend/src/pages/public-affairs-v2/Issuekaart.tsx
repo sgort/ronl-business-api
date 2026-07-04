@@ -16,6 +16,8 @@ import {
   type Dossier,
 } from './pa.data';
 import Kompas, { Trend, type KompasViz } from './Kompas';
+import { DossierFeitenStrip } from './FeitenCijfers';
+import type { PaModeId } from './modes.config';
 import {
   fetchSignals,
   fetchInbox,
@@ -41,9 +43,10 @@ type SubTab = (typeof ISSUE_SUBTABS)[number]['id'];
 interface Props {
   dossier: Dossier;
   kompasViz?: KompasViz;
+  onNavigate?: (mode: PaModeId, sectionId: string) => void;
 }
 
-export default function Issuekaart({ dossier, kompasViz = 'radar' }: Props) {
+export default function Issuekaart({ dossier, kompasViz = 'radar', onNavigate }: Props) {
   const [sub, setSub] = useState<SubTab>('overzicht');
   useEffect(() => {
     setSub('overzicht');
@@ -93,7 +96,9 @@ export default function Issuekaart({ dossier, kompasViz = 'radar' }: Props) {
         ))}
       </div>
 
-      {sub === 'overzicht' && <IssueOverzicht d={d} kompasViz={kompasViz} />}
+      {sub === 'overzicht' && (
+        <IssueOverzicht d={d} kompasViz={kompasViz} onNavigate={onNavigate} />
+      )}
       {sub === 'monitoring' && <DossierMonitoring d={d} />}
       {sub === 'narratief' && <Narratief d={d} />}
       {sub === 'actie' && <ActieCocreatie d={d} />}
@@ -103,7 +108,15 @@ export default function Issuekaart({ dossier, kompasViz = 'radar' }: Props) {
   );
 }
 
-function IssueOverzicht({ d, kompasViz }: { d: Dossier; kompasViz: KompasViz }) {
+function IssueOverzicht({
+  d,
+  kompasViz,
+  onNavigate,
+}: {
+  d: Dossier;
+  kompasViz: KompasViz;
+  onNavigate?: (mode: PaModeId, sectionId: string) => void;
+}) {
   const acties = [
     { name: 'Analyseer', desc: 'Kompas-scores en signalen verdiepen' },
     { name: 'Maak', desc: 'Lobbyfiche, notitie of praatpunten' },
@@ -135,7 +148,11 @@ function IssueOverzicht({ d, kompasViz }: { d: Dossier; kompasViz: KompasViz }) 
           </h2>
           <span className="pac-total">{KOMPAS_CRITERIA.length} criteria · score 0–2</span>
         </div>
-        <Kompas kompas={d.kompas} viz={kompasViz} />
+        <Kompas
+          kompas={d.kompas}
+          viz={kompasViz}
+          extra={<DossierFeitenStrip dossierId={d.id} onNavigate={onNavigate} />}
+        />
       </section>
 
       <section className="pac-section">

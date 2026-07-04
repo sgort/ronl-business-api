@@ -27,6 +27,7 @@ import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenar
 import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
+import { FeitenView } from '../../pages/public-affairs-v2/FeitenCijfers';
 import KompasSpecSection from './KompasSpecSection';
 import CuratieSpecSection from './CuratieSpecSection';
 import ZoekcriteriaSection from './ZoekcriteriaSection';
@@ -77,6 +78,10 @@ export default function PASectionRouter({
 
   if (sectionId === 'agenda') {
     return <AgendaView onOpenDossier={onOpenDossier} />;
+  }
+
+  if (sectionId === 'feiten') {
+    return <FeitenView onOpenDossier={onOpenDossier} />;
   }
 
   if (MONITORING_IDS.has(sectionId)) {
@@ -141,7 +146,7 @@ export default function PASectionRouter({
 
   const dossier = dossiers.data.find((d) => d.id === sectionId);
   if (dossier) {
-    return <Issuekaart dossier={dossier} kompasViz={kompasViz} />;
+    return <Issuekaart dossier={dossier} kompasViz={kompasViz} onNavigate={onNavigate} />;
   }
 
   return (

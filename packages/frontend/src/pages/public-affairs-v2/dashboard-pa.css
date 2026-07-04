@@ -1699,3 +1699,107 @@
   .pac .pac-src-row { grid-template-columns: 110px 1fr; }
   .pac .pac-src-tag, .pac .pac-src-flag, .pac .pac-src-cadence { grid-column: 2; justify-self: start; }
 }
+
+/* ── Feiten & cijfers · Feitelijk Flevoland ────────────────── */
+.pac .pac-kompas-left { display: flex; flex-direction: column; gap: 12px; }
+
+.pac .pac-feit-note { background: #eef2f9; border-left-color: var(--pac-chrome); }
+.pac .pac-feit-note .mono { color: var(--pac-chrome); }
+
+.pac .pac-feit-search { margin-bottom: 12px; }
+
+.pac .pac-feit-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.pac .pac-feit-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--pac-sans); font-size: 12.5px; font-weight: 600; color: var(--pac-ink-2);
+  background: var(--pac-paper); border: 1px solid var(--pac-rule); border-radius: 16px;
+  padding: 6px 13px; cursor: pointer;
+}
+.pac .pac-feit-chip:hover { border-color: var(--pac-chrome); color: var(--pac-ink); }
+.pac .pac-feit-chip.active { background: var(--pac-chrome); border-color: var(--pac-chrome); color: #fff; }
+.pac .pac-feit-cdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pac .pac-feit-chip-n { font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-3); }
+.pac .pac-feit-chip.active .pac-feit-chip-n { color: rgba(255,255,255,0.75); }
+
+.pac .pac-feit-count { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-ink-3); letter-spacing: 0.04em; margin-bottom: 14px; }
+
+.pac .pac-feiten-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.pac .pac-feit {
+  border: 1px solid var(--pac-rule-2); border-top: 3px solid var(--pac-rule);
+  background: var(--pac-paper); padding: 16px 18px 15px;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.pac .pac-feit:hover { border-color: var(--pac-rule); box-shadow: 0 4px 14px rgba(15,23,42,0.06); }
+.pac .pac-feit-top { display: flex; align-items: center; gap: 9px; }
+.pac .pac-feit-ico {
+  width: 38px; height: 38px; flex-shrink: 0; border: 1px solid var(--pac-rule-2);
+  background: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.pac .pac-feit-img { display: block; object-fit: contain; }
+.pac .pac-feit-thema {
+  display: inline-flex; align-items: center; gap: 7px; flex: 1;
+  font-family: var(--pac-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--pac-ink-3);
+}
+.pac .pac-feit-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.pac .pac-feit-jaar { font-family: var(--pac-mono); font-size: 10px; color: var(--pac-ink-4); }
+.pac .pac-feit-name {
+  font-family: var(--pac-serif); font-weight: 700; font-size: 17px; line-height: 1.25;
+  color: var(--pac-ink); margin: 0; letter-spacing: -0.01em;
+}
+.pac .pac-feit-desc { font-size: 13px; color: var(--pac-ink-2); line-height: 1.5; margin: 0; flex: 1; }
+.pac .pac-feit-foot {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap; margin-top: 3px; padding-top: 11px; border-top: 1px solid var(--pac-rule-2);
+}
+.pac .pac-feit-dossiers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pac .pac-feit-dlbl {
+  font-family: var(--pac-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--pac-ink-4); width: 100%;
+}
+.pac .pac-feit-dlbl-none { width: auto; align-self: center; }
+.pac .pac-feit-dchip {
+  font-family: var(--pac-sans); font-size: 11.5px; font-weight: 600; color: var(--pac-chrome);
+  background: #eef4fe; border: 1px solid #bcd0f5; border-radius: 4px; padding: 3px 9px; cursor: pointer;
+}
+.pac .pac-feit-dchip:hover { background: #dce8fc; }
+.pac .pac-feit-open {
+  font-family: var(--pac-sans); font-size: 12.5px; font-weight: 600; color: var(--pac-accent);
+  text-decoration: none; white-space: nowrap; align-self: center;
+}
+.pac .pac-feit-open:hover { text-decoration: underline; }
+
+.pac .pac-feit-cta {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--pac-rule-2);
+}
+.pac .pac-feit-cta-link { font-family: var(--pac-sans); font-size: 13.5px; font-weight: 600; color: var(--pac-chrome); text-decoration: none; }
+.pac .pac-feit-cta-link:hover { text-decoration: underline; }
+.pac .pac-feit-cta-note { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-ink-3); }
+
+.pac .pac-feit-strip {
+  border: 1px solid var(--pac-rule-2); background: var(--pac-paper);
+  padding: 13px 15px 12px; display: flex; flex-direction: column; gap: 9px;
+}
+.pac .pac-feit-strip-eyebrow {
+  font-family: var(--pac-mono); font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--pac-chrome); font-weight: 600;
+}
+.pac .pac-feit-strip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pac .pac-feit-strip-list li + li { border-top: 1px solid var(--pac-rule-2); }
+.pac .pac-feit-strip-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 0;
+  text-decoration: none; color: var(--pac-ink);
+}
+.pac .pac-feit-strip-item:hover .pac-feit-strip-name { color: var(--pac-accent); text-decoration: underline; }
+.pac .pac-feit-strip-ico { width: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.pac .pac-feit-strip-name { font-size: 12.5px; font-weight: 600; line-height: 1.3; flex: 1; }
+.pac .pac-feit-strip-arrow { font-size: 11px; color: var(--pac-ink-4); flex-shrink: 0; }
+.pac .pac-feit-strip-item:hover .pac-feit-strip-arrow { color: var(--pac-accent); }
+.pac .pac-feit-strip-all {
+  font-family: var(--pac-sans); font-size: 11.5px; font-weight: 600; color: var(--pac-chrome);
+  background: none; border: none; border-top: 1px solid var(--pac-rule-2);
+  padding: 9px 0 2px; margin-top: 1px; cursor: pointer; text-align: left;
+}
+.pac .pac-feit-strip-all:hover { text-decoration: underline; }

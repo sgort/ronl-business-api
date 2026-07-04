@@ -40,6 +40,19 @@ export const changelog: Changelog = {
       date: 'July 5, 2026',
       sections: [
         {
+          icon: '📊',
+          iconColor: '#2f8f4e',
+          title: 'New: Feiten & cijfers — Feitelijk Flevoland monitor library',
+          items: [
+            'New page Monitoring → Provincie · feiten → Feiten & cijfers surfaces all 14 provincial monitors of Feitelijk Flevoland as a searchable, filterable card library — the factual underlay for PA dossiers.',
+            'Cards show monitor name, theme, year, description, outbound link to the live dashboard, and which PA dossiers the monitor underpins. Outbound links open in a new tab with host announced in the aria-label (WCAG compliant).',
+            'Theme filter (Brede welvaart, Economie, Wonen/ruimte, Landbouw/natuur, Klimaat & energie) with per-theme counts; free-text search across name, description, and linked dossier names.',
+            'Each Issuekaart now shows an "Onderbouw met feiten" strip directly under the Kompas radar, listing only the monitors that underpin that specific dossier. Hidden when no monitor matches. "Alle feiten & cijfers →" jumps to the library.',
+            "One shared data source (feiten.data.ts) drives both directions — the library and the per-dossier strip — with no duplication. The monitors are not curated or scored; they are the province's factual base.",
+            '14 monitor icons copied to public/pa/feiten-icons/ and served as static assets.',
+          ],
+        },
+        {
           icon: '🔍',
           iconColor: '#1d4ed8',
           title: 'New: Zoekcriteria — search criteria management screen in Beheer',

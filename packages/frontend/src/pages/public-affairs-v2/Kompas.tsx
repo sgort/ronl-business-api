@@ -5,6 +5,7 @@
  * reuse across the other PA screens.
  */
 
+import type { ReactNode } from 'react';
 import {
   KOMPAS_CRITERIA,
   kompasTotal,
@@ -142,10 +143,12 @@ export default function Kompas({
   kompas,
   showDuiding = true,
   viz = 'radar',
+  extra,
 }: {
   kompas: KompasScores;
   showDuiding?: boolean;
   viz?: KompasViz;
+  extra?: ReactNode;
 }) {
   const crit = KOMPAS_CRITERIA;
   const total = kompasTotal(kompas);
@@ -153,14 +156,17 @@ export default function Kompas({
 
   return (
     <div className="pac-kompas">
-      <div className="pac-kompas-radar">
-        {viz === 'radar' ? <KompasRadar kompas={kompas} /> : <KompasBars kompas={kompas} />}
-        <div className="pac-kompas-total">
-          {total}
-          <span> / {kompasMax()}</span>
+      <div className="pac-kompas-left">
+        <div className="pac-kompas-radar">
+          {viz === 'radar' ? <KompasRadar kompas={kompas} /> : <KompasBars kompas={kompas} />}
+          <div className="pac-kompas-total">
+            {total}
+            <span> / {kompasMax()}</span>
+          </div>
+          <div className={`pac-kompas-band tone-${band.key}`}>{band.label}</div>
+          <div className="pac-kompas-caption">Kompas-totaalscore</div>
         </div>
-        <div className={`pac-kompas-band tone-${band.key}`}>{band.label}</div>
-        <div className="pac-kompas-caption">Kompas-totaalscore</div>
+        {extra}
       </div>
 
       <div className="pac-scorecard">

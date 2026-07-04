@@ -84,6 +84,10 @@ export const PA_MODES: PaModeConfig[] = [
         items: [{ id: 'agenda', label: 'Agenda', badgeKey: 'agendaCount', authRequired: true }],
       },
       {
+        label: 'Provincie · feiten',
+        items: [{ id: 'feiten', label: 'Feiten & cijfers', authRequired: true }],
+      },
+      {
         label: 'Signaalbronnen',
         items: [
           { id: 'politiek', label: 'Politiek (NL)', badgeKey: 'signalCount', authRequired: true },
