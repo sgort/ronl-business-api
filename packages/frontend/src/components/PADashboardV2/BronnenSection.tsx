@@ -113,7 +113,7 @@ const BRON_GROEPEN: BronGroep[] = [
         file: 'media.client.ts',
         flagKey: 'media',
         cadence: 'cron · 6u',
-        note: 'Provincie Flevoland + Omroep Flevoland (altijd Flevoland-getagd); regio- + sentiment-verrijking, geo-bump.',
+        note: 'Provincie Flevoland + Omroep Flevoland (altijd Flevoland-getagd); regio-verrijking + geo-bump. Sentiment-verrijking is fase-2 (uit in v1).',
       },
       {
         name: 'Sociale media & omgeving',

@@ -70,6 +70,15 @@ jest.mock('./curation.service', () => ({
   promoteToInbox: mockPromoteToInbox,
 }));
 jest.mock('./sources/agenda.client', () => ({ fetchAgenda: jest.fn() }));
+jest.mock('@utils/config', () => ({
+  config: {
+    pa: {
+      euSourceEnabled: true,
+      epTextsSubmittedEnabled: true,
+      mediaSourceEnabled: false,
+    },
+  },
+}));
 
 // --- imports after mocks ---
 
@@ -191,7 +200,7 @@ describe('PA routes — role gating', () => {
       expect(res.status).toBe(404);
     });
 
-    it('public-affairs role, owned search → 200 (scoped to owner + tenant)', async () => {
+    it('public-affairs role → 200 (guarded by tenant_id only, any PA officer can edit)', async () => {
       mockDb.result.mockResolvedValue({ rowCount: 1 });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
@@ -200,7 +209,7 @@ describe('PA routes — role gating', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       const [, values] = mockDb.result.mock.calls[0];
-      expect(values).toEqual(['tenant', 'srch-1', 'test-user', 'flevoland']);
+      expect(values).toEqual(['tenant', 'srch-1', 'flevoland']);
     });
   });
 
