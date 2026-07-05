@@ -7,17 +7,15 @@
  */
 
 import { createHash } from 'node:crypto';
-import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { createLogger } from '@utils/logger';
 import type { AggregatorArticle, FeedSource, RawItem } from './types';
 import { FEEDS } from './feeds';
 import { detectRegion, summaryShort, analyzeSentiment } from './enrich';
 import { assignDuplicateGroups } from './dedup';
+import { safeFetch, UnsafeUrlError, ResponseTooLargeError } from './net-guard';
 
 const logger = createLogger('media-aggregator-ingest');
-
-const HTTP_TIMEOUT_MS = 15_000;
 
 const XML_PARSER = new XMLParser({
   ignoreAttributes: false,
@@ -132,19 +130,25 @@ export function toArticle(raw: RawItem): AggregatorArticle {
 
 async function fetchFeed(source: FeedSource): Promise<RawItem[]> {
   try {
-    const res = await axios.get<string>(source.url, {
-      timeout: HTTP_TIMEOUT_MS,
-      params: source.params,
-      responseType: 'text',
-      headers: {
-        Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml',
-        'User-Agent': 'ronl-media-aggregator/1.0 (+https://acc.open-regels.nl)',
-      },
+    const urlObj = new URL(source.url);
+    if (source.params) {
+      for (const [k, v] of Object.entries(source.params)) urlObj.searchParams.set(k, v);
+    }
+    const xml = await safeFetch(urlObj.toString(), {
+      maxBytes: 5 * 1024 * 1024,
+      timeoutMs: 10_000,
     });
-    const items = parseFeedXml(res.data, source);
+    const items = parseFeedXml(xml, source);
     logger.info('Feed fetched', { feed: source.id, count: items.length });
     return items;
   } catch (err) {
+    if (err instanceof UnsafeUrlError || err instanceof ResponseTooLargeError) {
+      logger.warn('Feed skipped (security policy)', {
+        feed: source.id,
+        error: err.message,
+      });
+      return [];
+    }
     logger.warn('Feed fetch failed', {
       feed: source.id,
       error: err instanceof Error ? err.message : String(err),
