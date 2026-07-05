@@ -11,6 +11,7 @@
  */
 
 import type { FeedSource } from './types';
+import { summarize } from './sanitize';
 
 const PROVINCE = 'Flevoland';
 
@@ -70,21 +71,9 @@ export function isInRegion(tag: RegionTag, region: string): boolean {
   return tag.province?.toLowerCase() === region.toLowerCase();
 }
 
-/** Strip HTML/entities and collapse whitespace. */
-export function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&[a-z]+;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Plain-text summary capped to ~50 words. */
+/** Plain-text summary capped to ~50 words. Delegates to sanitize.ts for correct HTML handling. */
 export function summaryShort(description: string, maxWords = 50): string {
-  const clean = stripHtml(description);
-  const words = clean.split(' ').filter(Boolean);
-  if (words.length <= maxWords) return clean;
-  return words.slice(0, maxWords).join(' ') + '…';
+  return summarize(description, maxWords);
 }
 
 /**

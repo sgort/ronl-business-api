@@ -59,8 +59,8 @@ describe('toArticle', () => {
     expect(a.duplicate_group_id).toBeNull(); // set later across corpus
   });
 
-  it('derives a stable art- id from the URL', () => {
-    expect(toArticle(items[0]).id).toMatch(/^art-[0-9a-f]{12}$/);
+  it('derives a stable id from the feed guid', () => {
+    expect(toArticle(items[0]).id).toMatch(/^[gtu]:[0-9a-f]{16}$/);
   });
 });
 
@@ -105,11 +105,10 @@ describe('region tagging', () => {
 describe('dedup', () => {
   it('gives two syndicated copies the same duplicate_group_id', () => {
     const items = parseFeedXml(XML, NATIONAL);
-    const articles = items.map(toArticle);
-    assignDuplicateGroups(articles);
+    const grouped = assignDuplicateGroups(items.map(toArticle));
     // items[1] and items[2] share the "stikstofkader provincies" title
-    const nu = articles.find((a) => a.canonical_url.includes('nu.nl/politiek'));
-    const nos = articles.find((a) => a.canonical_url.includes('nos.nl'));
+    const nu = grouped.find((a) => a.canonical_url.includes('nu.nl/politiek'));
+    const nos = grouped.find((a) => a.canonical_url.includes('nos.nl'));
     if (!nu || !nos) throw new Error('expected duplicate articles not found');
     expect(nu.duplicate_group_id).not.toBeNull();
     expect(nu.duplicate_group_id).toBe(nos.duplicate_group_id);
@@ -117,16 +116,15 @@ describe('dedup', () => {
 
   it('leaves a unique story ungrouped', () => {
     const items = parseFeedXml(XML, NATIONAL);
-    const articles = items.map(toArticle);
-    assignDuplicateGroups(articles);
-    const airport = articles.find((a) => a.canonical_url.includes('luchthavenbesluit'));
+    const grouped = assignDuplicateGroups(items.map(toArticle));
+    const airport = grouped.find((a) => a.canonical_url.includes('luchthavenbesluit'));
     if (!airport) throw new Error('expected airport article not found');
     expect(airport.duplicate_group_id).toBeNull();
   });
 
-  it('title signature strips stopwords and punctuation', () => {
-    expect(titleSignature('De nieuwe stikstof-aanpak, in het kort!')).toBe(
-      'nieuwe stikstof aanpak kort'
+  it('title signature is order-independent and punctuation-invariant', () => {
+    expect(titleSignature('Stikstof aanpak kabinet vastgesteld')).toBe(
+      titleSignature('Kabinet: stikstof-aanpak vastgesteld')
     );
   });
 });

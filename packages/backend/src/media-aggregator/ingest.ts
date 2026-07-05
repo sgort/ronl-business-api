@@ -6,18 +6,17 @@
  * A malformed item (no title or link) is skipped, never thrown.
  */
 
-import { createHash } from 'node:crypto';
-import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { createLogger } from '@utils/logger';
 import type { AggregatorArticle, FeedSource, RawItem } from './types';
 import { FEEDS } from './feeds';
 import { detectRegion, summaryShort, analyzeSentiment } from './enrich';
 import { assignDuplicateGroups } from './dedup';
+import { safeFetch, UnsafeUrlError, ResponseTooLargeError } from './net-guard';
+import { stableArticleId } from './stable-id';
+import { htmlToText } from './sanitize';
 
 const logger = createLogger('media-aggregator-ingest');
-
-const HTTP_TIMEOUT_MS = 15_000;
 
 const XML_PARSER = new XMLParser({
   ignoreAttributes: false,
@@ -101,10 +100,6 @@ export function parseFeedXml(xml: string, source: FeedSource): RawItem[] {
 
 // ── RawItem → AggregatorArticle ──────────────────────────────────────────────
 
-function articleId(url: string): string {
-  return 'art-' + createHash('sha1').update(url).digest('hex').slice(0, 12);
-}
-
 function toIso(pubDate: string): string {
   if (!pubDate) return '';
   const d = new Date(pubDate);
@@ -112,18 +107,24 @@ function toIso(pubDate: string): string {
 }
 
 export function toArticle(raw: RawItem): AggregatorArticle {
+  const cleanTitle = htmlToText(raw.title);
   const summary = summaryShort(raw.description);
-  const { province, municipality } = detectRegion(raw.title, summary, raw.source);
+  const { province, municipality } = detectRegion(cleanTitle, summary, raw.source);
   return {
-    id: articleId(raw.link),
+    id: stableArticleId({
+      guid: raw.guid,
+      canonical_url: raw.link,
+      title: raw.title, // use raw title for id stability (before sanitization)
+      published_at: toIso(raw.pubDate),
+    }),
     duplicate_group_id: null, // assigned later across the corpus
     canonical_url: raw.link,
-    title: raw.title,
+    title: cleanTitle,
     summary_short: summary,
     published_at: toIso(raw.pubDate),
     province,
     municipality,
-    sentiment: analyzeSentiment(raw.title, summary),
+    sentiment: analyzeSentiment(cleanTitle, summary),
     source: { name: raw.source.name, type: raw.source.type, homepage: raw.source.homepage },
   };
 }
@@ -132,19 +133,25 @@ export function toArticle(raw: RawItem): AggregatorArticle {
 
 async function fetchFeed(source: FeedSource): Promise<RawItem[]> {
   try {
-    const res = await axios.get<string>(source.url, {
-      timeout: HTTP_TIMEOUT_MS,
-      params: source.params,
-      responseType: 'text',
-      headers: {
-        Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml',
-        'User-Agent': 'ronl-media-aggregator/1.0 (+https://acc.open-regels.nl)',
-      },
+    const urlObj = new URL(source.url);
+    if (source.params) {
+      for (const [k, v] of Object.entries(source.params)) urlObj.searchParams.set(k, v);
+    }
+    const xml = await safeFetch(urlObj.toString(), {
+      maxBytes: 5 * 1024 * 1024,
+      timeoutMs: 10_000,
     });
-    const items = parseFeedXml(res.data, source);
+    const items = parseFeedXml(xml, source);
     logger.info('Feed fetched', { feed: source.id, count: items.length });
     return items;
   } catch (err) {
+    if (err instanceof UnsafeUrlError || err instanceof ResponseTooLargeError) {
+      logger.warn('Feed skipped (security policy)', {
+        feed: source.id,
+        error: err.message,
+      });
+      return [];
+    }
     logger.warn('Feed fetch failed', {
       feed: source.id,
       error: err instanceof Error ? err.message : String(err),
@@ -168,7 +175,7 @@ export async function ingestAll(): Promise<AggregatorArticle[]> {
       articles.push(toArticle(raw));
     }
   }
-  assignDuplicateGroups(articles);
-  logger.info('Ingest complete', { total: articles.length });
-  return articles;
+  const deduped = assignDuplicateGroups(articles);
+  logger.info('Ingest complete', { total: deduped.length });
+  return deduped;
 }

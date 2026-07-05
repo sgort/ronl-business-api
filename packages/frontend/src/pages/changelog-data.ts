@@ -33,6 +33,25 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.7.2',
+      status: 'Upcoming',
+      statusColor: '#6b7280',
+      borderColor: '#e5e7eb',
+      date: 'July 6, 2026',
+      sections: [
+        {
+          icon: '🔒',
+          iconColor: '#b45309',
+          title: 'Fix: Media-aggregator hardening — SSRF guard, stable IDs, HTML sanitization',
+          items: [
+            'SSRF guard (net-guard.ts): feed fetches now validate the target URL is a plain public http(s) host before opening a connection — blocks file:// and non-http schemes, embedded credentials, and hosts that resolve to loopback, link-local (including 169.254.169.254 cloud-metadata), private RFC-1918, or CGNAT ranges. Response bodies are capped at 5 MB; anything larger throws ResponseTooLargeError and the feed is skipped with a warn log.',
+            'Stable article IDs (stable-id.ts): replace the URL-hash "art-…" id with a precedence chain — feed-provided guid → canonical link → title+date. Two fetches of the same article now produce the same id even when the URL carries varying tracking params (utm_*, fbclid, gclid stripped by canonicalizeUrl). Duplicate-group clustering upgraded to an order-independent, diacritic-stripped, NL-stopword-filtered sha1 title signature; assignDuplicateGroups no longer mutates its input.',
+            'Sanitize-to-text (sanitize.ts): feed titles pass through htmlToText — removes <script>/<style> content wholesale, converts block-level tag closes to spaces, decodes named and numeric HTML entities (including Dutch diacritics), and collapses whitespace. summaryShort delegates to summarize(), replacing the regex stripHtml that could leak half-tags and raw entities into the cockpit UI. Raw title still used for stableArticleId to keep IDs stable across refreshes.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.7.1',
       status: 'New',
       statusColor: '#1d4ed8',
