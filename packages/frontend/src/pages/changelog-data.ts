@@ -116,11 +116,11 @@ export const changelog: Changelog = {
           title: 'New: Signaalbronnen — connector registry screen in Beheer → Monitoring',
           items: [
             'New read-only screen Beheer → Monitoring → Signaalbronnen lists every signal connector in one place, grouped by the Monitoring tab the signals land in (Politiek NL, Regionaal, Europa EU, Media & omgeving).',
-            'Each row shows status (Actief / Uitgeschakeld / Verwacht), connector name and description, protocol tag, live environment flag value, and polling cadence.',
-            'Status is derived from live configuration: core connectors (TK, OB, Agenda) are always Actief; EU, EP Ingediende teksten, and Media connectors reflect the EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, and MEDIA_SOURCE_ENABLED flags as deployed — no hardcoding.',
+            "Connector rows (TK, OB, EU, EP Ingediende teksten) each show status (Actief / Uitgeschakeld / Verwacht), connector name and description, protocol tag, live environment flag value, and polling cadence. Media & omgeving renders differently: each RSS feed gets its own row (FeedRow) inside Regionaal / Landelijk / Sociaal sub-group headers, with the feed's URL and a right-aligned chip cluster (altijd Flevoland badge, categorie filter, RSS tag, MEDIA_SOURCE_ENABLED flag, cadence). All seven feeds mirror feeds.ts exactly — Regionaal: Provincie Flevoland, Omroep Flevoland (categorie: Nieuws); Landelijk: Rijksoverheid, NOS Nieuws, NU.nl, RTL Nieuws; Sociaal: gepland.",
+            'Status is derived from live configuration: core connectors (TK, OB, Agenda) are always Actief; EU, EP Ingediende teksten, and Media connectors reflect the EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, and MEDIA_SOURCE_ENABLED flags as deployed — no hardcoding. All six media feed rows share the single MEDIA_SOURCE_ENABLED flag and flip together.',
             'Planned connectors without an implementation (Sociale media & omgeving) render as Verwacht with a dashed "geen connector" tag.',
             'New backend endpoint GET /v1/pa/sources/status reads config.pa.* flags and returns { tk, ob, eu, epTeksten, media } booleans; consumed by the frontend on mount.',
-            'Summary strip above the groups shows active, disabled, and planned counts plus a dot legend.',
+            'Summary strip above the groups shows active, disabled, and planned counts plus a dot legend. Counts now include feed rows: with MEDIA_SOURCE_ENABLED=true all six live feeds count as actief; with the flag off they all flip to uitgeschakeld. The Sociaal row always counts as verwacht.',
           ],
         },
         {

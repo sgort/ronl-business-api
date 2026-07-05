@@ -1792,6 +1792,42 @@
   .pac .pac-src-tag, .pac .pac-src-flag, .pac .pac-src-cadence { grid-column: 2; justify-self: start; }
 }
 
+/* Media feeds — grouped by category */
+.pac .pac-src-groupintro {
+  padding: 10px 16px; font-size: 12px; color: var(--pac-ink-2); line-height: 1.45;
+  border-bottom: 1px solid var(--pac-rule-2); background: var(--pac-paper);
+}
+.pac .pac-src-sub + .pac-src-sub { border-top: 1px solid var(--pac-rule-2); }
+.pac .pac-src-subhead {
+  display: flex; align-items: baseline; gap: 9px;
+  padding: 8px 16px; background: var(--pac-paper); border-bottom: 1px solid var(--pac-rule-2);
+}
+.pac .pac-src-sublabel {
+  font-family: var(--pac-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--pac-ink-2);
+}
+.pac .pac-src-subcap { font-size: 11.5px; color: var(--pac-ink-3); }
+.pac .pac-src-subcount {
+  font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-3);
+  background: var(--pac-bg); border: 1px solid var(--pac-rule-2); border-radius: 10px;
+  padding: 1px 8px; margin-left: auto;
+}
+
+/* Feed row: status · main · right-aligned aux cluster (chips wrap, stay right) */
+.pac .pac-src-row--feed { grid-template-columns: 116px minmax(0, 1fr) auto; }
+.pac .pac-src-aux {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px;
+}
+.pac .pac-src-flag-fl {
+  font-family: var(--pac-mono); font-size: 10.5px; color: #2f5d3a;
+  background: #eef4ee; border: 1px solid #cfe3d2; padding: 3px 8px; white-space: nowrap;
+}
+
+@media (max-width: 880px) {
+  .pac .pac-src-row--feed { grid-template-columns: 110px 1fr; }
+  .pac .pac-src-row--feed .pac-src-aux { grid-column: 2; justify-content: flex-start; }
+}
+
 /* ── Feiten & cijfers · Feitelijk Flevoland ────────────────── */
 .pac .pac-kompas-left { display: flex; flex-direction: column; gap: 12px; }
 
