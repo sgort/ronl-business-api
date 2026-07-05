@@ -124,8 +124,11 @@ export async function fetchLimited(
   try {
     const res = await axios.get(url, config);
     return typeof res.data === 'string' ? res.data : String(res.data);
-  } catch (err: any) {
-    if (err?.code === 'ERR_FR_MAX_CONTENT_LENGTH_EXCEEDED') {
+  } catch (err: unknown) {
+    if (
+      err instanceof Error &&
+      (err as NodeJS.ErrnoException).code === 'ERR_FR_MAX_CONTENT_LENGTH_EXCEEDED'
+    ) {
       throw new ResponseTooLargeError(`response exceeds ${maxBytes} bytes: ${url}`);
     }
     throw err;

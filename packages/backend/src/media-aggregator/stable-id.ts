@@ -100,11 +100,16 @@ export function assignDuplicateGroups<
   const bySig = new Map<string, string[]>();
   for (const a of articles) {
     const sig = titleSignature(a.title);
-    (bySig.get(sig) ?? bySig.set(sig, []).get(sig)!).push(a.id);
+    let bucket = bySig.get(sig);
+    if (!bucket) {
+      bucket = [];
+      bySig.set(sig, bucket);
+    }
+    bucket.push(a.id);
   }
   return articles.map((a) => {
     const sig = titleSignature(a.title);
-    const members = bySig.get(sig)!;
+    const members = bySig.get(sig) ?? [];
     const groupId = members.length > 1 ? `dup:${sig}` : null;
     return { ...a, duplicate_group_id: groupId };
   });
