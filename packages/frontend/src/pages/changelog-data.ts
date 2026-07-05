@@ -40,6 +40,19 @@ export const changelog: Changelog = {
       date: 'July 5, 2026',
       sections: [
         {
+          icon: '🎛️',
+          iconColor: '#0046ad',
+          title: 'New: Zoekcriteria — cron-scoring uitleg (verdict-chip, modal, simulator)',
+          items: [
+            'Bug fix: zcBestCase() preview was adding +1 for a term hit; the real engine (rules.ts) adds +3 for a title hit. Every TK/EU criterion was showing "≈ rel 6" where the cron actually yields 8. Fixed — strong case now correctly reads rel 8 and criteria visibly differ from each other.',
+            'Scoring constants (REL_BASE, ZWAARTYPE_BUMP, TITLE_HIT, MATCH_CAP, NOISE_FLOOR, REL_THRESHOLD) exported from @ronl/shared and imported by rules.ts and curation.service.ts. The persistence cutoff rel ≥ 4 is now the named constant REL_THRESHOLD — confirmed real value from curation.service.ts line 251.',
+            'Card verdict-chip (Option C): raw "≈ rel N" replaced with a plain-language chip ("Wordt opgepikt" / "Alleen bij regio-match" / "Wordt niet opgepikt"), a 3-bar strength indicator (heights 5/9/13 px, bars lit = tier), and a mono subline with the representative score. TK/EU criteria with terms show green / 3 bars (rel 8); OB+terms green / 2 bars (rel 6); media-only amber / 2 bars; no terms amber / 1 bar.',
+            'Explainer modal (Option B): the ? on each card opens a 560px modal with three tabs — Sterke treffer (TK Motie + title hit → rel 8), Media-treffer (Flevoland province + municipality → rel 6), Geen treffer (TK Brief + no term match → noise floor rel 3). Each tab renders a worked receipt: one row per scoring step with amount, label, explanation, and running total; green total row; drempel note. Closes on ×, Begrepen, backdrop click, or Esc.',
+            'Score simulator (Option D): static "ZO SCOORT DE CRON" panel in the editor replaced with live toggles for Zwaar documenttype (+2), Zoekwoord in de titel (+3), and Tag komt ook voor (+1). Score bar animates on every toggle (respects prefers-reduced-motion). Threshold marker at 40% (drempel 4). Turning both top toggles off drops to rel 3 → "weggefilterd" — the noise-floor demonstration is the whole point.',
+            'Drift test added to rules.test.ts: asserts scoreItem produces exactly REL_BASE + ZWAARTYPE_BUMP + min(TITLE_HIT, MATCH_CAP) = 8 for the canonical TK strong case, and that the no-match floor lands at NOISE_FLOOR < REL_THRESHOLD.',
+          ],
+        },
+        {
           icon: '🔢',
           iconColor: '#1d4ed8',
           title: 'Fix: Inbox count honest — 100+ pill and cap banner when inbox exceeds limit',

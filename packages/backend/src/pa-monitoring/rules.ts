@@ -5,6 +5,17 @@
  */
 
 import type { FeedItem, Signal } from '@ronl/shared';
+import {
+  REL_BASE,
+  ZWAARTYPE_BUMP,
+  MEDIA_MUNI_BUMP,
+  TITLE_HIT,
+  DESC_HIT,
+  TAG_HIT,
+  MATCH_CAP,
+  REL_MAX,
+  NOISE_FLOOR,
+} from '@ronl/shared';
 
 interface SavedSearch {
   dossierId: string | null;
@@ -41,16 +52,16 @@ const FLEVOLAND_MUNICIPALITIES = new Set([
 ]);
 
 export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult {
-  let rel = 3;
+  let rel = REL_BASE;
   const tab: Signal['tab'] = TAB_BY_SOURCE[item.source] ?? 'politiek';
   let dossierId: string | null = null;
 
   // Bump for high-value document types per source
   if (item.source === 'tk' && item.type && HIGH_VALUE_TK_TYPES.has(item.type)) {
-    rel += 2;
+    rel += ZWAARTYPE_BUMP;
   }
   if (item.source === 'eu' && item.type && HIGH_VALUE_EU_TYPES.has(item.type)) {
-    rel += 2;
+    rel += ZWAARTYPE_BUMP;
   }
 
   // Geographic bump for media items: province match +2, municipality match +1.
@@ -58,10 +69,10 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
   if (item.source === 'media') {
     const regio = (item.regio ?? '').toLowerCase();
     const haystack = `${item.title} ${item.description ?? ''} ${regio}`.toLowerCase();
-    if (regio.includes('flevoland') || haystack.includes('flevoland')) rel += 2;
+    if (regio.includes('flevoland') || haystack.includes('flevoland')) rel += ZWAARTYPE_BUMP;
     for (const gemeente of FLEVOLAND_MUNICIPALITIES) {
       if (haystack.includes(gemeente)) {
-        rel += 1;
+        rel += MEDIA_MUNI_BUMP;
         break;
       }
     }
@@ -75,20 +86,19 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
     const desc = (item.description ?? '').toLowerCase();
 
     let score = 0;
-    // Split on OR/AND and check each term
     const terms = q
       .split(/\s+(?:OR|AND)\s+/i)
       .map((t) => t.replace(/^"|"$/g, '').trim())
       .filter(Boolean);
 
     for (const term of terms) {
-      if (title.includes(term)) score += 3;
-      else if (desc.includes(term)) score += 1;
+      if (title.includes(term)) score += TITLE_HIT;
+      else if (desc.includes(term)) score += DESC_HIT;
     }
 
     // Tag intersection
     for (const tag of search.tags) {
-      if (title.includes(tag) || desc.includes(tag)) score += 1;
+      if (title.includes(tag) || desc.includes(tag)) score += TAG_HIT;
     }
 
     if (score > bestScore) {
@@ -97,10 +107,10 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
     }
   }
 
-  rel = Math.min(10, rel + Math.min(bestScore, 5));
+  rel = Math.min(REL_MAX, rel + Math.min(bestScore, MATCH_CAP));
 
   // Items that don't match any search get a low rel — not worth surfacing
-  if (bestScore === 0) rel = Math.min(rel, 3);
+  if (bestScore === 0) rel = Math.min(rel, NOISE_FLOOR);
 
   return { rel, tab, dossierId };
 }

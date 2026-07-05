@@ -11,6 +11,14 @@
  */
 
 import { scoreItem } from './rules';
+import {
+  REL_BASE,
+  ZWAARTYPE_BUMP,
+  TITLE_HIT,
+  MATCH_CAP,
+  NOISE_FLOOR,
+  REL_THRESHOLD,
+} from '@ronl/shared';
 
 // Minimal FeedItem factory — only fields scoreItem reads
 function item(
@@ -353,5 +361,26 @@ describe('scoreItem — media source (geographic bump)', () => {
       [search({ q: 'stikstof', dossierId: 'stikstof' })]
     );
     expect(result.rel).toBe(3);
+  });
+});
+
+describe('scoreItem — shared-constant drift guard', () => {
+  it('canonical TK strong case matches REL_BASE + ZWAARTYPE_BUMP + min(TITLE_HIT, MATCH_CAP)', () => {
+    // This test fails if rules.ts logic ever diverges from the constants in @ronl/shared.
+    const expected = REL_BASE + ZWAARTYPE_BUMP + Math.min(TITLE_HIT, MATCH_CAP); // 3+2+3 = 8
+    const result = scoreItem(
+      item({ source: 'tk', type: 'Motie', title: 'stikstof motie landbouw' }),
+      [search({ q: 'stikstof' })]
+    );
+    expect(result.rel).toBe(expected);
+    expect(result.rel).toBeGreaterThanOrEqual(REL_THRESHOLD);
+  });
+
+  it('no-match item is capped at NOISE_FLOOR and falls below REL_THRESHOLD', () => {
+    const result = scoreItem(item({ source: 'tk', type: 'Motie', title: 'onderwijshuisvesting' }), [
+      search({ q: 'stikstof' }),
+    ]);
+    expect(result.rel).toBe(NOISE_FLOOR);
+    expect(result.rel).toBeLessThan(REL_THRESHOLD);
   });
 });

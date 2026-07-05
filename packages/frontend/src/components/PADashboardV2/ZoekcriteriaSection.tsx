@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { usePaData } from '../../pages/public-affairs-v2/PaDataProvider';
 import type { Dossier } from '@ronl/shared';
+
+// Kept in sync with @ronl/shared/types/pa-scoring.ts and rules.ts.
+// The drift test in rules.test.ts guards against divergence.
+const REL_BASE = 3;
+const ZWAARTYPE_BUMP = 2;
+const MEDIA_MUNI_BUMP = 1;
+const TITLE_HIT = 3;
+const MATCH_CAP = 5;
+const REL_MAX = 10;
+const NOISE_FLOOR = 3;
+const REL_THRESHOLD = 4;
 import type { SavedSearch } from '../../services/pa.api';
 import {
   fetchSearches,
@@ -8,12 +19,6 @@ import {
   updateSearch,
   deleteSavedSearch,
 } from '../../services/pa.api';
-
-// Mirror of rules.ts HIGH_VALUE_TK_TYPES / HIGH_VALUE_EU_TYPES — kept in sync.
-const ZC_HEAVY = {
-  tk: ['Motie', 'Kamervraag', 'Brief', 'Amendement'],
-  eu: ['Verslag', 'Motie', 'Aangenomen tekst', 'Resolutie'],
-};
 
 const ZC_SOURCES = [
   { id: 'tk', label: 'TK', full: 'Tweede Kamer' },
@@ -45,20 +50,85 @@ function toZcDraft(s: SavedSearch): ZcDraft {
   };
 }
 
-function zcHeavyForSources(sources: string[]): string[] {
-  const t: string[] = [];
-  if (sources.includes('tk')) t.push(...ZC_HEAVY.tk);
-  if (sources.includes('eu')) t.push(...ZC_HEAVY.eu);
-  return [...new Set(t)];
+// ── Corrected best-case preview — mirrors rules.ts › scoreItem ────────────────
+
+type RelTier = 'strong' | 'conditional' | 'floor';
+
+interface ZcBestCase {
+  base: number;
+  typeBump: number;
+  matchBump: number;
+  total: number;
+  tier: RelTier;
+  passes: boolean;
 }
 
-function zcBestCase(sources: string[]): number {
-  let rel = 3;
-  if (sources.includes('tk') || sources.includes('eu')) rel += 2;
-  if (sources.includes('media')) rel = Math.max(rel, 5);
-  rel += 1;
-  return Math.min(10, rel);
+function zcBestCase(criterion: {
+  sources: string[];
+  terms: string[];
+  tags?: string[];
+}): ZcBestCase {
+  const { sources, terms } = criterion;
+  const hasTerms = terms.length > 0;
+
+  let typeBump = 0;
+  if (sources.includes('tk') || sources.includes('eu')) {
+    typeBump = ZWAARTYPE_BUMP; // heavy document type +2
+  } else if (sources.includes('media')) {
+    typeBump = ZWAARTYPE_BUMP + MEDIA_MUNI_BUMP; // best geo case: province(+2) + municipality(+1)
+  }
+  // 'ob' has no zwaartype bump in the engine
+
+  const matchBump = hasTerms ? Math.min(TITLE_HIT, MATCH_CAP) : 0;
+
+  let total = REL_BASE + typeBump + matchBump;
+  if (matchBump === 0) total = Math.min(total, NOISE_FLOOR);
+  total = Math.min(REL_MAX, total);
+
+  const tier: RelTier = !hasTerms
+    ? 'floor'
+    : sources.includes('tk') || sources.includes('eu')
+      ? 'strong'
+      : sources.includes('media')
+        ? 'conditional' // media needs a Flevoland mention; not guaranteed on every item
+        : 'strong'; // ob + terms reaches 6 — above threshold
+
+  return { base: REL_BASE, typeBump, matchBump, total, tier, passes: total >= REL_THRESHOLD };
 }
+
+function zcVerdict(bc: ZcBestCase): {
+  label: string;
+  tone: 'strong' | 'weak';
+  bars: 1 | 2 | 3;
+  sub: string;
+} {
+  switch (bc.tier) {
+    case 'strong':
+      return {
+        label: 'Wordt opgepikt',
+        tone: 'strong',
+        bars: bc.total >= 8 ? 3 : 2,
+        sub: `sterke treffer · rel ${bc.total} (drempel ${REL_THRESHOLD})`,
+      };
+    case 'conditional':
+      return {
+        label: 'Alleen bij regio-match',
+        tone: 'weak',
+        bars: 2,
+        sub: 'media zonder Flevoland-context blijft onder de drempel',
+      };
+    case 'floor':
+    default:
+      return {
+        label: 'Wordt niet opgepikt',
+        tone: 'weak',
+        bars: 1,
+        sub: `geen rake term · blijft op ${NOISE_FLOOR}`,
+      };
+  }
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function ZcSourceBadges({ sources }: { sources: string[] }) {
   return (
@@ -84,6 +154,335 @@ function ZcTerms({ terms }: { terms: string[] }) {
     </div>
   );
 }
+
+function StrengthBars({ bars }: { bars: 1 | 2 | 3 }) {
+  return (
+    <span className="pac-zc-bars" aria-hidden="true">
+      <span className={`pac-zc-bar b1${bars >= 1 ? ' on' : ''}`} />
+      <span className={`pac-zc-bar b2${bars >= 2 ? ' on' : ''}`} />
+      <span className={`pac-zc-bar b3${bars >= 3 ? ' on' : ''}`} />
+    </span>
+  );
+}
+
+// ── Explainer modal ───────────────────────────────────────────────────────────
+
+type ModalTab = 'strong' | 'media' | 'noise';
+
+interface ReceiptRow {
+  amt: string;
+  amtTone: 'base' | 'plus' | 'neutral';
+  label: string;
+  sub?: string;
+  running: number;
+}
+
+const MODAL_EXAMPLES: Record<
+  ModalTab,
+  {
+    title: string;
+    badge: string;
+    badgeClass: string;
+    meta: string;
+    rows: ReceiptRow[];
+    total: number;
+    note: string;
+  }
+> = {
+  strong: {
+    title: 'Motie stikstofreductie landbouw',
+    badge: 'TK',
+    badgeClass: 'tk',
+    meta: 'Motie',
+    rows: [
+      {
+        amt: '3',
+        amtTone: 'base',
+        label: 'basisrelevantie',
+        sub: 'elke opgehaalde tekst start hier',
+        running: 3,
+      },
+      {
+        amt: '+2',
+        amtTone: 'plus',
+        label: 'zwaar documenttype',
+        sub: 'Motie valt onder Motie · Kamervraag · Brief · Amendement',
+        running: 5,
+      },
+      {
+        amt: '+3',
+        amtTone: 'plus',
+        label: 'zoekwoord in de titel',
+        sub: '"stikstof" gevonden in de kop — zwaarste hefboom',
+        running: 8,
+      },
+    ],
+    total: 8,
+    note: `Ruim boven de drempel (${REL_THRESHOLD}). De titeltreffer is de zwaarste hefboom — één rake term in de kop is voldoende.`,
+  },
+  media: {
+    title: 'Netcongestie legt bedrijven in Lelystad stil',
+    badge: 'Media',
+    badgeClass: 'media',
+    meta: 'regio Flevoland',
+    rows: [
+      {
+        amt: '3',
+        amtTone: 'base',
+        label: 'basisrelevantie',
+        sub: 'elke opgehaalde tekst start hier',
+        running: 3,
+      },
+      {
+        amt: '+2',
+        amtTone: 'plus',
+        label: 'provincie Flevoland',
+        sub: '"Flevoland" gevonden in regio of tekst',
+        running: 5,
+      },
+      {
+        amt: '+1',
+        amtTone: 'plus',
+        label: 'gemeente (Lelystad)',
+        sub: 'gemeente uit de gazetteer gevonden in de tekst',
+        running: 6,
+      },
+    ],
+    total: 6,
+    note: `Media-items kennen geen documenttype. Geografische context (provincie + gemeente) telt — maar is niet gegarandeerd op elk item.`,
+  },
+  noise: {
+    title: 'Kamerbrief over onderwijshuisvesting',
+    badge: 'TK',
+    badgeClass: 'tk',
+    meta: 'Brief · geen zoekwoord',
+    rows: [
+      {
+        amt: '3',
+        amtTone: 'base',
+        label: 'basisrelevantie',
+        sub: 'elke opgehaalde tekst start hier',
+        running: 3,
+      },
+      {
+        amt: '+2',
+        amtTone: 'neutral',
+        label: 'zwaar documenttype',
+        sub: 'Brief is een zwaar type — maar zie de volgende stap',
+        running: 5,
+      },
+      {
+        amt: '→ 3',
+        amtTone: 'neutral',
+        label: 'type-bonus vervalt',
+        sub: 'geen zoekwoord raak → noise floor: rel = min(rel, 3)',
+        running: 3,
+      },
+    ],
+    total: 3,
+    note: `Onder de drempel (${REL_THRESHOLD}) → weggefilterd. Zonder een rake term telt het zware type niet mee. Zo blijft "geen ruis" de belofte.`,
+  },
+};
+
+function ScoringModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<ModalTab>('strong');
+  const ex = MODAL_EXAMPLES[tab];
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div className="pac-zcm-overlay" onMouseDown={onClose}>
+      <div
+        className="pac-zcm-box"
+        onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="pac-zcm-top">
+          <span className="pac-zcm-kicker">ZO SCOORT DE CRON</span>
+          <button className="pac-zcm-close" onClick={onClose} aria-label="Sluiten">
+            ×
+          </button>
+        </div>
+        <h2 className="pac-zcm-title">Hoe scoort de cron een document?</h2>
+
+        <div className="pac-zcm-tabs" role="tablist">
+          {(['strong', 'media', 'noise'] as ModalTab[]).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              className={`pac-zcm-tab${tab === t ? ' active' : ''}`}
+              onClick={() => setTab(t)}
+            >
+              {t === 'strong' ? 'Sterke treffer' : t === 'media' ? 'Media-treffer' : 'Geen treffer'}
+            </button>
+          ))}
+        </div>
+
+        <div className="pac-zcm-exdoc">
+          <span className={`pac-zc-src ${ex.badgeClass}`}>{ex.badge}</span>
+          <span className="pac-zcm-exdoc-meta">{ex.meta}</span>
+          <span className="pac-zcm-exdoc-title">{ex.title}</span>
+        </div>
+
+        <div className="pac-zcm-receipt">
+          {ex.rows.map((row, i) => (
+            <div key={i} className={`pac-zcm-row${i === ex.rows.length - 1 ? ' last' : ''}`}>
+              <span className={`pac-zcm-amt ${row.amtTone}`}>{row.amt}</span>
+              <span className="pac-zcm-rowbody">
+                <span className="pac-zcm-rowlabel">{row.label}</span>
+                {row.sub && <small className="pac-zcm-rowsub">{row.sub}</small>}
+              </span>
+              <span className="pac-zcm-running">= {row.running}</span>
+            </div>
+          ))}
+          <div className="pac-zcm-total">
+            <span className="pac-zcm-total-label">Totaal</span>
+            <span className="pac-zcm-total-rel">rel {ex.total}</span>
+          </div>
+        </div>
+
+        <div className="pac-zcm-note">{ex.note}</div>
+
+        <div className="pac-zcm-footer">
+          <button className="pac-btn-primary pac-zcm-ok" onClick={onClose}>
+            Begrepen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Score simulator (replaces static ZO SCOORT DE CRON panel) ────────────────
+
+function ScoreSimulator() {
+  const [heavy, setHeavy] = useState(true);
+  const [titleMatch, setTitleMatch] = useState(true);
+  const [tagMatch, setTagMatch] = useState(false);
+
+  let rel = REL_BASE;
+  let matched = 0;
+  if (heavy) rel += ZWAARTYPE_BUMP;
+  if (titleMatch) matched += TITLE_HIT;
+  if (tagMatch) matched += 1;
+  rel += Math.min(matched, MATCH_CAP);
+  if (matched === 0) rel = Math.min(rel, NOISE_FLOOR);
+  rel = Math.min(REL_MAX, rel);
+  const pass = rel >= REL_THRESHOLD;
+
+  const fillPct = (rel / REL_MAX) * 100;
+  const thresholdPct = (REL_THRESHOLD / REL_MAX) * 100;
+
+  return (
+    <div className="pac-zc-sim">
+      <div className="pac-zc-sim-head">
+        <span>Probeer het uit</span>
+        <span className="pac-zc-sim-src">voorbeelddocument · TK</span>
+      </div>
+      <p className="pac-zc-sim-example">
+        Een{' '}
+        <span className={`pac-zc-sim-mark${heavy ? '' : ' off'}`}>
+          {heavy ? 'Motie' : 'document'}
+        </span>{' '}
+        over{' '}
+        <span className={`pac-zc-sim-mark${titleMatch ? '' : ' off'}`}>
+          {titleMatch ? 'stikstof' : '…'}
+        </span>{' '}
+        wordt ingediend bij de Tweede Kamer.
+      </p>
+
+      <div className="pac-zc-sim-toggles">
+        <SimToggle
+          on={heavy}
+          onChange={setHeavy}
+          label="Zwaar documenttype"
+          sub="motie, kamervraag, brief, amendement"
+          pts={ZWAARTYPE_BUMP}
+        />
+        <SimToggle
+          on={titleMatch}
+          onChange={setTitleMatch}
+          label="Zoekwoord in de titel"
+          sub={`'stikstof' staat in de kop`}
+          pts={TITLE_HIT}
+        />
+        <SimToggle
+          on={tagMatch}
+          onChange={setTagMatch}
+          label="Tag komt ook voor"
+          sub={`+1 extra, gemaximeerd op +${MATCH_CAP} uit matches`}
+          pts={1}
+        />
+      </div>
+
+      <div className="pac-zc-sim-out">
+        <div className="pac-zc-sim-track">
+          <div
+            className={`pac-zc-sim-fill${pass ? ' pass' : ''}`}
+            style={{ width: `${fillPct}%` }}
+          />
+          <div className="pac-zc-sim-threshold" style={{ left: `${thresholdPct}%` }} />
+        </div>
+        <div className="pac-zc-sim-verdict">
+          <span className="pac-zc-sim-n">
+            {rel} <span className="pac-zc-sim-max">/ {REL_MAX}</span>
+          </span>
+          <span className={`pac-zc-sim-status${pass ? ' pass' : ' fail'}`}>
+            {pass
+              ? `✓ wordt kandidaat — boven drempel ${REL_THRESHOLD}`
+              : matched === 0
+                ? `✕ wordt weggefilterd — geen terme raak (noise floor ${NOISE_FLOOR})`
+                : `✕ wordt weggefilterd — onder drempel ${REL_THRESHOLD}`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SimToggle({
+  on,
+  onChange,
+  label,
+  sub,
+  pts,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  sub: string;
+  pts: number;
+}) {
+  return (
+    <div className="pac-zc-sim-tg">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        className={`pac-zc-sim-switch${on ? ' on' : ''}`}
+        onClick={() => onChange(!on)}
+        aria-label={label}
+      >
+        <span className="pac-zc-sim-knob" />
+      </button>
+      <span className="pac-zc-sim-tg-body">
+        <span className="pac-zc-sim-tg-label">{label}</span>
+        <small className="pac-zc-sim-tg-sub">{sub}</small>
+      </span>
+      <span className={`pac-zc-sim-pts${on ? ' on' : ''}`}>+{pts}</span>
+    </div>
+  );
+}
+
+// ── Editor ────────────────────────────────────────────────────────────────────
 
 interface ZcEditorProps {
   draft: ZcDraft;
@@ -123,8 +522,6 @@ function ZcEditor({ draft, dossiers, onChange, onSave, onCancel, isNew }: ZcEdit
     setTagInput('');
   };
 
-  const heavy = zcHeavyForSources(draft.sources);
-  const best = zcBestCase(draft.sources);
   const valid = draft.terms.length > 0 && draft.sources.length > 0;
 
   return (
@@ -257,44 +654,7 @@ function ZcEditor({ draft, dossiers, onChange, onSave, onCancel, isNew }: ZcEdit
         </div>
       </div>
 
-      <div className="pac-zc-score">
-        <div className="pac-zc-score-head">
-          Zo scoort de cron <span className="pac-zc-score-src">rules.ts · scoreItem</span>
-        </div>
-        <div className="pac-zc-score-body">
-          <div className="pac-zc-score-line">
-            <span className="pac-zc-score-n">3</span> basisrelevantie
-          </div>
-          {(draft.sources.includes('tk') || draft.sources.includes('eu')) && (
-            <div className="pac-zc-score-line">
-              <span className="pac-zc-score-n plus">+2</span> zwaartype{' '}
-              {heavy.length > 0 && (
-                <em>
-                  ({heavy.slice(0, 4).join(' · ')}
-                  {heavy.length > 4 ? '…' : ''})
-                </em>
-              )}
-            </div>
-          )}
-          {draft.sources.includes('media') && (
-            <div className="pac-zc-score-line">
-              <span className="pac-zc-score-n plus">+2</span> provincie Flevoland{' '}
-              <span className="pac-zc-score-n plus">+1</span> gemeente <em>(gazetteer)</em>
-            </div>
-          )}
-          <div className="pac-zc-score-line">
-            <span className="pac-zc-score-n plus">+1</span> per term-/tagmatch op titel
-          </div>
-          <div className={`pac-zc-score-verdict ${best >= 4 ? 'pass' : 'fail'}`}>
-            Sterke treffer ≈ <b>rel {best}</b> → {best >= 4 ? 'wordt kandidaat ✓' : 'onder drempel'}{' '}
-            <span className="pac-zc-score-drempel">drempel rel ≥ 4</span>
-          </div>
-          <div className="pac-zc-score-foot">
-            Zonder enige term-match blijft rel op 3 — onder de drempel. Zo blijft &ldquo;geen
-            ruis&rdquo; de belofte.
-          </div>
-        </div>
-      </div>
+      <ScoreSimulator />
 
       <div className="pac-zc-ed-actions">
         <button type="button" className="pac-btn-primary" disabled={!valid} onClick={onSave}>
@@ -308,6 +668,8 @@ function ZcEditor({ draft, dossiers, onChange, onSave, onCancel, isNew }: ZcEdit
     </div>
   );
 }
+
+// ── Card ──────────────────────────────────────────────────────────────────────
 
 interface ZcCardProps {
   crit: ZcDraft;
@@ -331,10 +693,14 @@ function ZcCard({
   onDelete,
 }: ZcCardProps) {
   const [draft, setDraft] = useState<ZcDraft>(crit);
+  const [modalOpen, setModalOpen] = useState(false);
   useEffect(() => {
     setDraft(crit);
   }, [crit, editing]);
-  const best = zcBestCase(crit.sources);
+
+  const bc = zcBestCase(crit);
+  const verdict = zcVerdict(bc);
+
   return (
     <div className={`pac-zc-card ${editing ? 'editing' : ''}`}>
       <div className="pac-zc-card-main">
@@ -357,9 +723,23 @@ function ZcCard({
           <span className={`pac-zc-scope ${crit.scope}`}>
             {crit.scope === 'team' ? 'Team' : 'Persoonlijk'}
           </span>
-          <span className="pac-zc-rel" title="Representatieve sterke-treffer-score">
-            ≈ rel {best}
-          </span>
+          <div className="pac-zc-verdict">
+            <div className={`pac-zc-vchip ${verdict.tone}`}>
+              <StrengthBars bars={verdict.bars} />
+              {verdict.label}
+            </div>
+            <div className="pac-zc-vsub">
+              {verdict.sub}
+              <button
+                type="button"
+                className="pac-zc-help"
+                onClick={() => setModalOpen(true)}
+                aria-label="Toelichting scoringsmodel"
+              >
+                ?
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <div className="pac-zc-card-actions">
@@ -401,9 +781,12 @@ function ZcCard({
           isNew={false}
         />
       )}
+      {modalOpen && <ScoringModal onClose={() => setModalOpen(false)} />}
     </div>
   );
 }
+
+// ── Main section ──────────────────────────────────────────────────────────────
 
 export default function ZoekcriteriaSection() {
   const { dossiers } = usePaData();

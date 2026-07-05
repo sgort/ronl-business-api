@@ -13,6 +13,7 @@ import { fetchFlevolandNews } from './sources/media.client';
 import { config } from '@utils/config';
 import { scoreItem } from './rules';
 import type { FeedItem, Signal } from '@ronl/shared';
+import { REL_THRESHOLD } from '@ronl/shared';
 
 const logger = createLogger('curation-service');
 
@@ -248,7 +249,7 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
 
   for (const item of unique) {
     const scored = scoreItem(item, searches);
-    if (scored.rel >= 4) {
+    if (scored.rel >= REL_THRESHOLD) {
       await persistCandidate(item, scored);
     }
   }
