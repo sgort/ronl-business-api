@@ -770,16 +770,14 @@ function ZcCard({
             </div>
             <div className="pac-zc-vsub">
               {verdict.sub}
-              {editing && (
-                <button
-                  type="button"
-                  className="pac-zc-help"
-                  onClick={() => setModalOpen(true)}
-                  aria-label="Toelichting scoringsmodel"
-                >
-                  ?
-                </button>
-              )}
+              <button
+                type="button"
+                className="pac-zc-help"
+                onClick={() => setModalOpen(true)}
+                aria-label="Toelichting scoringsmodel"
+              >
+                ?
+              </button>
             </div>
           </div>
         </div>
@@ -823,7 +821,7 @@ function ZcCard({
           isNew={false}
         />
       )}
-      {editing && modalOpen && <ScoringModal onClose={() => setModalOpen(false)} />}
+      {modalOpen && <ScoringModal onClose={() => setModalOpen(false)} />}
     </div>
   );
 }
