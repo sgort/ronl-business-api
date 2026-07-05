@@ -14,6 +14,7 @@ import { detectRegion, summaryShort, analyzeSentiment } from './enrich';
 import { assignDuplicateGroups } from './dedup';
 import { safeFetch, UnsafeUrlError, ResponseTooLargeError } from './net-guard';
 import { stableArticleId } from './stable-id';
+import { htmlToText } from './sanitize';
 
 const logger = createLogger('media-aggregator-ingest');
 
@@ -106,23 +107,24 @@ function toIso(pubDate: string): string {
 }
 
 export function toArticle(raw: RawItem): AggregatorArticle {
+  const cleanTitle = htmlToText(raw.title);
   const summary = summaryShort(raw.description);
-  const { province, municipality } = detectRegion(raw.title, summary, raw.source);
+  const { province, municipality } = detectRegion(cleanTitle, summary, raw.source);
   return {
     id: stableArticleId({
       guid: raw.guid,
       canonical_url: raw.link,
-      title: raw.title,
+      title: raw.title, // use raw title for id stability (before sanitization)
       published_at: toIso(raw.pubDate),
     }),
     duplicate_group_id: null, // assigned later across the corpus
     canonical_url: raw.link,
-    title: raw.title,
+    title: cleanTitle,
     summary_short: summary,
     published_at: toIso(raw.pubDate),
     province,
     municipality,
-    sentiment: analyzeSentiment(raw.title, summary),
+    sentiment: analyzeSentiment(cleanTitle, summary),
     source: { name: raw.source.name, type: raw.source.type, homepage: raw.source.homepage },
   };
 }
