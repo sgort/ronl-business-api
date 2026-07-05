@@ -127,7 +127,7 @@ describe('PA routes — role gating', () => {
 
     it('meta.capped=true and total reflects full count when COUNT(*) exceeds cap', async () => {
       mockDb.any
-        .mockResolvedValueOnce([]) // rows (100-row LIMIT result)
+        .mockResolvedValueOnce([]) // rows (LIMIT query — empty to isolate meta count assertion)
         .mockResolvedValueOnce([{ count: '142' }]); // COUNT(*) query
       const res = await request(app).get('/v1/pa/signals').set(PA);
       expect(res.status).toBe(200);

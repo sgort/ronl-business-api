@@ -3,10 +3,11 @@ import { usePaData } from '../../pages/public-affairs-v2/PaDataProvider';
 import type { Dossier } from '@ronl/shared';
 
 // Kept in sync with @ronl/shared/types/pa-scoring.ts and rules.ts.
-// The drift test in rules.test.ts guards against divergence.
+// WARNING: No automated test guards these frontend copies against @ronl/shared — update both if pa-scoring.ts changes.
 const REL_BASE = 3;
 const ZWAARTYPE_BUMP = 2;
 const MEDIA_MUNI_BUMP = 1;
+const MEDIA_PROV_BUMP = 2; // same weight as ZWAARTYPE_BUMP but semantically distinct — province geo match
 const TITLE_HIT = 3;
 const MATCH_CAP = 5;
 const REL_MAX = 10;
@@ -75,11 +76,11 @@ function zcBestCase(criterion: {
   if (sources.includes('tk') || sources.includes('eu')) {
     typeBump = ZWAARTYPE_BUMP; // heavy document type +2
   } else if (sources.includes('media')) {
-    typeBump = ZWAARTYPE_BUMP + MEDIA_MUNI_BUMP; // best geo case: province(+2) + municipality(+1)
+    typeBump = MEDIA_PROV_BUMP + MEDIA_MUNI_BUMP; // best geo case: province(+2) + municipality(+1)
   }
   // 'ob' has no zwaartype bump in the engine
 
-  const matchBump = hasTerms ? Math.min(TITLE_HIT, MATCH_CAP) : 0;
+  const matchBump = hasTerms ? Math.min(terms.length * TITLE_HIT, MATCH_CAP) : 0;
 
   let total = REL_BASE + typeBump + matchBump;
   if (matchBump === 0) total = Math.min(total, NOISE_FLOOR);
@@ -158,7 +159,7 @@ function ZcTerms({ terms }: { terms: string[] }) {
 function StrengthBars({ bars }: { bars: 1 | 2 | 3 }) {
   return (
     <span className="pac-zc-bars" aria-hidden="true">
-      <span className={`pac-zc-bar b1${bars >= 1 ? ' on' : ''}`} />
+      <span className="pac-zc-bar b1 on" />
       <span className={`pac-zc-bar b2${bars >= 2 ? ' on' : ''}`} />
       <span className={`pac-zc-bar b3${bars >= 3 ? ' on' : ''}`} />
     </span>
@@ -297,12 +298,13 @@ function ScoringModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="pac-zcm-overlay" onMouseDown={onClose}>
+    <div className="pac-zcm-overlay" onClick={onClose}>
       <div
         className="pac-zcm-box"
-        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="pac-zcm-title"
       >
         <div className="pac-zcm-top">
           <span className="pac-zcm-kicker">ZO SCOORT DE CRON</span>
@@ -310,7 +312,9 @@ function ScoringModal({ onClose }: { onClose: () => void }) {
             ×
           </button>
         </div>
-        <h2 className="pac-zcm-title">Hoe scoort de cron een document?</h2>
+        <h2 id="pac-zcm-title" className="pac-zcm-title">
+          Hoe scoort de cron een document?
+        </h2>
 
         <div className="pac-zcm-tabs" role="tablist">
           {(['strong', 'media', 'noise'] as ModalTab[]).map((t) => (
@@ -363,14 +367,20 @@ function ScoringModal({ onClose }: { onClose: () => void }) {
 
 // ── Score simulator (replaces static ZO SCOORT DE CRON panel) ────────────────
 
-function ScoreSimulator() {
+function ScoreSimulator({ sources }: { sources: string[] }) {
+  const hasTkEu = sources.includes('tk') || sources.includes('eu');
+  const hasMedia = !hasTkEu && sources.includes('media');
+
   const [heavy, setHeavy] = useState(true);
   const [titleMatch, setTitleMatch] = useState(true);
   const [tagMatch, setTagMatch] = useState(false);
 
+  const typeBumpAmount = hasTkEu ? ZWAARTYPE_BUMP : hasMedia ? MEDIA_PROV_BUMP : 0;
+  const showHeavyToggle = typeBumpAmount > 0;
+
   let rel = REL_BASE;
   let matched = 0;
-  if (heavy) rel += ZWAARTYPE_BUMP;
+  if (heavy && showHeavyToggle) rel += typeBumpAmount;
   if (titleMatch) matched += TITLE_HIT;
   if (tagMatch) matched += 1;
   rel += Math.min(matched, MATCH_CAP);
@@ -381,37 +391,66 @@ function ScoreSimulator() {
   const fillPct = (rel / REL_MAX) * 100;
   const thresholdPct = (REL_THRESHOLD / REL_MAX) * 100;
 
+  const srcLabel = hasTkEu ? (sources.includes('tk') ? 'TK' : 'EU') : hasMedia ? 'Media' : 'OB';
+
+  const heavyLabel = hasMedia ? 'Provincie Flevoland gevonden' : 'Zwaar documenttype';
+  const heavySub = hasMedia
+    ? '"Flevoland" in regio of tekst'
+    : 'motie, kamervraag, brief, amendement';
+
+  const exampleDoc = hasTkEu
+    ? heavy
+      ? 'Motie'
+      : 'document'
+    : hasMedia
+      ? heavy
+        ? 'Flevoland-artikel'
+        : 'artikel'
+      : 'publicatie';
+
+  const sentenceEnd = hasTkEu
+    ? 'wordt ingediend bij de Tweede Kamer.'
+    : hasMedia
+      ? 'verschijnt in het nieuws.'
+      : 'wordt gepubliceerd in de OB.';
+
   return (
     <div className="pac-zc-sim">
       <div className="pac-zc-sim-head">
         <span>Probeer het uit</span>
-        <span className="pac-zc-sim-src">voorbeelddocument · TK</span>
+        <span className="pac-zc-sim-src">voorbeelddocument · {srcLabel}</span>
       </div>
       <p className="pac-zc-sim-example">
         Een{' '}
-        <span className={`pac-zc-sim-mark${heavy ? '' : ' off'}`}>
-          {heavy ? 'Motie' : 'document'}
+        <span className={`pac-zc-sim-mark${heavy && showHeavyToggle ? '' : ' off'}`}>
+          {exampleDoc}
         </span>{' '}
         over{' '}
         <span className={`pac-zc-sim-mark${titleMatch ? '' : ' off'}`}>
           {titleMatch ? 'stikstof' : '…'}
         </span>{' '}
-        wordt ingediend bij de Tweede Kamer.
+        {sentenceEnd}
       </p>
 
       <div className="pac-zc-sim-toggles">
-        <SimToggle
-          on={heavy}
-          onChange={setHeavy}
-          label="Zwaar documenttype"
-          sub="motie, kamervraag, brief, amendement"
-          pts={ZWAARTYPE_BUMP}
-        />
+        {showHeavyToggle && (
+          <SimToggle
+            on={heavy}
+            onChange={setHeavy}
+            label={heavyLabel}
+            sub={heavySub}
+            pts={typeBumpAmount}
+          />
+        )}
         <SimToggle
           on={titleMatch}
           onChange={setTitleMatch}
           label="Zoekwoord in de titel"
-          sub={`'stikstof' staat in de kop`}
+          sub={
+            hasMedia
+              ? `'stikstof' gevonden in koptekst of samenvatting`
+              : `'stikstof' staat in de kop`
+          }
           pts={TITLE_HIT}
         />
         <SimToggle
@@ -654,7 +693,7 @@ function ZcEditor({ draft, dossiers, onChange, onSave, onCancel, isNew }: ZcEdit
         </div>
       </div>
 
-      <ScoreSimulator />
+      <ScoreSimulator sources={draft.sources} />
 
       <div className="pac-zc-ed-actions">
         <button type="button" className="pac-btn-primary" disabled={!valid} onClick={onSave}>
@@ -696,6 +735,7 @@ function ZcCard({
   const [modalOpen, setModalOpen] = useState(false);
   useEffect(() => {
     setDraft(crit);
+    if (!editing) setModalOpen(false);
   }, [crit, editing]);
 
   const bc = zcBestCase(crit);
@@ -730,14 +770,16 @@ function ZcCard({
             </div>
             <div className="pac-zc-vsub">
               {verdict.sub}
-              <button
-                type="button"
-                className="pac-zc-help"
-                onClick={() => setModalOpen(true)}
-                aria-label="Toelichting scoringsmodel"
-              >
-                ?
-              </button>
+              {editing && (
+                <button
+                  type="button"
+                  className="pac-zc-help"
+                  onClick={() => setModalOpen(true)}
+                  aria-label="Toelichting scoringsmodel"
+                >
+                  ?
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -781,7 +823,7 @@ function ZcCard({
           isNew={false}
         />
       )}
-      {modalOpen && <ScoringModal onClose={() => setModalOpen(false)} />}
+      {editing && modalOpen && <ScoringModal onClose={() => setModalOpen(false)} />}
     </div>
   );
 }
