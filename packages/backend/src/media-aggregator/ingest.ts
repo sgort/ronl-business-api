@@ -6,7 +6,6 @@
  * A malformed item (no title or link) is skipped, never thrown.
  */
 
-import { createHash } from 'node:crypto';
 import { XMLParser } from 'fast-xml-parser';
 import { createLogger } from '@utils/logger';
 import type { AggregatorArticle, FeedSource, RawItem } from './types';
@@ -14,6 +13,7 @@ import { FEEDS } from './feeds';
 import { detectRegion, summaryShort, analyzeSentiment } from './enrich';
 import { assignDuplicateGroups } from './dedup';
 import { safeFetch, UnsafeUrlError, ResponseTooLargeError } from './net-guard';
+import { stableArticleId } from './stable-id';
 
 const logger = createLogger('media-aggregator-ingest');
 
@@ -99,10 +99,6 @@ export function parseFeedXml(xml: string, source: FeedSource): RawItem[] {
 
 // ── RawItem → AggregatorArticle ──────────────────────────────────────────────
 
-function articleId(url: string): string {
-  return 'art-' + createHash('sha1').update(url).digest('hex').slice(0, 12);
-}
-
 function toIso(pubDate: string): string {
   if (!pubDate) return '';
   const d = new Date(pubDate);
@@ -113,7 +109,12 @@ export function toArticle(raw: RawItem): AggregatorArticle {
   const summary = summaryShort(raw.description);
   const { province, municipality } = detectRegion(raw.title, summary, raw.source);
   return {
-    id: articleId(raw.link),
+    id: stableArticleId({
+      guid: raw.guid,
+      canonical_url: raw.link,
+      title: raw.title,
+      published_at: toIso(raw.pubDate),
+    }),
     duplicate_group_id: null, // assigned later across the corpus
     canonical_url: raw.link,
     title: raw.title,
@@ -172,7 +173,7 @@ export async function ingestAll(): Promise<AggregatorArticle[]> {
       articles.push(toArticle(raw));
     }
   }
-  assignDuplicateGroups(articles);
-  logger.info('Ingest complete', { total: articles.length });
-  return articles;
+  const deduped = assignDuplicateGroups(articles);
+  logger.info('Ingest complete', { total: deduped.length });
+  return deduped;
 }
