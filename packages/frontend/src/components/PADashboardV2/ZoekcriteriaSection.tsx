@@ -439,7 +439,7 @@ function ScoreSimulator() {
             {pass
               ? `✓ wordt kandidaat — boven drempel ${REL_THRESHOLD}`
               : matched === 0
-                ? `✕ wordt weggefilterd — geen terme raak (noise floor ${NOISE_FLOOR})`
+                ? `✕ wordt weggefilterd — geen term raak (noise floor ${NOISE_FLOOR})`
                 : `✕ wordt weggefilterd — onder drempel ${REL_THRESHOLD}`}
           </span>
         </div>
