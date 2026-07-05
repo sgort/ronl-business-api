@@ -9,6 +9,7 @@ import {
   REL_BASE,
   ZWAARTYPE_BUMP,
   MEDIA_MUNI_BUMP,
+  MEDIA_PROV_BUMP,
   TITLE_HIT,
   DESC_HIT,
   TAG_HIT,
@@ -69,7 +70,7 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
   if (item.source === 'media') {
     const regio = (item.regio ?? '').toLowerCase();
     const haystack = `${item.title} ${item.description ?? ''} ${regio}`.toLowerCase();
-    if (regio.includes('flevoland') || haystack.includes('flevoland')) rel += ZWAARTYPE_BUMP;
+    if (regio.includes('flevoland') || haystack.includes('flevoland')) rel += MEDIA_PROV_BUMP;
     for (const gemeente of FLEVOLAND_MUNICIPALITIES) {
       if (haystack.includes(gemeente)) {
         rel += MEDIA_MUNI_BUMP;
