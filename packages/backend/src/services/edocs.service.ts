@@ -89,13 +89,19 @@ export class EdocsService {
       userId: config.edocs.userId,
     });
 
-    const response = await this.client.post('connect', {
-      data: {
-        userid: config.edocs.userId,
-        password: config.edocs.password,
-        library: config.edocs.library,
-      },
-    });
+    let response;
+    try {
+      response = await this.client.post('connect', {
+        data: {
+          userid: config.edocs.userId,
+          password: config.edocs.password,
+          library: config.edocs.library,
+        },
+      });
+    } catch (err) {
+      this.logUpstreamError('connect', err);
+      throw err;
+    }
 
     const setCookies = response.headers['set-cookie'] ?? [];
     const cookieArray = Array.isArray(setCookies) ? setCookies : [setCookies];
@@ -136,7 +142,24 @@ export class EdocsService {
         await this.connect();
         return await fn();
       }
+      this.logUpstreamError('request', err);
       throw err;
+    }
+  }
+
+  /**
+   * Surface the upstream eDOCS response body (e.g. account-lockout, permission,
+   * or validation errors) in the log. eDOCS returns `{ ERROR: { message, rapi_code } }`,
+   * which axios buries on `error.response.data` — without this it would never
+   * reach the log, leaving only "Request failed with status code 400".
+   */
+  private logUpstreamError(operation: string, err: unknown): void {
+    const response = (err as { response?: { status?: number; data?: unknown } }).response;
+    if (response) {
+      logger.error(`eDOCS ${operation} returned an error response`, {
+        status: response.status,
+        upstream: response.data,
+      });
     }
   }
 

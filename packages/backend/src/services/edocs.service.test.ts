@@ -123,6 +123,16 @@ describe('EdocsService — live mode', () => {
       await expect(svc.listWorkspaces()).rejects.toThrow(/X-DM-DST cookie was absent/);
     });
 
+    it('propagates an upstream error when connect() is rejected (e.g. account lockout)', async () => {
+      mockClient.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: { ERROR: { message: 'The referenced account is currently locked out' } },
+        },
+      });
+      await expect(svc.listWorkspaces()).rejects.toMatchObject({ response: { status: 400 } });
+    });
+
     it('caches the session — a second call does not re-connect', async () => {
       mockClient.post.mockResolvedValueOnce(connectResponse);
       mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
