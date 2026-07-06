@@ -18,7 +18,8 @@ npm run test:watch --workspace=@ronl/backend
 npx jest --config packages/backend/jest.config.js --no-coverage --testPathPattern=rules
 ```
 
-From the repo root, `npm test` runs all workspace test scripts (currently backend only).
+From the repo root, `npm test` runs every workspace's test script — the backend
+Jest suite and the frontend Vitest suite.
 
 ---
 
@@ -110,12 +111,163 @@ Uses a static fixture (`__fixtures__/ep-plenary.rss.xml`) so no network is requi
 
 ---
 
+## eDOCS live-switch path
+
+These suites cover the full chain that runs when `EDOCS_STUB_MODE=false`, so the
+switch to live exercises code that is already under test. In stub mode none of the
+live paths run, which is exactly why they are pinned down here.
+
+### `packages/backend/src/services/edocs.service.test.ts`
+
+**18 tests · unit · mocked axios + config**
+
+Covers `EdocsService` in both stub and live mode. Constructing with
+`stubMode: false` and driving a mocked axios client exercises the OpenText paths.
+
+| Group                 | What is tested                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| Stub mode             | Every method short-circuits without a network call; deterministic stub ids            |
+| connect()             | Extracts `X-DM-DST` + CSRF cookies; caches the session; throws when `X-DM-DST` absent |
+| Re-auth               | 401/403 → one re-connect then retry; non-auth errors propagate without retry          |
+| ensureWorkspace       | Existing match → `created:false`; empty search → create → `created:true`              |
+| uploadDocument        | `_restapi.form_name` present with a formName, omitted without; DOCNUMBER fallback     |
+| getWorkspaceDocuments | Maps raw eDOCS list → `{ id, name, documentNumber }`                                  |
+| healthCheck           | `stub` / `up` (+latency) / `down` (+error)                                            |
+| Interceptor           | Attaches `Cookie` and `X-DM-DST` headers once a session exists                        |
+
+### `packages/backend/src/routes/edocs.routes.test.ts`
+
+**14 tests · route integration · supertest · mocked service + auth**
+
+Covers the `/v1/edocs` HTTP surface: the jwt gate, `/status` shape, and each
+endpoint's happy path, field validation, and service-failure mapping.
+
+| Scenario                        | Expected                                        |
+| ------------------------------- | ----------------------------------------------- |
+| No auth                         | 401 `MISSING_TOKEN`                             |
+| `GET /status`                   | `stub` / `up` (+latencyMs) / `down` (+error)    |
+| `GET /workspaces`               | 200 list · service throw → 502 `EDOCS_ERROR`    |
+| `POST /workspaces/ensure`       | 400 `MISSING_FIELDS` · 200 result · 502 on fail |
+| `POST /documents`               | 400 when `metadata.docName` missing · 200 · 502 |
+| `GET /workspaces/:id/documents` | 200 scoped docs · 502 on fail                   |
+
+### `packages/backend/src/services/externalTaskWorker.service.test.ts`
+
+**20 tests · unit · mocked axios + edocsService**
+
+Covers the Operaton external-task worker that drives eDOCS from BPMN. The
+`rip-edocs-workspace` and `rip-edocs-document` topics call `edocsService`. Private
+handlers are exercised via a typed internals view.
+
+| Group           | What is tested                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| ensureWorkspace | Calls `edocsService.ensureWorkspace`, maps output vars; throws on missing vars                        |
+| relatics (sim)  | Deterministic simulated workspace, flagged `relaticsWorkspaceSimulated`                               |
+| uploadDocument  | Renders content → base64 → `edocsService.uploadDocument`; default output var; throws                  |
+| Document render | Intake / PSU / PDP templates + unknown-template fallback; template→label mapping                      |
+| fetchAndLock    | Posts the three topics; returns `[]` when the response has no data                                    |
+| Dispatch        | Completes on success; reports failure on unknown topic / handler error                                |
+| Resilience      | `failTask` swallows an error when reporting failure itself fails                                      |
+| Lifecycle       | `start()` polls once and is idempotent; `stop()` halts. Timer-driven `poll()` loop is not unit-tested |
+
+---
+
+## Auth & middleware — the shared route gate
+
+Every route (including eDOCS) sits behind these.
+
+### `packages/backend/src/auth/jwt.middleware.test.ts`
+
+**13 tests · unit · mocked jsonwebtoken + jwks-rsa**
+
+| Group                 | What is tested                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| jwtMiddleware         | Missing/non-Bearer header → 401 `MISSING_TOKEN`; valid → user+auth attached; invalid → 401 `INVALID_TOKEN`; roles default to `[]` |
+| optionalJwtMiddleware | No token → continue unauthenticated; token present → validate                                                                     |
+| requireRoles          | No user → 401; has role → next; missing role → 403 `FORBIDDEN`                                                                    |
+| requireAssuranceLevel | No user → 401; meets minimum → next; below → 403 `INSUFFICIENT_ASSURANCE`                                                         |
+
+The JWKS signing-key callback (`getKey`) runs only inside the real `jwt.verify`,
+which is mocked, so it is intentionally left uncovered.
+
+### `packages/backend/src/middleware/tenant.middleware.test.ts`
+
+**11 tests · unit · mocked config**
+
+| Group                       | What is tested                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| tenantMiddleware            | Isolation off → next; no user → 401; no tenantId → 403 `MISSING_TENANT`; success syncs `req.auth.tenantId` |
+| validateTenantParam         | No user → 401; mismatch → 403 `TENANT_MISMATCH`; match → next; custom param name                           |
+| addTenantToProcessVariables | No user → pass-through; injects `businessKey` + tenant vars; preserves existing variables                  |
+
+### `packages/backend/src/middleware/audit.middleware.test.ts`
+
+**13 tests · unit · mocked config + audit.service · fake timers**
+
+Fake timers are enabled before the module is required so its module-level
+`setInterval(pruneAuditQueue)` never keeps Jest alive.
+
+| Group                          | What is tested                                                                                                                                                                                                                                |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| createAuditLog                 | No-op when disabled; queues + timestamps + persists when enabled                                                                                                                                                                              |
+| auditMiddleware                | Unwrapped when disabled; success entry with `resourceType`/`resourceId` from path; 4xx → `failure` + extracted error; 5xx non-error body → `errorMessage` undefined; `includeIp:false` omits IP; skips `/audit` + `/chat`; no user → no audit |
+| auditLog                       | No-op without `req.auth`; records an explicit entry when present                                                                                                                                                                              |
+| getAuditLogs / pruneAuditQueue | Returns most-recent N; caps the in-memory queue at 1000                                                                                                                                                                                       |
+
+---
+
+## Infrastructure & utilities
+
+### `packages/backend/src/utils/env.test.ts`
+
+**10 tests · pure unit**
+
+Covers the env parsers (`parseEnvBool`, `parseEnvInt`, `parseEnvArray`) extracted
+from `config.ts` into `utils/env.ts` so they can be tested without triggering
+`config.ts`'s import-time `dotenv` + `validateConfig` side effects. Covers defaults,
+case-insensitive boolean parsing, `parseInt` semantics, and comma-split + trim.
+
+### `packages/backend/src/services/audit.service.test.ts`
+
+**5 tests · unit · mocked pg-promise**
+
+The durable half of the audit trail that `audit.middleware` delegates to.
+
+| Group           | What is tested                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| persistAuditLog | SQL parameter mapping; `:port` stripped from IP; `tenantId → azp → "unknown"` fallback; optional fields nulled; a DB error is swallowed, never thrown |
+| initDb          | Acquires + releases a connection on success; does not throw when the DB is unavailable                                                                |
+
+### `packages/backend/src/routes/health.routes.test.ts`
+
+**10 tests · route integration · supertest · mocked operatonService + fetch**
+
+| Route                  | What is tested                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /health`          | 200 healthy (both deps up); 503 degraded (Operaton down); Keycloak non-OK / fetch throw → down; Operaton throw → 503 unhealthy |
+| `GET /health/live`     | Always 200 `alive`, no dependency calls                                                                                        |
+| `GET /health/ready`    | Operaton up → 200 ready; down → 503 not ready; throw → 503 error                                                               |
+| `GET /health/external` | Maps each external target to up/down by reachability                                                                           |
+
+---
+
 ## Coverage
 
 Run `npm test --workspace=@ronl/backend` to generate a coverage report in
-`packages/backend/coverage/`. The PA monitoring module (`pa-monitoring/`) is the
-primary coverage target; external API clients (`tk.client.ts`, `ob.client.ts`) are
-excluded from unit coverage because they depend on live network responses.
+`packages/backend/coverage/`.
+
+`jest.config.js` sets `collectCoverageFrom` across `src/**/*.ts` (excluding tests,
+fixtures, `types/`, and `index.ts`), so **untested files report as 0% instead of
+being omitted** — the "All files" number reflects the whole backend, not just the
+files a test happens to import.
+
+Well-covered today: the full eDOCS live-switch path (`edocs.service`,
+`edocs.routes`, `externalTaskWorker`), the shared auth/tenant/audit gate,
+`audit.service`, `health.routes`, `env`, and the PA monitoring module.
+
+Still largely uncovered: `operaton.service.ts`, most of `routes/*`, the LLM/MCP
+providers, and the external API clients (`tk.client.ts`, `ob.client.ts`,
+`agenda.client.ts`) — the latter depend on live network responses.
 
 ---
 
