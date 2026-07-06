@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { parseEnvArray, parseEnvInt, parseEnvBool } from './env';
 
 // Load environment-specific .env file
 const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
@@ -126,22 +127,6 @@ interface Config {
     cacheTtlStatic: number;
     useMock: boolean;
   };
-}
-
-function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
-  if (!value) return defaultValue;
-  return value.split(',').map((s) => s.trim());
-}
-
-function parseEnvInt(value: string | undefined, defaultValue: number): number {
-  if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? defaultValue : parsed;
-}
-
-function parseEnvBool(value: string | undefined, defaultValue: boolean): boolean {
-  if (!value) return defaultValue;
-  return value.toLowerCase() === 'true';
 }
 
 export const config: Config = {
