@@ -2,6 +2,15 @@
 module.exports = {
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.test.ts'],
+  // Report every source file, not just the ones a test happens to import, so
+  // untested features surface as 0% instead of being omitted from the table.
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.test.ts',
+    '!src/**/__fixtures__/**',
+    '!src/types/**',
+    '!src/index.ts',
+  ],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
