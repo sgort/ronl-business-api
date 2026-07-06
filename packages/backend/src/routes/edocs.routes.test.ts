@@ -72,24 +72,61 @@ describe('auth gate', () => {
 });
 
 describe('GET /status', () => {
-  it('reports stubMode:true when the service is in stub status', async () => {
-    svc.healthCheck.mockResolvedValue({ status: 'stub' });
+  it('reports stub + reachable + authenticated in stub mode', async () => {
+    svc.healthCheck.mockResolvedValue({ status: 'stub', reachable: true, authenticated: true });
     const res = await auth(request(app).get('/v1/edocs/status'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ status: 'stub', stubMode: true });
+    expect(res.body.data).toMatchObject({
+      status: 'stub',
+      stubMode: true,
+      reachable: true,
+      authenticated: true,
+    });
     expect(res.body.data.latencyMs).toBeUndefined();
   });
 
-  it('includes latencyMs and stubMode:false when the service is up', async () => {
-    svc.healthCheck.mockResolvedValue({ status: 'up', latency: 42 });
+  it('reports up + authenticated with latency when live and logged in', async () => {
+    svc.healthCheck.mockResolvedValue({
+      status: 'up',
+      reachable: true,
+      authenticated: true,
+      latency: 42,
+    });
     const res = await auth(request(app).get('/v1/edocs/status'));
-    expect(res.body.data).toMatchObject({ status: 'up', stubMode: false, latencyMs: 42 });
+    expect(res.body.data).toMatchObject({
+      status: 'up',
+      stubMode: false,
+      reachable: true,
+      authenticated: true,
+      latencyMs: 42,
+    });
   });
 
-  it('surfaces the error field when the service is down', async () => {
-    svc.healthCheck.mockResolvedValue({ status: 'down', error: 'ECONNREFUSED' });
+  it('distinguishes reachable-but-not-authenticated (login failure) from unreachable', async () => {
+    svc.healthCheck.mockResolvedValue({
+      status: 'down',
+      reachable: true,
+      authenticated: false,
+      error: 'account is currently locked out',
+    });
     const res = await auth(request(app).get('/v1/edocs/status'));
-    expect(res.body.data).toMatchObject({ status: 'down', error: 'ECONNREFUSED' });
+    expect(res.body.data).toMatchObject({
+      status: 'down',
+      reachable: true,
+      authenticated: false,
+      error: 'account is currently locked out',
+    });
+  });
+
+  it('reports unreachable when the server itself is down', async () => {
+    svc.healthCheck.mockResolvedValue({
+      status: 'down',
+      reachable: false,
+      authenticated: false,
+      error: 'ECONNREFUSED',
+    });
+    const res = await auth(request(app).get('/v1/edocs/status'));
+    expect(res.body.data).toMatchObject({ status: 'down', reachable: false, authenticated: false });
   });
 });
 

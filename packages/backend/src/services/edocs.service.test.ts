@@ -89,8 +89,12 @@ describe('EdocsService — stub mode', () => {
     expect(docs[0]).toMatchObject({ documentNumber: '2993898' });
   });
 
-  it('healthCheck reports stub status', async () => {
-    await expect(svc.healthCheck()).resolves.toEqual({ status: 'stub' });
+  it('healthCheck reports stub status, reachable and authenticated', async () => {
+    await expect(svc.healthCheck()).resolves.toEqual({
+      status: 'stub',
+      reachable: true,
+      authenticated: true,
+    });
   });
 });
 
@@ -262,17 +266,67 @@ describe('EdocsService — live mode', () => {
   });
 
   describe('healthCheck()', () => {
-    it('reports up with a latency when libraries is reachable', async () => {
-      mockClient.get.mockResolvedValueOnce({ data: {} });
+    it('reports up + authenticated when reachable and login succeeds', async () => {
+      mockClient.get.mockResolvedValueOnce({ data: {} }); // libraries reachability
+      mockClient.post.mockResolvedValueOnce(connectResponse); // login probe
       const res = await svc.healthCheck();
-      expect(res.status).toBe('up');
+      expect(res).toMatchObject({ status: 'up', reachable: true, authenticated: true });
       expect(typeof res.latency).toBe('number');
     });
 
-    it('reports down with the error message when libraries fails', async () => {
+    it('reports down + unreachable when the libraries probe fails', async () => {
       mockClient.get.mockRejectedValueOnce(new Error('ECONNREFUSED'));
       const res = await svc.healthCheck();
-      expect(res).toMatchObject({ status: 'down', error: 'ECONNREFUSED' });
+      expect(res).toMatchObject({
+        status: 'down',
+        reachable: false,
+        authenticated: false,
+        error: 'ECONNREFUSED',
+      });
+    });
+
+    it('reports reachable-but-not-authenticated when login fails (e.g. lockout)', async () => {
+      mockClient.get.mockResolvedValueOnce({ data: {} }); // reachable
+      mockClient.post.mockRejectedValueOnce({
+        response: { status: 400, data: { ERROR: { message: 'account is currently locked out' } } },
+      });
+      const res = await svc.healthCheck();
+      expect(res).toMatchObject({
+        status: 'down',
+        reachable: true,
+        authenticated: false,
+        error: 'account is currently locked out',
+      });
+    });
+
+    it('caches a failed login probe to avoid hammering the login endpoint', async () => {
+      // First probe: reachable, but login fails → result cached.
+      mockClient.get.mockResolvedValueOnce({ data: {} });
+      mockClient.post.mockRejectedValueOnce({
+        response: { status: 400, data: { ERROR: { message: 'locked out' } } },
+      });
+      await svc.healthCheck();
+      jest.clearAllMocks();
+
+      // Second probe within the TTL: reachable again, but login is NOT retried.
+      mockClient.get.mockResolvedValueOnce({ data: {} });
+      const res = await svc.healthCheck();
+      expect(res).toMatchObject({ authenticated: false, error: 'locked out' });
+      expect(mockClient.post).not.toHaveBeenCalled();
+    });
+
+    it('reuses a live session for the login probe without re-connecting', async () => {
+      // First establish a session via a normal call.
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+      await svc.listWorkspaces();
+      jest.clearAllMocks();
+
+      // healthCheck should now only hit libraries (reachability), not connect again.
+      mockClient.get.mockResolvedValueOnce({ data: {} });
+      const res = await svc.healthCheck();
+      expect(res).toMatchObject({ authenticated: true, reachable: true });
+      expect(mockClient.post).not.toHaveBeenCalled();
     });
   });
 

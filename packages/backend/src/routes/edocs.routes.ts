@@ -20,6 +20,8 @@ router.get('/status', async (_req: Request, res: Response) => {
       status: health.status,
       library: process.env.EDOCS_LIBRARY ?? 'DOCUVITT',
       stubMode: health.status === 'stub',
+      reachable: health.reachable,
+      authenticated: health.authenticated,
       ...(health.latency !== undefined && { latencyMs: health.latency }),
       ...(health.error !== undefined && { error: health.error }),
     },

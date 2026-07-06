@@ -98,23 +98,25 @@ check_status "GET /v1/edocs/status" "$STATUS_CODE" "200"
 
 if [[ "$STATUS_CODE" == "200" ]]; then
   STATUS_BODY=$(cat /tmp/edocs_status.json)
-  # This is the whole point of the pre-flight: confirm we are NOT in stub mode
-  # and the DM server reports up.
+  # The pre-flight distinguishes the two health aspects:
+  #   reachable      — the DM server responds
+  #   authenticated  — the configured credentials can actually log in
   check_field "stub mode disabled" "$STATUS_BODY" '.data.stubMode' 'false'
-  DM_STATUS=$(echo "$STATUS_BODY" | jq -r '.data.status')
-  if [[ "$DM_STATUS" == "up" ]]; then
-    pass "eDOCS reachable (.data.status = up)"
+  check_field "eDOCS reachable" "$STATUS_BODY" '.data.reachable' 'true'
+
+  if [[ "$(echo "$STATUS_BODY" | jq -r '.data.authenticated')" == "true" ]]; then
+    pass "eDOCS login succeeds (.data.authenticated = true)"
   else
-    fail "eDOCS not reachable (.data.status = $DM_STATUS) — check EDOCS_BASE_URL / credentials"
+    fail "eDOCS login failed (.data.authenticated = false): $(echo "$STATUS_BODY" | jq -r '.data.error // "no error detail"')"
     echo "$STATUS_BODY" | jq . 2>/dev/null
   fi
 fi
 
-# Abort the mutating steps if we are still in stub or the DM server is down —
-# they would either be meaningless (stub) or pile up failures (down).
+# Abort the mutating steps unless we are live, reachable AND authenticated —
+# otherwise they are meaningless (stub) or guaranteed to fail (unreachable/locked).
 if [[ "$STATUS_CODE" != "200" ]] || \
    [[ "$(jq -r '.data.stubMode' /tmp/edocs_status.json 2>/dev/null)" != "false" ]] || \
-   [[ "$(jq -r '.data.status' /tmp/edocs_status.json 2>/dev/null)" != "up" ]]; then
+   [[ "$(jq -r '.data.authenticated' /tmp/edocs_status.json 2>/dev/null)" != "true" ]]; then
   echo ""
   echo "  ! Skipping workspace/document steps — status pre-flight did not pass."
   echo ""

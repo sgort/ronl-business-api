@@ -119,37 +119,38 @@ live paths run, which is exactly why they are pinned down here.
 
 ### `packages/backend/src/services/edocs.service.test.ts`
 
-**18 tests · unit · mocked axios + config**
+**22 tests · unit · mocked axios + config**
 
 Covers `EdocsService` in both stub and live mode. Constructing with
 `stubMode: false` and driving a mocked axios client exercises the OpenText paths.
 
-| Group                 | What is tested                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| Stub mode             | Every method short-circuits without a network call; deterministic stub ids            |
-| connect()             | Extracts `X-DM-DST` + CSRF cookies; caches the session; throws when `X-DM-DST` absent |
-| Re-auth               | 401/403 → one re-connect then retry; non-auth errors propagate without retry          |
-| ensureWorkspace       | Existing match → `created:false`; empty search → create → `created:true`              |
-| uploadDocument        | `_restapi.form_name` present with a formName, omitted without; DOCNUMBER fallback     |
-| getWorkspaceDocuments | Maps raw eDOCS list → `{ id, name, documentNumber }`                                  |
-| healthCheck           | `stub` / `up` (+latency) / `down` (+error)                                            |
-| Interceptor           | Attaches `Cookie` and `X-DM-DST` headers once a session exists                        |
+| Group                 | What is tested                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stub mode             | Every method short-circuits without a network call; deterministic stub ids                                                                                                                                        |
+| connect()             | Extracts `X-DM-DST` + CSRF cookies; caches the session; throws when `X-DM-DST` absent                                                                                                                             |
+| Re-auth               | 401/403 → one re-connect then retry; non-auth errors propagate without retry                                                                                                                                      |
+| ensureWorkspace       | Existing match → `created:false`; empty search → create → `created:true`                                                                                                                                          |
+| uploadDocument        | `_restapi.form_name` present with a formName, omitted without; DOCNUMBER fallback                                                                                                                                 |
+| getWorkspaceDocuments | Maps raw eDOCS list → `{ id, name, documentNumber }`                                                                                                                                                              |
+| Upstream errors       | connect() rejection (e.g. account lockout) surfaces the eDOCS `ERROR` body                                                                                                                                        |
+| healthCheck           | Distinguishes **reachable** (unauth `GET libraries`) from **authenticated** (login): up+auth / unreachable / reachable-but-not-authenticated; reuses a live session and caches failed login probes (lockout-safe) |
+| Interceptor           | Attaches `Cookie` and `X-DM-DST` headers once a session exists                                                                                                                                                    |
 
 ### `packages/backend/src/routes/edocs.routes.test.ts`
 
-**14 tests · route integration · supertest · mocked service + auth**
+**15 tests · route integration · supertest · mocked service + auth**
 
 Covers the `/v1/edocs` HTTP surface: the jwt gate, `/status` shape, and each
 endpoint's happy path, field validation, and service-failure mapping.
 
-| Scenario                        | Expected                                        |
-| ------------------------------- | ----------------------------------------------- |
-| No auth                         | 401 `MISSING_TOKEN`                             |
-| `GET /status`                   | `stub` / `up` (+latencyMs) / `down` (+error)    |
-| `GET /workspaces`               | 200 list · service throw → 502 `EDOCS_ERROR`    |
-| `POST /workspaces/ensure`       | 400 `MISSING_FIELDS` · 200 result · 502 on fail |
-| `POST /documents`               | 400 when `metadata.docName` missing · 200 · 502 |
-| `GET /workspaces/:id/documents` | 200 scoped docs · 502 on fail                   |
+| Scenario                        | Expected                                                                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| No auth                         | 401 `MISSING_TOKEN`                                                                                                                         |
+| `GET /status`                   | Passes through `stubMode` / `reachable` / `authenticated` / latency / error; distinguishes reachable-but-not-authenticated from unreachable |
+| `GET /workspaces`               | 200 list · service throw → 502 `EDOCS_ERROR`                                                                                                |
+| `POST /workspaces/ensure`       | 400 `MISSING_FIELDS` · 200 result · 502 on fail                                                                                             |
+| `POST /documents`               | 400 when `metadata.docName` missing · 200 · 502                                                                                             |
+| `GET /workspaces/:id/documents` | 200 scoped docs · 502 on fail                                                                                                               |
 
 ### `packages/backend/src/services/externalTaskWorker.service.test.ts`
 
