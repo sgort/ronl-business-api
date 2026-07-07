@@ -76,38 +76,46 @@ relevance threshold.
 
 ### `packages/backend/src/pa-monitoring/pa.routes.test.ts`
 
-**7 tests · route integration · mocked DB and auth**
+**60 tests · route integration · mocked DB, source clients, and auth**
 
-Covers the role-gating middleware on PA data routes. `jwtMiddleware` is replaced with a
-test stub that reads an `x-test-roles` header; `requireRoles` is the real implementation.
+Covers the full PA route surface, not just the gate. `jwtMiddleware` is a test stub
+reading an `x-test-roles` header; `requireRoles` is the real implementation; `db`
+(pg-promise), the TK/OB/agenda source clients, and `curation.service` are mocked.
 
-| Scenario                                  | Expected                                |
-| ----------------------------------------- | --------------------------------------- |
-| No `Authorization` header                 | 401 `MISSING_TOKEN`                     |
-| Valid JWT, role `caseworker`              | 403 `FORBIDDEN`                         |
-| Valid JWT, role `public-affairs`          | 200 (signals) / 404 (unknown signal id) |
-| Valid JWT, `public-affairs`, known signal | 200 with confirmed signal shape         |
-
-Routes tested: `GET /v1/pa/signals`, `POST /v1/pa/signals/:id/confirm`.
+| Group                 | What is tested                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Role gating           | Anonymous → 401; non-PA role → 403; `public-affairs` → through, on every route                              |
+| `GET /signals`        | tab/dossierId/status filters, single-vs-`ANY` status branch, `meta` cap envelope, 500                       |
+| `POST /signals`       | promote raw hit → 201; `MISSING_FIELDS` → 400; promote failure → 500                                        |
+| confirm / link        | confirm (watchlist routing), `PATCH /signals/:id` link-dossier, unknown → 404, 500s                         |
+| `GET /feed`           | TK+OB merge + total sum, `source=tk`/`ob` routing, `allSettled` partial-failure tolerance, sync-throw → 502 |
+| `GET /agenda`         | dossier enrichment match/no-match, 502 on upstream failure                                                  |
+| `GET /types`          | TK + OB taxonomy passthrough                                                                                |
+| curator               | `POST /curator/run` (background cycle + `.catch`), `GET /curator/status` counts + 500                       |
+| searches CRUD         | list, create (+`MISSING_QUERY`), delete (+404), PATCH (`MISSING_FIELDS`/`BAD_SCOPE`/`EMPTY_QUERY`), 500s    |
+| `GET /sources/status` | reflects the configured connector flags                                                                     |
 
 ---
 
 ### `packages/backend/src/pa-monitoring/sources/eu.client.test.ts`
 
-**12 tests · pure unit · fixture-based, no network**
+**30 tests · unit · fixture + mocked fetch/cache**
 
-Covers `parseRssFeed` — the RSS parser for the European Parliament plenary feed.
-Uses a static fixture (`__fixtures__/ep-plenary.rss.xml`) so no network is required.
+Covers `parseRssFeed` (pure, fixture `__fixtures__/ep-plenary.rss.xml`) plus the fetch
+layer with global `fetch` and `pa-cache` mocked — no network is required.
 
-| Group             | What is tested                                                          |
-| ----------------- | ----------------------------------------------------------------------- |
-| Basic parsing     | Returns at least one item; every item has a non-empty title             |
-| Ref extraction    | `guid` → EP document ref (e.g. `A-10-2026-0181`)                        |
-| Doceo URL         | Provenance link points to `doceo.europarl.europa.eu`                    |
-| Date parsing      | ISO date extracted from `<pubDate>`                                     |
-| Dutch type labels | `<category domain="type">` mapped to Dutch label (Verslag, Motie, …)    |
-| Term expansion    | `EU_TO_NL_TERMS` appends Dutch equivalents to `description` for scoring |
-| Agenda filtering  | Items without an EP document ref in the guid are excluded               |
+| Group             | What is tested                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| Basic parsing     | Returns at least one item; every item has a non-empty title                                  |
+| Ref extraction    | `guid` → EP document ref (e.g. `A-10-2026-0181`)                                             |
+| Doceo URL         | Provenance link points to `doceo.europarl.europa.eu`                                         |
+| Date parsing      | ISO date extracted from `<pubDate>`                                                          |
+| Dutch type labels | `<category domain="type">` mapped to Dutch label (Verslag, Motie, …)                         |
+| Term expansion    | `EU_TO_NL_TERMS` appends Dutch equivalents to `description` for scoring                      |
+| Agenda filtering  | Items without an EP document ref in the guid are excluded                                    |
+| `inferType`       | ref-prefix → Dutch type label for all six prefixes; unknown prefix → null                    |
+| `parseRssFile`    | reads + parses a local file; missing file → `[]`                                             |
+| `fetchEuFeed`     | fetches both feeds, dedupes by ref, skip/top paging, cache-hit shortcut, non-ok/throw → `[]` |
 
 ---
 
@@ -302,27 +310,127 @@ fixtures, `types/`, and `index.ts`), so **untested files report as 0% instead of
 being omitted** — the "All files" number reflects the whole backend, not just the
 files a test happens to import.
 
-A dedicated coverage campaign (branch `test/backend-coverage`, ~700 tests) has now
-brought every backend feature area under test:
+A dedicated coverage campaign (branch `test/backend-coverage`, **786 tests**) brought
+every backend feature area under test. Current headline: **92% stmts · 71% branch ·
+93% funcs · 94% lines**. A word on terminology this campaign learned the hard way:
+_file-touched ≠ behavior-covered_. Several files had a test file that only exercised a
+pure helper (a mapper, a parser) while the real work — the HTTP fetch, the pagination,
+the SSRF guard — went untested. The table below is the **complete per-file inventory**
+so that distinction is visible at a glance.
 
-- **eDOCS live-switch path** — `edocs.service`, `edocs.routes`, `externalTaskWorker`
-- **Shared gate** — `jwt` / `tenant` / `audit` middleware, `audit.service`, `env`
-- **Services** — `operaton.service` (both handler groups), `nieuws`, `berichten`,
-  `productenDiensten`, `regelcatalogus`, `mcpChat`, the LLM + MCP registries
-- **Routes** — `admin`, `brp`, `hr`, `capacity`, `rip`, `decision`, `task`, `mcp`,
-  `public`, `m2m`, `process`, `health`
-- **LLM / MCP providers** — the Anthropic + OpenAI providers and the four MCP providers
-- **PA monitoring** — `rules`, `curation.service`, `pa.routes`, the `tk`/`ob`/`agenda`/`eu`
-  source clients, `pa-cache`, `pa-monitoring.db`
-- **Media aggregator** — `store`, `search`, `ingest`, the routes, and `net-guard`
-- **Utilities** — `errors`, `altcha`, `logger`
-- **Standalone MCP servers** — `mcp-servers/lde`, `mcp-servers/triplydb`
+### Complete file inventory
 
-Deliberately left uncovered (documented artifacts, not gaps): `utils/config.ts`
-self-validates on import and only re-exports the env parsers already covered by
-`env.test.ts`; and a handful of defensive `if (!req.user)` guards and JSON-unreachable
-`inferType` defaults that cannot be reached through the real middleware stack or a
-JSON payload, so neither unit nor live tests can exercise them.
+Line-% and a one-line status for every non-excluded source file. "Defensive branches"
+means the residual misses are `?? null` fallbacks, `if (!req.user)` guards behind real
+middleware, or catch blocks that can't be reached through a legal input.
+
+#### `auth/` · `middleware/`
+
+| File                              | Lines | Status                                                                                                                   |
+| --------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------ |
+| `auth/jwt.middleware.ts`          | 88.1% | jwt/optional/roles/assurance covered; JWKS `getKey` runs only inside the mocked `jwt.verify`, so intentionally uncovered |
+| `middleware/tenant.middleware.ts` | 100%  | fully covered                                                                                                            |
+| `middleware/audit.middleware.ts`  | 100%  | fully covered; module-level prune-interval branch is the only residual                                                   |
+
+#### `routes/`
+
+| File                 | Lines | Status                                                             |
+| -------------------- | ----- | ------------------------------------------------------------------ |
+| `admin.routes.ts`    | 100%  | fully covered                                                      |
+| `brp.routes.ts`      | 95.8% | happy + error paths; one validation branch                         |
+| `capacity.routes.ts` | 91.9% | happy + error paths; upstream-failure branches                     |
+| `decision.routes.ts` | 94.0% | happy + error paths; a few validation branches                     |
+| `edocs.routes.ts`    | 100%  | fully covered (see eDOCS live-switch path above)                   |
+| `health.routes.ts`   | 100%  | fully covered                                                      |
+| `hr.routes.ts`       | 96.3% | happy + error paths; one branch                                    |
+| `m2m.routes.ts`      | 96.7% | happy + error paths; auth-edge branches                            |
+| `mcp.routes.ts`      | 87.0% | list/call + SSE stream + error event; residual stream-abort branch |
+| `process.routes.ts`  | 93.3% | all endpoints happy + error; per-endpoint upstream branches        |
+| `public.routes.ts`   | 93.9% | happy + validation + error; a few defensive branches               |
+| `rip.routes.ts`      | 91.9% | happy + error; error-detail branches                               |
+| `task.routes.ts`     | 88.2% | all endpoints happy + error; per-endpoint upstream branches        |
+
+#### `services/`
+
+| File                            | Lines | Status                                                                                                           |
+| ------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------- |
+| `audit.service.ts`              | 100%  | fully covered                                                                                                    |
+| `berichten.service.ts`          | 100%  | fully covered                                                                                                    |
+| `edocs.service.ts`              | 98.4% | stub + live paths; see eDOCS section                                                                             |
+| `externalTaskWorker.service.ts` | 83.5% | topic dispatch + eDOCS handlers covered; timer-driven poll loop and some handler-error branches left             |
+| `mcpChat.service.ts`            | 100%  | fully covered                                                                                                    |
+| `nieuws.service.ts`             | 100%  | fully covered                                                                                                    |
+| `operaton.service.ts`           | 88.3% | both handler groups + happy/error paths; residual is per-endpoint upstream-error branches across a large surface |
+| `productenDiensten.service.ts`  | 100%  | fully covered                                                                                                    |
+| `regelcatalogus.service.ts`     | 98.4% | fully covered bar one branch                                                                                     |
+
+#### `services/llm/` · `services/mcp/`
+
+| File                          | Lines | Status                                      |
+| ----------------------------- | ----- | ------------------------------------------- |
+| `llm/AnthropicLlmProvider.ts` | 100%  | fully covered                               |
+| `llm/OpenAILlmProvider.ts`    | 97.4% | fully covered bar one branch                |
+| `llm/LlmProvider.ts`          | 100%  | fully covered                               |
+| `llm/LlmRegistry.ts`          | 100%  | fully covered                               |
+| `mcp/CprmvMcpProvider.ts`     | 98.1% | tool calls + errors; one branch             |
+| `mcp/LdeMcpProvider.ts`       | 87.5% | tool calls + errors; connect/guard branches |
+| `mcp/OperatonMcpProvider.ts`  | 83.3% | tool calls + errors; connect/guard branches |
+| `mcp/TriplyDbMcpProvider.ts`  | 91.1% | tool calls + errors; connect/guard branches |
+| `mcp/McpRegistry.ts`          | 100%  | fully covered                               |
+
+#### `pa-monitoring/`
+
+| File                                   | Lines | Status                                                                                                                                     |
+| -------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pa.routes.ts`                         | 100%  | every route + query-builder branches; residual is `?? null` defaults                                                                       |
+| `rules.ts`                             | 100%  | `scoreItem` fully covered (29 tests)                                                                                                       |
+| `curation.service.ts`                  | 82.3% | orchestration + routing + dedup + resilience; residual is source-specific fetch-error edges                                                |
+| `pa-cache.ts`                          | 97.4% | Redis wrapper; no-client branch left                                                                                                       |
+| `pa-monitoring.db.ts`                  | 100%  | fully covered                                                                                                                              |
+| `sources/tk.client.ts`                 | 100%  | fully covered                                                                                                                              |
+| `sources/agenda.client.ts`             | 98.6% | fully covered bar one branch                                                                                                               |
+| `sources/eu.client.ts`                 | 98.9% | `parseRssFeed` + `fetchFeed`/`fetchEuFeed` (cache/dedup/paging) + `inferType` + `parseRssFile`; residual is the XML-parse catch            |
+| `sources/ep-texts-submitted.client.ts` | 97.9% | parsers + the fetch/pagination engine (dedup, early-stop, per-tab tolerance); residual is malformed-card warn + `allSettled` reject branch |
+| `sources/media.client.ts`              | 96.3% | `articleToFeedItem` mapper + `fetchFlevolandNews` (request shape, skip, retry); residual is an unreachable trailing `return []`            |
+| `sources/ob.client.ts`                 | 88.7% | RSS parser covered; residual is fetch error/paging branches (the `numberOfRecords → null` quirk noted below lives here)                    |
+
+#### `media-aggregator/`
+
+| File                         | Lines | Status                                                                                 |
+| ---------------------------- | ----- | -------------------------------------------------------------------------------------- |
+| `net-guard.ts`               | 100%  | SSRF guard fully covered — IPv4/IPv6 rules, all DNS paths, `fetchLimited`, `safeFetch` |
+| `store.ts`                   | 100%  | fully covered                                                                          |
+| `search.ts`                  | 100%  | fully covered                                                                          |
+| `dedup.ts`                   | 100%  | fully covered                                                                          |
+| `feeds.ts`                   | 100%  | static source config                                                                   |
+| `media-aggregator.routes.ts` | 100%  | fully covered                                                                          |
+| `ingest.ts`                  | 94.7% | parse (RSS/Atom) + `toArticle` + `ingestAll` dedup; a few feed-parse edges             |
+| `stable-id.ts`               | 97.4% | fully covered bar one branch                                                           |
+| `sanitize.ts`                | 91.7% | HTML strip covered; two entity-edge branches                                           |
+| `enrich.ts`                  | 91.3% | region/geo tagging covered; two geo-edge branches                                      |
+
+#### `mcp-servers/` · `utils/`
+
+| File                            | Lines | Status                                                                                                                                                        |
+| ------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp-servers/triplydb/index.ts` | 100%  | fully covered (see Standalone MCP servers)                                                                                                                    |
+| `mcp-servers/lde/index.ts`      | 98.0% | fully covered bar one not-found branch                                                                                                                        |
+| `utils/altcha.ts`               | 100%  | fully covered                                                                                                                                                 |
+| `utils/env.ts`                  | 100%  | env parsers fully covered                                                                                                                                     |
+| `utils/errors.ts`               | 100%  | fully covered                                                                                                                                                 |
+| `utils/logger.ts`               | 72.7% | **artifact** — winston fully mocked so no real transport runs; `createLogger` delegation is asserted, but the transport-wiring lines can't run under the mock |
+| `utils/config.ts`               | 0%    | **artifact** — self-runs `dotenv` + `validateConfig` on import (needs a full env); its pure parsers were extracted to `utils/env.ts`, which is at 100%        |
+
+### Documented artifacts & known quirks
+
+- **`utils/config.ts` (0%)** and **`utils/logger.ts` (73%)** — see the table; both are
+  deliberate, not gaps.
+- **Defensive `if (!req.user)` guards** across the routes and JSON-unreachable
+  `inferType`-style defaults can't be reached through the real middleware stack or a
+  legal JSON payload, so neither unit nor live tests exercise them.
+- **`ob.client` `total` always resolves to `null`** — a latent product quirk, not a test
+  gap: `fast-xml-parser` parses `<numberOfRecords>` as a number and the client's `str()`
+  helper only handles strings/`#text`. The test asserts the current (null) behavior.
 
 ---
 
