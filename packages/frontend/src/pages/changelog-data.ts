@@ -33,10 +33,33 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
-      version: '3.7.2',
+      version: '3.7.3',
       status: 'Upcoming',
       statusColor: '#6b7280',
       borderColor: '#e5e7eb',
+      date: 'July 7, 2026',
+      sections: [
+        {
+          icon: '🧪',
+          iconColor: '#2d7a33',
+          title:
+            'Tests: backend coverage campaign — branch-gap closure across all service and route layers',
+          items: [
+            'Suite grown from 786 to 829 tests across the full backend (all passing on every commit); headline now 94% statements · 74% branch · 96% lines — up from 92% / 71% / 94% at the start of the campaign.',
+            'operaton.service.ts: branch coverage 61% → 70% — per-endpoint upstream-error branches across both the citizen-facing and M2M service surfaces now exercised.',
+            'MCP providers (LdeMcpProvider, CprmvMcpProvider, TriplyDbMcpProvider, OperatonMcpProvider): combined branch coverage from ≈45% to ≈70% — connect / disconnect / already-connected guard / tool-call / stderr error-handler paths all covered.',
+            'ob.client.ts (OB SRU): branch coverage 43% → 77% — fetch-error, paging, fallback URL, str() #text node extraction for attributed identifiers, findDeep for non-standard gzd structures, and mixed-record skipping.',
+            'Route branch gaps: tenant-mismatch 403 tests in task.routes (variables, form-schema, claim, complete); failure-path 500/404 tests in m2m.routes (process/history, historic-variables); SSE chat-timeout test in mcp.routes using a queueMicrotask setTimeout spy that fires the 480 s timeout exactly when the handler suspends at await.',
+            'docs/TESTS.md refreshed with current per-file percentages; documented artifacts (capacity/rip !req.user guards, mcp.routes catch-block lines 129-132) annotated with root-cause explanations. TEST-COVERAGE-NEXT-STEPS.md rewritten to mark Phase 1 complete and focus the next-session prompt on Phase 2 (live smoke suite).',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.7.2',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
       date: 'July 6, 2026',
       sections: [
         {

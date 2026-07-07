@@ -310,9 +310,9 @@ fixtures, `types/`, and `index.ts`), so **untested files report as 0% instead of
 being omitted** — the "All files" number reflects the whole backend, not just the
 files a test happens to import.
 
-A dedicated coverage campaign (branch `test/backend-coverage`, **786 tests**) brought
-every backend feature area under test. Current headline: **92% stmts · 71% branch ·
-93% funcs · 94% lines**. A word on terminology this campaign learned the hard way:
+A dedicated coverage campaign (branch `test/backend-coverage`, **829 tests**) brought
+every backend feature area under test. Current headline: **94% stmts · 74% branch ·
+94% funcs · 96% lines**. A word on terminology this campaign learned the hard way:
 _file-touched ≠ behavior-covered_. Several files had a test file that only exercised a
 pure helper (a mapper, a parser) while the real work — the HTTP fetch, the pagination,
 the SSRF guard — went untested. The table below is the **complete per-file inventory**
@@ -336,65 +336,65 @@ input. "Defensive branches" in the status column means exactly that residue.
 
 #### `routes/`
 
-| File                 | Lines | Branch | Status                                                             |
-| -------------------- | ----- | ------ | ------------------------------------------------------------------ |
-| `admin.routes.ts`    | 100%  | 83.3%  | fully covered                                                      |
-| `brp.routes.ts`      | 95.8% | 86.7%  | happy + error paths; one validation branch                         |
-| `capacity.routes.ts` | 91.9% | 50.0%  | happy + error paths; upstream-failure branches                     |
-| `decision.routes.ts` | 94.0% | 71.4%  | happy + error paths; a few validation branches                     |
-| `edocs.routes.ts`    | 100%  | 81.8%  | fully covered (see eDOCS live-switch path above)                   |
-| `health.routes.ts`   | 100%  | 80.0%  | fully covered                                                      |
-| `hr.routes.ts`       | 96.3% | 62.5%  | happy + error paths; one branch                                    |
-| `m2m.routes.ts`      | 96.7% | 48.3%  | happy + error paths; auth-edge branches                            |
-| `mcp.routes.ts`      | 87.0% | 60.0%  | list/call + SSE stream + error event; residual stream-abort branch |
-| `process.routes.ts`  | 93.3% | 68.7%  | all endpoints happy + error; per-endpoint upstream branches        |
-| `public.routes.ts`   | 93.9% | 81.5%  | happy + validation + error; a few defensive branches               |
-| `rip.routes.ts`      | 91.9% | 50.0%  | happy + error; error-detail branches                               |
-| `task.routes.ts`     | 88.2% | 52.6%  | all endpoints happy + error; per-endpoint upstream branches        |
+| File                 | Lines | Branch | Status                                                                                                  |
+| -------------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `admin.routes.ts`    | 100%  | 83.3%  | fully covered                                                                                           |
+| `brp.routes.ts`      | 95.8% | 86.7%  | happy + error paths; one validation branch                                                              |
+| `capacity.routes.ts` | 91.9% | 50.0%  | happy + error paths; upstream-failure branches                                                          |
+| `decision.routes.ts` | 94.0% | 71.4%  | happy + error paths; a few validation branches                                                          |
+| `edocs.routes.ts`    | 100%  | 81.8%  | fully covered (see eDOCS live-switch path above)                                                        |
+| `health.routes.ts`   | 100%  | 80.0%  | fully covered                                                                                           |
+| `hr.routes.ts`       | 96.3% | 62.5%  | happy + error paths; one branch                                                                         |
+| `m2m.routes.ts`      | 98.9% | 50.6%  | happy + error paths; lines 57 and 87 are unreachable artifacts                                          |
+| `mcp.routes.ts`      | 92.6% | 66.7%  | list/call + SSE stream + timeout; lines 129-132 untestable via supertest (req.close fires before catch) |
+| `process.routes.ts`  | 93.3% | 68.7%  | all endpoints happy + error; per-endpoint upstream branches                                             |
+| `public.routes.ts`   | 93.9% | 81.5%  | happy + validation + error; a few defensive branches                                                    |
+| `rip.routes.ts`      | 91.9% | 50.0%  | happy + error; `!req.user` guards are defensive artifacts                                               |
+| `task.routes.ts`     | 91.8% | 66.7%  | all endpoints happy + error + tenant-mismatch 403; `!req.user` artifact lines                           |
 
 #### `services/`
 
-| File                            | Lines | Branch | Status                                                                                                           |
-| ------------------------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| `audit.service.ts`              | 100%  | 90.5%  | fully covered                                                                                                    |
-| `berichten.service.ts`          | 100%  | 91.7%  | fully covered                                                                                                    |
-| `edocs.service.ts`              | 98.4% | 85.7%  | stub + live paths; see eDOCS section                                                                             |
-| `externalTaskWorker.service.ts` | 83.5% | 87.0%  | topic dispatch + eDOCS handlers covered; timer-driven poll loop and some handler-error branches left             |
-| `mcpChat.service.ts`            | 100%  | 77.8%  | fully covered                                                                                                    |
-| `nieuws.service.ts`             | 100%  | 94.4%  | fully covered                                                                                                    |
-| `operaton.service.ts`           | 88.3% | 61.1%  | both handler groups + happy/error paths; residual is per-endpoint upstream-error branches across a large surface |
-| `productenDiensten.service.ts`  | 100%  | 92.9%  | fully covered                                                                                                    |
-| `regelcatalogus.service.ts`     | 98.4% | 76.6%  | fully covered bar one branch                                                                                     |
+| File                            | Lines | Branch | Status                                                                                                                               |
+| ------------------------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `audit.service.ts`              | 100%  | 90.5%  | fully covered                                                                                                                        |
+| `berichten.service.ts`          | 100%  | 91.7%  | fully covered                                                                                                                        |
+| `edocs.service.ts`              | 98.4% | 85.7%  | stub + live paths; see eDOCS section                                                                                                 |
+| `externalTaskWorker.service.ts` | 83.5% | 87.0%  | topic dispatch + eDOCS handlers covered; timer-driven poll loop and some handler-error branches left                                 |
+| `mcpChat.service.ts`            | 100%  | 77.8%  | fully covered                                                                                                                        |
+| `nieuws.service.ts`             | 100%  | 94.4%  | fully covered                                                                                                                        |
+| `operaton.service.ts`           | 95.8% | 70.1%  | both handler groups + full happy/error paths; residual is the error-extract helper variants and a handful of compound-error branches |
+| `productenDiensten.service.ts`  | 100%  | 92.9%  | fully covered                                                                                                                        |
+| `regelcatalogus.service.ts`     | 98.4% | 76.6%  | fully covered bar one branch                                                                                                         |
 
 #### `services/llm/` · `services/mcp/`
 
-| File                          | Lines | Branch | Status                                      |
-| ----------------------------- | ----- | ------ | ------------------------------------------- |
-| `llm/AnthropicLlmProvider.ts` | 100%  | 100%   | fully covered                               |
-| `llm/OpenAILlmProvider.ts`    | 97.4% | 86.4%  | fully covered bar one branch                |
-| `llm/LlmProvider.ts`          | 100%  | 100%   | fully covered                               |
-| `llm/LlmRegistry.ts`          | 100%  | 100%   | fully covered                               |
-| `mcp/CprmvMcpProvider.ts`     | 98.1% | 53.8%  | tool calls + errors; connect/guard branches |
-| `mcp/LdeMcpProvider.ts`       | 87.5% | 41.7%  | tool calls + errors; connect/guard branches |
-| `mcp/OperatonMcpProvider.ts`  | 83.3% | 52.9%  | tool calls + errors; connect/guard branches |
-| `mcp/TriplyDbMcpProvider.ts`  | 91.1% | 45.5%  | tool calls + errors; connect/guard branches |
-| `mcp/McpRegistry.ts`          | 100%  | 77.8%  | fully covered                               |
+| File                          | Lines | Branch | Status                                                                                 |
+| ----------------------------- | ----- | ------ | -------------------------------------------------------------------------------------- |
+| `llm/AnthropicLlmProvider.ts` | 100%  | 100%   | fully covered                                                                          |
+| `llm/OpenAILlmProvider.ts`    | 97.4% | 86.4%  | fully covered bar one branch                                                           |
+| `llm/LlmProvider.ts`          | 100%  | 100%   | fully covered                                                                          |
+| `llm/LlmRegistry.ts`          | 100%  | 100%   | fully covered                                                                          |
+| `mcp/CprmvMcpProvider.ts`     | 100%  | 61.5%  | connect/disconnect/guard/tool/error covered; residual is stderr-event branches         |
+| `mcp/LdeMcpProvider.ts`       | 100%  | 75.0%  | fully covered; reconnect-guard and stderr-error branches remain                        |
+| `mcp/OperatonMcpProvider.ts`  | 95.8% | 70.6%  | connect/disconnect/tool paths covered; residual is a compound catch branch             |
+| `mcp/TriplyDbMcpProvider.ts`  | 100%  | 72.7%  | connect/disconnect/guard/tool/stderr covered; residual is no-op when already connected |
+| `mcp/McpRegistry.ts`          | 100%  | 77.8%  | fully covered                                                                          |
 
 #### `pa-monitoring/`
 
-| File                                   | Lines | Branch | Status                                                                                                                                     |
-| -------------------------------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pa.routes.ts`                         | 100%  | 79.6%  | every route + query-builder branches; residual is `?? null` defaults                                                                       |
-| `rules.ts`                             | 100%  | 87.1%  | `scoreItem` fully covered (29 tests)                                                                                                       |
-| `curation.service.ts`                  | 82.3% | 69.3%  | orchestration + routing + dedup + resilience; residual is source-specific fetch-error edges                                                |
-| `pa-cache.ts`                          | 97.4% | 83.3%  | Redis wrapper; no-client branch left                                                                                                       |
-| `pa-monitoring.db.ts`                  | 100%  | 66.7%  | fully covered                                                                                                                              |
-| `sources/tk.client.ts`                 | 100%  | 84.4%  | fully covered                                                                                                                              |
-| `sources/agenda.client.ts`             | 98.6% | 69.7%  | fully covered bar one branch                                                                                                               |
-| `sources/eu.client.ts`                 | 98.9% | 65.9%  | `parseRssFeed` + `fetchFeed`/`fetchEuFeed` (cache/dedup/paging) + `inferType` + `parseRssFile`; residual is the XML-parse catch            |
-| `sources/ep-texts-submitted.client.ts` | 97.9% | 83.3%  | parsers + the fetch/pagination engine (dedup, early-stop, per-tab tolerance); residual is malformed-card warn + `allSettled` reject branch |
-| `sources/media.client.ts`              | 96.3% | 80.0%  | `articleToFeedItem` mapper + `fetchFlevolandNews` (request shape, skip, retry); residual is an unreachable trailing `return []`            |
-| `sources/ob.client.ts`                 | 88.7% | 42.9%  | RSS parser covered; residual is fetch error/paging branches (the `numberOfRecords → null` quirk noted below lives here)                    |
+| File                                   | Lines | Branch | Status                                                                                                                                         |
+| -------------------------------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pa.routes.ts`                         | 100%  | 79.6%  | every route + query-builder branches; residual is `?? null` defaults                                                                           |
+| `rules.ts`                             | 100%  | 87.1%  | `scoreItem` fully covered (29 tests)                                                                                                           |
+| `curation.service.ts`                  | 82.3% | 69.3%  | orchestration + routing + dedup + resilience; residual is source-specific fetch-error edges                                                    |
+| `pa-cache.ts`                          | 97.4% | 83.3%  | Redis wrapper; no-client branch left                                                                                                           |
+| `pa-monitoring.db.ts`                  | 100%  | 66.7%  | fully covered                                                                                                                                  |
+| `sources/tk.client.ts`                 | 100%  | 84.4%  | fully covered                                                                                                                                  |
+| `sources/agenda.client.ts`             | 98.6% | 69.7%  | fully covered bar one branch                                                                                                                   |
+| `sources/eu.client.ts`                 | 98.9% | 65.9%  | `parseRssFeed` + `fetchFeed`/`fetchEuFeed` (cache/dedup/paging) + `inferType` + `parseRssFile`; residual is the XML-parse catch                |
+| `sources/ep-texts-submitted.client.ts` | 97.9% | 83.3%  | parsers + the fetch/pagination engine (dedup, early-stop, per-tab tolerance); residual is malformed-card warn + `allSettled` reject branch     |
+| `sources/media.client.ts`              | 96.3% | 80.0%  | `articleToFeedItem` mapper + `fetchFlevolandNews` (request shape, skip, retry); residual is an unreachable trailing `return []`                |
+| `sources/ob.client.ts`                 | 100%  | 77.1%  | SRU XML parsing + paging + cache + error paths + fallback URL + `str()` `#text` + `findDeep` covered; residual is low-signal XML-edge branches |
 
 #### `media-aggregator/`
 
