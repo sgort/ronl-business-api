@@ -87,4 +87,107 @@ describe('fetchObFeed', () => {
     mockFetch.mockResolvedValue({ ok: false, status: 500 });
     await expect(fetchObFeed('q')).rejects.toThrow(/OB SRU 500/);
   });
+
+  it('rethrows a network error from fetch', async () => {
+    mockFetch.mockRejectedValue(new Error('network down'));
+    await expect(fetchObFeed('q')).rejects.toThrow('network down');
+  });
+
+  it('throws on malformed XML', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: async () => '<<invalid xml' });
+    await expect(fetchObFeed('q')).rejects.toThrow('Invalid XML from OB SRU');
+  });
+
+  it('uses top (not 3×top) for skip > 0 paging requests', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      text: async () => '<searchRetrieveResponse><records/></searchRetrieveResponse>',
+    });
+    await fetchObFeed('q', [], 20, 10);
+    const url = mockFetch.mock.calls[0][0] as string;
+    const params = new URLSearchParams(url.split('?')[1]);
+    expect(params.get('maximumRecords')).toBe('10'); // not 30
+    expect(params.get('startRecord')).toBe('21');
+  });
+
+  it('constructs a fallback URL when preferredUrl is absent', async () => {
+    const noEnrichedXml = `<searchRetrieveResponse>
+      <records>
+        <record><recordData><gzd>
+          <originalData><meta>
+            <owmskern><identifier>stb-2026-9</identifier><title>Wet Z</title></owmskern>
+            <owmsmantel><date>2026-07-06</date></owmsmantel>
+            <tpmeta><publicatienaam>Staatsblad</publicatienaam></tpmeta>
+          </meta></originalData>
+        </gzd></recordData></record>
+      </records>
+    </searchRetrieveResponse>`;
+    mockFetch.mockResolvedValue({ ok: true, text: async () => noEnrichedXml });
+    const res = await fetchObFeed('q');
+    expect(res.items[0].url).toBe('https://zoek.officielebekendmakingen.nl/stb-2026-9.html');
+  });
+
+  it('handles str() #text nodes (identifier with attribute + text content)', async () => {
+    // When an element carries both an attribute and text content, fast-xml-parser
+    // returns { '@_attr': '...', '#text': 'value' }. str() must extract '#text'.
+    const attrXml = `<searchRetrieveResponse>
+      <records>
+        <record><recordData><gzd>
+          <originalData><meta>
+            <owmskern>
+              <identifier resource="https://example.com/id">stcrt-2026-attr</identifier>
+              <title>Attr Title</title>
+            </owmskern>
+            <owmsmantel><date>2026-07-07</date></owmsmantel>
+            <tpmeta><publicatienaam>Staatscourant</publicatienaam></tpmeta>
+          </meta></originalData>
+        </gzd></recordData></record>
+      </records>
+    </searchRetrieveResponse>`;
+    mockFetch.mockResolvedValue({ ok: true, text: async () => attrXml });
+    const res = await fetchObFeed('q');
+    expect(res.items[0].id).toBe('stcrt-2026-attr');
+  });
+
+  it('uses findDeep to locate owmskern when the standard gzd path is absent', async () => {
+    // Non-standard structure: no gzd wrapper — dig() returns undefined, findDeep finds it.
+    const altXml = `<searchRetrieveResponse>
+      <records>
+        <record><recordData>
+          <owmskern><identifier>alt-id-1</identifier><title>Alt Title</title></owmskern>
+          <owmsmantel><date>2026-07-07</date></owmsmantel>
+          <tpmeta><publicatienaam>Staatsblad</publicatienaam></tpmeta>
+        </recordData></record>
+      </records>
+    </searchRetrieveResponse>`;
+    mockFetch.mockResolvedValue({ ok: true, text: async () => altXml });
+    const res = await fetchObFeed('q');
+    expect(res.items[0].id).toBe('alt-id-1');
+    expect(res.items[0].title).toBe('Alt Title');
+  });
+
+  it('skips records without recordData or without owmskern', async () => {
+    // Mix of: a record missing recordData entirely, a record missing owmskern
+    // (parseRecord returns null), and a valid record — only the valid one surfaces.
+    const mixedXml = `<searchRetrieveResponse>
+      <records>
+        <record><noData/></record>
+        <record><recordData><gzd>
+          <originalData><meta>
+            <owmsmantel><date>2026-07-07</date></owmsmantel>
+          </meta></originalData>
+        </gzd></recordData></record>
+        <record><recordData><gzd>
+          <originalData><meta>
+            <owmskern><identifier>valid-1</identifier><title>Valid</title></owmskern>
+            <owmsmantel><date>2026-07-07</date></owmsmantel>
+            <tpmeta><publicatienaam>Staatsblad</publicatienaam></tpmeta>
+          </meta></originalData>
+        </gzd></recordData></record>
+      </records>
+    </searchRetrieveResponse>`;
+    mockFetch.mockResolvedValue({ ok: true, text: async () => mixedXml });
+    const res = await fetchObFeed('q');
+    expect(res.items.map((i) => i.id)).toEqual(['valid-1']);
+  });
 });
