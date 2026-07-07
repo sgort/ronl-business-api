@@ -29,6 +29,10 @@ describe('createLogger', () => {
   });
 
   it('logs at every level without throwing (exercises the dev format)', () => {
+    // winston's Console transport writes straight to process.stdout/stderr;
+    // suppress both so the run output stays clean while still exercising the format.
+    const outSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const errSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const log = createLogger('test-module');
     expect(() => {
       log.info('hello', { detail: 1 }); // with meta → printf meta branch
@@ -36,5 +40,7 @@ describe('createLogger', () => {
       log.error('boom');
       log.debug('trace');
     }).not.toThrow();
+    outSpy.mockRestore();
+    errSpy.mockRestore();
   });
 });
