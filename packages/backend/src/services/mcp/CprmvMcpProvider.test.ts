@@ -73,6 +73,21 @@ describe('CprmvMcpProvider — core', () => {
     await expect(p.callTool(RULE_TOOL, {})).rejects.toThrow('other error');
     expect(mockClientCtor).not.toHaveBeenCalled(); // no reconnect attempted
   });
+
+  it('getToolDefinitions rethrows a non-session error without reconnecting', async () => {
+    const p = new CprmvMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockRejectedValue(new Error('timeout')),
+      close: jest.fn(),
+    });
+    await expect(p.getToolDefinitions()).rejects.toThrow('timeout');
+    expect(mockClientCtor).not.toHaveBeenCalled();
+  });
+
+  it('disconnect is a no-op when not connected', async () => {
+    const p = new CprmvMcpProvider();
+    await expect(p.disconnect()).resolves.toBeUndefined();
+  });
 });
 
 describe('CprmvMcpProvider — session reconnect', () => {

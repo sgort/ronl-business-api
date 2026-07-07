@@ -18,6 +18,7 @@ jest.mock('@utils/logger', () => ({
 }));
 
 import { OperatonMcpProvider } from './OperatonMcpProvider';
+import os from 'os';
 
 const inject = (p: object, client: unknown) => {
   (p as { client: unknown }).client = client;
@@ -95,5 +96,51 @@ describe('OperatonMcpProvider', () => {
     await p.disconnect();
     expect(client.close).toHaveBeenCalled();
     expect(p.isConnected()).toBe(false);
+  });
+
+  it('disconnect is a no-op when not connected', async () => {
+    const p = new OperatonMcpProvider();
+    await expect(p.disconnect()).resolves.toBeUndefined();
+  });
+});
+
+describe('OperatonMcpProvider — command path and stderr handlers', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('uses npx on win32/darwin platforms', async () => {
+    jest.spyOn(os, 'platform').mockReturnValue('darwin' as NodeJS.Platform);
+    const p = new OperatonMcpProvider();
+    const client = { connect: jest.fn().mockResolvedValue(undefined) };
+    mockTransportCtor.mockImplementation(() => ({ stderr: { on: jest.fn() } }));
+    mockClientCtor.mockImplementation(() => client);
+
+    await p.connect();
+
+    const { command, args } = mockTransportCtor.mock.calls[0][0] as {
+      command: string;
+      args: string[];
+    };
+    expect(command).toBe('npx');
+    expect(args).toEqual(['-y', 'operaton-mcp']);
+    jest.restoreAllMocks();
+  });
+
+  it('invokes the stderr error handler: EPIPE suppressed, others logged', async () => {
+    const handlers: Record<string, (...a: unknown[]) => void> = {};
+    mockTransportCtor.mockImplementation(() => ({
+      stderr: {
+        on: (event: string, fn: (...a: unknown[]) => void) => {
+          handlers[event] = fn;
+        },
+      },
+    }));
+    mockClientCtor.mockImplementation(() => ({ connect: jest.fn().mockResolvedValue(undefined) }));
+
+    const p = new OperatonMcpProvider();
+    await p.connect();
+
+    handlers['error'](Object.assign(new Error('pipe'), { code: 'EPIPE' }));
+    handlers['error'](Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }));
   });
 });

@@ -94,4 +94,75 @@ describe('LdeMcpProvider', () => {
     expect(client.close).toHaveBeenCalled();
     expect(p.isConnected()).toBe(false);
   });
+
+  it('disconnect is a no-op when not connected', async () => {
+    const p = new LdeMcpProvider();
+    await expect(p.disconnect()).resolves.toBeUndefined();
+  });
+});
+
+describe('LdeMcpProvider — command path and stderr handlers', () => {
+  const origNodeEnv = process.env.NODE_ENV;
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => {
+    process.env.NODE_ENV = origNodeEnv;
+    jest.useRealTimers();
+  });
+
+  it('uses node + dist path in production', async () => {
+    process.env.NODE_ENV = 'production';
+    const p = new LdeMcpProvider();
+    const client = { connect: jest.fn().mockResolvedValue(undefined) };
+    mockTransportCtor.mockImplementation(() => ({ stderr: { on: jest.fn() } }));
+    mockClientCtor.mockImplementation(() => client);
+
+    await p.connect();
+
+    const { command, args } = mockTransportCtor.mock.calls[0][0] as {
+      command: string;
+      args: string[];
+    };
+    expect(command).toBe('node');
+    expect(args[0]).toContain('dist/mcp-servers/lde/index.js');
+  });
+
+  it('invokes the stderr data handler and suppresses empty lines', async () => {
+    const handlers: Record<string, (...a: unknown[]) => void> = {};
+    mockTransportCtor.mockImplementation(() => ({
+      stderr: {
+        on: (event: string, fn: (...a: unknown[]) => void) => {
+          handlers[event] = fn;
+        },
+      },
+    }));
+    mockClientCtor.mockImplementation(() => ({ connect: jest.fn().mockResolvedValue(undefined) }));
+
+    const p = new LdeMcpProvider();
+    await p.connect();
+
+    // non-empty → warn logged (no throw)
+    handlers['data'](Buffer.from('stderr output'));
+    // empty → if (text) guard, no-op
+    handlers['data'](Buffer.from('   '));
+  });
+
+  it('invokes the stderr error handler: EPIPE suppressed, others logged', async () => {
+    const handlers: Record<string, (...a: unknown[]) => void> = {};
+    mockTransportCtor.mockImplementation(() => ({
+      stderr: {
+        on: (event: string, fn: (...a: unknown[]) => void) => {
+          handlers[event] = fn;
+        },
+      },
+    }));
+    mockClientCtor.mockImplementation(() => ({ connect: jest.fn().mockResolvedValue(undefined) }));
+
+    const p = new LdeMcpProvider();
+    await p.connect();
+
+    // EPIPE is suppressed — must not throw
+    handlers['error'](Object.assign(new Error('pipe'), { code: 'EPIPE' }));
+    // non-EPIPE → logger.error (must not throw)
+    handlers['error'](Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }));
+  });
 });

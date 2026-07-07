@@ -650,3 +650,132 @@ describe('archive list builders', () => {
     await expect(svc.getCapacityClaimActiveList('t')).resolves.toEqual([]);
   });
 });
+
+// ── Error-path branch coverage ────────────────────────────────────────────────
+
+describe('constructor auth branch', () => {
+  it('attaches basic auth when username and password are provided', () => {
+    const axiosMock = jest.requireMock('axios').default;
+    new OperatonService('http://x', 'user', 'pass');
+    const createCall = axiosMock.create.mock.calls.at(-1)[0];
+    expect(createCall.auth).toEqual({ username: 'user', password: 'pass' });
+  });
+
+  it('omits basic auth when credentials are absent', () => {
+    const axiosMock = jest.requireMock('axios').default;
+    new OperatonService('http://x', undefined, undefined);
+    const createCall = axiosMock.create.mock.calls.at(-1)[0];
+    expect(createCall.auth).toBeUndefined();
+  });
+});
+
+describe('error paths — rethrow on upstream failure', () => {
+  it('getActivityHistory rethrows', async () => {
+    mockClient.get.mockRejectedValue(new Error('act-err'));
+    await expect(svc.getActivityHistory('pi')).rejects.toThrow('act-err');
+  });
+
+  it('deleteProcessInstance rethrows', async () => {
+    mockClient.delete.mockRejectedValue(new Error('del-err'));
+    await expect(svc.deleteProcessInstance('pi')).rejects.toThrow('del-err');
+  });
+
+  it('getProcessHistory rethrows', async () => {
+    mockClient.post.mockRejectedValue(new Error('hist-err'));
+    await expect(svc.getProcessHistory('app', 'tenant')).rejects.toThrow('hist-err');
+  });
+
+  it('getHistoricVariables rethrows', async () => {
+    mockClient.get.mockRejectedValue(new Error('hv-err'));
+    await expect(svc.getHistoricVariables('pi')).rejects.toThrow('hv-err');
+  });
+
+  it('getHrOnboardingProfile rethrows', async () => {
+    mockClient.post.mockRejectedValue(new Error('hr-err'));
+    await expect(svc.getHrOnboardingProfile('e', 't')).rejects.toThrow('hr-err');
+  });
+
+  it('getVariableHints rethrows', async () => {
+    mockClient.get.mockRejectedValue(new Error('vh-err'));
+    await expect(svc.getVariableHints('Key')).rejects.toThrow('vh-err');
+  });
+
+  it('getDeployedStartForm rethrows', async () => {
+    mockClient.get.mockRejectedValue(new Error('form-err'));
+    await expect(svc.getDeployedStartForm('K')).rejects.toThrow('form-err');
+  });
+
+  it('getDeployedTaskForm rethrows', async () => {
+    mockClient.get.mockRejectedValue(new Error('tform-err'));
+    await expect(svc.getDeployedTaskForm('t1')).rejects.toThrow('tform-err');
+  });
+
+  it('completeTask rethrows', async () => {
+    mockClient.post.mockRejectedValue(new Error('complete-err'));
+    await expect(svc.completeTask('t1', {})).rejects.toThrow('complete-err');
+  });
+
+  it('claimTask rethrows', async () => {
+    mockClient.post.mockRejectedValue(new Error('claim-err'));
+    await expect(svc.claimTask('t1', 'u')).rejects.toThrow('claim-err');
+  });
+});
+
+describe('getUserTasks — branch gaps', () => {
+  it('omits processVariables when tenantId is absent', async () => {
+    routeGet([['/task', { data: [] }]]);
+    await svc.getUserTasks('u', undefined, undefined);
+    expect(mockClient.get).toHaveBeenCalledWith('/task', { params: {} });
+  });
+
+  it('omits candidateGroups when the array is empty', async () => {
+    routeGet([['/task', { data: [] }]]);
+    await svc.getUserTasks('u', 'flevoland', []);
+    const params = mockClient.get.mock.calls[0][1].params;
+    expect(params.candidateGroups).toBeUndefined();
+    expect(params.includeAssignedTasks).toBeUndefined();
+  });
+
+  it('falls back to the raw defId when the definition lookup throws', async () => {
+    routeGet([
+      ['/task', { data: [{ id: 't1', processDefinitionId: 'opaqueId' }] }],
+      ['/process-definition/opaqueId', Promise.reject(new Error('not found'))],
+    ]);
+    const res = await svc.getUserTasks();
+    expect(res[0].processDefinitionKey).toBe('opaqueId');
+  });
+});
+
+describe('getCompletedTasks — branch gaps', () => {
+  it('sets boardOwner to null for a task with no processDefinitionKey', async () => {
+    routeGet([
+      [
+        '/history/task',
+        {
+          data: [
+            {
+              id: 'ht2',
+              name: 'Anon',
+              assignee: null,
+              taskDefinitionKey: 'tdk',
+              processDefinitionKey: null,
+              processInstanceId: 'pi2',
+              startTime: 's',
+              endTime: 'e',
+              duration: 5,
+            },
+          ],
+        },
+      ],
+    ]);
+    mockClient.post.mockResolvedValue({ data: [{ id: 'pi2', businessKey: 'BK-2' }] });
+
+    const res = await svc.getCompletedTasks('t');
+    expect(res[0].boardOwner).toBeNull();
+  });
+
+  it('rethrows on upstream failure', async () => {
+    routeGet([['/history/task', Promise.reject(new Error('tasks-err'))]]);
+    await expect(svc.getCompletedTasks('t')).rejects.toThrow('tasks-err');
+  });
+});
