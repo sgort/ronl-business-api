@@ -28,9 +28,8 @@ jest.mock('@services/llm/LlmRegistry', () => ({ llmRegistry: { getAvailableModel
 
 const mockConfig = { mcp: { enabled: true } };
 jest.mock('@utils/config', () => ({ config: mockConfig }));
-jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
-}));
+const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
 import express from 'express';
 import request from 'supertest';
@@ -145,5 +144,35 @@ describe('POST /v1/mcp/chat', () => {
 
     expect(res.text).toContain('data: {"type":"error","message":"llm down"}');
     expect(res.text).toContain('data: {"type":"done"}');
+  });
+
+  it('sends a timeout error and closes the stream when the chat takes too long', async () => {
+    mcp.isAnyConnected.mockReturnValue(true);
+
+    // Replace setTimeout so the route's 480s timer fires on the next microtask —
+    // exactly when the handler suspends at `await runChatStream(...)`, before it
+    // resolves. clearTimeout is no-op since there's no real handle to cancel.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    jest.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+      queueMicrotask(fn as () => void);
+      return 1 as unknown as NodeJS.Timeout;
+    });
+    jest.spyOn(global, 'clearTimeout').mockImplementation(() => undefined);
+
+    let resolveStream: (() => void) | undefined;
+    mockRunChat.mockImplementation(
+      () =>
+        new Promise<void>((r) => {
+          resolveStream = r;
+        })
+    );
+
+    const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
+
+    expect(res.headers['content-type']).toContain('text/event-stream');
+    expect(res.text).toContain('"Chat request timed out"');
+
+    resolveStream?.(); // let the route handler's finally block exit cleanly
+    jest.restoreAllMocks();
   });
 });

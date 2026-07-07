@@ -135,6 +135,13 @@ describe('GET /v1/task/:id/variables', () => {
     expect(svc.getProcessVariables).toHaveBeenCalledWith('pi-1');
   });
 
+  it('403 on a tenant mismatch', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht', processInstanceId: 'pi-1' });
+    const res = await auth(request(app).get('/v1/task/t1/variables'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('500 when variables cannot be retrieved', async () => {
     svc.getTask.mockResolvedValue({ id: 't1', processInstanceId: 'pi-1' });
     svc.getProcessVariables.mockRejectedValue(new Error('boom'));
@@ -146,6 +153,13 @@ describe('GET /v1/task/:id/variables', () => {
 
 describe('GET /v1/task/:id/form-schema', () => {
   beforeEach(() => svc.getTask.mockResolvedValue({ id: 't1' }));
+
+  it('403 on a tenant mismatch', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+    const res = await auth(request(app).get('/v1/task/t1/form-schema'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
 
   it('parses and returns a Camunda (JSON) form', async () => {
     svc.getDeployedTaskForm.mockResolvedValue({
@@ -180,6 +194,13 @@ describe('GET /v1/task/:id/form-schema', () => {
 });
 
 describe('POST /v1/task/:id/claim', () => {
+  it('403 on a tenant mismatch', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+    const res = await auth(request(app).post('/v1/task/t1/claim'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('claims the task for the caller and audits', async () => {
     svc.getTask.mockResolvedValue({ id: 't1' });
     svc.claimTask.mockResolvedValue(undefined);
@@ -205,6 +226,13 @@ describe('POST /v1/task/:id/claim', () => {
 });
 
 describe('POST /v1/task/:id/complete', () => {
+  it('403 on a tenant mismatch', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('infers variable types, completes the task, and audits', async () => {
     svc.getTask.mockResolvedValue({ id: 't1' });
     svc.completeTask.mockResolvedValue(undefined);

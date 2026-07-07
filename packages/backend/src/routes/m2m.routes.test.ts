@@ -123,6 +123,13 @@ describe('process endpoints', () => {
     expect(res.status).toBe(200);
   });
 
+  it('GET /process/history → 500 on failure', async () => {
+    svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/m2m/process/history'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PROCESS_HISTORY_FAILED');
+  });
+
   it('GET /process/:id/status maps active/ended/suspended', async () => {
     svc.getProcessInstance.mockResolvedValueOnce({ id: 'pi', ended: false, suspended: false });
     expect((await auth(request(app).get('/v1/m2m/process/pi/status'))).body.data.status).toBe(
@@ -160,6 +167,13 @@ describe('process endpoints', () => {
     svc.getHistoricVariables.mockResolvedValue({ a: 1 });
     const res = await auth(request(app).get('/v1/m2m/process/pi/historic-variables'));
     expect(res.body.data).toEqual({ a: 1 });
+  });
+
+  it('GET /process/:id/historic-variables → 404 on failure', async () => {
+    svc.getHistoricVariables.mockRejectedValue(new Error('nope'));
+    expect((await auth(request(app).get('/v1/m2m/process/pi/historic-variables'))).status).toBe(
+      404
+    );
   });
 
   it('GET /process/:id/decision-document returns the template', async () => {
