@@ -4,7 +4,7 @@
  * we assert the request (verb + URL + body/params), the mapped response, tenant
  * injection, and error handling.
  *
- * The archive/list + BPMN/form methods are covered in part B.
+ * The archive/list + BPMN/form methods (part B) are covered lower in this file.
  */
 
 const mockClient = {
@@ -292,5 +292,361 @@ describe('healthCheck', () => {
       status: 'down',
       error: 'unreachable',
     });
+  });
+});
+
+// ── Part B: archive/list + BPMN/form methods ────────────────────────────────
+
+/** Route GET calls by URL (exact string or regex) for the multi-call methods. */
+function routeGet(routes: Array<[string | RegExp, unknown]>) {
+  mockClient.get.mockImplementation((url: string) => {
+    for (const [pattern, value] of routes) {
+      const hit = typeof pattern === 'string' ? url === pattern : pattern.test(url);
+      if (hit) return Promise.resolve(value);
+    }
+    return Promise.reject(new Error(`unexpected GET ${url}`));
+  });
+}
+
+describe('getHrOnboardingProfile', () => {
+  it('returns flattened historic variables of the most recent completed instance', async () => {
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1' }] });
+    mockClient.get.mockResolvedValue({ data: [{ name: 'firstName', value: 'Bob' }] });
+
+    await expect(svc.getHrOnboardingProfile('e1', 'flevoland')).resolves.toEqual({
+      firstName: 'Bob',
+    });
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ processDefinitionKey: 'HrOnboardingProcess', finished: true })
+    );
+  });
+
+  it('returns null when no completed instance exists', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await expect(svc.getHrOnboardingProfile('e1', 't')).resolves.toBeNull();
+  });
+});
+
+describe('getHrOnboardingCompletedList', () => {
+  it('joins display variables and falls back to em-dash for missing ones', async () => {
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
+    mockClient.get.mockResolvedValue({
+      data: [
+        { processInstanceId: 'i1', name: 'employeeId', value: 'E1' },
+        { processInstanceId: 'i1', name: 'firstName', value: 'Bob' },
+        { processInstanceId: 'i1', name: 'ignored', value: 'x' },
+      ],
+    });
+
+    const res = await svc.getHrOnboardingCompletedList('flevoland');
+    expect(res[0]).toEqual({
+      id: 'i1',
+      startTime: 's',
+      endTime: 'e',
+      employeeId: 'E1',
+      firstName: 'Bob',
+      lastName: '—',
+    });
+  });
+
+  it('returns [] when there are no instances', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await expect(svc.getHrOnboardingCompletedList('t')).resolves.toEqual([]);
+  });
+});
+
+describe('getVariableHints', () => {
+  it('dedupes by name, defaults a missing type to String, and sorts', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        { name: 'b', type: 'String' },
+        { name: 'a', type: 'Integer' },
+        { name: 'a', type: 'Integer' },
+        { name: 'c' },
+      ],
+    });
+    await expect(svc.getVariableHints('Key')).resolves.toEqual([
+      { name: 'a', type: 'Integer' },
+      { name: 'b', type: 'String' },
+      { name: 'c', type: 'String' },
+    ]);
+  });
+});
+
+describe('getUserTasks', () => {
+  it('builds tenant + candidateGroup params and derives the key from a versioned defId', async () => {
+    routeGet([['/task', { data: [{ id: 't1', processDefinitionId: 'RipPhase1Process:3:abc' }] }]]);
+
+    const res = await svc.getUserTasks('u', 'flevoland', ['role-a', 'role-b']);
+
+    expect(res[0]).toMatchObject({ id: 't1', processDefinitionKey: 'RipPhase1Process' });
+    expect(mockClient.get).toHaveBeenCalledWith('/task', {
+      params: {
+        processVariables: 'municipality_eq_flevoland',
+        candidateGroups: 'role-a,role-b',
+        includeAssignedTasks: 'true',
+      },
+    });
+  });
+
+  it('looks up the definition key when the id is not versioned', async () => {
+    routeGet([
+      ['/task', { data: [{ id: 't1', processDefinitionId: 'plainId' }] }],
+      ['/process-definition/plainId', { data: { key: 'ResolvedKey' } }],
+    ]);
+    const res = await svc.getUserTasks();
+    expect(res[0].processDefinitionKey).toBe('ResolvedKey');
+  });
+
+  it('returns [] when there are no tasks', async () => {
+    routeGet([['/task', { data: [] }]]);
+    await expect(svc.getUserTasks()).resolves.toEqual([]);
+  });
+});
+
+describe('getBoardOwner', () => {
+  it('parses the boardOwner property and caches the result', async () => {
+    mockClient.get.mockResolvedValue({
+      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
+    });
+    await expect(svc.getBoardOwner('K1')).resolves.toBe('rvo');
+    await svc.getBoardOwner('K1'); // cached
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches the property with reversed attribute order', async () => {
+    mockClient.get.mockResolvedValue({
+      data: { bpmn20Xml: '<camunda:property value="waterschap" name="boardOwner"/>' },
+    });
+    await expect(svc.getBoardOwner('K9')).resolves.toBe('waterschap');
+  });
+
+  it('returns null for untagged BPMN', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<process/>' } });
+    await expect(svc.getBoardOwner('K2')).resolves.toBeNull();
+  });
+
+  it('returns null on lookup failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('xml down'));
+    await expect(svc.getBoardOwner('K3')).resolves.toBeNull();
+  });
+
+  it('returns null for an empty key without hitting the API', async () => {
+    await expect(svc.getBoardOwner('')).resolves.toBeNull();
+    expect(mockClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe('getCompletedTasks', () => {
+  it('joins businessKey and boardOwner into each historic task', async () => {
+    routeGet([
+      [
+        '/history/task',
+        {
+          data: [
+            {
+              id: 'ht1',
+              name: 'Review',
+              assignee: 'u',
+              taskDefinitionKey: 'tdk',
+              processDefinitionKey: 'K1',
+              processInstanceId: 'pi1',
+              startTime: 's',
+              endTime: 'e',
+              duration: 10,
+            },
+          ],
+        },
+      ],
+      [
+        '/process-definition/key/K1/xml',
+        { data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo"/>' } },
+      ],
+    ]);
+    mockClient.post.mockResolvedValue({ data: [{ id: 'pi1', businessKey: 'BK-1' }] });
+
+    const res = await svc.getCompletedTasks('flevoland');
+    expect(res[0]).toMatchObject({ id: 'ht1', businessKey: 'BK-1', boardOwner: 'rvo' });
+  });
+
+  it('returns [] when there are no completed tasks', async () => {
+    routeGet([['/history/task', { data: [] }]]);
+    await expect(svc.getCompletedTasks('t')).resolves.toEqual([]);
+  });
+});
+
+describe('deployed forms', () => {
+  it('getDeployedStartForm returns the raw form and its content type', async () => {
+    mockClient.get.mockResolvedValue({ data: '<form/>', headers: { 'content-type': 'text/html' } });
+    await expect(svc.getDeployedStartForm('K')).resolves.toEqual({
+      data: '<form/>',
+      contentType: 'text/html',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition/key/K/deployed-start-form', {
+      responseType: 'text',
+    });
+  });
+
+  it('defaults the content type when the header is absent', async () => {
+    mockClient.get.mockResolvedValue({ data: '{}', headers: {} });
+    await expect(svc.getDeployedStartForm('K')).resolves.toMatchObject({
+      contentType: 'application/octet-stream',
+    });
+  });
+
+  it('getDeployedTaskForm fetches the task deployed-form', async () => {
+    mockClient.get.mockResolvedValue({
+      data: '{}',
+      headers: { 'content-type': 'application/json' },
+    });
+    await expect(svc.getDeployedTaskForm('t1')).resolves.toEqual({
+      data: '{}',
+      contentType: 'application/json',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/task/t1/deployed-form', { responseType: 'text' });
+  });
+});
+
+describe('getDecisionDocument', () => {
+  const setup = (xml: string, resources: unknown) =>
+    routeGet([
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1/xml', { data: { bpmn20Xml: xml } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      ['/deployment/dep1/resources', { data: resources }],
+      [/\/deployment\/dep1\/resources\/r1\/data$/, { data: '{"template":"x"}' }],
+    ]);
+
+  it('resolves and parses the referenced document template', async () => {
+    setup('<bpmn ronl:documentRef="doc1" />', [
+      { id: 'r1', name: 'doc1.document', deploymentId: 'dep1' },
+    ]);
+    await expect(svc.getDecisionDocument('pi1')).resolves.toEqual({ template: 'x' });
+  });
+
+  it('throws DOCUMENT_NOT_FOUND when there is no ronl:documentRef', async () => {
+    setup('<bpmn/>', []);
+    await expect(svc.getDecisionDocument('pi1')).rejects.toThrow('DOCUMENT_NOT_FOUND');
+  });
+
+  it('throws DOCUMENT_NOT_FOUND when the resource is absent', async () => {
+    setup('<bpmn ronl:documentRef="doc1" />', [{ id: 'r9', name: 'other.document' }]);
+    await expect(svc.getDecisionDocument('pi1')).rejects.toThrow('DOCUMENT_NOT_FOUND');
+  });
+});
+
+describe('document bundles', () => {
+  it('getRipPhase1Documents returns variables plus present templates (null for absent)', async () => {
+    routeGet([
+      [/\/history\/variable-instance$/, { data: [{ name: 'projectNumber', value: 'P1' }] }],
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      ['/deployment/dep1/resources', { data: [{ id: 'r1', name: 'rip-intake-report.document' }] }],
+      [/\/deployment\/dep1\/resources\/r1\/data$/, { data: '{"t":"intake"}' }],
+    ]);
+
+    const res = await svc.getRipPhase1Documents('pi1');
+    expect(res.variables).toEqual({ projectNumber: 'P1' });
+    expect(res.intakeReport).toEqual({ t: 'intake' });
+    expect(res.psuReport).toBeNull();
+    expect(res.pdp).toBeNull();
+  });
+
+  it('getCapacityClaimDocuments returns variables plus both templates', async () => {
+    routeGet([
+      [/\/history\/variable-instance$/, { data: [{ name: 'jobTitle', value: 'Manager' }] }],
+      [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
+      ['/process-definition/pd1', { data: { deploymentId: 'dep1' } }],
+      [
+        '/deployment/dep1/resources',
+        {
+          data: [
+            { id: 'r1', name: 'board-decision-notification-nl.document' },
+            { id: 'r2', name: 'capacity-claim-handover-nl.document' },
+          ],
+        },
+      ],
+      [/\/deployment\/dep1\/resources\/r1\/data$/, { data: '{"doc":"board"}' }],
+      [/\/deployment\/dep1\/resources\/r2\/data$/, { data: '{"doc":"handover"}' }],
+    ]);
+
+    const res = await svc.getCapacityClaimDocuments('pi1');
+    expect(res.variables).toEqual({ jobTitle: 'Manager' });
+    expect(res.boardDecisionNotification).toEqual({ doc: 'board' });
+    expect(res.capacityClaimHandover).toEqual({ doc: 'handover' });
+  });
+});
+
+describe('archive list builders', () => {
+  it('getRipPhase1ActiveList maps project variables with fallbacks', async () => {
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's' }] });
+    mockClient.get.mockResolvedValue({
+      data: [
+        { processInstanceId: 'i1', name: 'projectNumber', value: 'P1' },
+        { processInstanceId: 'i1', name: 'projectName', value: 'Road' },
+      ],
+    });
+
+    const res = await svc.getRipPhase1ActiveList('flevoland');
+    expect(res[0]).toEqual({
+      id: 'i1',
+      startTime: 's',
+      projectNumber: 'P1',
+      projectName: 'Road',
+      edocsWorkspaceId: '—',
+      leadRole: '',
+    });
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ processDefinitionKey: 'RipPhase1Process', unfinished: true })
+    );
+  });
+
+  it('getRipPhase1CompletedList maps completed instances', async () => {
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
+    mockClient.get.mockResolvedValue({
+      data: [{ processInstanceId: 'i1', name: 'projectNumber', value: 'P1' }],
+    });
+
+    const res = await svc.getRipPhase1CompletedList('flevoland');
+    expect(res[0]).toMatchObject({ id: 'i1', endTime: 'e', projectNumber: 'P1', projectName: '—' });
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ finished: true })
+    );
+  });
+
+  it('getCapacityClaimActiveList maps capacity variables', async () => {
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's' }] });
+    mockClient.get.mockResolvedValue({
+      data: [{ processInstanceId: 'i1', name: 'jobTitle', value: 'Mgr' }],
+    });
+
+    const res = await svc.getCapacityClaimActiveList('flevoland');
+    expect(res[0]).toMatchObject({ id: 'i1', jobTitle: 'Mgr', requestType: '—' });
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({
+        processDefinitionKey: 'ManagementCapacityClaimProcess',
+        unfinished: true,
+      })
+    );
+  });
+
+  it('getCapacityClaimCompletedList maps completed capacity variables', async () => {
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
+    mockClient.get.mockResolvedValue({
+      data: [{ processInstanceId: 'i1', name: 'jobTitle', value: 'Mgr' }],
+    });
+
+    const res = await svc.getCapacityClaimCompletedList('flevoland');
+    expect(res[0]).toMatchObject({ id: 'i1', endTime: 'e', jobTitle: 'Mgr', advisoryGroup: '—' });
+  });
+
+  it('list builders return [] when there are no instances', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await expect(svc.getRipPhase1ActiveList('t')).resolves.toEqual([]);
+    await expect(svc.getCapacityClaimActiveList('t')).resolves.toEqual([]);
   });
 });
