@@ -13,10 +13,14 @@ jest.mock('@utils/config', () => ({
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+jest.mock('axios', () => ({ __esModule: true, default: { get: jest.fn() } }));
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { articleToFeedItem, type AggregatorArticle } from './media.client';
+import axios from 'axios';
+import { articleToFeedItem, fetchFlevolandNews, type AggregatorArticle } from './media.client';
+
+const mockGet = (axios as unknown as { get: jest.Mock }).get;
 
 const FIXTURE = JSON.parse(
   readFileSync(join(__dirname, '__fixtures__/media-search.json'), 'utf8')
@@ -104,5 +108,63 @@ describe('fixture resilience', () => {
     const items = valid.map(articleToFeedItem);
     expect(items).toHaveLength(5);
     expect(items.every((i) => i.source === 'media')).toBe(true);
+  });
+});
+
+describe('fetchFlevolandNews', () => {
+  beforeEach(() => mockGet.mockReset());
+
+  it('calls the aggregator with region, OR-joined terms, and the bearer key', async () => {
+    mockGet.mockResolvedValue({ data: { articles: [FIXTURE.articles[0]] } });
+    const items = await fetchFlevolandNews({ terms: ['stikstof', 'energie'] });
+
+    expect(items).toHaveLength(1);
+    expect(items[0].source).toBe('media');
+    const [url, opts] = mockGet.mock.calls[0];
+    expect(url).toContain('http://localhost/search?');
+    expect(url).toContain('region=Flevoland');
+    expect(url).toContain('q=stikstof+OR+energie'); // URLSearchParams encodes spaces as +
+    expect(opts.headers.Authorization).toBe('Bearer test-key');
+  });
+
+  it('skips a malformed article but returns the rest', async () => {
+    mockGet.mockResolvedValue({
+      data: { articles: [FIXTURE.articles[0], FIXTURE.articles[5]] }, // [5] throws in the mapper
+    });
+    const items = await fetchFlevolandNews({ terms: ['x'] });
+    expect(items).toHaveLength(1);
+  });
+
+  it('returns [] when the response has no articles array', async () => {
+    mockGet.mockResolvedValue({ data: {} });
+    await expect(fetchFlevolandNews({ terms: ['x'] })).resolves.toEqual([]);
+  });
+
+  it('retries once after a failure and succeeds on the second attempt', async () => {
+    jest.useFakeTimers();
+    mockGet
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+      .mockResolvedValueOnce({ data: { articles: [FIXTURE.articles[0]] } });
+
+    const p = fetchFlevolandNews({ terms: ['x'] });
+    await jest.advanceTimersByTimeAsync(1500); // the back-off between attempts
+    const items = await p;
+
+    expect(items).toHaveLength(1);
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
+  });
+
+  it('returns [] after both attempts fail', async () => {
+    jest.useFakeTimers();
+    mockGet.mockRejectedValue(new Error('upstream down'));
+
+    const p = fetchFlevolandNews({ terms: ['x'] });
+    await jest.advanceTimersByTimeAsync(1500);
+    const items = await p;
+
+    expect(items).toEqual([]);
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
   });
 });

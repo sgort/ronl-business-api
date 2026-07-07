@@ -85,6 +85,15 @@ jest.mock('@utils/config', () => ({
 import express from 'express';
 import request from 'supertest';
 import router from './pa.routes';
+import { fetchTkFeed } from './sources/tk.client';
+import { fetchObFeed } from './sources/ob.client';
+import { fetchAgenda } from './sources/agenda.client';
+import { runCurationCycle } from './curation.service';
+
+const mockTk = fetchTkFeed as jest.Mock;
+const mockOb = fetchObFeed as jest.Mock;
+const mockAgenda = fetchAgenda as jest.Mock;
+const mockRun = runCurationCycle as jest.Mock;
 
 const app = express();
 app.use(express.json());
@@ -405,5 +414,275 @@ describe('PA routes — role gating', () => {
       const updateSql: string = mockDb.result.mock.calls[0][0] as string;
       expect(updateSql).toMatch(/routing\s*=\s*NULL/i);
     });
+  });
+});
+
+describe('PA routes — feed & agenda', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('GET /v1/pa/feed', () => {
+    it('merges TK + OB items and sums their totals by default', async () => {
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: 3 });
+      mockOb.mockResolvedValue({ items: [{ id: 'ob-1' }], total: 2 });
+      const res = await request(app).get('/v1/pa/feed').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toHaveLength(2);
+      expect(res.body.data.total).toBe(5);
+      expect(mockTk).toHaveBeenCalled();
+      expect(mockOb).toHaveBeenCalled();
+    });
+
+    it('source=tk fetches only TK', async () => {
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: 1 });
+      const res = await request(app).get('/v1/pa/feed?source=tk').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toHaveLength(1);
+      expect(mockOb).not.toHaveBeenCalled();
+    });
+
+    it('source=ob fetches only OB', async () => {
+      mockOb.mockResolvedValue({ items: [{ id: 'ob-1' }], total: 1 });
+      const res = await request(app).get('/v1/pa/feed?source=ob').set(PA);
+      expect(res.status).toBe(200);
+      expect(mockTk).not.toHaveBeenCalled();
+    });
+
+    it('keeps total null when neither source reports a total', async () => {
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: null });
+      mockOb.mockResolvedValue({ items: [], total: null });
+      const res = await request(app).get('/v1/pa/feed').set(PA);
+      expect(res.body.data.total).toBeNull();
+    });
+
+    it('tolerates one source rejecting (allSettled) — returns the other', async () => {
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: 1 });
+      mockOb.mockRejectedValue(new Error('ob down'));
+      const res = await request(app).get('/v1/pa/feed').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toHaveLength(1);
+    });
+
+    it('502s when a fetch throws synchronously', async () => {
+      mockTk.mockImplementationOnce(() => {
+        throw new Error('sync boom');
+      });
+      const res = await request(app).get('/v1/pa/feed?source=tk').set(PA);
+      expect(res.status).toBe(502);
+      expect(res.body.error.code).toBe('UPSTREAM_ERROR');
+    });
+  });
+
+  describe('GET /v1/pa/types', () => {
+    it('returns the TK + OB taxonomy arrays', async () => {
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveProperty('tk');
+      expect(res.body.data).toHaveProperty('ob');
+    });
+  });
+
+  describe('GET /v1/pa/agenda', () => {
+    it('enriches an agenda item with a dossier when a saved-search term matches', async () => {
+      mockAgenda.mockResolvedValue([{ id: 'a1', titel: 'Debat over stikstof in Flevoland' }]);
+      mockDb.any.mockResolvedValue([{ dossier_id: 'stikstof-dossier', query: { q: 'stikstof' } }]);
+      const res = await request(app).get('/v1/pa/agenda').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].dossier).toBe('stikstof-dossier');
+      expect(res.body.data[0].matchTerm).toBe('stikstof');
+    });
+
+    it('leaves an item unenriched when no term matches', async () => {
+      mockAgenda.mockResolvedValue([{ id: 'a2', titel: 'Iets heel anders' }]);
+      mockDb.any.mockResolvedValue([{ dossier_id: 'd', query: { q: 'stikstof' } }]);
+      const res = await request(app).get('/v1/pa/agenda').set(PA);
+      expect(res.body.data[0].dossier).toBeUndefined();
+    });
+
+    it('502s when the agenda upstream fails', async () => {
+      mockAgenda.mockRejectedValue(new Error('agenda down'));
+      mockDb.any.mockResolvedValue([]);
+      const res = await request(app).get('/v1/pa/agenda').set(PA);
+      expect(res.status).toBe(502);
+      expect(res.body.error.code).toBe('AGENDA_ERROR');
+    });
+  });
+});
+
+describe('PA routes — curator, searches CRUD & status', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('POST /v1/pa/curator/run', () => {
+    it('kicks off a background curation cycle for flevoland', async () => {
+      mockRun.mockResolvedValue(undefined);
+      const res = await request(app).post('/v1/pa/curator/run').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ started: true, tenantId: 'flevoland' });
+      expect(mockRun).toHaveBeenCalledWith('flevoland');
+    });
+  });
+
+  describe('GET /v1/pa/curator/status', () => {
+    it('maps signal + search counts to numbers', async () => {
+      mockDb.one
+        .mockResolvedValueOnce({ total: '10', candidate: '4', confirmed: '6' })
+        .mockResolvedValueOnce({ total: '3', flevoland: '2' });
+      const res = await request(app).get('/v1/pa/curator/status').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.signals).toEqual({ total: 10, inbox: 4, confirmed: 6 });
+      expect(res.body.data.searches).toEqual({ total: 3, flevoland: 2 });
+    });
+
+    it('500s on a DB error', async () => {
+      mockDb.one.mockRejectedValue(new Error('db down'));
+      const res = await request(app).get('/v1/pa/curator/status').set(PA);
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('STATUS_ERROR');
+    });
+  });
+
+  describe('GET /v1/pa/searches', () => {
+    it('returns the tenant/user-scoped saved searches', async () => {
+      mockDb.any.mockResolvedValue([{ id: 'srch-1' }]);
+      const res = await request(app).get('/v1/pa/searches').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual([{ id: 'srch-1' }]);
+    });
+
+    it('500s on a DB error', async () => {
+      mockDb.any.mockRejectedValue(new Error('db down'));
+      const res = await request(app).get('/v1/pa/searches').set(PA);
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('SEARCHES_ERROR');
+    });
+  });
+
+  describe('POST /v1/pa/searches', () => {
+    it('400s when query.q is missing', async () => {
+      const res = await request(app).post('/v1/pa/searches').set(PA).send({ tags: [] });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('MISSING_QUERY');
+      expect(mockDb.none).not.toHaveBeenCalled();
+    });
+
+    it('creates a search and returns a generated id', async () => {
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .post('/v1/pa/searches')
+        .set(PA)
+        .send({ query: { q: 'stikstof' }, scope: 'tenant', dossierId: 'd1', tags: ['a'] });
+      expect(res.status).toBe(201);
+      expect(res.body.data.id).toMatch(/^srch-/);
+    });
+
+    it('500s on a DB error', async () => {
+      mockDb.none.mockRejectedValue(new Error('insert failed'));
+      const res = await request(app)
+        .post('/v1/pa/searches')
+        .set(PA)
+        .send({ query: { q: 'stikstof' } });
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('SEARCH_CREATE_ERROR');
+    });
+  });
+
+  describe('DELETE /v1/pa/searches/:id', () => {
+    it('deletes an owned search → 200', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      const res = await request(app).delete('/v1/pa/searches/srch-1').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('404s when nothing was deleted', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 0 });
+      const res = await request(app).delete('/v1/pa/searches/unknown').set(PA);
+      expect(res.status).toBe(404);
+    });
+
+    it('500s on a DB error', async () => {
+      mockDb.result.mockRejectedValue(new Error('delete failed'));
+      const res = await request(app).delete('/v1/pa/searches/srch-1').set(PA);
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('SEARCH_DELETE_ERROR');
+    });
+  });
+
+  describe('PATCH /v1/pa/searches/:id — validation branches', () => {
+    it('400 MISSING_FIELDS when the body is empty', async () => {
+      const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('MISSING_FIELDS');
+    });
+
+    it('400 EMPTY_QUERY when query.q is blank', async () => {
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ query: { q: '   ' } });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('EMPTY_QUERY');
+    });
+
+    it('updates query, tags and dossierId together → 200', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ query: { q: 'energie' }, tags: ['x'], dossierId: 'd2' });
+      expect(res.status).toBe(200);
+      const [sql] = mockDb.result.mock.calls[0];
+      expect(sql).toMatch(/query = \$/);
+      expect(sql).toMatch(/tags = \$/);
+      expect(sql).toMatch(/dossier_id = \$/);
+    });
+  });
+
+  describe('GET /v1/pa/sources/status', () => {
+    it('reflects the configured connector flags', async () => {
+      const res = await request(app).get('/v1/pa/sources/status').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        tk: true,
+        ob: true,
+        eu: true,
+        epTeksten: true,
+        media: false,
+      });
+    });
+  });
+});
+
+describe('PA routes — GET /v1/pa/signals query branches', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('status=all drops the status filter from the WHERE clause', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals?status=all').set(PA);
+    const [sql] = mockDb.any.mock.calls[0];
+    expect(sql).not.toMatch(/status = /);
+  });
+
+  it('a multi-value status uses the ANY($n) branch', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals?status=candidate,confirmed').set(PA);
+    const [sql, values] = mockDb.any.mock.calls[0];
+    expect(sql).toMatch(/status = ANY/);
+    expect(values).toContainEqual(['candidate', 'confirmed']);
+  });
+
+  it('tab + dossierId add their own filters', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals?tab=politiek&dossierId=d1').set(PA);
+    const [sql, values] = mockDb.any.mock.calls[0];
+    expect(sql).toMatch(/tab = /);
+    expect(sql).toMatch(/dossier_id = /);
+    expect(values).toEqual(expect.arrayContaining(['politiek', 'd1']));
+  });
+
+  it('500s when the signals query fails', async () => {
+    mockDb.any.mockRejectedValue(new Error('select failed'));
+    const res = await request(app).get('/v1/pa/signals').set(PA);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNALS_ERROR');
   });
 });
