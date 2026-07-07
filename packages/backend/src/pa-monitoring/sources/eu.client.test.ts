@@ -17,9 +17,15 @@ jest.mock('../pa-cache', () => ({
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseRssFeed } from './eu.client';
+import { parseRssFeed, fetchEuFeed, inferType, parseRssFile } from './eu.client';
+import { cacheGet } from '../pa-cache';
 
-const FIXTURE = readFileSync(join(__dirname, '__fixtures__', 'ep-plenary.rss.xml'), 'utf-8');
+const FIXTURE_PATH = join(__dirname, '__fixtures__', 'ep-plenary.rss.xml');
+const FIXTURE = readFileSync(FIXTURE_PATH, 'utf-8');
+
+const mockFetch = jest.fn();
+(global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
+const mockCacheGet = cacheGet as jest.Mock;
 
 describe('parseRssFeed (fixture: ep-plenary.rss.xml)', () => {
   let items: ReturnType<typeof parseRssFeed>;
@@ -94,5 +100,83 @@ describe('parseRssFeed (fixture: ep-plenary.rss.xml)', () => {
   it('returns an empty array for invalid XML', () => {
     expect(parseRssFeed('not xml at all')).toEqual([]);
     expect(parseRssFeed('')).toEqual([]);
+  });
+});
+
+describe('inferType', () => {
+  it.each([
+    ['A-10-2026-0099', 'Verslag'],
+    ['B-10-2026-0042', 'Motie'],
+    ['RC-10-2026-0001', 'Gezamenlijke motie'],
+    ['TA-10-2026-0005', 'Aangenomen tekst'],
+    ['E-000123/2026', 'Schriftelijke vraag'],
+    ['O-000045/2026', 'Mondelinge vraag'],
+  ])('maps %s → %s by prefix', (ref, label) => {
+    expect(inferType(ref)).toBe(label);
+  });
+
+  it('returns null for an unknown prefix', () => {
+    expect(inferType('Z-10-2026-0001')).toBeNull();
+  });
+});
+
+describe('parseRssFile', () => {
+  it('parses a local RSS file into FeedItems', () => {
+    expect(parseRssFile(FIXTURE_PATH).length).toBeGreaterThan(0);
+  });
+
+  it('returns [] when the file cannot be read', () => {
+    expect(parseRssFile(join(__dirname, '__fixtures__', 'does-not-exist.xml'))).toEqual([]);
+  });
+});
+
+describe('fetchEuFeed', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCacheGet.mockResolvedValue(null);
+  });
+
+  const okResponse = (xml: string) => ({ ok: true, status: 200, text: async () => xml });
+
+  it('fetches both feeds, dedupes by ref, and returns a page + total', async () => {
+    // Both the plenary and press-release feeds return the same fixture → dedup collapses them.
+    mockFetch.mockResolvedValue(okResponse(FIXTURE));
+    const unique = parseRssFeed(FIXTURE).length;
+
+    const res = await fetchEuFeed(null, [], 0, 20);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2); // plenary + press-releases
+    expect(res.total).toBe(unique);
+    expect(res.items.length).toBe(Math.min(unique, 20));
+    // no duplicate ids survive the merge
+    expect(new Set(res.items.map((i) => i.id)).size).toBe(res.items.length);
+  });
+
+  it('applies skip/top paging over the merged, date-sorted set', async () => {
+    mockFetch.mockResolvedValue(okResponse(FIXTURE));
+    const res = await fetchEuFeed(null, [], 1, 2);
+    expect(res.skip).toBe(1);
+    expect(res.top).toBe(2);
+    expect(res.items.length).toBeLessThanOrEqual(2);
+  });
+
+  it('serves a cached feed without hitting the network', async () => {
+    mockCacheGet.mockResolvedValue([{ id: 'A-10-2026-0099' }]); // both feeds hit cache
+    const res = await fetchEuFeed();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(res.total).toBe(1); // deduped across both cached feeds
+  });
+
+  it('falls through to [] for a feed that returns a non-ok status', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 503, text: async () => '' });
+    const res = await fetchEuFeed();
+    expect(res.items).toEqual([]);
+    expect(res.total).toBe(0);
+  });
+
+  it('falls through to [] for a feed that throws', async () => {
+    mockFetch.mockRejectedValue(new Error('network down'));
+    const res = await fetchEuFeed();
+    expect(res.items).toEqual([]);
   });
 });

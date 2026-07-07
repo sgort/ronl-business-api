@@ -16,9 +16,20 @@ jest.mock('../pa-cache', () => ({
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { normaliseEpRef, parsePageHtml } from './ep-texts-submitted.client';
+import {
+  normaliseEpRef,
+  parsePageHtml,
+  fetchSubmittedTexts,
+  fetchAllNewSubmittedTexts,
+} from './ep-texts-submitted.client';
 
 const FIXTURE = readFileSync(join(__dirname, '__fixtures__', 'ep-texts-submitted.html'), 'utf-8');
+
+const mockFetch = jest.fn();
+(global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
+
+// The four valid refs the fixture parses to (2 malformed cards are skipped).
+const FIXTURE_IDS = ['A-10-2026-0151', 'A-10-2026-0156', 'B-10-2026-0333', 'A-10-2026-0168'];
 
 // ── normaliseEpRef ────────────────────────────────────────────────────────────
 
@@ -124,5 +135,60 @@ describe('parsePageHtml (fixture: ep-texts-submitted.html)', () => {
 
   it('returns an empty array for completely empty input', () => {
     expect(parsePageHtml('')).toEqual([]);
+  });
+});
+
+// ── Fetch orchestration ───────────────────────────────────────────────────────
+
+describe('fetchSubmittedTexts (single page)', () => {
+  beforeEach(() => mockFetch.mockReset());
+
+  const okHtml = (html: string) => ({ ok: true, status: 200, text: async () => html });
+
+  it('fetches one tab page and parses its cards', async () => {
+    mockFetch.mockResolvedValue(okHtml(FIXTURE));
+    const docs = await fetchSubmittedTexts({ tabType: 'reports' });
+    expect(docs).toHaveLength(4);
+    expect(new URL(mockFetch.mock.calls[0][0]).searchParams.get('tabType')).toBe('reports');
+  });
+
+  it('rejects when the page responds with a non-ok status', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 503, text: async () => '' });
+    await expect(fetchSubmittedTexts({})).rejects.toThrow('HTTP 503');
+  });
+});
+
+describe('fetchAllNewSubmittedTexts (paging + dedup across both tabs)', () => {
+  beforeEach(() => mockFetch.mockReset());
+
+  // page 1 (no ?page param) → fixture; page >= 2 (?page set) → empty page ends the tab.
+  const pageAware = () =>
+    mockFetch.mockImplementation(async (url: string) => {
+      const hasPage = new URL(url).searchParams.has('page');
+      return { ok: true, status: 200, text: async () => (hasPage ? '<html></html>' : FIXTURE) };
+    });
+
+  it('returns the deduped new items mapped to FeedItems', async () => {
+    pageAware();
+    const items = await fetchAllNewSubmittedTexts({ sinceRefs: new Set() });
+
+    // Both tabs parse the same fixture; the shared seen-set collapses them to 4.
+    expect(items).toHaveLength(4);
+    expect(items.map((i) => i.id).sort()).toEqual([...FIXTURE_IDS].sort());
+    expect(items.every((i) => i.source === 'eu' && i.subbron === 'ep-teksten')).toBe(true);
+  });
+
+  it('stops early and returns nothing when every ref is already known', async () => {
+    pageAware();
+    const items = await fetchAllNewSubmittedTexts({ sinceRefs: new Set(FIXTURE_IDS) });
+    expect(items).toEqual([]);
+    // page 1 was all-old → no second page requested for either tab
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('tolerates a tab whose page fetch fails (per-tab break, allSettled)', async () => {
+    mockFetch.mockRejectedValue(new Error('EP down'));
+    const items = await fetchAllNewSubmittedTexts({ sinceRefs: new Set() });
+    expect(items).toEqual([]);
   });
 });
