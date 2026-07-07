@@ -33,14 +33,6 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
-      version: '3.7.4',
-      status: 'Upcoming',
-      statusColor: '#6b7280',
-      borderColor: '#e5e7eb',
-      date: 'July 8, 2026',
-      sections: [],
-    },
-    {
       version: '3.7.3',
       status: 'Released',
       statusColor: '#2d7a33',
