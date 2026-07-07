@@ -252,6 +252,46 @@ The durable half of the audit trail that `audit.middleware` delegates to.
 
 ---
 
+## Standalone MCP servers
+
+The two servers under `src/mcp-servers/` are separate executables (their own stdio
+entrypoints), not part of the Express app. Each module has **no exports** and
+**self-connects a stdio transport on import**, so the tests mock the MCP SDK's
+`Server` to capture the `ListTools` / `CallTool` handlers it registers, then drive
+those handlers directly.
+
+### `packages/backend/src/mcp-servers/lde/index.test.ts`
+
+**15 tests · unit · mocked MCP SDK + pg**
+
+Covers the LDE process-library server. `pg` is mocked and `LDE_DATABASE_URL` is set
+before the module is required (exercising the `sslmode` connection-string branch).
+
+| Group          | What is tested                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| ListTools      | Advertises the six tools (`bundle_list/get`, `form_list/get`, `document_list/get`)             |
+| bundle tools   | `bundle_list` maps rows to the bundle shape; `bundle_get` binds the id; not-found → `isError`  |
+| form/doc tools | `form_list` / `document_list` pass rows through; `*_get` found vs not-found → `isError`        |
+| Error handling | Unknown tool → `isError`; a query rejection is caught and returned as an `isError` text result |
+
+### `packages/backend/src/mcp-servers/triplydb/index.test.ts`
+
+**18 tests · unit · mocked MCP SDK + global fetch**
+
+Covers the TriplyDB SPARQL server. Global `fetch` is mocked and `TRIPLYDB_TOKEN` is
+set before require (exercising the bearer-auth branch). Each tool's query is verified
+by decoding the form-encoded body of the posted request.
+
+| Group          | What is tested                                                                                                         |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| ListTools      | Advertises all eleven tools                                                                                            |
+| Query routing  | Every tool builds and posts its dedicated SPARQL; `dmn_get` uri-vs-identifier branches + the "provide either" guard    |
+| Optional args  | `rule_list` service-title filter; `service_rules_metadata` service-id filter; `sparql_query` passthrough + empty guard |
+| Endpoint/auth  | Posts to the default endpoint with the bearer token; honours a per-call `endpoint` override                            |
+| Error handling | Unknown tool; non-ok HTTP (`HTTP 502 …`); network failure — all surfaced as `isError` text results                     |
+
+---
+
 ## Coverage
 
 Run `npm test --workspace=@ronl/backend` to generate a coverage report in
@@ -262,13 +302,27 @@ fixtures, `types/`, and `index.ts`), so **untested files report as 0% instead of
 being omitted** — the "All files" number reflects the whole backend, not just the
 files a test happens to import.
 
-Well-covered today: the full eDOCS live-switch path (`edocs.service`,
-`edocs.routes`, `externalTaskWorker`), the shared auth/tenant/audit gate,
-`audit.service`, `health.routes`, `env`, and the PA monitoring module.
+A dedicated coverage campaign (branch `test/backend-coverage`, ~700 tests) has now
+brought every backend feature area under test:
 
-Still largely uncovered: `operaton.service.ts`, most of `routes/*`, the LLM/MCP
-providers, and the external API clients (`tk.client.ts`, `ob.client.ts`,
-`agenda.client.ts`) — the latter depend on live network responses.
+- **eDOCS live-switch path** — `edocs.service`, `edocs.routes`, `externalTaskWorker`
+- **Shared gate** — `jwt` / `tenant` / `audit` middleware, `audit.service`, `env`
+- **Services** — `operaton.service` (both handler groups), `nieuws`, `berichten`,
+  `productenDiensten`, `regelcatalogus`, `mcpChat`, the LLM + MCP registries
+- **Routes** — `admin`, `brp`, `hr`, `capacity`, `rip`, `decision`, `task`, `mcp`,
+  `public`, `m2m`, `process`, `health`
+- **LLM / MCP providers** — the Anthropic + OpenAI providers and the four MCP providers
+- **PA monitoring** — `rules`, `curation.service`, `pa.routes`, the `tk`/`ob`/`agenda`/`eu`
+  source clients, `pa-cache`, `pa-monitoring.db`
+- **Media aggregator** — `store`, `search`, `ingest`, the routes, and `net-guard`
+- **Utilities** — `errors`, `altcha`, `logger`
+- **Standalone MCP servers** — `mcp-servers/lde`, `mcp-servers/triplydb`
+
+Deliberately left uncovered (documented artifacts, not gaps): `utils/config.ts`
+self-validates on import and only re-exports the env parsers already covered by
+`env.test.ts`; and a handful of defensive `if (!req.user)` guards and JSON-unreachable
+`inferType` defaults that cannot be reached through the real middleware stack or a
+JSON payload, so neither unit nor live tests can exercise them.
 
 ---
 
