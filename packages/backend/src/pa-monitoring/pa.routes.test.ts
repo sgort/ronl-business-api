@@ -53,17 +53,14 @@ const mockDb = {
 };
 jest.mock('@services/audit.service', () => ({ db: mockDb }));
 
-jest.mock('@utils/logger', () => ({
-  createLogger: () => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  }),
-}));
+const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
-jest.mock('./sources/tk.client', () => ({ fetchTkFeed: jest.fn(), TK_DOCUMENT_TYPES: [] }));
-jest.mock('./sources/ob.client', () => ({ fetchObFeed: jest.fn(), OB_PUBLICATION_TYPES: [] }));
+jest.mock('./sources/tk.client', () => ({ fetchTkFeed: jest.fn(), TK_DOCUMENT_TYPES: ['Motie'] }));
+jest.mock('./sources/ob.client', () => ({
+  fetchObFeed: jest.fn(),
+  OB_PUBLICATION_TYPES: ['Vergunning'],
+}));
 const mockPromoteToInbox = jest.fn();
 jest.mock('./curation.service', () => ({
   runCurationCycle: jest.fn(),
@@ -470,6 +467,15 @@ describe('PA routes — feed & agenda', () => {
       expect(res.status).toBe(502);
       expect(res.body.error.code).toBe('UPSTREAM_ERROR');
     });
+
+    it('filters requested types against each source taxonomy before fetching', async () => {
+      mockTk.mockResolvedValue({ items: [], total: 0 });
+      mockOb.mockResolvedValue({ items: [], total: 0 });
+      await request(app).get('/v1/pa/feed?types=Motie,Bogus').set(PA);
+      // 'Motie' is in the TK taxonomy → kept; 'Bogus' dropped; OB taxonomy has neither
+      expect(mockTk.mock.calls[0][1]).toEqual(['Motie']);
+      expect(mockOb.mock.calls[0][1]).toEqual([]);
+    });
   });
 
   describe('GET /v1/pa/types', () => {
@@ -518,6 +524,14 @@ describe('PA routes — curator, searches CRUD & status', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toEqual({ started: true, tenantId: 'flevoland' });
       expect(mockRun).toHaveBeenCalledWith('flevoland');
+    });
+
+    it('still returns 200 and logs when the background cycle rejects', async () => {
+      mockRun.mockRejectedValue(new Error('cycle failed'));
+      const res = await request(app).post('/v1/pa/curator/run').set(PA);
+      expect(res.status).toBe(200);
+      await new Promise((r) => setImmediate(r)); // let the fire-and-forget .catch settle
+      expect(mockLogger.error).toHaveBeenCalledWith('Curation cycle failed', expect.any(Object));
     });
   });
 
@@ -684,5 +698,44 @@ describe('PA routes — GET /v1/pa/signals query branches', () => {
     const res = await request(app).get('/v1/pa/signals').set(PA);
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('SIGNALS_ERROR');
+  });
+});
+
+describe('PA routes — mutation error branches (500s)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('POST /signals → 500 PROMOTE_ERROR when promoteToInbox rejects', async () => {
+    mockPromoteToInbox.mockRejectedValue(new Error('promote failed'));
+    const res = await request(app)
+      .post('/v1/pa/signals')
+      .set(PA)
+      .send({ id: 'ob-1', title: 'X', source: 'ob' });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PROMOTE_ERROR');
+  });
+
+  it('POST /signals/:id/confirm → 500 CONFIRM_ERROR when the UPDATE fails', async () => {
+    mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+    mockDb.none.mockRejectedValue(new Error('update failed'));
+    const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('CONFIRM_ERROR');
+  });
+
+  it('PATCH /searches/:id → 500 SEARCH_UPDATE_ERROR when the UPDATE fails', async () => {
+    mockDb.result.mockRejectedValue(new Error('update failed'));
+    const res = await request(app)
+      .patch('/v1/pa/searches/srch-1')
+      .set(PA)
+      .send({ scope: 'tenant' });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SEARCH_UPDATE_ERROR');
+  });
+
+  it('PATCH /signals/:id → 500 LINK_DOSSIER_ERROR when the UPDATE fails', async () => {
+    mockDb.result.mockRejectedValue(new Error('link failed'));
+    const res = await request(app).patch('/v1/pa/signals/sig-1').set(PA).send({ dossierId: 'd1' });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('LINK_DOSSIER_ERROR');
   });
 });
