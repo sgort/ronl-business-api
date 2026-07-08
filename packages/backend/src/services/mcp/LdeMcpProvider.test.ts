@@ -123,7 +123,8 @@ describe('LdeMcpProvider — command path and stderr handlers', () => {
       args: string[];
     };
     expect(command).toBe('node');
-    expect(args[0]).toContain('dist/mcp-servers/lde/index.js');
+    // path.resolve yields OS-native separators (\ on Windows); normalise before matching.
+    expect(args[0].replace(/\\/g, '/')).toContain('dist/mcp-servers/lde/index.js');
   });
 
   it('invokes the stderr data handler and suppresses empty lines', async () => {

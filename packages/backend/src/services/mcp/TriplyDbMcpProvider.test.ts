@@ -124,7 +124,8 @@ describe('TriplyDbMcpProvider — command path and stderr handlers', () => {
       args: string[];
     };
     expect(command).toBe('node');
-    expect(args[0]).toContain('dist/mcp-servers/triplydb/index.js');
+    // path.resolve yields OS-native separators (\ on Windows); normalise before matching.
+    expect(args[0].replace(/\\/g, '/')).toContain('dist/mcp-servers/triplydb/index.js');
   });
 
   it('invokes the stderr error handler: EPIPE suppressed, others logged', async () => {
