@@ -436,6 +436,56 @@ input. "Defensive branches" in the status column means exactly that residue.
 
 ---
 
+## Live smoke suite (cross-app — not part of `npm test`)
+
+`scripts/test-smoke-live.sh` is a thin, gated smoke check of the critical **cross-app
+seams** that the Jest unit suite deliberately mocks out — the backend's real links to
+Operaton, Keycloak, the Linked Data Explorer, TriplyDB (SPARQL), CPRMV, the media store,
+eDOCS, and the MCP provider layer. It's a developer / pre-deploy tool, intentionally
+**not** wired into the Jest run: it hits running services over the network, and the unit
+suite stays fast + infra-free precisely by keeping this separate. It never mutates
+anything — the eDOCS check is status-only (the mutating workspace/upload path stays in
+`scripts/test-edocs-live.sh`).
+
+### Running it
+
+```bash
+# Local dev backend, open checks only (no secret needed):
+bash scripts/test-smoke-live.sh
+
+# Add the authenticated seams (eDOCS status + MCP layer):
+CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh
+
+# Point at acceptance instead of localhost:
+TARGET=acc CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh
+```
+
+`TARGET` (`local` — default — or `acc`) selects the `BASE_URL` + `KEYCLOAK_URL` preset;
+set either variable explicitly to override the preset. Requires `curl` + `jq`.
+
+### What it checks
+
+| Tier | Check                  | Endpoint                          | Signal                                         |
+| ---- | ---------------------- | --------------------------------- | ---------------------------------------------- |
+| gate | Backend live           | `GET /v1/health/live`             | aborts the whole run if the backend is down    |
+| 1    | Operaton + Keycloak    | `GET /v1/health`                  | both dependencies report `up`                  |
+| 1    | Cross-app reachability | `GET /v1/health/external`         | `lde`, `triplydb`, `cprmv` each `up`           |
+| 1    | Media path             | `GET /v1/media-aggregator/health` | store healthy + cached-article count           |
+| 2    | Keycloak token         | `client_credentials`              | a token is obtainable                          |
+| 2    | eDOCS split            | `GET /v1/edocs/status`            | `reachable` + `authenticated` (skips if stub)  |
+| 2    | MCP layer              | `GET /v1/mcp/sources`             | providers advertised (skips on 401/403 or off) |
+
+Tier 1 needs no secret; Tier 2 runs only when `CLIENT_SECRET` is set.
+
+### Gating
+
+Exit 0 when nothing failed, exit 1 on any failure. A dependency that's intentionally
+off — eDOCS stub mode, MCP disabled, no `CLIENT_SECRET` — **skips with a `~` note**,
+never a red fail. Only genuine unreachability or a real auth failure fails the run, so
+the suite is safe to run in any environment without producing false alarms.
+
+---
+
 ## Adding tests
 
 All test files follow the pattern `src/**/*.test.ts` and are picked up automatically.

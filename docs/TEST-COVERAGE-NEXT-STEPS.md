@@ -1,6 +1,14 @@
 # Next-session prompt — live smoke suite (Phase 2)
 
-Paste the block below into a fresh Claude Code session to kick off Phase 2 of
+> **Status — Phase 2 delivered.** `scripts/test-smoke-live.sh` now covers the
+> cross-app seams (health/Operaton/Keycloak, LDE + TriplyDB + CPRMV reachability,
+> media path, and — with `CLIENT_SECRET` — the eDOCS status split + MCP layer),
+> gated and non-mutating, documented under "Live smoke suite" in `docs/TESTS.md`.
+> The prompt below is retained as the design record and as a starting point for
+> extending the suite (e.g. a real Operaton decision round-trip, or a deeper MCP
+> tool call once a role-bearing token is available).
+
+Paste the block below into a fresh Claude Code session to extend Phase 2 of
 the backend test work. Everything above the `---` is orientation for a human;
 everything below it is the prompt.
 
