@@ -83,8 +83,33 @@ async function paDelete(path: string): Promise<void> {
 }
 
 export const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
-const DOSSIERS_MOCK = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
 const AGENDA_MOCK = import.meta.env.VITE_PA_AGENDA_MOCK === 'true';
+
+// Dossiers mock/live is a *runtime* decision, persisted in localStorage and
+// defaulting to the env flag. The Beheer → Dossierbeheer flag banner flips it
+// so the cockpit can switch between MOCK_DOSSIERS and the live backend without a
+// rebuild — and remembers the choice across navigation and reloads.
+const DOSSIERS_MOCK_DEFAULT = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
+const DOSSIERS_MOCK_KEY = 'paV2.dossiers.mock';
+
+export function isDossiersMock(): boolean {
+  try {
+    const v = localStorage.getItem(DOSSIERS_MOCK_KEY);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch {
+    /* storage unavailable — fall back to the build-time flag */
+  }
+  return DOSSIERS_MOCK_DEFAULT;
+}
+
+export function setDossiersMock(on: boolean): void {
+  try {
+    localStorage.setItem(DOSSIERS_MOCK_KEY, on ? '1' : '0');
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+}
 
 // ── Mock fixtures ────────────────────────────────────────────────────
 
@@ -930,12 +955,12 @@ export async function promoteSearchToTenant(id: string): Promise<void> {
 }
 
 export async function fetchDossiers(): Promise<Dossier[]> {
-  if (DOSSIERS_MOCK) return MOCK_DOSSIERS;
+  if (isDossiersMock()) return MOCK_DOSSIERS;
   return paGet<Dossier[]>('/pa/dossiers');
 }
 
 export async function fetchDossier(id: string): Promise<Dossier | undefined> {
-  if (DOSSIERS_MOCK) return MOCK_DOSSIERS.find((d) => d.id === id);
+  if (isDossiersMock()) return MOCK_DOSSIERS.find((d) => d.id === id);
   try {
     return await paGet<Dossier>(`/pa/dossiers/${id}`);
   } catch {

@@ -33,6 +33,31 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.8.0',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 8, 2026',
+      sections: [
+        {
+          icon: '📁',
+          iconColor: '#0046ad',
+          title:
+            'Feature: PA-Cockpit Dossierbeheer — the authoring source for /pa/dossiers, closing the mock→live loop',
+          items: [
+            "New Beheer → Strategisch kompas → Dossierbeheer surface: the kernteam Public Affairs now creates, administers, archives (Archiefwet) and deletes dossiers here. This was the missing source that kept the cockpit's dossiers resource behind MOCK_DOSSIERS — with an authoring surface in place, the same dossiers can be served live through usePaData().dossiers with no screen changes (the seam the provider rework bought).",
+            'Overview: role bar (token-derived capability matrix + Keycloak role id), mock/live flag banner, four summary stats, and dossiers grouped actief / sluimerend / gearchiveerd with role-gated row actions (Bewerken/Bekijken · Archiveren · Verwijderen).',
+            'Editor: two-column layout — Kerngegevens, a Kompas 0–2 start-scorer (8 criteria; re-scoring stays in Voortgang → Kompas-log), and three Markdown narrative fields (waaromNu / waarover / onsVerhaal). Sticky aside carries save/publish, a snippet library that inserts at the caret of the focused field, per-dossier version history, and the archive/delete lifecycle — all role-gated.',
+            'Markdown-first narrative: fields are authored and stored as raw Markdown, rendered on demand with react-markdown + remark-gfm and sanitised with rehype-sanitize (raw HTML disabled). A template gallery (create step 1), a snippet library, and per-dossier version history sit around the editor. Archiefwet archiving captures classificatie + bewaartermijn + grondslag; hard delete is admin-only with type-to-confirm.',
+            'Backend: new pa_dossiers (governance columns + kompas/md/body JSONB), pa_dossier_versions (immutable, one row appended per write), pa_templates and pa_snippets tables, seeded from the canonical @ronl/shared dossier data. Routes under the existing PA auth block: GET/POST/PATCH/DELETE /pa/dossiers, POST /pa/dossiers/:id/archive, and GET/POST /pa/templates + /pa/snippets. GET /pa/dossiers serves the cockpit its rich published, non-archived list; ?admin=1 serves the full governance list.',
+            'Role-based access via real Keycloak realm roles on top of public-affairs: pa-author (create, edit) · pa-editor (+ templates, publish) · pa-admin (+ archive, delete). Publishing and archiving/deleting are gated on the route and reflected live in the role bar; a user without any sub-role is read-only. The three roles are defined in the realm config and assigned to the test-pa-flevoland user.',
+            'Runtime mock/live toggle: VITE_PA_DOSSIERS_MOCK stays the build-time default, but the Dossierbeheer flag banner flips a persisted localStorage override that fetchDossiers reads — so the cockpit can switch between MOCK_DOSSIERS and the live backend without a rebuild, and the choice survives navigation and reloads. In mock mode the whole surface runs on a local in-memory store seeded from the mock dossiers, so every page can be validated before the backend is wired.',
+            'Tests: 28 backend route tests cover auth/capability gating (401/403), validation, Archiefwet metadata capture, and version-append-on-write; the full PA backend suite (256 tests) stays green.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.7.3',
       status: 'Released',
       statusColor: '#2d7a33',

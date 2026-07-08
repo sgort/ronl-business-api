@@ -32,6 +32,7 @@ import KompasSpecSection from './KompasSpecSection';
 import CuratieSpecSection from './CuratieSpecSection';
 import ZoekcriteriaSection from './ZoekcriteriaSection';
 import BronnenSection from './BronnenSection';
+import Dossierbeheer from './dossierbeheer/Dossierbeheer';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
 const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-log']);
@@ -96,6 +97,17 @@ export default function PASectionRouter({
 
   if (VOORTGANG_IDS.has(sectionId)) {
     return <Voortgang view={sectionId as VoortgangView} onOpenDossier={onOpenDossier} />;
+  }
+
+  // Dossierbeheer manages its own layout (.pac-db, inside pac-main-pad), so it
+  // is returned directly rather than through the shared beheer wrapper below.
+  // Distinct keys force a fresh mount when switching between the two rail items,
+  // so the internal view (list vs. template) always resets to match the nav.
+  if (sectionId === 'db-overzicht') {
+    return <Dossierbeheer key="db-overzicht" user={user} />;
+  }
+  if (sectionId === 'db-nieuw') {
+    return <Dossierbeheer key="db-nieuw" user={user} startCreate />;
   }
 
   if (BEHEER_IDS.has(sectionId)) {

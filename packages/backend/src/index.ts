@@ -27,8 +27,10 @@ import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
 import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
 import { initDb } from '@services/audit.service';
 import { initPaDb } from './pa-monitoring/pa-monitoring.db';
+import { initDossiersDb } from './pa-monitoring/pa-dossiers.db';
 import { runCurationCycle } from './pa-monitoring/curation.service';
 import paRoutes from './pa-monitoring/pa.routes';
+import paDossiersRoutes from './pa-monitoring/pa-dossiers.routes';
 import mediaAggregatorRoutes from './media-aggregator/media-aggregator.routes';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
@@ -164,6 +166,7 @@ app.use('/v1/hr-capacity', capacityRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
 app.use('/v1/pa', paRoutes);
+app.use('/v1/pa', paDossiersRoutes);
 app.use('/v1/media-aggregator', mediaAggregatorRoutes);
 app.use('/v1/admin', adminRoutes);
 app.use('/v1/m2m', m2mRoutes);
@@ -219,6 +222,7 @@ const startServer = async () => {
 
   await initDb();
   await initPaDb();
+  await initDossiersDb();
   void runCurationCycle().catch((err) =>
     appLogger.error('Startup curation cycle failed', {
       error: err instanceof Error ? err.message : String(err),

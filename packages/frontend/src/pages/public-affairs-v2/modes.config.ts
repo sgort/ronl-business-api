@@ -120,7 +120,11 @@ export const PA_MODES: PaModeConfig[] = [
     groups: [
       {
         label: 'Strategisch kompas',
-        items: [{ id: 'kompas-spec', label: 'Afwegingskader', authRequired: true }],
+        items: [
+          { id: 'db-overzicht', label: 'Dossierbeheer', authRequired: true },
+          { id: 'db-nieuw', label: 'Nieuw dossier', authRequired: true },
+          { id: 'kompas-spec', label: 'Afwegingskader', authRequired: true },
+        ],
       },
       {
         label: 'Monitoring',

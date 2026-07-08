@@ -200,3 +200,84 @@ export interface Dossier {
   intervLog: InterventieLogEntry[];
   overleg: OverlegMessage[];
 }
+
+// ── Dossierbeheer — authoring / governance domain ───────────────────
+// The Beheer → Strategisch kompas → Dossierbeheer surface is the authoring
+// SOURCE for /pa/dossiers. It works with a richer governance record than the
+// cockpit consumes: raw-Markdown narrative fields, version history and
+// Archiefwet metadata. The cockpit keeps reading the plain `Dossier` above.
+
+/** Admin surface adds a third, terminal status the cockpit never sees. */
+export type AdminDossierStatus = DossierStatus | 'gearchiveerd';
+
+/** The three raw-Markdown narrative fields authored in the editor. */
+export interface DossierMarkdown {
+  waaromNu: string;
+  waarover: string;
+  onsVerhaal: string;
+}
+
+/** Archiefwet capture — re-scored classificatie + bewaartermijn + grondslag. */
+export interface DossierArchief {
+  classificatie: 'openbaar' | 'intern' | 'vertrouwelijk';
+  /** V5/V10/V20 = 5/10/20 jaar; B = blijvend te bewaren. */
+  bewaartermijn: 'V5' | 'V10' | 'V20' | 'B';
+  reden: string;
+  at: string;
+  by: string;
+}
+
+/** Immutable version entry — one appended per write (pa_dossier_versions). */
+export interface DossierVersion {
+  v: number;
+  at: string;
+  by: string;
+  note: string;
+}
+
+/** Kompas start-scores may be partial while a dossier is still a concept. */
+export type PartialKompasScores = Partial<KompasScores>;
+
+/** The governance record served by GET /pa/dossiers?admin=1 and mutated here. */
+export interface AdminDossier {
+  id: string;
+  naam: string;
+  onderwerp: string;
+  status: AdminDossierStatus;
+  momentum: Momentum;
+  eigenaar: string;
+  kompas: PartialKompasScores;
+  md: DossierMarkdown;
+  versie: number;
+  gepubliceerd: boolean;
+  sjabloon: string;
+  archief: DossierArchief | null;
+  /** Human relative label ("2 dgn") derived from updated_at for the overview. */
+  bewerkt: string;
+  versies: DossierVersion[];
+}
+
+/** Template library entry (pa_templates) — seeds a new dossier's fields. */
+export interface DossierTemplate {
+  id: string;
+  naam: string;
+  cat: string;
+  beschrijving: string;
+  versie: string;
+  eigenaar: string;
+  gebruikt: number;
+  seed: {
+    onderwerp: string;
+    waaromNu: string;
+    waarover: string;
+    onsVerhaal: string;
+  };
+}
+
+/** Snippet library entry (pa_snippets) — inserted at the caret in the editor. */
+export interface DossierSnippet {
+  id: string;
+  naam: string;
+  cat: string;
+  md: string;
+}

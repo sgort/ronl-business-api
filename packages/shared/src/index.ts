@@ -9,3 +9,4 @@ export * from './types/operaton.types';
 export * from './types/tenant.types';
 export * from './types/pa.types';
 export * from './types/pa-scoring';
+export * from './pa-dossiers.seed';

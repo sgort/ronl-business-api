@@ -318,6 +318,18 @@
         "description": "Provincial Public Affairs adviser — access to the PA-cockpit"
       },
       {
+        "name": "pa-author",
+        "description": "PA Dossierbeheer — Auteur: maakt en bewerkt dossiers (create, edit)"
+      },
+      {
+        "name": "pa-editor",
+        "description": "PA Dossierbeheer — Redacteur: + sjablonen beheren en publiceren (templates, publish)"
+      },
+      {
+        "name": "pa-admin",
+        "description": "PA Dossierbeheer — Beheerder: + Archiefwet-archivering en definitief verwijderen (archive, delete)"
+      },
+      {
         "name": "woo-coordinatie",
         "description": "Woo-coördinator — beheert en verantwoordt Woo-verzoeken (Wet open overheid)"
       }
@@ -804,7 +816,7 @@
         "organisation_type": ["province"],
         "assurance_level": ["hoog"]
       },
-      "realmRoles": ["public-affairs"]
+      "realmRoles": ["public-affairs", "pa-author", "pa-editor", "pa-admin"]
     },
     {
       "username": "test-woo-flevoland",
