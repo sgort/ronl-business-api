@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { businessApi } from '../../services/api';
 import type {
   RegelcatalogusData,
+  RegelcatalogusCacheMeta,
   CatalogService,
   CatalogOrganization,
   CatalogConcept,
@@ -20,7 +21,9 @@ const TABS: { id: CatalogTab; label: string }[] = [
 export default function RegelCatalogus() {
   const [data, setData] = useState<RegelcatalogusData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cacheMeta, setCacheMeta] = useState<RegelcatalogusCacheMeta | null>(null);
 
   const [activeTab, setActiveTab] = useState<CatalogTab>('organisaties');
   const [expandedService, setExpandedService] = useState<string | null>(null);
@@ -29,17 +32,30 @@ export default function RegelCatalogus() {
   const [conceptFilter, setConceptFilter] = useState('');
   const [conceptServiceFilter, setConceptServiceFilter] = useState<string>('');
 
-  useEffect(() => {
-    setLoading(true);
+  // `force` bypasses the 5-minute server-side cache (?refresh=true) so a manual
+  // refresh reflects the latest TriplyDB state immediately — useful when debugging.
+  const load = useCallback((force = false) => {
+    if (force) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
     businessApi.portal
-      .regelcatalogus()
+      .regelcatalogus(force)
       .then((res) => {
-        if (res.success && res.data) setData(res.data);
-        else setError('Katalogus kon niet worden geladen.');
+        if (res.success && res.data) {
+          setData(res.data);
+          setCacheMeta(res.meta?.cache ?? null);
+        } else setError('Katalogus kon niet worden geladen.');
       })
       .catch(() => setError('Katalogus kon niet worden geladen.'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function handleServiceLinkToConcepten(serviceUri: string) {
     setConceptServiceFilter(serviceUri);
@@ -66,10 +82,18 @@ export default function RegelCatalogus() {
     );
   }
 
-  if (error || !data) {
+  if (error && !data) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
-        {error ?? 'Onbekende fout.'}
+        {error}
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+        Onbekende fout.
       </div>
     );
   }
@@ -77,13 +101,38 @@ export default function RegelCatalogus() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-800">Regelcatalogus</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Overzicht van publieke diensten, uitvoeringsorganisaties en semantische concepten uit de
-          RONL kennisgraaf.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">Regelcatalogus</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Overzicht van publieke diensten, uitvoeringsorganisaties en semantische concepten uit de
+            RONL kennisgraaf.
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <button
+            onClick={() => load(true)}
+            disabled={refreshing}
+            title="Server-side cache omzeilen en opnieuw ophalen uit TriplyDB"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg border border-blue-100 transition-colors"
+          >
+            <RefreshIcon spinning={refreshing} />
+            {refreshing ? 'Vernieuwen…' : 'Vernieuwen'}
+          </button>
+          {cacheMeta?.fetchedAt && (
+            <span className="text-xs text-gray-400">
+              Bijgewerkt {formatCacheAge(cacheMeta.fetchedAt)}
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Non-fatal refresh error — keep the previously loaded catalog visible */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-0 border-b border-gray-200">
@@ -587,6 +636,37 @@ function RegelsTab({ rules }: { rules: CatalogRule[] }) {
 }
 
 // ── Shared micro-components ────────────────────────────────────────────────
+
+/** Human-readable "time ago" for the cache timestamp (Dutch, coarse buckets). */
+function formatCacheAge(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return 'zojuist';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 10) return 'zojuist';
+  if (sec < 60) return `${sec} sec geleden`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min geleden`;
+  const hr = Math.floor(min / 60);
+  return `${hr} uur geleden`;
+}
+
+function RefreshIcon({ spinning }: { spinning?: boolean }) {
+  return (
+    <svg
+      className={`w-3.5 h-3.5 ${spinning ? 'animate-spin' : ''}`}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
+    </svg>
+  );
+}
 
 function EmptyState({ label }: { label: string }) {
   return (

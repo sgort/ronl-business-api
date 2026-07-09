@@ -3,7 +3,10 @@ import { createChallenge, verifySolution } from '@utils/altcha';
 import { createLogger } from '@utils/logger';
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
-import { getRegelcatalogusData } from '@services/regelcatalogus.service';
+import {
+  getRegelcatalogusData,
+  getRegelcatalogusCacheInfo,
+} from '@services/regelcatalogus.service';
 import axios from 'axios';
 import { config } from '@utils/config';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
@@ -244,14 +247,16 @@ router.get('/producten-diensten', async (req: Request, res: Response) => {
  * GET /v1/public/regelcatalogus
  * Linked Data catalog — services, organisations, and concepts from TriplyDB.
  * No authentication required. Cached 5 minutes server-side.
+ * Pass ?refresh=true to bypass and rebuild the server-side cache.
  */
-router.get('/regelcatalogus', async (_req: Request, res: Response) => {
+router.get('/regelcatalogus', async (req: Request, res: Response) => {
+  const forceRefresh = req.query.refresh === 'true' || req.query.refresh === '1';
   try {
-    const data = await getRegelcatalogusData();
+    const data = await getRegelcatalogusData(forceRefresh);
     res.json({
       success: true,
       data,
-      meta: meta(),
+      meta: { ...meta(), cache: getRegelcatalogusCacheInfo() },
     });
   } catch (error) {
     logger.error('Failed to serve regelcatalogus', {

@@ -223,8 +223,14 @@ export const businessApi = {
       return response.data;
     },
 
-    regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
-      const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
+    regelcatalogus: async (
+      force = false
+    ): Promise<
+      ApiResponse<RegelcatalogusData> & { meta?: { cache?: RegelcatalogusCacheMeta } }
+    > => {
+      const response = await api.get<
+        ApiResponse<RegelcatalogusData> & { meta?: { cache?: RegelcatalogusCacheMeta } }
+      >(`/public/regelcatalogus${force ? '?refresh=true' : ''}`);
       return response.data;
     },
   },
@@ -557,6 +563,12 @@ export interface RegelcatalogusData {
   organizations: CatalogOrganization[];
   concepts: CatalogConcept[];
   rules: CatalogRule[];
+}
+
+export interface RegelcatalogusCacheMeta {
+  cached: boolean;
+  fetchedAt: string | null;
+  ageMs: number | null;
 }
 
 export interface AuditLogRecord {

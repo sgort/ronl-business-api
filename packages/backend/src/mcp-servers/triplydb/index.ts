@@ -17,6 +17,7 @@ PREFIX cpsv:   <http://purl.org/vocab/cpsv#>
 PREFIX eli:    <http://data.europa.eu/eli/ontology#>
 PREFIX ronl:   <https://regels.overheid.nl/ontology#>
 PREFIX cprmv:  <https://cprmv.open-regels.nl/0.3.0/>
+PREFIX cprmv041: <https://standaarden.open-regels.nl/standards/cprmv/0.4.1#>
 PREFIX schema: <http://schema.org/>
 `;
 
@@ -381,18 +382,31 @@ function ruleListQuery(serviceTitle?: string): string {
     ? `FILTER(CONTAINS(LCASE(STR(?serviceTitle)), LCASE("${serviceTitle}")))`
     : '';
   return `${PREFIXES}
-SELECT ?serviceTitle ?ruleTitle ?validFrom ?confidence ?description
+SELECT DISTINCT ?serviceTitle ?ruleTitle ?validFrom ?confidence ?description
 WHERE {
   ?service a cpsv:PublicService ;
            dct:title ?serviceTitle .
   ?rule a cpsv:Rule ;
-        cpsv:implements ?service ;
         dct:title ?ruleTitle .
+
+  # A rule links to its service either directly (older exports) or via the
+  # shared legal resource. Since the CPSV-AP RuleShape fix, a cpsv:Rule's
+  # cpsv:implements points at an eli:LegalResource — the same resource the
+  # service declares with cv:hasLegalResource — instead of the service itself.
+  {
+    ?rule cpsv:implements ?service .
+  } UNION {
+    ?service cv:hasLegalResource ?legal .
+    ?rule cpsv:implements ?legal .
+  }
+
   OPTIONAL { ?rule dct:description ?description }
-  OPTIONAL { ?rule ronl:validFrom ?validFrom }
-  OPTIONAL { ?rule ronl:confidenceLevel ?confidence }
+  OPTIONAL { ?rule cprmv041:validFrom ?validFrom }
+  OPTIONAL { ?rule cprmv041:confidenceLevel ?confidence }
   FILTER(LANG(?serviceTitle) = "nl" || LANG(?serviceTitle) = "")
   FILTER(LANG(?ruleTitle) = "nl" || LANG(?ruleTitle) = "")
+  # Hide auto-generated DMN decision rules (placeholder "Decision rule <id>" titles).
+  FILTER(!STRSTARTS(STR(?ruleTitle), "Decision rule "))
   ${serviceFilter}
 }
 ORDER BY ?serviceTitle ?validFrom ?ruleTitle`;

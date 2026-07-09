@@ -16,7 +16,10 @@ jest.mock('@services/berichten.service', () => ({
   getBerichtById: jest.fn(),
 }));
 jest.mock('@services/productenDiensten.service', () => ({ getProductenDienstenItems: jest.fn() }));
-jest.mock('@services/regelcatalogus.service', () => ({ getRegelcatalogusData: jest.fn() }));
+jest.mock('@services/regelcatalogus.service', () => ({
+  getRegelcatalogusData: jest.fn(),
+  getRegelcatalogusCacheInfo: jest.fn(() => ({ cached: false, fetchedAt: null, ageMs: null })),
+}));
 jest.mock('axios', () => ({
   __esModule: true,
   default: { post: jest.fn(), get: jest.fn(), isAxiosError: () => false },
@@ -119,6 +122,18 @@ describe('content feeds', () => {
   it('GET /regelcatalogus → 500 on failure', async () => {
     m.regels.mockRejectedValue(new Error('down'));
     expect((await request(app).get('/v1/public/regelcatalogus')).status).toBe(500);
+  });
+
+  it('GET /regelcatalogus?refresh=true forces a cache-bypassing refresh', async () => {
+    m.regels.mockResolvedValue({ services: [], organizations: [], concepts: [], rules: [] });
+    await request(app).get('/v1/public/regelcatalogus?refresh=true');
+    expect(m.regels).toHaveBeenCalledWith(true);
+  });
+
+  it('GET /regelcatalogus without refresh does not force', async () => {
+    m.regels.mockResolvedValue({ services: [], organizations: [], concepts: [], rules: [] });
+    await request(app).get('/v1/public/regelcatalogus');
+    expect(m.regels).toHaveBeenCalledWith(false);
   });
 });
 

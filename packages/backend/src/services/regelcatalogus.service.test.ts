@@ -183,6 +183,34 @@ describe('getRegelcatalogusData', () => {
     });
   });
 
+  it('bypasses the cache and re-runs the queries when forceRefresh is true', async () => {
+    mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
+    mockAxios.get.mockResolvedValue(assetsResponse);
+
+    await getRegelcatalogusData(); // populate cache — 5 queries
+    await getRegelcatalogusData(true); // force — 5 more, despite fresh cache
+
+    expect(mockAxios.post).toHaveBeenCalledTimes(10);
+  });
+
+  it('exposes cache freshness via getRegelcatalogusCacheInfo', async () => {
+    const mod = freshModule();
+    mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
+    mockAxios.get.mockResolvedValue(assetsResponse);
+
+    expect(mod.getRegelcatalogusCacheInfo()).toEqual({
+      cached: false,
+      fetchedAt: null,
+      ageMs: null,
+    });
+
+    await mod.getRegelcatalogusData();
+    const info = mod.getRegelcatalogusCacheInfo();
+    expect(info.cached).toBe(true);
+    expect(typeof info.fetchedAt).toBe('string');
+    expect(info.ageMs).toBeGreaterThanOrEqual(0);
+  });
+
   it('serves stale cache when a later refresh fails', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000);
     mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
