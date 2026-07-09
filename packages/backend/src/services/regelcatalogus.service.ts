@@ -201,17 +201,21 @@ WHERE {
 }
 
 async function fetchConcepts(): Promise<CatalogConcept[]> {
-  // Taken directly from the 'NL-SBB Concepts and Services' sample query in constants.ts.
+  // Taken from the 'NL-SBB Concepts and Services' sample query in constants.ts.
   // Traversal: concept → skos:exactMatch
-  //            concept → dct:subject → variable → cpsv:isRequiredBy / cpsv:produces → DMN
-  //            DMN → cprmv:implements → service
+  //            concept → dct:subject → variable → DMN → cprmv(041):implements → service
+  // Older exports give the variable an explicit edge to the DMN
+  // (cpsv:isRequiredBy / cpsv:produces); newer exports (CPRMV 0.4.1) emit a bare
+  // variable URI of the form <dmnUri>/input/N or <dmnUri>/output/N with no edge,
+  // so derive the DMN URI from the variable URI and fall back to it.
   const query = `
-PREFIX skos:  <http://www.w3.org/2004/02/skos/core#>
-PREFIX dct:   <http://purl.org/dc/terms/>
-PREFIX cpsv:  <http://purl.org/vocab/cpsv#>
-PREFIX cprmv: <https://cprmv.open-regels.nl/0.3.0/>
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX dct:      <http://purl.org/dc/terms/>
+PREFIX cpsv:     <http://purl.org/vocab/cpsv#>
+PREFIX cprmv:    <https://cprmv.open-regels.nl/0.3.0/>
+PREFIX cprmv041: <https://standaarden.open-regels.nl/standards/cprmv/0.4.1#>
 
-SELECT ?subject ?prefLabel ?exactMatch ?service ?serviceTitle
+SELECT DISTINCT ?subject ?prefLabel ?exactMatch ?service ?serviceTitle
 WHERE {
   ?subject skos:exactMatch ?exactMatch ;
            dct:subject ?variable .
@@ -221,13 +225,12 @@ WHERE {
     FILTER(LANG(?prefLabel) = "nl" || LANG(?prefLabel) = "")
   }
 
-  {
-    ?variable cpsv:isRequiredBy ?dmn .
-  } UNION {
-    ?variable cpsv:produces ?dmn .
-  }
+  OPTIONAL { ?variable cpsv:isRequiredBy ?dmnRequired . }
+  OPTIONAL { ?variable cpsv:produces ?dmnProduced . }
+  BIND(IRI(REPLACE(STR(?variable), "/(input|output)/[0-9]+$", "")) AS ?dmnFromUri)
+  BIND(COALESCE(?dmnRequired, ?dmnProduced, ?dmnFromUri) AS ?dmn)
 
-  ?dmn cprmv:implements ?service .
+  { ?dmn cprmv:implements ?service } UNION { ?dmn cprmv041:implements ?service }
   OPTIONAL {
     ?service dct:title ?serviceTitle .
     FILTER(LANG(?serviceTitle) = "nl" || LANG(?serviceTitle) = "")

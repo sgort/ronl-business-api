@@ -414,7 +414,7 @@ ORDER BY ?serviceTitle ?validFrom ?ruleTitle`;
 
 function conceptListQuery(): string {
   return `${PREFIXES}
-SELECT ?subject ?prefLabel ?exactMatch ?serviceTitle
+SELECT DISTINCT ?subject ?prefLabel ?exactMatch ?serviceTitle
 WHERE {
   ?subject skos:exactMatch ?exactMatch ;
            dct:subject ?variable .
@@ -422,12 +422,14 @@ WHERE {
     ?subject skos:prefLabel ?prefLabel .
     FILTER(LANG(?prefLabel) = "nl" || LANG(?prefLabel) = "")
   }
-  {
-    ?variable cpsv:isRequiredBy ?dmn .
-  } UNION {
-    ?variable cpsv:produces ?dmn .
-  }
-  ?dmn cprmv:implements ?service .
+  # Older exports give the variable an explicit edge to the DMN; newer exports
+  # (CPRMV 0.4.1) emit a bare <dmnUri>/input|output/N variable URI with no edge,
+  # so derive the DMN URI from the variable URI and fall back to it.
+  OPTIONAL { ?variable cpsv:isRequiredBy ?dmnRequired . }
+  OPTIONAL { ?variable cpsv:produces ?dmnProduced . }
+  BIND(IRI(REPLACE(STR(?variable), "/(input|output)/[0-9]+$", "")) AS ?dmnFromUri)
+  BIND(COALESCE(?dmnRequired, ?dmnProduced, ?dmnFromUri) AS ?dmn)
+  { ?dmn cprmv:implements ?service } UNION { ?dmn cprmv041:implements ?service }
   OPTIONAL {
     ?service dct:title ?serviceTitle .
     FILTER(LANG(?serviceTitle) = "nl" || LANG(?serviceTitle) = "")

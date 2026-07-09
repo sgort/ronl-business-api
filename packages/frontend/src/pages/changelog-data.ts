@@ -33,6 +33,34 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.9.0',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 9, 2026',
+      sections: [
+        {
+          icon: '📚',
+          iconColor: '#0046ad',
+          title: 'Regelcatalogus — rules and concepts now resolve for CPRMV 0.4.1 datasets',
+          items: [
+            "The Regelcatalogus rules query joined ?rule cpsv:implements ?service directly, but since the CPSV-AP RuleShape change a cpsv:Rule's cpsv:implements points at an eli:LegalResource (the resource the service declares via cv:hasLegalResource). Datasets published in the newer shape — e.g. the Flevoland Thuisbatterij service — therefore showed no rules. The query now matches rules via both the direct edge and the shared legal resource, and reads validFrom/confidence from cprmv041: instead of ronl:.",
+            "The Begrippen (concepts) query broke at the variable→DMN hop: a concept's dct:subject points at a bare DMN variable URI (<dmnUri>/input/N or /output/N) that newer exports emit without a cpsv:isRequiredBy / cpsv:produces edge. It now derives the DMN URI from the variable URI as a fallback (OPTIONAL edges + COALESCE) and matches both cprmv:implements and cprmv041:implements — the concepts query previously only queried the 0.3.0 namespace. Thuisbatterij's 21 concepts now appear under Begrippen.",
+            "Auto-generated DMN decision rules ('Decision rule <id>' placeholder titles) are filtered out of the Regels tab and SELECT DISTINCT de-duplicates, so the catalogue shows the real business rules (144 → 84 across all services). Applies to both the Regelcatalogus API and the TriplyDB MCP tools.",
+          ],
+        },
+        {
+          icon: '🔄',
+          iconColor: '#b45309',
+          title: 'Regelcatalogus — manual refresh button (cache bypass)',
+          items: [
+            'The Regelcatalogus is served from a 5-minute server-side cache, which made it hard to see freshly-published TriplyDB data while debugging. A new "Vernieuwen" button forces a rebuild: GET /v1/public/regelcatalogus?refresh=true bypasses and busts the in-memory caches (catalogue + logo assets) and re-fetches everything.',
+            'The header shows a "Bijgewerkt <time> geleden" indicator (meta.cache reports cache freshness), and a failed refresh keeps the loaded catalogue visible with an inline error instead of blanking the view.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.8.0',
       status: 'Released',
       statusColor: '#2d7a33',
