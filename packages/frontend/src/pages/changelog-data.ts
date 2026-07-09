@@ -37,7 +37,7 @@ export const changelog: Changelog = {
       status: 'Released',
       statusColor: '#2d7a33',
       borderColor: '#c3e6cd',
-      date: 'July 8, 2026',
+      date: 'July 9, 2026',
       sections: [
         {
           icon: '📁',
@@ -53,6 +53,20 @@ export const changelog: Changelog = {
             'Role-based access via real Keycloak realm roles on top of public-affairs: pa-author (create, edit) · pa-editor (+ templates, publish) · pa-admin (+ archive, delete). Publishing and archiving/deleting are gated on the route and reflected live in the role bar; a user without any sub-role is read-only. The three roles are defined in the realm config and assigned to the test-pa-flevoland user.',
             'Runtime mock/live toggle: VITE_PA_DOSSIERS_MOCK stays the build-time default, but the Dossierbeheer flag banner flips a persisted localStorage override that fetchDossiers reads — so the cockpit can switch between MOCK_DOSSIERS and the live backend without a rebuild, and the choice survives navigation and reloads. In mock mode the whole surface runs on a local in-memory store seeded from the mock dossiers, so every page can be validated before the backend is wired.',
             'Tests: 28 backend route tests cover auth/capability gating (401/403), validation, Archiefwet metadata capture, and version-append-on-write; the full PA backend suite (256 tests) stays green.',
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: '#b45309',
+          title: 'Fix: Dossierbeheer — corrections from live validation',
+          items: [
+            'Partial-Kompas crash guard: a dossier authored with only some of the 8 Kompas criteria scored produced a partial Kompas that crashed the cockpit Issuekaart scorecard (indexing kompas[key].score on an undefined criterion → blank page, hit first because an alphabetically-early new dossier became the default selection). The scorecard now defaults missing criteria, and the backend serves a complete Kompas — completeKompas() fills all criteria in buildBodyFromAuthoring and normalises partial rows on read — so authored dossiers render safely.',
+            'Archiving is now genuinely terminal: an archived dossier opens read-only (all fields locked, no save/publish) and PATCH /pa/dossiers/:id is refused with 409 ARCHIVED_READONLY — closing a loophole where flipping Status back to Actief silently un-archived it.',
+            'Explicit un-archive for Beheerder (pa-admin): POST /pa/dossiers/:id/unarchive restores a dossier as a concept (status → actief, Archiefwet metadata cleared, gepubliceerd = false, version appended), surfaced as Herstellen on the row and Dearchiveren in the editor lifecycle.',
+            'Rail/create-flow no longer desync: the “+ Nieuw dossier” flow navigates the real db-nieuw rail section instead of an internal-only view, and the two Dossierbeheer rail items get distinct keys — so the rail highlight always matches the content and “Dossierbeheer” reliably returns to the overview.',
+            'Shell reconciles a deleted/archived active dossier: deleting or archiving the dossier you are viewing (e.g. from Beheer) now re-points the cockpit selection to a live dossier when you return to Dossiers, instead of a dangling section; the unknown-section fallback became a friendly “niet (meer) beschikbaar” message with a link to a live dossier.',
+            'A failed create/edit/archive/unarchive/delete now shows a dismissible inline error and keeps the list intact, rather than blanking the whole overview with “Kon dossiers niet laden”.',
+            'Acceptance now reads live dossiers by default (VITE_PA_DOSSIERS_MOCK=false), completing the flag flip. Backend PA suite grows to 864 tests (dossiers routes at 35), all green.',
           ],
         },
       ],
