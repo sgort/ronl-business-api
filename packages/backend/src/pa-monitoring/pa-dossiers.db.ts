@@ -26,6 +26,7 @@ import type {
   DossierTemplate,
   DossierSnippet,
   DossierVersion,
+  KompasCriterionKey,
   KompasScores,
   Momentum,
   PartialKompasScores,
@@ -34,6 +35,27 @@ import type {
 const logger = createLogger('pa-dossiers-db');
 
 const TENANT = 'flevoland';
+
+// The 8 Kompas criteria. Authored dossiers may score only some of them, but the
+// cockpit's Issuekaart scorecard indexes every criterion — so the served Dossier
+// must always carry a complete Kompas (missing criteria default to score 0).
+const KOMPAS_KEYS: KompasCriterionKey[] = [
+  'opgaven',
+  'momentum',
+  'coalitie',
+  'uitvoering',
+  'reputatie',
+  'synergie',
+  'opbrengst',
+  'risico',
+];
+
+export function completeKompas(partial: PartialKompasScores | undefined | null): KompasScores {
+  const p = partial ?? {};
+  const out = {} as KompasScores;
+  for (const k of KOMPAS_KEYS) out[k] = p[k] ?? { score: 0, duiding: '' };
+  return out;
+}
 
 // ── Seed helpers ────────────────────────────────────────────────────
 
@@ -411,7 +433,7 @@ export function buildBodyFromAuthoring(input: AuthoringInput): Dossier {
     momentum: input.momentum,
     waaromNu: input.md.waaromNu,
     waarover: input.md.waarover,
-    kompas: input.kompas as KompasScores,
+    kompas: completeKompas(input.kompas),
     doel: '',
     ritme: { lobby: [], communicatie: [], events: [] },
     mijlpalen: [],
@@ -437,7 +459,8 @@ export function rowToDossier(row: Record<string, unknown>): Dossier {
     onderwerp: row['onderwerp'] as string,
     status: row['status'] as Dossier['status'],
     momentum: row['momentum'] as Momentum,
-    kompas: (row['kompas'] as KompasScores) ?? body.kompas,
+    // Normalise partial Kompas (older authored rows) to a full set on read.
+    kompas: completeKompas((row['kompas'] as PartialKompasScores) ?? body.kompas),
   };
 }
 

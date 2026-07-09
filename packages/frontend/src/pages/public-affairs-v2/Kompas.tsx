@@ -171,7 +171,9 @@ export default function Kompas({
 
       <div className="pac-scorecard">
         {crit.map((c, i) => {
-          const s = kompas[c.key];
+          // Authored dossiers can carry a partial Kompas (only scored criteria);
+          // default the rest so a missing criterion never crashes the cockpit.
+          const s = kompas[c.key] ?? { score: 0, duiding: '' };
           return (
             <div className="pac-score-row" key={c.key}>
               <div className="pac-score-crit">

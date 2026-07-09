@@ -22,7 +22,7 @@
  *   - Kompas radar + 0–2 scorecard, signal duiding, lobby-canon timeline
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
 import {
@@ -149,13 +149,47 @@ function DossiersModeRail({
   );
 }
 
-function DossierIdSyncer({ onReady }: { onReady: (id: string) => void }) {
+/**
+ * Keeps the dossier selection valid against the live list. Seeds the pointer at
+ * startup, and — crucially — corrects it when the selected dossier is deleted or
+ * archived out of the cockpit (e.g. from Beheer → Dossierbeheer), so navigating
+ * back to Dossiers glides to a neighbour instead of a dangling section.
+ */
+function DossierSelectionSyncer({
+  dossierId,
+  activeSection,
+  mode,
+  setDossierId,
+  setActiveSection,
+}: {
+  dossierId: string;
+  activeSection: string;
+  mode: PaModeId;
+  setDossierId: (id: string) => void;
+  setActiveSection: (id: string) => void;
+}) {
   const { dossiers } = usePaData();
   useEffect(() => {
     if (dossiers.status !== 'ok') return;
-    const first = dossiers.data.find((d) => d.status === 'actief') ?? dossiers.data[0];
-    if (first) onReady(first.id);
-  }, [dossiers.status, dossiers.data, onReady]);
+    const validIds = new Set(dossiers.data.map((d) => d.id));
+    const fallback = dossiers.data.find((d) => d.status === 'actief') ?? dossiers.data[0];
+    const fallbackId = fallback?.id ?? '';
+    // Pointer: fill when empty, correct when the selected dossier disappeared.
+    if (!dossierId || !validIds.has(dossierId)) setDossierId(fallbackId);
+    // In dossiers mode the active section IS a dossier id; if the one being
+    // viewed vanished, move to the fallback rather than showing a placeholder.
+    if (mode === 'dossiers' && activeSection && !validIds.has(activeSection)) {
+      setActiveSection(fallbackId);
+    }
+  }, [
+    dossiers.status,
+    dossiers.data,
+    dossierId,
+    activeSection,
+    mode,
+    setDossierId,
+    setActiveSection,
+  ]);
   return null;
 }
 
@@ -173,12 +207,9 @@ export default function PADashboardV2() {
   const [activeSection, setActiveSection] = useState<string>('vandaag');
   const [lastSection, setLastSection] = useState<Partial<Record<PaModeId, string>>>({});
   const [dossierId, setDossierId] = useState<string>('');
-  // Seeded to '' at mount; DossierIdSyncer picks the first actief dossier once
-  // the provider's dossiers.status becomes 'ok'. Using prev || id ensures
-  // a user-selected id is never overwritten by a late-arriving init.
-  const initDossierId = useCallback((id: string) => {
-    setDossierId((prev) => prev || id);
-  }, []);
+  // Seeded to '' at mount; DossierSelectionSyncer picks the first actief dossier
+  // once dossiers.status becomes 'ok', and re-points it if the current selection
+  // is later deleted/archived. A still-valid user selection is never overwritten.
 
   // Tweakable axes (rail-driven). Kept in shell state so they survive nav.
   const [prioritering, setPrioritering] = useState<Prioritering>('kompas');
@@ -465,7 +496,13 @@ export default function PADashboardV2() {
 
       {/* ── Body ── */}
       <PaDataProvider>
-        <DossierIdSyncer onReady={initDossierId} />
+        <DossierSelectionSyncer
+          dossierId={dossierId}
+          activeSection={activeSection}
+          mode={mode}
+          setDossierId={setDossierId}
+          setActiveSection={setActiveSection}
+        />
         <div className="pac-body">
           <aside className="pac-rail" aria-label="Sectienavigatie">
             {renderRail()}

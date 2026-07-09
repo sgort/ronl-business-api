@@ -158,6 +158,8 @@ export function updateDossier(
     const idx = items.findIndex((i) => i.id === id);
     if (idx === -1) return Promise.reject(new Error('not found'));
     const prev = items[idx];
+    // Archived dossiers are read-only (mirrors the backend 409 guard).
+    if (prev.status === 'gearchiveerd') return Promise.reject(new Error('archived'));
     const nextVersie = prev.versie + 1;
     const updated: AdminDossier = {
       ...prev,
@@ -211,6 +213,39 @@ export function archiveDossier(
     return Promise.resolve(clone(updated));
   }
   return post<AdminDossier>(`/pa/dossiers/${id}/archive`, meta);
+}
+
+export function unarchiveDossier(
+  id: string,
+  status: 'actief' | 'sluimerend' = 'actief'
+): Promise<AdminDossier> {
+  if (isDossiersMock()) {
+    const items = store();
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx === -1) return Promise.reject(new Error('not found'));
+    const prev = items[idx];
+    if (prev.status !== 'gearchiveerd') return Promise.reject(new Error('not archived'));
+    const nextVersie = prev.versie + 1;
+    const updated: AdminDossier = {
+      ...prev,
+      status,
+      archief: null,
+      gepubliceerd: false,
+      versie: nextVersie,
+      bewerkt: 'nu',
+      versies: [
+        ...prev.versies,
+        mockVersion(
+          nextVersie,
+          prev.eigenaar,
+          `Gedearchiveerd — teruggezet naar concept (${status}).`
+        ),
+      ],
+    };
+    items[idx] = updated;
+    return Promise.resolve(clone(updated));
+  }
+  return post<AdminDossier>(`/pa/dossiers/${id}/unarchive`, { status });
 }
 
 export function deleteDossier(id: string): Promise<void> {

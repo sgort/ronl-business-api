@@ -132,6 +132,29 @@ describe('GET /v1/pa/dossiers', () => {
     expect(sql).toMatch(/gepubliceerd = true/);
   });
 
+  it('cockpit view completes a partial Kompas to all 8 criteria (no undefined crashes)', async () => {
+    // adminRow() carries only { opgaven } — the Issuekaart scorecard indexes all 8.
+    mockDb.any.mockResolvedValue([adminRow()]);
+    const res = await request(app).get('/v1/pa/dossiers').set(PA);
+    expect(res.status).toBe(200);
+    const kompas = res.body.data[0].kompas;
+    expect(Object.keys(kompas).sort()).toEqual(
+      [
+        'coalitie',
+        'momentum',
+        'opbrengst',
+        'opgaven',
+        'reputatie',
+        'risico',
+        'synergie',
+        'uitvoering',
+      ].sort()
+    );
+    // scored criterion preserved; missing ones default to score 0
+    expect(kompas.opgaven.score).toBe(2);
+    expect(kompas.risico.score).toBe(0);
+  });
+
   it('?admin=1 → 200 management view with versies', async () => {
     mockDb.any
       .mockResolvedValueOnce([adminRow()]) // rows
@@ -255,6 +278,17 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
     );
     expect(updateCall).toBeTruthy();
   });
+
+  it('editing an archived dossier → 409 ARCHIVED_READONLY (no silent un-archive)', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow({ status: 'gearchiveerd' }));
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/omgevingswet-2023')
+      .set(ADMIN)
+      .send({ status: 'actief' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ARCHIVED_READONLY');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /v1/pa/dossiers/:id/archive', () => {
@@ -325,6 +359,69 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
       /INSERT INTO pa_dossier_versions/.test(c[0] as string)
     );
     expect(versionInsert?.[1]?.[1]).toBe(4);
+  });
+});
+
+describe('POST /v1/pa/dossiers/:id/unarchive', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('non-admin (editor) → 403', async () => {
+    const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(EDITOR);
+    expect(res.status).toBe(403);
+  });
+
+  it('admin, unknown id → 404', async () => {
+    mockDb.oneOrNone.mockResolvedValue(null);
+    const res = await request(app).post('/v1/pa/dossiers/unknown/unarchive').set(ADMIN);
+    expect(res.status).toBe(404);
+  });
+
+  it('admin, dossier not archived → 400 NOT_ARCHIVED', async () => {
+    mockDb.oneOrNone.mockResolvedValue({ versie: 3, status: 'actief' });
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/unarchive').set(ADMIN);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('NOT_ARCHIVED');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
+
+  it('admin → 200, restores to concept, clears archief, appends version', async () => {
+    mockDb.oneOrNone.mockResolvedValue({ versie: 7, status: 'gearchiveerd' });
+    mockDb.none.mockResolvedValue(undefined);
+    mockDb.one.mockResolvedValue(
+      adminRow({ status: 'actief', gepubliceerd: false, versie: 8, archief: null })
+    );
+    mockDb.any.mockResolvedValue([]);
+    const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('actief');
+    expect(res.body.data.archief).toBeNull();
+    // UPDATE clears archief + unpublishes
+    const updateCall = mockDb.none.mock.calls.find((c) =>
+      /UPDATE pa_dossiers SET/.test(c[0] as string)
+    );
+    expect(updateCall![0]).toMatch(/archief = NULL/);
+    expect(updateCall![0]).toMatch(/gepubliceerd = false/);
+    // version appended at v8
+    const versionInsert = mockDb.none.mock.calls.find((c) =>
+      /INSERT INTO pa_dossier_versions/.test(c[0] as string)
+    );
+    expect(versionInsert?.[1]?.[1]).toBe(8);
+  });
+
+  it('admin can restore to sluimerend when requested', async () => {
+    mockDb.oneOrNone.mockResolvedValue({ versie: 7, status: 'gearchiveerd' });
+    mockDb.none.mockResolvedValue(undefined);
+    mockDb.one.mockResolvedValue(adminRow({ status: 'sluimerend', versie: 8, archief: null }));
+    mockDb.any.mockResolvedValue([]);
+    const res = await request(app)
+      .post('/v1/pa/dossiers/omgevingswet-2023/unarchive')
+      .set(ADMIN)
+      .send({ status: 'sluimerend' });
+    expect(res.status).toBe(200);
+    const updateCall = mockDb.none.mock.calls.find((c) =>
+      /UPDATE pa_dossiers SET/.test(c[0] as string)
+    );
+    expect((updateCall![1] as unknown[])[0]).toBe('sluimerend');
   });
 });
 

@@ -23,6 +23,7 @@ interface Props {
   fieldKey: string;
   onFocusField: (key: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }
 
 export default function MdEditor({
@@ -32,8 +33,9 @@ export default function MdEditor({
   fieldKey,
   onFocusField,
   placeholder,
+  readOnly = false,
 }: Props) {
-  const [view, setView] = useState<MdView>('split');
+  const [view, setView] = useState<MdView>(readOnly ? 'voorbeeld' : 'split');
   const [focused, setFocused] = useState(false);
 
   const surround = (before: string, after: string = before) => {
@@ -78,6 +80,7 @@ export default function MdEditor({
       type="button"
       className="pac-db-md-tb"
       title={title}
+      disabled={readOnly}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
     >
@@ -130,6 +133,7 @@ export default function MdEditor({
             className="pac-db-md-ta"
             value={value}
             placeholder={placeholder}
+            readOnly={readOnly}
             onChange={(e) => onChange(e.target.value)}
             onFocus={() => {
               setFocused(true);

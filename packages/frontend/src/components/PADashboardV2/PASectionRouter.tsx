@@ -104,10 +104,10 @@ export default function PASectionRouter({
   // Distinct keys force a fresh mount when switching between the two rail items,
   // so the internal view (list vs. template) always resets to match the nav.
   if (sectionId === 'db-overzicht') {
-    return <Dossierbeheer key="db-overzicht" user={user} />;
+    return <Dossierbeheer key="db-overzicht" user={user} onNavigate={onNavigate} />;
   }
   if (sectionId === 'db-nieuw') {
-    return <Dossierbeheer key="db-nieuw" user={user} startCreate />;
+    return <Dossierbeheer key="db-nieuw" user={user} startCreate onNavigate={onNavigate} />;
   }
 
   if (BEHEER_IDS.has(sectionId)) {
@@ -161,12 +161,24 @@ export default function PASectionRouter({
     return <Issuekaart dossier={dossier} kompasViz={kompasViz} onNavigate={onNavigate} />;
   }
 
+  // Unknown id — usually a dossier that was just deleted or archived out of the
+  // cockpit (the selection syncer redirects, but this covers the transient frame
+  // and stale ⌘K / deep-link ids). Offer a way back to a live dossier.
+  const firstDossier = dossiers.data.find((d) => d.status === 'actief') ?? dossiers.data[0];
   return (
     <div style={{ padding: '24px 0', color: '#6b7280' }}>
       <p style={{ fontSize: 14 }}>
-        Sectie <code style={{ background: '#f3f4f6', padding: '2px 6px' }}>{sectionId}</code> is nog
-        niet aangesloten.
+        Deze sectie is niet (meer) beschikbaar — het dossier is mogelijk verwijderd of gearchiveerd.
       </p>
+      {firstDossier && (
+        <button
+          type="button"
+          className="pac-btn pac-btn-sm"
+          onClick={() => onOpenDossier(firstDossier.id)}
+        >
+          Naar {firstDossier.naam} →
+        </button>
+      )}
     </div>
   );
 }

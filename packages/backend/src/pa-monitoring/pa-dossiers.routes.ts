@@ -268,6 +268,11 @@ router.patch(
         [id, req.user.tenantId]
       );
       if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+      // Archived dossiers are read-only. Un-archiving is an explicit, audited
+      // action (POST /dossiers/:id/unarchive), not a silent status flip.
+      if (existing['status'] === 'gearchiveerd') {
+        return res.status(409).json({ success: false, error: { code: 'ARCHIVED_READONLY' } });
+      }
 
       const naam = b.naam !== undefined ? b.naam.trim() : (existing['naam'] as string);
       const onderwerp =
@@ -408,6 +413,54 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'DOSSIER_ARCHIVE_ERROR' } });
+  }
+});
+
+// ── POST /v1/pa/dossiers/:id/unarchive ──────────────────────────────
+// Explicit un-archive (requires pa-admin). Restores the dossier as a concept:
+// status → actief (or sluimerend), clears the Archiefwet metadata, leaves it
+// unpublished (must be re-published to return to the cockpit), bumps version.
+router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  const { id } = req.params;
+  const { status } = req.body as { status?: AdminDossierStatus };
+  const restored: AdminDossierStatus = status === 'sluimerend' ? 'sluimerend' : 'actief';
+
+  try {
+    const existing = await db.oneOrNone<{ versie: number; status: string }>(
+      `SELECT versie, status FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`,
+      [id, req.user.tenantId]
+    );
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    if (existing.status !== 'gearchiveerd') {
+      return res.status(400).json({ success: false, error: { code: 'NOT_ARCHIVED' } });
+    }
+
+    const nextVersie = Number(existing.versie ?? 1) + 1;
+    await db.none(
+      `UPDATE pa_dossiers SET
+         status = $1, archief = NULL, gepubliceerd = false, versie = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [restored, nextVersie, id]
+    );
+    await appendVersion(
+      id,
+      nextVersie,
+      actor(req),
+      `Gedearchiveerd — teruggezet naar concept (${restored}).`
+    );
+
+    const row = await db.one<Record<string, unknown>>(
+      `SELECT ${DOSSIER_COLS} FROM pa_dossiers WHERE id = $1`,
+      [id]
+    );
+    res.json({ success: true, data: rowToAdminDossier(row, await loadVersions(id)) });
+  } catch (err) {
+    logger.error('Dossier unarchive error', {
+      id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DOSSIER_UNARCHIVE_ERROR' } });
   }
 });
 

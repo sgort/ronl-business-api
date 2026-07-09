@@ -19,13 +19,15 @@ interface Props {
   can: DossierCaps;
   onEdit: (d: AdminDossier) => void;
   onArchive: (d: AdminDossier) => void;
+  onUnarchive: (d: AdminDossier) => void;
   onDelete: (d: AdminDossier) => void;
 }
 
-export default function DossierRow({ d, can, onEdit, onArchive, onDelete }: Props) {
+export default function DossierRow({ d, can, onEdit, onArchive, onUnarchive, onDelete }: Props) {
   const hasKompas = Object.keys(d.kompas ?? {}).length > 0;
   const total = kompasTotal(d.kompas as never);
   const band = kompasBand(total);
+  const isArchived = d.status === 'gearchiveerd';
 
   return (
     <div className={`pac-db-row ${d.status}`}>
@@ -69,9 +71,18 @@ export default function DossierRow({ d, can, onEdit, onArchive, onDelete }: Prop
         )}
         <div className="pac-db-row-actions">
           <button type="button" className="pac-db-abtn" onClick={() => onEdit(d)}>
-            {can.edit ? 'Bewerken' : 'Bekijken'}
+            {can.edit && !isArchived ? 'Bewerken' : 'Bekijken'}
           </button>
-          {d.status !== 'gearchiveerd' && (
+          {isArchived ? (
+            <button
+              type="button"
+              className="pac-db-abtn"
+              disabled={!can.archive}
+              onClick={() => onUnarchive(d)}
+            >
+              Herstellen
+            </button>
+          ) : (
             <button
               type="button"
               className="pac-db-abtn"

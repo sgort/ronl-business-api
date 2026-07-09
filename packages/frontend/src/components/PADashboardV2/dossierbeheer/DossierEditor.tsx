@@ -37,6 +37,7 @@ interface Props {
   onSave: (draft: AdminDossier, publish: boolean) => void;
   onCancel: () => void;
   onArchive: (d: AdminDossier) => void;
+  onUnarchive: (d: AdminDossier) => void;
   onDelete: (d: AdminDossier) => void;
 }
 
@@ -50,8 +51,13 @@ export default function DossierEditor({
   onSave,
   onCancel,
   onArchive,
+  onUnarchive,
   onDelete,
 }: Props) {
+  // Archived dossiers are view-only: fields are locked and the only lifecycle
+  // action is the explicit (Beheerder) Dearchiveren, or hard delete.
+  const isArchived = record.status === 'gearchiveerd';
+  const readOnly = isArchived;
   const [d, setD] = useState<AdminDossier>(record);
   const [focusField, setFocusField] = useState<NarrativeKey>('waaromNu');
   const taRefs: Record<NarrativeKey, React.RefObject<HTMLTextAreaElement>> = {
@@ -113,6 +119,7 @@ export default function DossierEditor({
                 className="pac-db-input"
                 value={d.naam}
                 placeholder="bv. Stikstof & landbouwtransitie"
+                readOnly={readOnly}
                 onChange={(e) => set({ naam: e.target.value })}
               />
               <span className="pac-db-slug">/pa/dossiers/{slug || '…'}</span>
@@ -127,6 +134,7 @@ export default function DossierEditor({
               <input
                 className="pac-db-input"
                 value={d.onderwerp}
+                readOnly={readOnly}
                 onChange={(e) => set({ onderwerp: e.target.value })}
               />
             </div>
@@ -144,6 +152,7 @@ export default function DossierEditor({
                       key={id}
                       type="button"
                       className={`pac-db-seg-btn ${d.status === id ? 'active' : ''}`}
+                      disabled={readOnly}
                       onClick={() => set({ status: id })}
                     >
                       {lbl}
@@ -165,6 +174,7 @@ export default function DossierEditor({
                       key={id}
                       type="button"
                       className={`pac-db-seg-btn ${d.momentum === id ? 'active' : ''}`}
+                      disabled={readOnly}
                       onClick={() => set({ momentum: id as Momentum })}
                     >
                       {lbl}
@@ -178,6 +188,7 @@ export default function DossierEditor({
               <input
                 className="pac-db-input"
                 value={d.eigenaar}
+                readOnly={readOnly}
                 onChange={(e) => set({ eigenaar: e.target.value })}
               />
             </div>
@@ -191,7 +202,11 @@ export default function DossierEditor({
                 8 criteria · 0–2 · {isNew ? 'bij aanmaken' : 'initiële scores'}
               </span>
             </div>
-            <KompasScorer kompas={d.kompas ?? {}} onChange={(k) => set({ kompas: k })} />
+            <KompasScorer
+              kompas={d.kompas ?? {}}
+              onChange={(k) => set({ kompas: k })}
+              readOnly={readOnly}
+            />
           </div>
 
           {/* Narrative — Markdown */}
@@ -214,6 +229,7 @@ export default function DossierEditor({
                   taRef={taRefs[f.key]}
                   onFocusField={(k) => setFocusField(k as NarrativeKey)}
                   placeholder={`# ${f.label}\n\nSchrijf hier in Markdown…`}
+                  readOnly={readOnly}
                 />
               </div>
             ))}
@@ -222,74 +238,90 @@ export default function DossierEditor({
 
         {/* Aside */}
         <div className="pac-db-aside">
-          {/* Save / publish */}
-          <div className="pac-db-card">
-            <div className="pac-db-card-label">{isNew ? 'Aanmaken' : 'Opslaan'}</div>
-            <div className="pac-db-save-row">
-              <button
-                type="button"
-                className="pac-btn-primary"
-                disabled={!valid || busy || !(isNew ? can.create : can.edit)}
-                onClick={() => onSave(d, false)}
-              >
-                {isNew ? 'Dossier aanmaken' : 'Wijzigingen opslaan'}
-              </button>
-              <button
-                type="button"
-                className="pac-btn-ghost"
-                disabled={!valid || busy || !can.publish}
-                onClick={() => onSave(d, true)}
-              >
-                {d.gepubliceerd ? 'Opslaan & opnieuw publiceren' : 'Opslaan & publiceren'}
-              </button>
-              <button type="button" className="pac-btn-ghost" onClick={onCancel}>
-                Annuleren
-              </button>
-              {!valid && (
-                <span className="pac-db-save-note">
-                  Naam (min. 3 tekens) en onderwerp zijn verplicht.
-                </span>
-              )}
-              {!can.publish && (
-                <span className="pac-db-locked">
-                  🔒 Publiceren vereist rol <b>Redacteur</b> of hoger.
-                </span>
-              )}
-              <span className="pac-db-save-note">
-                Schrijft naar <code>pa_dossiers</code> (JSONB) via{' '}
-                <code>{isNew ? 'POST' : 'PATCH'} /pa/dossiers</code> — elke opslag maakt een nieuwe
-                versie.
-              </span>
-            </div>
-          </div>
-
-          {/* Snippet library */}
+          {/* Save / publish (or read-only notice when archived) */}
           <div className="pac-db-card">
             <div className="pac-db-card-label">
-              Snippets{' '}
-              <span className="pac-db-card-hint">
-                invoegen in “{FIELDS.find((f) => f.key === focusField)?.label}”
-              </span>
+              {readOnly ? 'Gearchiveerd' : isNew ? 'Aanmaken' : 'Opslaan'}
             </div>
-            <div className="pac-db-snips">
-              {snippets.map((s) => (
-                <div key={s.id} className="pac-db-snip">
-                  <span>
-                    <span className="pac-db-snip-naam">{s.naam}</span>
-                    <br />
-                    <span className="pac-db-snip-cat">{s.cat}</span>
+            {readOnly ? (
+              <div className="pac-db-save-row">
+                <span className="pac-db-save-note">
+                  Dit dossier is <b>gearchiveerd</b> (Archiefwet) en daarom alleen-lezen. Herstel
+                  het hieronder via <b>Dearchiveren</b> om het weer te kunnen bewerken.
+                </span>
+                <button type="button" className="pac-btn-ghost" onClick={onCancel}>
+                  Terug naar overzicht
+                </button>
+              </div>
+            ) : (
+              <div className="pac-db-save-row">
+                <button
+                  type="button"
+                  className="pac-btn-primary"
+                  disabled={!valid || busy || !(isNew ? can.create : can.edit)}
+                  onClick={() => onSave(d, false)}
+                >
+                  {isNew ? 'Dossier aanmaken' : 'Wijzigingen opslaan'}
+                </button>
+                <button
+                  type="button"
+                  className="pac-btn-ghost"
+                  disabled={!valid || busy || !can.publish}
+                  onClick={() => onSave(d, true)}
+                >
+                  {d.gepubliceerd ? 'Opslaan & opnieuw publiceren' : 'Opslaan & publiceren'}
+                </button>
+                <button type="button" className="pac-btn-ghost" onClick={onCancel}>
+                  Annuleren
+                </button>
+                {!valid && (
+                  <span className="pac-db-save-note">
+                    Naam (min. 3 tekens) en onderwerp zijn verplicht.
                   </span>
-                  <button
-                    type="button"
-                    className="pac-db-snip-ins"
-                    onClick={() => insertSnippet(s)}
-                  >
-                    Invoegen
-                  </button>
-                </div>
-              ))}
-            </div>
+                )}
+                {!can.publish && (
+                  <span className="pac-db-locked">
+                    🔒 Publiceren vereist rol <b>Redacteur</b> of hoger.
+                  </span>
+                )}
+                <span className="pac-db-save-note">
+                  Schrijft naar <code>pa_dossiers</code> (JSONB) via{' '}
+                  <code>{isNew ? 'POST' : 'PATCH'} /pa/dossiers</code> — elke opslag maakt een
+                  nieuwe versie.
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Snippet library (hidden while read-only) */}
+          {!readOnly && (
+            <div className="pac-db-card">
+              <div className="pac-db-card-label">
+                Snippets{' '}
+                <span className="pac-db-card-hint">
+                  invoegen in “{FIELDS.find((f) => f.key === focusField)?.label}”
+                </span>
+              </div>
+              <div className="pac-db-snips">
+                {snippets.map((s) => (
+                  <div key={s.id} className="pac-db-snip">
+                    <span>
+                      <span className="pac-db-snip-naam">{s.naam}</span>
+                      <br />
+                      <span className="pac-db-snip-cat">{s.cat}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="pac-db-snip-ins"
+                      onClick={() => insertSnippet(s)}
+                    >
+                      Invoegen
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Version history */}
           {!isNew && d.versies && d.versies.length > 0 && (
@@ -320,14 +352,25 @@ export default function DossierEditor({
             <div className="pac-db-card">
               <div className="pac-db-card-label">Levenscyclus</div>
               <div className="pac-db-save-row">
-                <button
-                  type="button"
-                  className="pac-btn-ghost"
-                  disabled={!can.archive || d.status === 'gearchiveerd'}
-                  onClick={() => onArchive(d)}
-                >
-                  Archiveren (Archiefwet)…
-                </button>
+                {isArchived ? (
+                  <button
+                    type="button"
+                    className="pac-btn-ghost"
+                    disabled={!can.archive}
+                    onClick={() => onUnarchive(d)}
+                  >
+                    Dearchiveren (herstellen)…
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="pac-btn-ghost"
+                    disabled={!can.archive}
+                    onClick={() => onArchive(d)}
+                  >
+                    Archiveren (Archiefwet)…
+                  </button>
+                )}
                 <button
                   type="button"
                   className="pac-btn-danger"
@@ -338,7 +381,8 @@ export default function DossierEditor({
                 </button>
                 {!can.archive && (
                   <span className="pac-db-locked">
-                    🔒 Archiveren/verwijderen vereist rol <b>Beheerder</b>.
+                    🔒 {isArchived ? 'Dearchiveren' : 'Archiveren'}/verwijderen vereist rol{' '}
+                    <b>Beheerder</b>.
                   </span>
                 )}
               </div>

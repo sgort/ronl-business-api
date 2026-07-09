@@ -72,6 +72,13 @@ No backend calls; safe to click everything. The flag banner should read
    (Archiefwet)…** → pick classificatie + bewaartermijn, enter a reason →
    **Archiveren**. The dossier moves to **Gearchiveerd**; the Archiefwet button
    requires **Beheerder**.
+   - **Archived = read-only.** Open the archived dossier (**Bekijken**): every
+     field is locked and there's no Save/publish — archiving is terminal, so you
+     cannot silently flip it back to Actief.
+   - **Un-archive (Beheerder-only).** Restore it via **Herstellen** on the row,
+     or **Dearchiveren (herstellen)…** in the editor lifecycle. It returns as a
+     **concept** (status → actief, `archief` cleared, `gepubliceerd = false`,
+     version appended) — re-publish to put it back in the cockpit.
 6. **Delete.** **Definitief verwijderen…** → type the exact dossier name to
    enable the danger button → confirm. Admin-only.
 7. **Role gating (optional).** These actions are gated on the token role. To see
@@ -110,10 +117,15 @@ token (Part A prerequisites).**
    `gepubliceerd = true`. (An Auteur-only token gets `403 FORBIDDEN_PUBLISH`.)
 6. **Archive captures metadata.** Archive a dossier → `status = 'gearchiveerd'`,
    `gepubliceerd = false`, and the `archief` JSONB carries classificatie,
-   bewaartermijn, reden, `at`, and `by`.
-7. **Delete removes the row + versions.** Hard delete → the `pa_dossiers` row and
+   bewaartermijn, reden, `at`, and `by`. Editing an archived dossier is refused
+   server-side (`PATCH /dossiers/:id` → `409 ARCHIVED_READONLY`).
+7. **Un-archive restores a concept.** **Herstellen / Dearchiveren** →
+   `POST /dossiers/:id/unarchive` (pa-admin) sets `status = 'actief'`, clears
+   `archief`, keeps `gepubliceerd = false`, and appends a version. Un-archiving a
+   non-archived dossier → `400 NOT_ARCHIVED`.
+8. **Delete removes the row + versions.** Hard delete → the `pa_dossiers` row and
    all its `pa_dossier_versions` are gone.
-8. **Cockpit reads live.** Switch to **Dossiers / Vandaag / Monitoring /
+9. **Cockpit reads live.** Switch to **Dossiers / Vandaag / Monitoring /
    Voortgang** — `usePaData().dossiers` now serves the live, **published,
    non-archived** dossiers (archived ones and concepts are hidden from the
    cockpit). Publishing a new dossier makes it appear; archiving removes it.
@@ -130,7 +142,8 @@ curl -s "$BASE/templates" -H "Authorization: Bearer $TOKEN" | jq '.data | map(.i
 ```
 
 Expected gating without the sub-roles: `POST/PATCH /dossiers` → `403`,
-`.../archive` and `DELETE` → `403` (needs `pa-admin`); anonymous → `401`.
+`.../archive`, `.../unarchive` and `DELETE` → `403` (needs `pa-admin`);
+anonymous → `401`.
 
 ---
 

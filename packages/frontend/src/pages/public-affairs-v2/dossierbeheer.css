@@ -126,13 +126,17 @@
 .pac .pac-db-scoreseg button.active[data-s="0"] { background: var(--pac-s0); color: var(--pac-ink); }
 .pac .pac-db-scoreseg button.active[data-s="1"] { background: var(--pac-s1); color: #fff; }
 .pac .pac-db-scoreseg button.active[data-s="2"] { background: var(--pac-s2); color: #fff; }
+.pac .pac-db-scoreseg button:disabled { cursor: not-allowed; }
+.pac .pac-db-seg-btn:disabled { cursor: not-allowed; opacity: 0.7; }
+.pac .pac-db-input:read-only, .pac .pac-db-krit-duiding input:read-only { background: var(--pac-bg); color: var(--pac-ink-2); cursor: default; }
 
 /* markdown editor */
 .pac .pac-db-md { border: 1px solid var(--pac-rule); border-radius: 7px; overflow: hidden; background: #fff; }
 .pac .pac-db-md.focused { border-color: var(--pac-chrome); box-shadow: 0 0 0 3px #0046ad14; }
 .pac .pac-db-md-toolbar { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; padding: 6px 8px; border-bottom: 1px solid var(--pac-rule-2); background: #fbfcfe; }
 .pac .pac-db-md-tb { font-family: var(--pac-sans); font-size: 12.5px; font-weight: 600; color: var(--pac-ink-2); background: #fff; border: 1px solid var(--pac-rule-2); border-radius: 5px; min-width: 30px; height: 28px; padding: 0 7px; cursor: pointer; }
-.pac .pac-db-md-tb:hover { border-color: var(--pac-chrome); color: var(--pac-chrome); }
+.pac .pac-db-md-tb:hover:not(:disabled) { border-color: var(--pac-chrome); color: var(--pac-chrome); }
+.pac .pac-db-md-tb:disabled { opacity: 0.4; cursor: not-allowed; }
 .pac .pac-db-md-tb-sep { width: 1px; height: 18px; background: var(--pac-rule-2); margin: 0 3px; }
 .pac .pac-db-md-spacer { flex: 1; }
 .pac .pac-db-md-viewtog { display: inline-flex; border: 1px solid var(--pac-rule-2); border-radius: 5px; overflow: hidden; }
@@ -217,6 +221,8 @@
 .pac .pac-db-warn { background: color-mix(in srgb, var(--pac-red) 7%, white); border: 1px solid color-mix(in srgb, var(--pac-red) 28%, white); color: #7a0c26; border-radius: 7px; padding: 11px 13px; font-size: 12.5px; line-height: 1.5; }
 .pac .pac-db-warn code { font-family: var(--pac-mono); font-size: 11.5px; }
 .pac .pac-db-confirm-input { font-family: var(--pac-mono); font-size: 13px; border: 1px solid var(--pac-rule); border-radius: 6px; padding: 8px 12px; width: 100%; box-sizing: border-box; }
+.pac .pac-db-actionerror { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: color-mix(in srgb, var(--pac-red) 7%, white); border: 1px solid color-mix(in srgb, var(--pac-red) 28%, white); color: #7a0c26; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
+.pac .pac-db-actionerror button { font-size: 13px; color: #7a0c26; background: none; border: none; cursor: pointer; padding: 0 4px; line-height: 1; }
 .pac .pac-db-empty { color: var(--pac-ink-3); font-size: 13px; padding: 20px; text-align: center; border: 1px dashed var(--pac-rule); border-radius: 8px; margin-bottom: 12px; }
 .pac .pac-db-empty button { font: inherit; color: var(--pac-chrome); background: none; border: none; cursor: pointer; text-decoration: underline; }
 

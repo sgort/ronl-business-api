@@ -9,9 +9,10 @@ import type { KompasCriterionKey, PartialKompasScores } from '@ronl/shared';
 interface Props {
   kompas: PartialKompasScores;
   onChange: (next: PartialKompasScores) => void;
+  readOnly?: boolean;
 }
 
-export default function KompasScorer({ kompas, onChange }: Props) {
+export default function KompasScorer({ kompas, onChange, readOnly = false }: Props) {
   const total = KOMPAS_CRITERIA.reduce((s, c) => s + (kompas[c.key]?.score ?? 0), 0);
   const band = kompasBand(total);
 
@@ -45,6 +46,7 @@ export default function KompasScorer({ kompas, onChange }: Props) {
                   type="button"
                   data-s={s}
                   className={cur === s ? 'active' : ''}
+                  disabled={readOnly}
                   onClick={() => setScore(c.key, s)}
                 >
                   {s}
@@ -55,6 +57,7 @@ export default function KompasScorer({ kompas, onChange }: Props) {
               <input
                 value={kompas[c.key]?.duiding ?? ''}
                 placeholder="Korte duiding bij deze score (optioneel)…"
+                readOnly={readOnly}
                 onChange={(e) => setDuiding(c.key, e.target.value)}
               />
             </div>

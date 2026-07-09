@@ -28,10 +28,12 @@ import {
   createDossier,
   updateDossier,
   archiveDossier,
+  unarchiveDossier,
   deleteDossier,
   type DossierWriteInput,
 } from '../../../services/dossierbeheer.api';
 import { isDossiersMock, setDossiersMock } from '../../../services/pa.api';
+import type { PaModeId } from '../../../pages/public-affairs-v2/modes.config';
 import DossierRow from './DossierRow';
 import DossierEditor from './DossierEditor';
 import TemplateGallery from './TemplateGallery';
@@ -47,9 +49,12 @@ type View =
 interface Props {
   user: KeycloakUser | null;
   startCreate?: boolean;
+  /** Shell navigation, so the create flow uses the real rail section (db-nieuw)
+   *  instead of an internal-only view — keeping the rail and content in sync. */
+  onNavigate?: (mode: PaModeId, sectionId: string) => void;
 }
 
-export default function Dossierbeheer({ user, startCreate = false }: Props) {
+export default function Dossierbeheer({ user, startCreate = false, onNavigate }: Props) {
   const { dossiers } = usePaData();
 
   const role = deriveDossierRole(user?.roles ?? []);
@@ -64,6 +69,7 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
   const [archiveTarget, setArchiveTarget] = useState<AdminDossier | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminDossier | null>(null);
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [mockDisplay, setMockDisplay] = useState(isDossiersMock());
 
   const refetch = useCallback(() => {
@@ -87,6 +93,22 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
   }, [refetch]);
 
   const syncCockpit = () => dossiers.refetch();
+
+  // Enter the create flow via the rail section (db-nieuw) so the rail highlight
+  // and the content stay in sync; falls back to the internal view when the shell
+  // navigator isn't wired.
+  const startCreateFlow = () => {
+    if (onNavigate) onNavigate('beheer', 'db-nieuw');
+    else setView({ mode: 'template' });
+  };
+
+  // Return to the overview. From the create section (db-nieuw) that means a real
+  // shell nav back to db-overzicht; from the overview's own sub-views (edit) a
+  // same-section nav would be a no-op, so reset the internal view instead.
+  const goToOverview = () => {
+    if (startCreate && onNavigate) onNavigate('beheer', 'db-overzicht');
+    else setView({ mode: 'list' });
+  };
 
   // Flip the persisted mock/live override, then re-read both this surface and
   // the cockpit so the choice takes effect and survives navigation + reloads.
@@ -136,17 +158,21 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
 
   const handleSave = async (draft: AdminDossier, publish: boolean) => {
     setBusy(true);
+    setActionError(null);
+    const isEdit = view.mode === 'edit' && !view.isNew && Boolean(draft.id);
     try {
-      if (view.mode === 'edit' && !view.isNew && draft.id) {
+      if (isEdit) {
         await updateDossier(draft.id, toWriteInput(draft, publish));
       } else {
         await createDossier(toWriteInput(draft, publish));
       }
       refetch();
       syncCockpit();
-      setView({ mode: 'list' });
+      // Edit stays in the overview (same section); create returns from db-nieuw.
+      if (isEdit) setView({ mode: 'list' });
+      else goToOverview();
     } catch {
-      setStatus('error');
+      setActionError('Opslaan is mislukt. Controleer de verbinding en probeer het opnieuw.');
     } finally {
       setBusy(false);
     }
@@ -159,6 +185,7 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
   }) => {
     if (!archiveTarget) return;
     setBusy(true);
+    setActionError(null);
     try {
       await archiveDossier(archiveTarget.id, meta);
       refetch();
@@ -166,7 +193,23 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
       setArchiveTarget(null);
       if (view.mode === 'edit') setView({ mode: 'list' });
     } catch {
-      setStatus('error');
+      setArchiveTarget(null);
+      setActionError('Archiveren is mislukt. Probeer het opnieuw.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUnarchive = async (d: AdminDossier) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await unarchiveDossier(d.id);
+      refetch();
+      syncCockpit();
+      if (view.mode === 'edit') setView({ mode: 'list' });
+    } catch {
+      setActionError('Dearchiveren is mislukt. Probeer het opnieuw.');
     } finally {
       setBusy(false);
     }
@@ -175,6 +218,7 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setBusy(true);
+    setActionError(null);
     try {
       await deleteDossier(deleteTarget.id);
       refetch();
@@ -182,7 +226,8 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
       setDeleteTarget(null);
       if (view.mode === 'edit') setView({ mode: 'list' });
     } catch {
-      setStatus('error');
+      setDeleteTarget(null);
+      setActionError('Verwijderen is mislukt. Probeer het opnieuw.');
     } finally {
       setBusy(false);
     }
@@ -194,7 +239,7 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
       <TemplateGallery
         templates={templates}
         onPick={(tpl) => setView({ mode: 'edit', isNew: true, draft: draftFromTemplate(tpl) })}
-        onCancel={() => setView({ mode: 'list' })}
+        onCancel={goToOverview}
       />
     );
   }
@@ -218,8 +263,9 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
           currentUser={currentUser}
           busy={busy}
           onSave={handleSave}
-          onCancel={() => setView({ mode: 'list' })}
+          onCancel={goToOverview}
           onArchive={(dd) => setArchiveTarget(dd)}
+          onUnarchive={handleUnarchive}
           onDelete={(dd) => setDeleteTarget(dd)}
         />
         {archiveTarget && (
@@ -256,6 +302,7 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
     can,
     onEdit: (d: AdminDossier) => setView({ mode: 'edit', isNew: false, id: d.id }),
     onArchive: (d: AdminDossier) => setArchiveTarget(d),
+    onUnarchive: handleUnarchive,
     onDelete: (d: AdminDossier) => setDeleteTarget(d),
   };
 
@@ -349,7 +396,7 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
           type="button"
           className="pac-btn-primary"
           disabled={!can.create}
-          onClick={() => setView({ mode: 'template' })}
+          onClick={startCreateFlow}
         >
           + Nieuw dossier
         </button>
@@ -360,6 +407,15 @@ export default function Dossierbeheer({ user, startCreate = false }: Props) {
           Beheerd via <code>POST/PATCH/DELETE /pa/dossiers</code>.
         </span>
       </div>
+
+      {actionError && (
+        <div className="pac-db-actionerror">
+          <span>⚠ {actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} aria-label="Sluiten">
+            ✕
+          </button>
+        </div>
+      )}
 
       {status === 'loading' && <div className="pac-db-empty">Dossiers laden…</div>}
       {status === 'error' && (
