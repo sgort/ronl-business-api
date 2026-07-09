@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AuthCallback from './pages/AuthCallback';
-import CaseworkerDashboard from './pages/CaseworkerDashboard';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
+import PADashboardV2 from './pages/PADashboardV2';
+import InfraBoardDashboard from './pages/InfraBoardDashboard';
+import WooDashboard from './pages/WooDashboard';
 import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
 import keycloak from './services/keycloak';
@@ -57,8 +59,16 @@ function App() {
         />
 
         {/* Caseworker portal is public — auth state is handled inside the component */}
-        <Route path="/dashboard/caseworker" element={<CaseworkerDashboard />} />
-        <Route path="/dashboard/caseworker/v2" element={<CaseworkerDashboardV2 />} />
+        <Route path="/dashboard/caseworker" element={<CaseworkerDashboardV2 />} />
+
+        {/* PA cockpit — public route; role gate lives inside the component */}
+        <Route path="/dashboard/public-affairs" element={<PADashboardV2 />} />
+
+        {/* Infra project-board — public route; role gate (infra-projectteam) lives inside */}
+        <Route path="/dashboard/infra-board" element={<InfraBoardDashboard />} />
+
+        {/* Woo-dashboard — public route; role gate (woo-coordinatie) lives inside */}
+        <Route path="/dashboard/woo" element={<WooDashboard />} />
 
         {/* Legacy /dashboard redirect — role-based, falls through to ProtectedRoute logic */}
         <Route

@@ -1,4 +1,7 @@
 #!/bin/sh
+echo "🔨 Building shared package..."
+npm run build --workspace=@ronl/shared
+
 echo "🔍 Running type checks..."
 npm run type-check
 

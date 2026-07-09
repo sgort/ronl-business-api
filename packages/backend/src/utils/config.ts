@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { parseEnvArray, parseEnvInt, parseEnvBool } from './env';
 
 // Load environment-specific .env file
 const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
@@ -110,22 +111,22 @@ interface Config {
     enabled: boolean;
     databaseUrl: string;
   };
-}
-
-function parseEnvArray(value: string | undefined, defaultValue: string[]): string[] {
-  if (!value) return defaultValue;
-  return value.split(',').map((s) => s.trim());
-}
-
-function parseEnvInt(value: string | undefined, defaultValue: number): number {
-  if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? defaultValue : parsed;
-}
-
-function parseEnvBool(value: string | undefined, defaultValue: boolean): boolean {
-  if (!value) return defaultValue;
-  return value.toLowerCase() === 'true';
+  altcha: {
+    hmacKey: string;
+  };
+  pa: {
+    tkApiBase: string;
+    euApiBase: string;
+    euSourceEnabled: boolean;
+    epTextsSubmittedEnabled: boolean;
+    mediaSourceEnabled: boolean;
+    mediaAggregatorBase: string;
+    mediaAggregatorApiKey: string;
+    cacheTtlTk: number;
+    cacheTtlAgenda: number;
+    cacheTtlStatic: number;
+    useMock: boolean;
+  };
 }
 
 export const config: Config = {
@@ -254,6 +255,24 @@ export const config: Config = {
     baseUrl: process.env.GITLAB_BASE_URL || 'https://git.open-regels.nl',
     projectPath: process.env.GITLAB_PROJECT_PATH || 'showcases%2Fiou-architectuur',
     ucLabel: process.env.GITLAB_UC_LABEL || 'uc::submitted',
+  },
+
+  altcha: {
+    hmacKey: process.env.ALTCHA_HMAC_KEY || '',
+  },
+
+  pa: {
+    tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v5',
+    euApiBase: process.env.EU_API_BASE || 'https://data.europarl.europa.eu/api/v2',
+    euSourceEnabled: parseEnvBool(process.env.EU_SOURCE_ENABLED, true),
+    epTextsSubmittedEnabled: parseEnvBool(process.env.EP_TEXTS_SUBMITTED_ENABLED, true),
+    mediaSourceEnabled: parseEnvBool(process.env.MEDIA_SOURCE_ENABLED, false),
+    mediaAggregatorBase: process.env.MEDIA_AGGREGATOR_BASE || '',
+    mediaAggregatorApiKey: process.env.MEDIA_AGGREGATOR_API_KEY || '',
+    cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
+    cacheTtlAgenda: parseEnvInt(process.env.CACHE_TTL_AGENDA, 1800),
+    cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
+    useMock: parseEnvBool(process.env.PA_USE_MOCK, false),
   },
 };
 

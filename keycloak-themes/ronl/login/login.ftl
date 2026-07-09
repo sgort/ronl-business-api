@@ -1,5 +1,6 @@
 <#import "template.ftl" as layout>
 <#assign isMedewerker = (login.username!'') == '__medewerker__'>
+<#assign hasPrefill = (!isMedewerker) && login.username?has_content>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled??; section>
     <#if section = "header">
         <#if isMedewerker>Medewerker portaal<#else>${msg("loginAccountTitle")}</#if>
@@ -32,7 +33,7 @@
                         <#-- For medewerker, suppress the sentinel '__medewerker__' from pre-filling the field -->
                         <input tabindex="1" id="username" class="${properties.kcInputClass!}" name="username"
                                value="<#if !isMedewerker>${(login.username!'')}</#if>"
-                               type="text" autofocus autocomplete="off"
+                               type="text" <#if !hasPrefill>autofocus</#if> autocomplete="off"
                                aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         />
 
@@ -49,7 +50,7 @@
                     <label for="password" class="${properties.kcLabelClass!}">${msg("password")}</label>
 
                     <div class="${properties.kcInputGroup!}">
-                        <input tabindex="2" id="password" class="${properties.kcInputClass!}" name="password" type="password" autocomplete="off"
+                        <input tabindex="2" id="password" class="${properties.kcInputClass!}" name="password" type="password" <#if hasPrefill>autofocus</#if> autocomplete="off"
                                aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         />
                         <button class="${properties.kcFormPasswordVisibilityButtonClass!}" type="button" aria-label="${msg('showPassword')}"

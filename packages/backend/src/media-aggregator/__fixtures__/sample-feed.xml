@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Regional Feed</title>
+    <item>
+      <title>Provinciebestuur onder druk na uitstel luchthavenbesluit Lelystad</title>
+      <link>https://www.omroepflevoland.nl/nieuws/2026/luchthavenbesluit-uitstel</link>
+      <description><![CDATA[Het provinciebestuur van Flevoland staat onder druk nadat het kabinet het luchthavenbesluit voor Lelystad Airport opnieuw heeft uitgesteld.]]></description>
+      <pubDate>Fri, 03 Jul 2026 09:12:00 +0200</pubDate>
+      <guid>https://www.omroepflevoland.nl/nieuws/2026/luchthavenbesluit-uitstel</guid>
+    </item>
+    <item>
+      <title>Kabinet presenteert nieuw stikstofkader voor provincies</title>
+      <link>https://www.nu.nl/politiek/2026/stikstofkader-provincies</link>
+      <description>Het nieuwe reductiekader raakt onder meer de gebiedsprocessen in Flevoland en Overijssel.</description>
+      <pubDate>Fri, 03 Jul 2026 07:40:00 +0200</pubDate>
+      <guid>https://www.nu.nl/politiek/2026/stikstofkader-provincies</guid>
+    </item>
+    <item>
+      <title>Kabinet presenteert nieuw stikstofkader voor provincies</title>
+      <link>https://feeds.nos.nl/2026/stikstofkader</link>
+      <description>Het reductiekader raakt de gebiedsprocessen in onder meer Flevoland.</description>
+      <pubDate>Fri, 03 Jul 2026 07:55:00 +0200</pubDate>
+      <guid>https://feeds.nos.nl/2026/stikstofkader</guid>
+    </item>
+    <item>
+      <title>Netcongestie remt bedrijventerrein in Almere</title>
+      <link>https://www.nu.nl/economie/2026/netcongestie-almere</link>
+      <description>Door netcapaciteitsproblemen kan een bedrijventerrein in Almere niet uitbreiden.</description>
+      <pubDate>Thu, 02 Jul 2026 16:20:00 +0200</pubDate>
+      <guid>https://www.nu.nl/economie/2026/netcongestie-almere</guid>
+    </item>
+    <item>
+      <title>Woningbouwakkoord getekend in Groningen</title>
+      <link>https://www.nu.nl/wonen/2026/woningbouw-groningen</link>
+      <description>Een akkoord over woningbouw in de stad Groningen, zonder betrokkenheid van andere provincies.</description>
+      <pubDate>Thu, 02 Jul 2026 11:05:00 +0200</pubDate>
+      <guid>https://www.nu.nl/wonen/2026/woningbouw-groningen</guid>
+    </item>
+    <item>
+      <title></title>
+      <link>https://example.com/malformed</link>
+      <description>Item without a title — must be skipped, not thrown.</description>
+      <pubDate>Thu, 02 Jul 2026 10:00:00 +0200</pubDate>
+      <guid>https://example.com/malformed</guid>
+    </item>
+  </channel>
+</rss>

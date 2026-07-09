@@ -46,6 +46,7 @@ const SERVICE_LABELS: Record<string, { label: string; description: string; icon:
 const PROCESS_DEFINITION_LABELS: Record<string, string> = {
   AwbShellProcess: 'Kapvergunning aanvragen',
   AwbZorgtoeslagProcess: 'Zorgtoeslag aanvragen',
+  ThuisbatterijSubsidieAanvraagProcess: 'Thuisbatterij subsidie aanvragen',
 };
 
 function VergunningForm({
@@ -124,6 +125,91 @@ function VergunningForm({
           initialData={{
             applicantId: user?.sub ?? 'unknown',
             productType: 'TreeFellingPermit',
+          }}
+          onStarted={(dossier) => setSuccess({ dossier })}
+          onError={() => setError(true)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SubsidieForm({
+  user,
+  onBack,
+  onSubmitted,
+}: {
+  user: KeycloakUser | null;
+  onBack: () => void;
+  onSubmitted: () => void;
+}) {
+  const [success, setSuccess] = useState<{ dossier: string } | null>(null);
+  const [error, setError] = useState(false);
+
+  if (success) {
+    return (
+      <div>
+        <button
+          onClick={onBack}
+          className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+        >
+          ← Terug naar diensten
+        </button>
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
+          <div className="text-5xl mb-4">✅</div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Aanvraag ingediend</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Uw aanvraag voor thuisbatterij subsidie is ontvangen en wordt behandeld.
+          </p>
+          <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+            <p className="text-sm font-medium text-gray-700">
+              Dossiernummer: <span className="font-mono">{success.dossier}</span>
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              U ontvangt bericht zodra de aanvraag is beoordeeld (wettelijke termijn: 8 weken, Awb
+              4:13).
+            </p>
+          </div>
+          <button
+            onClick={onSubmitted}
+            className="w-full py-3 text-white font-semibold rounded-lg transition-opacity"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Naar mijn aanvragen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+      >
+        ← Terug naar diensten
+      </button>
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl">🔋</span>
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Thuisbatterij subsidie aanvragen</h2>
+            <p className="text-sm text-gray-500">
+              Vraag subsidie aan voor de aanschaf en installatie van een thuisbatterij.
+            </p>
+          </div>
+        </div>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            De aanvraag kon niet worden ingediend. Probeer het opnieuw.
+          </div>
+        )}
+        <ProcessStartFormViewer
+          processKey="ThuisbatterijSubsidieAanvraagProcess"
+          initialData={{
+            applicantId: user?.sub ?? 'unknown',
+            productType: 'ThuisbatterijSubsidie',
           }}
           onStarted={(dossier) => setSuccess({ dossier })}
           onError={() => setError(true)}
@@ -714,10 +800,25 @@ export default function Dashboard() {
           />
         )}
 
+        {/* ── Subsidies service (Thuisbatterij) ── */}
+        {activeTab === 'diensten' && activeService === 'subsidies' && (
+          <SubsidieForm
+            user={user}
+            onBack={() => {
+              setActiveService(null);
+            }}
+            onSubmitted={() => {
+              setActiveService(null);
+              setActiveTab('aanvragen');
+              setApplications(null);
+            }}
+          />
+        )}
+
         {/* ── Other services (stub) ── */}
         {activeTab === 'diensten' &&
           activeService &&
-          !['zorgtoeslag', 'vergunningen'].includes(activeService) && (
+          !['zorgtoeslag', 'vergunningen', 'subsidies'].includes(activeService) && (
             <div>
               <button
                 onClick={() => setActiveService(null)}

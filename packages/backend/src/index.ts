@@ -26,6 +26,10 @@ import { llmRegistry } from '@services/llm/LlmRegistry';
 import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
 import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
 import { initDb } from '@services/audit.service';
+import { initPaDb } from './pa-monitoring/pa-monitoring.db';
+import { runCurationCycle } from './pa-monitoring/curation.service';
+import paRoutes from './pa-monitoring/pa.routes';
+import mediaAggregatorRoutes from './media-aggregator/media-aggregator.routes';
 import adminRoutes from '@routes/admin.routes';
 import m2mRoutes from './routes/m2m.routes';
 import mcpRoutes from './routes/mcp.routes';
@@ -65,7 +69,7 @@ app.use(
   cors({
     origin: config.corsOrigin,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
   })
 );
@@ -134,6 +138,11 @@ app.get('/', (req: Request, res: Response) => {
       public: '/v1/public',
       hr: '/v1/hr',
       hrCapacity: '/v1/hr-capacity',
+      curator: '/v1/pa',
+      mediaAggregator: '/v1/media-aggregator',
+      admin: '/v1/admin',
+      m2m: '/v1/m2m',
+      mcp: '/v1/mcp',
     },
     security: {
       authentication: 'JWT (Keycloak)',
@@ -154,6 +163,8 @@ app.use('/v1/hr', hrRoutes);
 app.use('/v1/hr-capacity', capacityRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
+app.use('/v1/pa', paRoutes);
+app.use('/v1/media-aggregator', mediaAggregatorRoutes);
 app.use('/v1/admin', adminRoutes);
 app.use('/v1/m2m', m2mRoutes);
 app.use('/v1/mcp', mcpRoutes);
@@ -207,6 +218,25 @@ const startServer = async () => {
   const host = config.host;
 
   await initDb();
+  await initPaDb();
+  void runCurationCycle().catch((err) =>
+    appLogger.error('Startup curation cycle failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  );
+
+  // Periodic curation refresh — picks up new EP teksten, TK, and OB candidates.
+  // EP teksten fetch is gated inside runCurationCycle on epTextsSubmittedEnabled.
+  setInterval(
+    () => {
+      void runCurationCycle().catch((err) =>
+        appLogger.error('Periodic curation cycle failed', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    },
+    6 * 60 * 60 * 1000
+  );
 
   externalTaskWorker.start();
 

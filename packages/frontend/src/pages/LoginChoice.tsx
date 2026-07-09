@@ -1,170 +1,162 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import ChangelogPanel from './ChangelogPanel';
+import { BOARDS } from './login-choice/boards.config';
+import BoardCard from '../components/LoginChoice/BoardCard';
+import './login-choice/login-portal.css';
+
+const POST_LOGIN_KEY = 'post_login_redirect';
 
 export default function LoginChoice() {
   const navigate = useNavigate();
   const [changelogOpen, setChangelogOpen] = useState(false);
 
-  const handleIDPSelection = (idp: 'digid' | 'eherkenning' | 'eidas' | 'medewerker') => {
-    sessionStorage.setItem('selected_idp', idp);
+  function startMedewerkerLogin(target?: string, usernameHint?: string) {
+    try {
+      if (target) sessionStorage.setItem(POST_LOGIN_KEY, target);
+      if (usernameHint) sessionStorage.setItem('username_hint', usernameHint);
+      sessionStorage.setItem('selected_idp', 'medewerker');
+    } catch {
+      /* sessionStorage unavailable — AuthCallback still defaults sensibly */
+    }
     navigate('/auth');
-  };
+  }
+
+  function startCitizenLogin(idp: 'digid' | 'eherkenning' | 'eidas') {
+    try {
+      sessionStorage.setItem('selected_idp', idp);
+    } catch {
+      /* non-fatal */
+    }
+    navigate('/auth');
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4 relative">
-      {/* Changelog Toggle Button */}
-      <button
-        onClick={() => setChangelogOpen(true)}
-        className="fixed top-4 right-4 z-30 flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg shadow-md hover:shadow-lg transition-all hover:bg-blue-50 border border-blue-200"
-        aria-label="Open changelog"
-      >
-        <span className="text-xl">📋</span>
-        <span className="font-semibold text-sm hidden sm:inline">Changelog</span>
-      </button>
+    <div className="lcp">
+      <header className="topbar">
+        <span className="brand">
+          <span className="word">
+            ronl<b>.</b>
+          </span>
+          <span className="sub">WERKOMGEVING</span>
+        </span>
+        <button type="button" className="login-link" onClick={() => startMedewerkerLogin()}>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
+          </svg>
+          Inloggen
+        </button>
+        <button type="button" className="citizen-link" onClick={() => startCitizenLogin('digid')}>
+          Inwoner? Log in met DigiD
+        </button>
+        <span className="tenant">
+          Provincie
+          <br />
+          Flevoland
+        </span>
+      </header>
 
-      {/* Main Card */}
-      <div className="w-full max-w-md">
-        {/* Header Card */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl p-8 text-white text-center shadow-lg">
-          <h1 className="text-3xl font-bold mb-2">MijnOmgeving</h1>
-          <p className="text-blue-100">Demo portaal van Open Regels</p>
+      <main className="wrap">
+        <section className="hero">
+          <p className="eyebrow">Eén werkomgeving · Provincie Flevoland</p>
+          <h1>Vier borden voor het werk van de provincie.</h1>
+          <p>
+            ronl. brengt het dagelijkse werk samen in overzichtelijke borden — van zaakbehandeling
+            tot bestuurlijke afstemming, projectsturing en Woo-verantwoording. Log in met uw
+            medewerkersaccount om het bord te openen dat bij uw rol hoort.
+          </p>
+          <div className="hero-actions">
+            <a className="btn-primary" href="#boards">
+              Bekijk de borden
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </a>
+            <span className="hero-note">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Inloggen vereist via medewerkersaccount
+            </span>
+          </div>
+        </section>
+
+        <div className="section-head" id="boards">
+          <h2>Beschikbare borden</h2>
+          <span className="count">{BOARDS.length} borden · allemaal beschikbaar</span>
         </div>
 
-        {/* Content Card */}
-        <div className="bg-white rounded-b-2xl shadow-xl p-8">
-          {/* Welcome Text */}
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welkom</h2>
-            <p className="text-gray-600">Kies hoe u wilt inloggen:</p>
-          </div>
+        <section className="boards">
+          {BOARDS.map((board) => (
+            <BoardCard
+              key={board.id}
+              board={board}
+              onOpen={() => startMedewerkerLogin(board.route, board.testUser)}
+            />
+          ))}
+        </section>
 
-          {/* Citizen IDP Buttons */}
-          <div className="space-y-4">
-            {/* DigiD Button */}
-            <button
-              onClick={() => handleIDPSelection('digid')}
-              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-                  </svg>
-                </div>
-                <span className="font-semibold text-lg">Inloggen met DigiD</span>
-              </div>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-
-            {/* eHerkenning Button */}
-            <button
-              onClick={() => handleIDPSelection('eherkenning')}
-              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                  </svg>
-                </div>
-                <span className="font-semibold text-lg">Inloggen met eHerkenning</span>
-              </div>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-
-            {/* eIDAS Button */}
-            <button
-              onClick={() => handleIDPSelection('eidas')}
-              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <span className="font-semibold text-lg">Inloggen met eIDAS</span>
-              </div>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="mt-6 flex items-center gap-3">
-            <div className="flex-1 border-t border-gray-200" />
-            <span className="text-xs text-gray-400 font-medium">MEDEWERKERS</span>
-            <div className="flex-1 border-t border-gray-200" />
-          </div>
-
-          {/* Caseworker Button */}
-          <div className="mt-4">
-            <button
-              onClick={() => handleIDPSelection('medewerker')}
-              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
-                      clipRule="evenodd"
-                    />
-                    <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
-                  </svg>
-                </div>
-                <span className="font-semibold text-lg">Inloggen als Medewerker</span>
-              </div>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Footer Note */}
-          <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-500">U wordt veilig doorverwezen naar de inlogpagina</p>
-          </div>
+        <div className="access">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>
+            <b>Toegang op rol.</b> Welke borden u ziet na inloggen hangt af van uw rol en
+            machtigingen binnen de provincie. Heeft u nog geen toegang? Neem contact op met uw
+            functioneel beheerder.
+          </span>
         </div>
 
-        {/* Municipality Footer */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">Gemeente Utrecht, Amsterdam, Rotterdam, Den Haag</p>
-        </div>
-      </div>
+        <footer>
+          <span>© Provincie Flevoland · ronl. werkomgeving</span>
+          <button type="button" className="changelog-link" onClick={() => setChangelogOpen(true)}>
+            Changelog
+          </button>
+        </footer>
+      </main>
 
-      {/* Changelog Panel */}
       <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
     </div>
   );

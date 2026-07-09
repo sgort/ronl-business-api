@@ -17,6 +17,16 @@ export default tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+    // Test files
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts'],
+
+    rules: {
+      // Tests frequently use ! after explicit setup/assertions.
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  
   {
     ignores: ['dist/', 'deploy/', 'node_modules/', 'coverage/', '*.js', '*.mjs'],
   }

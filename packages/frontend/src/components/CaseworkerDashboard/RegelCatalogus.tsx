@@ -90,9 +90,9 @@ export default function RegelCatalogus() {
         {TABS.map((tab) => {
           const count =
             tab.id === 'organisaties'
-              ? data.services.length
+              ? data.organizations.length
               : tab.id === 'diensten'
-                ? data.organizations.length
+                ? data.services.length
                 : tab.id === 'concepten'
                   ? data.concepts.length
                   : data.rules.length;
@@ -232,6 +232,18 @@ function OrganisatiesTab({ organizations }: { organizations: CatalogOrganization
   );
 }
 
+function withWww(url: string): string {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.startsWith('www.')) {
+      u.hostname = `www.${u.hostname}`;
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 function OrgCard({ org }: { org: CatalogOrganization }) {
   const [imgError, setImgError] = useState(false);
   const initials = org.name
@@ -260,12 +272,12 @@ function OrgCard({ org }: { org: CatalogOrganization }) {
           <p className="font-semibold text-gray-800 text-sm leading-snug truncate">{org.name}</p>
           {org.homepage && (
             <a
-              href={org.homepage}
+              href={withWww(org.homepage)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-blue-600 hover:underline truncate block"
             >
-              {org.homepage.replace(/^https?:\/\//, '')}
+              {withWww(org.homepage).replace(/^https?:\/\//, '')}
             </a>
           )}
         </div>

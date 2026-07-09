@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 import { businessApi } from '../../services/api';
+import ProcessStepsTimeline from './ProcessStepsTimeline';
 
 // ── Types (mirrored from DecisionViewer) ─────────────────────────────────────
 
@@ -201,6 +202,28 @@ function DocumentSection({
   );
 }
 
+// ── Process steps section (collapsible, mirrors DocumentSection chrome) ───────
+
+function StepsSection({ instanceId }: { instanceId: string }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+      >
+        <span className="text-sm font-medium text-gray-700">Processtappen</span>
+        <span className="text-xs text-gray-400">{open ? '▲ Verbergen' : '▼ Tonen'}</span>
+      </button>
+      {open && (
+        <div className="bg-white p-5">
+          <ProcessStepsTimeline instanceId={instanceId} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface RipFase1WipViewerProps {
@@ -254,6 +277,7 @@ export default function RipFase1WipViewer({ instanceId }: RipFase1WipViewerProps
         template={data.pdp}
         vars={data.variables}
       />
+      <StepsSection instanceId={instanceId} />
     </div>
   );
 }

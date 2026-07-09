@@ -5,6 +5,24 @@ export interface LlmModelMeta {
   displayName: string;
 }
 
+/**
+ * Error carrying a user-facing (Dutch) message plus a stable `code` the
+ * frontend can switch on to pick an icon/badge. Providers translate raw SDK
+ * errors (e.g. a 404 for a retired model) into this so the UI never shows the
+ * raw provider payload.
+ */
+export class LlmError extends Error {
+  constructor(
+    readonly code: string,
+    readonly userMessage: string,
+    cause?: unknown
+  ) {
+    super(userMessage);
+    this.name = 'LlmError';
+    if (cause instanceof Error) this.cause = cause;
+  }
+}
+
 export interface LlmProviderMeta {
   id: string;
   displayName: string;

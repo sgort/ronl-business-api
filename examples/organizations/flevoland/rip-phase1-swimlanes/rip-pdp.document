@@ -1,0 +1,251 @@
+{
+  "id": "rip-pdp",
+  "name": "RIP — Preliminary Design Principles (Column 4)",
+  "description": "Principles of the preliminary design phase. Requires approval from contributor and official client before the preliminary design phase begins.",
+  "processKey": "RipPhase1Process",
+  "serviceId": "RipPhase1",
+  "schemaVersion": 1,
+  "readonly": false,
+  "status": "wip",
+  "createdAt": "2026-03-13T00:00:00.000Z",
+  "updatedAt": "2026-03-13T00:00:00.000Z",
+  "assets": [],
+  "bindings": [
+    { "id": "b1", "placeholder": "{{projectNumber}}",      "variableKey": "projectNumber",      "source": "process", "label": "Project number" },
+    { "id": "b2", "placeholder": "{{projectName}}",        "variableKey": "projectName",        "source": "process", "label": "Project name" },
+    { "id": "b3", "placeholder": "{{projectType}}",        "variableKey": "projectType",        "source": "process", "label": "Project type" },
+    { "id": "b4", "placeholder": "{{department}}",         "variableKey": "department",         "source": "process", "label": "Department" },
+    { "id": "b5", "placeholder": "{{contributorId}}",      "variableKey": "contributorId",      "source": "process", "label": "Contributor" },
+    { "id": "b6", "placeholder": "{{clientId}}",           "variableKey": "clientId",           "source": "process", "label": "Official client" },
+    { "id": "b7", "placeholder": "{{confirmedScope}}",     "variableKey": "confirmedScope",     "source": "process", "label": "Confirmed scope" },
+    { "id": "b8", "placeholder": "{{confirmedBudget}}",    "variableKey": "confirmedBudget",    "source": "process", "label": "Confirmed budget" },
+    { "id": "b9", "placeholder": "{{confirmedTimeline}}",  "variableKey": "confirmedTimeline",  "source": "process", "label": "Confirmed timeline" },
+    { "id": "b10","placeholder": "{{riskFileReference}}",  "variableKey": "riskFileReference",  "source": "process", "label": "Risk dossier reference" },
+    { "id": "b11","placeholder": "{{pdpNotes}}",           "variableKey": "pdpNotes",           "source": "process", "label": "PDP notes" },
+    { "id": "b12","placeholder": "{{assignedRoles}}",      "variableKey": "assignedRoles",      "source": "dmn_output", "label": "Assigned roles" }
+  ],
+  "zones": {
+    "letterhead": {
+      "blocks": [
+        {
+          "id": "lh1",
+          "type": "text",
+          "label": "Organisation header",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 1 },
+                "content": [{ "type": "text", "text": "Province of Flevoland" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "Infrastructure — Regular Infrastructure Projects" }]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "reference": {
+      "blocks": [
+        {
+          "id": "ref1",
+          "type": "text",
+          "label": "Document reference",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project number: " },
+                  { "type": "text", "text": "{{projectNumber}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Document: " },
+                  { "type": "text", "text": "Preliminary Design Principles (Column 4)" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "body": {
+      "blocks": [
+        {
+          "id": "body1",
+          "type": "text",
+          "label": "Project identification",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "1. Project identification" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project: " },
+                  { "type": "text", "text": "{{projectName}} ({{projectNumber}})" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Type: " },
+                  { "type": "text", "text": "{{projectType}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Department: " },
+                  { "type": "text", "text": "{{department}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Contributor: " },
+                  { "type": "text", "text": "{{contributorId}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Official client: " },
+                  { "type": "text", "text": "{{clientId}}" }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body2",
+          "type": "text",
+          "label": "Starting points for preliminary design",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "2. Starting points for the preliminary design phase" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Scope: " },
+                  { "type": "text", "text": "{{confirmedScope}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Budget: " },
+                  { "type": "text", "text": "{{confirmedBudget}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Timeline: " },
+                  { "type": "text", "text": "{{confirmedTimeline}}" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Risk dossier (Relatics): " },
+                  { "type": "text", "text": "{{riskFileReference}}" }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "body3",
+          "type": "text",
+          "label": "Design principles and notes",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": "3. Design principles" }]
+              },
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "{{pdpNotes}}" }]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "closing": {
+      "blocks": [
+        {
+          "id": "cl1",
+          "type": "text",
+          "label": "Approval statement",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "The preliminary design principles have been reviewed and approved by the contributor and official client. The project may proceed to the preliminary design phase." }]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "signoff": {
+      "blocks": [
+        {
+          "id": "so1",
+          "type": "text",
+          "label": "Signatures",
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Project manager: " },
+                  { "type": "text", "text": "___________________________" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Contributor: " },
+                  { "type": "text", "text": "___________________________" }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "marks": [{ "type": "bold" }], "text": "Official client: " },
+                  { "type": "text", "text": "___________________________" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "contactInfo": { "blocks": [] },
+    "annex": { "blocks": [] }
+  }
+}

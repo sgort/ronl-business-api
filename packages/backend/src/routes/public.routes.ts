@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { createChallenge, verifySolution } from '@utils/altcha';
 import { createLogger } from '@utils/logger';
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
@@ -8,6 +9,7 @@ import { config } from '@utils/config';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
 import multer from 'multer';
 import FormData from 'form-data';
+import rateLimit from 'express-rate-limit';
 
 // Used by /feedback — images only
 const upload = multer({
@@ -18,20 +20,121 @@ const upload = multer({
   },
 });
 
-// Used by /use-case — any file type (PDF, Word, diagrams, etc.)
+// Allowed MIME types for use-case attachments (documents, images, diagrams)
+const ALLOWED_UPLOAD_MIMETYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'application/pdf',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/xml',
+  'text/xml',
+]);
+const ALLOWED_UPLOAD_EXTENSIONS = /\.(jpe?g|png|gif|webp|svg|pdf|txt|docx?|odt|xlsx?|xml)$/i;
+
+// Used by /upload-file — document/image types only (no executables, scripts, or HTML)
 const uploadAny = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => {
+    const mimeOk = ALLOWED_UPLOAD_MIMETYPES.has(file.mimetype);
+    const extOk = ALLOWED_UPLOAD_EXTENSIONS.test(file.originalname);
+    cb(null, mimeOk && extOk);
+  },
+});
+
+// Strict rate limiter for unauthenticated write endpoints that touch GitLab
+const publicWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many submissions, please try again later.',
+    },
+  },
+  keyGenerator: (req) => req.ip || 'unknown',
 });
 
 const router = Router();
 const logger = createLogger('public-routes');
+
+async function verifyAltcha(req: Request, res: Response, next: NextFunction) {
+  if (!config.altcha.hmacKey) {
+    next();
+    return;
+  }
+  const token = (req.body as Record<string, string>)?.altcha;
+  if (!token) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'ALTCHA_MISSING', message: 'ALTCHA verification is required.' },
+    });
+    return;
+  }
+  try {
+    const ok = await verifySolution(token, config.altcha.hmacKey, true);
+    if (!ok) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'ALTCHA_INVALID', message: 'ALTCHA verification failed.' },
+      });
+      return;
+    }
+    next();
+  } catch {
+    res.status(400).json({
+      success: false,
+      error: { code: 'ALTCHA_ERROR', message: 'ALTCHA verification error.' },
+    });
+  }
+}
 
 function meta() {
   return {
     generatedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * GET /v1/public/altcha/challenge
+ * Issues a fresh proof-of-work challenge for ALTCHA widget on public write forms.
+ * No authentication required.
+ */
+router.get('/altcha/challenge', async (_req: Request, res: Response) => {
+  if (!config.altcha.hmacKey) {
+    res.status(503).json({
+      success: false,
+      error: { code: 'ALTCHA_NOT_CONFIGURED', message: 'ALTCHA is not configured.' },
+    });
+    return;
+  }
+  try {
+    const challenge = await createChallenge({
+      hmacKey: config.altcha.hmacKey,
+      algorithm: 'SHA-256',
+      maxNumber: 50000,
+      expires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+    res.json(challenge);
+  } catch (error) {
+    logger.error('Failed to create ALTCHA challenge', { error: String(error) });
+    res.status(500).json({
+      success: false,
+      error: { code: 'ALTCHA_ERROR', message: 'Could not generate challenge.' },
+    });
+  }
+});
 
 /**
  * GET /v1/public/nieuws
@@ -178,7 +281,7 @@ router.get('/regelcatalogus', async (_req: Request, res: Response) => {
  * Response 400: missing required fields
  * Response 502: GitLab API unreachable or rejected the request
  */
-router.post('/use-case', async (req: Request, res: Response) => {
+router.post('/use-case', publicWriteLimiter, verifyAltcha, async (req: Request, res: Response) => {
   const { title, description } = req.body as { title?: string; description?: string };
 
   if (!title?.trim() || !description?.trim()) {
@@ -262,45 +365,50 @@ router.post('/use-case', async (req: Request, res: Response) => {
  * Used by the use-case form to pre-upload attachments before JSON submission.
  * No authentication required.
  */
-router.post('/upload-file', uploadAny.single('file'), async (req: Request, res: Response) => {
-  const token = process.env.GITLAB_TOKEN;
-  const projectPath = process.env.GITLAB_PROJECT_PATH;
-  const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
+router.post(
+  '/upload-file',
+  publicWriteLimiter,
+  uploadAny.single('file'),
+  async (req: Request, res: Response) => {
+    const token = process.env.GITLAB_TOKEN;
+    const projectPath = process.env.GITLAB_PROJECT_PATH;
+    const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
 
-  if (!token || !projectPath) {
-    return res.status(503).json({
-      success: false,
-      error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
-    });
-  }
+    if (!token || !projectPath) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+      });
+    }
 
-  const file = req.file;
-  if (!file) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'NO_FILE', message: 'No file provided.' },
-    });
-  }
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'NO_FILE', message: 'No file provided.' },
+      });
+    }
 
-  try {
-    const form = new FormData();
-    form.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
-    const uploadRes = await axios.post(
-      `${gitlabBase}/api/v4/projects/${projectPath}/uploads`,
-      form,
-      { headers: { 'PRIVATE-TOKEN': token, ...form.getHeaders() }, timeout: 15_000 }
-    );
-    const { markdown } = uploadRes.data as { markdown: string };
-    return res.json({ success: true, data: { markdown } });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error('Failed to upload file to GitLab', { error: message });
-    return res.status(502).json({
-      success: false,
-      error: { code: 'GITLAB_UNREACHABLE', message: `Could not reach GitLab: ${message}` },
-    });
+    try {
+      const form = new FormData();
+      form.append('file', file.buffer, { filename: file.originalname, contentType: file.mimetype });
+      const uploadRes = await axios.post(
+        `${gitlabBase}/api/v4/projects/${projectPath}/uploads`,
+        form,
+        { headers: { 'PRIVATE-TOKEN': token, ...form.getHeaders() }, timeout: 15_000 }
+      );
+      const { markdown } = uploadRes.data as { markdown: string };
+      return res.json({ success: true, data: { markdown } });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to upload file to GitLab', { error: message });
+      return res.status(502).json({
+        success: false,
+        error: { code: 'GITLAB_UNREACHABLE', message: `Could not reach GitLab: ${message}` },
+      });
+    }
   }
-});
+);
 
 /**
  * GET /v1/public/use-cases
@@ -370,66 +478,73 @@ router.get('/use-cases', async (req: Request, res: Response) => {
  * Accepts multipart/form-data: { name, org, role, contact, description } + up to 5 image files.
  * No authentication required.
  */
-router.post('/feedback', upload.array('screenshots', 5), async (req: Request, res: Response) => {
-  const token = process.env.GITLAB_TOKEN;
-  const projectPath = process.env.GITLAB_PROJECT_PATH;
-  const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
+router.post(
+  '/feedback',
+  publicWriteLimiter,
+  upload.array('screenshots', 5),
+  verifyAltcha,
+  async (req: Request, res: Response) => {
+    const token = process.env.GITLAB_TOKEN;
+    const projectPath = process.env.GITLAB_PROJECT_PATH;
+    const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
 
-  if (!token || !projectPath) {
-    logger.error('GitLab env vars missing for feedback submission');
-    return res.status(503).json({
-      success: false,
-      error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
-    });
-  }
-
-  const { name, org, role, contact, description } = req.body as Record<string, string>;
-
-  if (!name?.trim() || !contact?.trim() || !description?.trim()) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'MISSING_FIELDS', message: 'name, contact, and description are required.' },
-    });
-  }
-
-  const axios = (await import('axios')).default;
-  const files = (req.files ?? []) as Express.Multer.File[];
-
-  try {
-    // ── Upload each screenshot to GitLab and collect markdown references ──
-    const imageMarkdown: string[] = [];
-    for (const file of files) {
-      const form = new FormData();
-      form.append('file', file.buffer, {
-        filename: file.originalname,
-        contentType: file.mimetype,
+    if (!token || !projectPath) {
+      logger.error('GitLab env vars missing for feedback submission');
+      return res.status(503).json({
+        success: false,
+        error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
       });
-      const uploadRes = await axios.post(
-        `${gitlabBase}/api/v4/projects/${projectPath}/uploads`,
-        form,
-        {
-          headers: {
-            'PRIVATE-TOKEN': token,
-            ...form.getHeaders(),
-          },
-          timeout: 15_000,
-        }
-      );
-      // GitLab returns { markdown: "![filename](/uploads/...)" }
-      imageMarkdown.push((uploadRes.data as { markdown: string }).markdown);
     }
 
-    // ── Build issue description ──
-    const today = new Date().toLocaleDateString('nl-NL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    const { name, org, role, contact, description } = req.body as Record<string, string>;
 
-    const screenshotsSection =
-      imageMarkdown.length > 0 ? `\n\n---\n\n## Screenshots\n\n${imageMarkdown.join('\n\n')}` : '';
+    if (!name?.trim() || !contact?.trim() || !description?.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_FIELDS', message: 'name, contact, and description are required.' },
+      });
+    }
 
-    const markdownBody = `## Indiener · Submitter
+    const axios = (await import('axios')).default;
+    const files = (req.files ?? []) as Express.Multer.File[];
+
+    try {
+      // ── Upload each screenshot to GitLab and collect markdown references ──
+      const imageMarkdown: string[] = [];
+      for (const file of files) {
+        const form = new FormData();
+        form.append('file', file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype,
+        });
+        const uploadRes = await axios.post(
+          `${gitlabBase}/api/v4/projects/${projectPath}/uploads`,
+          form,
+          {
+            headers: {
+              'PRIVATE-TOKEN': token,
+              ...form.getHeaders(),
+            },
+            timeout: 15_000,
+          }
+        );
+        // GitLab returns { markdown: "![filename](/uploads/...)" }
+        imageMarkdown.push((uploadRes.data as { markdown: string }).markdown);
+      }
+
+      // ── Build issue description ──
+      const today = new Date().toLocaleDateString('nl-NL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+
+      const screenshotsSection =
+        imageMarkdown.length > 0
+          ? `\n\n---\n\n## Screenshots\n\n${imageMarkdown.join('\n\n')}`
+          : '';
+
+      const markdownBody = `## Indiener · Submitter
 
 | Veld · Field | Waarde · Value |
 |---|---|
@@ -445,30 +560,31 @@ router.post('/feedback', upload.array('screenshots', 5), async (req: Request, re
 
 ${description.trim()}${screenshotsSection}`;
 
-    const issueRes = await axios.post(
-      `${gitlabBase}/api/v4/projects/${projectPath}/issues`,
-      {
-        title: `[Feedback] ${name.trim()}`,
-        description: markdownBody,
-        labels: 'Feedback',
-      },
-      {
-        headers: { 'PRIVATE-TOKEN': token },
-        timeout: 10_000,
-      }
-    );
+      const issueRes = await axios.post(
+        `${gitlabBase}/api/v4/projects/${projectPath}/issues`,
+        {
+          title: `[Feedback] ${name.trim()}`,
+          description: markdownBody,
+          labels: 'Feedback',
+        },
+        {
+          headers: { 'PRIVATE-TOKEN': token },
+          timeout: 10_000,
+        }
+      );
 
-    const { iid, web_url } = issueRes.data as { iid: number; web_url: string };
-    res.json({ success: true, data: { iid, web_url } });
-  } catch (error) {
-    logger.error('Failed to submit feedback', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).json({
-      success: false,
-      error: { code: 'FEEDBACK_SUBMIT_FAILED', message: 'Feedback kon niet worden ingediend.' },
-    });
+      const { iid, web_url } = issueRes.data as { iid: number; web_url: string };
+      res.json({ success: true, data: { iid, web_url } });
+    } catch (error) {
+      logger.error('Failed to submit feedback', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({
+        success: false,
+        error: { code: 'FEEDBACK_SUBMIT_FAILED', message: 'Feedback kon niet worden ingediend.' },
+      });
+    }
   }
-});
+);
 
 export default router;

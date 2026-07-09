@@ -21,19 +21,11 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import type { KeycloakUser, Task } from '@ronl/shared';
+import type { ActivityHistoryItem, KeycloakUser, Task } from '@ronl/shared';
 import { businessApi } from '../../services/api';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
-
-const EXCLUDED_VARS = [
-  'municipality',
-  'organisationType',
-  'initiator',
-  'applicantId',
-  'assuranceLevel',
-  'roleResult',
-  'routingResult',
-];
+import { activityTypeLabel, AUTOMATED_TYPES } from '../CaseworkerDashboard/processSteps';
+import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
 
 type FilterId = 'all' | 'overdue' | 'mine' | 'today' | 'week' | 'unassigned';
 
@@ -97,6 +89,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
   const [activeFilter, setActiveFilter] = useState<FilterId>(initialFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [taskVariables, setTaskVariables] = useState<Record<string, unknown> | null>(null);
+  const [activity, setActivity] = useState<ActivityHistoryItem[] | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [actionMessage, setActionMessage] = useState<{
@@ -164,11 +157,20 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
   const handleSelect = async (task: Task) => {
     setSelectedId(task.id);
     setTaskVariables(null);
+    setActivity(null);
     setActionMessage(null);
     setDetailLoading(true);
     try {
-      const res = await businessApi.task.variables(task.id);
-      if (res.success) setTaskVariables(res.data as Record<string, unknown>);
+      const [varsRes, activityRes] = await Promise.allSettled([
+        businessApi.task.variables(task.id),
+        businessApi.process.activityHistory(task.processInstanceId),
+      ]);
+      if (varsRes.status === 'fulfilled' && varsRes.value.success) {
+        setTaskVariables(varsRes.value.data as Record<string, unknown>);
+      }
+      if (activityRes.status === 'fulfilled' && activityRes.value.success) {
+        setActivity(activityRes.value.data as ActivityHistoryItem[]);
+      }
     } catch {
       /* non-critical */
     } finally {
@@ -325,27 +327,52 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
 
             <section className="v2-taken-section">
               <h3>Procesgegevens</h3>
+              <ProcessVarsSection variables={taskVariables} loading={detailLoading} />
+            </section>
+
+            <section className="v2-taken-section">
+              <h3>Processtappen</h3>
               {detailLoading ? (
                 <p className="v2-taken-state">Laden…</p>
-              ) : taskVariables && Object.keys(taskVariables).length > 0 ? (
-                <dl className="v2-taken-vars">
-                  {Object.entries(taskVariables)
-                    .filter(([k]) => !EXCLUDED_VARS.includes(k))
-                    .map(([k, v]) => (
-                      <div key={k}>
-                        <dt>{k}</dt>
-                        <dd>
-                          {v === null || v === undefined
-                            ? '—'
-                            : typeof v === 'object'
-                              ? JSON.stringify(v)
-                              : String(v)}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
+              ) : activity && activity.length > 0 ? (
+                <ol className="v2-taken-steps">
+                  {activity.map((a) => {
+                    const running = !a.endTime;
+                    const automated = AUTOMATED_TYPES.has(a.activityType);
+                    return (
+                      <li
+                        key={a.id}
+                        className={[
+                          'v2-taken-step',
+                          running ? 'running' : '',
+                          automated ? 'automated' : '',
+                          a.canceled ? 'canceled' : '',
+                        ].join(' ')}
+                      >
+                        <div className="v2-taken-step-row">
+                          <span className="v2-taken-step-name">
+                            {a.activityName ?? a.activityId}
+                          </span>
+                          <span className="v2-taken-step-type">
+                            {activityTypeLabel(a.activityType)}
+                          </span>
+                        </div>
+                        <div className="v2-taken-step-meta">
+                          <span>{new Date(a.startTime).toLocaleString('nl-NL')}</span>
+                          {running ? (
+                            <span className="v2-taken-step-status running">Loopt nog</span>
+                          ) : a.canceled ? (
+                            <span className="v2-taken-step-status canceled">Afgebroken</span>
+                          ) : (
+                            <span className="v2-taken-step-status done">Afgerond</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
               ) : (
-                <p className="v2-taken-state">Geen procesgegevens.</p>
+                <p className="v2-taken-state">Geen processtappen.</p>
               )}
             </section>
 
@@ -363,6 +390,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                     setActionMessage({ type: 'success', text: 'Taak voltooid.' });
                     setSelectedId(null);
                     setTaskVariables(null);
+                    setActivity(null);
                     loadTasks();
                   }}
                   onError={() => setActionMessage({ type: 'error', text: 'Opslaan mislukt.' })}

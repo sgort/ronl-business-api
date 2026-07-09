@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import AltchaWidget from '../AltchaWidget';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 const MAX_SCREENSHOTS = 5;
@@ -36,6 +37,7 @@ export default function IouFeedbackSection() {
   const [successData, setSuccessData] = useState<{ iid: number; web_url: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const [altchaPayload, setAltchaPayload] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -138,6 +140,7 @@ export default function IouFeedbackSection() {
     fd.append('role', form.role.trim());
     fd.append('contact', form.contact.trim());
     fd.append('description', form.description.trim());
+    fd.append('altcha', altchaPayload);
     screenshots.forEach((s) => fd.append('screenshots', s.file, s.file.name));
 
     try {
@@ -154,6 +157,7 @@ export default function IouFeedbackSection() {
       screenshots.forEach((s) => URL.revokeObjectURL(s.previewUrl));
       setForm(initialForm());
       setScreenshots([]);
+      setAltchaPayload('');
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
       setSubmitState('error');
@@ -335,6 +339,13 @@ export default function IouFeedbackSection() {
           <strong>❌ Indiening mislukt</strong> — {errorMessage}
         </div>
       )}
+
+      {/* ALTCHA */}
+      <AltchaWidget
+        challengeUrl={`${API_BASE_URL}/public/altcha/challenge`}
+        onVerify={setAltchaPayload}
+        onExpire={() => setAltchaPayload('')}
+      />
 
       {/* Submit */}
       <div className="flex items-center gap-4">

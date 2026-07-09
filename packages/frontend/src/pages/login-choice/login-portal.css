@@ -1,0 +1,518 @@
+/* Login portal — Provincie Flevoland board catalogue (unauthenticated /).
+   ALL selectors scoped under .lcp — nothing leaks into .cwd-v2 / .pac / .pbd
+   or the citizen Dashboard. */
+
+.lcp {
+  --blue:    #0046ad;
+  --blue-700:#033b8e;
+  --pink:    #e70077;
+  --amber:   #d98800;
+  --ink:     #0f172a;
+  --text:    #1f2937;
+  --muted:   #5b6472;
+  --line:    #e3e8ef;
+  --card:    #ffffff;
+
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: linear-gradient(180deg, #eef2f7 0%, #f6f8fb 38%, #f6f8fb 100%);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lcp *, .lcp *::before, .lcp *::after { box-sizing: border-box; }
+.lcp a { color: inherit; }
+
+/* ── Top bar ──────────────────────────────────────────────── */
+.lcp .topbar {
+  background: var(--blue);
+  color: #fff;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  gap: 18px;
+}
+
+.lcp .brand {
+  background: #fff;
+  border-radius: 4px;
+  padding: 8px 13px 7px;
+  line-height: 1;
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.lcp .brand .word {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 700;
+  font-size: 21px;
+  color: var(--blue);
+  letter-spacing: -0.01em;
+}
+
+.lcp .brand .word b { color: var(--pink); }
+
+.lcp .brand .sub {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.lcp .topbar .tenant {
+  margin-left: auto;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.92;
+}
+
+.lcp .topbar .login-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 8px 15px;
+  border-radius: 7px;
+  transition: background 0.15s ease;
+  text-decoration: none;
+}
+
+.lcp .topbar .login-link:hover { background: rgba(255, 255, 255, 0.22); }
+
+.lcp .topbar .citizen-link {
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.72);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.lcp .topbar .citizen-link:hover { color: #fff; }
+
+/* ── Page shell ───────────────────────────────────────────── */
+.lcp .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+/* ── Hero ─────────────────────────────────────────────────── */
+.lcp .hero { padding: 64px 0 30px; max-width: 720px; }
+
+.lcp .eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pink);
+  font-weight: 600;
+  margin: 0 0 18px;
+}
+
+.lcp .hero h1 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+
+.lcp .hero p {
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 26px;
+  max-width: 600px;
+  text-wrap: pretty;
+}
+
+.lcp .hero-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+.lcp .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 13px 22px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 70, 173, 0.22);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.lcp .btn-primary:hover { background: var(--blue-700); transform: translateY(-1px); }
+
+.lcp .hero-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lcp .hero-note svg { color: #8a93a3; }
+
+/* ── Boards section ───────────────────────────────────────── */
+.lcp .section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 50px 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.lcp .section-head h2 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0;
+}
+
+.lcp .section-head .count {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lcp .boards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 22px;
+  padding-bottom: 8px;
+}
+
+.lcp .card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+
+.lcp .card:hover {
+  box-shadow: 0 14px 30px -12px rgba(15, 23, 42, 0.22);
+  transform: translateY(-3px);
+  border-color: #d3dae4;
+}
+
+/* preview panel — recognisable mini of each board */
+.lcp .preview {
+  height: 152px;
+  padding: 18px;
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.lcp .preview .ptag {
+  position: absolute;
+  top: 13px;
+  left: 14px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  z-index: 2;
+}
+
+/* Caseworker — task rows */
+.lcp .pv-case { background: linear-gradient(160deg, #eef4fc 0%, #e3edfa 100%); }
+.lcp .pv-case .ptag { color: var(--blue); }
+
+.lcp .task-list {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.lcp .task-row {
+  background: #fff;
+  border: 1px solid #dde6f2;
+  border-left: 3px solid var(--blue);
+  border-radius: 5px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+}
+
+.lcp .task-row .bar { height: 5px; border-radius: 3px; background: #c7d3e6; }
+.lcp .task-row .chip { margin-left: auto; height: 10px; border-radius: 3px; }
+.lcp .task-row.late { border-left-color: var(--pink); }
+.lcp .task-row.late .chip { background: var(--pink); width: 26px; }
+.lcp .task-row .chip.open { background: #d7e0ee; width: 22px; }
+
+/* PA-Cockpit — kompas / radar */
+.lcp .pv-pa { background: linear-gradient(160deg, #fdeef5 0%, #fbe2ee 100%); }
+.lcp .pv-pa .ptag { color: var(--pink); }
+
+.lcp .radar {
+  position: absolute;
+  left: 50%; top: 54%;
+  transform: translate(-50%, -50%);
+  width: 110px; height: 110px;
+}
+
+.lcp .radar .ring {
+  position: absolute;
+  border: 1.5px solid rgba(231, 0, 119, 0.30);
+  border-radius: 50%;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.lcp .radar .ring.r1 { width: 110px; height: 110px; }
+.lcp .radar .ring.r2 { width: 74px;  height: 74px; }
+.lcp .radar .ring.r3 { width: 38px;  height: 38px; }
+
+.lcp .radar .spoke {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 1.5px; height: 55px;
+  background: rgba(231, 0, 119, 0.22);
+  transform-origin: top center;
+}
+
+.lcp .radar .blob {
+  position: absolute;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--pink);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px rgba(231, 0, 119, 0.18);
+}
+
+.lcp .radar .core {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 7px; height: 7px;
+  background: var(--pink);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Infra-board — phase swimlanes */
+.lcp .pv-infra { background: linear-gradient(160deg, #fef4e6 0%, #fbe9cf 100%); }
+.lcp .pv-infra .ptag { color: var(--amber); }
+
+.lcp .lanes {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 14px; top: 38px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+}
+
+.lcp .lane { display: flex; flex-direction: column; gap: 5px; }
+
+.lcp .lane .lh {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--amber);
+  opacity: 0.55;
+}
+
+.lcp .lane .pcard {
+  background: #fff;
+  border: 1px solid #ecdcc0;
+  border-radius: 4px;
+  height: 16px;
+  position: relative;
+}
+
+.lcp .lane .pcard::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 4px; bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--amber);
+}
+
+.lcp .lane .pcard.g::before { background: #1f9d57; }
+.lcp .lane .pcard.r::before { background: var(--pink); }
+
+/* Woo-dashboard — stoplicht KPI grid */
+.lcp .pv-woo { background: linear-gradient(160deg, #eef8ef 0%, #d9f0da 100%); }
+.lcp .pv-woo .ptag { color: #2d7a33; }
+.lcp .woo-mini {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 14px; top: 38px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-content: start;
+}
+.lcp .woo-kpi {
+  display: flex; align-items: center; gap: 6px;
+  background: #fff; padding: 6px 8px;
+}
+.lcp .woo-kpi .wlbl { font-size: 10px; color: #6b7280; flex: 1; }
+.lcp .woo-kpi b { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; color: #111827; }
+.lcp .wdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.lcp .wdot.groen { background: #3fa535; }
+.lcp .wdot.geel  { background: #e5b700; }
+.lcp .wdot.rood  { background: #b0103c; }
+.lcp .wdot.blauw { background: #0046ad; }
+
+/* card body */
+.lcp .body {
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.lcp .body .role {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+
+.lcp .body h3 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 9px;
+  letter-spacing: -0.01em;
+}
+
+.lcp .body .desc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0 0 16px;
+  flex: 1;
+  text-wrap: pretty;
+}
+
+.lcp .meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.lcp .avail {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+}
+
+.lcp .avail .led {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #1f9d57;
+  box-shadow: 0 0 0 3px rgba(31, 157, 87, 0.16);
+}
+
+.lcp .open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--blue);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: none;
+}
+
+.lcp .open-link svg { transition: transform 0.15s ease; }
+.lcp .card:hover .open-link svg { transform: translateX(3px); }
+
+/* ── Access note ──────────────────────────────────────────── */
+.lcp .access {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  background: #f0f4ff;
+  border: 1px solid #ccdafb;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 34px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #2f3b66;
+}
+
+.lcp .access svg { color: var(--blue); flex-shrink: 0; margin-top: 1px; }
+.lcp .access b { color: var(--ink); }
+
+/* ── Footer ───────────────────────────────────────────────── */
+.lcp footer {
+  margin-top: 46px;
+  border-top: 1px solid var(--line);
+  padding: 22px 0 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.lcp .changelog-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue);
+}
+
+.lcp .changelog-link:hover { text-decoration: underline; }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .lcp .boards { grid-template-columns: 1fr; }
+  .lcp .hero h1 { font-size: 34px; }
+  .lcp .hero { padding-top: 44px; }
+  .lcp .topbar .citizen-link { display: none; }
+}

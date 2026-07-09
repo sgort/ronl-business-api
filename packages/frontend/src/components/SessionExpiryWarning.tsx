@@ -30,7 +30,7 @@ export default function SessionExpiryWarning() {
   };
 
   const handleLogout = () => {
-    keycloak.logout();
+    keycloak.logout({ redirectUri: window.location.origin });
   };
 
   if (secondsLeft === null) return null;

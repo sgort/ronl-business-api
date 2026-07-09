@@ -1,0 +1,75 @@
+# .understandignore — patterns for files/dirs to exclude from analysis
+# Syntax: same as .gitignore (globs, # comments, ! negation, trailing / for dirs)
+# Lines below are suggestions — uncomment to activate.
+# Use ! prefix to force-include something excluded by defaults.
+#
+# Built-in defaults (always excluded unless negated):
+#   node_modules/, .git/, dist/, build/, obj/, *.lock, *.min.js, etc.
+#
+# --- From .gitignore (uncomment to exclude) ---
+
+# *.tsbuildinfo
+# packages/backend/deploy/node_modules/
+# packages/backend/deploy/dist/
+# packages/backend/deploy/package*.json
+# deploy/
+# deployment.zip
+# packages/backend/*.zip
+# .env
+# .env.local
+# .env.*.local
+# packages/backend/.env.development
+# .env.production
+# .env.acceptance
+# logs/
+# npm-debug.log*
+# yarn-debug.log*
+# yarn-error.log*
+# lerna-debug.log*
+# .nyc_output/
+# *.lcov
+# *.swp
+# *.swo
+# *.swn
+# .DS_Store
+# *.sublime-workspace
+# *.sublime-project
+# Thumbs.db
+# tmp/
+# temp/
+# *.tmp
+# docker-compose.override.yml
+# *.pem
+# *.key
+# *.cert
+# secrets/
+# *.db
+# *.sqlite
+# *.sqlite3
+# dump.rdb
+# .parcel-cache/
+# .nuxt/
+# flatten_directory.sh
+# flattened
+# deployment/vm/**/.env
+# deployment/vm/**/keycloak-passwords.txt
+# **/keycloak-passwords*.txt
+# deployment/vm/**/*.sql
+# deployment/vm/**/*.tar.gz
+# deployment/vm/**/backup/
+# deployment/vm/**/.DS_Store
+# deployment/vm/**/Thumbs.db
+# deploy-theme-to-*.sh
+# deploy-backend-to-*.sh
+
+# --- Detected directories (uncomment to exclude) ---
+
+# docs/
+# examples/
+# scripts/
+
+# --- Test file patterns (uncomment to exclude) ---
+
+# *.test.*
+# *.spec.*
+# *.snap

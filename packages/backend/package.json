@@ -1,6 +1,6 @@
 {
   "name": "@ronl/backend",
-  "version": "1.0.0",
+  "version": "3.7.3",
   "description": "Secure Business API layer for Dutch municipality BPMN services",
   "main": "dist/index.js",
   "scripts": {
@@ -34,12 +34,15 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@ronl/shared": "*",
+    "altcha-lib": "^2.2.0",
     "axios": "^1.6.5",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
+    "fast-xml-parser": "^5.9.3",
     "helmet": "^7.1.0",
     "ioredis": "^5.3.2",
     "jose": "^5.2.0",

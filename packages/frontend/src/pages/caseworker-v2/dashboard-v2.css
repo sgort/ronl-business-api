@@ -155,15 +155,6 @@
 .cwd-v2 .v2-login-btn:hover {
   background: rgba(255, 255, 255, 0.25);
 }
-.cwd-v2 .v2-classic-link {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: underline;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-}
 .cwd-v2 .v2-changelog-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -357,13 +348,11 @@
 
 /* ── Body grid ──────────────────────────────────────────── */
 .cwd-v2 .v2-body {
+  position: relative;
   display: grid;
   grid-template-columns: 240px 1fr;
   min-height: 0;
   background: var(--v2-paper);
-}
-.cwd-v2 .v2-body.v2-with-dock {
-  grid-template-columns: 240px 1fr 360px;
 }
 
 /* ── Left rail ──────────────────────────────────────────── */
@@ -661,11 +650,32 @@
 
 /* ── Assistant dock ─────────────────────────────────────── */
 .cwd-v2 .v2-dock {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
   border-left: 1px solid var(--v2-rule);
   background: var(--v2-bg);
+  box-shadow: -12px 0 32px rgba(15, 23, 42, 0.16);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  z-index: 30;
+}
+.cwd-v2 .v2-dock-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 31;
+  touch-action: none;
+}
+.cwd-v2 .v2-dock-resize:hover,
+.cwd-v2 .v2-dock-resize.dragging {
+  background: var(--v2-accent-50);
 }
 .cwd-v2 .v2-dock-head {
   padding: 14px 16px;
@@ -696,6 +706,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding: 16px 18px;
 }
 
 /* ── Taken inbox (3-pane) ───────────────────────────────── */
@@ -963,6 +974,56 @@
   color: var(--v2-ink);
   overflow-wrap: anywhere;
 }
+
+/* ── Process steps (activity history) ───────────────────── */
+.cwd-v2 .v2-taken-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid var(--v2-rule-2);
+}
+.cwd-v2 .v2-taken-step {
+  position: relative;
+  padding: 8px 14px 8px 20px;
+}
+.cwd-v2 .v2-taken-step::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 13px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--v2-ink-2);
+  border: 2px solid var(--v2-surface, #fff);
+}
+.cwd-v2 .v2-taken-step.automated::before { background: var(--v2-rule-2); }
+.cwd-v2 .v2-taken-step.running::before { background: var(--v2-accent); }
+.cwd-v2 .v2-taken-step.canceled::before { background: #d1d5db; }
+.cwd-v2 .v2-taken-step-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cwd-v2 .v2-taken-step-name { font-size: 13px; color: var(--v2-ink); white-space: pre-line; }
+.cwd-v2 .v2-taken-step.automated .v2-taken-step-name { color: var(--v2-ink-2); }
+.cwd-v2 .v2-taken-step-type {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--v2-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.cwd-v2 .v2-taken-step-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--v2-ink-2);
+}
+.cwd-v2 .v2-taken-step-status.running { color: var(--v2-accent); font-weight: 600; }
+.cwd-v2 .v2-taken-step-status.canceled { color: #9ca3af; }
 
 .cwd-v2 .v2-taken-msg {
   padding: 10px 14px;
