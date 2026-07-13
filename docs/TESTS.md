@@ -447,23 +447,41 @@ suite stays fast + infra-free precisely by keeping this separate. It never mutat
 anything — the eDOCS check is reach + login only (the mutating workspace/upload path
 stays in `scripts/test-edocs-live.sh`).
 
-The eDOCS reach/login check runs **in-process, without Keycloak**: it calls
-`EdocsService.healthCheck()` directly (via `packages/backend/scripts/edocs-healthcheck.ts`)
-rather than the JWT-gated `GET /v1/edocs/status` route. So it needs no `CLIENT_SECRET`
-and reflects the **local** `packages/backend/.env.<NODE_ENV>` config (independent of
-`TARGET`). For just that answer on its own: `cd packages/backend && npm run edocs:health`.
+eDOCS is checked **two ways on purpose**, because they answer different questions:
+
+- **1/2 — direct (Keycloak-free).** Runs `EdocsService.healthCheck()` in-process (via
+  `packages/backend/scripts/edocs-healthcheck.ts`), _not_ the HTTP route. Needs no
+  `CLIENT_SECRET` and no running backend; reflects the **local**
+  `packages/backend/.env.<NODE_ENV>` config, independent of `TARGET`. Always runs. On its
+  own: `cd packages/backend && npm run edocs:health`.
+- **2/2 — JWT-gated.** Asks the **running backend** via `GET /v1/edocs/status` (behind the
+  JWT gate, so it needs a Keycloak token). Reflects the backend **process's** config and
+  exercises the full auth chain. Runs only when `CLIENT_SECRET` is set.
+
+Comparing the two exposes config drift: the direct check reads the current `.env` while the
+gated check reads whatever the backend booted with, so a mismatched `library` in the 2/2
+output means the backend is on stale config and needs a restart (`tsx watch` does not
+reload `.env`).
+
+Tier 2 deliberately uses **two Keycloak flows**, because clients and users authenticate
+differently and grant different things:
+
+- **2a — client flow** (`client_credentials`): a confidential **client** (`operaton-mcp-client`)
+  - secret. Machine-to-machine, no human, no role. Its token clears the JWT gate — used for
+    the eDOCS 2/2 gated status check (eDOCS management is M2M).
+- **2b — user flow** (`password` grant): a **user** (`test-caseworker-flevoland`) + password
+  whose **role** (caseworker) gates `/v1/mcp/sources`. A client-credentials token would 403
+  here — this is what makes the role path a real check.
 
 ### Running it
 
 ```bash
-# Local dev backend — Tier 1 health + the eDOCS reach/login probe (no secret needed):
+# Local dev backend — full run. On TARGET=local, Tier 2 credentials are read from
+# packages/backend/.env.development (KEYCLOAK_CLIENT_SECRET + SMOKE_TEST_PASSWORD):
 bash scripts/test-smoke-live.sh
 
-# Add the authenticated seam (Tier 2 = MCP layer):
-CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh
-
-# Point at acceptance instead of localhost:
-TARGET=acc CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh
+# Explicit credentials (e.g. against acc, where the .env fallback does not apply):
+CLIENT_SECRET=<m2m-secret> SMOKE_PASSWORD=<user-pw> TARGET=acc bash scripts/test-smoke-live.sh
 
 # Just eDOCS reachability + login, nothing else (no backend, no Keycloak):
 cd packages/backend && npm run edocs:health
@@ -475,19 +493,24 @@ the eDOCS probe, `npx`/`tsx` on a repo checkout).
 
 ### What it checks
 
-| Tier   | Check                  | How                                  | Signal                                         |
-| ------ | ---------------------- | ------------------------------------ | ---------------------------------------------- |
-| gate   | Backend live           | `GET /v1/health/live`                | aborts the whole run if the backend is down    |
-| 1      | Operaton + Keycloak    | `GET /v1/health`                     | both dependencies report `up`                  |
-| 1      | Cross-app reachability | `GET /v1/health/external`            | `lde`, `triplydb`, `cprmv` each `up`           |
-| 1      | Media path             | `GET /v1/media-aggregator/health`    | store healthy + cached-article count           |
-| direct | eDOCS split            | `EdocsService.healthCheck()` (local) | `reachable` + `authenticated` (skips if stub)  |
-| 2      | Keycloak token         | `client_credentials`                 | a token is obtainable                          |
-| 2      | MCP layer              | `GET /v1/mcp/sources`                | providers advertised (skips on 401/403 or off) |
+| Tier   | Check                  | How                                            | Signal                                        |
+| ------ | ---------------------- | ---------------------------------------------- | --------------------------------------------- |
+| gate   | Backend live           | `GET /v1/health/live`                          | aborts the whole run if the backend is down   |
+| 1      | Operaton + Keycloak    | `GET /v1/health`                               | both dependencies report `up`                 |
+| 1      | Cross-app reachability | `GET /v1/health/external`                      | `lde`, `triplydb`, `cprmv` each `up`          |
+| 1      | Media path             | `GET /v1/media-aggregator/health`              | store healthy + cached-article count          |
+| direct | eDOCS 1/2 (local)      | `EdocsService.healthCheck()` in-proc           | `reachable` + `authenticated` (skips if stub) |
+| 2a     | Client token (M2M)     | `client_credentials` (`operaton-mcp-client`)   | a token is obtainable                         |
+| 2a     | eDOCS 2/2 (backend)    | `GET /v1/edocs/status` (JWT-gated)             | `reachable` + `authenticated` + `library`     |
+| 2b     | User token (role)      | `password` grant (`test-caseworker-flevoland`) | a token is obtainable                         |
+| 2b     | MCP layer              | `GET /v1/mcp/sources`                          | providers advertised (403 = user lacks role)  |
 
-The `direct` eDOCS check and Tier 1 need no secret; Tier 2 runs only when
-`CLIENT_SECRET` is set. Because the eDOCS probe is in-process, it reads the local
-`.env` even when `TARGET=acc` — set `EDOCS_*` to match the target if you need acc's view.
+The `direct` eDOCS check (1/2) and Tier 1 need no secret. **2a** runs when a `CLIENT_SECRET`
+is available (auto-loaded from `.env` on local); **2b** runs when a user password is
+available (`SMOKE_PASSWORD`, or `SMOKE_TEST_PASSWORD` in `.env` on local). The 1/2 probe is
+in-process so it reads the local `.env` even when `TARGET=acc`; the 2/2 check reads the
+running backend's config — a `library` mismatch between the two means the backend is on
+stale config (restart to reload `.env`).
 
 ### Gating
 
