@@ -411,10 +411,20 @@ export class EdocsService {
     }
   }
 
-  /** eDOCS returns `{ ERROR: { message, rapi_code } }`; prefer that over the axios message. */
+  /** eDOCS returns `{ ERROR: { message, rapi_code, rapi_details } }`; prefer that over the axios message. */
   private upstreamMessage(err: unknown): string {
-    const data = (err as { response?: { data?: { ERROR?: { message?: string } } } }).response?.data;
-    return data?.ERROR?.message ?? getErrorMessage(err);
+    const edocsError = (
+      err as {
+        response?: { data?: { ERROR?: { message?: string; rapi_details?: string[] } } };
+      }
+    ).response?.data?.ERROR;
+    // `message` is sometimes an empty string while the useful text sits in
+    // rapi_details (e.g. "Logon failure: unknown user name or bad password").
+    const message = edocsError?.message?.trim();
+    if (message) return message;
+    const details = edocsError?.rapi_details?.filter(Boolean).join('; ').trim();
+    if (details) return details;
+    return getErrorMessage(err);
   }
 }
 

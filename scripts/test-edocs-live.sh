@@ -10,12 +10,19 @@
 # Usage:
 #   CLIENT_SECRET=<secret> bash scripts/test-edocs-live.sh
 #
+# A Keycloak-free pre-flight runs first: it probes eDOCS reachability + login
+# in-process (packages/backend/.env) and aborts BEFORE the token dance / any
+# mutation if eDOCS is unreachable, in stub mode, or the account cannot log in.
+# For just that reach/login answer on its own, use: npm run edocs:health.
+#
 # Optional overrides:
 #   BASE_URL=https://acc.api.open-regels.nl
 #   KEYCLOAK_URL=https://acc.keycloak.open-regels.nl
 #   CLIENT_ID=operaton-mcp-client
 #   PROJECT_NUMBER=SMOKE-<timestamp>       # override to reuse/inspect a workspace
 #   PROJECT_NAME="eDOCS CLI smoke test"
+#   SKIP_LOCAL_PROBE=1                     # skip pre-flight (local .env ≠ target)
+#   NODE_ENV=development                   # which .env the pre-flight loads
 #
 # NOTE: a successful run creates a REAL workspace and document in eDOCS. The
 # service exposes no delete, so clean up manually if your library requires it.
@@ -31,6 +38,54 @@ KEYCLOAK_URL="${KEYCLOAK_URL:-https://acc.keycloak.open-regels.nl}"
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
 PROJECT_NUMBER="${PROJECT_NUMBER:-SMOKE-$(date +%Y%m%d-%H%M%S)}"
 PROJECT_NAME="${PROJECT_NAME:-eDOCS CLI smoke test}"
+
+# Repo layout — used to run the Keycloak-free eDOCS reach/login pre-flight.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BACKEND_DIR="$REPO_ROOT/packages/backend"
+
+# Direct eDOCS health probe (in-process, no Keycloak/backend). Echoes its
+# EDOCS_HEALTH_RESULT json line. Reflects the LOCAL packages/backend/.env config.
+run_edocs_probe() {
+  ( cd "$BACKEND_DIR" && NODE_ENV="${NODE_ENV:-development}" \
+      npx --no-install tsx scripts/edocs-healthcheck.ts --quiet ) 2>/dev/null \
+    | sed -n 's/^EDOCS_HEALTH_RESULT //p' | tail -n1
+}
+
+# ─── Pre-flight: is eDOCS reachable AND can we log in? (no Keycloak needed) ──────
+#
+# The mutating steps below go through the JWT-gated backend and cost a real
+# workspace + document, so there is no point starting the Keycloak/token dance if
+# eDOCS itself is unreachable, still in stub mode, or the account cannot log in
+# (e.g. locked out). This pre-flight answers that in-process, before anything else.
+# Set SKIP_LOCAL_PROBE=1 if your local .env does not match the target backend.
+if [[ "${SKIP_LOCAL_PROBE:-0}" != "1" && -d "$BACKEND_DIR" ]] && command -v npx >/dev/null 2>&1; then
+  echo ""
+  echo "── Pre-flight: eDOCS reach + login (direct · no Keycloak · local .env) ───"
+  PROBE_JSON=$(run_edocs_probe)
+  if [[ -z "$PROBE_JSON" ]]; then
+    echo "  ~ probe produced no result — skipping pre-flight (run: cd packages/backend && npm run edocs:health)"
+  elif [[ "$(echo "$PROBE_JSON" | jq -r '.status')" == "stub" ]]; then
+    echo "  ✗ eDOCS is in STUB mode locally — set EDOCS_STUB_MODE=false and retry."
+    echo "    (Nothing to smoke-test against a stub. Aborting before the token dance.)"
+    exit 1
+  else
+    p_rch=$(echo "$PROBE_JSON" | jq -r '.reachable')
+    p_aut=$(echo "$PROBE_JSON" | jq -r '.authenticated')
+    if [[ "$p_rch" != "true" ]]; then
+      echo "  ✗ eDOCS not reachable: $(echo "$PROBE_JSON" | jq -r '.error // "no detail"')"
+      echo "    Aborting — the mutating steps would fail. (SKIP_LOCAL_PROBE=1 to override.)"
+      exit 1
+    fi
+    echo "  ✓ eDOCS reachable"
+    if [[ "$p_aut" != "true" ]]; then
+      echo "  ✗ eDOCS login failed: $(echo "$PROBE_JSON" | jq -r '.error // "no detail (see backend logs / rapi_details)"')"
+      echo "    Aborting — credentials cannot log in (locked out?). (SKIP_LOCAL_PROBE=1 to override.)"
+      exit 1
+    fi
+    echo "  ✓ eDOCS login OK — proceeding to the authenticated backend path."
+  fi
+fi
 
 if [[ -z "${CLIENT_SECRET:-}" ]]; then
   echo "ERROR: CLIENT_SECRET is not set."

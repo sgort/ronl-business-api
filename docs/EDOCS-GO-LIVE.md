@@ -85,6 +85,20 @@ line should be **gone**.
 
 ## Step 3 — CLI smoke test against live (before the UI)
 
+> **Fast check first (no Keycloak, no backend).** To answer just "is eDOCS
+> reachable and can we log in?" run the in-process probe — it calls
+> `EdocsService.healthCheck()` against your local `.env`, so it needs no
+> `CLIENT_SECRET` and no running backend:
+>
+> ```bash
+> cd packages/backend && npm run edocs:health
+> ```
+>
+> It prints `reachable` + `authenticated` and exits `0` (ok), `3` (reachable but
+> login failed — e.g. account locked out), or `4` (unreachable). The full smoke
+> test below now runs this same probe as a pre-flight and aborts before the token
+> dance if it fails.
+
 This is the pre-flight. It hits the same `/v1/edocs` path the frontend uses, from
 the shell, so nothing UI-related can mask the result.
 

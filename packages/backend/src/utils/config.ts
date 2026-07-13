@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { parseEnvArray, parseEnvInt, parseEnvBool } from './env';
+import { applyExtraCaCerts } from './tls-bootstrap';
 
 // Load environment-specific .env file
 const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
@@ -8,6 +9,10 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 // Fallback to .env if environment-specific file doesn't exist
 dotenv.config();
+
+// Node reads NODE_EXTRA_CA_CERTS only at startup, so a value from .env above is
+// otherwise ignored. Apply it now, before any TLS connection is made.
+applyExtraCaCerts();
 
 interface Config {
   nodeEnv: string;

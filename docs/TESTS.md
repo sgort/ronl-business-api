@@ -444,38 +444,50 @@ Operaton, Keycloak, the Linked Data Explorer, TriplyDB (SPARQL), CPRMV, the medi
 eDOCS, and the MCP provider layer. It's a developer / pre-deploy tool, intentionally
 **not** wired into the Jest run: it hits running services over the network, and the unit
 suite stays fast + infra-free precisely by keeping this separate. It never mutates
-anything — the eDOCS check is status-only (the mutating workspace/upload path stays in
-`scripts/test-edocs-live.sh`).
+anything — the eDOCS check is reach + login only (the mutating workspace/upload path
+stays in `scripts/test-edocs-live.sh`).
+
+The eDOCS reach/login check runs **in-process, without Keycloak**: it calls
+`EdocsService.healthCheck()` directly (via `packages/backend/scripts/edocs-healthcheck.ts`)
+rather than the JWT-gated `GET /v1/edocs/status` route. So it needs no `CLIENT_SECRET`
+and reflects the **local** `packages/backend/.env.<NODE_ENV>` config (independent of
+`TARGET`). For just that answer on its own: `cd packages/backend && npm run edocs:health`.
 
 ### Running it
 
 ```bash
-# Local dev backend, open checks only (no secret needed):
+# Local dev backend — Tier 1 health + the eDOCS reach/login probe (no secret needed):
 bash scripts/test-smoke-live.sh
 
-# Add the authenticated seams (eDOCS status + MCP layer):
+# Add the authenticated seam (Tier 2 = MCP layer):
 CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh
 
 # Point at acceptance instead of localhost:
 TARGET=acc CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh
+
+# Just eDOCS reachability + login, nothing else (no backend, no Keycloak):
+cd packages/backend && npm run edocs:health
 ```
 
 `TARGET` (`local` — default — or `acc`) selects the `BASE_URL` + `KEYCLOAK_URL` preset;
-set either variable explicitly to override the preset. Requires `curl` + `jq`.
+set either variable explicitly to override the preset. Requires `curl` + `jq` (and, for
+the eDOCS probe, `npx`/`tsx` on a repo checkout).
 
 ### What it checks
 
-| Tier | Check                  | Endpoint                          | Signal                                         |
-| ---- | ---------------------- | --------------------------------- | ---------------------------------------------- |
-| gate | Backend live           | `GET /v1/health/live`             | aborts the whole run if the backend is down    |
-| 1    | Operaton + Keycloak    | `GET /v1/health`                  | both dependencies report `up`                  |
-| 1    | Cross-app reachability | `GET /v1/health/external`         | `lde`, `triplydb`, `cprmv` each `up`           |
-| 1    | Media path             | `GET /v1/media-aggregator/health` | store healthy + cached-article count           |
-| 2    | Keycloak token         | `client_credentials`              | a token is obtainable                          |
-| 2    | eDOCS split            | `GET /v1/edocs/status`            | `reachable` + `authenticated` (skips if stub)  |
-| 2    | MCP layer              | `GET /v1/mcp/sources`             | providers advertised (skips on 401/403 or off) |
+| Tier   | Check                  | How                                  | Signal                                         |
+| ------ | ---------------------- | ------------------------------------ | ---------------------------------------------- |
+| gate   | Backend live           | `GET /v1/health/live`                | aborts the whole run if the backend is down    |
+| 1      | Operaton + Keycloak    | `GET /v1/health`                     | both dependencies report `up`                  |
+| 1      | Cross-app reachability | `GET /v1/health/external`            | `lde`, `triplydb`, `cprmv` each `up`           |
+| 1      | Media path             | `GET /v1/media-aggregator/health`    | store healthy + cached-article count           |
+| direct | eDOCS split            | `EdocsService.healthCheck()` (local) | `reachable` + `authenticated` (skips if stub)  |
+| 2      | Keycloak token         | `client_credentials`                 | a token is obtainable                          |
+| 2      | MCP layer              | `GET /v1/mcp/sources`                | providers advertised (skips on 401/403 or off) |
 
-Tier 1 needs no secret; Tier 2 runs only when `CLIENT_SECRET` is set.
+The `direct` eDOCS check and Tier 1 need no secret; Tier 2 runs only when
+`CLIENT_SECRET` is set. Because the eDOCS probe is in-process, it reads the local
+`.env` even when `TARGET=acc` — set `EDOCS_*` to match the target if you need acc's view.
 
 ### Gating
 
