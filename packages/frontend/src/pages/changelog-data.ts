@@ -23,6 +23,11 @@ export interface ChangelogVersion {
   statusColor: string;
   borderColor: string;
   date: string;
+  // Which deployable(s) this release actually changed. Drives the FE/BE badge
+  // and tells bump-release which package.json files to version — a frontend-only
+  // release must NOT bump packages/backend/package.json, or it triggers the
+  // backend ACC build for nothing. Omitted on legacy (pre-3.8.2) entries.
+  scope?: 'frontend' | 'backend' | 'both';
   sections: ChangelogSection[];
 }
 
@@ -38,6 +43,7 @@ export const changelog: Changelog = {
       statusColor: '#2d7a33',
       borderColor: '#c3e6cd',
       date: 'July 15, 2026',
+      scope: 'frontend',
       sections: [
         {
           icon: '💬',
