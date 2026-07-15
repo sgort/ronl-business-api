@@ -1,12 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import keycloak from '../services/keycloak';
 
 // Warn when this many seconds remain on the token
 const WARN_BEFORE_SECONDS = 120;
 const POLL_INTERVAL_MS = 15_000;
+// While the user is actively interacting with the page we silently refresh the
+// token once it drops below this many seconds — deliberately a bit above the
+// warning threshold so an active user never sees the modal at all. Only genuine
+// idleness lets the countdown reach WARN_BEFORE_SECONDS. updateToken() only
+// hits the network when the token is actually inside this window, so listening
+// on high-frequency events like mousemove stays cheap.
+const ACTIVITY_REFRESH_FLOOR = WARN_BEFORE_SECONDS + 60;
+// Don't attempt a refresh more than once per this window, no matter how many
+// activity events fire.
+const ACTIVITY_THROTTLE_MS = 30_000;
+const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = ['keydown', 'pointerdown', 'mousemove', 'scroll'];
 
 export default function SessionExpiryWarning() {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // Mirror the modal's visibility into a ref so the activity listener (bound
+  // once, with no deps) can read the current state without re-subscribing on
+  // every countdown tick.
+  const modalVisibleRef = useRef(false);
+  modalVisibleRef.current = secondsLeft !== null;
 
   useEffect(() => {
     const tick = () => {
@@ -18,6 +34,33 @@ export default function SessionExpiryWarning() {
     tick();
     const id = setInterval(tick, POLL_INTERVAL_MS);
     return () => clearInterval(id);
+  }, []);
+
+  // Treat real interaction (typing, clicking, scrolling, moving the mouse) as a
+  // reason to keep the session alive. Filling in a long form makes no API calls,
+  // so without this the token silently expires under an active user and the
+  // modal pops up mid-typing.
+  //
+  // Once the modal IS showing, activity is intentionally ignored: the user must
+  // dismiss it with an explicit choice (Sessie verlengen / Uitloggen).
+  // Otherwise merely moving the mouse toward the button would auto-refresh and
+  // yank the dialog away before the click lands.
+  useEffect(() => {
+    let lastRefresh = 0;
+    const onActivity = () => {
+      if (modalVisibleRef.current) return;
+      if (!keycloak.authenticated) return;
+      const now = Date.now();
+      if (now - lastRefresh < ACTIVITY_THROTTLE_MS) return;
+      lastRefresh = now;
+      keycloak.updateToken(ACTIVITY_REFRESH_FLOOR).catch(() => {
+        // Refresh token / SSO session is gone — leave the countdown and modal
+        // to handle re-authentication rather than forcing a redirect here.
+      });
+    };
+
+    ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    return () => ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, onActivity));
   }, []);
 
   const handleExtend = async () => {

@@ -33,6 +33,40 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.8.2',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 15, 2026',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 43,
+              title:
+                'Melding "sessie verlengen" verschijnt tijdens actief gebruik, en ingevoerde feedback verdwijnt zodra je de sessie verlengt',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/43',
+            },
+          ],
+        },
+        {
+          icon: '⏱️',
+          iconColor: 'orange',
+          title: 'Fix: Session-expiry warning no longer interrupts (or discards) active work',
+          items: [
+            'Warning appearing during active use: SessionExpiryWarning now treats real interaction (keydown / pointerdown / mousemove / scroll, throttled to once per 30s) as a reason to keep the session alive — it calls keycloak.updateToken() once the token drops below 180s, deliberately above the 120s warning threshold, so an actively-typing user is refreshed before the modal would ever appear. The earlier "refresh only on API request" mitigation never covered this, because filling in a form makes no API calls.',
+            'Modal being yanked away on mouse-move: once the modal IS showing, activity is now intentionally ignored (tracked via a ref) and the dialog must be dismissed with an explicit Sessie verlengen / Uitloggen. Previously the mousemove listener refreshed the token and auto-closed the modal as the user moved toward the button, so the click appeared to fail.',
+            'Feedback lost on extend: IouFeedbackSection persists its text fields to sessionStorage on every change, restores them on mount, and clears them on successful submit. Because sessionStorage survives the full-page keycloak.login() redirect — the actual path that wiped the form when the SSO session had to be re-established — an in-progress feedback draft now survives a session-expiry re-authentication. Screenshots (File objects) cannot be serialised and are not restored.',
+            'Both components are shared, so the fix lands on every board at once — Infra-board, Caseworker V2, PA-Cockpit and Woo.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.8.1',
       status: 'Released',
       statusColor: '#2d7a33',
@@ -1803,7 +1837,7 @@ export const changelog: Changelog = {
           iconColor: 'red',
           items: [
             'JWT role extraction fixed: backend was reading payload.roles (always empty) instead of payload.realm_access.roles — role-gated endpoints including /v1/admin/audit now work correctly; side-effect fix for all requireRoles() guards across the API',
-            'Session expiry warning appearing during active use: Axios interceptor updateToken threshold raised from 30s to 120s to match the warning threshold — token now silently refreshes on any API call while fewer than 2 minutes remain',
+            'Session expiry warning appearing during active use: Axios interceptor updateToken threshold raised from 30s to 120s to match the warning threshold — token now silently refreshes on any API call while fewer than 2 minutes remain. (Partial: this only covered pages that make API calls; form-filling makes none, so an actively-typing user was still interrupted. Fully addressed by activity-based refresh in v3.8.2.)',
             'Audit log auto-selection on first visit: audit-log page now wired into the section-reset useEffect alongside tenant-driven pages',
           ],
         },
@@ -1917,7 +1951,7 @@ export const changelog: Changelog = {
           iconColor: 'orange',
           items: [
             'SessionExpiryWarning component mounted in the caseworker dashboard — polls token expiry every 15 seconds and shows a modal when fewer than 2 minutes remain',
-            'Modal offers "Sessie verlengen" (forces updateToken) and "Uitloggen" — unsaved form data is preserved when extending',
+            'Modal offers "Sessie verlengen" (forces updateToken) and "Uitloggen". (Correction: the "unsaved form data is preserved when extending" claim only held when the token refreshed in place; if the SSO session was gone the extend fell back to a full-page login redirect that wiped the form. Draft persistence in v3.8.2 fixes this.)',
             'Axios request interceptor upgraded to proactively call updateToken(30) before every API request; forces re-login if the SSO session is gone',
           ],
         },
