@@ -14,8 +14,14 @@
 const mockClient = {
   get: jest.fn(),
   post: jest.fn(),
+  delete: jest.fn(),
   interceptors: { request: { use: jest.fn() } },
 };
+
+const mockFormAppend = jest.fn();
+const mockFormGetHeaders = jest.fn(() => ({
+  'content-type': 'multipart/form-data; boundary=mock',
+}));
 
 const mockConfig = {
   edocs: {
@@ -31,6 +37,12 @@ jest.mock('axios', () => ({
   __esModule: true,
   default: { create: jest.fn(() => mockClient) },
 }));
+jest.mock('form-data', () =>
+  jest.fn().mockImplementation(() => ({
+    append: mockFormAppend,
+    getHeaders: mockFormGetHeaders,
+  }))
+);
 jest.mock('@utils/config', () => ({ config: mockConfig }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
@@ -63,10 +75,16 @@ describe('EdocsService — stub mode', () => {
   it('never touches the network', async () => {
     await svc.listWorkspaces();
     await svc.ensureWorkspace('P-001', 'Project One');
-    await svc.uploadDocument('ws-1', 'f.pdf', 'YmFzZTY0', { docName: 'Doc' });
+    await svc.uploadDocument('ws-1', 'f.pdf', 'YmFzZTY0', { docName: 'Doc', department: 'IVR' });
     await svc.getWorkspaceDocuments('ws-1');
+    await svc.getDocumentProfile('doc-1');
+    await svc.getDocumentVersions('doc-1');
+    await svc.downloadDocumentVersion('doc-1', '1');
+    await svc.deleteDocument('doc-1');
+    await svc.deleteWorkspace('ws-1');
     expect(mockClient.get).not.toHaveBeenCalled();
     expect(mockClient.post).not.toHaveBeenCalled();
+    expect(mockClient.delete).not.toHaveBeenCalled();
   });
 
   it('ensureWorkspace derives a deterministic stub id and never reports created', async () => {
@@ -77,10 +95,22 @@ describe('EdocsService — stub mode', () => {
   });
 
   it('uploadDocument returns a stub doc scoped to the workspace', async () => {
-    const res = await svc.uploadDocument('ws-9', 'report.pdf', 'YmFzZTY0', { docName: 'Report' });
+    const res = await svc.uploadDocument('ws-9', 'report.pdf', 'YmFzZTY0', {
+      docName: 'Report',
+      department: 'IVR',
+    });
     expect(res.workspaceId).toBe('ws-9');
     expect(res.documentId).toMatch(/^stub-doc-/);
     expect(res.documentNumber).toMatch(/^STUB-/);
+  });
+
+  it('uploadDocument returns a stub doc with a null workspaceId when uploaded standalone', async () => {
+    const res = await svc.uploadDocument(null, 'report.pdf', 'YmFzZTY0', {
+      docName: 'Report',
+      department: 'IVR',
+    });
+    expect(res.workspaceId).toBeNull();
+    expect(res.documentId).toMatch(/^stub-doc-/);
   });
 
   it('getWorkspaceDocuments returns the canned two-document list', async () => {
@@ -95,6 +125,26 @@ describe('EdocsService — stub mode', () => {
       reachable: true,
       authenticated: true,
     });
+  });
+
+  it('getDocumentProfile returns a canned profile', async () => {
+    const profile = await svc.getDocumentProfile('doc-1');
+    expect(profile).toMatchObject({ DOCNUMBER: 'STUB-doc-1' });
+  });
+
+  it('getDocumentVersions returns a single canned version', async () => {
+    const versions = await svc.getDocumentVersions('doc-1');
+    expect(versions).toEqual([{ id: 'doc-1-v1', version: '1' }]);
+  });
+
+  it('downloadDocumentVersion returns decodable stub content', async () => {
+    const res = await svc.downloadDocumentVersion('doc-1', '1');
+    expect(Buffer.from(res.contentBase64, 'base64').toString()).toContain('doc-1');
+  });
+
+  it('deleteDocument and deleteWorkspace resolve without touching the network', async () => {
+    await expect(svc.deleteDocument('doc-1')).resolves.toBeUndefined();
+    await expect(svc.deleteWorkspace('ws-1')).resolves.toBeUndefined();
   });
 });
 
@@ -177,7 +227,8 @@ describe('EdocsService — live mode', () => {
     it('returns the existing workspace when the search matches (created:false)', async () => {
       mockClient.post.mockResolvedValueOnce(connectResponse);
       mockClient.get.mockResolvedValueOnce({
-        data: { data: { list: [{ id: 'ws-existing', data: { DOCNAME: 'P-001 — Old' } }] } },
+        // Flat list item shape, confirmed live — not nested under `.data`.
+        data: { data: { list: [{ id: 'ws-existing', DOCNAME: 'P-001 — Old' }] } },
       });
 
       const res = await svc.ensureWorkspace('P-001', 'Project One');
@@ -208,37 +259,121 @@ describe('EdocsService — live mode', () => {
       expect(createCall[0]).toBe('workspaces');
       expect(createCall[1].data.DOCNAME).toBe('P-002 — Project Two');
     });
+
+    it('reads the new id from the flat list shape when the server returns one', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'ws-flat' }] } } });
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+
+      const res = await svc.ensureWorkspace('P-003', 'Project Three');
+
+      expect(res.workspaceId).toBe('ws-flat');
+    });
   });
 
   describe('uploadDocument()', () => {
-    it('includes _restapi.form_name when a formName is supplied', async () => {
+    const lastProfileData = (): Record<string, unknown> => {
+      const call = mockFormAppend.mock.calls.find((c) => c[0] === 'data');
+      return JSON.parse(call![1] as string) as Record<string, unknown>;
+    };
+
+    it('posts a real multipart body (data + file parts) to documents', async () => {
       mockClient.post
         .mockResolvedValueOnce(connectResponse)
-        .mockResolvedValueOnce({ data: { data: { id: 'doc-1', DOCNUMBER: '555' } } });
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-1', DOCNUM: '555' }] } } });
 
       const res = await svc.uploadDocument('42', 'a.pdf', 'YmFzZTY0', {
         docName: 'Intake',
+        department: 'IVR',
         formName: 'RIP_FORM',
       });
 
       expect(res).toEqual({ documentId: 'doc-1', documentNumber: '555', workspaceId: '42' });
-      const body = mockClient.post.mock.calls[1][1];
-      expect(body.data._restapi.form_name).toBe('RIP_FORM');
-      expect(body.data._restapi.ref).toEqual({ type: 'workspace', id: 42, lib: 'DOCUVITT' });
+
+      const uploadCall = mockClient.post.mock.calls[1];
+      expect(uploadCall[0]).toBe('documents');
+      expect(uploadCall[2]).toMatchObject({
+        params: { library: 'DOCUVITT' },
+        headers: { 'content-type': 'multipart/form-data; boundary=mock' },
+      });
+
+      const profileData = lastProfileData();
+      expect(profileData).toMatchObject({
+        DOCNAME: 'Intake',
+        APP_ID: 'DEFAULT',
+        UV_AFD_NAAM: 'IVR',
+        _restapi: { form_name: 'RIP_FORM', ref: { type: 'workspace', id: 42, lib: 'DOCUVITT' } },
+      });
+
+      const fileAppendCall = mockFormAppend.mock.calls.find((c) => c[0] === 'file');
+      expect(fileAppendCall![2]).toMatchObject({ filename: 'a.pdf' });
+      expect(Buffer.isBuffer(fileAppendCall![1])).toBe(true);
     });
 
-    it('omits form_name when no formName is supplied', async () => {
+    it('defaults APP_ID to DEFAULT and omits form_name when no formName is supplied', async () => {
       mockClient.post
         .mockResolvedValueOnce(connectResponse)
-        .mockResolvedValueOnce({ data: { id: 'doc-2' } });
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-2' }] } } });
 
-      const res = await svc.uploadDocument('7', 'b.pdf', 'YmFzZTY0', { docName: 'Plain' });
+      const res = await svc.uploadDocument('7', 'b.pdf', 'YmFzZTY0', {
+        docName: 'Plain',
+        department: 'IVR',
+      });
 
-      const body = mockClient.post.mock.calls[1][1];
-      expect(body.data._restapi.form_name).toBeUndefined();
-      expect(body.data._restapi.ref.id).toBe(7);
-      // DOCNUMBER absent → falls back to documentId
+      const profileData = lastProfileData();
+      expect(profileData.APP_ID).toBe('DEFAULT');
+      expect((profileData._restapi as { form_name?: string }).form_name).toBeUndefined();
+      expect((profileData._restapi as { ref: { id: number } }).ref.id).toBe(7);
+      // DOCNUM absent → falls back to documentId
       expect(res.documentNumber).toBe('doc-2');
+    });
+
+    it('rejects when the DM server reports a validation error_list (HTTP 206)', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse).mockResolvedValueOnce({
+        data: {
+          data: {
+            error_list: [{ object: 'a.pdf', message: 'unknown linked application' }],
+          },
+        },
+      });
+
+      await expect(
+        svc.uploadDocument('1', 'a.pdf', 'YmFzZTY0', { docName: 'X', department: 'IVR' })
+      ).rejects.toThrow(/unknown linked application/);
+    });
+
+    describe('standalone (workspaceId: null) — the confirmed-working path', () => {
+      it('defaults form_name to D_INTERN_NIEUW and omits ref', async () => {
+        mockClient.post
+          .mockResolvedValueOnce(connectResponse)
+          .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-3', DOCNUM: '999' }] } } });
+
+        const res = await svc.uploadDocument(null, 'c.pdf', 'YmFzZTY0', {
+          docName: 'Standalone',
+          department: 'IVR',
+        });
+
+        expect(res).toEqual({ documentId: 'doc-3', documentNumber: '999', workspaceId: null });
+
+        const profileData = lastProfileData();
+        expect(profileData._restapi).toEqual({ form_name: 'D_INTERN_NIEUW' });
+      });
+
+      it('respects an explicit formName override', async () => {
+        mockClient.post
+          .mockResolvedValueOnce(connectResponse)
+          .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-4' }] } } });
+
+        await svc.uploadDocument(null, 'd.pdf', 'YmFzZTY0', {
+          docName: 'Standalone',
+          department: 'IVR',
+          formName: 'CUSTOM_FORM',
+        });
+
+        const profileData = lastProfileData();
+        expect(profileData._restapi).toEqual({ form_name: 'CUSTOM_FORM' });
+      });
     });
   });
 
@@ -248,9 +383,10 @@ describe('EdocsService — live mode', () => {
       mockClient.get.mockResolvedValueOnce({
         data: {
           data: {
+            // Flat list item shape, confirmed live — not nested under `.data`.
             list: [
-              { id: 'd1', data: { DOCNAME: 'one.pdf', DOCNUMBER: '111' } },
-              { id: 'd2', data: { DOCNAME: 'two.pdf', DOCNUMBER: '222' } },
+              { id: 'd1', DOCNAME: 'one.pdf', DOCNUM: '111' },
+              { id: 'd2', DOCNAME: 'two.pdf', DOCNUM: '222' },
             ],
           },
         },
@@ -262,6 +398,100 @@ describe('EdocsService — live mode', () => {
         { id: 'd1', name: 'one.pdf', documentNumber: '111' },
         { id: 'd2', name: 'two.pdf', documentNumber: '222' },
       ]);
+    });
+  });
+
+  describe('getDocumentProfile()', () => {
+    it('returns the raw profile data', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({
+        data: { data: { DOCNAME: 'report.pdf', DOCNUMBER: '999' } },
+      });
+
+      const profile = await svc.getDocumentProfile('doc-1');
+
+      expect(profile).toEqual({ DOCNAME: 'report.pdf', DOCNUMBER: '999' });
+      expect(mockClient.get).toHaveBeenCalledWith('documents/doc-1/profile', {
+        params: { library: 'DOCUVITT' },
+      });
+    });
+  });
+
+  describe('getDocumentVersions()', () => {
+    it('maps the raw eDOCS list into id/version', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({
+        data: { data: { list: [{ id: 'v1', data: { VERSION: '1' } }] } },
+      });
+
+      const versions = await svc.getDocumentVersions('doc-1');
+
+      expect(versions).toEqual([{ id: 'v1', version: '1' }]);
+    });
+
+    it('falls back to the item id when VERSION is absent', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({
+        data: { data: { list: [{ id: 'v2' }] } },
+      });
+
+      const versions = await svc.getDocumentVersions('doc-1');
+
+      expect(versions).toEqual([{ id: 'v2', version: 'v2' }]);
+    });
+  });
+
+  describe('downloadDocumentVersion()', () => {
+    it('returns the base64 file content', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: { data: { file: 'YmFzZTY0' } } });
+
+      const res = await svc.downloadDocumentVersion('doc-1', '1');
+
+      expect(res).toEqual({ contentBase64: 'YmFzZTY0' });
+      expect(mockClient.get).toHaveBeenCalledWith('documents/doc-1/versions/1', {
+        params: { library: 'DOCUVITT' },
+      });
+    });
+
+    it('throws when the response carries no file content', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: { data: {} } });
+
+      await expect(svc.downloadDocumentVersion('doc-1', '1')).rejects.toThrow(/no file content/);
+    });
+  });
+
+  describe('deleteDocument() / deleteWorkspace()', () => {
+    it('deleteDocument issues a DELETE against the document resource', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.delete.mockResolvedValueOnce({});
+
+      await svc.deleteDocument('doc-1');
+
+      expect(mockClient.delete).toHaveBeenCalledWith('documents/doc-1', {
+        params: { library: 'DOCUVITT' },
+      });
+    });
+
+    it('deleteWorkspace issues a DELETE against the workspace resource', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.delete.mockResolvedValueOnce({});
+
+      await svc.deleteWorkspace('ws-1');
+
+      expect(mockClient.delete).toHaveBeenCalledWith('workspaces/ws-1', {
+        params: { library: 'DOCUVITT' },
+      });
+    });
+
+    it('propagates an upstream error from a failed delete', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.delete.mockRejectedValueOnce({ response: { status: 404 } });
+
+      await expect(svc.deleteDocument('missing')).rejects.toMatchObject({
+        response: { status: 404 },
+      });
     });
   });
 

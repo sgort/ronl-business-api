@@ -82,29 +82,33 @@ router.post('/workspaces/ensure', async (req: Request, res: Response) => {
 
 /**
  * POST /v1/edocs/documents
- * Body: { workspaceId, filename, contentBase64, metadata }
+ * Body: { workspaceId?, filename, contentBase64, metadata }
+ *
+ * workspaceId is optional — omit it to upload standalone (the only path
+ * confirmed working against the live DM server; see EDOCS-GO-LIVE.md § Known
+ * issues). Passing a workspaceId uses the still-broken workspace-ref path.
  */
 router.post('/documents', async (req: Request, res: Response) => {
   const { workspaceId, filename, contentBase64, metadata } = req.body as {
     workspaceId?: string;
     filename?: string;
     contentBase64?: string;
-    metadata?: { docName: string; appId?: string; formName?: string };
+    metadata?: { docName: string; department: string; appId?: string; formName?: string };
   };
 
-  if (!workspaceId || !filename || !contentBase64 || !metadata?.docName) {
+  if (!filename || !contentBase64 || !metadata?.docName || !metadata?.department) {
     return res.status(400).json({
       success: false,
       error: {
         code: 'MISSING_FIELDS',
-        message: 'workspaceId, filename, contentBase64, and metadata.docName are required.',
+        message: 'filename, contentBase64, metadata.docName, and metadata.department are required.',
       },
     });
   }
 
   try {
     const result = await edocsService.uploadDocument(
-      workspaceId,
+      workspaceId ?? null,
       filename,
       contentBase64,
       metadata
@@ -144,6 +148,125 @@ router.get('/workspaces/:workspaceId/documents', async (req: Request, res: Respo
     res.status(502).json({
       success: false,
       error: { code: 'EDOCS_ERROR', message: 'Failed to retrieve workspace documents.' },
+    });
+  }
+});
+
+/**
+ * GET /v1/edocs/documents/:documentId/profile
+ */
+router.get('/documents/:documentId/profile', async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+
+  try {
+    const profile = await edocsService.getDocumentProfile(documentId);
+    res.json({ success: true, data: profile, timestamp: new Date().toISOString() });
+  } catch (error) {
+    logger.error('getDocumentProfile failed', {
+      documentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      success: false,
+      error: { code: 'EDOCS_ERROR', message: 'Failed to retrieve document profile.' },
+    });
+  }
+});
+
+/**
+ * GET /v1/edocs/documents/:documentId/versions
+ */
+router.get('/documents/:documentId/versions', async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+
+  try {
+    const versions = await edocsService.getDocumentVersions(documentId);
+    res.json({
+      success: true,
+      data: { documentId, versions },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('getDocumentVersions failed', {
+      documentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      success: false,
+      error: { code: 'EDOCS_ERROR', message: 'Failed to retrieve document versions.' },
+    });
+  }
+});
+
+/**
+ * GET /v1/edocs/documents/:documentId/versions/:version
+ * Returns the raw file content of this version, base64-encoded.
+ */
+router.get('/documents/:documentId/versions/:version', async (req: Request, res: Response) => {
+  const { documentId, version } = req.params;
+
+  try {
+    const result = await edocsService.downloadDocumentVersion(documentId, version);
+    res.json({ success: true, data: result, timestamp: new Date().toISOString() });
+  } catch (error) {
+    logger.error('downloadDocumentVersion failed', {
+      documentId,
+      version,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      success: false,
+      error: { code: 'EDOCS_ERROR', message: 'Failed to download document content.' },
+    });
+  }
+});
+
+/**
+ * DELETE /v1/edocs/documents/:documentId
+ */
+router.delete('/documents/:documentId', async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+
+  try {
+    await edocsService.deleteDocument(documentId);
+    res.json({
+      success: true,
+      data: { documentId, deleted: true },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('deleteDocument failed', {
+      documentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      success: false,
+      error: { code: 'EDOCS_ERROR', message: 'Failed to delete document.' },
+    });
+  }
+});
+
+/**
+ * DELETE /v1/edocs/workspaces/:workspaceId
+ */
+router.delete('/workspaces/:workspaceId', async (req: Request, res: Response) => {
+  const { workspaceId } = req.params;
+
+  try {
+    await edocsService.deleteWorkspace(workspaceId);
+    res.json({
+      success: true,
+      data: { workspaceId, deleted: true },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('deleteWorkspace failed', {
+      workspaceId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      success: false,
+      error: { code: 'EDOCS_ERROR', message: 'Failed to delete workspace.' },
     });
   }
 });

@@ -109,6 +109,7 @@ describe('handleUploadDocument', () => {
     projectName: 'Proj',
     documentTemplateId: 'rip-intake-report',
     edocsDocumentVariableName: 'intakeDoc',
+    department: 'IVR',
   };
 
   it('renders content, uploads, and maps output under the configured variable name', async () => {
@@ -127,6 +128,7 @@ describe('handleUploadDocument', () => {
     expect(wsId).toBe('ws-1');
     expect(filename).toBe('rip-intake-report-P-1.txt');
     expect(metadata.docName).toContain('Intake Report');
+    expect(metadata.department).toBe('IVR');
     const decoded = Buffer.from(contentB64, 'base64').toString('utf-8');
     expect(decoded).toContain('INTAKE REPORT (Column 2)');
   });
@@ -144,6 +146,15 @@ describe('handleUploadDocument', () => {
     await expect(
       internals(new ExternalTaskWorker()).handleUploadDocument(
         task('rip-edocs-document', { edocsWorkspaceId: 'ws-1' })
+      )
+    ).rejects.toThrow(/missing required variables/);
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it('throws when department is missing', async () => {
+    await expect(
+      internals(new ExternalTaskWorker()).handleUploadDocument(
+        task('rip-edocs-document', { ...validVars, department: undefined })
       )
     ).rejects.toThrow(/missing required variables/);
     expect(mockUpload).not.toHaveBeenCalled();

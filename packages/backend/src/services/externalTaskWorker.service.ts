@@ -277,13 +277,14 @@ export class ExternalTaskWorker {
     const projectNumber = String(task.variables['projectNumber']?.value ?? '');
     const projectName = String(task.variables['projectName']?.value ?? '');
     const templateId = String(task.variables['documentTemplateId']?.value ?? '');
+    const department = String(task.variables['department']?.value ?? '');
     const outputVariableName = String(
       task.variables['edocsDocumentVariableName']?.value ?? 'edocsDocumentId'
     );
 
-    if (!workspaceId || !templateId) {
+    if (!workspaceId || !templateId || !department) {
       throw new Error(
-        `rip-edocs-document: missing required variables. Got workspaceId="${workspaceId}", templateId="${templateId}"`
+        `rip-edocs-document: missing required variables. Got workspaceId="${workspaceId}", templateId="${templateId}", department="${department}"`
       );
     }
 
@@ -294,7 +295,7 @@ export class ExternalTaskWorker {
 
     const result = await edocsService.uploadDocument(workspaceId, filename, contentBase64, {
       docName,
-      appId: 'INFRA',
+      department,
     });
 
     return {
