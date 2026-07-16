@@ -87,6 +87,12 @@ interface Config {
     password: string;
     stubMode: boolean;
   };
+  doccle: {
+    apiBaseUrl: string;
+    username: string;
+    password: string;
+    stubMode: boolean;
+  };
   mcp: {
     enabled: boolean;
     skipHealthCheck: boolean;
@@ -224,6 +230,16 @@ export const config: Config = {
     userId: process.env.EDOCS_USER_ID ?? '',
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
+  },
+
+  doccle: {
+    // DOCCLE_API_ACC is the name already configured for the staging (acceptance)
+    // environment; DOCCLE_BASE_URL is the generic name used once other environments
+    // (e.g. production) are configured.
+    apiBaseUrl: process.env.DOCCLE_BASE_URL ?? process.env.DOCCLE_API_ACC ?? '',
+    username: process.env.DOCCLE_USERNAME ?? '',
+    password: process.env.DOCCLE_PASSWORD ?? '',
+    stubMode: parseEnvBool(process.env.DOCCLE_STUB_MODE, true),
   },
 
   mcp: {

@@ -116,6 +116,17 @@ run_edocs_probe() {
     | sed -n 's/^EDOCS_HEALTH_RESULT //p' | tail -n1
 }
 
+# Run the direct Doccle reachability probe (packages/backend/scripts/doccle-healthcheck.ts)
+# and echo just its DOCCLE_HEALTH_RESULT json line. Needs no Keycloak/backend — it
+# reflects the LOCAL packages/backend/.env.<NODE_ENV> config, not the TARGET backend.
+# Unlike eDOCS this can only answer reachability, never "authenticated" — the v1
+# Doccle API has no side-effect-free endpoint to verify credentials.
+run_doccle_probe() {
+  ( cd "$BACKEND_DIR" && NODE_ENV="${NODE_ENV:-development}" \
+      npx --no-install tsx scripts/doccle-healthcheck.ts --quiet ) 2>/dev/null \
+    | sed -n 's/^DOCCLE_HEALTH_RESULT //p' | tail -n1
+}
+
 # ── Result helpers ────────────────────────────────────────────────────────────
 
 PASS=0
@@ -284,6 +295,36 @@ else
   fi
 fi
 
+# ── Doccle check — DIRECT (in-process · no Keycloak · local .env) ─────────────
+#
+# Unlike eDOCS, the v1 Doccle API (mci-rest-app) has no side-effect-free
+# endpoint, so this can only prove reachability — never "authenticated". Real
+# credential verification only happens via the mutating scripts/test-doccle-live.sh.
+
+echo ""
+echo "── Doccle check — direct (in-process · no Keycloak · local .env) ──────────"
+
+if [[ ! -d "$BACKEND_DIR" ]]; then
+  skip "Doccle probe — backend package not found at $BACKEND_DIR"
+elif ! command -v npx >/dev/null 2>&1; then
+  skip "Doccle probe — npx/tsx not available"
+else
+  DOCCLE_JSON=$(run_doccle_probe)
+  if [[ -z "$DOCCLE_JSON" ]]; then
+    fail "Doccle probe produced no result — run manually: (cd packages/backend && npm run doccle:health)"
+  elif [[ "$(echo "$DOCCLE_JSON" | jq -r '.status')" == "stub" ]]; then
+    skip "Doccle — stub mode enabled locally (DOCCLE_STUB_MODE=true)"
+  else
+    rch=$(echo "$DOCCLE_JSON" | jq -r '.reachable')
+    lat=$(echo "$DOCCLE_JSON" | jq -r '.latency // "?"')
+    if [[ "$rch" == "true" ]]; then
+      pass "Doccle reachable (${lat} ms) — auth not verified (see test-doccle-live.sh)"
+    else
+      fail "Doccle not reachable: $(echo "$DOCCLE_JSON" | jq -r '.error // "no detail"')"
+    fi
+  fi
+fi
+
 # ── Tier 2 — authenticated seams (two Keycloak flows) ─────────────────────────
 #
 # 2a — CLIENT flow (client_credentials): a confidential client + secret. M2M, no
@@ -327,6 +368,22 @@ else
         else
           fail "eDOCS login failed via backend: $(jq -r '.data.error // "no detail"' "$TMP/edocs.json")"
         fi
+      fi
+    fi
+
+    # Doccle gated status — reuses the same M2M token. Reachability only, same
+    # caveat as the direct probe above: this API cannot prove authentication
+    # without a mutating call (see scripts/test-doccle-live.sh).
+    DS_CODE=$(get "$TMP/doccle.json" "${BASE_URL}/v1/doccle/status" "${AUTH_M2M[@]}")
+    check_status "GET /v1/doccle/status" "$DS_CODE" "200"
+    if [[ "$DS_CODE" == "200" ]]; then
+      if [[ "$(jq -r '.data.stubMode' "$TMP/doccle.json" 2>/dev/null)" == "true" ]]; then
+        skip "Doccle (backend) — stub mode enabled (DOCCLE_STUB_MODE)"
+      else
+        rch=$(jq -r '.data.reachable' "$TMP/doccle.json" 2>/dev/null)
+        [[ "$rch" == "true" ]] \
+          && pass "Doccle reachable via backend" \
+          || fail "Doccle not reachable via backend: $(jq -r '.data.error // "no detail"' "$TMP/doccle.json")"
       fi
     fi
   fi
