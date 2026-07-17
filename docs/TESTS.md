@@ -438,86 +438,46 @@ input. "Defensive branches" in the status column means exactly that residue.
 
 ## Live smoke suite (cross-app — not part of `npm test`)
 
-`scripts/test-smoke-live.sh` is a thin, gated smoke check of the critical **cross-app
-seams** that the Jest unit suite deliberately mocks out — the backend's real links to
-Operaton, Keycloak, the Linked Data Explorer, TriplyDB (SPARQL), CPRMV, the media store,
-eDOCS, and the MCP provider layer. It's a developer / pre-deploy tool, intentionally
-**not** wired into the Jest run: it hits running services over the network, and the unit
-suite stays fast + infra-free precisely by keeping this separate. It never mutates
-anything — the eDOCS check is reach + login only (the mutating workspace/upload path
-stays in `scripts/test-edocs-live.sh`).
+Four gated shell scripts under `scripts/` hit real running services and are
+deliberately kept out of the Jest run: `test-smoke-live.sh` (cross-app health:
+Operaton, Keycloak, LDE, TriplyDB, CPRMV, media store, eDOCS status, MCP
+layer — never mutates), `test-edocs-live.sh` (eDOCS workspace/document
+lifecycle — mutates), `test-doccle-live.sh` (Doccle sender API — mutates, not
+yet live-tested), `test-m2m-routes.sh` (M2M decision routes against ACC).
 
-eDOCS is checked **two ways on purpose**, because they answer different questions:
-
-- **1/2 — direct (Keycloak-free).** Runs `EdocsService.healthCheck()` in-process (via
-  `packages/backend/scripts/edocs-healthcheck.ts`), _not_ the HTTP route. Needs no
-  `CLIENT_SECRET` and no running backend; reflects the **local**
-  `packages/backend/.env.<NODE_ENV>` config, independent of `TARGET`. Always runs. On its
-  own: `cd packages/backend && npm run edocs:health`.
-- **2/2 — JWT-gated.** Asks the **running backend** via `GET /v1/edocs/status` (behind the
-  JWT gate, so it needs a Keycloak token). Reflects the backend **process's** config and
-  exercises the full auth chain. Runs only when `CLIENT_SECRET` is set.
-
-Comparing the two exposes config drift: the direct check reads the current `.env` while the
-gated check reads whatever the backend booted with, so a mismatched `library` in the 2/2
-output means the backend is on stale config and needs a restart (`tsx watch` does not
-reload `.env`).
-
-Tier 2 deliberately uses **two Keycloak flows**, because clients and users authenticate
-differently and grant different things:
-
-- **2a — client flow** (`client_credentials`): a confidential **client** (`operaton-mcp-client`)
-  - secret. Machine-to-machine, no human, no role. Its token clears the JWT gate — used for
-    the eDOCS 2/2 gated status check (eDOCS management is M2M).
-- **2b — user flow** (`password` grant): a **user** (`test-caseworker-flevoland`) + password
-  whose **role** (caseworker) gates `/v1/mcp/sources`. A client-credentials token would 403
-  here — this is what makes the role path a real check.
-
-### Running it
+> **Full tier breakdown, the "what it checks" table, and eDOCS live-tested
+> results now live on the architecture documentation site** — see
+> [Testing](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/)
+> and [eDOCS — Live Testing](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/edocs-live-testing/).
+> Kept here: the commands to actually run them.
 
 ```bash
-# Local dev backend — full run. On TARGET=local, Tier 2 credentials are read from
-# packages/backend/.env.development (KEYCLOAK_CLIENT_SECRET + SMOKE_TEST_PASSWORD):
+# Cross-app smoke — local dev backend, full run (Tier 2 credentials read from
+# packages/backend/.env.development on TARGET=local):
 bash scripts/test-smoke-live.sh
 
 # Explicit credentials (e.g. against acc, where the .env fallback does not apply):
 CLIENT_SECRET=<m2m-secret> SMOKE_PASSWORD=<user-pw> TARGET=acc bash scripts/test-smoke-live.sh
 
+# eDOCS — full mutating smoke test:
+bash scripts/test-edocs-live.sh
+
 # Just eDOCS reachability + login, nothing else (no backend, no Keycloak):
 cd packages/backend && npm run edocs:health
+
+# Doccle:
+CLIENT_SECRET=<secret> bash scripts/test-doccle-live.sh
+
+# M2M decision routes against ACC:
+CLIENT_SECRET=<secret> bash scripts/test-m2m-routes.sh
 ```
 
-`TARGET` (`local` — default — or `acc`) selects the `BASE_URL` + `KEYCLOAK_URL` preset;
-set either variable explicitly to override the preset. Requires `curl` + `jq` (and, for
-the eDOCS probe, `npx`/`tsx` on a repo checkout).
-
-### What it checks
-
-| Tier   | Check                  | How                                            | Signal                                        |
-| ------ | ---------------------- | ---------------------------------------------- | --------------------------------------------- |
-| gate   | Backend live           | `GET /v1/health/live`                          | aborts the whole run if the backend is down   |
-| 1      | Operaton + Keycloak    | `GET /v1/health`                               | both dependencies report `up`                 |
-| 1      | Cross-app reachability | `GET /v1/health/external`                      | `lde`, `triplydb`, `cprmv` each `up`          |
-| 1      | Media path             | `GET /v1/media-aggregator/health`              | store healthy + cached-article count          |
-| direct | eDOCS 1/2 (local)      | `EdocsService.healthCheck()` in-proc           | `reachable` + `authenticated` (skips if stub) |
-| 2a     | Client token (M2M)     | `client_credentials` (`operaton-mcp-client`)   | a token is obtainable                         |
-| 2a     | eDOCS 2/2 (backend)    | `GET /v1/edocs/status` (JWT-gated)             | `reachable` + `authenticated` + `library`     |
-| 2b     | User token (role)      | `password` grant (`test-caseworker-flevoland`) | a token is obtainable                         |
-| 2b     | MCP layer              | `GET /v1/mcp/sources`                          | providers advertised (403 = user lacks role)  |
-
-The `direct` eDOCS check (1/2) and Tier 1 need no secret. **2a** runs when a `CLIENT_SECRET`
-is available (auto-loaded from `.env` on local); **2b** runs when a user password is
-available (`SMOKE_PASSWORD`, or `SMOKE_TEST_PASSWORD` in `.env` on local). The 1/2 probe is
-in-process so it reads the local `.env` even when `TARGET=acc`; the 2/2 check reads the
-running backend's config — a `library` mismatch between the two means the backend is on
-stale config (restart to reload `.env`).
-
-### Gating
-
-Exit 0 when nothing failed, exit 1 on any failure. A dependency that's intentionally
-off — eDOCS stub mode, MCP disabled, no `CLIENT_SECRET` — **skips with a `~` note**,
-never a red fail. Only genuine unreachability or a real auth failure fails the run, so
-the suite is safe to run in any environment without producing false alarms.
+`TARGET` (`local` — default — or `acc`) selects the `BASE_URL` + `KEYCLOAK_URL`
+preset on scripts that support it; set either variable explicitly to override.
+Requires `curl` + `jq` (and, for the eDOCS probe, `npx`/`tsx` on a repo
+checkout). Exit `0` when nothing failed, `1` on any failure — a dependency
+that's intentionally off (stub mode, no `CLIENT_SECRET`) skips with a `~`
+note, never a red fail.
 
 ---
 
