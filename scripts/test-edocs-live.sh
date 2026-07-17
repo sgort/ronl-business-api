@@ -289,17 +289,28 @@ echo "── Upload document (standalone) ────────────�
 DOCUMENT_ID=""
 DOC_NUMBER=""
 
-# A small but structurally real PDF (not just a text blob), carrying a unique
-# marker comment so the download step below can prove the content round-trips
-# byte-for-byte through eDOCS rather than just checking HTTP 200.
+# A small PDF with real, visible text content (not just an empty page), so a
+# manual InfoCenter open actually shows something — carrying a unique marker
+# so the download step below can prove the content round-trips byte-for-byte
+# through eDOCS rather than just checking HTTP 200.
 MARKER="SMOKE-${PROJECT_NUMBER}-$(date -u +%FT%TZ)"
+# Two lines (label, then marker) rather than one long line — a single line at
+# a readable font size clips off the right edge of the page for a marker this
+# long, since PROJECT_NUMBER (and so MARKER) length varies.
+PDF_TEXT="BT /F1 11 Tf 20 120 Td (eDOCS CLI smoke test) Tj 0 -16 Td (${MARKER}) Tj ET"
+PDF_TEXT_LEN=$(printf '%s' "$PDF_TEXT" | wc -c)
 PDF_CONTENT=$(cat <<PDFEOF
-%PDF-1.0
+%PDF-1.4
 1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
-3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 500 150]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj
+4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
+5 0 obj<</Length ${PDF_TEXT_LEN}>>
+stream
+${PDF_TEXT}
+endstream
+endobj
 trailer<</Root 1 0 R>>
-% ${MARKER}
 %%EOF
 PDFEOF
 )
@@ -345,42 +356,36 @@ if [[ -n "$DOCUMENT_ID" ]]; then
   [[ "$PROFILE_CODE" == "200" ]] && \
     check_field "profile body" "$(cat /tmp/edocs_profile.json)" '.success' 'true'
 
-  # ─── 7. Document versions ───────────────────────────────────────────────
+  # ─── 7. Document versions (informational — not a download prerequisite) ─
   echo ""
   echo "── Document versions ────────────────────────────────────────────────────"
   VERSIONS_CODE=$(curl -s -o /tmp/edocs_versions.json -w "%{http_code}" \
     "${BASE_URL}/v1/edocs/documents/${DOCUMENT_ID}/versions" "${AUTH[@]}")
   check_status "GET /v1/edocs/documents/:id/versions" "$VERSIONS_CODE" "200"
-  VERSION=""
-  if [[ "$VERSIONS_CODE" == "200" ]]; then
-    VERSION=$(jq -r '.data.versions[0].version // empty' /tmp/edocs_versions.json)
-    [[ -n "$VERSION" ]] \
-      && pass "version identified: $VERSION" \
-      || fail "no versions returned for document"
-  fi
+  [[ "$VERSIONS_CODE" == "200" ]] && \
+    pass "versions listed ($(jq -r '.data.versions | length' /tmp/edocs_versions.json) found)"
 
   # ─── 8. Download + verify the content round-trips ───────────────────────
-  if [[ -n "$VERSION" ]]; then
-    echo ""
-    echo "── Download + verify content round-trip ─────────────────────────────────"
-    DOWNLOAD_CODE=$(curl -s -o /tmp/edocs_download.json -w "%{http_code}" \
-      "${BASE_URL}/v1/edocs/documents/${DOCUMENT_ID}/versions/${VERSION}" "${AUTH[@]}")
-    check_status "GET /v1/edocs/documents/:id/versions/:version" "$DOWNLOAD_CODE" "200"
-    if [[ "$DOWNLOAD_CODE" == "200" ]]; then
-      DOWNLOADED_B64=$(jq -r '.data.contentBase64 // empty' /tmp/edocs_download.json)
-      if [[ -n "$DOWNLOADED_B64" ]]; then
-        DOWNLOADED_HASH=$(printf '%s' "$DOWNLOADED_B64" | base64 -d 2>/dev/null | sha256sum | cut -d' ' -f1)
-        if [[ "$DOWNLOADED_HASH" == "$ORIGINAL_HASH" ]]; then
-          pass "downloaded content matches uploaded content (sha256 ${ORIGINAL_HASH:0:12}…)"
-        else
-          fail "downloaded content does not match upload (got ${DOWNLOADED_HASH:0:12}…, want ${ORIGINAL_HASH:0:12}…)"
-        fi
+  # "0" is a confirmed-working version sentinel ("current version") — the
+  # versions list's VERSION_ID/VERSION values both 400 here ("Kan
+  # documentversie niet vinden"), so this does not depend on step 7's result.
+  echo ""
+  echo "── Download + verify content round-trip ─────────────────────────────────"
+  DOWNLOAD_CODE=$(curl -s -o /tmp/edocs_download.json -w "%{http_code}" \
+    "${BASE_URL}/v1/edocs/documents/${DOCUMENT_ID}/versions/0" "${AUTH[@]}")
+  check_status "GET /v1/edocs/documents/:id/versions/0" "$DOWNLOAD_CODE" "200"
+  if [[ "$DOWNLOAD_CODE" == "200" ]]; then
+    DOWNLOADED_B64=$(jq -r '.data.contentBase64 // empty' /tmp/edocs_download.json)
+    if [[ -n "$DOWNLOADED_B64" ]]; then
+      DOWNLOADED_HASH=$(printf '%s' "$DOWNLOADED_B64" | base64 -d 2>/dev/null | sha256sum | cut -d' ' -f1)
+      if [[ "$DOWNLOADED_HASH" == "$ORIGINAL_HASH" ]]; then
+        pass "downloaded content matches uploaded content (sha256 ${ORIGINAL_HASH:0:12}…)"
       else
-        fail "download returned no content"
+        fail "downloaded content does not match upload (got ${DOWNLOADED_HASH:0:12}…, want ${ORIGINAL_HASH:0:12}…)"
       fi
+    else
+      fail "download returned no content"
     fi
-  else
-    echo "  ~ download skipped — no version identifier"
   fi
 else
   echo ""

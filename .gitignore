@@ -107,3 +107,6 @@ deploy-backend-to-*.sh
 
 # Knowledge graph (generated tooling output)
 .understand-anything/
+
+# Local-only vendor API reference (not meant for the repo)
+docs/edocs-rest-api-1.0.0.json

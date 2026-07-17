@@ -418,47 +418,43 @@ describe('EdocsService — live mode', () => {
   });
 
   describe('getDocumentVersions()', () => {
-    it('maps the raw eDOCS list into id/version', async () => {
+    it('maps the raw eDOCS list into id (VERSION_ID) / version (VERSION label)', async () => {
       mockClient.post.mockResolvedValueOnce(connectResponse);
       mockClient.get.mockResolvedValueOnce({
-        data: { data: { list: [{ id: 'v1', data: { VERSION: '1' } }] } },
+        // Flat list item shape, confirmed live — no nested `.data`, no `id` field.
+        data: {
+          data: {
+            list: [
+              { VERSION_ID: '4171013', VERSION: '1' },
+              { VERSION_ID: '4171014', VERSION: '2' },
+            ],
+          },
+        },
       });
 
       const versions = await svc.getDocumentVersions('doc-1');
 
-      expect(versions).toEqual([{ id: 'v1', version: '1' }]);
-    });
-
-    it('falls back to the item id when VERSION is absent', async () => {
-      mockClient.post.mockResolvedValueOnce(connectResponse);
-      mockClient.get.mockResolvedValueOnce({
-        data: { data: { list: [{ id: 'v2' }] } },
-      });
-
-      const versions = await svc.getDocumentVersions('doc-1');
-
-      expect(versions).toEqual([{ id: 'v2', version: 'v2' }]);
+      expect(versions).toEqual([
+        { id: '4171013', version: '1' },
+        { id: '4171014', version: '2' },
+      ]);
     });
   });
 
   describe('downloadDocumentVersion()', () => {
-    it('returns the base64 file content', async () => {
+    it('base64-encodes the raw response bytes, requesting an arraybuffer', async () => {
       mockClient.post.mockResolvedValueOnce(connectResponse);
-      mockClient.get.mockResolvedValueOnce({ data: { data: { file: 'YmFzZTY0' } } });
+      mockClient.get.mockResolvedValueOnce({ data: Buffer.from('%PDF-1.4 raw bytes') });
 
-      const res = await svc.downloadDocumentVersion('doc-1', '1');
+      const res = await svc.downloadDocumentVersion('doc-1', '0');
 
-      expect(res).toEqual({ contentBase64: 'YmFzZTY0' });
-      expect(mockClient.get).toHaveBeenCalledWith('documents/doc-1/versions/1', {
-        params: { library: 'DOCUVITT' },
+      expect(res).toEqual({
+        contentBase64: Buffer.from('%PDF-1.4 raw bytes').toString('base64'),
       });
-    });
-
-    it('throws when the response carries no file content', async () => {
-      mockClient.post.mockResolvedValueOnce(connectResponse);
-      mockClient.get.mockResolvedValueOnce({ data: { data: {} } });
-
-      await expect(svc.downloadDocumentVersion('doc-1', '1')).rejects.toThrow(/no file content/);
+      expect(mockClient.get).toHaveBeenCalledWith('documents/doc-1/versions/0', {
+        params: { library: 'DOCUVITT' },
+        responseType: 'arraybuffer',
+      });
     });
   });
 

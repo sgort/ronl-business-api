@@ -135,9 +135,11 @@ used by `test-m2m-routes.sh`), then runs, in order:
    (only runs if step 3 produced a workspace id). Exercises the endpoint fix;
    won't show the document above since it's standalone.
 6. `GET /v1/edocs/documents/:id/profile` — read its profile.
-7. `GET /v1/edocs/documents/:id/versions` — find its version id.
-8. `GET /v1/edocs/documents/:id/versions/:version` — download it and verify the
-   content matches what was uploaded (sha256 of the decoded bytes).
+7. `GET /v1/edocs/documents/:id/versions` — list its versions (informational).
+8. `GET /v1/edocs/documents/:id/versions/0` — download the current version
+   (`0` is a confirmed-working sentinel, not derived from step 7 — see
+   [Known issues](#known-issues)) and verify the content matches what was
+   uploaded (sha256 of the decoded bytes).
 9. Prints whatever was created (workspace and/or document ids, plus an
    `EDOCS_PORTAL_URL` link if set) and pauses for a `y/N` confirmation before
    deleting — so you can open eDOCS InfoCenter and look first.
@@ -295,20 +297,57 @@ upload → workspace-content list → document profile**, all `HTTP 200`. This i
 the first live confirmation of the full standalone create/read chain, not just
 the isolated upload probe above.
 
-Two things in that same run need vendor input, not further guessing:
+One of these turned out to be a client-side bug (now fixed); the other still
+needs vendor input:
 
-- **`GET /documents/:id/versions` returns `200` with an empty list** for a
-  document created moments earlier — no error, just nothing in `data.versions`.
-  Either this server doesn't expose the initial content as a discrete "version
-  1" the way the OpenAPI spec implies, or versions only appear once a second
-  version is added. Blocks the download-and-verify step, since it needs a
-  version id.
+- **`GET /documents/:id/versions` — parsing fixed.** The empty result on that
+  run wasn't (only) a data question — `getDocumentVersions()`'s parsing was
+  wrong. A real response (confirmed via a manual Postman call against a
+  document with 2 versions) has flat list items with **no `id` field at all**
+  and no nested `.data`: `{ VERSION_ID: "4171013", VERSION: "1", DOCNUMBER,
+... }`. `VERSION` is the human-facing label ("1", "2"); `VERSION_ID` looked
+  like the obvious candidate for a "real identifier", so that's what got
+  extracted as `id` — **this turned out to be wrong**, see below. Whether a
+  single-version document returns an empty list vs. a one-item list is still
+  unconfirmed — not yet re-tested against a document with only one version.
 - **`DELETE /documents/:id` failed with `400`, not a server error**:
   `"U bent niet gemachtigd de gevraagde bewerking uit te voeren"` ("not
   authorized to perform the requested operation", `rapi_code 0X8004013A`). The
   `IOUTEST` service account likely lacks delete rights (consistent with the
   "Restricted" permission shown in InfoCenter's Create Profile dialog) — ask
   the vendor/admin whether it should.
+
+### `GET /documents/:id/versions/:version` — wrong response shape AND wrong version id (fixed)
+
+Neither `VERSION` nor `VERSION_ID` from the versions list works as the
+`:version` path segment — both throw `400`:
+`"Kan documentversie niet vinden met opgegeven versie-id"` ("cannot find
+document version with the given version-id", `rapi_code 0X80040135`). The
+value that actually works, found by trial in Postman: the literal string
+**`"0"`** — apparently a "current version" sentinel, unrelated to the versions
+list entirely.
+
+Separately, the response itself is **raw file bytes**, not JSON — confirmed
+via `curl`, which printed the exact uploaded PDF content directly (no
+envelope, no base64 field). The previous code assumed the same
+`{ data: { file: "<base64>" } }` shape as the rest of the API and found
+nothing there, which is why it looked like an empty/missing-content error
+rather than a wrong-shape one. Fixed in `edocs.service.ts`: the request now
+sets `responseType: 'arraybuffer'` (axios's default JSON/string decoding would
+corrupt real binary content) and base64-encodes the raw bytes directly.
+
+Verified live end-to-end: uploaded a PDF, downloaded it back via
+`.../versions/0`, and the bytes matched the upload exactly (confirmed by the
+user via direct `curl`, marker text included) — this is the first fully
+round-tripped live confirmation of upload → download.
+
+`test-edocs-live.sh` now downloads `.../versions/0` unconditionally instead of
+deriving a version id from the versions list (decoupled, since neither list
+field applies here). The generated smoke-test PDF also now has real visible
+text (`eDOCS CLI smoke test -- <marker>`) instead of an empty page, so a
+manual InfoCenter open shows something — verified locally with `pdftotext`
+(recovers fine from the intentionally-omitted xref table, same as most modern
+PDF viewers/pdf.js-based ones do).
 
 ### Possible workspace-search filter issue (unconfirmed, needs follow-up)
 

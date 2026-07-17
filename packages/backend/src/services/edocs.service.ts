@@ -34,7 +34,9 @@ export interface EdocsDocumentMetadata {
 }
 
 export interface EdocsDocumentVersion {
+  /** VERSION_ID — the real identifier `downloadDocumentVersion()` needs. */
   id: string;
+  /** VERSION — the human-facing label ("1", "2", ...), not usable for download. */
   version: string;
 }
 
@@ -426,9 +428,11 @@ export class EdocsService {
       const response = await this.client.get(`documents/${documentId}/versions`, {
         params: { library: config.edocs.library },
       });
-      const list: Array<{ id: string; data?: { VERSION?: string } }> =
-        response.data?.data?.list ?? [];
-      return list.map((item) => ({ id: item.id, version: item.data?.VERSION ?? item.id }));
+      // Flat list item shape, confirmed live — no nested `.data`, and no `id`
+      // field at all. VERSION_ID is the real identifier the download endpoint
+      // needs; VERSION is just the human-facing label ("1", "2", ...).
+      const list: Array<{ VERSION_ID: string; VERSION: string }> = response.data?.data?.list ?? [];
+      return list.map((item) => ({ id: item.VERSION_ID, version: item.VERSION }));
     });
   }
 
@@ -441,15 +445,17 @@ export class EdocsService {
     }
 
     return this.withAuth(async () => {
+      // Confirmed live: this endpoint returns the raw file bytes directly (not
+      // JSON with a base64 field, despite the sibling endpoints' convention) —
+      // arraybuffer avoids axios's default JSON/string decoding, which would
+      // corrupt real binary content. "0" is a confirmed-working version
+      // sentinel; the versions list's VERSION/VERSION_ID both 400 here
+      // ("Kan documentversie niet vinden met opgegeven versie-id").
       const response = await this.client.get(`documents/${documentId}/versions/${version}`, {
         params: { library: config.edocs.library },
+        responseType: 'arraybuffer',
       });
-      const contentBase64: string | undefined = response.data?.data?.file ?? response.data?.file;
-      if (!contentBase64) {
-        throw new Error(
-          `eDOCS download returned no file content for document ${documentId} v${version}`
-        );
-      }
+      const contentBase64 = Buffer.from(response.data as ArrayBuffer).toString('base64');
       return { contentBase64 };
     });
   }
