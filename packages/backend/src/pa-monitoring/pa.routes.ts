@@ -11,6 +11,8 @@ import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
+import { searchFlevolandNews } from './sources/media.client';
+import { FEEDS as MEDIA_FEEDS } from '../media-aggregator/feeds';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
 import { config } from '@utils/config';
@@ -75,7 +77,7 @@ router.use(tenantMiddleware);
 router.use(requireRoles('public-affairs'));
 
 // ── GET /v1/pa/feed ──────────────────────────────────────────────────────────
-// Raw merged TK+OB feed. Query params: q, types (csv), source (tk|ob), skip, top.
+// Raw merged TK+OB+media feed. Query params: q, types (csv), source (tk|ob|media), skip, top.
 router.get('/feed', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
@@ -88,7 +90,7 @@ router.get('/feed', async (req, res) => {
 
   try {
     const fetches: Promise<{ items: unknown[]; total: number | null }>[] = [];
-    if (source !== 'ob')
+    if (source === 'both' || source === 'tk')
       fetches.push(
         fetchTkFeed(
           q,
@@ -97,7 +99,7 @@ router.get('/feed', async (req, res) => {
           top
         )
       );
-    if (source !== 'tk')
+    if (source === 'both' || source === 'ob')
       fetches.push(
         fetchObFeed(
           q,
@@ -108,6 +110,8 @@ router.get('/feed', async (req, res) => {
           top
         )
       );
+    if ((source === 'both' || source === 'media') && config.pa.mediaSourceEnabled)
+      fetches.push(searchFlevolandNews(q, top));
 
     const results = await Promise.allSettled(fetches);
     const items: unknown[] = [];
@@ -133,12 +137,17 @@ router.get('/feed', async (req, res) => {
 });
 
 // ── GET /v1/pa/types ─────────────────────────────────────────────────────────
+// Keys double as the searchable-bronnen list for the blanco zoekfunctie
+// (frontend derives feedSources from Object.keys of this response).
 router.get('/types', (_req, res) => {
   res.json({
     success: true,
     data: {
       tk: [...TK_DOCUMENT_TYPES],
       ob: [...OB_PUBLICATION_TYPES],
+      // Media has no fixed document-type taxonomy (RSS feeds, not a typed API) —
+      // an empty array is enough to make 'media' a searchable bron key.
+      ...(config.pa.mediaSourceEnabled ? { media: [] } : {}),
     },
   });
 });
@@ -560,6 +569,8 @@ function rowToSignal(row: Record<string, unknown>): Signal {
 // ── GET /v1/pa/sources/status ─────────────────────────────────────────────────
 // Read-only connector health: reflects actual env flags so the Signaalbronnen
 // screen never shows a status that contradicts the deployed configuration.
+// `feeds` mirrors media-aggregator's live registry (feeds.ts) so BronnenSection.tsx
+// doesn't need its own hand-maintained copy of the per-RSS-feed list.
 router.get('/sources/status', (_req, res) => {
   res.json({
     success: true,
@@ -569,6 +580,15 @@ router.get('/sources/status', (_req, res) => {
       eu: config.pa.euSourceEnabled,
       epTeksten: config.pa.epTextsSubmittedEnabled,
       media: config.pa.mediaSourceEnabled,
+      feeds: MEDIA_FEEDS.map((f) => ({
+        id: f.id,
+        name: f.name,
+        homepage: f.homepage,
+        type: f.type,
+        url: f.url,
+        alwaysFlevoland: f.alwaysFlevoland ?? false,
+        categoryFilter: f.categoryFilter ?? null,
+      })),
     },
   });
 });

@@ -2,36 +2,12 @@
  * media-aggregator — shared types.
  *
  * AggregatorArticle is the CONTRACT the PA-Cockpit's media.client.ts consumes.
- * Field names and the sentiment enum must match media.client.ts exactly:
- *   id · duplicate_group_id · canonical_url · title · summary_short ·
- *   published_at · province · municipality · sentiment · source{name,type,homepage}
+ * Canonical definition lives in @ronl/shared (packages/shared/src/types/pa.types.ts)
+ * so the aggregator and its consumer can't drift apart.
  * The GET /search response envelope is { articles: AggregatorArticle[] }.
  */
 
-export interface AggregatorArticle {
-  /** Stable id derived from the canonical URL. */
-  id: string;
-  /** Set when this article is one copy of a syndicated cluster; null for singletons.
-   *  The cockpit collapses a cluster to one candidate via `duplicate_group_id ?? id`. */
-  duplicate_group_id: string | null;
-  canonical_url: string;
-  title: string;
-  /** ≤ ~50-word plain-text summary (RSS description, stripped). */
-  summary_short: string;
-  /** ISO-8601 timestamp. */
-  published_at: string;
-  /** Gazetteer-detected province — 'Flevoland' or null. Display-only in the cockpit. */
-  province: string | null;
-  /** Gazetteer-detected municipality — one of the six, or null. Display-only. */
-  municipality: string | null;
-  /** AI sentiment — phase-2 (null in v1). Display-only, never scored. */
-  sentiment: 'positief' | 'neutraal' | 'negatief' | null;
-  source: {
-    name: string;
-    type: 'national' | 'regional';
-    homepage: string;
-  };
-}
+export type { AggregatorArticle } from '@ronl/shared';
 
 /** A configured upstream RSS feed. */
 export interface FeedSource {

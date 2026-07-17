@@ -9,22 +9,9 @@
 import axios from 'axios';
 import { createLogger } from '@utils/logger';
 import { config } from '@utils/config';
-import type { FeedItem } from '@ronl/shared';
+import type { FeedItem, AggregatorArticle } from '@ronl/shared';
 
 const logger = createLogger('media-client');
-
-export interface AggregatorArticle {
-  id: string;
-  duplicate_group_id: string | null;
-  canonical_url: string;
-  title: string;
-  summary_short: string;
-  published_at: string;
-  province: string | null;
-  municipality: string | null;
-  sentiment: 'positief' | 'neutraal' | 'negatief' | null;
-  source: { name: string; type: 'national' | 'regional'; homepage: string };
-}
 
 export function articleToFeedItem(a: AggregatorArticle): FeedItem {
   const regioParts = [a.province, a.municipality].filter(Boolean);
@@ -43,21 +30,15 @@ export function articleToFeedItem(a: AggregatorArticle): FeedItem {
   };
 }
 
-export async function fetchFlevolandNews({ terms }: { terms: string[] }): Promise<FeedItem[]> {
+async function fetchArticles(params: Record<string, string>): Promise<FeedItem[]> {
   const base = config.pa.mediaAggregatorBase;
   const apiKey = config.pa.mediaAggregatorApiKey;
-
-  const params = new URLSearchParams({
-    region: 'Flevoland',
-    q: terms.join(' OR '),
-    sort: 'published_at:desc',
-    top: '50',
-  });
+  const search = new URLSearchParams(params);
 
   let attempt = 0;
   while (attempt < 2) {
     try {
-      const res = await axios.get<{ articles: AggregatorArticle[] }>(`${base}/search?${params}`, {
+      const res = await axios.get<{ articles: AggregatorArticle[] }>(`${base}/search?${search}`, {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Accept-Language': 'nl',
@@ -89,4 +70,34 @@ export async function fetchFlevolandNews({ terms }: { terms: string[] }): Promis
     }
   }
   return [];
+}
+
+export async function fetchFlevolandNews({ terms }: { terms: string[] }): Promise<FeedItem[]> {
+  return fetchArticles({
+    region: 'Flevoland',
+    q: terms.join(' OR '),
+    sort: 'published_at:desc',
+    top: '50',
+  });
+}
+
+/**
+ * Ad-hoc search for the blanco zoekfunctie (raw cross-source search), as opposed to
+ * fetchFlevolandNews' fixed taxonomy terms. Region stays pinned to Flevoland — an
+ * unscoped national firehose would just be noise for a provincial PA cockpit.
+ * media-aggregator has no total-count concept (search.ts is a capped retrieval,
+ * not a paginated index), so total is always null — same contract fetchTkFeed/
+ * fetchObFeed's callers already handle for a null total.
+ */
+export async function searchFlevolandNews(
+  q: string | null,
+  top = 20
+): Promise<{ items: FeedItem[]; total: number | null }> {
+  const items = await fetchArticles({
+    region: 'Flevoland',
+    q: q ?? '',
+    sort: 'published_at:desc',
+    top: String(Math.min(Math.max(top, 1), 100)),
+  });
+  return { items, total: null };
 }

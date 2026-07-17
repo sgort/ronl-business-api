@@ -2,7 +2,6 @@
  * Monitoring — Scherm 3, curated signals per source.
  * Live mode: fetches from /v1/pa/signals (confirmed) and inbox (candidates).
  * Mock mode: uses static fixtures from pa.api.ts.
- * Europa/Media tabs show an honest empty-state (no connector yet).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,7 +18,6 @@ import {
   promoteSearchToTenant,
   promoteToInbox,
   linkSignalDossier,
-  paTabConnected,
   paTabBronnen,
   signalTag,
   signalTagLabel,
@@ -356,6 +354,7 @@ const SCOPE_LABEL: Record<string, string> = {
   tk: 'Tweede Kamer',
   ob: 'Off. Bekendmakingen',
   eu: 'Europa',
+  media: 'Nieuws & media',
 };
 
 // Short chip labels per source key ('both' = the Alle chip).
@@ -364,6 +363,7 @@ const SOURCE_CHIP_LABEL: Record<string, string> = {
   tk: 'Tweede Kamer',
   ob: 'Off. Bekendmakingen',
   eu: 'Europa',
+  media: 'Nieuws & media',
 };
 
 function feedAge(date: string | null): string | null {
@@ -560,7 +560,6 @@ function RawHitCard({
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
   const { confirmSignal, dossiers, updateInboxCount } = usePaData();
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
-  const connected = paTabConnected(tab.id);
 
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -576,7 +575,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
   const [searchInput, setSearchInput] = useState('');
   const [feedQuery, setFeedQuery] = useState(''); // committed query ('' = inactive)
   const [feedSource, setFeedSource] = useState<FeedSource>('both');
-  const [feedSources, setFeedSources] = useState<string[]>(['tk', 'ob']); // searchable bronnen
+  const [feedSources, setFeedSources] = useState<string[]>(['tk', 'ob', 'media']); // searchable bronnen
   const [feedResults, setFeedResults] = useState<FeedItem[] | null>(null);
   const [feedTotal, setFeedTotal] = useState<number | null>(null);
   const [feedLoading, setFeedLoading] = useState(false);
@@ -800,16 +799,12 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          {connected ? (
-            <span className="pac-coverage">bron: {paTabBronnen(tab.id).join(' · ')}</span>
-          ) : (
-            <span className="pac-coverage off">nog geen bron gekoppeld</span>
-          )}
+          <span className="pac-coverage">bron: {paTabBronnen(tab.id).join(' · ')}</span>
         </div>
       </div>
 
       {/* Media & omgeving — honest sub-source coverage note */}
-      {connected && tab.id === 'media' && (
+      {tab.id === 'media' && (
         <div className="pac-media-note">
           <b>Nieuws</b> (landelijk + regionaal) is live via de nieuws-aggregator, regio-gescoopt op
           Flevoland (<span className="mono">GET /search · regio=Flevoland</span>).{' '}
@@ -817,102 +812,80 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         </div>
       )}
 
-      {/* Segmented control — only for connected tabs */}
-      {connected && (
-        <div className="pac-seg" role="tablist">
-          <button
-            type="button"
-            className={`pac-seg-btn ${view === 'gecureerd' ? 'active' : ''}`}
-            onClick={() => {
-              setView('gecureerd');
-              clearSearch();
-            }}
-          >
-            Gecureerd <span className="pac-seg-count">{signals.length}</span>
-          </button>
-          <button
-            type="button"
-            className={`pac-seg-btn ${view === 'inbox' ? 'active' : ''}`}
-            onClick={() => {
-              setView('inbox');
-              clearSearch();
-            }}
-          >
-            Inbox{' '}
-            <span className="pac-seg-count">
-              {inboxMeta?.capped ? '100+' : visibleInbox.length}
-            </span>
-          </button>
-        </div>
-      )}
+      <div className="pac-seg" role="tablist">
+        <button
+          type="button"
+          className={`pac-seg-btn ${view === 'gecureerd' ? 'active' : ''}`}
+          onClick={() => {
+            setView('gecureerd');
+            clearSearch();
+          }}
+        >
+          Gecureerd <span className="pac-seg-count">{signals.length}</span>
+        </button>
+        <button
+          type="button"
+          className={`pac-seg-btn ${view === 'inbox' ? 'active' : ''}`}
+          onClick={() => {
+            setView('inbox');
+            clearSearch();
+          }}
+        >
+          Inbox{' '}
+          <span className="pac-seg-count">{inboxMeta?.capped ? '100+' : visibleInbox.length}</span>
+        </button>
+      </div>
 
       {/* Blanco zoekfunctie — cross-source raw search, independent of the tab */}
-      {connected && (
-        <>
-          <SignalSearch
-            inputValue={searchInput}
-            onInput={setSearchInput}
-            source={feedSource}
-            sources={feedSources}
-            onSource={handleScope}
-            onSubmit={() => void runSearch(searchInput)}
-            onHelp={openPipeline}
-          />
-          <SavedSearchStrip
-            searches={mySearches}
-            onRun={runSavedSearch}
-            onPromote={(id) => void handlePromoteSaved(id)}
-            onDelete={(id) => void handleDeleteSaved(id)}
-          />
-          <div className="pac-pipe-explainer">
-            <button
-              type="button"
-              className="pac-pipe-toggle"
-              aria-expanded={pipelineOpen}
-              onClick={() => setPipelineOpen((o) => !o)}
-            >
-              <span className="chev">{pipelineOpen ? '▾' : '▸'}</span>
-              <b>Hoe werkt de curatiepijplijn?</b>
-              <span className="pac-pipe-sum">
-                opgehaald → geregeld &amp; gescoord → AI stelt duiding voor → u bevestigt ·{' '}
-                <span className="mono">AI adviseerde · mens besloot</span>
-              </span>
-            </button>
-            {pipelineOpen && (
-              <div className="pac-pipe-body">
-                <CuratiePijplijnFlow />
-                {onNavigate && (
-                  <button
-                    type="button"
-                    className="pac-link"
-                    style={{ marginTop: 10 }}
-                    onClick={() => onNavigate('beheer', 'curatie-spec')}
-                  >
-                    Bekijk als pagina in Beheer →
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Empty-state for unconnected tabs (Europa, Media) */}
-      {!connected ? (
-        <div className="pac-empty">
-          <div className="pac-empty-mark">⊘</div>
-          <h3 className="pac-empty-title">Nog geen bron gekoppeld</h3>
-          <p className="pac-empty-body">
-            {tab.id === 'europa'
-              ? 'Voor Europese signalen is nog geen connector aangesloten. De TK- en OB-bronnen dekken nationaal en regionaal; een EU-bron volgt in een latere cyclus.'
-              : 'Media- en omgevingssignalen vergen een aparte connector. Die landt in cyclus 2 — achter dezelfde curatiepijplijn, zonder schermwijziging.'}
-          </p>
-          <p className="pac-empty-foot">
-            PlatO-integratie dekt nu: <b>Politiek (NL)</b> via Tweede Kamer · <b>Regionaal</b> via
-            Officiële Bekendmakingen.
-          </p>
+      <>
+        <SignalSearch
+          inputValue={searchInput}
+          onInput={setSearchInput}
+          source={feedSource}
+          sources={feedSources}
+          onSource={handleScope}
+          onSubmit={() => void runSearch(searchInput)}
+          onHelp={openPipeline}
+        />
+        <SavedSearchStrip
+          searches={mySearches}
+          onRun={runSavedSearch}
+          onPromote={(id) => void handlePromoteSaved(id)}
+          onDelete={(id) => void handleDeleteSaved(id)}
+        />
+        <div className="pac-pipe-explainer">
+          <button
+            type="button"
+            className="pac-pipe-toggle"
+            aria-expanded={pipelineOpen}
+            onClick={() => setPipelineOpen((o) => !o)}
+          >
+            <span className="chev">{pipelineOpen ? '▾' : '▸'}</span>
+            <b>Hoe werkt de curatiepijplijn?</b>
+            <span className="pac-pipe-sum">
+              opgehaald → geregeld &amp; gescoord → AI stelt duiding voor → u bevestigt ·{' '}
+              <span className="mono">AI adviseerde · mens besloot</span>
+            </span>
+          </button>
+          {pipelineOpen && (
+            <div className="pac-pipe-body">
+              <CuratiePijplijnFlow />
+              {onNavigate && (
+                <button
+                  type="button"
+                  className="pac-link"
+                  style={{ marginTop: 10 }}
+                  onClick={() => onNavigate('beheer', 'curatie-spec')}
+                >
+                  Bekijk als pagina in Beheer →
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      ) : feedQuery ? (
+      </>
+
+      {feedQuery ? (
         <>
           <div className="pac-searchres-head">
             <div className="pac-searchres-title">

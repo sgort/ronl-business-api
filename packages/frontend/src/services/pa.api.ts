@@ -666,10 +666,6 @@ export const BRON_LABEL: Record<string, string> = {
   media: 'Nieuws & media',
 };
 
-export function paTabConnected(tabId: string): boolean {
-  return (TAB_SOURCES[tabId] ?? []).length > 0;
-}
-
 export function paTabBronnen(tabId: string): string[] {
   return (TAB_SOURCES[tabId] ?? []).map((b) => BRON_LABEL[b]);
 }
@@ -815,7 +811,7 @@ export async function fetchSearches(): Promise<SavedSearch[]> {
  * inbox/confirmed fixtures by title so the band is demoable offline.
  */
 /** Sources the raw feed can search. 'both' = every searchable bron at once. */
-export type FeedSource = 'both' | 'tk' | 'ob' | 'eu';
+export type FeedSource = 'both' | 'tk' | 'ob' | 'eu' | 'media';
 
 export async function fetchFeed(params: {
   q: string;
@@ -895,7 +891,7 @@ export async function promoteToInbox(item: FeedItem): Promise<Signal> {
  * no dead/hardcoded chip. Falls back to tk+ob if the call fails.
  */
 export async function fetchFeedSources(): Promise<string[]> {
-  if (SIGNALS_MOCK) return ['tk', 'ob'];
+  if (SIGNALS_MOCK) return ['tk', 'ob', 'media'];
   try {
     const types = await paGet<Record<string, unknown>>('/pa/types');
     const keys = Object.keys(types);
@@ -1173,16 +1169,88 @@ export async function fetchAgenda(): Promise<PlenaryItem[]> {
   return paGet<PlenaryItem[]>('/pa/agenda');
 }
 
+/** Mirrors media-aggregator's FeedSource (backend/src/media-aggregator/types.ts) minus internal params. */
+export interface SourcesStatusFeed {
+  id: string;
+  name: string;
+  homepage: string;
+  type: 'national' | 'regional';
+  url: string;
+  alwaysFlevoland: boolean;
+  categoryFilter: string | null;
+}
+
 export interface SourcesStatus {
   tk: boolean;
   ob: boolean;
   eu: boolean;
   epTeksten: boolean;
   media: boolean;
+  feeds: SourcesStatusFeed[];
 }
 
+// Static offline fixture for SIGNALS_MOCK demo mode — not synced with feeds.ts by
+// design (mock mode never calls the backend), kept illustrative only.
+const MOCK_SOURCE_FEEDS: SourcesStatusFeed[] = [
+  {
+    id: 'provincie-flevoland',
+    name: 'Provincie Flevoland',
+    homepage: 'flevoland.nl',
+    type: 'regional',
+    url: 'https://www.flevoland.nl/Content/Pages/Loket?rss=news',
+    alwaysFlevoland: true,
+    categoryFilter: null,
+  },
+  {
+    id: 'omroep-flevoland',
+    name: 'Omroep Flevoland',
+    homepage: 'omroepflevoland.nl',
+    type: 'regional',
+    url: 'https://www.omroepflevoland.nl/RSS/',
+    alwaysFlevoland: true,
+    categoryFilter: 'Nieuws',
+  },
+  {
+    id: 'rijksoverheid',
+    name: 'Rijksoverheid',
+    homepage: 'rijksoverheid.nl',
+    type: 'national',
+    url: 'https://www.rijksoverheid.nl/api/rss',
+    alwaysFlevoland: false,
+    categoryFilter: null,
+  },
+  {
+    id: 'nos-algemeen',
+    name: 'NOS Nieuws',
+    homepage: 'nos.nl',
+    type: 'national',
+    url: 'https://feeds.nos.nl/nosnieuwsalgemeen',
+    alwaysFlevoland: false,
+    categoryFilter: null,
+  },
+  {
+    id: 'nu-algemeen',
+    name: 'NU.nl',
+    homepage: 'nu.nl',
+    type: 'national',
+    url: 'https://www.nu.nl/rss/Algemeen',
+    alwaysFlevoland: false,
+    categoryFilter: null,
+  },
+  {
+    id: 'rtl-nieuws',
+    name: 'RTL Nieuws',
+    homepage: 'rtl.nl',
+    type: 'national',
+    url: 'https://www.rtl.nl/rss.xml',
+    alwaysFlevoland: false,
+    categoryFilter: null,
+  },
+];
+
 export async function fetchSourcesStatus(): Promise<SourcesStatus> {
-  if (SIGNALS_MOCK) return { tk: true, ob: true, eu: true, epTeksten: true, media: true };
+  if (SIGNALS_MOCK)
+    return { tk: true, ob: true, eu: true, epTeksten: true, media: true, feeds: MOCK_SOURCE_FEEDS };
   return paGet<SourcesStatus>('/pa/sources/status');
 }
 

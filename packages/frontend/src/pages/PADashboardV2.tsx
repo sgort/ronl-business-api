@@ -42,7 +42,6 @@ import {
   type PaModeId,
   type OrgTypeGate,
 } from './public-affairs-v2/modes.config';
-import { paTabConnected, SIGNALS_MOCK } from '../services/pa.api';
 import { kompasTotal } from './public-affairs-v2/pa.data';
 import { PaDataProvider, usePaData } from './public-affairs-v2/PaDataProvider';
 import { Trend } from './public-affairs-v2/Kompas';
@@ -60,12 +59,11 @@ import './public-affairs-v2/dashboard-pa.css';
 
 function SignalCountBadge({ tabId }: { tabId: string }) {
   const { signals, inboxCounts } = usePaData();
-  const connected = paTabConnected(tabId);
   const count = signals.data.filter((s) => s.tab === tabId).length;
   const inboxCount = inboxCounts[tabId] ?? 0;
   return (
     <span className="pac-rail-score">
-      {!SIGNALS_MOCK && !connected ? <span className="pac-rail-dim">—</span> : count}
+      {count}
       {inboxCount > 0 && <span className="pac-rail-inbox">{inboxCount}</span>}
     </span>
   );

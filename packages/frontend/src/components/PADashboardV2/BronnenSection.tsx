@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { fetchSourcesStatus, type SourcesStatus } from '../../services/pa.api';
+import {
+  fetchSourcesStatus,
+  type SourcesStatus,
+  type SourcesStatusFeed,
+} from '../../services/pa.api';
 
 type StatusValue = 'actief' | 'uit' | 'verwacht';
-type FlagKey = keyof SourcesStatus;
+type FlagKey = Exclude<keyof SourcesStatus, 'feeds'>;
 
 interface BronDef {
   name: string;
@@ -42,82 +46,67 @@ interface BronGroep {
   subgroups?: FeedSubgroup[];
 }
 
-// C2 — Media & omgeving replaced with per-feed registry (mirrors feeds.ts)
-const MEDIA_GROUP: BronGroep = {
-  tab: 'Media & omgeving',
-  route: 'media',
-  intro:
-    'Eén connector — de in-house aggregator (media.client.ts → /v1/media-aggregator) — bundelt onderstaande RSS-feeds tot de bron media. Feeds staan in feeds.ts; coverage uitbreiden = één regel toevoegen. Near-duplicates worden samengevoegd; sentiment-verrijking is fase-2 (uit in v1).',
-  subgroups: [
-    {
-      label: 'Regionaal',
-      sub: 'altijd Flevoland-getagd',
-      bron: 'media · nieuws-regionaal',
-      feeds: [
-        {
-          name: 'Provincie Flevoland',
-          homepage: 'flevoland.nl',
-          url: 'https://www.flevoland.nl/Content/Pages/Loket?rss=news',
-          alwaysFlevoland: true,
-          note: 'Provinciale berichten. Bewezen feed elders in deze backend.',
-        },
-        {
-          name: 'Omroep Flevoland',
-          homepage: 'omroepflevoland.nl',
-          url: 'https://www.omroepflevoland.nl/RSS/',
-          alwaysFlevoland: true,
-          categoryFilter: 'Nieuws',
-          note: 'Regionale omroep — alleen de categorie "Nieuws".',
-        },
-      ],
-    },
-    {
-      label: 'Landelijk',
-      sub: 'Flevoland-scoped via de gazetteer',
-      bron: 'media · nieuws-nationaal',
-      feeds: [
-        {
-          name: 'Rijksoverheid',
-          homepage: 'rijksoverheid.nl',
-          url: 'https://www.rijksoverheid.nl/api/rss',
-          note: 'Rijksnieuws, gefilterd op newsDocument. Bewezen feed elders in deze backend.',
-        },
-        {
-          name: 'NOS Nieuws',
-          homepage: 'nos.nl',
-          url: 'https://feeds.nos.nl/nosnieuwsalgemeen',
-          note: 'Landelijk algemeen nieuws.',
-        },
-        {
-          name: 'NU.nl',
-          homepage: 'nu.nl',
-          url: 'https://www.nu.nl/rss/Algemeen',
-          note: 'Landelijk algemeen nieuws.',
-        },
-        {
-          name: 'RTL Nieuws',
-          homepage: 'rtl.nl',
-          url: 'https://www.rtl.nl/rss.xml',
-          note: 'Landelijk algemeen nieuws.',
-        },
-      ],
-    },
-    {
-      label: 'Sociaal',
-      sub: 'gepland — nog geen connector',
-      bron: 'media · (gepland)',
-      planned: true,
-      feeds: [
-        {
-          name: 'Sociale media & omgeving',
-          homepage: 'Tbd (gepland)',
-          url: null,
-          note: 'Aangekondigde tweede media-subbron. Nog geen connector geïmplementeerd.',
-        },
-      ],
-    },
-  ],
+// C2 — Media & omgeving: Regionaal/Landelijk subgroups are built from the live
+// feed list in GET /v1/pa/sources/status (which itself reads media-aggregator's
+// feeds.ts) instead of a hand-maintained copy — adding a feed there now needs no
+// change here. Only the curatorial one-liners below and the Sociaal placeholder
+// (no backing FeedSource yet) stay local.
+const FEED_NOTES: Record<string, string> = {
+  'provincie-flevoland': 'Provinciale berichten. Bewezen feed elders in deze backend.',
+  'omroep-flevoland': 'Regionale omroep — alleen de categorie "Nieuws".',
+  rijksoverheid: 'Rijksnieuws, gefilterd op newsDocument. Bewezen feed elders in deze backend.',
+  'nos-algemeen': 'Landelijk algemeen nieuws.',
+  'nu-algemeen': 'Landelijk algemeen nieuws.',
+  'rtl-nieuws': 'Landelijk algemeen nieuws.',
 };
+
+function toFeedDef(f: SourcesStatusFeed): FeedDef {
+  return {
+    name: f.name,
+    homepage: f.homepage,
+    url: f.url,
+    alwaysFlevoland: f.alwaysFlevoland || undefined,
+    categoryFilter: f.categoryFilter ?? undefined,
+    note: FEED_NOTES[f.id] ?? '',
+  };
+}
+
+function buildMediaGroup(feeds: SourcesStatusFeed[]): BronGroep {
+  return {
+    tab: 'Media & omgeving',
+    route: 'media',
+    intro:
+      'Eén connector — de in-house aggregator (media.client.ts → /v1/media-aggregator) — bundelt onderstaande RSS-feeds tot de bron media. Feeds staan in feeds.ts; coverage uitbreiden = één regel toevoegen. Near-duplicates worden samengevoegd; sentiment-verrijking is fase-2 (uit in v1).',
+    subgroups: [
+      {
+        label: 'Regionaal',
+        sub: 'altijd Flevoland-getagd',
+        bron: 'media · nieuws-regionaal',
+        feeds: feeds.filter((f) => f.type === 'regional').map(toFeedDef),
+      },
+      {
+        label: 'Landelijk',
+        sub: 'Flevoland-scoped via de gazetteer',
+        bron: 'media · nieuws-nationaal',
+        feeds: feeds.filter((f) => f.type === 'national').map(toFeedDef),
+      },
+      {
+        label: 'Sociaal',
+        sub: 'gepland — nog geen connector',
+        bron: 'media · (gepland)',
+        planned: true,
+        feeds: [
+          {
+            name: 'Sociale media & omgeving',
+            homepage: 'Tbd (gepland)',
+            url: null,
+            note: 'Aangekondigde tweede media-subbron. Nog geen connector geïmplementeerd.',
+          },
+        ],
+      },
+    ],
+  };
+}
 
 const BRON_GROEPEN: BronGroep[] = [
   {
@@ -188,7 +177,6 @@ const BRON_GROEPEN: BronGroep[] = [
       },
     ],
   },
-  MEDIA_GROUP,
 ];
 
 const BRON_STATUS_LABEL: Record<StatusValue, string> = {
@@ -340,8 +328,10 @@ export default function BronnenSection() {
     );
   }
 
+  const bronGroepen = [...BRON_GROEPEN, buildMediaGroup(flags.feeds)];
+
   // C4a — summary counts include feed rows
-  const statuses = BRON_GROEPEN.flatMap((g) => groupStatuses(g, flags));
+  const statuses = bronGroepen.flatMap((g) => groupStatuses(g, flags));
   const nActief = statuses.filter((s) => s === 'actief').length;
   const nUit = statuses.filter((s) => s === 'uit').length;
   const nVerwacht = statuses.filter((s) => s === 'verwacht').length;
@@ -385,7 +375,7 @@ export default function BronnenSection() {
       </div>
 
       {/* C4b — shape-aware group renderer */}
-      {BRON_GROEPEN.map((g) => {
+      {bronGroepen.map((g) => {
         const count = g.sources
           ? g.sources.length
           : (g.subgroups ?? []).reduce((n, sg) => n + sg.feeds.length, 0);

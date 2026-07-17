@@ -43,7 +43,7 @@ export const changelog: Changelog = {
       statusColor: '#2d7a33',
       borderColor: '#c3e6cd',
       date: 'July 17, 2026',
-      scope: 'backend',
+      scope: 'both',
       sections: [
         {
           icon: '📤',
@@ -65,6 +65,20 @@ export const changelog: Changelog = {
             "ensureWorkspace()'s search-result parsing crashed on every real match (list items are flat, not nested under .data as previously assumed) — every real workspace lookup threw before this fix. getWorkspaceDocuments() was calling a sub-resource that does not exist on the API (workspaces/{id}/documents); fixed to the real endpoint, GET /workspaces/{id}.",
             'Document download needed two fixes: the endpoint returns raw file bytes directly (not JSON with a base64 field — now requests responseType: \'arraybuffer\' to avoid corrupting binary content), and the version identifier is the literal value "0" (a "current version" sentinel), not a value from the versions list — both VERSION and VERSION_ID from that list are rejected.',
             'Live-tested end-to-end against a real eDOCS server for the first time: full round-trip content verification (upload → download, byte-for-byte match) confirmed working. Remaining known issues (workspace creation still 500s server-side, delete blocked by test-account permissions) are tracked with per-endpoint detail on the architecture documentation site rather than in this repo, going forward.',
+          ],
+        },
+        {
+          icon: '🧹',
+          iconColor: '#b45309',
+          title:
+            'Fix: media-aggregator / PA-cockpit — dedupe drift, dead code, and a media search gap',
+          items: [
+            'The AggregatorArticle wire contract was declared twice — once in media-aggregator/types.ts, once copy-pasted in pa-monitoring/sources/media.client.ts — kept in sync only by a code comment. Moved the canonical definition into @ronl/shared so both sides import the same type.',
+            "BronnenSection.tsx's Signaalbronnen screen hand-mirrored media-aggregator/feeds.ts's RSS feed list for display, so every new feed needed a second manual edit. GET /v1/pa/sources/status now returns the live feed list straight from feeds.ts, and the Regionaal/Landelijk groups on that screen are built from it — the Sociaal 'gepland' placeholder (no backing connector yet) stays static.",
+            "The six-municipality Flevoland gazetteer existed in two independently maintained shapes — an alias map in media-aggregator/enrich.ts and a flat term set in pa-monitoring/rules.ts used for relevance scoring — with drift risk if one was updated and not the other. Both now import a single @ronl/shared pa-geo module; kept as two literal exports rather than deriving one from the other, since rules.ts's scoring-facing set uses short forms a mechanical derivation could silently change.",
+            "paTabConnected() in pa.api.ts always returned true once every Monitoring tab (including Media) got a non-empty TAB_SOURCES entry, leaving an unreachable 'Nog geen bron gekoppeld' empty-state in Monitoring.tsx with stale copy claiming the media connector 'landt in cyclus 2' — even though it had already shipped. Removed the dead branches, the dimmed rail badge they fed, and the now-unused function.",
+            'The blanco zoekfunctie (raw cross-source search) only ever queried TK and OB — a PA officer could search raw Tweede Kamer and Officiële Bekendmakingen documents ad hoc, but not raw media articles, only what the 6-hourly curation cycle had already promoted. GET /v1/pa/feed and GET /v1/pa/types now include media (gated on MEDIA_SOURCE_ENABLED), and the Monitoring.tsx source-scope chips pick it up automatically.',
+            'Verified with the full backend (924 tests) and frontend (9 tests) suites plus a fresh typecheck/lint/Prettier pass; no behavior change to existing scoring, ingestion, or upload paths.',
           ],
         },
       ],

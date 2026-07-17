@@ -18,7 +18,8 @@ jest.mock('axios', () => ({ __esModule: true, default: { get: jest.fn() } }));
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import axios from 'axios';
-import { articleToFeedItem, fetchFlevolandNews, type AggregatorArticle } from './media.client';
+import type { AggregatorArticle } from '@ronl/shared';
+import { articleToFeedItem, fetchFlevolandNews } from './media.client';
 
 const mockGet = (axios as unknown as { get: jest.Mock }).get;
 

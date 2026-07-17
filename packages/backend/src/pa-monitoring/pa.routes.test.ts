@@ -86,6 +86,7 @@ import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
 import { fetchAgenda } from './sources/agenda.client';
 import { runCurationCycle } from './curation.service';
+import { FEEDS } from '../media-aggregator/feeds';
 
 const mockTk = fetchTkFeed as jest.Mock;
 const mockOb = fetchObFeed as jest.Mock;
@@ -661,6 +662,15 @@ describe('PA routes — curator, searches CRUD & status', () => {
         eu: true,
         epTeksten: true,
         media: false,
+        feeds: FEEDS.map((f) => ({
+          id: f.id,
+          name: f.name,
+          homepage: f.homepage,
+          type: f.type,
+          url: f.url,
+          alwaysFlevoland: f.alwaysFlevoland ?? false,
+          categoryFilter: f.categoryFilter ?? null,
+        })),
       });
     });
   });
