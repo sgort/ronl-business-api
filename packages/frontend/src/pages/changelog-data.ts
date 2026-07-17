@@ -38,6 +38,56 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.9.0',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 17, 2026',
+      scope: 'backend',
+      sections: [
+        {
+          icon: '📤',
+          iconColor: '#0046ad',
+          title: 'Feature: Doccle document delivery — v1 sender-service integration',
+          items: [
+            'New /v1/doccle routes proxy the Belgian Doccle document-delivery platform via its v1 mci-rest-app sender API: receiver upsert (PUT .../receivers/:externalReference), document upload (POST .../documents/:documentId), and marking a document paid (POST .../documents/:documentId/paid). Mirrors the existing eDOCS pattern — stub mode by default, JWT-gated routes, a reachability-only health check.',
+            'The XML request/response wire format was reverse-engineered from vendor documentation (the technical PDF and HR sender-setup tutorial were image-only, so pages were rendered to PNG and read via OCR) and validated against the real Doccle staging API. fast-xml-parser XMLBuilder needed suppressBooleanAttributes: false to serialize boolean attributes correctly — the default rendered true as a valueless attribute, which the API rejected.',
+            '28 tests across the service, routes, and a live-only smoke test (scripts/test-doccle-live.sh) that proves reachability, receiver upsert, and document upload against the real sender API when DOCCLE_STUB_MODE=false.',
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: '#b45309',
+          title: 'Fix: eDOCS — five live-verified bugs found by testing against a real DM server',
+          items: [
+            'Document upload needed a true multipart/form-data body — the DM server rejected the JSON-with-base64-file shape as an (unsupported) document-copy request. APP_ID now defaults to "DEFAULT" (was "INFRA", rejected as an unrecognized linked application), and UV_AFD_NAAM ("Behandelgroep") is now a required department field — the server rejects uploads without it, with no prior default.',
+            'uploadDocument() now defaults to a standalone upload (workspaceId: string | null) — the workspace-ref path was tried against a real workspace and failed two different ways, needs vendor input on what profile is valid for workspace-contained documents. Standalone is the only path confirmed working end-to-end (upload → list → profile → download) against a live server.',
+            "ensureWorkspace()'s search-result parsing crashed on every real match (list items are flat, not nested under .data as previously assumed) — every real workspace lookup threw before this fix. getWorkspaceDocuments() was calling a sub-resource that does not exist on the API (workspaces/{id}/documents); fixed to the real endpoint, GET /workspaces/{id}.",
+            'Document download needed two fixes: the endpoint returns raw file bytes directly (not JSON with a base64 field — now requests responseType: \'arraybuffer\' to avoid corrupting binary content), and the version identifier is the literal value "0" (a "current version" sentinel), not a value from the versions list — both VERSION and VERSION_ID from that list are rejected.',
+            'Live-tested end-to-end against a real eDOCS server for the first time: full round-trip content verification (upload → download, byte-for-byte match) confirmed working. Remaining known issues (workspace creation still 500s server-side, delete blocked by test-account permissions) are tracked with per-endpoint detail on the architecture documentation site rather than in this repo, going forward.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.8.3',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 15, 2026',
+      scope: 'frontend',
+      sections: [
+        {
+          icon: '🏷️',
+          iconColor: '#0046ad',
+          title: 'Feature: Changelog panel — scope badge (Frontend / Backend / Full-stack)',
+          items: [
+            'Each version card in the changelog panel now shows which deployable(s) the release actually touched — a Frontend, Backend, or Full-stack badge next to the version number, sourced from the new scope field on ChangelogVersion. Companion to the scope-aware bump-release workflow: a frontend-only release no longer needs to bump (or rebuild) the backend package, and vice versa.',
+          ],
+        },
+      ],
+    },
+    {
       version: '3.8.2',
       status: 'Released',
       statusColor: '#2d7a33',
