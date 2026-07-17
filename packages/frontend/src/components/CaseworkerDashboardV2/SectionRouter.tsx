@@ -43,6 +43,7 @@ import CapacityClaimArchiefSection from '../CaseworkerDashboard/CapacityClaimArc
 import DvtpStartSection from '../CaseworkerDashboard/DvtpStartSection';
 import DvtpTakenSection from '../CaseworkerDashboard/DvtpTakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
+import { INFRA_PROCESS_KEYS } from '../../services/infra.api';
 
 interface Props {
   sectionId: string;
@@ -102,7 +103,8 @@ export default function SectionRouter({
   if (sectionId === 'producten-diensten') return <ProductenDienstenCatalogus />;
   if (sectionId === 'nieuws') return <NieuwsSection />;
   if (sectionId === 'berichten') return <BerichtenSection />;
-  if (sectionId === 'archief') return <ArchiefSection />;
+  if (sectionId === 'archief')
+    return <ArchiefSection boardId="caseworker" denyProcessKeys={INFRA_PROCESS_KEYS} />;
 
   // ── IOU "Mijn zaken" — IouZakenSection takes a `state` prop ───────
   if (sectionId === 'iou-actieve-zaken') {

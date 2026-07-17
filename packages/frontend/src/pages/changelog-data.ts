@@ -23,6 +23,11 @@ export interface ChangelogVersion {
   statusColor: string;
   borderColor: string;
   date: string;
+  // Which deployable(s) this release actually changed. Drives the FE/BE badge
+  // and tells bump-release which package.json files to version — a frontend-only
+  // release must NOT bump packages/backend/package.json, or it triggers the
+  // backend ACC build for nothing. Omitted on legacy (pre-3.8.2) entries.
+  scope?: 'frontend' | 'backend' | 'both';
   sections: ChangelogSection[];
 }
 
@@ -32,6 +37,985 @@ export interface Changelog {
 
 export const changelog: Changelog = {
   versions: [
+    {
+      version: '3.8.2',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 15, 2026',
+      scope: 'frontend',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 43,
+              title:
+                'Melding "sessie verlengen" verschijnt tijdens actief gebruik, en ingevoerde feedback verdwijnt zodra je de sessie verlengt',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/43',
+            },
+          ],
+        },
+        {
+          icon: '⏱️',
+          iconColor: 'orange',
+          title: 'Fix: Session-expiry warning no longer interrupts (or discards) active work',
+          items: [
+            'Warning appearing during active use: SessionExpiryWarning now treats real interaction (keydown / pointerdown / mousemove / scroll, throttled to once per 30s) as a reason to keep the session alive — it calls keycloak.updateToken() once the token drops below 180s, deliberately above the 120s warning threshold, so an actively-typing user is refreshed before the modal would ever appear. The earlier "refresh only on API request" mitigation never covered this, because filling in a form makes no API calls.',
+            'Modal being yanked away on mouse-move: once the modal IS showing, activity is now intentionally ignored (tracked via a ref) and the dialog must be dismissed with an explicit Sessie verlengen / Uitloggen. Previously the mousemove listener refreshed the token and auto-closed the modal as the user moved toward the button, so the click appeared to fail.',
+            'Feedback lost on extend: IouFeedbackSection persists its text fields to sessionStorage on every change, restores them on mount, and clears them on successful submit. Because sessionStorage survives the full-page keycloak.login() redirect — the actual path that wiped the form when the SSO session had to be re-established — an in-progress feedback draft now survives a session-expiry re-authentication. Screenshots (File objects) cannot be serialised and are not restored.',
+            'Both components are shared, so the fix lands on every board at once — Infra-board, Caseworker V2, PA-Cockpit and Woo.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.8.1',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 9, 2026',
+      sections: [
+        {
+          icon: '📚',
+          iconColor: '#0046ad',
+          title: 'Regelcatalogus — rules and concepts now resolve for CPRMV 0.4.1 datasets',
+          items: [
+            "The Regelcatalogus rules query joined ?rule cpsv:implements ?service directly, but since the CPSV-AP RuleShape change a cpsv:Rule's cpsv:implements points at an eli:LegalResource (the resource the service declares via cv:hasLegalResource). Datasets published in the newer shape — e.g. the Flevoland Thuisbatterij service — therefore showed no rules. The query now matches rules via both the direct edge and the shared legal resource, and reads validFrom/confidence from cprmv041: instead of ronl:.",
+            "The Begrippen (concepts) query broke at the variable→DMN hop: a concept's dct:subject points at a bare DMN variable URI (<dmnUri>/input/N or /output/N) that newer exports emit without a cpsv:isRequiredBy / cpsv:produces edge. It now derives the DMN URI from the variable URI as a fallback (OPTIONAL edges + COALESCE) and matches both cprmv:implements and cprmv041:implements — the concepts query previously only queried the 0.3.0 namespace. Thuisbatterij's 21 concepts now appear under Begrippen.",
+            "Auto-generated DMN decision rules ('Decision rule <id>' placeholder titles) are filtered out of the Regels tab and SELECT DISTINCT de-duplicates, so the catalogue shows the real business rules (144 → 84 across all services). Applies to both the Regelcatalogus API and the TriplyDB MCP tools.",
+          ],
+        },
+        {
+          icon: '🔄',
+          iconColor: '#b45309',
+          title: 'Regelcatalogus — manual refresh button (cache bypass)',
+          items: [
+            'The Regelcatalogus is served from a 5-minute server-side cache, which made it hard to see freshly-published TriplyDB data while debugging. A new "Vernieuwen" button forces a rebuild: GET /v1/public/regelcatalogus?refresh=true bypasses and busts the in-memory caches (catalogue + logo assets) and re-fetches everything.',
+            'The header shows a "Bijgewerkt <time> geleden" indicator (meta.cache reports cache freshness), and a failed refresh keeps the loaded catalogue visible with an inline error instead of blanking the view.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.8.0',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 9, 2026',
+      sections: [
+        {
+          icon: '📁',
+          iconColor: '#0046ad',
+          title:
+            'Feature: PA-Cockpit Dossierbeheer — the authoring source for /pa/dossiers, closing the mock→live loop',
+          items: [
+            "New Beheer → Strategisch kompas → Dossierbeheer surface: the kernteam Public Affairs now creates, administers, archives (Archiefwet) and deletes dossiers here. This was the missing source that kept the cockpit's dossiers resource behind MOCK_DOSSIERS — with an authoring surface in place, the same dossiers can be served live through usePaData().dossiers with no screen changes (the seam the provider rework bought).",
+            'Overview: role bar (token-derived capability matrix + Keycloak role id), mock/live flag banner, four summary stats, and dossiers grouped actief / sluimerend / gearchiveerd with role-gated row actions (Bewerken/Bekijken · Archiveren · Verwijderen).',
+            'Editor: two-column layout — Kerngegevens, a Kompas 0–2 start-scorer (8 criteria; re-scoring stays in Voortgang → Kompas-log), and three Markdown narrative fields (waaromNu / waarover / onsVerhaal). Sticky aside carries save/publish, a snippet library that inserts at the caret of the focused field, per-dossier version history, and the archive/delete lifecycle — all role-gated.',
+            'Markdown-first narrative: fields are authored and stored as raw Markdown, rendered on demand with react-markdown + remark-gfm and sanitised with rehype-sanitize (raw HTML disabled). A template gallery (create step 1), a snippet library, and per-dossier version history sit around the editor. Archiefwet archiving captures classificatie + bewaartermijn + grondslag and makes the dossier read-only (edits refused server-side); un-archiving is an explicit Beheerder action that restores it as a concept; hard delete is admin-only with type-to-confirm.',
+            'Backend: new pa_dossiers (governance columns + kompas/md/body JSONB), pa_dossier_versions (immutable, one row appended per write), pa_templates and pa_snippets tables, seeded from the canonical @ronl/shared dossier data. Routes under the existing PA auth block: GET/POST/PATCH/DELETE /pa/dossiers, POST /pa/dossiers/:id/archive, and GET/POST /pa/templates + /pa/snippets. GET /pa/dossiers serves the cockpit its rich published, non-archived list; ?admin=1 serves the full governance list.',
+            'Role-based access via real Keycloak realm roles on top of public-affairs: pa-author (create, edit) · pa-editor (+ templates, publish) · pa-admin (+ archive, delete). Publishing and archiving/deleting are gated on the route and reflected live in the role bar; a user without any sub-role is read-only. The three roles are defined in the realm config and assigned to the test-pa-flevoland user.',
+            'Runtime mock/live toggle: VITE_PA_DOSSIERS_MOCK stays the build-time default, but the Dossierbeheer flag banner flips a persisted localStorage override that fetchDossiers reads — so the cockpit can switch between MOCK_DOSSIERS and the live backend without a rebuild, and the choice survives navigation and reloads. In mock mode the whole surface runs on a local in-memory store seeded from the mock dossiers, so every page can be validated before the backend is wired.',
+            'Tests: 28 backend route tests cover auth/capability gating (401/403), validation, Archiefwet metadata capture, and version-append-on-write; the full PA backend suite (256 tests) stays green.',
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: '#b45309',
+          title: 'Fix: Dossierbeheer — corrections from live validation',
+          items: [
+            'Partial-Kompas crash guard: a dossier authored with only some of the 8 Kompas criteria scored produced a partial Kompas that crashed the cockpit Issuekaart scorecard (indexing kompas[key].score on an undefined criterion → blank page, hit first because an alphabetically-early new dossier became the default selection). The scorecard now defaults missing criteria, and the backend serves a complete Kompas — completeKompas() fills all criteria in buildBodyFromAuthoring and normalises partial rows on read — so authored dossiers render safely.',
+            'Archiving is now genuinely terminal: an archived dossier opens read-only (all fields locked, no save/publish) and PATCH /pa/dossiers/:id is refused with 409 ARCHIVED_READONLY — closing a loophole where flipping Status back to Actief silently un-archived it.',
+            'Explicit un-archive for Beheerder (pa-admin): POST /pa/dossiers/:id/unarchive restores a dossier as a concept (status → actief, Archiefwet metadata cleared, gepubliceerd = false, version appended), surfaced as Herstellen on the row and Dearchiveren in the editor lifecycle.',
+            'Rail/create-flow no longer desync: the “+ Nieuw dossier” flow navigates the real db-nieuw rail section instead of an internal-only view, and the two Dossierbeheer rail items get distinct keys — so the rail highlight always matches the content and “Dossierbeheer” reliably returns to the overview.',
+            'Shell reconciles a deleted/archived active dossier: deleting or archiving the dossier you are viewing (e.g. from Beheer) now re-points the cockpit selection to a live dossier when you return to Dossiers, instead of a dangling section; the unknown-section fallback became a friendly “niet (meer) beschikbaar” message with a link to a live dossier.',
+            'A failed create/edit/archive/unarchive/delete now shows a dismissible inline error and keeps the list intact, rather than blanking the whole overview with “Kon dossiers niet laden”.',
+            'Acceptance now reads live dossiers by default (VITE_PA_DOSSIERS_MOCK=false), completing the flag flip. Backend PA suite grows to 864 tests (dossiers routes at 35), all green.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.7.3',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 7, 2026',
+      sections: [
+        {
+          icon: '🧪',
+          iconColor: '#2d7a33',
+          title:
+            'Tests: backend coverage campaign — branch-gap closure across all service and route layers',
+          items: [
+            'Backend coverage campaign completed in two phases: a behavior + fetch-orchestration phase grew the suite from ~667 to 786 tests — closing "file-touched ≠ behavior-covered" gaps where a test file exercised only a pure helper while the real HTTP / pagination / guard logic went untested — then a branch-gap phase took it to 829. All passing on every commit; headline now 94% statements · 74% branch · 96% lines.',
+            'Standalone MCP servers (mcp-servers/lde, mcp-servers/triplydb) brought under test for the first time — both modules have no exports and self-connect a stdio transport on import, so the tests mock the MCP SDK Server to capture the ListTools/CallTool handlers and drive them directly (pg mocked for lde, global fetch for triplydb). lde 98% lines, triplydb 100%.',
+            'pa.routes.ts expanded from auth-gating only (7 tests) to the full route surface (60 tests): /feed source-routing + Promise.allSettled partial-failure tolerance + synchronous-throw 502, /agenda dossier enrichment, /types, /curator run + status, searches CRUD + validation, /sources/status, and the /signals query-builder branches. 50% → 100% lines, 100% functions.',
+            'PA source-client fetch layers, previously untested behind their pure parsers: media.client fetchFlevolandNews (request shape, malformed-article skip, retry loop) 30% → 96% lines; eu.client fetchFeed (cache + HTTP) / fetchEuFeed (parallel + dedup + paging) / inferType / parseRssFile 64% → 99%; ep-texts-submitted.client full pagination engine (dedup, early-stop on known refs, per-tab failure tolerance, rawDocToFeedItem) 53% → 98%.',
+            'net-guard SSRF guard raised to 100% lines / 100% functions: IPv4 + IPv6 classification, every DNS-resolution path (literal-IP, resolves-to-private, DNS-failure, real defaultResolver), fetchLimited response-cap re-throw, and safeFetch end-to-end.',
+            'operaton.service.ts: branch coverage 61% → 70% — per-endpoint upstream-error branches across both the citizen-facing and M2M service surfaces now exercised.',
+            'MCP providers (LdeMcpProvider, CprmvMcpProvider, TriplyDbMcpProvider, OperatonMcpProvider): combined branch coverage from ≈45% to ≈70% — connect / disconnect / already-connected guard / tool-call / stderr error-handler paths all covered.',
+            'ob.client.ts (OB SRU): branch coverage 43% → 77% — fetch-error, paging, fallback URL, str() #text node extraction for attributed identifiers, findDeep for non-standard gzd structures, and mixed-record skipping.',
+            'Route branch gaps: tenant-mismatch 403 tests in task.routes (variables, form-schema, claim, complete); failure-path 500/404 tests in m2m.routes (process/history, historic-variables); SSE chat-timeout test in mcp.routes using a queueMicrotask setTimeout spy that fires the 480 s timeout exactly when the handler suspends at await.',
+            'docs/TESTS.md refreshed with current per-file percentages; documented artifacts (capacity/rip !req.user guards, mcp.routes catch-block lines 129-132) annotated with root-cause explanations. TEST-COVERAGE-NEXT-STEPS.md rewritten to mark Phase 1 complete and focus the next-session prompt on Phase 2 (live smoke suite).',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.7.2',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 6, 2026',
+      sections: [
+        {
+          icon: '🔒',
+          iconColor: '#b45309',
+          title: 'Fix: Media-aggregator hardening — SSRF guard, stable IDs, HTML sanitization',
+          items: [
+            'SSRF guard (net-guard.ts): feed fetches now validate the target URL is a plain public http(s) host before opening a connection — blocks file:// and non-http schemes, embedded credentials, and hosts that resolve to loopback, link-local (including 169.254.169.254 cloud-metadata), private RFC-1918, or CGNAT ranges. Response bodies are capped at 5 MB; anything larger throws ResponseTooLargeError and the feed is skipped with a warn log.',
+            'Stable article IDs (stable-id.ts): replace the URL-hash "art-…" id with a precedence chain — feed-provided guid → canonical link → title+date. Two fetches of the same article now produce the same id even when the URL carries varying tracking params (utm_*, fbclid, gclid stripped by canonicalizeUrl). Duplicate-group clustering upgraded to an order-independent, diacritic-stripped, NL-stopword-filtered sha1 title signature; assignDuplicateGroups no longer mutates its input.',
+            'Sanitize-to-text (sanitize.ts): feed titles pass through htmlToText — removes <script>/<style> content wholesale, converts block-level tag closes to spaces, decodes named and numeric HTML entities (including Dutch diacritics), and collapses whitespace. summaryShort delegates to summarize(), replacing the regex stripHtml that could leak half-tags and raw entities into the cockpit UI. Raw title still used for stableArticleId to keep IDs stable across refreshes.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.7.1',
+      status: 'New',
+      statusColor: '#1d4ed8',
+      borderColor: '#bfdbfe',
+      date: 'July 5, 2026',
+      sections: [
+        {
+          icon: '🎛️',
+          iconColor: '#0046ad',
+          title: 'New: Zoekcriteria — cron-scoring uitleg (verdict-chip, modal, simulator)',
+          items: [
+            'Bug fix: zcBestCase() preview was adding +1 for a term hit; the real engine (rules.ts) adds +3 for a title hit. Every TK/EU criterion was showing "≈ rel 6" where the cron actually yields 8. Fixed — strong case now correctly reads rel 8 and criteria visibly differ from each other.',
+            'Scoring constants (REL_BASE, ZWAARTYPE_BUMP, TITLE_HIT, MATCH_CAP, NOISE_FLOOR, REL_THRESHOLD) exported from @ronl/shared and imported by rules.ts and curation.service.ts. The persistence cutoff rel ≥ 4 is now the named constant REL_THRESHOLD — confirmed real value from curation.service.ts line 251.',
+            'Card verdict-chip (Option C): raw "≈ rel N" replaced with a plain-language chip ("Wordt opgepikt" / "Alleen bij regio-match"), a 3-bar strength indicator (heights 5/9/13 px, bars lit = tier), and a mono subline with the representative score. TK/EU criteria show green / 3 bars (best-case rel 8+); OB+single-term green / 2 bars (rel 6), OB+multi-term can reach 3 bars (rel 8) because the match score scales with term count up to MATCH_CAP = 5; media shows amber / 2 bars (geographic match not guaranteed on every item).',
+            'Explainer modal (Option B): the ? button on each card opens a 560px modal with three tabs — Sterke treffer (TK Motie + title hit → rel 8), Media-treffer (Flevoland province + municipality → rel 6), Geen treffer (TK Brief + no term match → noise floor rel 3). Each tab renders a worked receipt: one row per scoring step with amount, label, explanation, and running total; green total row; drempel note. Closes on ×, Begrepen, backdrop click, or Esc.',
+            'Score simulator (Option D): static "ZO SCOORT DE CRON" panel in the editor replaced with live, source-aware toggles. TK/EU show: Zwaar documenttype (+2), Zoekwoord in de titel (+3), Tag komt ook voor (+1). OB shows only the term and tag toggles (no document-type bump). Media shows Provincie Flevoland gevonden (+2), Zoekwoord in de titel (+3), Tag (+1). Score bar animates on every toggle (respects prefers-reduced-motion). Threshold marker at 40% (drempel 4).',
+            'Drift test added to rules.test.ts: asserts scoreItem produces exactly REL_BASE + ZWAARTYPE_BUMP + min(TITLE_HIT, MATCH_CAP) = 8 for the canonical TK strong case, and that the no-match floor lands at NOISE_FLOOR < REL_THRESHOLD.',
+          ],
+        },
+        {
+          icon: '🔢',
+          iconColor: '#1d4ed8',
+          title: 'Fix: Inbox count honest — 100+ pill and cap banner when inbox exceeds limit',
+          items: [
+            'GET /v1/pa/signals now runs a parallel COUNT(*) over the same WHERE conditions and returns meta: { total, cap: 100, capped } alongside the existing data array — back-compat, no change to the LIMIT, ordering, or WHERE.',
+            'Inbox tab pill shows "100+" instead of "100" when the total exceeds the query cap, making the silent truncation visible at a glance.',
+            'A "Top 100" banner appears above the candidate list when capped, stating the true total and how many candidates fall outside the current view: "N kandidaten in deze inbox, gesorteerd op relevantie (rel, aflopend). De weergave toont de bovenste 100; M met lagere relevantie vallen nu buiten beeld."',
+            'Rail badge and per-tab seed counts in PaDataProvider now use meta.total (true count) instead of the array length (capped at 100).',
+          ],
+        },
+        {
+          icon: '📊',
+          iconColor: '#2f8f4e',
+          title: 'New: Feiten & cijfers — Feitelijk Flevoland monitor library',
+          items: [
+            'New page Monitoring → Provincie · feiten → Feiten & cijfers surfaces all 14 provincial monitors of Feitelijk Flevoland as a searchable, filterable card library — the factual underlay for PA dossiers.',
+            'Cards show monitor name, theme, year, description, outbound link to the live dashboard, and which PA dossiers the monitor underpins. Outbound links open in a new tab with host announced in the aria-label (WCAG compliant).',
+            'Theme filter (Brede welvaart, Economie, Wonen/ruimte, Landbouw/natuur, Klimaat & energie) with per-theme counts; free-text search across name, description, and linked dossier names.',
+            'Each Issuekaart now shows an "Onderbouw met feiten" strip directly under the Kompas radar, listing only the monitors that underpin that specific dossier. Hidden when no monitor matches. "Alle feiten & cijfers →" jumps to the library.',
+            "One shared data source (feiten.data.ts) drives both directions — the library and the per-dossier strip — with no duplication. The monitors are not curated or scored; they are the province's factual base.",
+            '14 monitor icons copied to public/pa/feiten-icons/ and served as static assets.',
+          ],
+        },
+        {
+          icon: '🔍',
+          iconColor: '#1d4ed8',
+          title: 'New: Zoekcriteria — search criteria management screen in Beheer',
+          items: [
+            'New screen Beheer → Monitoring → Zoekcriteria gives PA officers full control over pa_saved_searches without direct database access. Search criteria determine what the curation pipeline fetches; the screen makes the configuration visible and editable.',
+            'Four live stats at the top: team criteria active in the cron, dossiers covered (n/total), active sources (TK · OB · EU · Media), and watchlist criteria without a dossier.',
+            'Criteria grouped by dossier (team scope), followed by "topic & watchlist" (no dossier, team), followed by personal criteria not yet in the cron. Each card shows search terms as OR-tokens, source badges, tags, scope label, and a representative rel score.',
+            'Three actions per card: Edit (in-place editor), ↗ team / ↩ personal (scope toggle, bidirectional), Delete. A demoted team criterion parks in the personal group and can be re-promoted at any time.',
+            'In-place editor with chip fields for search terms (Enter to add, × to remove) and tags; source toggle buttons (TK / OB / EU / Media); dossier select; scope segmented control. Validates that at least one term and one source are present before saving.',
+            'Scoring preview in the editor shows how the cron would score a strong hit: base relevance 3, +2 for high-value document types (TK/EU), +2 province + +1 municipality for media (gazetteer), +3 per term hit on the title (capped at MATCH_CAP = 5 across all term hits), +1 per tag hit. Verdict: "becomes candidate" when representative score ≥ 4.',
+            'Backend PATCH /pa/searches/:id extended from scope-only to full edit payload: accepts scope, query, tags, and dossierId as a partial patch with a dynamic SET clause. WHERE now guards on tenant_id only (no longer user_id), so team criteria are editable by any PA officer.',
+            'New frontend API helpers createSearch() and updateSearch() alongside the existing createSavedSearch() and promoteSearchToTenant().',
+          ],
+        },
+        {
+          icon: '🔌',
+          iconColor: '#1d4ed8',
+          title: 'New: Signaalbronnen — connector registry screen in Beheer → Monitoring',
+          items: [
+            'New read-only screen Beheer → Monitoring → Signaalbronnen lists every signal connector in one place, grouped by the Monitoring tab the signals land in (Politiek NL, Regionaal, Europa EU, Media & omgeving).',
+            "Connector rows (TK, OB, EU, EP Ingediende teksten) each show status (Actief / Uitgeschakeld / Verwacht), connector name and description, protocol tag, live environment flag value, and polling cadence. Media & omgeving renders differently: each RSS feed gets its own row (FeedRow) inside Regionaal / Landelijk / Sociaal sub-group headers, with the feed's URL and a right-aligned chip cluster (altijd Flevoland badge, categorie filter, RSS tag, MEDIA_SOURCE_ENABLED flag, cadence). All seven feeds mirror feeds.ts exactly — Regionaal: Provincie Flevoland, Omroep Flevoland (categorie: Nieuws); Landelijk: Rijksoverheid, NOS Nieuws, NU.nl, RTL Nieuws; Sociaal: gepland.",
+            'Status is derived from live configuration: core connectors (TK, OB, Agenda) are always Actief; EU, EP Ingediende teksten, and Media connectors reflect the EU_SOURCE_ENABLED, EP_TEXTS_SUBMITTED_ENABLED, and MEDIA_SOURCE_ENABLED flags as deployed — no hardcoding. All six media feed rows share the single MEDIA_SOURCE_ENABLED flag and flip together.',
+            'Planned connectors without an implementation (Sociale media & omgeving) render as Verwacht with a dashed "geen connector" tag.',
+            'New backend endpoint GET /v1/pa/sources/status reads config.pa.* flags and returns { tk, ob, eu, epTeksten, media } booleans; consumed by the frontend on mount.',
+            'Summary strip above the groups shows active, disabled, and planned counts plus a dot legend. Counts now include feed rows: with MEDIA_SOURCE_ENABLED=true all six live feeds count as actief; with the flag off they all flip to uitgeschakeld. The Sociaal row always counts as verwacht.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#b45309',
+          title: 'Fix: demoted seed criteria remain visible after scope change',
+          items: [
+            "GET /pa/searches was not returning seed criteria (user_id IS NULL) after they were demoted to scope user — they disappeared from the list. The WHERE clause filtered on scope = 'tenant' OR user_id = $current_user; NULL matches neither. Fixed by adding OR user_id IS NULL so ownerless searches are always returned regardless of their scope.",
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.7.0',
+      status: 'New',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 4, 2026',
+      sections: [
+        {
+          icon: '📋',
+          iconColor: '#2d7a33',
+          title: 'New: Woo-dashboard — Wet open overheid compliance & management board',
+          items: [
+            'Fourth board added at /dashboard/woo, gated on the woo-coordinatie Keycloak realm role. Login portal updated from three to four cards in a 2×2 grid.',
+            'Six views: Overzicht (8 traffic-light KPIs, monthly intake/throughput columns, open backlog trend, ageing profile), Verzoeken (requests by department/topic/source, repeat requesters), Tijdigheid (SLA gauge vs. 90% target, lead-time distribution buckets, core metrics), Proces (9-step workflow funnel with bottleneck highlighting), Publicatie (17 mandatory disclosure categories, progress bar), Bezwaar & beroep (decision-type donut, objection-to-penalty funnel).',
+            'Verzoekenregister reachable from the rail and ⌘K palette. Register upgraded to full 218 rows generated deterministically from a seeded PRNG weighted to the afdeling/onderwerp/bron distributions — all rows consistent across sessions.',
+            'Rail filters (year, quarter, department, topic, source, status) are fully functional: changing any filter auto-navigates to the filtered register; the rail shows the live count and a reset button; active filters render as chips above the table with a "Wis filters" action; empty state shown when no rows match.',
+            'Provenance footnote below every aggregate chart view clarifies that chart figures are fixed illustrative aggregates and that filters operate on the register.',
+            'Woo assistant dock with three contextual suggestions (timeliness, bottleneck, active disclosure).',
+            'New Keycloak realm role woo-coordinatie; test user test-woo-flevoland (Ravi de Wit, woo@flevoland.nl, password test123) added to ronl-realm.json.',
+            'AuthCallback role routing: woo-coordinatie now redirects to /dashboard/woo before infra-projectteam in the priority chain.',
+          ],
+        },
+        {
+          icon: '📰',
+          iconColor: '#2f5d3a',
+          title: 'New: Media & omgeving — in-house nieuws-aggregator as seventh PA source',
+          items: [
+            'Media tab in PA-Cockpit Monitoring is now a live connected source (bron: media) backed by a minimal in-house aggregator (src/media-aggregator/) that ships as a module in the same backend process. The tab was previously an honest empty state; it now runs the full curation cycle alongside TK, OB, and EU. No external SaaS dependency.',
+            'The aggregator (GET /v1/media-aggregator/search) fetches a curated set of Dutch RSS feeds in parallel: Provincie Flevoland and Omroep Flevoland (regional, always Flevoland-tagged), plus Rijksoverheid, NOS Nieuws, and NU.nl (national, Flevoland-scoped by the gazetteer). Near-duplicate syndicated stories receive a shared duplicate_group_id so the cockpit collapses them to one candidate. In-memory TTL cache (15 min, lazy refresh, stale-on-error). Zero new npm dependencies — axios, fast-xml-parser, and express are already present.',
+            'The aggregator serves the same AggregatorArticle contract media.client.ts already expects, so the cockpit connector needed no changes — MEDIA_AGGREGATOR_BASE now points at the loopback URL. Optional M2M bearer key (MEDIA_AGGREGATOR_ACCEPT_KEY / MEDIA_AGGREGATOR_API_KEY); left unset in dev for open loopback access. GET /v1/media-aggregator/health returns { ok, cached } for ops.',
+            'New media.client.ts: AggregatorArticle → FeedItem pure mapper with duplicate_group_id collapse; fetchFlevolandNews hits GET /search?region=Flevoland, 15 s timeout, 2 retries, per-article try/catch so one malformed article never drops the batch.',
+            'Geographic relevance bump in rules.ts: media items get +2 when "Flevoland" appears anywhere in the haystack (title + description + regio), +1 for a matched Flevoland municipality (with town aliases: Emmeloord → Noordoostpolder, etc.). The bestScore === 0 floor is enforced — geographic context alone never surfaces noise.',
+            'Two new display-only signal fields: regio (e.g. "Flevoland · Lelystad") and sentiment (positief / neutraal / negatief) stored in pa_signals via ALTER TABLE … ADD COLUMN IF NOT EXISTS. Both surface as MediaMeta badge strips on SignalCard and InboxCard; neither is a scoring input. Sentiment is phase-2 (null in v1; stub in enrich.ts ready to wire to Anthropic).',
+            'Eleven media seed searches: topic-linked (media-stikstof, media-lelystad, media-energie), province catch-all (media-flevoland — now includes Zuiderzeeland), and per-bestuurseenheid watchlists for all six Flevoland municipalities (Almere, Lelystad, Dronten, Noordoostpolder with Emmeloord, Urk, Zeewolde) plus Waterschap Zuiderzeeland. Each watchlist entry has dossierId: null; curators link signals to dossiers during review. MEDIA_SOURCE_ENABLED=true in dev (loopback ready). Sociale media / omgeving noted in the UI as a planned second sub-source.',
+            'Waterschap Zuiderzeeland added to the aggregator gazetteer (enrich.ts) and the scoring set (rules.ts) — articles mentioning it are region-tagged as Flevoland and receive the +1 geographic bump alongside the province +2.',
+            'Tests: media-aggregator.test.ts (14 cases — RSS parse, mapping, region tagging with town aliases, dedup clustering, summary capping, malformed-skip, filter semantics), media.client.test.ts (11 cases), rules.test.ts +8 media scoring cases, curation.service.test.ts +7 media pipeline cases. All 148 backend tests pass.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.6.1',
+      status: 'New',
+      statusColor: '#7c3aed',
+      borderColor: '#ddd6fe',
+      date: 'July 3, 2026',
+      sections: [
+        {
+          icon: '🇪🇺',
+          iconColor: '#0046ad',
+          title: 'EP Ingediende teksten — second EU sub-source',
+          items: [
+            'Second sub-source alongside the existing Plenary RSS: the PA-Cockpit now also ingests "Ingediende teksten" from the EP plenary page (Reports + Draft Resolutions tabs) via a Cheerio scraper on server-rendered HTML.',
+            'Each EP signal now carries a sub-source badge ("Plenaire RSS" or "Ingediende teksten") and — for reports — an orange committee badge (e.g. ITRE, JURI, ENVI) in both the Signal card and Inbox card.',
+            'Scraper paginates both tabs automatically (up to 10 pages per tab, 800 ms delay between requests) and stops early once all cards are already seen. Polling interval: every 6 hours via a setInterval alongside the existing Plenary RSS poll.',
+            "Sub-source and committee are display-only metadata and are not inputs to the scoring algorithm. Existing EU signals have been backfilled with subbron = 'ep-rss' via an idempotent migration.",
+            'Document type is derived from the reference prefix: A-prefix → Verslag or Aanbeveling (based on title prefix), B-prefix → Ontwerpresolutie.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: English-language titles refresh automatically once translated',
+          items: [
+            'The EP publishes documents in the original submission language; the Dutch translation appears later on the listing page. Signals with an English title (detected by the prefix REPORT, MOTION FOR, RECOMMENDATION, or OPINION) are now re-fetched on every curation cycle until the translation becomes available.',
+            'ON CONFLICT clause updated: title and src are now also refreshed for candidate signals, so the Dutch title appears in the inbox card automatically once the EP listing publishes it.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: curation cycle no longer hangs when Redis is unavailable',
+          items: [
+            'node-redis v4 queues commands while reconnecting after an ECONNRESET, causing cacheGet() to await indefinitely and blocking the entire curation cycle — no TK, OB, EU RSS, or ep-teksten fetches would run until the Redis connection recovered.',
+            'Fixed by racing every cache get/set against a 2-second timeout: a dead or slow Redis now falls through to the live fetch within 2 s instead of hanging forever. The cache remains fail-soft — a Redis outage degrades performance (no caching) but never stalls the pipeline.',
+          ],
+        },
+        {
+          icon: '▶',
+          iconColor: '#0046ad',
+          title: 'New: manual curation trigger in Beheer',
+          items: [
+            'Beheer → Monitoring → Curatiepijplijn now has a "Curatie nu uitvoeren" button that fires the curation cycle on demand — useful after a deployment or for diagnosis without waiting for the 6-hour cron.',
+            'Status feedback appears below the button: a green confirmation line shows the exact start time and a reminder that the cycle runs in the background (~30 s); after it clears, the last manual start time is retained for the session. Error state guides the user to check their role if the call fails.',
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: '#dc2626',
+          title: 'Fix: code-review hardening (PA cache + curation pipeline)',
+          items: [
+            'PA cache startup race: connectAttempted is now reset to false when the initial Redis connection fails, allowing the cache to retry on the next curation cycle instead of remaining permanently disabled for the lifetime of the process.',
+            'PA cache timer leak: withTimeout now clears the fallback setTimeout when Redis responds within the 2 s window, and attaches a rejection handler to the losing side so a late Redis error never surfaces as a spurious unhandledRejection log.',
+            'Curation dedup ordering: ep-teksten items are now pushed to allItems before the plenary RSS items. Since the dedup Set is first-seen-wins, the richer ep-teksten entry (which carries the committee code) now takes priority over the RSS entry when the same EP document appears in both feeds.',
+            'Signal re-fetch after English→Dutch translation: getSeenEpTekstenRefs now only excludes English-titled signals that are still candidates. Confirmed or archived signals are always included in sinceRefs, preventing a permanent re-crawl loop for documents that were reviewed before their Dutch translation was published.',
+            'src label frozen at ingestion: src (e.g. "Tweede Kamer · Document · vandaag") is no longer updated on conflict — it records the time of first indexing and does not drift on subsequent curation cycles.',
+            'Taxonomy seed propagation: the ON CONFLICT clause for PA_TAXONOMY_SEED now also updates query and tags, so changes to search terms or topic tags take effect on the next app restart without requiring a manual database update.',
+          ],
+        },
+        {
+          icon: '🧪',
+          iconColor: '#6b7280',
+          title: 'Tests: ep-texts-submitted unit tests + ep-teksten curation cycle coverage',
+          items: [
+            'New ep-texts-submitted.client.test.ts (16 tests): normaliseEpRef covers A/B ref conversion, number padding, pass-through, whitespace, and invalid inputs; parsePageHtml uses an HTML fixture with 6 cards — 4 valid, 2 skipped — verifying Verslag/Aanbeveling/Ontwerpresolutie classification, committee extraction, date parsing, and English-titled card handling.',
+            'curation.service.test.ts extended with 6 ep-teksten tests: fetched when flag + EU searches active, skipped when flag off or no EU searches, items flow through scoring and persist, error resilience (cycle continues if EP listing unreachable), deduplication against ep-rss items sharing the same ref id.',
+          ],
+        },
+        {
+          icon: '⚑',
+          iconColor: '#7c3aed',
+          title: 'New: Watchlist — bevestigen zonder dossier',
+          items: [
+            'Signals confirmed without a linked dossier now enter a Watchlist state (routing = \'watchlist\' in pa_signals). The Gecureerd tab shows an "⚑ Alle" / "⚑ Watchlist" filter toggle when watchlist signals are present; clicking "⚑ Watchlist" narrows the view to only those signals.',
+            'Watchlist signal cards carry an "⚑ Watchlist" chip and an inline dossier-picker (OrphanActions): select a dossier from the dropdown and click "Koppelen" to link it via PATCH /v1/pa/signals/:id — this clears the routing field and moves the signal into the normal confirmed flow.',
+            'The orphan filter resets automatically when (a) the user switches to a different Monitoring tab, (b) the last watchlist signal is linked to a dossier, or (c) the search term is cleared.',
+            "DB: routing TEXT column added with ALTER TABLE … ADD COLUMN IF NOT EXISTS; confirm endpoint sets routing = CASE WHEN dossier_id IS NULL THEN 'watchlist' ELSE NULL END; all four SELECT fetch paths include the routing column.",
+            'Backend: new PATCH /v1/pa/signals/:id endpoint sets dossier_id and clears routing = NULL, returning the refreshed signal. Tests: 5 new cases in pa.routes.test.ts (auth gating, missing dossierId → 400, unknown signal → 404, links dossier → routing cleared); total 106 backend tests pass.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: live-testing bugfixes — counter, Koppelen, search, orphan filter',
+          items: [
+            'Watchlist chip not shown immediately after confirm: handleConfirm was discarding the return value of confirmSignal(); the routing field on the returned signal was never applied to local state. Fixed by capturing the returned signal and using it directly in setSignals.',
+            'Koppelen button did nothing: (1) OrphanActions had no loading state — added busy flag so the button shows "…" during the PATCH and is disabled to prevent double-submit; (2) errors were swallowed silently — added an error toast. (3) CORS preflight rejected PATCH: Access-Control-Allow-Methods in index.ts was missing PATCH; added it.',
+            "Inbox counter not updating after Naar inbox: two compounding bugs — (a) setPromotedKeys was called before the status check, so signals already in Gecureerd (returned as status: 'confirmed' via the ON CONFLICT guard) falsely showed \"In Inbox ✓\" and never incremented the count; fixed by moving setPromotedKeys inside the status !== 'confirmed' branch. (b) The isNew flag was computed inside the setInbox functional-update callback, which React runs asynchronously — the synchronous if (added) check always saw false. Fixed by computing isNew synchronously from the closure before calling setInbox.",
+            'Inbox capped at 100 after promote: refetching inbox after a promote hit the LIMIT 100 query cap, so newly promoted low-relevance items were lost from local state. Fixed by prepending the promoted signal directly to local inbox state and tracking the live count in an inboxCountRef (useRef) to avoid stale-closure reads across concurrent promotes.',
+            'Orphan filter trapping empty view: after linking the last watchlist signal, orphanOnly stayed true and the shown list became empty with no way to exit. Fixed by resetting orphanOnly inside handleLinkDossier when no watchlist signals remain, and resetting it in load() on every tab switch.',
+            'Search results staying visible when switching Gecureerd / Inbox tabs: segmented-tab onClick handlers now call clearSearch() alongside setView(), so the search band clears on every tab change.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.6.0',
+      status: 'New',
+      statusColor: '#7c3aed',
+      borderColor: '#ddd6fe',
+      date: 'July 2, 2026',
+      sections: [
+        {
+          icon: '🧭',
+          iconColor: '#0046ad',
+          title: 'Kompas v2.0 — 8 criteria, max 16, four threshold bands',
+          items: [
+            'Flevolands Kompas expanded from 6 to 8 criteria (max 16): Reputation & strategic positioning replaces Strategic visibility; Synergy with other dossiers and Risk management are new additions.',
+            'Four threshold bands drive the recommended PA effort: Strategic core dossier · top priority (≥14), Promising (10–13), Background · monitor (5–9), Do not pursue (0–4).',
+            'Band badge shown on the Kompas radar, Issuekaart and Vandaag; badge displays the threshold label in the band colour.',
+            'All mock dossiers migrated to 8 criteria with revised scores: stikstof 14 (kern), lelystad 10 (kans), energie 12 (kans), jeugdzorg 5 (monitor), oostvaarders 6 (monitor).',
+          ],
+        },
+        {
+          icon: '📖',
+          iconColor: '#059669',
+          title: 'New: Beheer → Strategisch kompas → Afwegingskader',
+          items: [
+            'New read-only page under Beheer documents the full Flevolands assessment framework: criteria table (8 rows) and threshold bands table (4 bands), data-driven from KOMPAS_CRITERIA and KOMPAS_BANDS.',
+          ],
+        },
+        {
+          icon: '🔍',
+          iconColor: '#0046ad',
+          title: 'New: Curatiepijplijn documentation + inline explainer',
+          items: [
+            'Read-only Beheer → Monitoring → Curatiepijplijn page: vertical flow diagram from raw source to curated signal, documenting the full curation pipeline.',
+            'Inline "Hoe werkt de curatiepijplijn?" collapsible on every connected Monitoring source tab, with a "Bekijk als pagina in Beheer →" deep-link.',
+            '? help affordances next to the blanco zoekbalk and each Naar inbox button — both open the pipeline explainer at the moment of need.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: top-nav switching restores last visited sub-page',
+          items: [
+            'Switching between top-nav modes (Vandaag, Dossiers, Monitoring, Voortgang, Beheer) now restores the last visited sub-page instead of always jumping back to the mode default.',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: '#dc2626',
+          title: 'Fix: signal count sync between Vandaag and Monitoring',
+          items: [
+            'Inbox count on Vandaag now sums accurate per-tab counts (politiek / europa / regionaal / media) instead of a capped all-tabs snapshot, fixing the mismatch with Monitoring inbox badges.',
+            'Gecureerd count on Vandaag now reflects the full confirmed-signal total from the shared provider, not just the 3 items shown on screen.',
+            'Rail inbox badges now read per-tab counts written back by Monitoring on each load, so badge and page tab count are always in sync.',
+            'PaDataProvider seeds per-tab inbox counts at startup so badges are populated before Monitoring is first visited.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.5.5',
+      status: 'Enhancement',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: 'July 1, 2026',
+      sections: [
+        {
+          icon: '🔎',
+          iconColor: 'blue',
+          title: 'PA cockpit — blanco zoekfunctie in Monitoring',
+          items: [
+            'New free-text search band under the Gecureerd/Inbox segmented control that searches all signaalbronnen at once (Tweede Kamer + Officiële Bekendmakingen) via the existing GET /pa/feed — an escape hatch separate from the curated streams, with bron-scope chips (Alle / Tweede Kamer / Off. Bekendmakingen)',
+            'Results are shown as honestly raw: source badge, no relevance score, no duiding, and an amber note making clear these hits are uncurated — "geen ruis" stays the promise of the curated stream',
+            'Naar inbox promotes a single raw hit into the curation inbox as a candidate via the new thin POST /pa/signals route → curation.service.promoteToInbox, reusing scoreItem + persistCandidate but bypassing the rel ≥ 4 cron threshold (human-floored to ≥ 5); it lands in the tab its source maps to (tk→Politiek, ob→Regionaal, eu→Europa), a toast names the destination, and the rail/inbox counts refresh',
+            "Promoting the same item twice — or one already confirmed — does not duplicate or clobber, thanks to the existing ON CONFLICT (source_key) … WHERE status = 'candidate' guard; Bewaar als zoekopdracht persists a user-scope saved search via POST /pa/searches",
+            "Saved searches now have a home: a Mijn zoekopdrachten chip strip under the band lists the user's personal (scope=user) searches — click to re-run, ✕ to delete (DELETE /pa/searches/:id), and ↗ team to flip one to a tenant bron via the new owner-only PATCH /pa/searches/:id (only a tenant-scope search feeds the curation cron; a personal save does not auto-curate)",
+            'Source chips are data-derived from GET /pa/types (the sources /pa/feed actually merges) rather than hardcoded — TK + OB today, with no dead Europa/Media chip, and an Europa chip appears automatically once the backend exposes an eu feed source',
+            'Tests added: promoteToInbox rel-floor/dossier-preservation cases in curation.service.test.ts, plus role-gate + validation cases for POST /pa/signals and the PATCH /pa/searches/:id scope flip in pa.routes.test.ts',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: 'orange',
+          title: 'PA cockpit — Naar inbox count now ticks the seg control too',
+          items: [
+            'Fixed: promoting a raw hit with Naar inbox updated the left-rail inbox badge but left the Gecureerd/Inbox segmented-control "Inbox" count stale (e.g. rail went 57→59 while the seg still showed 57)',
+            "Root cause: the two counts read different state — the rail badge reads the shared usePaData() provider inbox (refreshed via providerInbox.refetch()), while the seg count reads Monitoring's local inbox state, which the promote handler never refreshed",
+            "Now, on a successful promote, the local inbox is also refetched when the item lands in the currently viewed tab (sig.tab === tab.id), so both counts move together; a promote into another tab still updates that tab's rail badge only, as expected",
+          ],
+        },
+        {
+          icon: '⚙️',
+          iconColor: 'gray',
+          title: 'Dev tooling — dependency preflight check',
+          items: [
+            'npm run dev now runs a deps:check preflight before the Docker check — it fails fast with a clear "run npm install" message when the installed dependencies are out of sync, instead of crashing mid-boot with a MODULE_NOT_FOUND (e.g. fast-xml-parser) after a git pull that added dependencies',
+            'scripts/check-deps.sh mirrors the existing check-docker.sh pattern: verifies node_modules exists and compares the root package-lock.json against the node_modules/.package-lock.json install marker npm writes after each install — a newer lockfile means the tree is stale',
+            'Added standalone npm run deps:check script; the check is advisory and non-destructive (it never installs on its own), so the fix stays an explicit npm install',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.5.4',
+      status: 'Security',
+      statusColor: 'red',
+      borderColor: 'red',
+      date: 'June 30, 2026',
+      sections: [
+        {
+          icon: '🔒',
+          iconColor: 'red',
+          title: 'PA cockpit — role-gate all PA data routes',
+          items: [
+            'All PA data endpoints (GET /signals, POST /signals/:id/confirm, GET /feed, GET /agenda, GET /searches, POST /searches, DELETE /searches/:id) now require the public-affairs Keycloak realm role in addition to a valid JWT — matching the curator routes that were already gated',
+            'Previously any logged-in user (caseworker, infra board, etc.) could read and confirm Flevoland PA signals; unauthenticated requests → 401 MISSING_TOKEN, authenticated non-PA requests → 403 FORBIDDEN',
+            "Role claim verified to be the same realm_access.roles path used by the frontend route gate in App.tsx — a PA officer's access is unchanged",
+            'Route-level test suite added (pa.routes.test.ts, 7 cases): anonymous → 401, non-PA role → 403, public-affairs role → 200/404 on both GET /signals and POST /signals/:id/confirm',
+          ],
+        },
+        {
+          icon: '🐛',
+          iconColor: 'orange',
+          title: 'PA cockpit — dossierId null-carryover bug fix in scoring',
+          items: [
+            'Fixed a bug in scoreItem (rules.ts) where a lower-scoring saved search could leak its dossierId onto a signal when a higher-scoring search won but had dossierId: null',
+            'Root cause: the guard `if (search.dossierId) dossierId = search.dossierId` never cleared the value when the winning search had no linked dossier — replaced with an unconditional assignment so the winner always sets the dossierId (including null)',
+            'Discovered via the new rules.test.ts unit test suite; no user-visible signal was incorrectly linked in production because EU topic-searches (dossierId: null) currently score lower than dossier-linked searches on the same items',
+          ],
+        },
+        {
+          icon: '🧪',
+          iconColor: 'green',
+          title: 'PA cockpit — automated test suite (65 cases)',
+          items: [
+            'rules.test.ts (29 cases): full coverage of scoreItem — tab assignment, no-match floor, title/description/tag scoring, high-value type bonuses for TK and EU, bestScore cap at 5, rel ceiling at 10, and all dossierId assignment paths; pure function, no mocks needed',
+            'curation.service.test.ts (17 cases): pipeline orchestration — source routing (EU-only searches never reach TK/OB APIs), EU fetched once per cycle regardless of search count, euSourceEnabled config flag, TK/OB query deduplication, rel ≥ 4 persistence threshold, item deduplication by source:id, and feed error resilience',
+            'pa.routes.test.ts (7 cases): route-level auth gating — anonymous → 401, non-PA role → 403, public-affairs role → 200; covers GET /signals and POST /signals/:id/confirm including the confirm happy path',
+            'eu.client.test.ts (12 cases): RSS parser for the EP plenary feed — title extraction, ref parsing, doceo URL, date handling, Dutch type labels, EU_TO_NL_TERMS expansion, agenda-item filtering; fixture-based, no network',
+            'Run with: npm test --workspace=@ronl/backend; see docs/TESTS.md for per-file breakdown and watch-mode instructions',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.5.3',
+      status: 'Feature',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 25, 2026',
+      sections: [
+        {
+          icon: '🇪🇺',
+          iconColor: 'blue',
+          title: 'PA cockpit — Europa (EU) source: European Parliament RSS feeds',
+          items: [
+            'Europa tab is now a live connected source (bron: eu) via the EP plenary-documents RSS feed (CC BY 4.0, no authentication, ~1-2 s); press-release feed included but currently empty',
+            'Normalises RSS items to FeedItem: ref from guid (e.g. A-10-2026-0181), English title, Dutch type label from <category domain="type">, doceo _NL.html provenance link; agenda items filtered out (no EP document ref in guid)',
+            'Scoring: high-value types (Verslag, Motie, Aangenomen tekst, Resolutie) get +2; Dutch term expansion (EU_TO_NL_TERMS) appends Dutch equivalents of English EU-policy vocabulary to FeedItem.description for desc-match scoring; only rel ≥ 4 persists',
+            'EU_SOURCE_ENABLED env flag (default true); EU_API_BASE retained for future fallback; bron-eu badge style added to Monitoring CSS',
+            'Fixture-based unit test (eu.client.test.ts, 12 cases): non-empty titles, ref extraction, doceo URL, date parsing, Dutch type labels, term expansion, agenda filtering',
+            'Seed searches broadened: four EU-specific saved searches added (eu-klimaat, eu-landbouw, eu-energie, eu-plenary) using English vocabulary that directly matches EP title patterns; these are source-routed to EU only — TK/OB are no longer queried with English terms',
+            'Curation cycle is now source-aware: each saved search declares its source(s); TK and OB fetch only their own query sets; EU is fetched once per cycle regardless of search count; fetch window raised to top=50',
+            'Candidates are re-scored on subsequent cycles (ON CONFLICT DO UPDATE) so search changes take effect without manual DB cleanup',
+            'Rail badge sync: Monitoring component triggers a provider inbox refetch after loading tab data, keeping the rail pill count current when new EU candidates arrive after page load',
+          ],
+        },
+        {
+          icon: '📅',
+          iconColor: 'blue',
+          title: 'PA cockpit — Agenda rail badge and view default',
+          items: [
+            'Agenda rail item now shows the count of upcoming (today + future, non-cancelled) activiteiten, with a live pulse dot when a debate is currently in session',
+            'AgendaView opens in Aankomend scope by default — badge count and view count now match; Alle periodes remains available to browse the full historical schedule',
+            'Type filter chips (Commissiedebat, Plenair, …) derive their counts from the active time scope, so numbers stay consistent across all filters',
+          ],
+        },
+        {
+          icon: '🔔',
+          iconColor: 'pink',
+          title: 'PA cockpit — Monitoring rail counter badges',
+          items: [
+            'Unconnected tabs (Europa, Media & omgeving) now render a dimmed — instead of a misleading 0',
+            'Tabs with pending inbox candidates show an accent pill with the candidate count; confirming a candidate decrements the pill immediately (provider now refetches inbox alongside signals)',
+            'Inbox resource added to PaDataProvider — fetchInbox is now a first-class resource alongside signals, dossiers and agenda',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.5.2',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '🔐',
+          iconColor: 'green',
+          title: 'Logout now redirects to homepage',
+          items: [
+            'Clicking "Uitloggen" in the session-expiry modal previously returned the user to the current dashboard path instead of the homepage — fixed by passing redirectUri: window.location.origin to keycloak.logout()',
+            'Applies to PA-cockpit, Infra-board, and Caseworker dashboard',
+          ],
+        },
+        {
+          icon: '🗂️',
+          iconColor: 'green',
+          title: 'PA cockpit — dossierId no longer seeded from mock',
+          items: [
+            'Shell now starts with dossierId="" and derives the initial selection via an effect once dossiers.status==="ok" — with VITE_PA_DOSSIERS_MOCK=false the opening view no longer points at a mock id absent from the live dataset',
+            'Removes the last synchronous getDossiers() call from PADashboardV2',
+          ],
+        },
+        {
+          icon: '📅',
+          iconColor: 'blue',
+          title: 'PA cockpit — Tweede Kamer agenda (Monitoring → Agenda)',
+          items: [
+            'New read-only Agenda tab under Monitoring shows the plenaire and commissie schedule sourced from Gegevensmagazijn OData v5 /Activiteit (13 Soort values: Plenair debat, Stemmingen, Hamerstukken, Regeling van werkzaamheden, Tweeminutendebat, Mondelinge vragen, Commissiedebat, Wetgevingsoverleg, Notaoverleg, Rondetafelgesprek, Technische briefing, Procedurevergadering)',
+            'Items are date-grouped; today is marked; past items are dimmed; each item shows time, soort badge, title, commissie, activiteit number and a tweedekamer.nl provenance link',
+            'Items matching a saved-search term are badged with the matched dossier name and keyword — unmatched items still render so the complete schedule is always visible',
+            'Type filter chips are derived dynamically from the soortLabel values present in the fetched window — a new session type in the OData feed appears automatically without a code change',
+            'OData pagination: TK API caps at 100 results per page; the backend loops with $skip until a short page signals the end (up to 600 items across 6 pages)',
+            'Backend route GET /v1/pa/agenda is JWT-gated; Redis cache TTL controlled by CACHE_TTL_AGENDA (default 1800 s); VITE_PA_AGENDA_MOCK=true serves local fixtures',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.5.1',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '🔌',
+          iconColor: 'green',
+          title: 'TK OData v5 migration',
+          items: [
+            'API base updated from /OData/v4/2.0 to /OData/v5 — old URL returns no results as of the October 2025 deadline',
+            'Document.DocumentNummer renamed to Nummer in v5 — provenance URL construction updated accordingly',
+            'Document.Volgnummer renamed to Ondernummer in v5 — sub-document number field updated',
+            'Document.DatumRegistratie discontinued in v5 — removed from date fallback chain (GewijzigdOp → Datum)',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.5.0',
+      status: 'Refactor',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '⚙️',
+          iconColor: 'purple',
+          title: 'PA cockpit — async data layer (PaDataProvider)',
+          items: [
+            'Resource<T> pattern: dependency-free async state (data / status / refetch) via useResource hook — no external state library',
+            'PaDataProvider / usePaData() context: signals and dossiers fetched once at shell mount; all screens read from the provider instead of calling APIs directly',
+            'confirmSignal wired into the provider: confirm calls the API then triggers signals.refetch(), eliminating the onSignalConfirmed prop chain across PASectionRouter → Monitoring',
+            'Dossier types (Dossier, Kompas*, Stakeholder, Mijlpaal, …) lifted to @ronl/shared; pa.data.ts re-exports them — import paths unchanged',
+            'fetchDossiers / fetchDossier added to pa.api.ts; all getDossiers / getDossier call sites migrated to usePaData().dossiers.data',
+            'VITE_PA_USE_MOCK split into VITE_PA_SIGNALS_MOCK + VITE_PA_DOSSIERS_MOCK; VITE_PA_DOSSIERS_MOCK=true in dev and ACC until /pa/dossiers endpoint ships',
+          ],
+        },
+        {
+          icon: '🔐',
+          iconColor: 'red',
+          title: 'Security — curator diagnostic endpoints gated',
+          items: [
+            'GET /v1/pa/curator/status and POST /v1/pa/curator/run now require a valid Keycloak JWT and the public-affairs realm role (previously unauthenticated for ACC diagnostics)',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.4.2',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 24, 2026',
+      sections: [
+        {
+          icon: '📡',
+          iconColor: 'blue',
+          title: 'PlatO integration — live TK & OB signals (stages 1+2)',
+          items: [
+            'TK OData v4 client: OR-expanded contains() filter per term, DocumentNummer-based provenance URLs, negative Volgnummer hidden',
+            'OB SRU client: namespace-prefix stripping (removeNSPrefix) fixed so owmskern/owmsmantel/tpmeta fields now parse correctly; w.jaargang year filter dynamic',
+            'Curation pipeline: saved queries → TK + OB fetch → rules score (rel ≥ 4 threshold) → persist candidates; cycle fires on server startup; POST /v1/pa/curator/run triggers a new cycle on demand',
+            'Signals route: comma-separated status filter (candidate,ai_drafted) now handled as SQL ANY() — inbox fetch was previously broken',
+            'pa_saved_searches and pa_signals tables; Flevoland taxonomy (stikstof, lelystad, energie, jeugdzorg) seeded on first run',
+            'Fail-soft Redis cache; VITE_PA_USE_MOCK=false baked into ACC build via .env.acceptance',
+            'Diagnostic endpoints: GET /v1/pa/curator/status (unauthenticated DB row counts), POST /v1/pa/curator/run (unauthenticated cycle trigger) — added during ACC rollout',
+          ],
+        },
+        {
+          icon: '🖥️',
+          iconColor: 'blue',
+          title: 'PA-Cockpit — Monitoring, Vandaag & Issuekaart',
+          items: [
+            'Monitoring: Gecureerd/Inbox segmented control; source badges; provenance link shows DocumentNummer (not internal UUID)',
+            'Inbox: rule-scored candidates and AI-drafted concepts; Bevestigen/Negeren actions; confirming a signal immediately updates the sidebar tab count',
+            'Sidebar signal counts now fetch live confirmed signals from the API on login and refresh after each confirmation — no longer driven by static mock data',
+            'Europa and Media tabs show an honest empty-state (no connector yet)',
+            'Vandaag: "Signalen vandaag" section with top-3 confirmed signals and inbox-pending banner',
+            'Issuekaart: Monitoring sub-tab with per-dossier signals, inbox, and saved-query strip',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.4.1',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 22, 2026',
+      sections: [
+        {
+          icon: '🗂️',
+          iconColor: 'green',
+          title: 'Beheer › Projecten › Archief — split by board ownership',
+          items: [
+            'The shared Archief now filters completed tasks by processDefinitionKey, mirroring the open-task split',
+            'Infra-board Archief shows only RIP Phase 1 processes',
+            'Caseworker Archief hides RIP Phase 1 and keeps its own processes (Thuisbatterij, AWB Shell, onboarding, …)',
+            'INFRA_PROCESS_KEYS is the single source of truth shared by the task list and the Archief filter',
+          ],
+        },
+        {
+          icon: '🏷️',
+          iconColor: 'blue',
+          title: 'Board ownership — deploy-time tag (durable split)',
+          items: [
+            'Archief split is now driven by the deploy-time boardOwner tag read from each process definition, authoritative over the static INFRA_PROCESS_KEYS fallback',
+            'Untagged/legacy processes keep working — they fall back to the processDefinitionKey split until redeployed with a tag',
+            'Procesbibliotheek shows a board-owner badge per deployed bundle (infra-board, caseworker, public-affairs)',
+            'HistoricTask carries boardOwner, resolved per process key (cached) from the deployed BPMN',
+          ],
+        },
+        {
+          icon: '👤',
+          iconColor: 'blue',
+          title: 'Infra-board Portfolio — ROL filter driven by process ownership',
+          items: [
+            'Live RIP Fase 1 projects now carry their lead role from a leadRole process variable (derived in-process) instead of a hardcoded "projectleider"',
+            'The Portfolio ROL dropdown is data-driven — it lists the roles actually present instead of two fixed options',
+            'Instances without leadRole (legacy/running) default to Projectleider, so nothing breaks before redeploy',
+          ],
+        },
+        {
+          icon: '🤖',
+          iconColor: 'green',
+          title: 'AI-assistant — retired models replaced, friendlier errors',
+          items: [
+            'Fixed the sudden 404 (not_found_error): Claude Sonnet 4 and Opus 4 dated snapshots were retired by Anthropic on June 15, 2026; the registry now uses the claude-sonnet-4-6 and claude-opus-4-8 aliases, which do not expire',
+            'Provider errors (retired model, auth, rate limit, overload) are translated to clear Dutch messages with a code-driven badge instead of the raw API payload',
+            'Assistant runs at medium effort for faster responses without a noticeable quality drop',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.4.0',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 20, 2026',
+      sections: [
+        {
+          icon: '🏠',
+          iconColor: 'blue',
+          title: 'New landing page — board catalogue (Flevoland)',
+          items: [
+            'Landing page (/) shows the three boards: Caseworker, PA-Cockpit, Infra-board',
+            'Recognisable CSS mini-preview + short description + availability per board',
+            '"Log in" and "Open" start the employee login; "Open <board>" remembers the board after login',
+            'Quiet "Resident? Log in with DigiD" link in the topbar for citizens',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.3.0',
+      status: 'Feature Release',
+      statusColor: 'blue',
+      borderColor: 'blue',
+      date: 'June 19, 2026',
+      sections: [
+        {
+          icon: '🏗️',
+          iconColor: 'blue',
+          title: 'Infra-board — first cut (Flevoland)',
+          items: [
+            'New /dashboard/infra-board route, gated on infra-projectteam',
+            'Mijn dag · Portfolio (Gantt + per fase) · Beheer; live Taken via businessApi.task.*',
+            'Project detail renders the RIP Fase 1 swimlane from activity-history + the 4 Projectplan-onderdelen',
+            'Reuses tenant theme, ⌘K palette, RipFase1WipViewer and the IOU assistant',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.2.1',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 17, 2026',
+      sections: [
+        {
+          icon: '🔋',
+          iconColor: 'green',
+          title: 'Thuisbatterij subsidie — MijnOmgeving (Flevoland)',
+          items: [
+            'Subsidies card now opens a ThuisbatterijSubsidieAanvraagProcess start form instead of the "in ontwikkeling" stub',
+            'Success confirmation shows dossier number and routes to Mijn aanvragen',
+            'Mijn aanvragen tab now labels ThuisbatterijSubsidieAanvraagProcess as "Thuisbatterij subsidie aanvragen"',
+            'Caseworker TakenInbox picks up thuisbatterij tasks automatically — no additional configuration required',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.2.0',
+      status: 'Feature Release',
+      statusColor: 'purple',
+      borderColor: 'purple',
+      date: 'June 8, 2026',
+      sections: [
+        {
+          icon: '🏛️',
+          iconColor: 'purple',
+          title: 'PA-Cockpit — first cut (Flevoland)',
+          items: [
+            'New /dashboard/public-affairs route, gated on public-affairs role + province org-type',
+            'Vandaag · Dossiers · Monitoring · Voortgang; Flevolands Kompas radar + 0–2 scorecard',
+            'Reuses tenant theme, ⌘K palette and the IOU assistant (McpChatSection) from the V2 shell',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.1.2',
+      status: 'Bug Fix',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: 'June 8, 2026',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 29,
+              title: 'Bij regelcatalogus kan ik de pagina van de provincie Flevoland niet openen',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/29',
+            },
+            {
+              type: 'feedback',
+              iid: 28,
+              title:
+                'Producten en diensten lijken groen en rijp door elkaar. Kan hiervoor een bepaalde classificatie worden gebruikt zodat het zoeken gemakkelijker wordt?',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/28',
+            },
+            {
+              type: 'feedback',
+              iid: 24,
+              title:
+                'Als ik niet ingelogd ben en ik kies op het tabblad Home voor "Gegevenswoordenboek", krijg ik een melding dat één of meerdere templates geïnstalleerd moeten worden',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/24',
+            },
+            {
+              type: 'feedback',
+              iid: 22,
+              title: 'In het projecten archief zie ik rare bestandsnamen (?) staan',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/22',
+            },
+            {
+              type: 'feedback',
+              iid: 20,
+              title:
+                'In de Regelcatalogus werkt de link flevoland.nl niet. Dat is een bekend probleem op het interne netwerk. www.flevoland.nl werkt wel.',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/20',
+            },
+          ],
+        },
+        {
+          title: 'Producten & Diensten — Classificatie, filters en sortering',
+          icon: '🔧',
+          iconColor: 'green',
+          items: [
+            'Replaced the flat, undifferentiated product list with a grouped view by Soort: Subsidies, Vergunningen/meldingen/activiteiten, and Bezwaar & klacht',
+            'Soort is derived server-side in productenDiensten.service.ts from the title (the SC4.0 feed carries no thematic classification) and cached on ProductDienstItem alongside the other fields',
+            'Added an Aanvraagwijze filter (Online aanvragen / Informatie & op afspraak) driven by the existing onlineAanvragen flag, next to the existing Doelgroep filter',
+            'Added a Sorteren control (Naam A–Z, Naam Z–A, Laatst bijgewerkt) that orders the cards within each Soort group independently',
+          ],
+        },
+        {
+          title: 'Archief — Hide machine-identifiers',
+          icon: '🔧',
+          iconColor: 'green',
+          items: [
+            'Hid the assignee identifier shown on completed-task cards in the Archief section — raw UUIDs and ronl-worker-* external task worker IDs carry no meaning for caseworkers and were confusing',
+            'The assignee is now suppressed entirely when it matches a UUID or worker-ID pattern; the truncated value and its hover tooltip (which exposed the full UUID) are removed',
+            'Genuine human assignee usernames, when present, still render as before',
+          ],
+        },
+        {
+          title: 'Regelcatalogus — Organisatie-homepagelink',
+          icon: '🔧',
+          iconColor: 'green',
+          items: [
+            'Fixed broken organisation homepage link in the Organisaties tab of RegelCatalogus.tsx — Provincie Flevoland resolved to its apex domain (flevoland.nl), which does not serve content without the www subdomain',
+            'New withWww() helper normalises the homepage URL: prepends www. to the hostname when absent, leaves URLs that already carry www. (or any other subdomain) untouched, and falls back to the original value for unparseable strings',
+            'Normalisation applied to both the anchor href and the displayed link text so the visible label matches the actual destination',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.1.1',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-06-07',
+      sections: [
+        {
+          icon: '🤖',
+          iconColor: 'purple',
+          title: 'AI assistant — overlay panel, resizable, Dutch translation',
+          items: [
+            'The AI assistant in CaseworkerDashboardV2 now appears as a floating overlay panel on top of the page instead of a panel that pushes the content aside — opening, closing and resizing it leaves the rest of the screen untouched.',
+            'The panel is now resizable: drag its left edge (or use the arrow keys when the divider has focus) to widen or narrow it between 320px and 60% of the viewport (max. 720px). The chosen width and open/closed state are remembered via sessionStorage.',
+            'Added padding around the assistant avatar and the source-pill row ("Process Engine", etc.), and switched the avatar color to the V2 magenta accent (`--color-secondary`) instead of the structural chrome-blue — now consistent with the floating "Vraag de assistent" toggle button.',
+            'Translated every remaining English string in the assistant panel to Dutch: titles, placeholders, buttons, status messages and aria-labels (e.g. "AI Assistant" → "AI-assistent", "Clear chat" → "Chat wissen", "Ask a question… (Enter to send)" → "Stel een vraag… (Enter om te verzenden)", "Select at least one source…" → "Selecteer minstens één bron…").',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.1.0',
+      status: 'Released',
+      statusColor: 'green',
+      borderColor: 'green',
+      date: '2026-06-07',
+      sections: [
+        {
+          icon: '🚀',
+          iconColor: 'purple',
+          title: 'Caseworker Dashboard — V2 cutover',
+          items: [
+            '`/dashboard/caseworker` now serves CaseworkerDashboardV2 directly — the V2 shell (3-mode rail, ⌘K command palette, assistant dock, command-driven section routing) is the default and only caseworker portal. The separate `/dashboard/caseworker/v2` route has been removed; all internal redirects (login, logout, "back to dashboard") now point at the canonical `/dashboard/caseworker` path.',
+            "CaseworkerDashboard (V1) and its now-orphaned section components have been deleted: `TakenSection` (superseded by V2's `TakenInbox`) and `GegevenswoordenboekSection` (superseded by `GegevenswoordenboekV2`). All other section components remain in active use, shared between the legacy code path and `SectionRouter`.",
+            '`SessionExpiryWarning` — the "your session is about to expire" widget — was V1-only and would have silently disappeared for caseworkers; it is now rendered inside CaseworkerDashboardV2 so the warning and one-click token refresh keep working.',
+            'Removed the "Klassieke weergave" link from the V2 top bar — there is no classic view to switch back to anymore — and dropped the associated `.v2-classic-link` style.',
+          ],
+        },
+        {
+          icon: '📰',
+          iconColor: 'orange',
+          title: 'Nieuws — Rijksoverheid feed migration (again)',
+          items: [
+            'The legacy `feeds.rijksoverheid.nl` subdomain has been decommissioned — DNS resolution now fails outright, breaking the Nieuws feed. The service has been migrated back to the `/api/rss` endpoint on rijksoverheid.nl with a JSON-encoded `query` parameter filtering on content_type `pro:newsDocument`, which is now stable and returns RSS XML in the same shape the existing parser expects. No parsing changes were required.',
+          ],
+        },
+      ],
+    },
+    {
+      version: '3.0.8',
+      status: 'Enhancement',
+      statusColor: 'orange',
+      borderColor: 'orange',
+      date: '2026-06-06',
+      sections: [
+        {
+          icon: '💬',
+          iconColor: 'purple',
+          title: 'Feedback / use case handled',
+          items: [
+            {
+              type: 'feedback',
+              iid: 33,
+              title:
+                'Bij sommige publieke routes (/use-case, /upload_file en /feedback) worden verzoeken geaccepteerd zonder authenticatie, rate limiting of een CAPTCHA.',
+              url: 'https://git.open-regels.nl/showcases/iou-architectuur/-/work_items/33',
+            },
+          ],
+        },
+        {
+          icon: '🔐',
+          iconColor: 'orange',
+          title: 'Security hardening — public write endpoints',
+          items: [
+            'ALTCHA proof-of-work challenge added to POST /use-case and POST /feedback — visitors must complete a SHA-256 PoW puzzle before a GitLab work item is created; /upload-file is intentionally excluded as it is a pre-upload step, not the final submission gate.',
+            'GET /altcha/challenge issues a signed challenge (max 50 000 iterations, 10-minute expiry) via altcha-lib; ALTCHA_HMAC_KEY configures the HMAC secret — when unset the check bypasses gracefully so development environments without the key are not blocked.',
+            'Frontend: <altcha-widget> web component rendered above the Indienen button in both the Gebruiksscenario and Feedback forms; verified payload is included in the form submission automatically.',
+            'Upload type whitelist tightened on POST /upload-file: only images, PDF, plain text, Word/ODT, Excel, and XML are accepted — both MIME type and file extension are checked independently, blocking extension spoofing.',
+            'Rate limit on public write endpoints reduced from the global 100 req/min to 10 req per 15 minutes per IP, with standardised RateLimit-* response headers.',
+          ],
+        },
+        {
+          icon: '⚙️',
+          iconColor: 'gray',
+          title: 'Build',
+          items: [
+            'Backend tsconfig upgraded from CommonJS/Node10 to module: node16 / moduleResolution: node16 — enables subpath exports resolution and aligns TypeScript module semantics with the Node.js runtime.',
+          ],
+        },
+      ],
+    },
     {
       version: '3.0.7',
       status: 'Released',
@@ -859,7 +1843,7 @@ export const changelog: Changelog = {
           iconColor: 'red',
           items: [
             'JWT role extraction fixed: backend was reading payload.roles (always empty) instead of payload.realm_access.roles — role-gated endpoints including /v1/admin/audit now work correctly; side-effect fix for all requireRoles() guards across the API',
-            'Session expiry warning appearing during active use: Axios interceptor updateToken threshold raised from 30s to 120s to match the warning threshold — token now silently refreshes on any API call while fewer than 2 minutes remain',
+            'Session expiry warning appearing during active use: Axios interceptor updateToken threshold raised from 30s to 120s to match the warning threshold — token now silently refreshes on any API call while fewer than 2 minutes remain. (Partial: this only covered pages that make API calls; form-filling makes none, so an actively-typing user was still interrupted. Fully addressed by activity-based refresh in v3.8.2.)',
             'Audit log auto-selection on first visit: audit-log page now wired into the section-reset useEffect alongside tenant-driven pages',
           ],
         },
@@ -973,7 +1957,7 @@ export const changelog: Changelog = {
           iconColor: 'orange',
           items: [
             'SessionExpiryWarning component mounted in the caseworker dashboard — polls token expiry every 15 seconds and shows a modal when fewer than 2 minutes remain',
-            'Modal offers "Sessie verlengen" (forces updateToken) and "Uitloggen" — unsaved form data is preserved when extending',
+            'Modal offers "Sessie verlengen" (forces updateToken) and "Uitloggen". (Correction: the "unsaved form data is preserved when extending" claim only held when the token refreshed in place; if the SSO session was gone the extend fell back to a full-page login redirect that wiped the form. Draft persistence in v3.8.2 fixes this.)',
             'Axios request interceptor upgraded to proactively call updateToken(30) before every API request; forces re-login if the SSO session is gone',
           ],
         },

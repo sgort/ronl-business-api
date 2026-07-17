@@ -8,6 +8,9 @@ const POST_LOGIN_KEY = 'post_login_redirect';
 function getRoleDashboard(): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  if (roles.includes('woo-coordinatie')) return '/dashboard/woo';
+  if (roles.includes('infra-projectteam')) return '/dashboard/infra-board';
+  if (roles.includes('public-affairs')) return '/dashboard/public-affairs';
   return roles.includes('caseworker') ? '/dashboard/caseworker' : '/dashboard/citizen';
 }
 
@@ -32,8 +35,23 @@ function consumePostLoginRedirect(): string | null {
   return null;
 }
 
+function canAccessRedirect(path: string, roles: string[]): boolean {
+  if (path === '/dashboard/woo') return roles.includes('woo-coordinatie');
+  if (path === '/dashboard/infra-board') return roles.includes('infra-projectteam');
+  if (path === '/dashboard/public-affairs') return roles.includes('public-affairs');
+  // infra-projectteam members also carry the caseworker role (they need the task
+  // API), but their home is /dashboard/infra-board — don't let a stale
+  // caseworker redirect override that.
+  if (path === '/dashboard/caseworker')
+    return roles.includes('caseworker') && !roles.includes('infra-projectteam');
+  return true;
+}
+
 function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean }) => void) {
-  const target = consumePostLoginRedirect() ?? getRoleDashboard();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  const stored = consumePostLoginRedirect();
+  const target = stored && canAccessRedirect(stored, roles) ? stored : getRoleDashboard();
   navigate(target, { replace: true });
 }
 
@@ -75,9 +93,12 @@ export default function AuthCallback() {
 
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
+            sessionStorage.removeItem('username_hint');
             navigateAfterLogin(navigate);
           } else {
-            await keycloak.login({ loginHint: '__medewerker__' });
+            const usernameHint = sessionStorage.getItem('username_hint') ?? undefined;
+            sessionStorage.removeItem('username_hint');
+            await keycloak.login({ loginHint: usernameHint ?? '__medewerker__' });
           }
         } else {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

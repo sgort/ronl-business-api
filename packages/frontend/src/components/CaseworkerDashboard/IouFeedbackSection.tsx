@@ -1,8 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import AltchaWidget from '../AltchaWidget';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 const MAX_SCREENSHOTS = 5;
 const MAX_SIZE_MB = 10;
+// Persist the text fields of the form so an in-progress draft survives a
+// session-expiry refresh — in particular the full-page redirect that
+// keycloak.login() performs when the SSO session has to be re-established.
+// sessionStorage survives same-tab navigations/redirects and is cleared when
+// the tab closes. Screenshots (File objects) can't be serialised, so only the
+// text fields are kept.
+const DRAFT_KEY = 'iouFeedback.draft';
 
 interface Screenshot {
   id: string;
@@ -26,18 +34,47 @@ const initialForm = (): FormState => ({
   description: '',
 });
 
+const loadDraft = (): FormState => {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (raw) return { ...initialForm(), ...(JSON.parse(raw) as Partial<FormState>) };
+  } catch {
+    /* corrupt or unavailable storage — fall back to a blank form */
+  }
+  return initialForm();
+};
+
+const clearDraft = () => {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+};
+
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
 export default function IouFeedbackSection() {
-  const [form, setForm] = useState<FormState>(initialForm);
+  const [form, setForm] = useState<FormState>(loadDraft);
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
   const [errors, setErrors] = useState<Set<string>>(new Set());
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [successData, setSuccessData] = useState<{ iid: number; web_url: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const [altchaPayload, setAltchaPayload] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+
+  // Persist the text fields on every change so a session-expiry redirect can't
+  // lose an in-progress draft. Cleared explicitly on a successful submit.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+    } catch {
+      /* storage unavailable — nothing we can do */
+    }
+  }, [form]);
 
   // ── Field helpers ──────────────────────────────────────────────────────────
 
@@ -138,6 +175,7 @@ export default function IouFeedbackSection() {
     fd.append('role', form.role.trim());
     fd.append('contact', form.contact.trim());
     fd.append('description', form.description.trim());
+    fd.append('altcha', altchaPayload);
     screenshots.forEach((s) => fd.append('screenshots', s.file, s.file.name));
 
     try {
@@ -154,6 +192,8 @@ export default function IouFeedbackSection() {
       screenshots.forEach((s) => URL.revokeObjectURL(s.previewUrl));
       setForm(initialForm());
       setScreenshots([]);
+      setAltchaPayload('');
+      clearDraft();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
       setSubmitState('error');
@@ -335,6 +375,13 @@ export default function IouFeedbackSection() {
           <strong>❌ Indiening mislukt</strong> — {errorMessage}
         </div>
       )}
+
+      {/* ALTCHA */}
+      <AltchaWidget
+        challengeUrl={`${API_BASE_URL}/public/altcha/challenge`}
+        onVerify={setAltchaPayload}
+        onExpire={() => setAltchaPayload('')}
+      />
 
       {/* Submit */}
       <div className="flex items-center gap-4">

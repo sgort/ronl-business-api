@@ -1,13 +1,14 @@
 {
   "name": "ronl-business-api",
-  "version": "1.0.0",
+  "version": "3.8.2",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run docker:check && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "npm run deps:check && npm run docker:check && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "deps:check": "bash scripts/check-deps.sh",
     "docker:check": "bash scripts/check-docker.sh",
     "dev:backend": "npm run dev --workspace=@ronl/backend",
     "dev:frontend": "npm run dev --workspace=@ronl/frontend",

@@ -151,6 +151,7 @@ function VersionCard({ version, isLatest }: { version: ChangelogVersion; isLates
                 Latest
               </span>
             )}
+            {version.scope && <ScopeBadge scope={version.scope} />}
           </div>
           <div className="flex items-center gap-2">
             <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusColor}`}>
@@ -168,6 +169,21 @@ function VersionCard({ version, isLatest }: { version: ChangelogVersion; isLates
         ))}
       </div>
     </div>
+  );
+}
+
+// Scope Badge — which deployable(s) a release touched (frontend / backend / both)
+function ScopeBadge({ scope }: { scope: NonNullable<ChangelogVersion['scope']> }) {
+  const config = {
+    frontend: { label: 'Frontend', cls: 'bg-blue-100 text-blue-800' },
+    backend: { label: 'Backend', cls: 'bg-purple-100 text-purple-800' },
+    both: { label: 'Full-stack', cls: 'bg-gray-200 text-gray-700' },
+  }[scope];
+
+  return (
+    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${config.cls}`}>
+      {config.label}
+    </span>
   );
 }
 

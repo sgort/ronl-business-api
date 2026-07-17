@@ -6,6 +6,8 @@ export interface ApiError {
   code: string;
   message: string;
   details?: string;
+  /** Operaton engine instance (base URL) the failing call targeted, when relevant. */
+  instance?: string;
 }
 
 export interface ApiResponse<T = unknown> {

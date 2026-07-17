@@ -38,6 +38,11 @@ interface FetchAndLockRequest {
  *     Reads:  projectNumber, projectName
  *     Writes: edocsWorkspaceId, edocsWorkspaceName, edocsWorkspaceCreated
  *
+ *   rip-relatics-workspace (simulated — no real Relatics integration yet)
+ *     Reads:  projectNumber, projectName
+ *     Writes: relaticsWorkspaceId, relaticsWorkspaceName, relaticsWorkspaceCreated,
+ *             relaticsWorkspaceSimulated
+ *
  *   rip-edocs-document
  *     Reads:  edocsWorkspaceId, projectNumber, projectName,
  *             documentTemplateId, edocsDocumentVariableName
@@ -68,7 +73,7 @@ export class ExternalTaskWorker {
     this.running = true;
     logger.info('ExternalTaskWorker starting', {
       workerId: this.workerId,
-      topics: ['rip-edocs-workspace', 'rip-edocs-document'],
+      topics: ['rip-edocs-workspace', 'rip-relatics-workspace', 'rip-edocs-document'],
     });
     void this.poll();
   }
@@ -116,6 +121,11 @@ export class ExternalTaskWorker {
       topics: [
         {
           topicName: 'rip-edocs-workspace',
+          lockDuration: this.lockDuration,
+          variables: ['projectNumber', 'projectName'],
+        },
+        {
+          topicName: 'rip-relatics-workspace',
           lockDuration: this.lockDuration,
           variables: ['projectNumber', 'projectName'],
         },
@@ -181,6 +191,9 @@ export class ExternalTaskWorker {
         case 'rip-edocs-workspace':
           outputVariables = await this.handleEnsureWorkspace(task);
           break;
+        case 'rip-relatics-workspace':
+          outputVariables = this.handleCreateRelaticsWorkspace(task);
+          break;
         case 'rip-edocs-document':
           outputVariables = await this.handleUploadDocument(task);
           break;
@@ -225,6 +238,35 @@ export class ExternalTaskWorker {
       edocsWorkspaceId: { value: result.workspaceId, type: 'String' },
       edocsWorkspaceName: { value: result.workspaceName, type: 'String' },
       edocsWorkspaceCreated: { value: result.created, type: 'Boolean' },
+    };
+  }
+
+  /**
+   * rip-relatics-workspace — "Laten aanmaken workspace Relatics".
+   *
+   * There is no Relatics integration yet, so this is always simulated: it
+   * completes the external task with a deterministic fake workspace reference so
+   * the process can advance while stepping through it. Swap the body for a real
+   * Relatics client call when that integration lands.
+   */
+  private handleCreateRelaticsWorkspace(
+    task: ExternalTask
+  ): Record<string, { value: unknown; type: string }> {
+    const projectNumber = String(task.variables['projectNumber']?.value ?? '');
+    const projectName = String(task.variables['projectName']?.value ?? '');
+    const workspaceId = `sim-relatics-${projectNumber.replace(/[^a-zA-Z0-9]/g, '-') || 'unknown'}`;
+
+    logger.info('[simulated] Relatics workspace created', {
+      projectNumber,
+      projectName,
+      workspaceId,
+    });
+
+    return {
+      relaticsWorkspaceId: { value: workspaceId, type: 'String' },
+      relaticsWorkspaceName: { value: `${projectNumber} — ${projectName}`, type: 'String' },
+      relaticsWorkspaceCreated: { value: true, type: 'Boolean' },
+      relaticsWorkspaceSimulated: { value: true, type: 'Boolean' },
     };
   }
 

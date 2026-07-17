@@ -12,7 +12,27 @@ const EXCLUDED_VARS = [
   'routingResult',
 ];
 
-export default function ArchiefSection() {
+interface Props {
+  /**
+   * Board consuming this archive (e.g. 'infra-board', 'caseworker'). When a task
+   * carries a deploy-time `boardOwner` tag, it's shown only on its owning board —
+   * this is the authoritative split. Untagged/legacy tasks fall back to the
+   * allow/deny process-key sets below.
+   */
+  boardId?: string;
+  /**
+   * Fallback allowlist for untagged tasks: only completed tasks whose
+   * processDefinitionKey is in this set are shown. Used by the Infra-board.
+   */
+  allowProcessKeys?: ReadonlySet<string>;
+  /**
+   * Fallback denylist for untagged tasks: completed tasks whose
+   * processDefinitionKey is in this set are hidden. Used by the caseworker board.
+   */
+  denyProcessKeys?: ReadonlySet<string>;
+}
+
+export default function ArchiefSection({ boardId, allowProcessKeys, denyProcessKeys }: Props = {}) {
   const [tasks, setTasks] = useState<HistoricTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +96,18 @@ export default function ArchiefSection() {
     );
   }
 
-  if (tasks.length === 0) {
+  // Split the shared archive by board ownership. The deploy-time `boardOwner` tag
+  // is authoritative when present; untagged/legacy tasks fall back to the static
+  // processDefinitionKey allow/deny split (mirrors the live task list).
+  const visibleTasks = tasks.filter((t) => {
+    if (t.boardOwner) return boardId ? t.boardOwner === boardId : true;
+    const key = t.processDefinitionKey ?? t.taskDefinitionKey;
+    if (allowProcessKeys && !allowProcessKeys.has(key)) return false;
+    if (denyProcessKeys && denyProcessKeys.has(key)) return false;
+    return true;
+  });
+
+  if (visibleTasks.length === 0) {
     return (
       <div className="max-w-3xl bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
         Geen afgeronde taken gevonden.
@@ -84,7 +115,7 @@ export default function ArchiefSection() {
     );
   }
 
-  const grouped = tasks
+  const grouped = visibleTasks
     .slice()
     .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())
     .reduce<Record<string, typeof tasks>>((acc, task) => {
@@ -149,17 +180,12 @@ export default function ArchiefSection() {
                           })}
                         </span>
                         {task.assignee &&
-                          (() => {
-                            const isUuid =
-                              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                                task.assignee
-                              );
-                            return (
-                              <span className="font-mono text-gray-300" title={task.assignee}>
-                                {isUuid ? `${task.assignee.slice(0, 8)}…` : task.assignee}
-                              </span>
-                            );
-                          })()}
+                          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                            task.assignee
+                          ) &&
+                          !task.assignee.startsWith('ronl-worker-') && (
+                            <span className="font-mono text-gray-300">{task.assignee}</span>
+                          )}
                       </div>
                     </div>
                     <span className="text-gray-400 text-lg ml-4 flex-shrink-0">

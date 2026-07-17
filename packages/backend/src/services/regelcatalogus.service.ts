@@ -201,17 +201,21 @@ WHERE {
 }
 
 async function fetchConcepts(): Promise<CatalogConcept[]> {
-  // Taken directly from the 'NL-SBB Concepts and Services' sample query in constants.ts.
+  // Taken from the 'NL-SBB Concepts and Services' sample query in constants.ts.
   // Traversal: concept → skos:exactMatch
-  //            concept → dct:subject → variable → cpsv:isRequiredBy / cpsv:produces → DMN
-  //            DMN → cprmv:implements → service
+  //            concept → dct:subject → variable → DMN → cprmv(041):implements → service
+  // Older exports give the variable an explicit edge to the DMN
+  // (cpsv:isRequiredBy / cpsv:produces); newer exports (CPRMV 0.4.1) emit a bare
+  // variable URI of the form <dmnUri>/input/N or <dmnUri>/output/N with no edge,
+  // so derive the DMN URI from the variable URI and fall back to it.
   const query = `
-PREFIX skos:  <http://www.w3.org/2004/02/skos/core#>
-PREFIX dct:   <http://purl.org/dc/terms/>
-PREFIX cpsv:  <http://purl.org/vocab/cpsv#>
-PREFIX cprmv: <https://cprmv.open-regels.nl/0.3.0/>
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX dct:      <http://purl.org/dc/terms/>
+PREFIX cpsv:     <http://purl.org/vocab/cpsv#>
+PREFIX cprmv:    <https://cprmv.open-regels.nl/0.3.0/>
+PREFIX cprmv041: <https://standaarden.open-regels.nl/standards/cprmv/0.4.1#>
 
-SELECT ?subject ?prefLabel ?exactMatch ?service ?serviceTitle
+SELECT DISTINCT ?subject ?prefLabel ?exactMatch ?service ?serviceTitle
 WHERE {
   ?subject skos:exactMatch ?exactMatch ;
            dct:subject ?variable .
@@ -221,13 +225,12 @@ WHERE {
     FILTER(LANG(?prefLabel) = "nl" || LANG(?prefLabel) = "")
   }
 
-  {
-    ?variable cpsv:isRequiredBy ?dmn .
-  } UNION {
-    ?variable cpsv:produces ?dmn .
-  }
+  OPTIONAL { ?variable cpsv:isRequiredBy ?dmnRequired . }
+  OPTIONAL { ?variable cpsv:produces ?dmnProduced . }
+  BIND(IRI(REPLACE(STR(?variable), "/(input|output)/[0-9]+$", "")) AS ?dmnFromUri)
+  BIND(COALESCE(?dmnRequired, ?dmnProduced, ?dmnFromUri) AS ?dmn)
 
-  ?dmn cprmv:implements ?service .
+  { ?dmn cprmv:implements ?service } UNION { ?dmn cprmv041:implements ?service }
   OPTIONAL {
     ?service dct:title ?serviceTitle .
     FILTER(LANG(?serviceTitle) = "nl" || LANG(?serviceTitle) = "")
@@ -248,22 +251,36 @@ ORDER BY ?service ?subject
 async function fetchRules(): Promise<CatalogRule[]> {
   // From the 'Rules with Their Services' sample query in LDE constants.ts
   const query = `
-PREFIX cpsv:  <http://purl.org/vocab/cpsv#>
-PREFIX dct:   <http://purl.org/dc/terms/>
-PREFIX ronl:  <https://regels.overheid.nl/ontology#>
+PREFIX cpsv:     <http://purl.org/vocab/cpsv#>
+PREFIX cv:       <http://data.europa.eu/m8g/>
+PREFIX dct:      <http://purl.org/dc/terms/>
+PREFIX cprmv041: <https://standaarden.open-regels.nl/standards/cprmv/0.4.1#>
 
-SELECT ?serviceTitle ?ruleTitle ?validFrom ?confidence ?description
+SELECT DISTINCT ?serviceTitle ?ruleTitle ?validFrom ?confidence ?description
 WHERE {
   ?service a cpsv:PublicService ;
            dct:title ?serviceTitle .
   ?rule a cpsv:Rule ;
-        cpsv:implements ?service ;
         dct:title ?ruleTitle .
+
+  # A rule links to its service either directly (older exports) or via the
+  # shared legal resource. Since the CPSV-AP RuleShape fix, a cpsv:Rule's
+  # cpsv:implements points at an eli:LegalResource — the same resource the
+  # service declares with cv:hasLegalResource — instead of the service itself.
+  {
+    ?rule cpsv:implements ?service .
+  } UNION {
+    ?service cv:hasLegalResource ?legal .
+    ?rule cpsv:implements ?legal .
+  }
+
   OPTIONAL { ?rule dct:description ?description }
-  OPTIONAL { ?rule ronl:validFrom ?validFrom }
-  OPTIONAL { ?rule ronl:confidenceLevel ?confidence }
+  OPTIONAL { ?rule cprmv041:validFrom ?validFrom }
+  OPTIONAL { ?rule cprmv041:confidenceLevel ?confidence }
   FILTER(LANG(?serviceTitle) = "nl")
   FILTER(LANG(?ruleTitle) = "nl")
+  # Hide auto-generated DMN decision rules (placeholder "Decision rule <id>" titles).
+  FILTER(!STRSTARTS(STR(?ruleTitle), "Decision rule "))
 }
 ORDER BY ?serviceTitle ?validFrom ?ruleTitle
 `;
@@ -279,12 +296,42 @@ ORDER BY ?serviceTitle ?validFrom ?ruleTitle
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export async function getRegelcatalogusData(): Promise<RegelcatalogusData> {
+/**
+ * Freshness of the in-memory cache, for surfacing in API responses so callers
+ * can tell whether they received cached or freshly-fetched data.
+ */
+export function getRegelcatalogusCacheInfo(): {
+  cached: boolean;
+  fetchedAt: string | null;
+  ageMs: number | null;
+} {
+  if (!cache) return { cached: false, fetchedAt: null, ageMs: null };
+  return {
+    cached: true,
+    fetchedAt: new Date(cache.fetchedAt).toISOString(),
+    ageMs: Date.now() - cache.fetchedAt,
+  };
+}
+
+/**
+ * @param forceRefresh when true, bypass and bust the in-memory caches (catalogue
+ *   + logo-asset lookup) and re-fetch everything from TriplyDB. Used by the
+ *   `?refresh=true` route to work around the 5-minute cache while debugging.
+ */
+export async function getRegelcatalogusData(forceRefresh = false): Promise<RegelcatalogusData> {
   const now = Date.now();
 
-  if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
+  if (!forceRefresh && cache && now - cache.fetchedAt < CACHE_TTL_MS) {
     logger.debug('Regelcatalogus cache hit');
     return cache.data;
+  }
+
+  if (forceRefresh) {
+    // Bust the logo-asset cache too, otherwise resolveLogoUrls() would keep
+    // serving its own independently-cached map on a forced refresh.
+    assetUrlCache = null;
+    assetsCachedAt = 0;
+    logger.info('Regelcatalogus force refresh requested — bypassing cache');
   }
 
   logger.info('Fetching regelcatalogus from TriplyDB', { endpoint: SPARQL_ENDPOINT });

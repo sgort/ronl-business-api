@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 16,
+  "type": "default",
+  "id": "rip-pdp-aanvullen",
+  "executionPlatform": "Camunda Platform",
+  "executionPlatformVersion": "7.21.0",
+  "components": [
+    {
+      "id": "Text_Header",
+      "type": "text",
+      "text": "# Aanvullen Projectplan 4 — Uitgangspunten VO-fase"
+    },
+    {
+      "id": "Text_Intro",
+      "type": "text",
+      "text": "Vul de uitgangspunten voor de Voorlopig Ontwerp-fase in (kolom 4 van het projectplan). De inhoud wordt vastgelegd in het PDP-document en ter accordering aangeboden."
+    },
+    {
+      "id": "Text_Section_Scope",
+      "type": "text",
+      "text": "### Scope VO-fase"
+    },
+    {
+      "id": "Field_VOScope",
+      "type": "textarea",
+      "label": "Bevestigde scope VO-fase",
+      "key": "confirmedScope",
+      "validate": { "required": true },
+      "description": "Beschrijf de scope zoals vastgesteld na de PSU en het risicossier."
+    },
+    {
+      "id": "Field_VOScopeWijzigingen",
+      "type": "textarea",
+      "label": "Scopewijzigingen ten opzichte van intake",
+      "key": "pdpScopeWijzigingen",
+      "description": "Laat leeg indien de scope ongewijzigd is."
+    },
+    {
+      "id": "Text_Section_Finance",
+      "type": "text",
+      "text": "### Budget en planning"
+    },
+    {
+      "id": "Field_VOBudget",
+      "type": "textfield",
+      "label": "Bevestigd budget VO-fase",
+      "key": "confirmedBudget",
+      "validate": { "required": true },
+      "description": "Vastgesteld budget inclusief risicoreserve, bijv. € 2.400.000."
+    },
+    {
+      "id": "Field_VOTimeline",
+      "type": "textfield",
+      "label": "Bevestigde planning VO-fase",
+      "key": "confirmedTimeline",
+      "validate": { "required": true },
+      "description": "Start- en einddatum VO-fase, bijv. Q3 2025 – Q2 2026."
+    },
+    {
+      "id": "Text_Section_Risicodossier",
+      "type": "text",
+      "text": "### Risicodossier"
+    },
+    {
+      "id": "Field_RisicoReferentie",
+      "type": "textfield",
+      "label": "Referentienummer risicodossier (Relatics)",
+      "key": "riskFileReference",
+      "validate": { "required": true },
+      "description": "Het workspace- of documentnummer zoals aangemaakt in Relatics."
+    },
+    {
+      "id": "Field_RisicoSamenvatting",
+      "type": "textarea",
+      "label": "Samenvatting top-3 risico's",
+      "key": "pdpRisicoSamenvatting",
+      "validate": { "required": true },
+      "description": "Beschrijf de drie meest relevante risico's en de beheersmaatregel."
+    },
+    {
+      "id": "Text_Section_Uitgangspunten",
+      "type": "text",
+      "text": "### Uitgangspunten"
+    },
+    {
+      "id": "Field_PDPNotes",
+      "type": "textarea",
+      "label": "Aanvullende uitgangspunten en randvoorwaarden",
+      "key": "pdpNotes",
+      "description": "Overige uitgangspunten die van toepassing zijn op de VO-fase."
+    },
+    {
+      "id": "Field_KMSFormatReady",
+      "type": "checkbox",
+      "label": "Projectplan opgesteld conform KMS-format",
+      "key": "pdpKMSFormatReady",
+      "validate": { "required": true }
+    },
+    {
+      "id": "Button_Submit",
+      "type": "button",
+      "label": "Uitgangspunten indienen",
+      "action": "submit"
+    }
+  ]
+}

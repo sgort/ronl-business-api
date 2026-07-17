@@ -45,6 +45,11 @@ export class EdocsService {
   private sessionToken: string | null = null;
   private readonly stubMode: boolean;
 
+  // Cache the last login probe so /health polling cannot hammer the login
+  // endpoint (and risk locking the account) when credentials are wrong.
+  private authProbe: { at: number; authenticated: boolean; error?: string } | null = null;
+  private readonly authProbeTtlMs = 30_000;
+
   constructor() {
     this.stubMode = config.edocs.stubMode;
 
@@ -89,13 +94,19 @@ export class EdocsService {
       userId: config.edocs.userId,
     });
 
-    const response = await this.client.post('connect', {
-      data: {
-        userid: config.edocs.userId,
-        password: config.edocs.password,
-        library: config.edocs.library,
-      },
-    });
+    let response;
+    try {
+      response = await this.client.post('connect', {
+        data: {
+          userid: config.edocs.userId,
+          password: config.edocs.password,
+          library: config.edocs.library,
+        },
+      });
+    } catch (err) {
+      this.logUpstreamError('connect', err);
+      throw err;
+    }
 
     const setCookies = response.headers['set-cookie'] ?? [];
     const cookieArray = Array.isArray(setCookies) ? setCookies : [setCookies];
@@ -136,7 +147,24 @@ export class EdocsService {
         await this.connect();
         return await fn();
       }
+      this.logUpstreamError('request', err);
       throw err;
+    }
+  }
+
+  /**
+   * Surface the upstream eDOCS response body (e.g. account-lockout, permission,
+   * or validation errors) in the log. eDOCS returns `{ ERROR: { message, rapi_code } }`,
+   * which axios buries on `error.response.data` — without this it would never
+   * reach the log, leaving only "Request failed with status code 400".
+   */
+  private logUpstreamError(operation: string, err: unknown): void {
+    const response = (err as { response?: { status?: number; data?: unknown } }).response;
+    if (response) {
+      logger.error(`eDOCS ${operation} returned an error response`, {
+        status: response.status,
+        upstream: response.data,
+      });
     }
   }
 
@@ -318,19 +346,85 @@ export class EdocsService {
 
   async healthCheck(): Promise<{
     status: 'up' | 'down' | 'stub';
+    reachable: boolean;
+    authenticated: boolean;
     latency?: number;
     error?: string;
   }> {
     if (this.stubMode) {
-      return { status: 'stub' };
+      return { status: 'stub', reachable: true, authenticated: true };
     }
+
+    // 1. Reachability — an unauthenticated GET, always safe to call.
+    let latency: number | undefined;
     try {
       const start = Date.now();
       await this.client.get('libraries');
-      return { status: 'up', latency: Date.now() - start };
+      latency = Date.now() - start;
     } catch (err) {
-      return { status: 'down', error: getErrorMessage(err) };
+      return {
+        status: 'down',
+        reachable: false,
+        authenticated: false,
+        error: this.upstreamMessage(err),
+      };
     }
+
+    // 2. True login — can we actually authenticate? (throttled; see probeAuth)
+    const auth = await this.probeAuth();
+
+    return {
+      status: auth.authenticated ? 'up' : 'down',
+      reachable: true,
+      authenticated: auth.authenticated,
+      latency,
+      ...(auth.error ? { error: auth.error } : {}),
+    };
+  }
+
+  /**
+   * Validates that the configured credentials can log in. Reuses a live session
+   * when one exists (so it never re-logs-in during normal operation), and caches
+   * a failed result for authProbeTtlMs so repeated /health polls with bad
+   * credentials cannot lock the account out.
+   */
+  private async probeAuth(): Promise<{ authenticated: boolean; error?: string }> {
+    if (this.sessionToken) return { authenticated: true };
+
+    const now = Date.now();
+    if (
+      this.authProbe &&
+      !this.authProbe.authenticated &&
+      now - this.authProbe.at < this.authProbeTtlMs
+    ) {
+      return { authenticated: false, error: this.authProbe.error };
+    }
+
+    try {
+      await this.connect();
+      this.authProbe = { at: now, authenticated: true };
+      return { authenticated: true };
+    } catch (err) {
+      const error = this.upstreamMessage(err);
+      this.authProbe = { at: now, authenticated: false, error };
+      return { authenticated: false, error };
+    }
+  }
+
+  /** eDOCS returns `{ ERROR: { message, rapi_code, rapi_details } }`; prefer that over the axios message. */
+  private upstreamMessage(err: unknown): string {
+    const edocsError = (
+      err as {
+        response?: { data?: { ERROR?: { message?: string; rapi_details?: string[] } } };
+      }
+    ).response?.data?.ERROR;
+    // `message` is sometimes an empty string while the useful text sits in
+    // rapi_details (e.g. "Logon failure: unknown user name or bad password").
+    const message = edocsError?.message?.trim();
+    if (message) return message;
+    const details = edocsError?.rapi_details?.filter(Boolean).join('; ').trim();
+    if (details) return details;
+    return getErrorMessage(err);
   }
 }
 

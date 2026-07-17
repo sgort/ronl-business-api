@@ -1,7 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
-import { OperatonVariable, ProcessStartRequest, ProcessInstance, Task } from '@ronl/shared';
+import {
+  OperatonVariable,
+  ProcessStartRequest,
+  ProcessInstance,
+  Task,
+  ActivityHistoryItem,
+} from '@ronl/shared';
 
 const logger = createLogger('operaton-service');
 
@@ -14,6 +20,13 @@ export interface TaskCompleteRequest {
  */
 export class OperatonService {
   private client: AxiosInstance;
+
+  /**
+   * Cache of processDefinitionKey → boardOwner. Process-definition XML is
+   * immutable per key/version, so a deployment-lifetime cache is safe and avoids
+   * re-fetching BPMN on every archive load. `null` (no tag) is cached too.
+   */
+  private boardOwnerCache = new Map<string, string | null>();
 
   constructor(baseUrl?: string, username?: string, password?: string) {
     const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
@@ -164,6 +177,56 @@ export class OperatonService {
       return response.data;
     } catch (error) {
       logger.error('Failed to get process variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get the activity history (executed steps) of a process instance, oldest
+   * first. Surfaces the automated steps (service/external tasks, decisions,
+   * gateways, events) that never appear in the task inbox, so callers can show
+   * "what the engine did" between user tasks. Works for running and completed
+   * instances (subject to historyTimeToLive).
+   */
+  async getActivityHistory(processInstanceId: string): Promise<ActivityHistoryItem[]> {
+    try {
+      const response = await this.client.get('/history/activity-instance', {
+        params: {
+          processInstanceId,
+          sortBy: 'startTime',
+          sortOrder: 'asc',
+          maxResults: 500,
+        },
+      });
+
+      const items = response.data as Array<{
+        id: string;
+        activityId: string;
+        activityName: string | null;
+        activityType: string;
+        assignee: string | null;
+        startTime: string;
+        endTime: string | null;
+        durationInMillis: number | null;
+        canceled: boolean;
+      }>;
+
+      return items.map((a) => ({
+        id: a.id,
+        activityId: a.activityId,
+        activityName: a.activityName,
+        activityType: a.activityType,
+        assignee: a.assignee,
+        startTime: a.startTime,
+        endTime: a.endTime,
+        durationInMillis: a.durationInMillis,
+        canceled: a.canceled,
+      }));
+    } catch (error) {
+      logger.error('Failed to get activity history', {
         processInstanceId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -436,6 +499,11 @@ export class OperatonService {
       if (candidateGroups && candidateGroups.length > 0) {
         // Operaton's candidateGroups parameter does an OR match across the list
         params['candidateGroups'] = candidateGroups.join(',');
+        // By default a candidateGroups query only returns *unassigned* tasks, so a
+        // task vanishes from the list the moment a caseworker claims it. Opt in to
+        // assigned tasks too, so claimed work stays visible (and shows up under the
+        // "Mijn claim" filter for the assignee).
+        params['includeAssignedTasks'] = 'true';
       }
 
       const response = await this.client.get('/task', { params });
@@ -491,6 +559,7 @@ export class OperatonService {
       startTime: string;
       endTime: string;
       duration: number;
+      boardOwner: string | null;
     }>
   > {
     try {
@@ -534,10 +603,25 @@ export class OperatonService {
         businessKeyById.set(inst.id, inst.businessKey ?? null);
       }
 
-      // 3. Merge businessKey into each task.
+      // 3. Resolve the owning board per distinct process-definition key (cached),
+      //    so the archive can be split by board without a hardcoded allowlist.
+      const distinctKeys = Array.from(
+        new Set(tasks.map((t) => t.processDefinitionKey).filter((k): k is string => !!k))
+      );
+      const boardOwnerByKey = new Map<string, string | null>();
+      await Promise.all(
+        distinctKeys.map(async (key) => {
+          boardOwnerByKey.set(key, await this.getBoardOwner(key));
+        })
+      );
+
+      // 4. Merge businessKey + boardOwner into each task.
       return tasks.map((t) => ({
         ...t,
         businessKey: businessKeyById.get(t.processInstanceId) ?? null,
+        boardOwner: t.processDefinitionKey
+          ? (boardOwnerByKey.get(t.processDefinitionKey) ?? null)
+          : null,
       }));
     } catch (error) {
       logger.error('Failed to get completed tasks', {
@@ -546,6 +630,40 @@ export class OperatonService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Resolve the owning board of a process by reading the `boardOwner` extension
+   * property from its deployed BPMN (tagged at deploy time by LDE). Cached per key.
+   * Returns null for untagged/legacy processes or on any lookup failure, so callers
+   * can fall back to their static split without the archive ever breaking.
+   */
+  async getBoardOwner(processDefinitionKey: string): Promise<string | null> {
+    if (!processDefinitionKey) return null;
+    const cached = this.boardOwnerCache.get(processDefinitionKey);
+    if (cached !== undefined) return cached;
+
+    let owner: string | null = null;
+    try {
+      const res = await this.client.get(
+        `/process-definition/key/${encodeURIComponent(processDefinitionKey)}/xml`
+      );
+      const xml: string = res.data?.bpmn20Xml ?? '';
+      // Match the property regardless of name/value attribute order.
+      const m =
+        xml.match(/<camunda:property\b[^>]*\bname="boardOwner"[^>]*\bvalue="([^"]*)"/) ??
+        xml.match(/<camunda:property\b[^>]*\bvalue="([^"]*)"[^>]*\bname="boardOwner"/);
+      owner = m ? m[1] : null;
+    } catch (error) {
+      logger.warn('Failed to resolve boardOwner; treating as untagged', {
+        processDefinitionKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      owner = null;
+    }
+
+    this.boardOwnerCache.set(processDefinitionKey, owner);
+    return owner;
   }
 
   /**
@@ -749,6 +867,7 @@ export class OperatonService {
       projectNumber: string;
       projectName: string;
       edocsWorkspaceId: string;
+      leadRole: string;
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
@@ -768,7 +887,8 @@ export class OperatonService {
 
     const varMap: Record<string, Record<string, string>> = {};
     for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
-      if (!['projectNumber', 'projectName', 'edocsWorkspaceId'].includes(v.name)) continue;
+      if (!['projectNumber', 'projectName', 'edocsWorkspaceId', 'leadRole'].includes(v.name))
+        continue;
       if (!varMap[v.processInstanceId]) varMap[v.processInstanceId] = {};
       varMap[v.processInstanceId][v.name] = String(v.value ?? '');
     }
@@ -779,6 +899,9 @@ export class OperatonService {
       projectNumber: varMap[i.id]?.projectNumber ?? '—',
       projectName: varMap[i.id]?.projectName ?? '—',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
+      // Ownership signal (B): the process's declared lead role. Empty when the
+      // instance predates the leadRole contract — the frontend defaults it.
+      leadRole: varMap[i.id]?.leadRole ?? '',
     }));
   }
 

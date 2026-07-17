@@ -7,6 +7,7 @@ import type {
   ProcessStatusResponse,
   Task,
   HistoricTask,
+  ActivityHistoryItem,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -69,11 +70,18 @@ export const businessApi = {
       variables: Record<string, unknown>,
       businessKey?: string
     ): Promise<ApiResponse<ProcessStatusResponse>> => {
-      const response = await api.post<ApiResponse<ProcessStatusResponse>>(
-        `/process/${processKey}/start`,
-        { variables, businessKey }
-      );
-      return response.data;
+      try {
+        const response = await api.post<ApiResponse<ProcessStatusResponse>>(
+          `/process/${processKey}/start`,
+          { variables, businessKey }
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<ProcessStatusResponse>;
+        }
+        throw error;
+      }
     },
 
     startForm: async (processKey: string): Promise<ApiResponse<unknown>> => {
@@ -114,6 +122,15 @@ export const businessApi = {
     ): Promise<ApiResponse<Record<string, unknown>>> => {
       const response = await api.get<ApiResponse<Record<string, unknown>>>(
         `/process/${processInstanceId}/historic-variables`
+      );
+      return response.data;
+    },
+
+    activityHistory: async (
+      processInstanceId: string
+    ): Promise<ApiResponse<ActivityHistoryItem[]>> => {
+      const response = await api.get<ApiResponse<ActivityHistoryItem[]>>(
+        `/process/${processInstanceId}/activity-history`
       );
       return response.data;
     },
@@ -206,8 +223,14 @@ export const businessApi = {
       return response.data;
     },
 
-    regelcatalogus: async (): Promise<ApiResponse<RegelcatalogusData>> => {
-      const response = await api.get<ApiResponse<RegelcatalogusData>>('/public/regelcatalogus');
+    regelcatalogus: async (
+      force = false
+    ): Promise<
+      ApiResponse<RegelcatalogusData> & { meta?: { cache?: RegelcatalogusCacheMeta } }
+    > => {
+      const response = await api.get<
+        ApiResponse<RegelcatalogusData> & { meta?: { cache?: RegelcatalogusCacheMeta } }
+      >(`/public/regelcatalogus${force ? '?refresh=true' : ''}`);
       return response.data;
     },
   },
@@ -245,6 +268,7 @@ export const businessApi = {
           projectNumber: string;
           projectName: string;
           edocsWorkspaceId: string;
+          leadRole: string;
         }>
       >
     > => {
@@ -541,6 +565,12 @@ export interface RegelcatalogusData {
   rules: CatalogRule[];
 }
 
+export interface RegelcatalogusCacheMeta {
+  cached: boolean;
+  fetchedAt: string | null;
+  ageMs: number | null;
+}
+
 export interface AuditLogRecord {
   id: number;
   timestamp: string;
@@ -559,7 +589,7 @@ export type McpChatStreamEvent =
   | { type: 'status'; message: string }
   | { type: 'delta'; text: string }
   | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; code?: string };
 
 export interface McpSourceMeta {
   id: string;
@@ -575,6 +605,8 @@ export interface LlmModelEntry {
   providerDisplayName: string;
 }
 
+export type ProductSoort = 'subsidie' | 'vergunning' | 'bezwaar';
+
 export interface ProductDienstItem {
   id: string;
   title: string;
@@ -583,6 +615,7 @@ export interface ProductDienstItem {
   audience: ('ondernemer' | 'particulier')[];
   onlineAanvragen: boolean;
   modified: string | null;
+  soort: ProductSoort;
 }
 
 export interface BundleDeployedForm {
@@ -609,6 +642,8 @@ export interface ProcessBundle {
   description?: string;
   processRole: string;
   status: string;
+  /** Owning board, tagged at deploy time in LDE (e.g. 'infra-board', 'caseworker'). */
+  boardOwner?: string;
   deployedAt: string;
   operatonUrl: string;
   operatonDeploymentId: string;

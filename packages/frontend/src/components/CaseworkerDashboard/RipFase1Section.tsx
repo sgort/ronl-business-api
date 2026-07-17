@@ -6,9 +6,16 @@ interface Props {
   user: KeycloakUser | null;
 }
 
+const PROCESS_KEY = 'RipPhase1Process';
+
+interface StartError {
+  cause?: string;
+  instance?: string;
+}
+
 export default function RipFase1Section({ user }: Props) {
   const [started, setStarted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StartError | null>(null);
 
   const isInfraTeam = user?.roles?.includes('infra-projectteam');
 
@@ -60,21 +67,37 @@ export default function RipFase1Section({ user }: Props) {
         </p>
         {error && (
           <div className="mb-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
-            {error}
+            <p className="font-medium">RIP Fase 1 proces kon niet worden gestart.</p>
+            <dl className="mt-2 space-y-0.5 text-xs text-red-600">
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 font-medium">Key</dt>
+                <dd className="font-mono break-all">{PROCESS_KEY}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 font-medium">Operaton</dt>
+                <dd className="font-mono break-all">{error.instance ?? 'onbekend'}</dd>
+              </div>
+              {error.cause && (
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0 font-medium">Oorzaak</dt>
+                  <dd className="break-words">{error.cause}</dd>
+                </div>
+              )}
+            </dl>
           </div>
         )}
         <button
           onClick={async () => {
             setError(null);
             try {
-              const res = await businessApi.process.start('RipPhase1Process', {});
+              const res = await businessApi.process.start(PROCESS_KEY, {});
               if (res.success) {
                 setStarted(true);
               } else {
-                setError('RIP Fase 1 proces kon niet worden gestart.');
+                setError({ cause: res.error?.details, instance: res.error?.instance });
               }
             } catch {
-              setError('RIP Fase 1 proces kon niet worden gestart.');
+              setError({});
             }
           }}
           className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90"

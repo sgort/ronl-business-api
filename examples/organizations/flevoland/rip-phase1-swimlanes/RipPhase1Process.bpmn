@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipPhase1" targetNamespace="http://example.com/rip-phase1" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipPhase1">
+    <bpmn:participant id="Participant_RipPhase1" name="RIP Fase 1 — R2.1 Projectplan Planvoorbereiding" processRef="RipPhase1Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipPhase1Process" name="RIP Fase 1 — R2.1 Projectplan Planvoorbereiding" isExecutable="true" camunda:historyTimeToLive="365">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_PL_Aandrager_AO" name="Projectleider, Aandrager, AO">
+        <bpmn:flowNodeRef>Task_AccorderenProjectplan4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Akkoord4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Phase1Complete</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_RIPteam" name="RIP-team">
+        <bpmn:flowNodeRef>Task_HoudenOverlegVO</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Aandrager" name="Aandrager">
+        <bpmn:flowNodeRef>StartEvent_RipPhase1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanlevrenProjectplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerberenKwaliteit</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DeelnemersPSU" name="Deelnemers PSU">
+        <bpmn:flowNodeRef>Task_UitvoerenPSU</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Aandrager_PL" name="Aandrager, Projectleider">
+        <bpmn:flowNodeRef>Task_AccorderenProjectplan2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Akkoord2</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AO_Aandrager_PL" name="AO, Aandrager, Projectleider">
+        <bpmn:flowNodeRef>Task_UitvoerenIntakeoverleg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IntakeAkkoord</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectondersteuner" name="Projectondersteuner">
+        <bpmn:flowNodeRef>Task_AanmakenWorkspaceRelatics</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>Task_AanvullenProjectplan2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InitierenPSU</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanvullenProjectplan4</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ManagerPB" name="Manager Projectbeheersing">
+        <bpmn:flowNodeRef>Task_OrganiserenIntakeoverleg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenRisicodossier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenPlanning</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_RipPhase1" name="Start RIP fase 1">
+      <bpmn:outgoing>Flow_Start_Aanlevren</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_AanlevrenProjectplan" name="Aanleveren Projectplan&#10;1. Intake-formulier" camunda:formRef="rip-intake" camunda:formRefBinding="latest" camunda:candidateGroups="rip-aandrager">
+      <bpmn:incoming>Flow_Start_Aanlevren</bpmn:incoming>
+      <bpmn:outgoing>Flow_Aanlevren_Organiseren</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VerberenKwaliteit" name="Verbeteren kwaliteit&#10;1. Intake-formulier" camunda:formRef="rip-kwaliteit-verbetering" camunda:formRefBinding="latest" camunda:candidateGroups="rip-aandrager">
+      <bpmn:incoming>Flow_IntakeNee_Verbeteren</bpmn:incoming>
+      <bpmn:outgoing>Flow_Verbeteren_Accorderen2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OrganiserenIntakeoverleg" name="Organiseren intake-overleg" camunda:formRef="rip-intake-meeting" camunda:formRefBinding="latest" camunda:candidateGroups="rip-manager-pb">
+      <bpmn:incoming>Flow_Aanlevren_Organiseren</bpmn:incoming>
+      <bpmn:outgoing>Flow_Organiseren_Uitvoeren</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenRisicodossier" name="Opstellen risicossier&#10;en versturen aan PL" camunda:formRef="rip-risk-file" camunda:formRefBinding="latest" camunda:candidateGroups="rip-manager-pb">
+      <bpmn:incoming>Flow_Relatics_Risicodossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Risicodossier_UitvoerenPSU</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenPlanning" name="Opstellen planning en&#10;informeren PL en ondersteuner" camunda:formRef="rip-planning" camunda:formRefBinding="latest" camunda:candidateGroups="rip-manager-pb">
+      <bpmn:incoming>Flow_UitvoerenPSU_Planning</bpmn:incoming>
+      <bpmn:outgoing>Flow_Planning_Aanvullen4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AanvullenProjectplan2" name="Aanvullen Projectplan&#10;2. Intake-verslag" camunda:formRef="rip-intake-report" camunda:formRefBinding="latest" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-intake-report">
+      <bpmn:incoming>Flow_IntakeJa_Aanvullen2</bpmn:incoming>
+      <bpmn:incoming>Flow_Akkoord2Rejected_Aanvullen2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Aanvullen2_Accorderen2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InitierenPSU" name="Initieren / organiseren PSU" camunda:formRef="rip-psu-organize" camunda:formRefBinding="latest" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Akkoord2Approved_InitierenPSU</bpmn:incoming>
+      <bpmn:outgoing>Flow_InitierenPSU_Relatics</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AanvullenProjectplan4" name="Aanvullen Projectplan&#10;4. Uitgangspunten VO-fase" camunda:formRef="rip-pdp-aanvullen" camunda:formRefBinding="latest" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-pdp">
+      <bpmn:incoming>Flow_Planning_Aanvullen4</bpmn:incoming>
+      <bpmn:incoming>Flow_Akkoord4Rejected_Aanvullen4</bpmn:incoming>
+      <bpmn:outgoing>Flow_Aanvullen4_OverlegVO</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_AanmakenWorkspaceRelatics" name="Laten aanmaken&#10;workspace Relatics" camunda:type="external" camunda:topic="rip-relatics-workspace">
+      <bpmn:incoming>Flow_InitierenPSU_Relatics</bpmn:incoming>
+      <bpmn:outgoing>Flow_Relatics_Risicodossier</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_UitvoerenIntakeoverleg" name="Uitvoeren intake-overleg" camunda:formRef="rip-uitvoer-intake" camunda:formRefBinding="latest" camunda:candidateGroups="rip-ao,rip-aandrager,rip-projectleider">
+      <bpmn:incoming>Flow_Organiseren_Uitvoeren</bpmn:incoming>
+      <bpmn:outgoing>Flow_Uitvoeren_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_IntakeAkkoord" name="Projectplan 1.&#10;Intake-formulier akkoord?">
+      <bpmn:incoming>Flow_Uitvoeren_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_IntakeJa_Aanvullen2</bpmn:outgoing>
+      <bpmn:outgoing>Flow_IntakeNee_Verbeteren</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AccorderenProjectplan2" name="Accorderen Projectplan&#10;2. Intake-verslag" camunda:formRef="rip-approval" camunda:formRefBinding="latest" camunda:candidateGroups="rip-aandrager,rip-projectleider">
+      <bpmn:incoming>Flow_Aanvullen2_Accorderen2</bpmn:incoming>
+      <bpmn:incoming>Flow_Verbeteren_Accorderen2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Accorderen2_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Akkoord2" name="Akkoord?">
+      <bpmn:incoming>Flow_Accorderen2_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Akkoord2Approved_InitierenPSU</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Akkoord2Rejected_Aanvullen2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_UitvoerenPSU" name="Uitvoeren PSU en aanvullen&#10;Projectplan 3. PSU-verslag" camunda:formRef="rip-psu-execution" camunda:formRefBinding="latest" camunda:candidateGroups="rip-deelnemers-psu" ronl:documentRef="rip-psu-report">
+      <bpmn:incoming>Flow_Risicodossier_UitvoerenPSU</bpmn:incoming>
+      <bpmn:outgoing>Flow_UitvoerenPSU_Planning</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_HoudenOverlegVO" name="Houden overleg&#10;uitgangspunten VO-fase" camunda:formRef="rip-overleg-vo" camunda:formRefBinding="latest" camunda:candidateGroups="rip-team">
+      <bpmn:incoming>Flow_Aanvullen4_OverlegVO</bpmn:incoming>
+      <bpmn:outgoing>Flow_OverlegVO_Accorderen4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenProjectplan4" name="Accorderen Projectplan&#10;4. Uitgangspunten VO-fase" camunda:formRef="rip-approval" camunda:formRefBinding="latest" camunda:candidateGroups="rip-projectleider,rip-aandrager,rip-ao">
+      <bpmn:incoming>Flow_OverlegVO_Accorderen4</bpmn:incoming>
+      <bpmn:outgoing>Flow_Accorderen4_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Akkoord4" name="Akkoord?">
+      <bpmn:incoming>Flow_Accorderen4_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Akkoord4Approved_End</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Akkoord4Rejected_Aanvullen4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_Phase1Complete" name="Fase 1 voltooid&#10;→ R2.2">
+      <bpmn:incoming>Flow_Akkoord4Approved_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_Aanlevren" sourceRef="StartEvent_RipPhase1" targetRef="Task_AanlevrenProjectplan" />
+    <bpmn:sequenceFlow id="Flow_Aanlevren_Organiseren" sourceRef="Task_AanlevrenProjectplan" targetRef="Task_OrganiserenIntakeoverleg" />
+    <bpmn:sequenceFlow id="Flow_IntakeNee_Verbeteren" name="Nee" sourceRef="Gateway_IntakeAkkoord" targetRef="Task_VerberenKwaliteit">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${intakeAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Verbeteren_Accorderen2" sourceRef="Task_VerberenKwaliteit" targetRef="Task_AccorderenProjectplan2" />
+    <bpmn:sequenceFlow id="Flow_Organiseren_Uitvoeren" sourceRef="Task_OrganiserenIntakeoverleg" targetRef="Task_UitvoerenIntakeoverleg" />
+    <bpmn:sequenceFlow id="Flow_Relatics_Risicodossier" sourceRef="Task_AanmakenWorkspaceRelatics" targetRef="Task_OpstellenRisicodossier" />
+    <bpmn:sequenceFlow id="Flow_Risicodossier_UitvoerenPSU" sourceRef="Task_OpstellenRisicodossier" targetRef="Task_UitvoerenPSU" />
+    <bpmn:sequenceFlow id="Flow_UitvoerenPSU_Planning" sourceRef="Task_UitvoerenPSU" targetRef="Task_OpstellenPlanning" />
+    <bpmn:sequenceFlow id="Flow_Planning_Aanvullen4" sourceRef="Task_OpstellenPlanning" targetRef="Task_AanvullenProjectplan4" />
+    <bpmn:sequenceFlow id="Flow_IntakeJa_Aanvullen2" name="Ja" sourceRef="Gateway_IntakeAkkoord" targetRef="Task_AanvullenProjectplan2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${intakeAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Akkoord2Rejected_Aanvullen2" name="niet akkoord" sourceRef="Gateway_Akkoord2" targetRef="Task_AanvullenProjectplan2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "rejected"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Aanvullen2_Accorderen2" sourceRef="Task_AanvullenProjectplan2" targetRef="Task_AccorderenProjectplan2" />
+    <bpmn:sequenceFlow id="Flow_Akkoord2Approved_InitierenPSU" name="akkoord" sourceRef="Gateway_Akkoord2" targetRef="Task_InitierenPSU">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "approved"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_InitierenPSU_Relatics" sourceRef="Task_InitierenPSU" targetRef="Task_AanmakenWorkspaceRelatics" />
+    <bpmn:sequenceFlow id="Flow_Akkoord4Rejected_Aanvullen4" name="niet akkoord" sourceRef="Gateway_Akkoord4" targetRef="Task_AanvullenProjectplan4">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "rejected"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Aanvullen4_OverlegVO" sourceRef="Task_AanvullenProjectplan4" targetRef="Task_HoudenOverlegVO" />
+    <bpmn:sequenceFlow id="Flow_Uitvoeren_Gateway" sourceRef="Task_UitvoerenIntakeoverleg" targetRef="Gateway_IntakeAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Accorderen2_Gateway" sourceRef="Task_AccorderenProjectplan2" targetRef="Gateway_Akkoord2" />
+    <bpmn:sequenceFlow id="Flow_OverlegVO_Accorderen4" sourceRef="Task_HoudenOverlegVO" targetRef="Task_AccorderenProjectplan4" />
+    <bpmn:sequenceFlow id="Flow_Accorderen4_Gateway" sourceRef="Task_AccorderenProjectplan4" targetRef="Gateway_Akkoord4" />
+    <bpmn:sequenceFlow id="Flow_Akkoord4Approved_End" name="akkoord" sourceRef="Gateway_Akkoord4" targetRef="EndEvent_Phase1Complete">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == "approved"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipPhase1">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipPhase1" bpmnElement="Collaboration_RipPhase1">
+      <bpmndi:BPMNShape id="Participant_RipPhase1_di" bpmnElement="Participant_RipPhase1" isHorizontal="true">
+        <dc:Bounds x="155" y="80" width="3600" height="1440" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_PL_Aandrager_AO_di" bpmnElement="Lane_PL_Aandrager_AO" isHorizontal="true">
+        <dc:Bounds x="185" y="1360" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_RIPteam_di" bpmnElement="Lane_RIPteam" isHorizontal="true">
+        <dc:Bounds x="185" y="1200" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Aandrager_di" bpmnElement="Lane_Aandrager" isHorizontal="true">
+        <dc:Bounds x="185" y="1040" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_DeelnemersPSU_di" bpmnElement="Lane_DeelnemersPSU" isHorizontal="true">
+        <dc:Bounds x="185" y="880" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Aandrager_PL_di" bpmnElement="Lane_Aandrager_PL" isHorizontal="true">
+        <dc:Bounds x="185" y="720" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AO_Aandrager_PL_di" bpmnElement="Lane_AO_Aandrager_PL" isHorizontal="true">
+        <dc:Bounds x="185" y="560" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectondersteuner_di" bpmnElement="Lane_Projectondersteuner" isHorizontal="true">
+        <dc:Bounds x="185" y="400" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="185" y="240" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ManagerPB_di" bpmnElement="Lane_ManagerPB" isHorizontal="true">
+        <dc:Bounds x="185" y="80" width="3570" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_RipPhase1_di" bpmnElement="StartEvent_RipPhase1">
+        <dc:Bounds x="287" y="1102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="266" y="1145" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanlevrenProjectplan_di" bpmnElement="Task_AanlevrenProjectplan">
+        <dc:Bounds x="405" y="1080" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerberenKwaliteit_di" bpmnElement="Task_VerberenKwaliteit">
+        <dc:Bounds x="1175" y="1080" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OrganiserenIntakeoverleg_di" bpmnElement="Task_OrganiserenIntakeoverleg">
+        <dc:Bounds x="625" y="120" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenRisicodossier_di" bpmnElement="Task_OpstellenRisicodossier">
+        <dc:Bounds x="2135" y="120" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenPlanning_di" bpmnElement="Task_OpstellenPlanning">
+        <dc:Bounds x="2535" y="120" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanvullenProjectplan2_di" bpmnElement="Task_AanvullenProjectplan2">
+        <dc:Bounds x="1175" y="280" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InitierenPSU_di" bpmnElement="Task_InitierenPSU">
+        <dc:Bounds x="1735" y="280" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanvullenProjectplan4_di" bpmnElement="Task_AanvullenProjectplan4">
+        <dc:Bounds x="2735" y="280" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanmakenWorkspaceRelatics_di" bpmnElement="Task_AanmakenWorkspaceRelatics">
+        <dc:Bounds x="1925" y="440" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UitvoerenIntakeoverleg_di" bpmnElement="Task_UitvoerenIntakeoverleg">
+        <dc:Bounds x="825" y="600" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_IntakeAkkoord_di" bpmnElement="Gateway_IntakeAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1040" y="615" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1026" y="572" width="78" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenProjectplan2_di" bpmnElement="Task_AccorderenProjectplan2">
+        <dc:Bounds x="1375" y="760" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Akkoord2_di" bpmnElement="Gateway_Akkoord2" isMarkerVisible="true">
+        <dc:Bounds x="1600" y="775" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1602" y="832" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UitvoerenPSU_di" bpmnElement="Task_UitvoerenPSU">
+        <dc:Bounds x="2335" y="920" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HoudenOverlegVO_di" bpmnElement="Task_HoudenOverlegVO">
+        <dc:Bounds x="2935" y="1240" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenProjectplan4_di" bpmnElement="Task_AccorderenProjectplan4">
+        <dc:Bounds x="3135" y="1400" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Akkoord4_di" bpmnElement="Gateway_Akkoord4" isMarkerVisible="true">
+        <dc:Bounds x="3370" y="1415" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3372" y="1472" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Phase1Complete_di" bpmnElement="EndEvent_Phase1Complete">
+        <dc:Bounds x="3527" y="1422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3508" y="1465" width="75" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_Aanlevren_di" bpmnElement="Flow_Start_Aanlevren">
+        <di:waypoint x="323" y="1120" />
+        <di:waypoint x="405" y="1120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Aanlevren_Organiseren_di" bpmnElement="Flow_Aanlevren_Organiseren">
+        <di:waypoint x="565" y="1120" />
+        <di:waypoint x="595" y="1120" />
+        <di:waypoint x="595" y="160" />
+        <di:waypoint x="625" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IntakeNee_Verbeteren_di" bpmnElement="Flow_IntakeNee_Verbeteren">
+        <di:waypoint x="1065" y="665" />
+        <di:waypoint x="1065" y="1120" />
+        <di:waypoint x="1175" y="1120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1075" y="888" width="21" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Verbeteren_Accorderen2_di" bpmnElement="Flow_Verbeteren_Accorderen2">
+        <di:waypoint x="1335" y="1120" />
+        <di:waypoint x="1355" y="1120" />
+        <di:waypoint x="1355" y="800" />
+        <di:waypoint x="1375" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Organiseren_Uitvoeren_di" bpmnElement="Flow_Organiseren_Uitvoeren">
+        <di:waypoint x="785" y="160" />
+        <di:waypoint x="805" y="160" />
+        <di:waypoint x="805" y="640" />
+        <di:waypoint x="825" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Relatics_Risicodossier_di" bpmnElement="Flow_Relatics_Risicodossier">
+        <di:waypoint x="2085" y="480" />
+        <di:waypoint x="2115" y="480" />
+        <di:waypoint x="2115" y="160" />
+        <di:waypoint x="2135" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Risicodossier_UitvoerenPSU_di" bpmnElement="Flow_Risicodossier_UitvoerenPSU">
+        <di:waypoint x="2295" y="160" />
+        <di:waypoint x="2315" y="160" />
+        <di:waypoint x="2315" y="960" />
+        <di:waypoint x="2335" y="960" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_UitvoerenPSU_Planning_di" bpmnElement="Flow_UitvoerenPSU_Planning">
+        <di:waypoint x="2495" y="960" />
+        <di:waypoint x="2515" y="960" />
+        <di:waypoint x="2515" y="160" />
+        <di:waypoint x="2535" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planning_Aanvullen4_di" bpmnElement="Flow_Planning_Aanvullen4">
+        <di:waypoint x="2695" y="160" />
+        <di:waypoint x="2715" y="160" />
+        <di:waypoint x="2715" y="320" />
+        <di:waypoint x="2735" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IntakeJa_Aanvullen2_di" bpmnElement="Flow_IntakeJa_Aanvullen2">
+        <di:waypoint x="1065" y="615" />
+        <di:waypoint x="1065" y="320" />
+        <di:waypoint x="1175" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1074" y="462" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Akkoord2Rejected_Aanvullen2_di" bpmnElement="Flow_Akkoord2Rejected_Aanvullen2">
+        <di:waypoint x="1625" y="825" />
+        <di:waypoint x="1625" y="870" />
+        <di:waypoint x="1255" y="870" />
+        <di:waypoint x="1255" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1396" y="852" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Aanvullen2_Accorderen2_di" bpmnElement="Flow_Aanvullen2_Accorderen2">
+        <di:waypoint x="1335" y="320" />
+        <di:waypoint x="1355" y="320" />
+        <di:waypoint x="1355" y="800" />
+        <di:waypoint x="1375" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Akkoord2Approved_InitierenPSU_di" bpmnElement="Flow_Akkoord2Approved_InitierenPSU">
+        <di:waypoint x="1625" y="775" />
+        <di:waypoint x="1625" y="320" />
+        <di:waypoint x="1735" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1634" y="542" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_InitierenPSU_Relatics_di" bpmnElement="Flow_InitierenPSU_Relatics">
+        <di:waypoint x="1895" y="320" />
+        <di:waypoint x="1915" y="320" />
+        <di:waypoint x="1915" y="480" />
+        <di:waypoint x="1925" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Akkoord4Rejected_Aanvullen4_di" bpmnElement="Flow_Akkoord4Rejected_Aanvullen4">
+        <di:waypoint x="3395" y="1465" />
+        <di:waypoint x="3395" y="1530" />
+        <di:waypoint x="2815" y="1530" />
+        <di:waypoint x="2815" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3046" y="1512" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Aanvullen4_OverlegVO_di" bpmnElement="Flow_Aanvullen4_OverlegVO">
+        <di:waypoint x="2895" y="320" />
+        <di:waypoint x="2915" y="320" />
+        <di:waypoint x="2915" y="1280" />
+        <di:waypoint x="2935" y="1280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Uitvoeren_Gateway_di" bpmnElement="Flow_Uitvoeren_Gateway">
+        <di:waypoint x="985" y="640" />
+        <di:waypoint x="1040" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Accorderen2_Gateway_di" bpmnElement="Flow_Accorderen2_Gateway">
+        <di:waypoint x="1535" y="800" />
+        <di:waypoint x="1600" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_OverlegVO_Accorderen4_di" bpmnElement="Flow_OverlegVO_Accorderen4">
+        <di:waypoint x="3095" y="1280" />
+        <di:waypoint x="3115" y="1280" />
+        <di:waypoint x="3115" y="1440" />
+        <di:waypoint x="3135" y="1440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Accorderen4_Gateway_di" bpmnElement="Flow_Accorderen4_Gateway">
+        <di:waypoint x="3295" y="1440" />
+        <di:waypoint x="3370" y="1440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Akkoord4Approved_End_di" bpmnElement="Flow_Akkoord4Approved_End">
+        <di:waypoint x="3420" y="1440" />
+        <di:waypoint x="3527" y="1440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3450" y="1422" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

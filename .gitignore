@@ -75,6 +75,8 @@ dump.rdb
 .parcel-cache/
 .next/
 .nuxt/
+pa-cockpit-handoff
+signalen-search-handoff/
 
 #flatten script & dir
 flatten_directory.sh
@@ -96,4 +98,12 @@ deployment/vm/**/Thumbs.db
 
 #deploy theme script
 deploy-theme-to-*.sh
+
+# Backend deploy scripts: track the two canonical ones (prod/acc), ignore
+# any other local/ad-hoc variants
 deploy-backend-to-*.sh
+!deploy-backend-to-prod.sh
+!deploy-backend-to-acc.sh
+
+# Knowledge graph (generated tooling output)
+.understand-anything/
