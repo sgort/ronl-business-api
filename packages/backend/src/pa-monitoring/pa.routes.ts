@@ -1,10 +1,13 @@
 /**
  * PA Monitoring routes.
  * Mounted at /v1/pa in index.ts.
- * All routes require Keycloak JWT.
+ * All routes require Keycloak JWT, except /curator/run, /curator/status
+ * (route-level JWT instead of the router-wide middleware) and /signals.rss
+ * (RSS readers can't send a bearer token — authenticated via ?token= instead).
  */
 
 import express from 'express';
+import { randomBytes } from 'crypto';
 import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
@@ -15,6 +18,9 @@ import { searchFlevolandNews } from './sources/media.client';
 import { FEEDS as MEDIA_FEEDS } from '../media-aggregator/feeds';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
+import { matchesQueryTerms } from './query-match';
+import { computeNotifications } from './notifications.service';
+import { toRssXml } from './rss';
 import { config } from '@utils/config';
 import type { FeedItem, Signal } from '@ronl/shared';
 
@@ -69,6 +75,50 @@ router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), asy
       success: false,
       error: { code: 'STATUS_ERROR', message: err instanceof Error ? err.message : String(err) },
     });
+  }
+});
+
+// ── GET /v1/pa/signals.rss ────────────────────────────────────────────────────
+// Personal RSS export of confirmed signals — "one query, two renderers" alongside
+// GET /v1/pa/signals below (same fetchSignalsRows + rowToSignal, XML instead of
+// JSON). RSS readers can't send a Keycloak bearer token, so this sits before the
+// router's jwtMiddleware and authenticates via ?token= instead, minted by the
+// authenticated GET /v1/pa/feed-token.
+router.get('/signals.rss', async (req, res) => {
+  const token = typeof req.query['token'] === 'string' ? req.query['token'] : null;
+  if (!token) return res.status(401).send('Missing token');
+
+  try {
+    const tokenRow = await db.oneOrNone<{ user_id: string; tenant_id: string }>(
+      `SELECT user_id, tenant_id FROM pa_feed_tokens WHERE token = $1`,
+      [token]
+    );
+    if (!tokenRow) return res.status(401).send('Invalid token');
+
+    const tab = typeof req.query['tab'] === 'string' ? req.query['tab'] : null;
+    const dossierId = typeof req.query['dossierId'] === 'string' ? req.query['dossierId'] : null;
+
+    const conditions: string[] = [`status = 'confirmed'`];
+    const values: unknown[] = [];
+    let idx = 1;
+    if (tab) {
+      conditions.push(`tab = $${idx++}`);
+      values.push(tab);
+    }
+    if (dossierId) {
+      conditions.push(`dossier_id = $${idx++}`);
+      values.push(dossierId);
+    }
+
+    const rows = await fetchSignalsRows(conditions.join(' AND '), values, 100);
+    const signals = rows.map(rowToSignal);
+    const selfUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    const xml = toRssXml(signals, 'PA-Cockpit — gecureerde signalen', selfUrl);
+
+    res.type('application/rss+xml; charset=utf-8').send(xml);
+  } catch (err) {
+    logger.error('Signals RSS error', { error: err instanceof Error ? err.message : String(err) });
+    res.status(500).send('Internal error');
   }
 });
 
@@ -178,16 +228,8 @@ router.get('/agenda', async (req, res) => {
 
     const enriched = items.map((item) => {
       for (const s of searches) {
-        const terms = s.query.q
-          .split(/\s+OR\s+/i)
-          .map((t) => t.replace(/^"|"$/g, '').trim())
-          .filter(Boolean);
-        const lower = item.titel.toLowerCase();
-        for (const term of terms) {
-          if (lower.includes(term.toLowerCase())) {
-            return { ...item, dossier: s.dossier_id, matchTerm: term };
-          }
-        }
+        const term = matchesQueryTerms(item.titel, s.query.q);
+        if (term) return { ...item, dossier: s.dossier_id, matchTerm: term };
       }
       return item;
     });
@@ -241,15 +283,7 @@ router.get('/signals', async (req, res) => {
     const CAP = 100;
     const where = conditions.join(' AND ');
     const [rows, countRows] = await Promise.all([
-      db.any<Record<string, unknown>>(
-        `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
-                duiding, status, ai_draft, confirmed_by, confirmed_at, routing
-         FROM pa_signals
-         WHERE ${where}
-         ORDER BY rel DESC, created_at DESC
-         LIMIT ${CAP}`,
-        values
-      ),
+      fetchSignalsRows(where, values, CAP),
       db.any<{ count: string }>(`SELECT COUNT(*) AS count FROM pa_signals WHERE ${where}`, values),
     ]);
 
@@ -347,6 +381,15 @@ router.post('/signals/:id/confirm', async (req, res) => {
       [id]
     );
 
+    // A confirm is exactly the event a watch cares about — don't make the user
+    // wait for the next 6-hourly curation cycle to see it in Meldingen.
+    await computeNotifications(req.user.tenantId, 'confirm').catch((err: unknown) => {
+      logger.error('Notification compute failed after confirm', {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     res.json({ success: true, data: rowToSignal(updated) });
   } catch (err) {
     logger.error('Signal confirm error', {
@@ -363,7 +406,7 @@ router.get('/searches', async (req, res) => {
 
   try {
     const rows = await db.any(
-      `SELECT id, tenant_id, user_id, scope, dossier_id, query, tags, created_at, updated_at
+      `SELECT id, tenant_id, user_id, scope, dossier_id, query, tags, notify, created_at, updated_at
        FROM pa_saved_searches
        WHERE tenant_id = $1 AND (scope = 'tenant' OR user_id = $2 OR user_id IS NULL)
        ORDER BY created_at`,
@@ -446,14 +489,21 @@ router.delete('/searches/:id', async (req, res) => {
 router.patch('/searches/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
-  const { scope, query, tags, dossierId } = req.body as {
+  const { scope, query, tags, dossierId, notify } = req.body as {
     scope?: 'tenant' | 'user';
     query?: { q: string; types?: string[]; source?: string[] };
     tags?: string[];
     dossierId?: string | null;
+    notify?: boolean;
   };
 
-  if (scope === undefined && query === undefined && tags === undefined && dossierId === undefined) {
+  if (
+    scope === undefined &&
+    query === undefined &&
+    tags === undefined &&
+    dossierId === undefined &&
+    notify === undefined
+  ) {
     return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
   }
   if (scope !== undefined && scope !== 'tenant' && scope !== 'user') {
@@ -483,6 +533,10 @@ router.patch('/searches/:id', async (req, res) => {
     if (dossierId !== undefined) {
       sets.push(`dossier_id = $${idx++}`);
       values.push(dossierId);
+    }
+    if (notify !== undefined) {
+      sets.push(`notify = $${idx++}`);
+      values.push(notify);
     }
 
     values.push(req.params.id, req.user.tenantId);
@@ -531,6 +585,18 @@ router.patch('/signals/:id', async (req, res) => {
        FROM pa_signals WHERE id = $1`,
       [id]
     );
+
+    // Linking a watchlist signal to a dossier is exactly the kind of change a
+    // dossier-only watch (empty-query, matched on dossier_id) cares about — it
+    // couldn't have matched while dossier_id was null, so recompute now rather
+    // than waiting for the next curation cycle.
+    await computeNotifications(req.user.tenantId, 'link-dossier').catch((err: unknown) => {
+      logger.error('Notification compute failed after dossier link', {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     res.json({ success: true, data: rowToSignal(updated) });
   } catch (err) {
     logger.error('Signal link dossier error', {
@@ -538,6 +604,130 @@ router.patch('/signals/:id', async (req, res) => {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'LINK_DOSSIER_ERROR' } });
+  }
+});
+
+// ── GET /v1/pa/notifications ──────────────────────────────────────────────────
+// Delivery inbox for watched saved searches (notify=true), populated by
+// notifications.service's computeNotifications() at the end of each curation
+// cycle. Query: unseen=true restricts to rows not yet acked.
+router.get('/notifications', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const unseenOnly = req.query['unseen'] === 'true';
+
+  try {
+    const conditions = ['n.user_id = $1', 'n.tenant_id = $2'];
+    const values: unknown[] = [req.user.userId, req.user.tenantId];
+    if (unseenOnly) conditions.push('n.seen_at IS NULL');
+
+    const rows = await db.any<Record<string, unknown>>(
+      `SELECT n.id, n.signal_id, n.matched_searches, n.created_at, n.seen_at,
+              s.title, s.tab, s.dossier_id, s.src, s.ref,
+              d.naam AS dossier_naam
+       FROM pa_notifications n
+       JOIN pa_signals s ON s.id = n.signal_id
+       LEFT JOIN pa_dossiers d ON d.id = s.dossier_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY n.created_at DESC
+       LIMIT 100`,
+      values
+    );
+
+    const notifications = rows.map((row) => {
+      const dossierNaam = row['dossier_naam'] as string | null;
+      // matchWatch() (notifications.service.ts) stores a `dossier:<id>` sentinel
+      // label for a watch-everything-for-this-dossier match — swap it for the
+      // dossier's actual name here rather than showing the raw id to the user.
+      const rawMatches = (row['matched_searches'] ?? []) as {
+        id: string;
+        dossierId: string | null;
+        label: string;
+      }[];
+      const matchedSearches = rawMatches.map((m) =>
+        dossierNaam && m.label.startsWith('dossier:')
+          ? { ...m, label: `Dossier: ${dossierNaam}` }
+          : m
+      );
+
+      return {
+        id: row['id'] as string,
+        signalId: row['signal_id'] as string,
+        title: row['title'] as string,
+        tab: row['tab'] as string,
+        dossierId: (row['dossier_id'] as string | null) ?? null,
+        src: row['src'] as string,
+        ref: row['ref'] ? (row['ref'] as { type: string; nr: string; url: string }) : null,
+        matchedSearches,
+        createdAt: String(row['created_at']),
+        seenAt: row['seen_at'] ? String(row['seen_at']) : null,
+      };
+    });
+    const unseenCount = notifications.filter((n) => !n.seenAt).length;
+
+    res.json({ success: true, data: notifications, meta: { unseenCount } });
+  } catch (err) {
+    logger.error('Notifications fetch error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'NOTIFICATIONS_ERROR' } });
+  }
+});
+
+// ── POST /v1/pa/notifications/ack ─────────────────────────────────────────────
+// Marks notifications seen. Body { ids?: string[] } — omitted acks every unseen
+// notification for the caller (tkconv's whole-batch delivery, no per-item read state).
+router.post('/notifications/ack', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { ids } = req.body as { ids?: string[] };
+
+  try {
+    if (ids?.length) {
+      await db.none(
+        `UPDATE pa_notifications SET seen_at = NOW()
+         WHERE user_id = $1 AND tenant_id = $2 AND id = ANY($3) AND seen_at IS NULL`,
+        [req.user.userId, req.user.tenantId, ids]
+      );
+    } else {
+      await db.none(
+        `UPDATE pa_notifications SET seen_at = NOW()
+         WHERE user_id = $1 AND tenant_id = $2 AND seen_at IS NULL`,
+        [req.user.userId, req.user.tenantId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Notifications ack error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'NOTIFICATIONS_ACK_ERROR' } });
+  }
+});
+
+// ── GET /v1/pa/feed-token ─────────────────────────────────────────────────────
+// Find-or-create the caller's personal RSS token (GET /v1/pa/signals.rss?token=...).
+router.get('/feed-token', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  try {
+    const existing = await db.oneOrNone<{ token: string }>(
+      `SELECT token FROM pa_feed_tokens WHERE user_id = $1 AND tenant_id = $2`,
+      [req.user.userId, req.user.tenantId]
+    );
+    const token = existing?.token ?? randomBytes(24).toString('hex');
+    if (!existing) {
+      await db.none(`INSERT INTO pa_feed_tokens (token, user_id, tenant_id) VALUES ($1, $2, $3)`, [
+        token,
+        req.user.userId,
+        req.user.tenantId,
+      ]);
+    }
+    const url = `${req.protocol}://${req.get('host')}/v1/pa/signals.rss?token=${token}`;
+    res.json({ success: true, data: { token, url } });
+  } catch (err) {
+    logger.error('Feed token error', { error: err instanceof Error ? err.message : String(err) });
+    res.status(500).json({ success: false, error: { code: 'FEED_TOKEN_ERROR' } });
   }
 });
 
@@ -564,6 +754,25 @@ function rowToSignal(row: Record<string, unknown>): Signal {
     confirmedAt: row['confirmed_at'] ? String(row['confirmed_at']) : null,
     routing: (row['routing'] as 'watchlist' | null) ?? null,
   };
+}
+
+// Shared row-fetch behind GET /v1/pa/signals and GET /v1/pa/signals.rss — "one
+// query, two renderers": both routes build their own WHERE clause, then map
+// through the same rowToSignal().
+function fetchSignalsRows(
+  where: string,
+  values: unknown[],
+  limit: number
+): Promise<Record<string, unknown>[]> {
+  return db.any<Record<string, unknown>>(
+    `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
+            duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+     FROM pa_signals
+     WHERE ${where}
+     ORDER BY rel DESC, created_at DESC
+     LIMIT ${limit}`,
+    values
+  );
 }
 
 // ── GET /v1/pa/sources/status ─────────────────────────────────────────────────

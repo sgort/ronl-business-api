@@ -17,7 +17,6 @@ import {
   deleteSavedSearch,
   promoteSearchToTenant,
   promoteToInbox,
-  linkSignalDossier,
   paTabBronnen,
   signalTag,
   signalTagLabel,
@@ -558,7 +557,7 @@ function RawHitCard({
 }
 
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
-  const { confirmSignal, dossiers, updateInboxCount } = usePaData();
+  const { confirmSignal, linkSignalDossier, dossiers, updateInboxCount } = usePaData();
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
 
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');

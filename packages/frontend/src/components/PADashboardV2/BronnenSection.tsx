@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   fetchSourcesStatus,
+  fetchFeedToken,
   type SourcesStatus,
   type SourcesStatusFeed,
 } from '../../services/pa.api';
@@ -311,6 +312,42 @@ function FeedRow({ f, sg, flags }: { f: FeedDef; sg: FeedSubgroup; flags: Source
   );
 }
 
+// Personal RSS export of confirmed signals — "one query, two renderers" alongside
+// the JSON GET /pa/signals. Token minted lazily on first click, not on mount.
+function PersonalFeedLink() {
+  const [url, setUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const load = async () => {
+    const res = await fetchFeedToken();
+    setUrl(res.url);
+  };
+
+  const copy = async () => {
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div className="pac-feed-link">
+      {url ? (
+        <>
+          <code className="pac-feed-url">{url}</code>
+          <button type="button" className="pac-link" onClick={() => void copy()}>
+            {copied ? '✓ Gekopieerd' : 'Kopieer'}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="pac-link" onClick={() => void load()}>
+          Persoonlijke RSS-feed ophalen →
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function BronnenSection() {
   const [flags, setFlags] = useState<SourcesStatus | null>(null);
 
@@ -349,6 +386,11 @@ export default function BronnenSection() {
       <p className="pac-spec-intro">
         Wát elke bron ophaalt regelt u op <b>Zoekcriteria</b>; wat er daarna mee gebeurt staat op{' '}
         <b>Curatiepijplijn</b>.
+      </p>
+      <p className="pac-spec-intro">
+        Signalen op een gevolgd dossier of gevolgde zoekcriteria (bel-icoon) landen ook in een
+        persoonlijke RSS-feed — bruikbaar in een feedreader naast het meldingen-icoon in de
+        werkbalk. <PersonalFeedLink />
       </p>
 
       <div className="pac-src-summary">

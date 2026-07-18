@@ -204,6 +204,31 @@ export async function initPaDb(): Promise<void> {
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS routing TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS regio TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS sentiment TEXT;
+
+      ALTER TABLE pa_saved_searches ADD COLUMN IF NOT EXISTS notify BOOLEAN NOT NULL DEFAULT false;
+
+      -- Per-user delivery audit for watched saved searches (incl. dossier watches).
+      -- UNIQUE(user_id, signal_id) is the dedup key: a signal already notified to a
+      -- user never resurfaces, even if a later curation cycle reprocesses it.
+      CREATE TABLE IF NOT EXISTS pa_notifications (
+        id                TEXT PRIMARY KEY,
+        tenant_id         TEXT NOT NULL,
+        user_id           TEXT NOT NULL,
+        signal_id         TEXT NOT NULL REFERENCES pa_signals(id) ON DELETE CASCADE,
+        matched_searches  JSONB NOT NULL DEFAULT '[]',
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        seen_at           TIMESTAMPTZ,
+        UNIQUE (user_id, signal_id)
+      );
+
+      -- Bearer token for the personal RSS feed (GET /v1/pa/signals.rss?token=...) —
+      -- RSS readers can't send a Keycloak JWT, so this is a separate lightweight auth path.
+      CREATE TABLE IF NOT EXISTS pa_feed_tokens (
+        token       TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL,
+        tenant_id   TEXT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
 
     // Backfill: all EU signals created before the subbron column existed came from

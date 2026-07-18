@@ -44,14 +44,14 @@ export default function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps)
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
+        className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity duration-300"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Panel */}
       <div
-        className="fixed top-0 right-0 h-full w-full sm:w-[500px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col"
+        className="fixed top-0 right-0 h-full w-full sm:w-[500px] bg-white shadow-2xl z-[60] transform transition-transform duration-300 ease-out flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="changelog-title"

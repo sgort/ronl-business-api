@@ -19,7 +19,9 @@ import {
   createSearch,
   updateSearch,
   deleteSavedSearch,
+  toggleSearchNotify,
 } from '../../services/pa.api';
+import WatchBell from './WatchBell';
 
 const ZC_SOURCES = [
   { id: 'tk', label: 'TK', full: 'Tweede Kamer' },
@@ -35,6 +37,7 @@ interface ZcDraft {
   sources: string[];
   terms: string[];
   tags: string[];
+  notify: boolean;
 }
 
 function toZcDraft(s: SavedSearch): ZcDraft {
@@ -42,12 +45,16 @@ function toZcDraft(s: SavedSearch): ZcDraft {
     id: s.id,
     dossierId: s.dossierId,
     scope: s.scope === 'tenant' ? 'team' : 'persoonlijk',
-    sources: s.query.source,
-    terms: s.query.q
+    // Dossier-watch rows (created via the WatchBell on a dossier) store an
+    // empty query with no source/types — default defensively so a malformed
+    // or legacy row can't crash zcBestCase's unconditional .includes() calls.
+    sources: s.query.source ?? [],
+    terms: (s.query.q ?? '')
       .split(/ OR /i)
       .map((t) => t.trim())
       .filter(Boolean),
     tags: s.tags,
+    notify: s.notify,
   };
 }
 
@@ -718,6 +725,7 @@ interface ZcCardProps {
   onCancel: () => void;
   onSave: (d: ZcDraft) => void;
   onToggleScope: () => void;
+  onToggleNotify: () => void;
   onDelete: () => void;
 }
 
@@ -729,6 +737,7 @@ function ZcCard({
   onCancel,
   onSave,
   onToggleScope,
+  onToggleNotify,
   onDelete,
 }: ZcCardProps) {
   const [draft, setDraft] = useState<ZcDraft>(crit);
@@ -807,6 +816,7 @@ function ZcCard({
             ↩ persoonlijk
           </button>
         )}
+        <WatchBell active={crit.notify} onToggle={onToggleNotify} />
         <button type="button" className="pac-zc-abtn danger" onClick={onDelete}>
           Verwijderen
         </button>
@@ -885,6 +895,7 @@ export default function ZoekcriteriaSection() {
       sources: ['tk', 'ob'],
       terms: [],
       tags: [],
+      notify: false,
     });
   };
 
@@ -919,6 +930,11 @@ export default function ZoekcriteriaSection() {
     await load();
   };
 
+  const toggleNotify = async (item: ZcDraft) => {
+    await toggleSearchNotify(item.id, !item.notify);
+    await load();
+  };
+
   const del = async (id: string) => {
     await deleteSavedSearch(id);
     setItems((prev) => prev.filter((i) => i.id !== id));
@@ -943,7 +959,9 @@ export default function ZoekcriteriaSection() {
         zoekvraag met termen, bronnen en (optioneel) een dossier. De cron leest uitsluitend{' '}
         <b>team-criteria</b>; een persoonlijk criterium telt pas mee ná{' '}
         <span className="pac-zc-inline">↗ team</span>. Zie <b>Beheer → Curatiepijplijn</b> voor wat
-        er daarna gebeurt.
+        er daarna gebeurt. Het bel-icoontje 🔔 stuurt een melding bij een nieuw matchend signaal —
+        naar de <b>eigenaar</b> van het criterium, niet per se naar wie 'm het laatst aan- of
+        uitzette.
       </p>
 
       <div className="pac-zc-stats">
@@ -1024,6 +1042,7 @@ export default function ZoekcriteriaSection() {
                 onCancel={() => setEditingId(null)}
                 onSave={(d) => void saveEdit(d)}
                 onToggleScope={() => void toggleScope(crit)}
+                onToggleNotify={() => void toggleNotify(crit)}
                 onDelete={() => void del(crit.id)}
               />
             ))}

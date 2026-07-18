@@ -291,6 +291,77 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
   });
 });
 
+describe('POST /v1/pa/dossiers/:id/watch', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('anonymous → 401', async () => {
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').send({});
+    expect(res.status).toBe(401);
+  });
+
+  it('no watch-everything row exists yet → creates one, notify=true → 201', async () => {
+    mockDb.oneOrNone.mockResolvedValue(null);
+    mockDb.none.mockResolvedValue(undefined);
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
+    expect(res.status).toBe(201);
+    expect(typeof res.body.data.id).toBe('string');
+
+    const [sql, values] = mockDb.none.mock.calls[0];
+    expect(sql).toMatch(/INSERT INTO pa_saved_searches/);
+    expect(values).toEqual([
+      res.body.data.id,
+      'flevoland',
+      'test-user',
+      'stikstof',
+      // types/source must be present (even empty) — a bare { q: '' } left
+      // SavedSearch.query.source undefined and crashed ZoekcriteriaSection's
+      // zcBestCase(), which calls sources.includes() unconditionally.
+      JSON.stringify({ q: '', types: [], source: [] }),
+      [],
+    ]);
+  });
+
+  it('a watch-everything row already exists → re-enables it in place → 200', async () => {
+    mockDb.oneOrNone.mockResolvedValue({ id: 'watch-existing' });
+    mockDb.none.mockResolvedValue(undefined);
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe('watch-existing');
+    const [sql, values] = mockDb.none.mock.calls[0];
+    expect(sql).toMatch(/SET notify = true/);
+    expect(values).toEqual(['watch-existing']);
+  });
+
+  it("only matches the caller's own empty-query watch row, not a topic search on the same dossier", async () => {
+    mockDb.oneOrNone.mockResolvedValue(null);
+    mockDb.none.mockResolvedValue(undefined);
+    await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
+    const [sql, params] = mockDb.oneOrNone.mock.calls[0];
+    expect(sql).toMatch(/scope = 'user'/);
+    expect(sql).toMatch(/query->>'q' = ''/);
+    expect(params).toEqual(['flevoland', 'test-user', 'stikstof']);
+  });
+});
+
+describe('DELETE /v1/pa/dossiers/:id/watch', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('anonymous → 401', async () => {
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch');
+    expect(res.status).toBe(401);
+  });
+
+  it("public-affairs role → 200, deletes only the caller's own watch-everything row", async () => {
+    mockDb.none.mockResolvedValue(undefined);
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch').set(PA);
+    expect(res.status).toBe(200);
+    const [sql, values] = mockDb.none.mock.calls[0];
+    expect(sql).toMatch(/DELETE FROM pa_saved_searches/);
+    expect(sql).toMatch(/scope = 'user'/);
+    expect(values).toEqual(['flevoland', 'test-user', 'stikstof']);
+  });
+});
+
 describe('POST /v1/pa/dossiers/:id/archive', () => {
   beforeEach(() => jest.clearAllMocks());
   const meta = { classificatie: 'intern', bewaartermijn: 'V10', reden: 'Traject afgerond' };

@@ -10,6 +10,7 @@ import { fetchObFeed } from './sources/ob.client';
 import { fetchEuFeed } from './sources/eu.client';
 import { fetchAllNewSubmittedTexts } from './sources/ep-texts-submitted.client';
 import { fetchFlevolandNews } from './sources/media.client';
+import { computeNotifications } from './notifications.service';
 import { config } from '@utils/config';
 import { scoreItem } from './rules';
 import type { FeedItem, Signal } from '@ronl/shared';
@@ -154,6 +155,11 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
   const searches = await loadSearches(tenantId);
   if (!searches.length) {
     logger.warn('No saved searches found — nothing to retrieve');
+    await computeNotifications(tenantId, 'cycle-no-searches').catch((err: unknown) => {
+      logger.error('Notification compute failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
     return;
   }
 
@@ -255,6 +261,12 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
   }
 
   logger.info('Curation cycle complete', { tenantId, processed: unique.length });
+
+  await computeNotifications(tenantId, 'cycle').catch((err: unknown) => {
+    logger.error('Notification compute failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 }
 
 // AI duiding stub — always off, returns null

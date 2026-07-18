@@ -151,6 +151,8 @@
 }
 .pac .v2-changelog-btn:hover { background: rgba(255, 255, 255, 0.22); }
 .pac .v2-changelog-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.pac .v2-changelog-btn { position: relative; }
+.pac .v2-changelog-btn .pac-rail-inbox { position: absolute; top: -4px; right: -4px; margin-left: 0; }
 
 /* ── Mode tabs ──────────────────────────────────────────── */
 .pac .pac-tabs {
@@ -1310,6 +1312,8 @@
 .pac .pac-searchres-actions { display: flex; align-items: center; gap: 12px; }
 .pac .pac-link { font-size: 12px; color: var(--pac-accent); background: none; border: none; font-weight: 600; cursor: pointer; font-family: inherit; }
 .pac .pac-link:hover { text-decoration: underline; }
+.pac .pac-feed-link { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
+.pac .pac-feed-url { font-family: var(--pac-mono); font-size: 11px; color: var(--pac-ink-2); background: var(--pac-bg); padding: 3px 8px; border-radius: 6px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pac .pac-rawnote { font-size: 12px; color: var(--pac-ink-2); background: var(--pac-bg); border: 1px solid var(--pac-rule-2); border-left: 3px solid var(--pac-amber); padding: 9px 13px; margin-bottom: 14px; line-height: 1.5; }
 .pac .pac-rawnote b { color: var(--pac-ink); }
 .pac .pac-signal-raw { border-left: 3px solid #0046ad33; }
@@ -1567,6 +1571,11 @@
 .pac .pac-zc-abtn.promote:hover { background: #e6f4ec; }
 .pac .pac-zc-abtn.danger { color: var(--pac-red); }
 .pac .pac-zc-abtn.danger:hover { border-color: var(--pac-red); background: #fdeef2; }
+
+/* Watch bell — saved-search rows, dossier detail header, top-bar notification trigger */
+.pac .pac-watch-bell { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--pac-rule); border-radius: 6px; background: #fff; color: var(--pac-ink-3); cursor: pointer; padding: 0; }
+.pac .pac-watch-bell:hover { border-color: var(--pac-ink-3); }
+.pac .pac-watch-bell.active { color: var(--pac-accent); border-color: var(--pac-accent); background: var(--pac-accent-50); }
 
 /* Editor */
 .pac .pac-zc-editor { border-top: 1px solid var(--pac-rule-2); background: #fbfcfe; padding: 16px; display: flex; flex-direction: column; gap: 16px; }

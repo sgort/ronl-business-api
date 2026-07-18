@@ -283,6 +283,50 @@ describe('PA routes — role gating', () => {
       expect(res.body.data.status).toBe('confirmed');
     });
 
+    it('recomputes notifications synchronously, so a matching watch shows up without waiting for the next curation cycle', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue({
+        id: 'sig-1',
+        tab: 'politiek',
+        dossier_id: 'lelystad',
+        title: 'Nieuw signaal over Lelystad',
+        src: 'Tweede Kamer · Motie',
+        bron: 'tk',
+        ref: null,
+        rel: 7,
+        impact: null,
+        impact_label: null,
+        duiding: null,
+        status: 'confirmed',
+        ai_draft: null,
+        confirmed_by: 'Test User',
+        confirmed_at: new Date().toISOString(),
+        routing: null,
+      });
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          { id: 'w1', user_id: 'u1', dossier_id: 'lelystad', query: { q: '' } },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'sig-1',
+            dossier_id: 'lelystad',
+            title: 'Nieuw signaal over Lelystad',
+            duiding: null,
+          },
+        ]);
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
+      expect(res.status).toBe(200);
+      expect(mockDb.result).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO pa_notifications'),
+        expect.arrayContaining(['flevoland', 'u1', 'sig-1'])
+      );
+    });
+
     it('confirms without dossierId → routing:watchlist in UPDATE SQL', async () => {
       mockDb.oneOrNone.mockResolvedValue({ id: 'sig-eu' });
       mockDb.none.mockResolvedValue(undefined);
@@ -411,6 +455,55 @@ describe('PA routes — role gating', () => {
       // UPDATE SQL must set routing = NULL
       const updateSql: string = mockDb.result.mock.calls[0][0] as string;
       expect(updateSql).toMatch(/routing\s*=\s*NULL/i);
+    });
+
+    it('recomputes notifications after linking, so a dossier-only watch that could not match a null-dossier signal matches now', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.one.mockResolvedValue({
+        id: 'sig-eu',
+        tab: 'europa',
+        dossier_id: 'energie',
+        title: 'MOTION FOR A RESOLUTION on the Threat of War Crimes',
+        src: 'Europees Parlement · Ontwerpresolutie · Ingediende teksten',
+        bron: 'eu',
+        subbron: 'ep-teksten',
+        commissie: null,
+        ref: null,
+        rel: 8,
+        impact: null,
+        impact_label: null,
+        duiding: null,
+        status: 'confirmed',
+        ai_draft: null,
+        confirmed_by: 'Test User',
+        confirmed_at: new Date().toISOString(),
+        routing: null,
+      });
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          { id: 'w1', user_id: 'u1', dossier_id: 'energie', query: { q: '' } },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'sig-eu',
+            dossier_id: 'energie',
+            title: 'MOTION FOR A RESOLUTION on the Threat of War Crimes',
+            duiding: null,
+          },
+        ]);
+
+      const res = await request(app)
+        .patch('/v1/pa/signals/sig-eu')
+        .set(PA)
+        .send({ dossierId: 'energie' });
+      expect(res.status).toBe(200);
+
+      const insertCall = mockDb.result.mock.calls.find(([sql]: [string]) =>
+        sql.includes('INSERT INTO pa_notifications')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall?.[1]).toEqual(expect.arrayContaining(['flevoland', 'u1', 'sig-eu']));
     });
   });
 });
@@ -650,6 +743,24 @@ describe('PA routes — curator, searches CRUD & status', () => {
       expect(sql).toMatch(/tags = \$/);
       expect(sql).toMatch(/dossier_id = \$/);
     });
+
+    it('notify alone is a valid patch (the WatchBell toggle) → 200', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
+      expect(res.status).toBe(200);
+      const [sql, values] = mockDb.result.mock.calls[0];
+      expect(sql).toMatch(/notify = \$/);
+      expect(values).toEqual([true, 'srch-1', 'flevoland']);
+    });
+
+    it('notify: false is not treated as a missing field', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ notify: false });
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('GET /v1/pa/sources/status', () => {
@@ -672,6 +783,216 @@ describe('PA routes — curator, searches CRUD & status', () => {
           categoryFilter: f.categoryFilter ?? null,
         })),
       });
+    });
+  });
+});
+
+describe('PA routes — notifications & personal feed', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('GET /v1/pa/notifications', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).get('/v1/pa/notifications');
+      expect(res.status).toBe(401);
+    });
+
+    it('public-affairs role → 200 with unseenCount meta, and passes through the signal source', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-1',
+          signal_id: 'sig-1',
+          matched_searches: [{ id: 'w1', dossierId: null, label: 'stikstof' }],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal',
+          tab: 'politiek',
+          dossier_id: null,
+          src: 'Officiële Bekendmakingen · Provinciaal blad · 3 dgn',
+          dossier_naam: null,
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.meta.unseenCount).toBe(1);
+      expect(res.body.data[0].src).toBe('Officiële Bekendmakingen · Provinciaal blad · 3 dgn');
+      // No dossier match here, so the topic-search label passes through unchanged.
+      expect(res.body.data[0].matchedSearches[0].label).toBe('stikstof');
+    });
+
+    it('passes through the signal ref, so the Meldingen card can link to the source document', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-4',
+          signal_id: 'sig-4',
+          matched_searches: [{ id: 'w4', dossierId: null, label: 'luchthavenbesluit' }],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Antwoord op vragen over de verjaringstermijn',
+          tab: 'politiek',
+          dossier_id: 'lelystad',
+          src: 'Tweede Kamer · Antwoord schriftelijke vragen · 2 u geleden',
+          dossier_naam: 'Luchthaven Lelystad',
+          ref: {
+            type: 'Antwoord schriftelijke vragen',
+            nr: '2020D08667',
+            url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2020D08667&did=2020D08667',
+          },
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].ref).toEqual({
+        type: 'Antwoord schriftelijke vragen',
+        nr: '2020D08667',
+        url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2020D08667&did=2020D08667',
+      });
+    });
+
+    it('ref is null when the signal has none', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-5',
+          signal_id: 'sig-5',
+          matched_searches: [],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal zonder ref',
+          tab: 'politiek',
+          dossier_id: null,
+          src: 'Nieuws & media',
+          dossier_naam: null,
+          ref: null,
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].ref).toBeNull();
+    });
+
+    it('resolves a dossier-watch sentinel label ("dossier:<id>") to the dossier name', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-2',
+          signal_id: 'sig-2',
+          matched_searches: [{ id: 'w2', dossierId: 'lelystad', label: 'dossier:lelystad' }],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal over Lelystad',
+          tab: 'politiek',
+          dossier_id: 'lelystad',
+          src: 'Tweede Kamer · Motie · 1 dgn',
+          dossier_naam: 'Luchthaven Lelystad',
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].matchedSearches[0].label).toBe('Dossier: Luchthaven Lelystad');
+    });
+
+    it('leaves the raw sentinel label alone when the dossier has no resolvable name', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-3',
+          signal_id: 'sig-3',
+          matched_searches: [
+            { id: 'w3', dossierId: 'unknown-dossier', label: 'dossier:unknown-dossier' },
+          ],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal',
+          tab: 'politiek',
+          dossier_id: 'unknown-dossier',
+          src: 'Tweede Kamer · Motie · 1 dgn',
+          dossier_naam: null,
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].matchedSearches[0].label).toBe('dossier:unknown-dossier');
+    });
+
+    it('unseen=true adds a seen_at IS NULL condition', async () => {
+      mockDb.any.mockResolvedValue([]);
+      await request(app).get('/v1/pa/notifications?unseen=true').set(PA);
+      const [sql] = mockDb.any.mock.calls[0];
+      expect(sql).toMatch(/n\.seen_at IS NULL/);
+    });
+  });
+
+  describe('POST /v1/pa/notifications/ack', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).post('/v1/pa/notifications/ack').send({});
+      expect(res.status).toBe(401);
+    });
+
+    it('acks every unseen notification when ids is omitted', async () => {
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app).post('/v1/pa/notifications/ack').set(PA).send({});
+      expect(res.status).toBe(200);
+      const [sql, values] = mockDb.none.mock.calls[0];
+      expect(sql).not.toMatch(/id = ANY/);
+      expect(values).toEqual(['test-user', 'flevoland']);
+    });
+
+    it('acks only the given ids when provided', async () => {
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .post('/v1/pa/notifications/ack')
+        .set(PA)
+        .send({ ids: ['notif-1', 'notif-2'] });
+      expect(res.status).toBe(200);
+      const [sql, values] = mockDb.none.mock.calls[0];
+      expect(sql).toMatch(/id = ANY/);
+      expect(values).toEqual(['test-user', 'flevoland', ['notif-1', 'notif-2']]);
+    });
+  });
+
+  describe('GET /v1/pa/feed-token', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).get('/v1/pa/feed-token');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns the existing token when one is already minted', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ token: 'existing-token' });
+      const res = await request(app).get('/v1/pa/feed-token').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.token).toBe('existing-token');
+      expect(res.body.data.url).toContain('token=existing-token');
+      expect(mockDb.none).not.toHaveBeenCalled();
+    });
+
+    it('mints and persists a new token when none exists', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app).get('/v1/pa/feed-token').set(PA);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.data.token).toBe('string');
+      expect(res.body.data.token.length).toBeGreaterThan(0);
+      expect(mockDb.none).toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /v1/pa/signals.rss', () => {
+    it('missing token → 401', async () => {
+      const res = await request(app).get('/v1/pa/signals.rss');
+      expect(res.status).toBe(401);
+    });
+
+    it('invalid token → 401', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      const res = await request(app).get('/v1/pa/signals.rss?token=bogus');
+      expect(res.status).toBe(401);
+    });
+
+    it('valid token → 200 with RSS XML, no JWT required', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ user_id: 'u1', tenant_id: 'flevoland' });
+      mockDb.any.mockResolvedValue([]);
+      const res = await request(app).get('/v1/pa/signals.rss?token=valid-token');
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/rss\+xml/);
+      expect(res.text).toContain('<rss version="2.0">');
     });
   });
 });

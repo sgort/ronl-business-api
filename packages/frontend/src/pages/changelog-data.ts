@@ -38,6 +38,40 @@ export interface Changelog {
 export const changelog: Changelog = {
   versions: [
     {
+      version: '3.9.1',
+      status: 'Released',
+      statusColor: '#2d7a33',
+      borderColor: '#c3e6cd',
+      date: 'July 18, 2026',
+      scope: 'both',
+      sections: [
+        {
+          icon: '🔔',
+          iconColor: '#0046ad',
+          title:
+            'Feature: WatchBell & Meldingen — per-user notifications for watched dossiers and searches',
+          items: [
+            "New WatchBell toggle (🔔) on Zoekcriteria rows and dossier detail pages lets a PA officer subscribe to a saved search or an entire dossier — a dossier watch is an empty-query pa_saved_searches row that matches every confirmed signal for that dossier (tkconv's 'watch this entity' pattern). Orthogonal to the existing Team/Persoonlijk scope toggle: watching never changes what the curation cron fetches, only who gets notified.",
+            'New Meldingen slide-over (styled to match the existing Changelog panel — same overlay, header, ESC/click-outside-to-close) plus a live badge in the top bar. Backed by a new pa_notifications table with a UNIQUE(user_id, signal_id) dedup key and a cross-watch matcher (notifications.service.ts) that collapses a signal caught by two overlapping watches into one delivered item. Recomputed synchronously — before the response is sent — on every signal confirm and every dossier-link action, so a match appears immediately rather than waiting for the next 6-hourly curation cycle.',
+            "New personal RSS feed (GET /v1/pa/signals.rss?token=..., surfaced in Beheer → Signaalbronnen) — the same query behind GET /v1/pa/signals rendered as RSS 2.0 XML instead of JSON ('one query, two renderers'), authenticated via a per-user token since RSS readers can't send a Keycloak bearer token. Documented end-to-end in docs/WATCHBELL.md: the three-level watch model, the matching algorithm, every trigger point, and the exact log lines to check when Meldingen doesn't update as expected.",
+          ],
+        },
+        {
+          icon: '🔧',
+          iconColor: '#b45309',
+          title:
+            'Fix: Meldingen — five live-verified bugs found by testing against the real curation pipeline',
+          items: [
+            "The dossier-watch INSERT wrote an incomplete query JSON ({ q: '' } instead of { q: '', types: [], source: [] }), leaving SavedSearch.query.source undefined for that row — ZoekcriteriaSection's relevance preview calls sources.includes(...) unconditionally on every row, so the whole Zoekcriteria page went blank the moment a dossier watch existed. Fixed on both ends: the backend always writes the full shape now, and the frontend defaults defensively (source ?? [], q ?? '') so a legacy or malformed row degrades instead of crashing.",
+            "Two components — Issuekaart.tsx's dossier-page Monitoring tab and Monitoring.tsx's 'Koppel aan dossier' action — called confirmSignal/linkSignalDossier straight from pa.api.ts instead of through PaDataProvider's context wrapper, so the shared notifications resource never refetched after either action. The backend was creating the notification correctly and immediately every time; the badge just never found out until an unrelated action's refetch happened to pick up the backlog, or a full page reload. Both now go through usePaData().",
+            'PATCH /v1/pa/signals/:id (link a watchlist signal to a dossier) never triggered a notification recompute at all — only confirm did. A signal confirmed without a dossier correctly cannot match a dossier watch yet, but linking it afterward is exactly the event that could newly satisfy one. Both paths now call computeNotifications() synchronously with a reason tag (confirm / link-dossier / cycle), and every call logs its full match/insert lifecycle — makes a "Meldingen didn\'t update" report directly diagnosable from the backend terminal alone.',
+            "The Meldingen card showed the internal cross-watch match label (a raw dossier:<id> sentinel) instead of the signal's actual source, and had no link to the source document at all. GET /v1/pa/notifications now resolves the sentinel to the dossier's real name and passes through the same src line and {nr} ↗ deep link shown on the signal card itself.",
+            "Meldingen's own dropdown was a small anchor under the bell that toggled open/closed unpredictably and visually collided with the floating assistant button (both z-index: 50, tie broken by DOM order — the assistant button rendered on top). Replaced with a full slide-over panel matching the Changelog panel's design exactly, bumped above the assistant button's z-index, and fixed a text-wrap bug that let long signal titles push a horizontal scrollbar instead of wrapping.",
+          ],
+        },
+      ],
+    },
+    {
       version: '3.9.0',
       status: 'Released',
       statusColor: '#2d7a33',

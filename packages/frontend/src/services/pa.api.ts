@@ -746,6 +746,7 @@ export interface SavedSearch {
   query: { q: string; types: string[]; source: string[] };
   tags: string[];
   scope: 'tenant' | 'user';
+  notify: boolean;
 }
 
 const MOCK_SEARCHES: SavedSearch[] = [
@@ -755,6 +756,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
     query: { q: 'stikstof OR gebiedsproces OR reductiekader', types: [], source: ['tk', 'ob'] },
     tags: ['stikstof', 'landbouw', 'natuur'],
     scope: 'tenant',
+    notify: false,
   },
   {
     id: 'seed-lelystad',
@@ -766,6 +768,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
     },
     tags: ['luchtvaart', 'lelystad'],
     scope: 'tenant',
+    notify: false,
   },
   {
     id: 'seed-energie',
@@ -773,6 +776,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
     query: { q: 'netcongestie OR netcapaciteit OR "energy hub"', types: [], source: ['tk', 'ob'] },
     tags: ['energie', 'netcongestie'],
     scope: 'tenant',
+    notify: false,
   },
   {
     id: 'seed-jeugdzorg',
@@ -780,6 +784,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
     query: { q: 'jeugdzorg OR hervormingsagenda jeugd', types: [], source: ['tk', 'ob'] },
     tags: ['jeugdzorg', 'zorg'],
     scope: 'tenant',
+    notify: false,
   },
 ];
 
@@ -792,6 +797,7 @@ export async function fetchSearches(): Promise<SavedSearch[]> {
       query: SavedSearch['query'];
       tags: string[];
       scope: 'tenant' | 'user';
+      notify: boolean;
     }[]
   >('/pa/searches');
   return rows.map((r) => ({
@@ -800,6 +806,7 @@ export async function fetchSearches(): Promise<SavedSearch[]> {
     query: r.query,
     tags: r.tags,
     scope: r.scope,
+    notify: r.notify,
   }));
 }
 
@@ -948,6 +955,66 @@ export async function deleteSavedSearch(id: string): Promise<void> {
 export async function promoteSearchToTenant(id: string): Promise<void> {
   if (SIGNALS_MOCK) return;
   await paPatch(`/pa/searches/${id}`, { scope: 'tenant' });
+}
+
+// ── Watch / notify — WatchBell targets ────────────────────────────────
+
+/** Toggle notify on a saved search — drives the WatchBell in ZoekcriteriaSection. */
+export async function toggleSearchNotify(id: string, notify: boolean): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paPatch(`/pa/searches/${id}`, { notify });
+}
+
+/** "Watch this dossier" bell in the dossier detail header — creates/re-enables a
+ *  personal watch-everything-for-this-dossier saved search (empty query). */
+export async function watchDossier(dossierId: string): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paPost(`/pa/dossiers/${dossierId}/watch`, {});
+}
+
+export async function unwatchDossier(dossierId: string): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paDelete(`/pa/dossiers/${dossierId}/watch`);
+}
+
+export interface PaNotification {
+  id: string;
+  signalId: string;
+  title: string;
+  tab: string;
+  dossierId: string | null;
+  /** Human-readable source line, e.g. "Officiële Bekendmakingen · Provinciaal blad · 3 dgn". */
+  src: string;
+  /** Deep link to the source document, same as the signal card's "{nr} ↗" link. */
+  ref: { type: string; nr: string; url: string } | null;
+  matchedSearches: { id: string; dossierId: string | null; label: string }[];
+  createdAt: string;
+  seenAt: string | null;
+}
+
+/** Delivery inbox for watched saved searches — bell icon in the top bar. */
+export async function fetchNotifications(
+  unseenOnly = false
+): Promise<{ items: PaNotification[]; unseenCount: number }> {
+  if (SIGNALS_MOCK) return { items: [], unseenCount: 0 };
+  const res = await paGetRaw<{
+    success: boolean;
+    data: PaNotification[];
+    meta: { unseenCount: number };
+  }>(`/pa/notifications${unseenOnly ? '?unseen=true' : ''}`);
+  return { items: res.data, unseenCount: res.meta.unseenCount };
+}
+
+/** Marks notifications seen. Omitted ids = every unseen notification for the caller. */
+export async function ackNotifications(ids?: string[]): Promise<void> {
+  if (SIGNALS_MOCK) return;
+  await paPost('/pa/notifications/ack', ids?.length ? { ids } : {});
+}
+
+/** Find-or-create the caller's personal RSS feed URL. */
+export async function fetchFeedToken(): Promise<{ token: string; url: string }> {
+  if (SIGNALS_MOCK) return { token: 'mock', url: '' };
+  return paGet<{ token: string; url: string }>('/pa/feed-token');
 }
 
 export async function fetchDossiers(): Promise<Dossier[]> {

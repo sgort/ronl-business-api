@@ -162,6 +162,73 @@ router.get('/dossiers/:id', async (req, res) => {
   }
 });
 
+// ── POST /v1/pa/dossiers/:id/watch ──────────────────────────────────
+// Idempotent: creates (or re-enables) a personal watch-everything-for-this-
+// dossier pa_saved_searches row — dossier_id set, empty query. In
+// notifications.service's matcher, an empty-query dossier watch matches every
+// confirmed signal for that dossier (tkconv's "watch this entity" mode), as
+// opposed to a topic search that happens to be scoped to the same dossier.
+router.post('/dossiers/:id/watch', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  const dossierId = req.params.id;
+
+  try {
+    const existing = await db.oneOrNone<{ id: string }>(
+      `SELECT id FROM pa_saved_searches
+       WHERE tenant_id = $1 AND user_id = $2 AND dossier_id = $3 AND scope = 'user' AND query->>'q' = ''`,
+      [req.user.tenantId, req.user.userId, dossierId]
+    );
+    if (existing) {
+      await db.none(
+        `UPDATE pa_saved_searches SET notify = true, updated_at = NOW() WHERE id = $1`,
+        [existing.id]
+      );
+      return res.json({ success: true, data: { id: existing.id } });
+    }
+    const id = `watch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    await db.none(
+      `INSERT INTO pa_saved_searches (id, tenant_id, user_id, scope, dossier_id, query, tags, notify)
+       VALUES ($1, $2, $3, 'user', $4, $5, $6, true)`,
+      [
+        id,
+        req.user.tenantId,
+        req.user.userId,
+        dossierId,
+        JSON.stringify({ q: '', types: [], source: [] }),
+        [],
+      ]
+    );
+    res.status(201).json({ success: true, data: { id } });
+  } catch (err) {
+    logger.error('Dossier watch create error', {
+      dossierId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DOSSIER_WATCH_ERROR' } });
+  }
+});
+
+// ── DELETE /v1/pa/dossiers/:id/watch ────────────────────────────────
+router.delete('/dossiers/:id/watch', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  const dossierId = req.params.id;
+
+  try {
+    await db.none(
+      `DELETE FROM pa_saved_searches
+       WHERE tenant_id = $1 AND user_id = $2 AND dossier_id = $3 AND scope = 'user' AND query->>'q' = ''`,
+      [req.user.tenantId, req.user.userId, dossierId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Dossier watch delete error', {
+      dossierId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DOSSIER_WATCH_DELETE_ERROR' } });
+  }
+});
+
 interface DossierWriteBody {
   naam?: string;
   onderwerp?: string;

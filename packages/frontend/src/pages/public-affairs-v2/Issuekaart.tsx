@@ -17,16 +17,19 @@ import {
 } from './pa.data';
 import Kompas, { Trend, type KompasViz } from './Kompas';
 import { DossierFeitenStrip } from './FeitenCijfers';
+import { usePaData } from './PaDataProvider';
 import type { PaModeId } from './modes.config';
 import {
   fetchSignals,
   fetchInbox,
   fetchSearches,
-  confirmSignal,
   signalTag,
   signalTagLabel,
+  watchDossier,
+  unwatchDossier,
   type SavedSearch,
 } from '../../services/pa.api';
+import WatchBell from '../../components/PADashboardV2/WatchBell';
 import type { Signal } from '@ronl/shared';
 
 const ISSUE_SUBTABS = [
@@ -48,17 +51,48 @@ interface Props {
 
 export default function Issuekaart({ dossier, kompasViz = 'radar', onNavigate }: Props) {
   const [sub, setSub] = useState<SubTab>('overzicht');
+  const [watched, setWatched] = useState(false);
   useEffect(() => {
     setSub('overzicht');
   }, [dossier.id]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSearches().then((searches) => {
+      if (cancelled) return;
+      setWatched(searches.some((s) => s.dossierId === dossier.id && s.query.q === '' && s.notify));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dossier.id]);
   const d = dossier;
+
+  const toggleWatch = async () => {
+    if (watched) {
+      await unwatchDossier(d.id);
+    } else {
+      await watchDossier(d.id);
+    }
+    setWatched((w) => !w);
+  };
 
   return (
     <div>
       <div className="pac-crumb">Dossiers · {d.naam}</div>
       <div className="pac-page-head" style={{ marginBottom: 14 }}>
         <div>
-          <h1 className="pac-page-title">{d.naam}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h1 className="pac-page-title">{d.naam}</h1>
+            <WatchBell
+              active={watched}
+              onToggle={() => void toggleWatch()}
+              title={
+                watched
+                  ? 'Dossier niet meer volgen'
+                  : 'Dossier volgen — melding bij nieuwe signalen'
+              }
+            />
+          </div>
           <p className="pac-page-sub">{d.onderwerp}</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
@@ -422,6 +456,10 @@ function OverlegBox({ d }: { d: Dossier }) {
 }
 
 function DossierMonitoring({ d }: { d: Dossier }) {
+  // Context method, not the raw pa.api.ts call — it also refetches the shared
+  // signals/inbox/notifications resources, so a confirm made here (rather than
+  // on Monitoring.tsx) still updates the Meldingen badge without a page reload.
+  const { confirmSignal } = usePaData();
   const [gecureerd, setGecureerd] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
   const [savedSearch, setSavedSearch] = useState<SavedSearch | null>(null);

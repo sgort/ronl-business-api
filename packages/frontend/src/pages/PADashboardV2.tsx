@@ -54,6 +54,7 @@ import PADock from '../components/PADashboardV2/PADock';
 import PANoAccessPanel from '../components/PADashboardV2/PANoAccessPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
 import ChangelogPanel from './ChangelogPanel';
+import NotificationsPanel from './public-affairs-v2/NotificationsPanel';
 
 import './public-affairs-v2/dashboard-pa.css';
 
@@ -66,6 +67,25 @@ function SignalCountBadge({ tabId }: { tabId: string }) {
       {count}
       {inboxCount > 0 && <span className="pac-rail-inbox">{inboxCount}</span>}
     </span>
+  );
+}
+
+/** Trigger only — same shape as the changelog button (opens the slide-over, never toggles). */
+function NotificationBellButton({ onOpen }: { onOpen: () => void }) {
+  const { notifications } = usePaData();
+  const { unseenCount } = notifications.data;
+
+  return (
+    <button
+      type="button"
+      className="v2-changelog-btn"
+      onClick={onOpen}
+      aria-label="Open meldingen"
+      title="Meldingen — nieuwe signalen op uw gevolgde zoekcriteria en dossiers"
+    >
+      <span aria-hidden="true">🔔</span>
+      {unseenCount > 0 && <span className="pac-rail-inbox">{unseenCount}</span>}
+    </button>
   );
 }
 
@@ -215,6 +235,7 @@ export default function PADashboardV2() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem(STORAGE_KEY_DOCK) === '1';
@@ -423,77 +444,87 @@ export default function PADashboardV2() {
 
   return (
     <div className="pac">
-      <SessionExpiryWarning />
-      <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
-
-      {/* ── Top bar ── */}
-      <header className="pac-topbar">
-        <div className="pac-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-          <span className="pac-logo-box">
-            <span className="pac-logo-mark">
-              ronl<em>.</em>
-            </span>
-            <span className="pac-logo-sub">PA-COCKPIT</span>
-          </span>
-        </div>
-
-        <button
-          type="button"
-          className="pac-search"
-          onClick={() => setPaletteOpen(true)}
-          aria-label="Snel navigeren"
-        >
-          <span>🔍</span>
-          <span style={{ flex: 1, textAlign: 'left' }}>Spring naar een dossier of sectie…</span>
-          <span className="pac-key">⌘K</span>
-        </button>
-
-        <div className="pac-user">
-          {isAuth ? (
-            <>
-              {user?.loa && <span className="pac-loa">LOA {user.loa}</span>}
-              <span className="pac-username">
-                {user?.name ?? user?.preferred_username ?? 'Medewerker'}
-              </span>
-              <button type="button" className="pac-avatar" onClick={handleLogout} title="Uitloggen">
-                {initials}
-              </button>
-              <button
-                type="button"
-                className="v2-changelog-btn"
-                onClick={() => setChangelogOpen(true)}
-                aria-label="Open changelog"
-                title="Changelog"
-              >
-                <span aria-hidden="true">📋</span>
-              </button>
-            </>
-          ) : (
-            <button type="button" className="pac-btn pac-btn-sm" onClick={handleLogin}>
-              Inloggen
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* ── Mode tabs ── */}
-      <nav className="pac-tabs" aria-label="Werkmodus">
-        {PA_MODES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            className={`pac-tab ${m.id === mode ? 'active' : ''}`}
-            onClick={() => switchMode(m.id)}
-          >
-            {m.label}
-          </button>
-        ))}
-        <div className="pac-tabs-spacer" />
-        {tenantConfig && <span className="pac-tenant-label">{tenantConfig.displayName}</span>}
-      </nav>
-
-      {/* ── Body ── */}
       <PaDataProvider>
+        <SessionExpiryWarning />
+        <ChangelogPanel isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
+        <NotificationsPanel
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+        />
+
+        {/* ── Top bar ── */}
+        <header className="pac-topbar">
+          <div className="pac-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <span className="pac-logo-box">
+              <span className="pac-logo-mark">
+                ronl<em>.</em>
+              </span>
+              <span className="pac-logo-sub">PA-COCKPIT</span>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="pac-search"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Snel navigeren"
+          >
+            <span>🔍</span>
+            <span style={{ flex: 1, textAlign: 'left' }}>Spring naar een dossier of sectie…</span>
+            <span className="pac-key">⌘K</span>
+          </button>
+
+          <div className="pac-user">
+            {isAuth ? (
+              <>
+                {user?.loa && <span className="pac-loa">LOA {user.loa}</span>}
+                <span className="pac-username">
+                  {user?.name ?? user?.preferred_username ?? 'Medewerker'}
+                </span>
+                <button
+                  type="button"
+                  className="pac-avatar"
+                  onClick={handleLogout}
+                  title="Uitloggen"
+                >
+                  {initials}
+                </button>
+                <NotificationBellButton onOpen={() => setNotificationsOpen(true)} />
+                <button
+                  type="button"
+                  className="v2-changelog-btn"
+                  onClick={() => setChangelogOpen(true)}
+                  aria-label="Open changelog"
+                  title="Changelog"
+                >
+                  <span aria-hidden="true">📋</span>
+                </button>
+              </>
+            ) : (
+              <button type="button" className="pac-btn pac-btn-sm" onClick={handleLogin}>
+                Inloggen
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* ── Mode tabs ── */}
+        <nav className="pac-tabs" aria-label="Werkmodus">
+          {PA_MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={`pac-tab ${m.id === mode ? 'active' : ''}`}
+              onClick={() => switchMode(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
+          <div className="pac-tabs-spacer" />
+          {tenantConfig && <span className="pac-tenant-label">{tenantConfig.displayName}</span>}
+        </nav>
+
+        {/* ── Body ── */}
         <DossierSelectionSyncer
           dossierId={dossierId}
           activeSection={activeSection}
