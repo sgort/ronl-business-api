@@ -19,7 +19,6 @@ import {
   createSearch,
   updateSearch,
   deleteSavedSearch,
-  toggleSearchNotify,
 } from '../../services/pa.api';
 import WatchBell from './WatchBell';
 
@@ -839,7 +838,7 @@ function ZcCard({
 // ── Main section ──────────────────────────────────────────────────────────────
 
 export default function ZoekcriteriaSection() {
-  const { dossiers } = usePaData();
+  const { dossiers, toggleSearchNotify } = usePaData();
   const dossiersData = dossiers.data;
 
   const [items, setItems] = useState<ZcDraft[]>([]);

@@ -25,8 +25,6 @@ import {
   fetchSearches,
   signalTag,
   signalTagLabel,
-  watchDossier,
-  unwatchDossier,
   type SavedSearch,
 } from '../../services/pa.api';
 import WatchBell from '../../components/PADashboardV2/WatchBell';
@@ -50,6 +48,7 @@ interface Props {
 }
 
 export default function Issuekaart({ dossier, kompasViz = 'radar', onNavigate }: Props) {
+  const { watchDossier, unwatchDossier } = usePaData();
   const [sub, setSub] = useState<SubTab>('overzicht');
   const [watched, setWatched] = useState(false);
   useEffect(() => {

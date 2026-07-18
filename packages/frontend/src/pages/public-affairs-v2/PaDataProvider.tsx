@@ -2,6 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import {
   confirmSignal as apiConfirmSignal,
   linkSignalDossier as apiLinkSignalDossier,
+  watchDossier as apiWatchDossier,
+  unwatchDossier as apiUnwatchDossier,
+  toggleSearchNotify as apiToggleSearchNotify,
   fetchAgenda,
   fetchDossiers,
   fetchInbox,
@@ -43,6 +46,11 @@ interface PaDataContextValue {
   ) => Promise<Signal>;
   /** Links a watchlist signal to a dossier — can newly match a dossier watch. */
   linkSignalDossier: (id: string, dossierId: string) => Promise<Signal>;
+  /** "Watch this dossier" bell — creates/re-enables a personal dossier watch. */
+  watchDossier: (dossierId: string) => Promise<void>;
+  unwatchDossier: (dossierId: string) => Promise<void>;
+  /** Toggle notify on a saved search — drives the WatchBell in ZoekcriteriaSection. */
+  toggleSearchNotify: (id: string, notify: boolean) => Promise<void>;
   /** Marks watched-signal notifications seen — omitted ids acks every unseen item. */
   ackNotifications: (ids?: string[]) => Promise<void>;
 }
@@ -139,6 +147,43 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     [signalsResource.refetch, notificationsResource.refetch]
   );
 
+  const watchDossier = useCallback(
+    async (dossierId: string): Promise<void> => {
+      await apiWatchDossier(dossierId);
+      // Backend recomputes notifications synchronously on watch-toggle (see
+      // pa-dossiers.routes.ts POST /dossiers/:id/watch) — refetch so an
+      // already-confirmed backlog for this dossier shows up in Meldingen
+      // immediately, not on the next unrelated confirm/link/page reload.
+      notificationsResource.refetch();
+    },
+    // refetch is stable (created with useCallback(fn, []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notificationsResource.refetch]
+  );
+
+  const unwatchDossier = useCallback(
+    async (dossierId: string): Promise<void> => {
+      await apiUnwatchDossier(dossierId);
+      notificationsResource.refetch();
+    },
+    // refetch is stable (created with useCallback(fn, []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notificationsResource.refetch]
+  );
+
+  const toggleSearchNotify = useCallback(
+    async (id: string, notify: boolean): Promise<void> => {
+      await apiToggleSearchNotify(id, notify);
+      // Backend recomputes notifications synchronously when notify flips to
+      // true (see pa.routes.ts PATCH /searches/:id) — refetch so an
+      // already-confirmed backlog for this watch shows up immediately.
+      notificationsResource.refetch();
+    },
+    // refetch is stable (created with useCallback(fn, []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notificationsResource.refetch]
+  );
+
   const ackNotificationsAndRefetch = useCallback(
     async (ids?: string[]) => {
       await ackNotifications(ids);
@@ -161,6 +206,9 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
         updateInboxCount,
         confirmSignal,
         linkSignalDossier,
+        watchDossier,
+        unwatchDossier,
+        toggleSearchNotify,
         ackNotifications: ackNotificationsAndRefetch,
       }}
     >
