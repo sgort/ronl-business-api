@@ -547,6 +547,19 @@ router.patch('/searches/:id', async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
+
+    // Turning a watch on is the moment any already-confirmed backlog becomes
+    // "watched" — recompute now so it surfaces here, not silently deferred
+    // until some unrelated later trigger dumps it all at once.
+    if (notify === true) {
+      await computeNotifications(req.user.tenantId, 'watch-toggle').catch((err: unknown) => {
+        logger.error('Notification compute failed after watch toggle', {
+          id: req.params.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Search update error', {

@@ -110,14 +110,15 @@ on every call — deliberately simple, no incremental diffing:
 ### Trigger points
 
 `computeNotifications` is called synchronously, `await`-ed **before** the
-HTTP response is sent, from three places — every event that can newly satisfy
+HTTP response is sent, from four places — every event that can newly satisfy
 a watch:
 
-| `reason`                      | Where                                                                    | Why it's needed                                                                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `confirm`                     | `POST /v1/pa/signals/:id/confirm`                                        | A signal just became `confirmed` — the only status the matcher considers.                                                        |
-| `link-dossier`                | `PATCH /v1/pa/signals/:id`                                               | A watchlist signal (confirmed with no dossier) just got `dossier_id` set — a dossier watch couldn't have matched it before this. |
-| `cycle` / `cycle-no-searches` | `runCurationCycle()` (6-hourly cron, or manual **Curatie nu uitvoeren**) | Catch-all — also covers watches toggled on _after_ a signal was already confirmed.                                               |
+| `reason`                      | Where                                                                                         | Why it's needed                                                                                                                                                                                   |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `confirm`                     | `POST /v1/pa/signals/:id/confirm`                                                             | A signal just became `confirmed` — the only status the matcher considers.                                                                                                                         |
+| `link-dossier`                | `PATCH /v1/pa/signals/:id`                                                                    | A watchlist signal (confirmed with no dossier) just got `dossier_id` set — a dossier watch couldn't have matched it before this.                                                                  |
+| `watch-toggle`                | `PATCH /v1/pa/searches/:id` (when `notify` flips to `true`), `POST /v1/pa/dossiers/:id/watch` | A watch just turned on — any already-confirmed signal it now covers must surface immediately, not sit undelivered until some unrelated later trigger dumps the whole backlog at once (see below). |
+| `cycle` / `cycle-no-searches` | `runCurationCycle()` (6-hourly cron, or manual **Curatie nu uitvoeren**)                      | Catch-all — new signals confirmed by the cycle itself.                                                                                                                                            |
 
 If you add a new place that changes a signal's `status` or `dossier_id`, it
 needs its own `computeNotifications(tenantId, 'reason')` call — the matcher
@@ -245,7 +246,14 @@ backend already did its job.
   ops-dependent decision.
 - **Full rescan on every trigger** — fine at current scale (dozens of watches
   × hundreds of confirmed signals), would need indexing/incremental diffing
-  well before it became a real cost.
+  well before it became a real cost. Note this used to produce a confusing
+  symptom: turning a watch on didn't itself recompute anything, so an
+  already-confirmed backlog for that watch sat silently undelivered until
+  some unrelated later trigger (e.g. confirming a totally different signal)
+  did the next rescan and dumped the whole backlog at once, misattributed to
+  that unrelated action. Fixed by adding `watch-toggle` as its own trigger
+  point (see [Trigger points](#trigger-points)) — the backlog now surfaces
+  the moment the watch turns on.
 
 ### Gotcha #1: the `query` JSON shape must be complete
 

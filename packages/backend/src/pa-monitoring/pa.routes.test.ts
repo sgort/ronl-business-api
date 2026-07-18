@@ -761,6 +761,35 @@ describe('PA routes — curator, searches CRUD & status', () => {
         .send({ notify: false });
       expect(res.status).toBe(200);
     });
+
+    it('notify: true recomputes notifications immediately, so a backlog already matching this watch surfaces on activation rather than an unrelated later trigger', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          { id: 'srch-1', user_id: 'u1', dossier_id: null, query: { q: 'stikstof' } },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'sig-old', dossier_id: null, title: 'Ouder stikstof signaal', duiding: null },
+        ]);
+
+      const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
+      expect(res.status).toBe(200);
+      expect(mockDb.result).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO pa_notifications'),
+        expect.arrayContaining(['flevoland', 'u1', 'sig-old'])
+      );
+    });
+
+    it('notify: false does not trigger a notifications recompute (nothing new could match by turning a watch off)', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ notify: false });
+      expect(res.status).toBe(200);
+      expect(mockDb.any).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /v1/pa/sources/status', () => {

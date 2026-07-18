@@ -341,6 +341,32 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
     expect(sql).toMatch(/query->>'q' = ''/);
     expect(params).toEqual(['flevoland', 'test-user', 'stikstof']);
   });
+
+  it('recomputes notifications immediately, so an already-confirmed backlog for this dossier surfaces on activation rather than waiting for an unrelated later trigger', async () => {
+    mockDb.oneOrNone.mockResolvedValueOnce(null); // no existing watch-everything row
+    mockDb.none.mockResolvedValue(undefined);
+    // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+    mockDb.any
+      .mockResolvedValueOnce([
+        { id: 'w1', user_id: 'test-user', dossier_id: 'stikstof', query: { q: '' } },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'sig-old',
+          dossier_id: 'stikstof',
+          title: 'Ouder, al bevestigd signaal',
+          duiding: null,
+        },
+      ]);
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
+    expect(res.status).toBe(201);
+    expect(mockDb.result).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO pa_notifications'),
+      expect.arrayContaining(['flevoland', 'test-user', 'sig-old'])
+    );
+  });
 });
 
 describe('DELETE /v1/pa/dossiers/:id/watch', () => {

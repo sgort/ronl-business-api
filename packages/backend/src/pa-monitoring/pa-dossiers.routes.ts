@@ -16,6 +16,7 @@ import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
+import { computeNotifications } from './notifications.service';
 import {
   buildBodyFromAuthoring,
   rowToDossier,
@@ -178,27 +179,41 @@ router.post('/dossiers/:id/watch', async (req, res) => {
        WHERE tenant_id = $1 AND user_id = $2 AND dossier_id = $3 AND scope = 'user' AND query->>'q' = ''`,
       [req.user.tenantId, req.user.userId, dossierId]
     );
+    let id: string;
     if (existing) {
+      id = existing.id;
       await db.none(
         `UPDATE pa_saved_searches SET notify = true, updated_at = NOW() WHERE id = $1`,
-        [existing.id]
+        [id]
       );
-      return res.json({ success: true, data: { id: existing.id } });
+    } else {
+      id = `watch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      await db.none(
+        `INSERT INTO pa_saved_searches (id, tenant_id, user_id, scope, dossier_id, query, tags, notify)
+         VALUES ($1, $2, $3, 'user', $4, $5, $6, true)`,
+        [
+          id,
+          req.user.tenantId,
+          req.user.userId,
+          dossierId,
+          JSON.stringify({ q: '', types: [], source: [] }),
+          [],
+        ]
+      );
     }
-    const id = `watch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    await db.none(
-      `INSERT INTO pa_saved_searches (id, tenant_id, user_id, scope, dossier_id, query, tags, notify)
-       VALUES ($1, $2, $3, 'user', $4, $5, $6, true)`,
-      [
-        id,
-        req.user.tenantId,
-        req.user.userId,
+
+    // Watching a dossier is the moment any already-confirmed backlog for it
+    // becomes "watched" — recompute now so it surfaces immediately, not
+    // silently deferred until some unrelated later trigger dumps it all at
+    // once (see docs/WATCHBELL.md known limitations).
+    await computeNotifications(req.user.tenantId, 'watch-toggle').catch((err: unknown) => {
+      logger.error('Notification compute failed after dossier watch toggle', {
         dossierId,
-        JSON.stringify({ q: '', types: [], source: [] }),
-        [],
-      ]
-    );
-    res.status(201).json({ success: true, data: { id } });
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
+    res.status(existing ? 200 : 201).json({ success: true, data: { id } });
   } catch (err) {
     logger.error('Dossier watch create error', {
       dossierId,
