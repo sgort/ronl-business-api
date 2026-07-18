@@ -144,6 +144,11 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
     };
   };
 
+  // gepubliceerd is only sent when actually publishing (publish=true) — an
+  // edit-only save must never resend the current value, since the backend
+  // treats gepubliceerd:true in the body as a publish attempt regardless of
+  // whether it's a no-op, and 403s a pa-author saving edits to a dossier
+  // that's already published (see PATCH /pa/dossiers/:id, FORBIDDEN_PUBLISH).
   const toWriteInput = (d: AdminDossier, publish: boolean): DossierWriteInput => ({
     naam: d.naam,
     onderwerp: d.onderwerp,
@@ -153,7 +158,7 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
     kompas: d.kompas,
     md: d.md,
     sjabloon: d.sjabloon,
-    gepubliceerd: publish ? true : d.gepubliceerd,
+    ...(publish ? { gepubliceerd: true } : {}),
   });
 
   const handleSave = async (draft: AdminDossier, publish: boolean) => {
