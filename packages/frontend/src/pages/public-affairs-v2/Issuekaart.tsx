@@ -7,6 +7,9 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 import {
   getTemplates,
   kompasTotal,
@@ -40,6 +43,21 @@ const ISSUE_SUBTABS = [
 ] as const;
 
 type SubTab = (typeof ISSUE_SUBTABS)[number]['id'];
+
+// Dossierbeheer's authoring fields (waaromNu, waarover, onsVerhaal) are
+// stored and edited as Markdown (see MdEditor) but were copied verbatim into
+// these read-only fields — render them the same way MdEditor's own preview
+// does, so headings/bold/bullets/quotes show up formatted instead of as
+// literal Markdown syntax.
+function MdText({ text, className }: { text: string; className?: string }) {
+  return (
+    <div className={className}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 interface Props {
   dossier: Dossier;
@@ -160,9 +178,9 @@ function IssueOverzicht({
     <div>
       <div className="pac-context">
         <div className="pac-context-q">Waar gaat het over?</div>
-        <div className="pac-context-body">{d.waarover}</div>
+        <MdText className="pac-context-body pac-md" text={d.waarover} />
         <div className="pac-context-q">Waarom nu?</div>
-        <div className="pac-context-body">{d.waaromNu}</div>
+        <MdText className="pac-context-body pac-md" text={d.waaromNu} />
       </div>
 
       <div className="pac-actions-bar" style={{ marginTop: 16 }}>
@@ -280,7 +298,7 @@ function Narratief({ d }: { d: Dossier }) {
       </p>
       <div className="pac-onsverhaal">
         <div className="lbl">Ons verhaal — één lijn</div>
-        <p>{d.narratief.onsVerhaal}</p>
+        <MdText text={d.narratief.onsVerhaal} />
       </div>
       {hasFrames ? (
         <div className="pac-frames">
