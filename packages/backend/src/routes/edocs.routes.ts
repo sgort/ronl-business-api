@@ -19,6 +19,7 @@ router.get('/status', async (_req: Request, res: Response) => {
     data: {
       status: health.status,
       library: process.env.EDOCS_LIBRARY ?? 'DOCUVITT',
+      baseUrl: process.env.EDOCS_BASE_URL ?? '',
       stubMode: health.status === 'stub',
       reachable: health.reachable,
       authenticated: health.authenticated,

@@ -19,6 +19,7 @@ import edocsRoutes from './routes/edocs.routes';
 import doccleRoutes from './routes/doccle.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
+import { EdocsMcpProvider } from '@services/mcp/EdocsMcpProvider';
 import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
 import { TriplyDbMcpProvider } from '@services/mcp/TriplyDbMcpProvider';
 import { CprmvMcpProvider } from '@services/mcp/CprmvMcpProvider';
@@ -254,6 +255,9 @@ const startServer = async () => {
   llmRegistry.register(new OpenAILlmProvider());
 
   if (config.mcp.enabled) {
+    if (config.edocsMcp.enabled) {
+      mcpRegistry.register(new EdocsMcpProvider());
+    }
     mcpRegistry.register(new OperatonMcpProvider());
     if (config.triplydb.enabled) {
       mcpRegistry.register(new TriplyDbMcpProvider());

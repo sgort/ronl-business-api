@@ -87,6 +87,11 @@ interface Config {
     password: string;
     stubMode: boolean;
   };
+  edocsMcp: {
+    enabled: boolean;
+    clientId: string;
+    clientSecret: string;
+  };
   doccle: {
     apiBaseUrl: string;
     username: string;
@@ -230,6 +235,12 @@ export const config: Config = {
     userId: process.env.EDOCS_USER_ID ?? '',
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
+  },
+
+  edocsMcp: {
+    enabled: parseEnvBool(process.env.EDOCS_MCP_ENABLED, false),
+    clientId: process.env.EDOCS_MCP_CLIENT_ID ?? 'edocs-mcp-client',
+    clientSecret: process.env.EDOCS_MCP_CLIENT_SECRET ?? '',
   },
 
   doccle: {

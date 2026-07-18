@@ -193,6 +193,36 @@
       ]
     },
     {
+      "clientId": "edocs-mcp-client",
+      "name": "eDOCS MCP Client",
+      "description": "Machine-to-machine client used by the AI Assistant's eDOCS MCP subprocess to call this backend's own /v1/edocs/* HTTP surface",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "change-me-in-keycloak-console",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "audience-edocs-mcp",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ronl-business-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "operaton-mcp-client",
       "name": "Operaton MCP Client",
       "description": "Machine-to-machine client for MCP-based Operaton interaction via the RONL Business API",

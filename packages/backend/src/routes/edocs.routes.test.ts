@@ -109,6 +109,7 @@ describe('GET /status', () => {
       reachable: true,
       authenticated: true,
       latencyMs: 42,
+      baseUrl: process.env.EDOCS_BASE_URL ?? '',
     });
   });
 
