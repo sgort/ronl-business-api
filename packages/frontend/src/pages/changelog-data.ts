@@ -69,6 +69,19 @@ export const changelog: Changelog = {
             "Meldingen's own dropdown was a small anchor under the bell that toggled open/closed unpredictably and visually collided with the floating assistant button (both z-index: 50, tie broken by DOM order — the assistant button rendered on top). Replaced with a full slide-over panel matching the Changelog panel's design exactly, bumped above the assistant button's z-index, and fixed a text-wrap bug that let long signal titles push a horizontal scrollbar instead of wrapping.",
           ],
         },
+        {
+          icon: '🗂️',
+          iconColor: 'teal',
+          title: 'AI Assistant — eDOCS Document Provider',
+          items: [
+            "EdocsMcpProvider added as a new AI Assistant source (id edocs, displayed first — left of Process Engine) — enabled via EDOCS_MCP_ENABLED=true. Unlike the other MCP sources, its subprocess calls this backend's own /v1/edocs/* HTTP surface rather than the OpenText eDOCS DM server directly, so EdocsService stays the single place that knows eDOCS' auth and API quirks.",
+            'Custom edocs-mcp stdio subprocess in packages/backend/src/mcp-servers/edocs/index.ts authenticates via a client_credentials flow against Keycloak using a new, dedicated edocs-mcp-client — kept separate from the existing copilot-studio-edocs client, which has its own unrelated, unresolved custom-connector OAuth constraints. The subprocess caches its token, refreshes it 30s early, and retries once on a 401.',
+            'Four tools exposed, scoped strictly to the routes scripts/test-edocs-live.sh already proves working against a real DM server: workspace_list, workspace_documents, document_profile, document_versions. No tool was added on the basis of the OpenAPI spec alone — e.g. no document_list, since browsing documents outside a workspace has no live-tested backend route yet.',
+            'config.edocsMcp added to Config: enabled (EDOCS_MCP_ENABLED, default false), clientId (EDOCS_MCP_CLIENT_ID, default edocs-mcp-client), clientSecret (EDOCS_MCP_CLIENT_SECRET). New edocs-mcp-client service-account client added to config/keycloak/ronl-realm.json, same shape as operaton-mcp-client.',
+            'Live-verified end-to-end through the AI Assistant chat UI against the real eDOCS test server (infocenter-test.flevoland.nl) — workspace listing, document profile, and version history all confirmed working with real IOUTEST-owned data.',
+            'GET /v1/edocs/status response now also includes baseUrl alongside the existing library/stubMode/reachable/authenticated fields.',
+          ],
+        },
       ],
     },
     {
