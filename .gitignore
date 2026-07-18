@@ -110,3 +110,8 @@ deploy-backend-to-*.sh
 
 # Local-only vendor API reference (not meant for the repo)
 docs/edocs-rest-api-1.0.0.json
+
+# Claude Code local-only settings (shared commands like .claude/commands/
+# stay tracked)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
