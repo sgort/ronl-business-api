@@ -248,13 +248,69 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('author publishing → 403 FORBIDDEN_PUBLISH', async () => {
+  it('author publishing (false → true) → 403 FORBIDDEN_PUBLISH', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow({ gepubliceerd: false }));
     const res = await request(app)
       .patch('/v1/pa/dossiers/stikstof')
       .set(AUTHOR)
       .send({ gepubliceerd: true });
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('FORBIDDEN_PUBLISH');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
+
+  it('author unpublishing (true → false) → 403 FORBIDDEN_PUBLISH', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow({ gepubliceerd: true }));
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ gepubliceerd: false });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN_PUBLISH');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
+
+  it('author resending the current gepubliceerd value (no-op) → not gated', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow({ versie: 3, gepubliceerd: true }));
+    mockDb.none.mockResolvedValue(undefined);
+    mockDb.one.mockResolvedValue(adminRow({ versie: 4, gepubliceerd: true }));
+    mockDb.any.mockResolvedValue([]);
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ gepubliceerd: true });
+    expect(res.status).toBe(200);
+  });
+
+  it('author archiving via status:gearchiveerd → 403 FORBIDDEN_ARCHIVE', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow({ status: 'actief' }));
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ status: 'gearchiveerd' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN_ARCHIVE');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
+
+  it('editor archiving via status:gearchiveerd → 403 FORBIDDEN_ARCHIVE (archive is admin-only)', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow({ status: 'actief' }));
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(EDITOR)
+      .send({ status: 'gearchiveerd' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN_ARCHIVE');
+  });
+
+  it('unrecognized status value → 400 INVALID_STATUS', async () => {
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ status: 'weggegooid' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_STATUS');
+    expect(mockDb.oneOrNone).not.toHaveBeenCalled();
   });
 
   it('author edit → 200, bumps versie and appends a version', async () => {

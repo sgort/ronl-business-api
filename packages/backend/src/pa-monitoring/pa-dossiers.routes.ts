@@ -340,8 +340,13 @@ router.patch(
     const b = req.body as DossierWriteBody;
     const { id } = req.params;
 
-    if (b.gepubliceerd === true && !caps.publish) {
-      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_PUBLISH' } });
+    if (
+      b.status !== undefined &&
+      b.status !== 'actief' &&
+      b.status !== 'sluimerend' &&
+      b.status !== 'gearchiveerd'
+    ) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_STATUS' } });
     }
 
     try {
@@ -354,6 +359,25 @@ router.patch(
       // action (POST /dossiers/:id/unarchive), not a silent status flip.
       if (existing['status'] === 'gearchiveerd') {
         return res.status(409).json({ success: false, error: { code: 'ARCHIVED_READONLY' } });
+      }
+
+      // Archiving is an Archiefwet action that must capture classificatie/
+      // bewaartermijn/reden — route it through POST /dossiers/:id/archive,
+      // not a plain field write that would silently archive with no metadata
+      // and no role gate beyond the generic author/editor/admin PATCH guard.
+      if (b.status === 'gearchiveerd' && !caps.archive) {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_ARCHIVE' } });
+      }
+
+      // Guard both directions of the publish transition against the *existing*
+      // value — a pa-author must not be able to unpublish any more than they
+      // can publish. Resending the current value (no-op) is not gated.
+      if (
+        b.gepubliceerd !== undefined &&
+        Boolean(b.gepubliceerd) !== Boolean(existing['gepubliceerd']) &&
+        !caps.publish
+      ) {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_PUBLISH' } });
       }
 
       const naam = b.naam !== undefined ? b.naam.trim() : (existing['naam'] as string);
