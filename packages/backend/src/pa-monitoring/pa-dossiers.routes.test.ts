@@ -49,7 +49,13 @@ const mockDb = {
   oneOrNone: jest.fn(),
   none: jest.fn(),
   result: jest.fn(),
+  tx: jest.fn(),
 };
+// The transaction context exposes the same query methods as db itself —
+// reuse mockDb so existing mockDb.result/none setups work unchanged inside
+// a db.tx(...) callback. Assigned after the literal (not inline) so TS can
+// type mockDb itself without a self-referential initializer.
+mockDb.tx.mockImplementation((cb: (t: typeof mockDb) => unknown) => cb(mockDb));
 jest.mock('@services/audit.service', () => ({ db: mockDb }));
 
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -601,15 +607,24 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     expect(res.status).toBe(404);
   });
 
-  it('admin → 200, deletes row and its versions', async () => {
+  it('admin → 200, deletes row and its versions inside a transaction', async () => {
     mockDb.result.mockResolvedValue({ rowCount: 1 });
     mockDb.none.mockResolvedValue(undefined);
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(200);
+    expect(mockDb.tx).toHaveBeenCalled();
     const versionDelete = mockDb.none.mock.calls.find((c) =>
       /DELETE FROM pa_dossier_versions/.test(c[0] as string)
     );
     expect(versionDelete?.[1]).toEqual(['stikstof']);
+  });
+
+  it('versions delete failing mid-transaction → 500 (not a partial delete leaving orphaned versions)', async () => {
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    mockDb.none.mockRejectedValue(new Error('versions delete failed'));
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
   });
 });
 

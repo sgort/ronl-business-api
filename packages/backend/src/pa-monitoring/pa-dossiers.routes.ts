@@ -571,19 +571,28 @@ router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res
 });
 
 // ── DELETE /v1/pa/dossiers/:id ──────────────────────────────────────
-// Hard delete incl. all versions (requires pa-admin).
+// Hard delete incl. all versions (requires pa-admin). Runs in a transaction —
+// pa_dossier_versions has no FK/cascade back to pa_dossiers (dossier_id is a
+// plain TEXT column), so a failure between the two DELETEs could otherwise
+// leave orphaned version rows that a later same-slug recreate would silently
+// inherit via appendVersion's ON CONFLICT DO NOTHING.
 router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
   const { id } = req.params;
+  const tenantId = req.user.tenantId;
   try {
-    const result = await db.result(`DELETE FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`, [
-      id,
-      req.user.tenantId,
-    ]);
-    if (result.rowCount === 0) {
+    const deleted = await db.tx(async (t) => {
+      const result = await t.result(`DELETE FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`, [
+        id,
+        tenantId,
+      ]);
+      if (result.rowCount === 0) return false;
+      await t.none(`DELETE FROM pa_dossier_versions WHERE dossier_id = $1`, [id]);
+      return true;
+    });
+    if (!deleted) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
-    await db.none(`DELETE FROM pa_dossier_versions WHERE dossier_id = $1`, [id]);
     res.json({ success: true });
   } catch (err) {
     logger.error('Dossier delete error', {
