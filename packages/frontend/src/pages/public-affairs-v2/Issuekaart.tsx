@@ -69,6 +69,7 @@ export default function Issuekaart({ dossier, kompasViz = 'radar', onNavigate }:
   const { watchDossier, unwatchDossier } = usePaData();
   const [sub, setSub] = useState<SubTab>('overzicht');
   const [watched, setWatched] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
   useEffect(() => {
     setSub('overzicht');
   }, [dossier.id]);
@@ -85,12 +86,18 @@ export default function Issuekaart({ dossier, kompasViz = 'radar', onNavigate }:
   const d = dossier;
 
   const toggleWatch = async () => {
-    if (watched) {
-      await unwatchDossier(d.id);
-    } else {
-      await watchDossier(d.id);
+    if (watchBusy) return;
+    setWatchBusy(true);
+    try {
+      if (watched) {
+        await unwatchDossier(d.id);
+      } else {
+        await watchDossier(d.id);
+      }
+      setWatched((w) => !w);
+    } finally {
+      setWatchBusy(false);
     }
-    setWatched((w) => !w);
   };
 
   return (
@@ -103,6 +110,7 @@ export default function Issuekaart({ dossier, kompasViz = 'radar', onNavigate }:
             <WatchBell
               active={watched}
               onToggle={() => void toggleWatch()}
+              disabled={watchBusy}
               title={
                 watched
                   ? 'Dossier niet meer volgen'

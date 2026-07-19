@@ -725,6 +725,7 @@ interface ZcCardProps {
   onSave: (d: ZcDraft) => void;
   onToggleScope: () => void;
   onToggleNotify: () => void;
+  notifyBusy: boolean;
   onDelete: () => void;
 }
 
@@ -737,6 +738,7 @@ function ZcCard({
   onSave,
   onToggleScope,
   onToggleNotify,
+  notifyBusy,
   onDelete,
 }: ZcCardProps) {
   const [draft, setDraft] = useState<ZcDraft>(crit);
@@ -815,7 +817,7 @@ function ZcCard({
             ↩ persoonlijk
           </button>
         )}
-        <WatchBell active={crit.notify} onToggle={onToggleNotify} />
+        <WatchBell active={crit.notify} onToggle={onToggleNotify} disabled={notifyBusy} />
         <button type="button" className="pac-zc-abtn danger" onClick={onDelete}>
           Verwijderen
         </button>
@@ -846,6 +848,9 @@ export default function ZoekcriteriaSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newDraft, setNewDraft] = useState<ZcDraft | null>(null);
+  // In-flight notify toggles, keyed by search id — guards each WatchBell
+  // against a rapid double-click firing two overlapping requests.
+  const [notifyBusyIds, setNotifyBusyIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const searches = await fetchSearches();
@@ -930,8 +935,18 @@ export default function ZoekcriteriaSection() {
   };
 
   const toggleNotify = async (item: ZcDraft) => {
-    await toggleSearchNotify(item.id, !item.notify);
-    await load();
+    if (notifyBusyIds.has(item.id)) return;
+    setNotifyBusyIds((prev) => new Set(prev).add(item.id));
+    try {
+      await toggleSearchNotify(item.id, !item.notify);
+      await load();
+    } finally {
+      setNotifyBusyIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
   };
 
   const del = async (id: string) => {
@@ -1042,6 +1057,7 @@ export default function ZoekcriteriaSection() {
                 onSave={(d) => void saveEdit(d)}
                 onToggleScope={() => void toggleScope(crit)}
                 onToggleNotify={() => void toggleNotify(crit)}
+                notifyBusy={notifyBusyIds.has(crit.id)}
                 onDelete={() => void del(crit.id)}
               />
             ))}

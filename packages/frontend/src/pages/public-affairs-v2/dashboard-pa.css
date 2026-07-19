@@ -1575,6 +1575,7 @@
 /* Watch bell — saved-search rows, dossier detail header, top-bar notification trigger */
 .pac .pac-watch-bell { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--pac-rule); border-radius: 6px; background: #fff; color: var(--pac-ink-3); cursor: pointer; padding: 0; }
 .pac .pac-watch-bell:hover { border-color: var(--pac-ink-3); }
+.pac .pac-watch-bell:disabled { opacity: 0.5; cursor: not-allowed; }
 .pac .pac-watch-bell.active { color: var(--pac-accent); border-color: var(--pac-accent); background: var(--pac-accent-50); }
 
 /* Editor */

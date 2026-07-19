@@ -7,16 +7,24 @@ export default function WatchBell({
   active,
   onToggle,
   title,
+  disabled = false,
 }: {
   active: boolean;
   onToggle: () => void;
   title?: string;
+  /** Set while a toggle request is in flight, so a rapid double-click can't
+   *  fire two overlapping requests and leave the UI out of sync with the
+   *  server (each click flips local state once, so two in-flight clicks
+   *  cancel each other out visually while the server only sees one net
+   *  change — or two of the same, depending on timing). */
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       className={`pac-watch-bell ${active ? 'active' : ''}`}
       onClick={onToggle}
+      disabled={disabled}
       aria-pressed={active}
       title={title ?? (active ? 'Niet meer volgen' : 'Volgen — meldingen bij nieuwe signalen')}
     >
