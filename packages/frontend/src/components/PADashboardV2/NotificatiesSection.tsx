@@ -275,12 +275,6 @@ export default function NotificatiesSection() {
           </p>
         </div>
       </div>
-
-      <p className="pac-spec-source">
-        Bron: <b>packages/backend/src/pa-monitoring/notifications.service.ts</b> · tabellen{' '}
-        <b>pa_notifications</b> &amp; <b>pa_feed_tokens</b>. Zie <b>docs/WATCHBELL.md</b>. De
-        reference-data is illustratief; de werkwijze is code-getrouw.
-      </p>
     </div>
   );
 }
