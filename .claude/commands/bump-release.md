@@ -2,7 +2,9 @@
 
 Cut a release: flip the current Upcoming changelog entry to Released, version
 **only the package(s) the release actually changed**, and reconcile the root
-endpoint map.
+endpoint map. Handles both changelog entry shapes — the current per-commit
+format (`format: 'commits'`, used by every new entry) and the legacy
+sections-based format still carried by historical entries.
 
 > Why scope matters: the ACC build workflows are path-filtered
 > (`packages/backend/**`, `packages/frontend/**`, `packages/shared/**`). Bumping
@@ -19,17 +21,62 @@ endpoint map.
 - The first entry in `changelog.versions` is the one being released — extract
   its `version` string (e.g. `'3.7.3'`). If an explicit version was passed as an
   argument, use that instead and find it in the array.
+- `changelog.versions` holds two entry shapes — `ChangelogEntry` is a union of
+  `ChangelogVersion` and `ChangelogVersionV2` — discriminated by a `format`
+  field:
+  - **New entries** (`format: 'commits'`) — one bold, icon+color-coded header
+    per commit, each carrying a real SHA + author, `scope` **required** on the
+    type itself (`npm run type-check` fails without it). This is the format
+    all new entries use going forward.
+  - **Legacy entries** (no `format` field, the `sections`-based shape) —
+    pre-existing history only; never author a new one of these.
 - **If the first entry's `status` is already `Released`, there is no pending
-  entry** — do not treat 3.8.2-already-released as "the release." Stop and ask
-  whether to author a new entry now (version, scope, and what changed) before
+  entry** — do not treat 3.8.2-already-released as "the release." Stop and
+  author a new entry first (see "Authoring a new entry" below) before
   continuing. Do not fabricate changelog content without confirming it.
 - Read that entry's `scope` field: `'frontend' | 'backend' | 'both'`.
   - `frontend` → bump root + `packages/frontend/package.json`
   - `backend` → bump root + `packages/backend/package.json`
   - `both` → bump all three
-  - If `scope` is **absent**, do not guess silently — infer it from the diff in
-    step 2, tell the user what you inferred, and ask them to add the `scope`
-    field to the entry before continuing.
+  - If `scope` is **absent** (only possible on a legacy entry — new entries
+    require it at the type level), do not guess silently — infer it from the
+    diff in step 2, tell the user what you inferred, and ask them to add the
+    `scope` field to the entry before continuing.
+
+#### Authoring a new entry (when there is no pending one)
+
+Every new entry uses the `format: 'commits'` shape — see `ChangelogVersionV2`,
+`ChangelogCommit`, and `CommitType` in `changelog-data.ts` for the exact
+fields, and the `3.9.2` entry for a worked example.
+
+1. Find the commit range: the same `$PREV` lookup step 2 uses (previous
+   release commit), then `git log $PREV..HEAD --oneline` lists everything
+   since. Drop any commits already covered by an existing changelog entry
+   (check the top entry's own content — a release is sometimes cut
+   mid-stream, leaving a few already-documented commits still in range).
+2. For each remaining commit, pull its real SHA (short form), author, and
+   full subject + body: `git log -1 --format='%h|%an|%s%n%b' <sha>`. Derive
+   `type` from the commit's conventional-commit prefix — `feat`, `fix`,
+   `test`, `docs`, `chore`, or `refactor` — falling back to `other` for
+   anything non-conforming.
+3. Write `subject` as a clean, readable release-note header — informed by
+   the commit subject but not required to be verbatim (e.g. reword for
+   clarity, the way `9248982`'s "route WatchBell toggles through
+   PaDataProvider" became "WatchBell toggles now refetch Meldingen via
+   PaDataProvider" in 3.9.2). Write `details` as 1–3 paragraphs adapted from
+   the commit body at the **same technical depth** the body already has —
+   this is a developer-facing changelog, not marketing copy. Strip any
+   `Co-Authored-By` / `Claude-Session` trailer lines; never surface them.
+4. Determine `scope` the same way step 2 below does (diff the touched
+   packages). Set `status: 'Upcoming'` — bump-release flips it to `Released`
+   in step 3.
+5. If the release closes a tracked RONL feedback/use-case work item
+   (external GitLab work item, a different project than this repo), ask
+   the user for the item's `iid`/`title`/`url` rather than inferring one —
+   set the entry's optional `feedback` field. Omit it otherwise.
+6. **Show the drafted entry to the user and get confirmation before adding
+   it to `changelog-data.ts`.** Do not silently commit authored changelog
+   content — same rule as the legacy format always had.
 
 ### 2. Cross-check scope against what actually changed
 
@@ -70,14 +117,20 @@ released:
 
 ### 3. Flip the released entry to Released
 
-Ensure the released entry carries the Released status and green colours,
-whatever its current status (`Upcoming`, `Bug Fix`, etc.):
+- **New entries** (`format: 'commits'`): set `status: 'Released'` — that's
+  it. There is no `statusColor`/`borderColor` field on this shape; the panel
+  derives the status pill and left-border color from the `status` string
+  itself (`ChangelogPanel.tsx`'s `statusBadgeClass`/`newFormatBorderColor` —
+  `'Released'` → green, `'Upcoming'` → blue, anything else → gray). Do not
+  add color fields to a `format: 'commits'` entry; they're ignored.
+- **Legacy entries**: set the Released status and green colours explicitly,
+  whatever the current status (`Upcoming`, `Bug Fix`, etc.):
 
-```ts
-status: 'Released',
-statusColor: '#2d7a33',
-borderColor: '#c3e6cd',
-```
+  ```ts
+  status: 'Released',
+  statusColor: '#2d7a33',
+  borderColor: '#c3e6cd',
+  ```
 
 ### 4. Bump the in-scope package.json files
 
@@ -117,6 +170,7 @@ State:
   (with their lagging version)
 - Any endpoint keys that were added or removed
 - If scope was inferred or a cross-check mismatch was found, say so
+- For a new-format entry: how many commits it covers
 
 Then ask whether to commit. Do not commit unless the user confirms.
 When committing, use the message format:
