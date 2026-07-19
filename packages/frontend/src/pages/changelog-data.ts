@@ -31,12 +31,190 @@ export interface ChangelogVersion {
   sections: ChangelogSection[];
 }
 
+// ── v2 (per-commit) format ───────────────────────────────────────────
+// Matches the Regeleditor/LDE/CPSV Editor changelog pattern: one bold,
+// icon+color-coded header per commit (not per feature/category), with the
+// commit's own SHA/author attached and its body as the details underneath.
+// Forward-only — legacy ChangelogVersion entries above keep rendering as-is;
+// see ChangelogEntry.
+
+export type CommitType = 'feat' | 'fix' | 'test' | 'docs' | 'chore' | 'refactor' | 'other';
+
+export interface ChangelogCommit {
+  /** Short SHA, e.g. '9248982'. */
+  sha: string;
+  author: string;
+  /** Conventional-commit type — drives the header's icon + color. */
+  type: CommitType;
+  /** Bold header text. A cleaned-up, readable version of the commit
+   *  subject (prefix stripped, lightly reworded for release-note tone) —
+   *  not required to be verbatim. */
+  subject: string;
+  /** Body paragraphs — the "why", same technical depth as the actual
+   *  commit message. One string per paragraph, no footer/trailer lines. */
+  details?: string[];
+}
+
+export interface ChangelogVersionV2 {
+  /** Discriminant — presence of 'commits' format marks the new shape. */
+  format: 'commits';
+  version: string;
+  status: string;
+  date: string;
+  scope: 'frontend' | 'backend' | 'both';
+  commits: ChangelogCommit[];
+  /** RONL-specific: external GitLab work items (feedback/use-case) this
+   *  release resolves. Rendered as its own labeled block below the commit
+   *  list — same chip-link presentation as the legacy Feedback section. */
+  feedback?: FeedbackItem[];
+}
+
+export type ChangelogEntry = ChangelogVersion | ChangelogVersionV2;
+
 export interface Changelog {
-  versions: ChangelogVersion[];
+  versions: ChangelogEntry[];
 }
 
 export const changelog: Changelog = {
   versions: [
+    {
+      format: 'commits',
+      version: '3.9.2',
+      status: 'Upcoming',
+      date: '19 jul 2026',
+      scope: 'both',
+      commits: [
+        {
+          sha: '2df7e3a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Notifications now recompute the moment a watch turns on',
+          details: [
+            "Toggling a watch's notify flag (a Zoekcriteria bell, or a dossier's watch-everything bell) never itself recomputed notifications — any already-confirmed signal that newly matched sat silently undelivered until some unrelated later event (a confirm, a dossier link, or the next curation cycle) forced a full rescan and dumped the whole backlog at once, surfacing as a confusing batch tied to an unrelated action.",
+            "Added 'watch-toggle' as its own computeNotifications trigger point in PATCH /v1/pa/searches/:id (notify → true) and POST /v1/pa/dossiers/:id/watch, so the backlog now surfaces the moment the watch actually turns on.",
+          ],
+        },
+        {
+          sha: '9248982',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'WatchBell toggles now refetch Meldingen via PaDataProvider',
+          details: [
+            'The backend recomputes notifications synchronously on watch-toggle, but the two frontend WatchBell call sites imported watchDossier/unwatchDossier/toggleSearchNotify straight from the API client instead of going through PaDataProvider, so the Meldingen badge never refetched — an already-confirmed backlog stayed invisible until an unrelated action or a page reload.',
+            'Mirrors the existing confirmSignal/linkSignalDossier pattern: PaDataProvider now wraps all three watch mutations and refetches the notifications resource after each.',
+          ],
+        },
+        {
+          sha: '80904de',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Editing a published dossier no longer requires re-publish rights',
+          details: [
+            "A plain edit-only save always resent the dossier's current gepubliceerd value. For any already-published dossier, that tripped the backend's publish guard for a pa-author (who can edit but not publish), surfacing as a misleading connectivity error. Every seeded dossier ships published, so this locked pa-authors out of editing anything.",
+            'gepubliceerd is now omitted from the save payload entirely unless the user is actually publishing — the backend already treats a missing field as "no change."',
+          ],
+        },
+        {
+          sha: 'e7ac9fd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Markdown fields now render properly on the Issuekaart',
+          details: [
+            "Dossierbeheer's editor stores the narrative fields (waarom nu / waarover / ons verhaal) as Markdown, but the Issuekaart rendered them as plain text with no Markdown pipeline — every dossier authored from a template (or edited afterwards) showed literal '## headers', '**bold**' asterisks, and '- bullet' dashes on its primary overview.",
+            "Added the same react-markdown + rehype-sanitize pipeline the editor's own preview already uses, applied to the three affected fields.",
+          ],
+        },
+        {
+          sha: '3012707',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Closed two privilege-escalation holes in dossier editing',
+          details: [
+            "The dossier edit endpoint only ever checked the publish flag against a user's publish rights, and never validated or gated a status change at all. A pa-author could archive any live dossier by sending a status change directly — bypassing the admin-only archive route and its required legal-retention metadata — and could unpublish any published dossier, since the publish guard only fired in one direction.",
+            'Added a status whitelist, an archive-permission guard, and made the publish guard compare against the current value so both publishing and unpublishing require the same publish rights.',
+          ],
+        },
+        {
+          sha: '295b09c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'EU source wired into the live signal feed',
+          details: [
+            "The live feed endpoint's source filter had no branch for 'eu' at all, even though EU is a first-class source everywhere else in PA monitoring and a selectable option when authoring a saved search. A personal search scoped to EU alone silently returned zero results with no error.",
+            'Wired the existing EU feed client into the live endpoint the same way the curation cycle already uses it, scoped specifically to an EU-only request rather than folded into the default combined view.',
+          ],
+        },
+        {
+          sha: 'a191924',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'WatchBell guarded against rapid double-click races',
+          details: [
+            'Neither WatchBell toggle had an in-flight guard: a rapid double-click fired two overlapping requests, and since each click also flips local state, the two flips could cancel out visually while the server converged to a different state than what the bell displayed.',
+            'Added a disabled state to the shared WatchBell button, backed by an in-flight busy flag (single dossier bell) or a per-item busy set (the saved-searches list, one bell per row).',
+          ],
+        },
+        {
+          sha: 'a30b0d4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Archive route no longer hangs on malformed input',
+          details: [
+            'The archive metadata guard checked for a missing reason before validating its type, so a non-string value passed the missing-value check and then crashed the request — and because this backend has no async-error middleware, the crash never reached the client as an error response; the request just hung.',
+            'Added an explicit type guard so malformed input now returns the intended 400 instead of hanging.',
+          ],
+        },
+        {
+          sha: 'fe364fb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Dossier deletion made atomic to prevent orphaned history',
+          details: [
+            'Deleting a dossier ran two independent database statements with no link between them. A failure between the two could delete the dossier but leave its version history behind — and because dossier ids are deterministic, a later dossier recreated under the same name could silently inherit that orphaned history as its own, misattributing old audit entries to the new dossier.',
+            'Both deletes now run inside a single transaction, so they always commit or roll back together.',
+          ],
+        },
+        {
+          sha: '4711f99',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'pa-dossiers.db.ts: 43.75% → 98.75% stmts',
+          details: [
+            'The database init/seed module behind Dossierbeheer (table creation, the SEED_DOSSIERS-to-Markdown conversion, and the relative-time formatter used on every dossier card) had no dedicated test file at all — its sibling module for the wider PA monitoring feature did.',
+            'Added full coverage: table creation, Markdown wrapping with and without narrative frames, the seeded archived example, fail-soft behaviour when table creation fails, and per-row failure isolation during seeding.',
+          ],
+        },
+        {
+          sha: '4fc2759',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'curation.service.ts: notification label & reference formatting now covered',
+          details: [
+            'Two small formatting helpers — the relative-age label shown on every curated signal, and the document-reference lookup used to link back to the source — were only reachable through the full curation pipeline and were never actually asserted on, so most of their branches ran incidentally without verification.',
+            'Added targeted tests that inspect the real database insert to cover every age-label branch (just now / hours ago / yesterday / day-before-yesterday / N days) and every reference-lookup case (matched, unmatched, and non-applicable source).',
+          ],
+        },
+        {
+          sha: '3fd1318',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'pa-dossiers.routes.ts: missing error and validation branches covered',
+          details: [
+            'Nearly every mutation route in Dossierbeheer had an untested failure path (database errors returning the wrong thing, or not being verified at all) and a few validation branches — an invalid field, a missing required name — were never exercised either.',
+            'Filled in the gaps so every route now has both its error path and its validation branches under test, matching the pattern already established elsewhere in PA monitoring.',
+          ],
+        },
+        {
+          sha: 'dd026e2',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Local Claude Code settings excluded from git',
+          details: [
+            "A local, untracked settings file wasn't excluded by .gitignore, so the formatting check used by the pre-push hook still scanned and flagged it — breaking every push from an affected machine even though the file was never actually committed.",
+          ],
+        },
+      ],
+    },
     {
       version: '3.9.1',
       status: 'Released',
