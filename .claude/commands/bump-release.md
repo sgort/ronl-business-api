@@ -161,7 +161,24 @@ not "whichever ran last."
 - Do not list `/v1/health` separately if it is already present — keep it
 - Skip this step if scope is `frontend` (no backend routes could have changed)
 
-### 6. Report and ask to commit
+### 6. Normalize formatting before committing
+
+Windows checkouts drift package.json/changelog-data.ts line endings (LF vs
+CRLF) enough to fail the pre-push hook's `npm run check-format` even though
+`lint-staged` already ran on commit — the hook re-checks the **whole repo**,
+not just staged files. Run this right before committing, after every edit
+above is done:
+
+```bash
+npm run format
+git add .
+```
+
+`npm run format` is `prettier --write` across the repo; `git add .` stages
+whatever it touched (and everything else from the steps above) so the
+commit is push-clean. Skip this only if `npm run format` reports no changes.
+
+### 7. Report and ask to commit
 
 State:
 
