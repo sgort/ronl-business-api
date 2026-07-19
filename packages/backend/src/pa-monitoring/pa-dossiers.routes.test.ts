@@ -470,6 +470,15 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
     expect(res.status).toBe(400);
   });
 
+  it('admin, non-string reden → 400 INVALID_ARCHIVE_METADATA (not a 500/hang from reden.trim())', async () => {
+    const res = await request(app)
+      .post('/v1/pa/dossiers/stikstof/archive')
+      .set(ADMIN)
+      .send({ ...meta, reden: 123 });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_ARCHIVE_METADATA');
+  });
+
   it('admin, unknown id → 404', async () => {
     mockDb.oneOrNone.mockResolvedValue(null);
     const res = await request(app).post('/v1/pa/dossiers/unknown/archive').set(ADMIN).send(meta);

@@ -473,7 +473,7 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
     !CLASS.includes(classificatie) ||
     !bewaartermijn ||
     !TERM.includes(bewaartermijn) ||
-    !reden ||
+    typeof reden !== 'string' ||
     !reden.trim()
   ) {
     return res.status(400).json({ success: false, error: { code: 'INVALID_ARCHIVE_METADATA' } });
