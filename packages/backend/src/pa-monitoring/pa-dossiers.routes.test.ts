@@ -171,6 +171,51 @@ describe('GET /v1/pa/dossiers', () => {
     expect(res.body.data[0].versies).toHaveLength(1);
     expect(res.body.data[0].md.waaromNu).toBe('## Waarom nu');
   });
+
+  it('500s on a DB error', async () => {
+    mockDb.any.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get('/v1/pa/dossiers').set(PA);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIERS_ERROR');
+  });
+});
+
+describe('GET /v1/pa/dossiers/:id', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('anonymous → 401', async () => {
+    const res = await request(app).get('/v1/pa/dossiers/stikstof').set(ANON);
+    expect(res.status).toBe(401);
+  });
+
+  it('unknown id → 404', async () => {
+    mockDb.oneOrNone.mockResolvedValue(null);
+    const res = await request(app).get('/v1/pa/dossiers/unknown').set(PA);
+    expect(res.status).toBe(404);
+  });
+
+  it('public-affairs → 200 cockpit shape (no versies)', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow());
+    const res = await request(app).get('/v1/pa/dossiers/stikstof').set(PA);
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe('stikstof');
+    expect(res.body.data.versies).toBeUndefined();
+  });
+
+  it('?admin=1 → 200 management shape with versies', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow());
+    mockDb.any.mockResolvedValue([{ v: 1, at: '2026-05-12', by: 'x', note: 'n' }]);
+    const res = await request(app).get('/v1/pa/dossiers/stikstof?admin=1').set(PA);
+    expect(res.status).toBe(200);
+    expect(res.body.data.versies).toHaveLength(1);
+  });
+
+  it('500s on a DB error', async () => {
+    mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get('/v1/pa/dossiers/stikstof').set(PA);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_ERROR');
+  });
 });
 
 describe('POST /v1/pa/dossiers (create)', () => {
@@ -234,6 +279,13 @@ describe('POST /v1/pa/dossiers (create)', () => {
       .set(EDITOR)
       .send({ ...valid, gepubliceerd: true });
     expect(res.status).toBe(201);
+  });
+
+  it('500s on a DB error', async () => {
+    mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
+    const res = await request(app).post('/v1/pa/dossiers').set(AUTHOR).send(valid);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_CREATE_ERROR');
   });
 });
 
@@ -351,6 +403,38 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
     expect(res.body.error.code).toBe('ARCHIVED_READONLY');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
+
+  it('naam too short → 400 INVALID_FIELDS', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow());
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ naam: 'ab' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_FIELDS');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
+
+  it('empty onderwerp → 400 INVALID_FIELDS', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow());
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ onderwerp: '   ' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_FIELDS');
+  });
+
+  it('500s on a DB error', async () => {
+    mockDb.oneOrNone.mockResolvedValue(adminRow());
+    mockDb.none.mockRejectedValue(new Error('boom'));
+    const res = await request(app)
+      .patch('/v1/pa/dossiers/stikstof')
+      .set(AUTHOR)
+      .send({ onderwerp: 'Aangepast onderwerp' });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_UPDATE_ERROR');
+  });
 });
 
 describe('POST /v1/pa/dossiers/:id/watch', () => {
@@ -429,6 +513,13 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
       expect.arrayContaining(['flevoland', 'test-user', 'sig-old'])
     );
   });
+
+  it('500s on a DB error', async () => {
+    mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_WATCH_ERROR');
+  });
 });
 
 describe('DELETE /v1/pa/dossiers/:id/watch', () => {
@@ -447,6 +538,13 @@ describe('DELETE /v1/pa/dossiers/:id/watch', () => {
     expect(sql).toMatch(/DELETE FROM pa_saved_searches/);
     expect(sql).toMatch(/scope = 'user'/);
     expect(values).toEqual(['flevoland', 'test-user', 'stikstof']);
+  });
+
+  it('500s on a DB error', async () => {
+    mockDb.none.mockRejectedValue(new Error('boom'));
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch').set(PA);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_WATCH_DELETE_ERROR');
   });
 });
 
@@ -528,6 +626,13 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
     );
     expect(versionInsert?.[1]?.[1]).toBe(4);
   });
+
+  it('500s on a DB error', async () => {
+    mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
+    const res = await request(app).post('/v1/pa/dossiers/stikstof/archive').set(ADMIN).send(meta);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_ARCHIVE_ERROR');
+  });
 });
 
 describe('POST /v1/pa/dossiers/:id/unarchive', () => {
@@ -591,6 +696,13 @@ describe('POST /v1/pa/dossiers/:id/unarchive', () => {
     );
     expect((updateCall![1] as unknown[])[0]).toBe('sluimerend');
   });
+
+  it('500s on a DB error', async () => {
+    mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
+    const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(ADMIN);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_UNARCHIVE_ERROR');
+  });
 });
 
 describe('DELETE /v1/pa/dossiers/:id', () => {
@@ -638,9 +750,52 @@ describe('templates + snippets', () => {
     expect(res.body.data.some((t: { id: string }) => t.id === 'standaard')).toBe(true);
   });
 
+  it('GET /templates → 200 mapping real DB rows (not the built-in fallback)', async () => {
+    mockDb.any.mockResolvedValue([
+      {
+        id: 'tpl-live-1',
+        naam: 'Live sjabloon',
+        cat: 'Provincie',
+        beschrijving: 'Uit de database',
+        versie: 'v1',
+        eigenaar: 'Test User',
+        gebruikt: '3',
+        seed: { onderwerp: '', waaromNu: '', waarover: '', onsVerhaal: '' },
+      },
+    ]);
+    const res = await request(app).get('/v1/pa/templates').set(PA);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([
+      {
+        id: 'tpl-live-1',
+        naam: 'Live sjabloon',
+        cat: 'Provincie',
+        beschrijving: 'Uit de database',
+        versie: 'v1',
+        eigenaar: 'Test User',
+        gebruikt: 3,
+        seed: { onderwerp: '', waaromNu: '', waarover: '', onsVerhaal: '' },
+      },
+    ]);
+  });
+
+  it('GET /templates → 500 on a DB error', async () => {
+    mockDb.any.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get('/v1/pa/templates').set(PA);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('TEMPLATES_ERROR');
+  });
+
   it('POST /templates without editor → 403', async () => {
     const res = await request(app).post('/v1/pa/templates').set(AUTHOR).send({ naam: 'X' });
     expect(res.status).toBe(403);
+  });
+
+  it('POST /templates, missing naam → 400 MISSING_NAAM', async () => {
+    const res = await request(app).post('/v1/pa/templates').set(EDITOR).send({ naam: '   ' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MISSING_NAAM');
+    expect(mockDb.none).not.toHaveBeenCalled();
   });
 
   it('POST /templates as editor → 201', async () => {
@@ -653,11 +808,44 @@ describe('templates + snippets', () => {
     expect(res.body.data.id).toMatch(/^tpl-/);
   });
 
+  it('POST /templates → 500 on a DB error', async () => {
+    mockDb.none.mockRejectedValue(new Error('boom'));
+    const res = await request(app)
+      .post('/v1/pa/templates')
+      .set(EDITOR)
+      .send({ naam: 'Nieuw sjabloon' });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('TEMPLATE_CREATE_ERROR');
+  });
+
   it('GET /snippets → 200', async () => {
     mockDb.any.mockResolvedValue([]);
     const res = await request(app).get('/v1/pa/snippets').set(PA);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it('GET /snippets → 500 on a DB error', async () => {
+    mockDb.any.mockRejectedValue(new Error('boom'));
+    const res = await request(app).get('/v1/pa/snippets').set(PA);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SNIPPETS_ERROR');
+  });
+
+  it('POST /snippets, missing naam → 400 MISSING_FIELDS', async () => {
+    const res = await request(app)
+      .post('/v1/pa/snippets')
+      .set(EDITOR)
+      .send({ naam: '  ', md: 'x' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(mockDb.none).not.toHaveBeenCalled();
+  });
+
+  it('POST /snippets, missing md → 400 MISSING_FIELDS', async () => {
+    const res = await request(app).post('/v1/pa/snippets').set(EDITOR).send({ naam: 'Blok' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MISSING_FIELDS');
   });
 
   it('POST /snippets as editor → 201', async () => {
@@ -668,5 +856,15 @@ describe('templates + snippets', () => {
       .send({ naam: 'Blok', md: '- item' });
     expect(res.status).toBe(201);
     expect(res.body.data.id).toMatch(/^snip-/);
+  });
+
+  it('POST /snippets → 500 on a DB error', async () => {
+    mockDb.none.mockRejectedValue(new Error('boom'));
+    const res = await request(app)
+      .post('/v1/pa/snippets')
+      .set(EDITOR)
+      .send({ naam: 'Blok', md: '- item' });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SNIPPET_CREATE_ERROR');
   });
 });
