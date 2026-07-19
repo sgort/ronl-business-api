@@ -66,7 +66,7 @@ export default function NotificationsPanel({ isOpen, onClose }: NotificationsPan
               <span className="text-2xl">🔔</span>
               <div>
                 <h2 id="notifications-title" className="text-xl font-bold">
-                  Meldingen
+                  Notificaties
                 </h2>
                 <p className="text-sm" style={{ color: 'rgba(255,255,255,0.78)' }}>
                   Nieuwe signalen op uw gevolgde zoekcriteria en dossiers
