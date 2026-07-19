@@ -80,7 +80,7 @@ export const changelog: Changelog = {
     {
       format: 'commits',
       version: '3.9.2',
-      status: 'Upcoming',
+      status: 'Released',
       date: '19 jul 2026',
       scope: 'both',
       commits: [
