@@ -132,8 +132,8 @@ function NotificatiesFlow() {
             <div className="kn">matchWatch()</div>
             <div className="nt">Raakt het?</div>
             <div className="nd">
-              Dossier-watch: <code>signal.dossier_id === watch.dossier_id</code>. Topic-watch: OR-term
-              raakt titel/duiding.
+              Dossier-watch: <code>signal.dossier_id === watch.dossier_id</code>. Topic-watch:
+              OR-term raakt titel/duiding.
             </div>
             <div className="row-tags">
               <span className="gate-badge">alleen status = confirmed</span>
@@ -172,8 +172,8 @@ function NotificatiesFlow() {
               lopen altijd synchroon.
             </div>
             <div className="cspec-inject">
-              ◂ realtime herberekend — de <b>watch-toggle</b>-trigger levert de achterstand meteen bij
-              het aanzetten.
+              ◂ realtime herberekend — de <b>watch-toggle</b>-trigger levert de achterstand meteen
+              bij het aanzetten.
             </div>
           </div>
         </div>
@@ -205,16 +205,16 @@ export default function NotificatiesSection() {
         Notificaties
       </h1>
       <p className="pac-spec-intro" style={{ marginBottom: 12 }}>
-        Hoe een PA-adviseur een melding krijgt bij een nieuw bevestigd signaal — zonder het dashboard
-        te hoeven verversen. Een <b>watch</b> is een opgeslagen zoekvraag met <code>notify = true</code>.
-        Een cross-watch matcher herberekent bij elke gebeurtenis en levert via de <b>Meldingen</b>-inbox
-        plus een persoonlijke RSS-feed. Watchen verandert nooit wát de cron ophaalt — alleen wíe er een
-        melding van krijgt.
+        Hoe een PA-adviseur een melding krijgt bij een nieuw bevestigd signaal — zonder het
+        dashboard te hoeven verversen. Een <b>watch</b> is een opgeslagen zoekvraag met{' '}
+        <code>notify = true</code>. Een cross-watch matcher herberekent bij elke gebeurtenis en
+        levert via de <b>Meldingen</b>-inbox plus een persoonlijke RSS-feed. Watchen verandert nooit
+        wát de cron ophaalt — alleen wíe er een melding van krijgt.
       </p>
       <p className="pac-spec-intro" style={{ marginBottom: 12 }}>
-        Zet een watch aan met de 🔔 op een <b>Zoekcriteria</b>-rij (topic-watch) of in de detailkop van
-        een <b>dossier</b> (dossier-watch). Wát er daarvóór gebeurt staat op <b>Curatiepijplijn</b>;
-        wélke bronnen voeden staat op <b>Signaalbronnen</b>.
+        Zet een watch aan met de 🔔 op een <b>Zoekcriteria</b>-rij (topic-watch) of in de detailkop
+        van een <b>dossier</b> (dossier-watch). Wát er daarvóór gebeurt staat op{' '}
+        <b>Curatiepijplijn</b>; wélke bronnen voeden staat op <b>Signaalbronnen</b>.
       </p>
 
       {/* Drie orthogonale eigenschappen van één opgeslagen zoekvraag — makkelijk te verwarren. */}
@@ -253,16 +253,17 @@ export default function NotificatiesSection() {
         <div className="note">
           <div className="num">1</div>
           <p>
-            <b>Watchen staat los van de cron.</b> <code>notify</code> bepaalt alleen de levering — het
-            raakt nooit wát de curatiepijplijn ophaalt. Dat regelt <code>↗ team</code> op Zoekcriteria.
+            <b>Watchen staat los van de cron.</b> <code>notify</code> bepaalt alleen de levering —
+            het raakt nooit wát de curatiepijplijn ophaalt. Dat regelt <code>↗ team</code> op
+            Zoekcriteria.
           </p>
         </div>
         <div className="note man">
           <div className="num">2</div>
           <p>
             <b>Een team-zoekvraag krijgt een persoonlijke afgeleide.</b> Seed-rijen hebben geen
-            eigenaar, dus 🔔 erop maakt een eigen kopie (<code>source_search_id</code>) die de matcher
-            wél kan bezorgen — jouw abonnement, niet dat van collega's.
+            eigenaar, dus 🔔 erop maakt een eigen kopie (<code>source_search_id</code>) die de
+            matcher wél kan bezorgen — jouw abonnement, niet dat van collega's.
           </p>
         </div>
         <div className="note">

@@ -79,6 +79,53 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '3.9.3',
+      status: 'Released',
+      date: '19 jul 2026',
+      scope: 'both',
+      commits: [
+        {
+          sha: '1228ffc',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Team-scoped Zoekcriteria watches now actually deliver notifications',
+          details: [
+            "computeNotifications' watch query requires user_id IS NOT NULL, but the taxonomy seed rows behind Team-scoped Zoekcriteria have no user_id — they're shared, unowned filters. Toggling their WatchBell silently persisted notify=true but could never produce a Meldingen entry, with nothing in the UI indicating the bell was inert.",
+            "PATCH /v1/pa/searches/:id now detects unowned rows and, instead of writing notify on the shared row, finds-or-creates a personal watch derivative (source_search_id → the team row) that computeNotifications can actually match against. GET /v1/pa/searches reflects the caller's own derivative state for the bell instead of the dead shared flag.",
+          ],
+        },
+        {
+          sha: '67f67ee',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Added Notificaties explainer page under Beheer → Monitoring',
+          details: [
+            'Read-only spec page documenting how the WatchBell & Meldingen notification layer works — trigger points, matchWatch, the UNIQUE(user_id, signal_id) dedup, and the team-search → personal-derivative rule — sibling of the existing Curatiepijplijn and Afwegingskader spec pages. Ported from a design handoff package; two CSS classes the reference assumed already existed (pac-beheer-card-label/-note) did not, so those were added rather than shipping unstyled.',
+            'Positioned in the Beheer → Monitoring nav and automatically picked up by the ⌘K command palette. Purely additive — no change to notification runtime behaviour.',
+          ],
+        },
+        {
+          sha: '3bd69d7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Removed the source footnote from the Notificaties page',
+          details: [
+            "Dropped the 'Bron: ...' line pointing at the backend service file and tables — kept the page focused on explaining the mechanism rather than citing its own implementation.",
+          ],
+        },
+        {
+          sha: '95c1d4d',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Renamed the Meldingen modal to Notificaties and moved its nav item',
+          details: [
+            "The slide-over notification panel's title now reads 'Notificaties' to match the new spec page's name. In the Beheer → Monitoring nav, Notificaties moved from directly under Zoekcriteria to directly under Curatiepijplijn — order is now Signaalbronnen, Zoekcriteria, Curatiepijplijn, Notificaties.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '3.9.2',
       status: 'Released',
       date: '19 jul 2026',
