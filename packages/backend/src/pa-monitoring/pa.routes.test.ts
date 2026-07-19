@@ -61,6 +61,7 @@ jest.mock('./sources/ob.client', () => ({
   fetchObFeed: jest.fn(),
   OB_PUBLICATION_TYPES: ['Vergunning'],
 }));
+jest.mock('./sources/eu.client', () => ({ fetchEuFeed: jest.fn() }));
 const mockPromoteToInbox = jest.fn();
 jest.mock('./curation.service', () => ({
   runCurationCycle: jest.fn(),
@@ -84,12 +85,14 @@ import request from 'supertest';
 import router from './pa.routes';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
+import { fetchEuFeed } from './sources/eu.client';
 import { fetchAgenda } from './sources/agenda.client';
 import { runCurationCycle } from './curation.service';
 import { FEEDS } from '../media-aggregator/feeds';
 
 const mockTk = fetchTkFeed as jest.Mock;
 const mockOb = fetchObFeed as jest.Mock;
+const mockEu = fetchEuFeed as jest.Mock;
 const mockAgenda = fetchAgenda as jest.Mock;
 const mockRun = runCurationCycle as jest.Mock;
 
@@ -536,6 +539,24 @@ describe('PA routes — feed & agenda', () => {
       const res = await request(app).get('/v1/pa/feed?source=ob').set(PA);
       expect(res.status).toBe(200);
       expect(mockTk).not.toHaveBeenCalled();
+    });
+
+    it('source=eu fetches only EU (was silently empty before eu was wired in)', async () => {
+      mockEu.mockResolvedValue({ items: [{ id: 'eu-1' }], total: 1, skip: 0, top: 20 });
+      const res = await request(app).get('/v1/pa/feed?source=eu').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toHaveLength(1);
+      expect(res.body.data.total).toBe(1);
+      expect(mockEu).toHaveBeenCalled();
+      expect(mockTk).not.toHaveBeenCalled();
+      expect(mockOb).not.toHaveBeenCalled();
+    });
+
+    it("source=both does not include eu (matches the curation cycle's opt-in-per-search treatment)", async () => {
+      mockTk.mockResolvedValue({ items: [], total: 0 });
+      mockOb.mockResolvedValue({ items: [], total: 0 });
+      await request(app).get('/v1/pa/feed').set(PA);
+      expect(mockEu).not.toHaveBeenCalled();
     });
 
     it('keeps total null when neither source reports a total', async () => {

@@ -15,6 +15,7 @@ import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
 import { searchFlevolandNews } from './sources/media.client';
+import { fetchEuFeed } from './sources/eu.client';
 import { FEEDS as MEDIA_FEEDS } from '../media-aggregator/feeds';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
@@ -127,7 +128,10 @@ router.use(tenantMiddleware);
 router.use(requireRoles('public-affairs'));
 
 // ── GET /v1/pa/feed ──────────────────────────────────────────────────────────
-// Raw merged TK+OB+media feed. Query params: q, types (csv), source (tk|ob|media), skip, top.
+// Raw merged TK+OB+media feed. Query params: q, types (csv),
+// source (both|tk|ob|media|eu — 'both' does not include eu, matching the
+// curation cycle's own opt-in-per-search treatment of the EU source), skip,
+// top.
 router.get('/feed', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
@@ -162,6 +166,8 @@ router.get('/feed', async (req, res) => {
       );
     if ((source === 'both' || source === 'media') && config.pa.mediaSourceEnabled)
       fetches.push(searchFlevolandNews(q, top));
+    if (source === 'eu' && config.pa.euSourceEnabled)
+      fetches.push(fetchEuFeed(q, types, skip, top));
 
     const results = await Promise.allSettled(fetches);
     const items: unknown[] = [];
