@@ -131,6 +131,7 @@ export const PA_MODES: PaModeConfig[] = [
         items: [
           { id: 'bronnen', label: 'Signaalbronnen', authRequired: true },
           { id: 'zoekcriteria', label: 'Zoekcriteria', authRequired: true },
+          { id: 'notificaties', label: 'Notificaties', authRequired: true },
           { id: 'curatie-spec', label: 'Curatiepijplijn', authRequired: true },
         ],
       },

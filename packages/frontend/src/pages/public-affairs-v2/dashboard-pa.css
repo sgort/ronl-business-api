@@ -1941,3 +1941,17 @@
   padding: 9px 0 2px; margin-top: 1px; cursor: pointer; text-align: left;
 }
 .pac .pac-feit-strip-all:hover { text-decoration: underline; }
+
+/* Notificaties (Beheer · Monitoring) — WATCHBELL explainer. Powers
+   NotificatiesSection.tsx; most of what it uses (.pac-cspec*, .pac-spec-table,
+   .pac-spec-dot.tone-*, .pac-cspec-notes .note, .pac-spec-eyebrow/-intro/-source,
+   h1.pac-page-title) already exists above. .pac-beheer-card-label/-note are new
+   here (modeled on .pac-db-card-label / .pac-zc-ed-note — same eyebrow-caption
+   and muted-note idiom, generalized past the dossierbeheer/zoekcriteria scopes
+   those were named for). */
+.pac .pac-beheer-card-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pac-ink-3); margin-bottom: 10px; }
+.pac .pac-beheer-note { font-size: 11.5px; color: var(--pac-ink-3); line-height: 1.5; margin-top: 8px; }
+.pac .pac-notif-props { margin: 20px 0 8px; }
+.pac .pac-notif-props .pac-spec-table td { vertical-align: top; }
+.pac .pac-notif-code { font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-3); margin-top: 3px; }
+.pac .pac-notif-props .pac-beheer-note code { font-family: var(--pac-mono); font-size: 11px; background: var(--pac-bg); border: 1px solid var(--pac-rule-2); padding: 1px 5px; color: var(--pac-ink); }

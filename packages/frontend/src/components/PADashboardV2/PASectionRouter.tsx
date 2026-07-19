@@ -30,6 +30,7 @@ import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
 import { FeitenView } from '../../pages/public-affairs-v2/FeitenCijfers';
 import KompasSpecSection from './KompasSpecSection';
 import CuratieSpecSection from './CuratieSpecSection';
+import NotificatiesSection from './NotificatiesSection';
 import ZoekcriteriaSection from './ZoekcriteriaSection';
 import BronnenSection from './BronnenSection';
 import Dossierbeheer from './dossierbeheer/Dossierbeheer';
@@ -39,6 +40,7 @@ const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-l
 const BEHEER_IDS = new Set<string>([
   'bronnen',
   'zoekcriteria',
+  'notificaties',
   'kompas-spec',
   'curatie-spec',
   'profiel',
@@ -121,6 +123,9 @@ export default function PASectionRouter({
         break;
       case 'zoekcriteria':
         content = <ZoekcriteriaSection />;
+        break;
+      case 'notificaties':
+        content = <NotificatiesSection />;
         break;
       case 'curatie-spec':
         content = <CuratieSpecSection />;
