@@ -57,8 +57,10 @@ per row would need a schema change (out of scope for v1).
 ## Data model
 
 ```sql
--- existing table, one column added
+-- existing table, two columns added
 ALTER TABLE pa_saved_searches ADD COLUMN notify BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE pa_saved_searches ADD COLUMN source_search_id TEXT
+  REFERENCES pa_saved_searches(id) ON DELETE CASCADE;
 
 -- delivery + dedup ledger
 CREATE TABLE pa_notifications (
@@ -92,8 +94,10 @@ see below).
 on every call — deliberately simple, no incremental diffing:
 
 1. `SELECT` every `pa_saved_searches` row with `notify = true AND user_id IS NOT NULL`
-   for the tenant (seed/taxonomy rows have `user_id IS NULL` and are silently
-   excluded — see [Gotcha #2](#gotcha-2-seed-rows-cant-be-watched)).
+   for the tenant. Unowned (`user_id IS NULL`) rows — the seed/taxonomy
+   searches — never satisfy this directly; toggling their bell instead
+   creates a personal derivative row that does (`source_search_id`, see
+   [Gotcha #2](#gotcha-2-watching-a-team-search-creates-a-personal-derivative)).
 2. `SELECT` every `pa_signals` row with `status = 'confirmed'`.
 3. For each `(watch, signal)` pair, `matchWatch()` decides:
    - Dossier watch (empty query): matches iff `signal.dossier_id === watch.dossier_id`.
@@ -235,8 +239,9 @@ backend already did its job.
 
 - **Single shared `notify` flag on a Team row** (see the ownership caveat,
   above) — not a per-user subscription list.
-- **Seed/taxonomy rows can't be watched** — see
-  [Gotcha #2](#gotcha-2-seed-rows-cant-be-watched).
+- **Seed/taxonomy rows are watched via a personal derivative, not the row
+  itself** — see
+  [Gotcha #2](#gotcha-2-watching-a-team-search-creates-a-personal-derivative).
 - **Candidates never notify, only confirmed signals** — deliberate: the
   cockpit's whole model is "a human decides," so pushing unreviewed inbox
   items as notifications would undercut that. Mirrors what a dossier's
@@ -266,12 +271,43 @@ existed. Fixed on the backend (always write the full shape) _and_ defensively
 on the frontend (`s.query.source ?? []`) so a legacy or malformed row degrades
 instead of crashing.
 
-### Gotcha #2: seed rows can't be watched
+### Gotcha #2: watching a team search creates a personal derivative
 
 `computeNotifications`'s watch query requires `user_id IS NOT NULL`. The
 taxonomy seed rows created by `seedTaxonomy()` (`pa-monitoring.db.ts`) have no
 `user_id` — they're shared, tenant-wide topic filters, not owned by anyone.
-Toggling `notify=true` on one via the PATCH route (which is intentionally
-tenant-guarded, not user-guarded, so any PA officer can edit team criteria)
-will silently persist but never produce a notification. Not a bug — there's
-no single recipient to deliver to — but worth knowing if a watch seems inert.
+
+Originally, toggling `notify=true` on one via the PATCH route (which is
+intentionally tenant-guarded, not user-guarded, so any PA officer can edit
+team criteria) silently persisted but never produced a notification — there
+was no single recipient to deliver to. The bell still turned solid pink,
+identical to a working personal watch, so this read as a bug rather than a
+documented limitation (it was reported as: dossier + both its zoekcriteria
+already "Watched", zero Meldingen, until an unrelated confirm on a totally
+different signal dumped an 8-item backlog all at once).
+
+Fixed: `PATCH /v1/pa/searches/:id` now checks the target row's `user_id`
+_after_ the UPDATE (via `RETURNING`). For an unowned (team) row, `notify` is
+never written to the row itself (wrapped in `CASE WHEN user_id IS NOT NULL...`
+so any other field edits in the same request still apply normally); instead:
+
+- `notify: true` finds-or-creates a personal `pa_saved_searches` row —
+  `scope='user', user_id=<caller>, source_search_id=<team row id>` — copying
+  the team row's current `dossier_id`/`query`/`tags`. This derivative is a
+  real, ordinary watch as far as `computeNotifications` is concerned.
+- `notify: false` deletes the caller's derivative, if any. The team row is
+  untouched either way, so other officers' derivatives are unaffected.
+- Editing the team row's `query`/`tags`/`dossierId` propagates to every
+  derivative pointing at it, so they don't silently go stale.
+
+`GET /v1/pa/searches` computes the bell's displayed state for unowned rows as
+`EXISTS(derivative WHERE source_search_id = row.id AND user_id = caller AND
+notify = true)` rather than reading the row's own (now-unused for this
+purpose) `notify` column. Derivative rows themselves are filtered out of the
+list (`source_search_id IS NULL`) — they're bookkeeping, not something a user
+picks from Zoekcriteria. Deleting a team row cascades (`ON DELETE CASCADE`)
+to its derivatives.
+
+This only applies to genuinely unowned rows. A `Team` search created via
+`POST /v1/pa/searches` has a real `user_id` (the creator) and keeps using the
+existing single-flag behavior — see the ownership caveat above.

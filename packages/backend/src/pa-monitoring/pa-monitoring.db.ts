@@ -207,6 +207,11 @@ export async function initPaDb(): Promise<void> {
 
       ALTER TABLE pa_saved_searches ADD COLUMN IF NOT EXISTS notify BOOLEAN NOT NULL DEFAULT false;
 
+      -- Personal watch derivative of a team-scoped (unowned) search — see
+      -- docs/WATCHBELL.md Gotcha #2. NULL for ordinary rows.
+      ALTER TABLE pa_saved_searches ADD COLUMN IF NOT EXISTS source_search_id TEXT
+        REFERENCES pa_saved_searches(id) ON DELETE CASCADE;
+
       -- Per-user delivery audit for watched saved searches (incl. dossier watches).
       -- UNIQUE(user_id, signal_id) is the dedup key: a signal already notified to a
       -- user never resurfaces, even if a later curation cycle reprocesses it.

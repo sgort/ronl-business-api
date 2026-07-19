@@ -229,7 +229,10 @@ describe('PA routes — role gating', () => {
     });
 
     it('public-affairs role → 200 (guarded by tenant_id only, any PA officer can edit)', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
         .set(PA)
@@ -753,7 +756,10 @@ describe('PA routes — curator, searches CRUD & status', () => {
     });
 
     it('updates query, tags and dossierId together → 200', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: 'd2', query: { q: 'energie' }, tags: ['x'] }],
+      });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
         .set(PA)
@@ -766,16 +772,22 @@ describe('PA routes — curator, searches CRUD & status', () => {
     });
 
     it('notify alone is a valid patch (the WatchBell toggle) → 200', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
       const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
       expect(res.status).toBe(200);
       const [sql, values] = mockDb.result.mock.calls[0];
-      expect(sql).toMatch(/notify = \$/);
+      expect(sql).toMatch(/notify\s*=\s*CASE/i);
       expect(values).toEqual([true, 'srch-1', 'flevoland']);
     });
 
     it('notify: false is not treated as a missing field', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
         .set(PA)
@@ -783,8 +795,13 @@ describe('PA routes — curator, searches CRUD & status', () => {
       expect(res.status).toBe(200);
     });
 
-    it('notify: true recomputes notifications immediately, so a backlog already matching this watch surfaces on activation rather than an unrelated later trigger', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+    it('notify: true on an owned (personal) search recomputes notifications immediately, so a backlog already matching this watch surfaces on activation rather than an unrelated later trigger', async () => {
+      mockDb.result
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'stikstof' }, tags: [] }],
+        })
+        .mockResolvedValue({ rowCount: 1 });
       // computeNotifications' own two db.any calls: active watches, then confirmed signals.
       mockDb.any
         .mockResolvedValueOnce([
@@ -802,14 +819,162 @@ describe('PA routes — curator, searches CRUD & status', () => {
       );
     });
 
-    it('notify: false does not trigger a notifications recompute (nothing new could match by turning a watch off)', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+    it('notify: false on an owned search does not trigger a notifications recompute (nothing new could match by turning a watch off)', async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
         .set(PA)
         .send({ notify: false });
       expect(res.status).toBe(200);
       expect(mockDb.any).not.toHaveBeenCalled();
+    });
+
+    it('notify: true on a team (unowned) search creates a personal watch derivative instead of writing notify on the shared row, and recomputes', async () => {
+      mockDb.result
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [
+            {
+              user_id: null,
+              dossier_id: 'lelystad',
+              query: { q: 'Lelystad Airport' },
+              tags: ['TK'],
+            },
+          ],
+        })
+        .mockResolvedValue({ rowCount: 1 });
+      mockDb.oneOrNone.mockResolvedValueOnce(null); // no existing derivative for this user yet
+      mockDb.none.mockResolvedValue(undefined);
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          {
+            id: 'watch-1',
+            user_id: 'test-user',
+            dossier_id: 'lelystad',
+            query: { q: 'Lelystad Airport' },
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'sig-old',
+            dossier_id: 'lelystad',
+            title: 'Motie over Lelystad Airport',
+            duiding: null,
+          },
+        ]);
+
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ notify: true });
+      expect(res.status).toBe(200);
+      // The shared team row's own notify column must NOT be set directly.
+      const [updateSql] = mockDb.result.mock.calls[0];
+      expect(updateSql).toMatch(/notify\s*=\s*CASE/i);
+      // A new personal derivative row was inserted, pointing back at the team row.
+      const insertCall = mockDb.none.mock.calls.find((c) =>
+        String(c[0]).includes('INSERT INTO pa_saved_searches')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall?.[1]).toEqual(
+        expect.arrayContaining([
+          'flevoland',
+          'test-user',
+          'lelystad',
+          JSON.stringify({ q: 'Lelystad Airport' }),
+          ['TK'],
+          'srch-team',
+        ])
+      );
+      // And the backlog surfaces immediately via the same recompute path as an owned watch.
+      expect(mockDb.result).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO pa_notifications'),
+        expect.arrayContaining(['flevoland', 'test-user', 'sig-old'])
+      );
+    });
+
+    it('notify: true on a team search re-enables an existing personal derivative instead of inserting a duplicate', async () => {
+      mockDb.result
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [
+            { user_id: null, dossier_id: 'lelystad', query: { q: 'Lelystad Airport' }, tags: [] },
+          ],
+        })
+        .mockResolvedValue({ rowCount: 1 });
+      mockDb.oneOrNone.mockResolvedValueOnce({ id: 'watch-existing' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.any.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ notify: true });
+      expect(res.status).toBe(200);
+      const updateCall = mockDb.none.mock.calls.find(
+        (c) =>
+          String(c[0]).includes('UPDATE pa_saved_searches') &&
+          String(c[0]).includes('notify = true')
+      );
+      expect(updateCall).toBeDefined();
+      expect(updateCall?.[1][0]).toBe('watch-existing');
+      const insertCall = mockDb.none.mock.calls.find((c) =>
+        String(c[0]).includes('INSERT INTO pa_saved_searches')
+      );
+      expect(insertCall).toBeUndefined();
+    });
+
+    it("notify: false on a team search deletes the caller's personal derivative, leaving the shared row untouched", async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [
+          { user_id: null, dossier_id: 'lelystad', query: { q: 'Lelystad Airport' }, tags: [] },
+        ],
+      });
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ notify: false });
+      expect(res.status).toBe(200);
+      const deleteCall = mockDb.none.mock.calls.find((c) =>
+        String(c[0]).includes('DELETE FROM pa_saved_searches')
+      );
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall?.[1]).toEqual(['srch-team', 'test-user']);
+      // Turning a watch off can't newly match anything, so no recompute.
+      expect(mockDb.any).not.toHaveBeenCalled();
+    });
+
+    it("editing a team search's query propagates to its personal watch derivatives so they do not go stale", async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [
+          { user_id: null, dossier_id: 'lelystad', query: { q: 'nieuwe term' }, tags: ['TK'] },
+        ],
+      });
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ query: { q: 'nieuwe term' } });
+      expect(res.status).toBe(200);
+      const syncCall = mockDb.none.mock.calls.find(
+        (c) =>
+          String(c[0]).includes('UPDATE pa_saved_searches') &&
+          String(c[0]).includes('source_search_id')
+      );
+      expect(syncCall).toBeDefined();
+      expect(syncCall?.[1]).toEqual([
+        JSON.stringify({ q: 'nieuwe term' }),
+        ['TK'],
+        'lelystad',
+        'srch-team',
+      ]);
     });
   });
 

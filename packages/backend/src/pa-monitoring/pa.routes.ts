@@ -411,11 +411,25 @@ router.get('/searches', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
   try {
+    // Team (unowned) rows have no `notify` column that means anything — see
+    // docs/WATCHBELL.md Gotcha #2 — so their effective notify state for the
+    // caller is whether a personal watch derivative (source_search_id -> this
+    // row, owned by the caller) exists. Personal rows keep using their own
+    // column. Derivative rows themselves are bookkeeping, not something a
+    // user picks from the list, so they're excluded here.
     const rows = await db.any(
-      `SELECT id, tenant_id, user_id, scope, dossier_id, query, tags, notify, created_at, updated_at
-       FROM pa_saved_searches
-       WHERE tenant_id = $1 AND (scope = 'tenant' OR user_id = $2 OR user_id IS NULL)
-       ORDER BY created_at`,
+      `SELECT s.id, s.tenant_id, s.user_id, s.scope, s.dossier_id, s.query, s.tags, s.created_at, s.updated_at,
+              CASE WHEN s.user_id IS NULL
+                THEN EXISTS (
+                  SELECT 1 FROM pa_saved_searches w
+                  WHERE w.source_search_id = s.id AND w.user_id = $2 AND w.notify = true
+                )
+                ELSE s.notify
+              END AS notify
+       FROM pa_saved_searches s
+       WHERE s.tenant_id = $1 AND (s.scope = 'tenant' OR s.user_id = $2 OR s.user_id IS NULL)
+         AND s.source_search_id IS NULL
+       ORDER BY s.created_at`,
       [req.user.tenantId, req.user.userId]
     );
     res.json({ success: true, data: rows });
@@ -541,23 +555,92 @@ router.patch('/searches/:id', async (req, res) => {
       values.push(dossierId);
     }
     if (notify !== undefined) {
-      sets.push(`notify = $${idx++}`);
+      // Team (unowned) rows have no single recipient — writing `notify`
+      // straight onto the row is a no-op nobody ever sees (see
+      // docs/WATCHBELL.md Gotcha #2). Skip it in SQL for those rows; the
+      // block below creates/removes a personal watch derivative instead,
+      // which computeNotifications' `user_id IS NOT NULL` query can actually
+      // pick up.
+      sets.push(`notify = CASE WHEN user_id IS NOT NULL THEN $${idx++} ELSE notify END`);
       values.push(notify);
     }
 
     values.push(req.params.id, req.user.tenantId);
     const result = await db.result(
-      `UPDATE pa_saved_searches SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = $${idx + 1}`,
+      `UPDATE pa_saved_searches SET ${sets.join(', ')}
+       WHERE id = $${idx} AND tenant_id = $${idx + 1}
+       RETURNING user_id, dossier_id, query, tags`,
       values
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
 
-    // Turning a watch on is the moment any already-confirmed backlog becomes
-    // "watched" — recompute now so it surfaces here, not silently deferred
-    // until some unrelated later trigger dumps it all at once.
-    if (notify === true) {
+    const row = result.rows[0] as {
+      user_id: string | null;
+      dossier_id: string | null;
+      query: { q: string; types?: string[]; source?: string[] };
+      tags: string[];
+    };
+    const isTeamRow = row.user_id === null;
+
+    // Keep any personal watch derivatives of this team row in sync with
+    // edits to its query/tags/dossierId, so they don't keep matching on
+    // terms the team search no longer has.
+    if (isTeamRow && (query !== undefined || tags !== undefined || dossierId !== undefined)) {
+      await db.none(
+        `UPDATE pa_saved_searches SET query = $1, tags = $2, dossier_id = $3, updated_at = NOW()
+         WHERE source_search_id = $4`,
+        [JSON.stringify(row.query), row.tags, row.dossier_id, req.params.id]
+      );
+    }
+
+    let recompute = false;
+    if (notify !== undefined) {
+      if (isTeamRow) {
+        if (notify === true) {
+          const existingWatch = await db.oneOrNone<{ id: string }>(
+            `SELECT id FROM pa_saved_searches WHERE source_search_id = $1 AND user_id = $2`,
+            [req.params.id, req.user.userId]
+          );
+          if (existingWatch) {
+            await db.none(
+              `UPDATE pa_saved_searches SET notify = true, query = $2, tags = $3, dossier_id = $4, updated_at = NOW()
+               WHERE id = $1`,
+              [existingWatch.id, JSON.stringify(row.query), row.tags, row.dossier_id]
+            );
+          } else {
+            await db.none(
+              `INSERT INTO pa_saved_searches (id, tenant_id, user_id, scope, dossier_id, query, tags, notify, source_search_id)
+               VALUES ($1, $2, $3, 'user', $4, $5, $6, true, $7)`,
+              [
+                `watch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                req.user.tenantId,
+                req.user.userId,
+                row.dossier_id,
+                JSON.stringify(row.query),
+                row.tags,
+                req.params.id,
+              ]
+            );
+          }
+          recompute = true;
+        } else {
+          await db.none(
+            `DELETE FROM pa_saved_searches WHERE source_search_id = $1 AND user_id = $2`,
+            [req.params.id, req.user.userId]
+          );
+        }
+      } else if (notify === true) {
+        // Turning a watch on is the moment any already-confirmed backlog
+        // becomes "watched" — recompute now so it surfaces here, not
+        // silently deferred until some unrelated later trigger dumps it all
+        // at once.
+        recompute = true;
+      }
+    }
+
+    if (recompute) {
       await computeNotifications(req.user.tenantId, 'watch-toggle').catch((err: unknown) => {
         logger.error('Notification compute failed after watch toggle', {
           id: req.params.id,
