@@ -146,6 +146,161 @@ describe('runCurationCycle — source routing', () => {
   });
 });
 
+describe('runCurationCycle — persisted candidate label + ref formatting', () => {
+  const persistedInsert = () =>
+    mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  it('item with no date → srcLabel ends in "onbekend"', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [feedItem({ source: 'tk', type: 'Motie', date: null })],
+      total: 1,
+    });
+    await runCurationCycle();
+    const srcLabel = persistedInsert()![1][4] as string;
+    expect(srcLabel).toBe('Tweede Kamer · Motie · onbekend');
+  });
+
+  it('item dated seconds ago → srcLabel ends in "nu"', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [feedItem({ source: 'tk', type: 'Motie', date: new Date().toISOString() })],
+      total: 1,
+    });
+    await runCurationCycle();
+    const srcLabel = persistedInsert()![1][4] as string;
+    expect(srcLabel).toBe('Tweede Kamer · Motie · nu');
+  });
+
+  it('item dated 5 hours ago → srcLabel shows "5 u geleden"', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          source: 'tk',
+          type: 'Motie',
+          date: new Date(Date.now() - 5 * 3_600_000).toISOString(),
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const srcLabel = persistedInsert()![1][4] as string;
+    expect(srcLabel).toBe('Tweede Kamer · Motie · 5 u geleden');
+  });
+
+  it('item dated exactly 1 day ago → srcLabel shows "gisteren"', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['ob'] })]);
+    mockFetchObFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: 'ob-1',
+          source: 'ob',
+          type: 'Vergunning',
+          date: new Date(Date.now() - 24 * 3_600_000).toISOString(),
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const srcLabel = persistedInsert()![1][4] as string;
+    expect(srcLabel).toBe('Officiële Bekendmakingen · Vergunning · gisteren');
+  });
+
+  it('item dated exactly 2 days ago → srcLabel shows "eergisteren"', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['ob'] })]);
+    mockFetchObFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: 'ob-1',
+          source: 'ob',
+          type: 'Vergunning',
+          date: new Date(Date.now() - 48 * 3_600_000).toISOString(),
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const srcLabel = persistedInsert()![1][4] as string;
+    expect(srcLabel).toBe('Officiële Bekendmakingen · Vergunning · eergisteren');
+  });
+
+  it('item dated 6 days ago → srcLabel shows "6 dgn"', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['ob'] })]);
+    mockFetchObFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: 'ob-1',
+          source: 'ob',
+          type: 'Vergunning',
+          date: new Date(Date.now() - 6 * 86_400_000).toISOString(),
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const srcLabel = persistedInsert()![1][4] as string;
+    expect(srcLabel).toBe('Officiële Bekendmakingen · Vergunning · 6 dgn');
+  });
+
+  it('TK item whose url has a ?id= param → ref.nr is the decoded DocumentNummer, not item.id', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: 'item-1',
+          source: 'tk',
+          url: 'https://zoek.officielebekendmakingen.nl/behandelddossier?id=2026D12345',
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const ref = JSON.parse(persistedInsert()![1][10] as string) as { nr: string };
+    expect(ref.nr).toBe('2026D12345');
+  });
+
+  it('TK item whose url has no ?id= param → ref.nr falls back to item.id', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [
+        feedItem({ id: 'item-1', source: 'tk', url: 'https://example.org/no-id-param-here' }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const ref = JSON.parse(persistedInsert()![1][10] as string) as { nr: string };
+    expect(ref.nr).toBe('item-1');
+  });
+
+  it('OB item (non-tk source) → ref.nr is always item.id, regardless of url', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['ob'] })]);
+    mockFetchObFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: 'stb-2026-123',
+          source: 'ob',
+          url: 'https://example.org/?id=should-be-ignored',
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    const ref = JSON.parse(persistedInsert()![1][10] as string) as { nr: string };
+    expect(ref.nr).toBe('stb-2026-123');
+  });
+
+  it('item with no url → ref is null (no JSON built at all)', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [feedItem({ source: 'tk', url: null })],
+      total: 1,
+    });
+    await runCurationCycle();
+    expect(persistedInsert()![1][10]).toBeNull();
+  });
+});
+
 describe('runCurationCycle — EU fetched once', () => {
   it('multiple EU searches trigger exactly one EU fetch', async () => {
     mockDb.any.mockResolvedValue([
