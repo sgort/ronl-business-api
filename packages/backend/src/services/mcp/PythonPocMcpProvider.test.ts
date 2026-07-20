@@ -47,6 +47,44 @@ describe('PythonPocMcpProvider — core', () => {
     ]);
   });
 
+  it('getToolDefinitions allows the eDOCS tools alongside the Operaton ones', async () => {
+    const p = new PythonPocMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockResolvedValue({
+        tools: [
+          {
+            name: 'workspace_list',
+            description: 'List workspaces',
+            inputSchema: { type: 'object' },
+          },
+          {
+            name: 'workspace_documents',
+            description: 'List documents',
+            inputSchema: { type: 'object' },
+          },
+          {
+            name: 'document_profile',
+            description: 'Get profile',
+            inputSchema: { type: 'object' },
+          },
+          {
+            name: 'document_versions',
+            description: 'Get versions',
+            inputSchema: { type: 'object' },
+          },
+        ],
+      }),
+    });
+
+    const tools = await p.getToolDefinitions();
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'document_profile',
+      'document_versions',
+      'workspace_documents',
+      'workspace_list',
+    ]);
+  });
+
   it('callTool delegates to the client', async () => {
     const p = new PythonPocMcpProvider();
     const result = { content: [{ type: 'text', text: 'ok' }] };

@@ -386,10 +386,18 @@ else
   pass "Python MCP POC reachable (MCP initialize handshake OK, $PYTHON_MCP_POC_URL)"
   PP_TOOLS=$(sed -n 's/^data: //p' "$TMP/python_poc_tools.txt" | tail -n1 \
     | jq -r '.result.tools[]?.name' 2>/dev/null | tr -d '\r' | sort | paste -sd, -)
-  if echo ",$PP_TOOLS," | grep -q ",process_list," && echo ",$PP_TOOLS," | grep -q ",process_status,"; then
-    pass "Python MCP POC tools present (process_list, process_status)"
+
+  # Operaton (m2m.routes.ts) and eDOCS (edocs.routes.ts) tools, in one server —
+  # proves the container/client/auth plumbing generalizes across upstream systems,
+  # not just Operaton.
+  PP_MISSING=()
+  for t in process_list process_status workspace_list workspace_documents document_profile document_versions; do
+    echo ",$PP_TOOLS," | grep -q ",$t," || PP_MISSING+=("$t")
+  done
+  if [[ ${#PP_MISSING[@]} -eq 0 ]]; then
+    pass "Python MCP POC tools present (process_list, process_status, workspace_list, workspace_documents, document_profile, document_versions)"
   else
-    fail "Python MCP POC tools/list missing expected tools — got: ${PP_TOOLS:-<none>}"
+    fail "Python MCP POC tools/list missing: ${PP_MISSING[*]} — got: ${PP_TOOLS:-<none>}"
   fi
 fi
 

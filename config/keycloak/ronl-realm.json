@@ -255,7 +255,7 @@
     {
       "clientId": "python-mcp-poc-client",
       "name": "Python MCP POC Client",
-      "description": "Machine-to-machine client used by the Python MCP POC container to call this backend's own /v1/m2m/process* HTTP surface",
+      "description": "Machine-to-machine client used by the Python MCP POC container to call this backend's own /v1/m2m/process* and /v1/edocs/* HTTP surfaces",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "change-me-in-keycloak-console",

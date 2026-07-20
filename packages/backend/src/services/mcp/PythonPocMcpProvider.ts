@@ -7,13 +7,21 @@ import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from
 
 const logger = createLogger('python-poc-provider');
 
-const ALLOWED_TOOLS = new Set(['process_list', 'process_status']);
+const ALLOWED_TOOLS = new Set([
+  'process_list',
+  'process_status',
+  'workspace_list',
+  'workspace_documents',
+  'document_profile',
+  'document_versions',
+]);
 
 export class PythonPocMcpProvider implements McpProvider {
   readonly meta: McpProviderMeta = {
     id: 'python-poc',
     displayName: 'Python MCP POC',
-    description: 'Proof of concept — a Python-SDK MCP server, in Docker, calling /v1/m2m/process',
+    description:
+      'Proof of concept — a Python-SDK MCP server, in Docker, calling /v1/m2m/process and /v1/edocs',
   };
 
   private client: Client | null = null;
@@ -100,11 +108,18 @@ export class PythonPocMcpProvider implements McpProvider {
   systemPromptContribution(): string {
     return `## Python MCP POC
 You have access to a proof-of-concept MCP server, written in Python and running in its own
-Docker container, which calls this backend's own /v1/m2m/process API.
+Docker container, which calls this backend's own /v1/m2m/process and /v1/edocs APIs.
 
 Available tools:
 - process_list             — lists active Operaton process instances (no tenant filter)
 - process_status           — status of a single process instance, given its instance id
+- workspace_list           — lists workspaces (folders) in the configured eDOCS library
+- workspace_documents      — lists a workspace's documents (and sub-items), given its id
+- document_profile         — full metadata profile for a document, given its id
+- document_versions        — the version history for a document, given its id
+
+These eDOCS tools are read-only, live-tested routes only — there is no tool to upload or
+delete; do not imply those capabilities exist.
 
 This is a proof-of-concept source — treat it the same as any other read-only source.
 
