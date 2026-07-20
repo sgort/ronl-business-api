@@ -108,11 +108,9 @@ describe('PythonPocMcpProvider — session reconnect', () => {
 
     const client2 = {
       connect: jest.fn().mockResolvedValue(undefined),
-      listTools: jest
-        .fn()
-        .mockResolvedValue({
-          tools: [{ name: PROCESS_LIST_TOOL, description: 'd', inputSchema: {} }],
-        }),
+      listTools: jest.fn().mockResolvedValue({
+        tools: [{ name: PROCESS_LIST_TOOL, description: 'd', inputSchema: {} }],
+      }),
     };
     mockClientCtor.mockImplementation(() => client2);
 
