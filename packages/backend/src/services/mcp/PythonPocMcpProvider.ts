@@ -7,6 +7,12 @@ import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from
 
 const logger = createLogger('python-poc-provider');
 
+// The Python server also exposes document_upload and document_download (see
+// server.py) — deliberately NOT allow-listed here, so the AI Assistant chat
+// stays read-only, matching EdocsMcpProvider's policy. Those two tools exist
+// only for scripts/test-edocs-live.sh to call directly over raw MCP, proving
+// this route can create/read back its own document independent of the
+// direct /v1/edocs route.
 const ALLOWED_TOOLS = new Set([
   'process_list',
   'process_status',

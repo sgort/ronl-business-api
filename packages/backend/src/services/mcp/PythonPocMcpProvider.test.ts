@@ -85,6 +85,22 @@ describe('PythonPocMcpProvider — core', () => {
     ]);
   });
 
+  it('getToolDefinitions filters out document_upload/document_download even if the server advertises them', async () => {
+    const p = new PythonPocMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockResolvedValue({
+        tools: [
+          { name: PROCESS_LIST_TOOL, description: 'List processes', inputSchema: {} },
+          { name: 'document_upload', description: 'Upload a document', inputSchema: {} },
+          { name: 'document_download', description: 'Download a document', inputSchema: {} },
+        ],
+      }),
+    });
+
+    const tools = await p.getToolDefinitions();
+    expect(tools.map((t) => t.name)).toEqual([PROCESS_LIST_TOOL]);
+  });
+
   it('callTool delegates to the client', async () => {
     const p = new PythonPocMcpProvider();
     const result = { content: [{ type: 'text', text: 'ok' }] };
