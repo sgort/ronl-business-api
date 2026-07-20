@@ -16,6 +16,7 @@ import hrRoutes from './routes/hr.routes';
 import capacityRoutes from './routes/capacity.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
+import edocsCopilotRoutes from './routes/edocs.copilot.routes';
 import doccleRoutes from './routes/doccle.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
@@ -145,6 +146,7 @@ app.get('/', (req: Request, res: Response) => {
       hrCapacity: '/v1/hr-capacity',
       rip: '/v1/rip',
       edocs: '/v1/edocs',
+      copilotEdocs: '/v1/copilot/edocs',
       doccle: '/v1/doccle',
       curator: '/v1/pa',
       mediaAggregator: '/v1/media-aggregator',
@@ -171,6 +173,7 @@ app.use('/v1/hr', hrRoutes);
 app.use('/v1/hr-capacity', capacityRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
+app.use('/v1/copilot/edocs', edocsCopilotRoutes);
 app.use('/v1/doccle', doccleRoutes);
 app.use('/v1/pa', paRoutes);
 app.use('/v1/pa', paDossiersRoutes);

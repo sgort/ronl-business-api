@@ -103,6 +103,23 @@ PROJECT_NUMBER="${PROJECT_NUMBER:-SMOKE-$(date +%Y%m%d-%H%M%S)}"
 # beyond what's known to be valid on infocenter-test.flevoland.nl.
 EDOCS_DEPARTMENT="${EDOCS_DEPARTMENT:-IVR}"
 
+# ─── Liveness gate — fail fast if the backend isn't running ───────────────────
+#
+# Checked first, before the pre-flight below (which is in-process and doesn't
+# need the backend) and before the token dance — a stopped backend is the most
+# common reason to run this script, and there's no point spending time on
+# either only to hit a confusing "HTTP 000" deep into the run. Mirrors
+# test-smoke-live.sh's own liveness gate exactly.
+LIVE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v1/health/live")
+if [[ "$LIVE_CODE" != "200" ]]; then
+  echo "  ✗ backend not live at ${BASE_URL} (HTTP $LIVE_CODE)"
+  echo ""
+  echo "  Is the backend running? For local dev start it, or pass TARGET=acc."
+  echo "  Results: 0 passed, 1 failed"
+  exit 1
+fi
+echo "  ✓ backend live (GET /v1/health/live)"
+
 # Repo layout — used to run the Keycloak-free eDOCS reach/login pre-flight.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

@@ -92,6 +92,9 @@ interface Config {
     clientId: string;
     clientSecret: string;
   };
+  edocsCopilot: {
+    apiKey: string;
+  };
   doccle: {
     apiBaseUrl: string;
     username: string;
@@ -241,6 +244,10 @@ export const config: Config = {
     enabled: parseEnvBool(process.env.EDOCS_MCP_ENABLED, false),
     clientId: process.env.EDOCS_MCP_CLIENT_ID ?? 'edocs-mcp-client',
     clientSecret: process.env.EDOCS_MCP_CLIENT_SECRET ?? '',
+  },
+
+  edocsCopilot: {
+    apiKey: process.env.EDOCS_COPILOT_API_KEY ?? '',
   },
 
   doccle: {

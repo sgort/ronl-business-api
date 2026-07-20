@@ -2,27 +2,24 @@
   "swagger": "2.0",
   "info": {
     "title": "RONL eDOCS",
-    "description": "Document management via the RONL Business API. Authenticates against Keycloak using client credentials and proxies operations to OpenText eDOCS DOCUVITT.",
+    "description": "Read-only document management via the RONL Business API. Authenticates with a static API key and proxies operations to OpenText eDOCS DOCUVITT.",
     "version": "1.0.0"
   },
   "host": "acc.api.open-regels.nl",
-  "basePath": "/v1/edocs",
+  "basePath": "/v1/copilot/edocs",
   "schemes": ["https"],
   "consumes": ["application/json"],
   "produces": ["application/json"],
   "securityDefinitions": {
-    "keycloak_client_credentials": {
-      "type": "oauth2",
-      "flow": "application",
-      "tokenUrl": "https://acc.keycloak.open-regels.nl/realms/ronl/protocol/openid-connect/token",
-      "scopes": {
-        "openid": "OpenID Connect scope"
-      }
+    "api_key": {
+      "type": "apiKey",
+      "name": "X-API-Key",
+      "in": "header"
     }
   },
   "security": [
     {
-      "keycloak_client_credentials": ["openid"]
+      "api_key": []
     }
   ],
   "paths": {
@@ -91,143 +88,6 @@
         }
       }
     },
-    "/workspaces/ensure": {
-      "post": {
-        "operationId": "EnsureWorkspace",
-        "summary": "Ensure a project workspace exists",
-        "description": "Creates a new workspace for the given project number and name, or returns the existing one if it already exists. Safe to call multiple times.",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["projectNumber", "projectName"],
-              "properties": {
-                "projectNumber": {
-                  "type": "string",
-                  "description": "Unique project identifier, e.g. RIP-2024-001"
-                },
-                "projectName": {
-                  "type": "string",
-                  "description": "Human-readable project name"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Workspace result",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "success": { "type": "boolean" },
-                "data": {
-                  "type": "object",
-                  "properties": {
-                    "workspaceId": { "type": "string" },
-                    "workspaceName": { "type": "string" },
-                    "created": {
-                      "type": "boolean",
-                      "description": "true if a new workspace was created, false if an existing one was found"
-                    }
-                  }
-                },
-                "timestamp": { "type": "string", "format": "date-time" }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing required fields",
-            "schema": { "$ref": "#/definitions/ErrorResponse" }
-          },
-          "502": {
-            "description": "eDOCS connection error",
-            "schema": { "$ref": "#/definitions/ErrorResponse" }
-          }
-        }
-      }
-    },
-    "/documents": {
-      "post": {
-        "operationId": "UploadDocument",
-        "summary": "Upload a document to a workspace",
-        "description": "Uploads a base64-encoded document file into the specified eDOCS workspace.",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["workspaceId", "filename", "contentBase64", "metadata"],
-              "properties": {
-                "workspaceId": {
-                  "type": "string",
-                  "description": "eDOCS workspace ID returned by EnsureWorkspace"
-                },
-                "filename": {
-                  "type": "string",
-                  "description": "Original filename including extension, e.g. rip-intake-report.pdf"
-                },
-                "contentBase64": {
-                  "type": "string",
-                  "description": "File content encoded as base64"
-                },
-                "metadata": {
-                  "type": "object",
-                  "required": ["docName"],
-                  "properties": {
-                    "docName": {
-                      "type": "string",
-                      "description": "Document display name in eDOCS"
-                    },
-                    "appId": {
-                      "type": "string",
-                      "description": "Application identifier, defaults to INFRA"
-                    },
-                    "formName": {
-                      "type": "string",
-                      "description": "Optional eDOCS form name for structured document types"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Upload result",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "success": { "type": "boolean" },
-                "data": {
-                  "type": "object",
-                  "properties": {
-                    "documentId": { "type": "string" },
-                    "documentNumber": { "type": "string" },
-                    "workspaceId": { "type": "string" }
-                  }
-                },
-                "timestamp": { "type": "string", "format": "date-time" }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing required fields",
-            "schema": { "$ref": "#/definitions/ErrorResponse" }
-          },
-          "502": {
-            "description": "eDOCS connection error",
-            "schema": { "$ref": "#/definitions/ErrorResponse" }
-          }
-        }
-      }
-    },
     "/workspaces/{workspaceId}/documents": {
       "get": {
         "operationId": "GetWorkspaceDocuments",
@@ -263,6 +123,81 @@
                           "documentNumber": { "type": "string" }
                         }
                       }
+                    }
+                  }
+                },
+                "timestamp": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "502": {
+            "description": "eDOCS connection error",
+            "schema": { "$ref": "#/definitions/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "/documents/{documentId}/profile": {
+      "get": {
+        "operationId": "GetDocumentProfile",
+        "summary": "Get a document's metadata profile",
+        "description": "Returns the full eDOCS metadata profile for a single document.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "type": "string",
+            "description": "eDOCS document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document profile",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "type": "object" },
+                "timestamp": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "502": {
+            "description": "eDOCS connection error",
+            "schema": { "$ref": "#/definitions/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "/documents/{documentId}/versions": {
+      "get": {
+        "operationId": "GetDocumentVersions",
+        "summary": "List a document's version history",
+        "description": "Returns the version history for a single document.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "type": "string",
+            "description": "eDOCS document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document versions",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "documentId": { "type": "string" },
+                    "versions": {
+                      "type": "array",
+                      "items": { "type": "object" }
                     }
                   }
                 },
