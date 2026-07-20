@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARDS } from './boards.config';
 import { WOO_GATE_ROLE } from '../woo/modes.config';
+import { INFRA_GATE_ROLE } from '../infra-board/modes.config';
 
 describe('login-choice boards.config', () => {
   it('lists exactly the four dashboards, each with a unique id', () => {
@@ -21,5 +22,10 @@ describe('login-choice boards.config', () => {
   it("the woo board's role matches the gate role woo/modes.config.ts guards on", () => {
     const wooBoard = BOARDS.find((b) => b.id === 'woo');
     expect(wooBoard?.role).toBe(WOO_GATE_ROLE);
+  });
+
+  it("the infra-board board's role matches the gate role infra-board/modes.config.ts guards on", () => {
+    const infraBoard = BOARDS.find((b) => b.id === 'infra-board');
+    expect(infraBoard?.role).toBe(INFRA_GATE_ROLE);
   });
 });

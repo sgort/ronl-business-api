@@ -1,3 +1,6 @@
+import { INFRA_GATE_ROLE } from '../infra-board/modes.config';
+import { WOO_GATE_ROLE } from '../woo/modes.config';
+
 export type BoardId = 'caseworker' | 'public-affairs' | 'infra-board' | 'woo';
 export type PreviewKind = 'case' | 'pa' | 'infra' | 'woo';
 
@@ -39,7 +42,7 @@ export const BOARDS: BoardEntry[] = [
   },
   {
     id: 'infra-board',
-    role: 'infra-projectteam',
+    role: INFRA_GATE_ROLE,
     route: '/dashboard/infra-board',
     roleLabel: 'Programma & Projecten',
     title: 'Infra-board',
@@ -51,7 +54,7 @@ export const BOARDS: BoardEntry[] = [
   },
   {
     id: 'woo',
-    role: 'woo-coordinatie',
+    role: WOO_GATE_ROLE,
     route: '/dashboard/woo',
     roleLabel: 'Bestuur & Verantwoording',
     title: 'Woo-dashboard',

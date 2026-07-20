@@ -465,6 +465,28 @@ components (`Vandaag`, `Monitoring`, `AgendaView`, `Issuekaart`,
 etc.) and `AuthCallback`/`LoginChoice`/`ChangelogPanel`, none of which were
 in scope for this backlog.
 
+**After P1b + section components** (`test/p1b-sections-followups` branch —
+`api.ts`'s remaining ~40 methods; every Public Affairs section component
+—`Vandaag`, `Monitoring`, `AgendaView`, `Issuekaart`, `Kompas`, `Voortgang`,
+`FeitenCijfers`, `BronnenSection`, `ZoekcriteriaSection`,
+`NotificatiesSection`, `CuratieSpecSection`, `KompasSpecSection`,
+`CuratiePijplijnFlow`, `WatchBell`; every Woo Dashboard section component
+—`Register`, `Bezwaar`, `Overzicht`, `Proces`, `Publicatie`, `Tijdigheid`,
+`Verzoeken`, the `charts.tsx` SVG primitives; and the Caseworker/InfraBoard
+side —`GegevenswoordenboekV2`, `TakenInbox`, `MijnDag`, `Fase1Swimlane`,
+`Portfolio`, `ProjectDetail`): **46.59% statements / 38.28% branches /
+45.23% functions / 47.07% lines** overall, 466 tests across 60 files (up
+from 303 tests / 26.33% statements after P6). `api.ts` itself reached
+95.58% statements. Section components followed the same "critical
+interactions only" scoping as P5 for the largest files —
+`ZoekcriteriaSection.tsx` (1,069 lines, the single largest component in the
+codebase) got 8 targeted tests (grouping, create, edit, scope-promote,
+notify-toggle, delete, scoring-modal open/close) rather than exhaustive
+coverage of every inline sub-form branch; `Issuekaart.tsx` and
+`Monitoring.tsx` similarly still show lower per-file percentages (37% and
+55% statements respectively) by design — the untested remainder is deep
+sub-tab/rail branches, not core interaction paths.
+
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
 current "manual discipline" approach documented in `TESTS.md`.
@@ -474,10 +496,12 @@ current "manual discipline" approach documented in `TESTS.md`.
 Neither `azure-frontend-acc.yml` nor `azure-frontend-prod.yml` currently run
 lint or tests — they go straight from `npm ci` to `vite build` to deploy.
 That's an intentional, separate decision from this guide: **no CI test gate
-is being added yet**, even now that the full P1–P6 backlog is done (303
-tests, 26.33% statement coverage). Coverage is real but still partial —
-most page/section components remain untested (see the backlog table's
-closing note). Revisit this once that gap has closed further; when ready,
+is being added yet**, even now that the full P1–P6 backlog plus P1b and the
+section-component pass are done (466 tests, 46.59% statement coverage).
+Coverage is real but still partial — some page containers
+(`AuthCallback`/`LoginChoice`/`ChangelogPanel`), the dossierbeheer PA
+authoring surface, and various command-palette/dock components remain
+untested. Revisit this once that gap has closed further; when ready,
 add a test step to both workflows before the build step, mirroring how
 `azure-backend-*.yml` already runs `npm run lint` before building.
 
@@ -486,19 +510,19 @@ add a test step to both workflows before the build step, mirroring how
 | Priority | Area                                                                                                                                                                                                                                                                                                                                  | Why this order                                                                                                                                                                                                                                                   |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **P1**   | `services/*.ts` — **done** (`keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts` fully tested; `api.ts` has a worked example on `businessApi.health` but its other ~40 methods, listed below, are not yet covered)                                      | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on.                                                                                                                                                |
-| **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                                                               | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered.                                 |
+| **P1b**  | Remaining `api.ts` methods — **done** (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*` non-streaming, `externalStatus`, `getBaseUrl` all now covered; `api.ts` reaches 95.58% statements)                                                                    | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered.                                 |
 | **P2**   | Hooks — **done** (`infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; `hooks/useProfielData.ts` and `PaDataProvider.tsx`'s `useResource`/`usePaData` context now fully tested)                                                                                                                                   | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                                                              |
 | **P3**   | Small reusable components — **done** (`SessionExpiryWarning`, `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine` all fully tested)                                                                                                                                                           | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                                                           |
 | **P4**   | Remaining pure logic/data modules — **done** (`woo/modes.config.ts`, `login-choice/boards.config.ts`, `infra-board/modes.config.ts`, `caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`, `infra-board/infra-board.data.ts`, `woo/woo.data.ts` all fully tested)                                                              | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                                                           |
 | **P5**   | Page-level dashboard containers — **done, scoped to critical interactions** (`InfraBoardDashboard`, `WooDashboard`, `CaseworkerDashboardV2`, `PADashboardV2`, `Dashboard.tsx` — auth gates, tab/mode switching, login/logout, command palette, and the highest-value form flows; deliberately not exhaustive on 500+ line containers) | High value but expensive. Mock every child section/dock/palette component and go one level below `PaDataProvider`/`usePaData` rather than through the real context, so each test targets this container's own wiring, not a re-test of already-covered children. |
 | **P6**   | SSE streaming chat — **done** (`businessApi.mcp.chatStream`: SSE parsing/buffering across chunk boundaries, malformed-line handling, error/abort paths, auth)                                                                                                                                                                         | Bypasses `axios`/`msw` entirely (raw `fetch` + `ReadableStream`); mock a `{ getReader, releaseLock }` reader directly instead. See `api.chatStream.test.ts`.                                                                                                     |
 
-**P1–P6 backlog complete.** All six priorities from the original plan are done. Remaining known gaps, not part of this backlog: P1b (the ~40 other `api.ts` methods, mechanical repetition of an established pattern) and the two follow-ups below. Next candidates for a future pass: the untested `components/*Dashboard*` section components (each dashboard's individual sections — Vandaag, Monitoring, Bezwaar, etc. — currently exercised only indirectly through their container's mocked-out router), and the two follow-ups.
+**P1–P6 backlog complete, plus P1b and the full section-component sweep** (branch `test/p1b-sections-followups`). Every dashboard's individual section components — Public Affairs, Woo, Caseworker-V2, and InfraBoard — now have dedicated test files, on top of the P5 container-level tests that already mocked them out. Remaining known gaps, not part of this backlog: `AuthCallback.tsx`, `LoginChoice.tsx`, `ChangelogPanel.tsx`, the `dossierbeheer` PA-authoring surface (editor, gallery, dialogs — all 0% coverage), and the various `*CommandPalette*`/`*Dock*`/`*SectionRouter*` shell components in each dashboard (thin routing/keyboard-shortcut wrappers around already-tested children).
 
-**Follow-ups found while writing P4 tests** (not acted on — flagged for a deliberate decision later, not folded into this branch):
+**Follow-ups found while writing P4 tests:**
 
-- `login-choice/boards.config.ts`'s hardcoded `role: 'woo-coordinatie'` duplicates `woo/modes.config.ts`'s `WOO_GATE_ROLE` — consider importing the constant instead of re-typing the string, to remove the drift risk the cross-file test currently guards against.
-- `woo.data.ts`'s `wooFilterRows` "In behandeling" status filter matches "not Gesloten and not Over termijn," not an exact string match against `r.status === 'In behandeling'` — confirm this is the intended product behavior (it looks correct, but it's non-obvious from reading the filter UI alone).
+- **Fixed** (`test/p1b-sections-followups` branch): `login-choice/boards.config.ts` hardcoded `role: 'woo-coordinatie'` and `role: 'infra-projectteam'`, duplicating `woo/modes.config.ts`'s `WOO_GATE_ROLE` and `infra-board/modes.config.ts`'s `INFRA_GATE_ROLE`. Both boards now import the constant instead of re-typing the string; `boards.config.test.ts` has a regression check for each. (`public-affairs`/`caseworker` weren't touched — neither `modes.config.ts` for those exports an equivalent single-role constant to point at; their required roles live as local arrays inside the dashboard container itself.)
+- **Reviewed, not changed** — product decision, not a code-quality issue: `woo.data.ts`'s `wooFilterRows` "In behandeling" status filter matches "not Gesloten and not Over termijn," not an exact string match against `r.status === 'In behandeling'`. This looks like the intended behavior (the register's open rows carry several different in-progress status strings, and "In behandeling" as a filter option reads as "still open"), but confirm with whoever owns the Woo dashboard's product requirements before treating it as settled — it's not obvious from the filter UI alone, and a future "fix" to exact-match could silently change what the filter shows.
 
 ## E2E / Playwright (future initiative — main lines only)
 
