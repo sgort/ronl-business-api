@@ -387,11 +387,11 @@ export default function BronnenSection() {
         Wát elke bron ophaalt regelt u op <b>Zoekcriteria</b>; wat er daarna mee gebeurt staat op{' '}
         <b>Curatiepijplijn</b>.
       </p>
-      <p className="pac-spec-intro">
+      <div className="pac-spec-intro">
         Signalen op een gevolgd dossier of gevolgde zoekcriteria (bel-icoon) landen ook in een
         persoonlijke RSS-feed — bruikbaar in een feedreader naast het meldingen-icoon in de
         werkbalk. <PersonalFeedLink />
-      </p>
+      </div>
 
       <div className="pac-src-summary">
         <div className="pac-src-stat">
