@@ -79,6 +79,125 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '3.9.4',
+      status: 'Released',
+      date: '20 jul 2026',
+      scope: 'frontend',
+      commits: [
+        {
+          sha: '7c54c56',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Removed the Notificaties design-handoff docs from the repo',
+          details: [
+            'Reference-only handoff package for the Notificaties page (already ported into the app) — not meant to live in the repo long-term.',
+          ],
+        },
+        {
+          sha: '619b77c',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Brought the improved eDocs live-test script into this branch',
+          details: [
+            "Cherry-picked test-edocs-live.sh from feature/custom-connector-x-api (just this one file, not the rest of that branch's work). Adds a fail-fast liveness gate (GET /v1/health/live, checked before the pre-flight/token dance, mirroring test-smoke-live.sh), a second route via the Python MCP POC container (gated behind PYTHON_MCP_POC_ENABLED, off by default), workspace listing instead of create/delete (the live search was found not to reliably scope by project number), and non-fatal handling of document delete (this account has no delete-document right in the live DM server).",
+          ],
+        },
+        {
+          sha: '2ed4584',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Added frontend testing infrastructure and the Frontend Testing Guide',
+          details: [
+            "The frontend had 2 pure-logic test files and no way to render a component — no jsdom/RTL, no coverage.include. Added RTL/jsdom/msw, wired up per-file jsdom overrides, fixed Vitest coverage to report the whole src tree instead of only executed files, and aligned npm test with the backend's coverage-by-default convention. Two worked-example tests (services/api.ts, SessionExpiryWarning) prove the documented patterns actually work.",
+            'docs/TESTING-FRONTEND.md covers conventions, layer-by-layer patterns, a prioritized coverage backlog, and a light Playwright/E2E section for later.',
+          ],
+        },
+        {
+          sha: '3c4dd58',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P1: full test coverage for the service layer',
+          details: [
+            'Covers every services/*.ts file: keycloak.ts, tenant.ts, bsn.mapping.ts, brp.api.ts, brp.timeline.ts, dossierbeheer.api.ts, infra.api.ts, and pa.api.ts (the largest, ~35 exports across mock and live branches, using vi.stubEnv + vi.resetModules to flip the import.meta.env mock flags per test).',
+            '135 tests total (up from 11), all passing. Overall statement coverage 1.6% → 9.72%; src/services alone at 73.41%.',
+          ],
+        },
+        {
+          sha: '087d133',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P2: hook test coverage',
+          details: [
+            'Covers useProfielData.ts (imperative load()/loading/error state) and PaDataProvider.tsx (usePaData context + useResource instances + the write-action-then-selective-refetch pattern used across confirmSignal, watchDossier, ackNotifications, etc).',
+            '149 tests total (up from 135). Overall statement coverage 9.72% → 10.92%; PaDataProvider.tsx itself at 86.44%.',
+          ],
+        },
+        {
+          sha: '47553f7',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P3: small reusable component test coverage',
+          details: [
+            "Covers AltchaWidget (custom-element event dispatch), DecisionViewer and ProcessStartFormViewer (both wrap @bpmn-io/form-js's Form class, mocked via a plain function since arrow functions have no [[Construct]]), PersonalDataPanel (pure presentational), and TimeLine (getBoundingClientRect mocking for click/drag position math).",
+            'DecisionViewer also documents a real gotcha: Promise.allSettled absorbs rejections into its own fallback branch rather than the error branch, so reaching the error state needs a synchronous throw, not mockRejectedValue.',
+            '187 tests total (up from 149). Overall statement coverage 10.92% → 14.14%.',
+          ],
+        },
+        {
+          sha: '39a74ed',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P4: pure logic/data module test coverage',
+          details: [
+            'Covers the remaining config/data modules across infra-board, caseworker-v2, woo, and login-choice: static configs, gating predicates, activity-history-to-status mapping (rip-model.ts), portfolio row builders (infra-board.data.ts), and a seeded-PRNG-generated 218-row register with its filter predicates (woo.data.ts).',
+            'Two follow-ups surfaced along the way: boards.config.ts duplicated WOO_GATE_ROLE as a string literal instead of importing it (fixed in a later commit this release), and wooFilterRows\' "In behandeling" filter matches "not closed/overdue" rather than an exact status string (reviewed and confirmed as intentional, not a bug).',
+            '251 tests total (up from 187). Overall statement coverage 14.14% → 18.45%; woo.data.ts alone at 96.55%.',
+          ],
+        },
+        {
+          sha: 'f955093',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P5: dashboard container test coverage (critical interactions)',
+          details: [
+            'Covers InfraBoardDashboard, WooDashboard, CaseworkerDashboardV2, PADashboardV2, and Dashboard.tsx, scoped to auth/access gates, tab/mode switching, login/logout, command palette, and the highest-value form flow per container rather than exhaustive coverage of these 300–1,000+ line shells. Every child section/dock/palette component is mocked, and context providers (PaDataProvider) are mocked at the module level rather than run for real, since they already have dedicated test files.',
+            "Two real findings along the way: PADashboardV2's switchMode restores the last section visited per mode rather than always resetting to a default, and Dashboard.tsx's permit submission is a two-step flow where the child form's own success screen fires before the container's tab switch.",
+            '292 tests total (up from 251). Overall statement coverage 18.45% → 25.67%; src/pages jumped from ~15% to 54.18%.',
+          ],
+        },
+        {
+          sha: '6bcdf33',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P6: SSE streaming chat coverage, closing the P1–P6 backlog',
+          details: [
+            "Covers businessApi.mcp.chatStream by mocking the ReadableStream reader directly ({ read(), releaseLock() }) instead of fighting msw's streamed-response API. Tests event parsing, an SSE line split across two chunks (the real buffer/reassembly logic), a malformed line that doesn't drop subsequent valid events, non-data: lines being ignored, the reader lock being released, both error paths (HTTP error and fetch rejection), the AbortError-yields-nothing case, and the auth interceptor's failed-token-refresh branch.",
+            '303 tests total (up from 292). Overall statement coverage 25.67% → 26.33%; api.ts itself 13.23% → 39.7%. Closes the full P1–P6 backlog from the original plan (1.6% → 26.33% statements, 11 → 303 tests).',
+          ],
+        },
+        {
+          sha: '84ad878',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'P1b + full dashboard section-component test coverage',
+          details: [
+            'Covers the remaining ~40 businessApi methods in api.ts via the msw pattern (95.58% statements), and adds dedicated tests for every Public Affairs, Woo, Caseworker-V2, and InfraBoard section component that previously had none. Also fixes the boards.config.ts role-string duplication flagged during P4 and documents the wooFilterRows "In behandeling" filter behavior as a reviewed product decision.',
+            '466 tests total (up from 303). Overall statement coverage 26.33% → 46.59%.',
+          ],
+        },
+        {
+          sha: '4f68257',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fixed invalid <div>-in-<p> nesting in BronnenSection',
+          details: [
+            "PersonalFeedLink renders a <div>, which browsers can't nest inside a <p> — they close the paragraph early, silently breaking the intended markup. Found via validateDOMNesting warnings while writing BronnenSection.test.tsx.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '3.9.3',
       status: 'Released',
       date: '19 jul 2026',
