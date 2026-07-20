@@ -103,6 +103,13 @@ whether a module uses `axios` or raw `fetch`.
 `keycloak.ts` exports a module-level singleton (`new Keycloak(...)` runs at
 import time), so it must be mocked with `vi.mock`, not partially stubbed.
 
+The one exception is testing `keycloak.ts` itself (`getUser`/`getToken`) —
+there's nothing to mock, you need the real singleton. `keycloak-js`'s
+constructor touches `document` at construction time, so that file's test
+needs `// @vitest-environment jsdom` even though it's otherwise a plain
+service test with no rendering involved. See
+`packages/frontend/src/services/keycloak.test.ts`.
+
 Worked example: `packages/frontend/src/services/api.test.ts` (tests
 `businessApi.health`) covers:
 
@@ -147,11 +154,40 @@ factory throws a "Cannot access before initialization" error.
 `onUnhandledRequest: 'error'` is deliberate: a request nobody mocked should
 fail the test loudly, not silently hit the real network.
 
+Some service modules hold **module-level mutable state** (an in-memory
+cache, a mock data store — e.g. `tenant.ts`'s `cachedTenants`,
+`dossierbeheer.api.ts`'s `mockStore`). Because Vitest gives one module
+instance per test _file_ (not per test), that state otherwise leaks between
+tests. For simple caches, just overwrite the state at the start of every
+test that depends on it (see `tenant.test.ts`). For a store with real CRUD
+semantics where tests build on each other within a single scenario, isolate
+each test completely instead:
+
+```ts
+async function freshApi(isMock: boolean) {
+  vi.resetModules();
+  mockIsDossiersMock.mockReturnValue(isMock);
+  return import('./dossierbeheer.api');
+}
+```
+
+`vi.mock()` factory registrations survive `vi.resetModules()` — only the
+instantiated module cache is cleared — so a fresh dynamic `import()` after
+`resetModules()` gets its own isolated copy of the module's state while
+still using the same mocks. See `dossierbeheer.api.test.ts`.
+
 ### Hooks
 
-Use `renderHook` from React Testing Library, `// @vitest-environment jsdom`.
-Follow the same `vi.mock`/`msw` approach as service tests for whatever the
-hook calls internally (e.g. `useProfielData.ts` calls `businessApi.hr.profile`).
+Use `renderHook` + `waitFor` from React Testing Library, `// @vitest-environment jsdom`.
+Mock `businessApi` directly with `vi.mock('./api', () => ({ businessApi: mockBusinessApi }))`
+(`vi.hoisted` for the mock object, same reason as the service-layer pattern
+above) rather than going through `msw` — hook tests are about the
+loading/error/success state machine, not the HTTP layer, so mocking one
+level lower keeps the test focused. Worked example:
+`packages/frontend/src/services/infra.api.test.ts` (`useOpenTasks`,
+`useActivityHistory`) covers the happy path, an unsuccessful response, a
+rejected promise, and a conditional short-circuit (hook called with a null
+id skips the API call entirely).
 
 ### Components
 
@@ -206,11 +242,16 @@ version of this report look deceptively close to "done" (it only listed the
 handful of files the 4 test suites happened to import). With `include` set to
 the whole `src` tree, the report now reflects reality.
 
-**Baseline** (once `coverage.include` was added, right after the P1/P3 worked
-examples): **1.6% statements / 0.5% branches / 1.1% functions / 1.6% lines**
-across 5,499 statements. That's the honest starting point for the backlog
-below — expect it to stay low for a while as P1 (services) gets worked
-through, since those files carry the most statements per file.
+**Baseline** (once `coverage.include` was added, right after the first P1/P3
+worked examples): 1.6% statements / 0.5% branches across 5,499 statements.
+
+**After P1** (`services/*.ts` fully worked through, `api.ts` left at its
+worked-example level — see the backlog table below): **9.72% statements /
+6.89% branches / 7.33% functions / 9.51% lines** overall; `src/services`
+itself at 73.41% statements / 70.35% branches. That's the shape to expect
+going forward — a service/hook-heavy file lifts the total a lot per file,
+a component or page barely moves it, since `src/services` is a small
+fraction of the codebase's total statement count.
 
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
@@ -228,14 +269,15 @@ before building.
 
 ## Coverage backlog (priority order)
 
-| Priority | Area                                                                                                                                                           | Why this order                                                                                                                                                                                                    |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P1**   | `services/*.ts` (`api.ts`, `keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts`) | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on. `api.ts` and `keycloak.ts` are done as worked examples; the rest follow the same `msw` pattern. |
-| **P2**   | Hooks (`hooks/useProfielData.ts`, `PaDataProvider.tsx`'s `useResource`)                                                                                        | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                               |
-| **P3**   | Small reusable components (`SessionExpiryWarning` done; `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine`)           | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                            |
-| **P4**   | Remaining pure logic/data modules (`pages/*/*.data.ts`, `modes.config.ts` across `infra-board`, `caseworker-v2`, `woo`, `login-choice`)                        | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                            |
-| **P5**   | Page-level dashboard containers (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`, `WooDashboard`, `InfraBoardDashboard`)                     | High value but expensive. Scope to critical interactions (tab switching, form submit success/error paths) — don't chase exhaustive coverage on 500+ line container components.                                    |
-| **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                              | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                         |
+| Priority | Area                                                                                                                                                                                                                                                                                             | Why this order                                                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1**   | `services/*.ts` — **done** (`keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts` fully tested; `api.ts` has a worked example on `businessApi.health` but its other ~40 methods, listed below, are not yet covered) | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on.                                                                                                                |
+| **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                          | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered. |
+| **P2**   | Hooks — `infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; remaining: `hooks/useProfielData.ts`, `PaDataProvider.tsx`'s `useResource`                                                                                                                                      | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                              |
+| **P3**   | Small reusable components (`SessionExpiryWarning` done; `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine`)                                                                                                                                             | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                           |
+| **P4**   | Remaining pure logic/data modules (`pages/*/*.data.ts`, `modes.config.ts` across `infra-board`, `caseworker-v2`, `woo`, `login-choice`)                                                                                                                                                          | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                           |
+| **P5**   | Page-level dashboard containers (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`, `WooDashboard`, `InfraBoardDashboard`)                                                                                                                                                       | High value but expensive. Scope to critical interactions (tab switching, form submit success/error paths) — don't chase exhaustive coverage on 500+ line container components.                                                   |
+| **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                                                                                                                                                                | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                                        |
 
 ## E2E / Playwright (future initiative — main lines only)
 
