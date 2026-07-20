@@ -93,6 +93,15 @@ No new pattern needed — keep following what `kompas.test.ts` and
 an exported pure function or static config, `environment: 'node'` (the
 default), no mocks.
 
+Some data modules generate their mock fixture from a **fixed-seed PRNG**
+(e.g. `woo.data.ts`'s `WOO_REGISTER`, 218 rows from a seeded mulberry32-style
+generator) rather than hand-written literals — deterministic across runs,
+but not something to snapshot line-by-line. Test structural invariants
+instead (`toHaveLength(218)`, id format/uniqueness, sort order, a field
+that's only ever true under a specific condition) — that survives the
+generator being tweaked later without becoming a change-detector test that
+breaks on every unrelated edit. See `woo.data.test.ts`.
+
 ### API / service modules
 
 Mock at the **network boundary** with `msw`, not by stubbing `axios` methods
@@ -306,12 +315,20 @@ a small fraction of the codebase's total statement count.
 
 **After P3** (small reusable components — `SessionExpiryWarning`,
 `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`,
-`ProcessStartFormViewer`, `TimeLine`): **14.14% statements / 9.7% branches /
-10.88% functions / 14.18% lines** overall, 187 tests total (up from 149
-after P2). `components/` is a much bigger denominator than `services`/
-`hooks` (82 files), so 6 small files barely move the overall percentage —
-expect P4/P5 to behave the same way; watch per-file coverage in the report,
-not just the top-line number.
+`ProcessStartFormViewer`, `TimeLine`): 14.14% statements / 9.7% branches
+overall, 187 tests total (up from 149 after P2). `components/` is a much
+bigger denominator than `services`/`hooks` (82 files), so 6 small files
+barely move the overall percentage — watch per-file coverage in the
+report, not just the top-line number.
+
+**After P4** (remaining pure logic/data modules — `woo/modes.config.ts`,
+`login-choice/boards.config.ts`, `infra-board/modes.config.ts`,
+`caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`,
+`infra-board/infra-board.data.ts`, `woo/woo.data.ts`): **18.45% statements /
+12.81% branches / 13.47% functions / 18.24% lines** overall, 251 tests
+total (up from 187 after P3). `woo.data.ts` alone hit 96.55% statements —
+data/config modules with real logic (filter predicates, deterministic
+seeded generators) are cheap to cover thoroughly, same as P1's services.
 
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
@@ -335,9 +352,14 @@ before building.
 | **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                          | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered. |
 | **P2**   | Hooks — **done** (`infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; `hooks/useProfielData.ts` and `PaDataProvider.tsx`'s `useResource`/`usePaData` context now fully tested)                                                                                              | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                              |
 | **P3**   | Small reusable components — **done** (`SessionExpiryWarning`, `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine` all fully tested)                                                                                                                      | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                           |
-| **P4**   | Remaining pure logic/data modules (`pages/*/*.data.ts`, `modes.config.ts` across `infra-board`, `caseworker-v2`, `woo`, `login-choice`)                                                                                                                                                          | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                           |
+| **P4**   | Remaining pure logic/data modules — **done** (`woo/modes.config.ts`, `login-choice/boards.config.ts`, `infra-board/modes.config.ts`, `caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`, `infra-board/infra-board.data.ts`, `woo/woo.data.ts` all fully tested)                         | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                           |
 | **P5**   | Page-level dashboard containers (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`, `WooDashboard`, `InfraBoardDashboard`)                                                                                                                                                       | High value but expensive. Scope to critical interactions (tab switching, form submit success/error paths) — don't chase exhaustive coverage on 500+ line container components.                                                   |
 | **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                                                                                                                                                                | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                                        |
+
+**Follow-ups found while writing P4 tests** (not acted on — flagged for a deliberate decision later, not folded into this branch):
+
+- `login-choice/boards.config.ts`'s hardcoded `role: 'woo-coordinatie'` duplicates `woo/modes.config.ts`'s `WOO_GATE_ROLE` — consider importing the constant instead of re-typing the string, to remove the drift risk the cross-file test currently guards against.
+- `woo.data.ts`'s `wooFilterRows` "In behandeling" status filter matches "not Gesloten and not Over termijn," not an exact string match against `r.status === 'In behandeling'` — confirm this is the intended product behavior (it looks correct, but it's non-obvious from reading the filter UI alone).
 
 ## E2E / Playwright (future initiative — main lines only)
 
