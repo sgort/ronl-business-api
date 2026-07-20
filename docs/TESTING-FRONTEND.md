@@ -277,6 +277,68 @@ throw) rather than `mockRejectedValue()` (a rejected promise, which
 `allSettled` absorbs). See `DecisionViewer.test.tsx` for both cases side by
 side.
 
+### Page-level containers (dashboard shells)
+
+These files (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`,
+`WooDashboard.tsx`, `InfraBoardDashboard.tsx`) are 300–1,000+ line shells:
+top bar, mode/tab nav, a rail, a main section dispatcher, a command palette,
+an assistant dock. Test **this container's own wiring** — not its children,
+which either have their own test file already or belong to a future backlog
+item — by mocking every child component and every context one level below
+where this file consumes it:
+
+```ts
+vi.mock('../components/InfraBoardDashboard/InfraSectionRouter', () => ({
+  default: (props: { mode: string; section: string }) => (
+    <div data-testid="section-router">{props.mode}:{props.section}</div>
+  ),
+}));
+```
+
+For a container that renders a real context provider around itself (e.g.
+`PADashboardV2` wraps everything in `PaDataProvider`), mock the provider
+module itself rather than letting the real one run — a passthrough for the
+provider, a controllable `vi.fn()` for the hook:
+
+```ts
+const mockUsePaData = vi.hoisted(() => vi.fn());
+vi.mock('./public-affairs-v2/PaDataProvider', () => ({
+  PaDataProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  usePaData: mockUsePaData,
+}));
+```
+
+`PaDataProvider` already has its own full test file — re-running it here
+through the real thing would just duplicate that coverage while making
+these tests slower and harder to reason about.
+
+What's worth testing at this layer, worked examples across the five files:
+
+- **Auth/access gates** — unauthenticated → login prompt; authenticated but
+  missing a required role/org-type → the no-access panel; both wired
+  correctly for an authorized user (all five files).
+- **Tab/mode switching**, including mode-specific defaults
+  (`InfraBoardDashboard`, `WooDashboard`, `CaseworkerDashboardV2`) and a
+  genuinely tricky one: `PADashboardV2`'s `switchMode` restores the last
+  section visited _per mode_, falling back to a hardcoded default only on
+  first visit — test both the fallback and the restore.
+  `CaseworkerDashboardV2` also has a real exception to its own login wall
+  (the public "Zoeken" mode is reachable while unauthenticated) worth
+  testing explicitly since it's easy to regress.
+- **Login/logout**, including the `sessionStorage` keys the login flow
+  writes before navigating to `/auth`.
+- **The highest-value form flow**, not every one — `Dashboard.tsx`'s permit
+  application is a two-step flow worth getting right in a test: the child
+  form's own local success screen fires first, and the _container's_ tab
+  switch only happens once the user clicks through it — don't assume
+  `onStarted` and the container's `onSubmitted` fire together.
+- **Command palette / dock toggle** open state and `sessionStorage`
+  persistence, where present.
+
+What's explicitly out of scope here: exhaustive rail-rendering permutations,
+every inline sub-form's every branch, and anything already covered by that
+child component's own test file.
+
 ### SSE streaming (`businessApi.mcp.chatStream`)
 
 Lower priority, harder to mock — it bypasses `axios` entirely and reads a raw
@@ -324,11 +386,22 @@ report, not just the top-line number.
 **After P4** (remaining pure logic/data modules — `woo/modes.config.ts`,
 `login-choice/boards.config.ts`, `infra-board/modes.config.ts`,
 `caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`,
-`infra-board/infra-board.data.ts`, `woo/woo.data.ts`): **18.45% statements /
-12.81% branches / 13.47% functions / 18.24% lines** overall, 251 tests
-total (up from 187 after P3). `woo.data.ts` alone hit 96.55% statements —
-data/config modules with real logic (filter predicates, deterministic
-seeded generators) are cheap to cover thoroughly, same as P1's services.
+`infra-board/infra-board.data.ts`, `woo/woo.data.ts`): 18.45% statements /
+12.81% branches overall, 251 tests total (up from 187 after P3).
+`woo.data.ts` alone hit 96.55% statements — data/config modules with real
+logic (filter predicates, deterministic seeded generators) are cheap to
+cover thoroughly, same as P1's services.
+
+**After P5** (dashboard containers, critical interactions only —
+`InfraBoardDashboard`, `WooDashboard`, `CaseworkerDashboardV2`,
+`PADashboardV2`, `Dashboard.tsx`): **25.67% statements / 20.03% branches /
+21.03% functions / 25.76% lines** overall, 292 tests total (up from 251
+after P4). `src/pages` alone jumped from ~15% to 54.18% statements —
+unlike P1–P4, these are large files (300–1,000+ lines each), so even a
+scoped, non-exhaustive pass moves the top-line number a lot. Per-file
+numbers (60–86% statements) reflect what "critical interactions only"
+actually covers — the untested remainder is mostly deep branches inside
+inline sub-forms and rail-rendering variants that weren't worth chasing.
 
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
@@ -346,15 +419,15 @@ before building.
 
 ## Coverage backlog (priority order)
 
-| Priority | Area                                                                                                                                                                                                                                                                                             | Why this order                                                                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P1**   | `services/*.ts` — **done** (`keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts` fully tested; `api.ts` has a worked example on `businessApi.health` but its other ~40 methods, listed below, are not yet covered) | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on.                                                                                                                |
-| **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                          | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered. |
-| **P2**   | Hooks — **done** (`infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; `hooks/useProfielData.ts` and `PaDataProvider.tsx`'s `useResource`/`usePaData` context now fully tested)                                                                                              | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                              |
-| **P3**   | Small reusable components — **done** (`SessionExpiryWarning`, `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine` all fully tested)                                                                                                                      | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                           |
-| **P4**   | Remaining pure logic/data modules — **done** (`woo/modes.config.ts`, `login-choice/boards.config.ts`, `infra-board/modes.config.ts`, `caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`, `infra-board/infra-board.data.ts`, `woo/woo.data.ts` all fully tested)                         | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                           |
-| **P5**   | Page-level dashboard containers (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`, `WooDashboard`, `InfraBoardDashboard`)                                                                                                                                                       | High value but expensive. Scope to critical interactions (tab switching, form submit success/error paths) — don't chase exhaustive coverage on 500+ line container components.                                                   |
-| **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                                                                                                                                                                | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                                        |
+| Priority | Area                                                                                                                                                                                                                                                                                                                                  | Why this order                                                                                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1**   | `services/*.ts` — **done** (`keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts` fully tested; `api.ts` has a worked example on `businessApi.health` but its other ~40 methods, listed below, are not yet covered)                                      | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on.                                                                                                                                                |
+| **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                                                               | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered.                                 |
+| **P2**   | Hooks — **done** (`infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; `hooks/useProfielData.ts` and `PaDataProvider.tsx`'s `useResource`/`usePaData` context now fully tested)                                                                                                                                   | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                                                              |
+| **P3**   | Small reusable components — **done** (`SessionExpiryWarning`, `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine` all fully tested)                                                                                                                                                           | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                                                           |
+| **P4**   | Remaining pure logic/data modules — **done** (`woo/modes.config.ts`, `login-choice/boards.config.ts`, `infra-board/modes.config.ts`, `caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`, `infra-board/infra-board.data.ts`, `woo/woo.data.ts` all fully tested)                                                              | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                                                           |
+| **P5**   | Page-level dashboard containers — **done, scoped to critical interactions** (`InfraBoardDashboard`, `WooDashboard`, `CaseworkerDashboardV2`, `PADashboardV2`, `Dashboard.tsx` — auth gates, tab/mode switching, login/logout, command palette, and the highest-value form flows; deliberately not exhaustive on 500+ line containers) | High value but expensive. Mock every child section/dock/palette component and go one level below `PaDataProvider`/`usePaData` rather than through the real context, so each test targets this container's own wiring, not a re-test of already-covered children. |
+| **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                                                                                                                                                                                                     | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                                                                        |
 
 **Follow-ups found while writing P4 tests** (not acted on — flagged for a deliberate decision later, not folded into this branch):
 
