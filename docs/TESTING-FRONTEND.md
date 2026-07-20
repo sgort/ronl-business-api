@@ -229,11 +229,44 @@ hang against fake timers unless every internal delay is wired through
 `advanceTimers`, which adds complexity for no benefit if the test isn't
 asserting time-based behavior.
 
-For a component that wraps a third-party custom element (e.g.
-`AltchaWidget.tsx`), the same `render`/`screen` approach works — jsdom
-supports `customElements.define`/`CustomEvent` natively, so you can
-`fireEvent(el, new CustomEvent('statechange', { detail: {...} }))` to
+For a component that wraps a third-party **custom element** (e.g.
+`AltchaWidget.tsx`, worked example: `AltchaWidget.test.tsx`), the same
+`render`/`screen` approach works — jsdom supports
+`customElements.define`/`CustomEvent` natively, so you can
+`el.dispatchEvent(new CustomEvent('statechange', { detail: {...} }))` to
 simulate the widget's callback.
+
+For a component that wraps a third-party **class instance** (e.g.
+`DecisionViewer.tsx`/`ProcessStartFormViewer.tsx` both wrap
+`@bpmn-io/form-js`'s `Form`), mock the class with a plain `function`, not an
+arrow function — `new (() => x)` is a runtime error, since arrow functions
+have no `[[Construct]]`:
+
+```ts
+const mockFormInstance = vi.hoisted(() => ({
+  importSchema: vi.fn().mockResolvedValue(undefined),
+  destroy: vi.fn(),
+}));
+const MockForm = vi.hoisted(() =>
+  vi.fn(function MockFormCtor() {
+    return mockFormInstance; // a constructor that returns an object overrides `this`
+  })
+);
+vi.mock('@bpmn-io/form-js', () => ({ Form: MockForm }));
+```
+
+Watch for **`Promise.allSettled`** absorbing rejections: if a component
+fetches via `Promise.allSettled([...])` (as `DecisionViewer.tsx` does), a
+rejected individual promise does _not_ make the `.catch()` after
+`allSettled` fire — it just becomes a `{ status: 'rejected' }` entry that
+the component's own fallback logic handles (usually routing to a
+"no data"/fallback UI state, not an error state). To reach a genuine error
+state in a component like this, you typically need the effect itself to
+throw _before_ `Promise.allSettled` runs — e.g. mock one of the underlying
+calls with `mockImplementation(() => { throw new Error(...) })` (synchronous
+throw) rather than `mockRejectedValue()` (a rejected promise, which
+`allSettled` absorbs). See `DecisionViewer.test.tsx` for both cases side by
+side.
 
 ### SSE streaming (`businessApi.mcp.chatStream`)
 
@@ -265,12 +298,20 @@ worked-example level — see the backlog table below): 9.72% statements /
 branches.
 
 **After P2** (hooks — `useProfielData.ts` and `PaDataProvider.tsx`):
-**10.92% statements / 7.01% branches / 8.46% functions / 10.71% lines**
-overall; `PaDataProvider.tsx` alone at 86.44% statements / 100% branches.
-That's the shape to expect going forward — a service/hook-heavy file lifts
-the total a lot per file, a component or page barely moves it, since
-`src/services` + `src/hooks` are a small fraction of the codebase's total
-statement count.
+10.92% statements / 7.01% branches overall; `PaDataProvider.tsx` alone at
+86.44% statements / 100% branches. That's the shape to expect going
+forward — a service/hook-heavy file lifts the total a lot per file, a
+component or page barely moves it, since `src/services` + `src/hooks` are
+a small fraction of the codebase's total statement count.
+
+**After P3** (small reusable components — `SessionExpiryWarning`,
+`AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`,
+`ProcessStartFormViewer`, `TimeLine`): **14.14% statements / 9.7% branches /
+10.88% functions / 14.18% lines** overall, 187 tests total (up from 149
+after P2). `components/` is a much bigger denominator than `services`/
+`hooks` (82 files), so 6 small files barely move the overall percentage —
+expect P4/P5 to behave the same way; watch per-file coverage in the report,
+not just the top-line number.
 
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
@@ -293,7 +334,7 @@ before building.
 | **P1**   | `services/*.ts` — **done** (`keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts` fully tested; `api.ts` has a worked example on `businessApi.health` but its other ~40 methods, listed below, are not yet covered) | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on.                                                                                                                |
 | **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                          | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered. |
 | **P2**   | Hooks — **done** (`infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; `hooks/useProfielData.ts` and `PaDataProvider.tsx`'s `useResource`/`usePaData` context now fully tested)                                                                                              | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                              |
-| **P3**   | Small reusable components (`SessionExpiryWarning` done; `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine`)                                                                                                                                             | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                           |
+| **P3**   | Small reusable components — **done** (`SessionExpiryWarning`, `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine` all fully tested)                                                                                                                      | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                           |
 | **P4**   | Remaining pure logic/data modules (`pages/*/*.data.ts`, `modes.config.ts` across `infra-board`, `caseworker-v2`, `woo`, `login-choice`)                                                                                                                                                          | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                           |
 | **P5**   | Page-level dashboard containers (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`, `WooDashboard`, `InfraBoardDashboard`)                                                                                                                                                       | High value but expensive. Scope to critical interactions (tab switching, form submit success/error paths) — don't chase exhaustive coverage on 500+ line container components.                                                   |
 | **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                                                                                                                                                                | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                                        |
