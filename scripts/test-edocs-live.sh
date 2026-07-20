@@ -1,16 +1,42 @@
 #!/usr/bin/env bash
 # test-edocs-live.sh
 # End-to-end smoke test of the eDOCS connector against a LIVE OpenText eDOCS
-# backend, through the /v1/edocs HTTP surface — the same path the frontend uses.
+# backend, through TWO separate routes:
+#   1. /v1/edocs HTTP surface directly — the same path the frontend uses.
+#      Lists the existing workspaces (view-only — nothing is created or
+#      deleted; see "Known limitations" below), then uploads a standalone
+#      document and downloads it back to verify the round-trip.
+#   2. The Python MCP POC container (docs/Python-MCP-server.md), called over
+#      the MCP streamable-HTTP protocol instead of plain HTTP. Two parts:
+#        a. Mirror reads — workspace_list / document_profile / document_versions
+#           against the exact DOCUMENT_ID route 1 just created, proving the
+#           MCP path sees the same live eDOCS data the direct route does, not
+#           just that it responds.
+#        b. Own upload — document_upload + document_profile + document_download,
+#           creating and reading back a SEPARATE document independent of
+#           route 1, proving the MCP route has genuine create+read parity, not
+#           just read access to what route 1 made. document_upload/
+#           document_download are not exposed to the AI Assistant chat (see
+#           PythonPocMcpProvider.ts ALLOWED_TOOLS) — this script calls them
+#           directly over raw MCP, same as it already does for the read tools.
+#      Local-only (TARGET=local): the POC container isn't deployed to acc.
 #
 # Run this AFTER setting EDOCS_STUB_MODE=false and restarting the backend, but
-# BEFORE exercising the UI. It proves auth, workspace ensure, and document
-# upload/profile/versions/download/delete all work against the real DM server.
+# BEFORE exercising the UI.
 #
 # Document upload is STANDALONE (no workspaceId) — the workspace-ref upload
-# path is still broken server-side (see docs/EDOCS-GO-LIVE.md § Known issues),
-# so upload no longer depends on the "Ensure workspace" step succeeding.
-# Ensure-workspace is still run and checked independently.
+# path is still broken server-side (see docs/EDOCS-GO-LIVE.md § Known issues).
+#
+# Known limitations (both intentional, not bugs to chase here):
+#   - Workspace create/delete is NOT exercised by this script — the live
+#     workspace search (ensureWorkspace) was found to not reliably scope by
+#     project number, so automated create+delete risked touching workspaces
+#     this script didn't create. Workspaces are listed (read-only) instead.
+#   - Document delete always fails (502) — the eDOCS service account this
+#     script runs as has no delete-document right in the live DM server. So
+#     no cleanup is attempted at all; every run leaves its uploaded
+#     document(s) behind by design. There is no interactive confirmation
+#     prompt for this reason — there is nothing this script can delete.
 #
 # Usage:
 #   bash scripts/test-edocs-live.sh                     # localhost (default target)
@@ -33,21 +59,22 @@
 #   TARGET=local|acc                       # picks a preset URL pair (default: local)
 #   BASE_URL / KEYCLOAK_URL                # override either preset explicitly
 #   CLIENT_ID=operaton-mcp-client
-#   PROJECT_NUMBER=SMOKE-<timestamp>       # override to reuse/inspect a workspace
-#   PROJECT_NAME="eDOCS CLI smoke test"
+#   PROJECT_NUMBER=SMOKE-<timestamp>       # only used to name the uploaded documents
 #   EDOCS_DEPARTMENT=IVR                   # UV_AFD_NAAM profile field (mandatory on the DM server)
+#   PYTHON_MCP_POC_ENABLED=true             # route 2 is OFF unless this is true — checked
+#                                            # against the exported var first, then
+#                                            # PYTHON_MCP_POC_ENABLED in packages/backend/.env.<NODE_ENV>
+#   PYTHON_MCP_POC_URL=http://localhost:8765/mcp   # Python MCP POC endpoint (route 2, local-only);
+#                                            # same exported-var-then-.env fallback as ENABLED
 #   SKIP_LOCAL_PROBE=1                     # skip pre-flight (local .env ≠ target)
 #   NODE_ENV=development                   # which .env the pre-flight loads
-#   EDOCS_PORTAL_URL=https://<host>/infocenter   # printed as a browsable link before cleanup
-#   AUTO_CONFIRM_CLEANUP=1                 # skip the y/N prompt and delete automatically
+#   EDOCS_PORTAL_URL=https://<host>/infocenter   # printed as a browsable link in the closing summary
 #
-# NOTE: a successful run creates a REAL workspace (via ensure) and a REAL
-# standalone document in eDOCS, downloads the document back to verify the
-# round-trip, then asks for explicit confirmation before deleting both. In a
-# non-interactive shell (no TTY) cleanup is skipped by default — set
-# AUTO_CONFIRM_CLEANUP=1 to delete without prompting (e.g. in CI). The default
-# PROJECT_NUMBER is timestamped so runs never collide, and skipped-cleanup
-# artifacts stay identifiable by it.
+# NOTE: a successful run creates two REAL standalone documents in eDOCS (one
+# per route) and downloads each back to verify the round-trip. Neither is
+# cleaned up (see "Known limitations" above) — both are always left behind.
+# The default PROJECT_NUMBER is timestamped so runs never collide and stay
+# identifiable in InfoCenter.
 
 set -u
 
@@ -72,10 +99,26 @@ esac
 BASE_URL="${BASE_URL:-$DEFAULT_BASE_URL}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-$DEFAULT_KEYCLOAK_URL}"
 PROJECT_NUMBER="${PROJECT_NUMBER:-SMOKE-$(date +%Y%m%d-%H%M%S)}"
-PROJECT_NAME="${PROJECT_NAME:-eDOCS CLI smoke test}"
 # UV_AFD_NAAM ("Behandelgroep") — mandatory DM-server profile field; no default
 # beyond what's known to be valid on infocenter-test.flevoland.nl.
 EDOCS_DEPARTMENT="${EDOCS_DEPARTMENT:-IVR}"
+
+# ─── Liveness gate — fail fast if the backend isn't running ───────────────────
+#
+# Checked first, before the pre-flight below (which is in-process and doesn't
+# need the backend) and before the token dance — a stopped backend is the most
+# common reason to run this script, and there's no point spending time on
+# either only to hit a confusing "HTTP 000" deep into the run. Mirrors
+# test-smoke-live.sh's own liveness gate exactly.
+LIVE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v1/health/live")
+if [[ "$LIVE_CODE" != "200" ]]; then
+  echo "  ✗ backend not live at ${BASE_URL} (HTTP $LIVE_CODE)"
+  echo ""
+  echo "  Is the backend running? For local dev start it, or pass TARGET=acc."
+  echo "  Results: 0 passed, 1 failed"
+  exit 1
+fi
+echo "  ✓ backend live (GET /v1/health/live)"
 
 # Repo layout — used to run the Keycloak-free eDOCS reach/login pre-flight.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -106,6 +149,21 @@ if [[ "$BASE_URL" =~ ^https?://(localhost|127\.0\.0\.1) && -f "$ENV_FILE" && -z 
 fi
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
 
+# Python MCP POC — gates route 2 entirely. Same fallback as CLIENT_SECRET
+# above: an explicitly exported PYTHON_MCP_POC_ENABLED always wins; otherwise
+# read from packages/backend/.env.<NODE_ENV> (PYTHON_MCP_POC_URL is read the
+# same way, so a URL configured there is picked up without exporting it too).
+# Defaults to disabled if neither is set — route 2 only runs when explicitly
+# turned on, never by trying to connect and seeing what happens.
+if [[ -z "${PYTHON_MCP_POC_ENABLED:-}" && -f "$ENV_FILE" ]]; then
+  PYTHON_MCP_POC_ENABLED="$(read_env_var PYTHON_MCP_POC_ENABLED "$ENV_FILE")"
+fi
+PYTHON_MCP_POC_ENABLED="$(echo "${PYTHON_MCP_POC_ENABLED:-false}" | tr '[:upper:]' '[:lower:]')"
+if [[ -z "${PYTHON_MCP_POC_URL:-}" && -f "$ENV_FILE" ]]; then
+  PYTHON_MCP_POC_URL="$(read_env_var PYTHON_MCP_POC_URL "$ENV_FILE")"
+fi
+PYTHON_MCP_POC_URL="${PYTHON_MCP_POC_URL:-http://localhost:8765/mcp}"
+
 # Direct eDOCS health probe (in-process, no Keycloak/backend). Echoes its
 # EDOCS_HEALTH_RESULT json line. Reflects the LOCAL packages/backend/.env config.
 run_edocs_probe() {
@@ -126,9 +184,9 @@ if [[ "${SKIP_LOCAL_PROBE:-0}" != "1" && -d "$BACKEND_DIR" ]] && command -v npx 
   echo "── Pre-flight: eDOCS reach + login (direct · no Keycloak · local .env) ───"
   PROBE_JSON=$(run_edocs_probe)
   if [[ -z "$PROBE_JSON" ]]; then
-    echo "  ~ probe produced no result — skipping pre-flight (run: cd packages/backend && npm run edocs:health)"
+    echo "  ~ probe produced no result - skipping pre-flight (run: cd packages/backend && npm run edocs:health)"
   elif [[ "$(echo "$PROBE_JSON" | jq -r '.status')" == "stub" ]]; then
-    echo "  ✗ eDOCS is in STUB mode locally — set EDOCS_STUB_MODE=false and retry."
+    echo "  ✗ eDOCS is in STUB mode locally - set EDOCS_STUB_MODE=false and retry."
     echo "    (Nothing to smoke-test against a stub. Aborting before the token dance.)"
     exit 1
   else
@@ -136,16 +194,16 @@ if [[ "${SKIP_LOCAL_PROBE:-0}" != "1" && -d "$BACKEND_DIR" ]] && command -v npx 
     p_aut=$(echo "$PROBE_JSON" | jq -r '.authenticated')
     if [[ "$p_rch" != "true" ]]; then
       echo "  ✗ eDOCS not reachable: $(echo "$PROBE_JSON" | jq -r '.error // "no detail"')"
-      echo "    Aborting — the mutating steps would fail. (SKIP_LOCAL_PROBE=1 to override.)"
+      echo "    Aborting - the mutating steps would fail. (SKIP_LOCAL_PROBE=1 to override.)"
       exit 1
     fi
     echo "  ✓ eDOCS reachable"
     if [[ "$p_aut" != "true" ]]; then
       echo "  ✗ eDOCS login failed: $(echo "$PROBE_JSON" | jq -r '.error // "no detail (see backend logs / rapi_details)"')"
-      echo "    Aborting — credentials cannot log in (locked out?). (SKIP_LOCAL_PROBE=1 to override.)"
+      echo "    Aborting - credentials cannot log in (locked out?). (SKIP_LOCAL_PROBE=1 to override.)"
       exit 1
     fi
-    echo "  ✓ eDOCS login OK — proceeding to the authenticated backend path."
+    echo "  ✓ eDOCS login OK - proceeding to the authenticated backend path."
   fi
 fi
 
@@ -167,7 +225,7 @@ check_status() {
   if [[ "$actual" == "$expected" ]]; then
     pass "$label (HTTP $actual)"
   else
-    fail "$label — expected HTTP $expected, got HTTP $actual"
+    fail "$label - expected HTTP $expected, got HTTP $actual"
   fi
 }
 
@@ -177,8 +235,53 @@ check_field() {
   if [[ "$actual" == "$expected" ]]; then
     pass "$label ($field = $expected)"
   else
-    fail "$label — expected $field=$expected, got $field=$actual"
+    fail "$label - expected $field=$expected, got $field=$actual"
   fi
+}
+
+# ─── MCP streamable-HTTP helper (route 2 — Python MCP POC) ────────────────────
+#
+# Full handshake (initialize → notifications/initialized → tools/call) against
+# $1, calling tool $2 with JSON arguments $3, writing the SSE-framed tools/call
+# response to $4. Same protocol test-smoke-live.sh's mcp_list_tools() speaks,
+# extended here to actually invoke a tool (not just list them) since this
+# script needs real data back to compare against the direct-route results.
+# Returns 1 on any curl failure, non-200 initialize, or missing session id.
+mcp_call_tool() {
+  local url="$1" tool="$2" args_json="$3" out="$4"
+  local init_headers="/tmp/edocs_mcp_init_headers.txt" session_id
+
+  curl -s -D "$init_headers" -o /dev/null --max-time 10 -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"edocs-live-test","version":"1.0.0"}}}' \
+    2>/dev/null || return 1
+
+  grep -qi "^HTTP/[0-9.]* 200" "$init_headers" || return 1
+  session_id=$(grep -i "^mcp-session-id:" "$init_headers" | tr -d '\r' \
+    | sed -E 's/^[Mm]cp-[Ss]ession-[Ii]d:[[:space:]]*//')
+  [[ -z "$session_id" ]] && return 1
+
+  curl -s -o /dev/null --max-time 10 -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Mcp-Session-Id: $session_id" \
+    -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    2>/dev/null
+
+  curl -s --max-time 15 -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Mcp-Session-Id: $session_id" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"${tool}\",\"arguments\":${args_json}}}" \
+    > "$out" 2>/dev/null
+}
+
+# Unwraps an SSE-framed tools/call response file (from mcp_call_tool) down to
+# the tool's actual JSON body — the same {success, data} shape the direct
+# /v1/edocs/* routes return, since the Python tool just relays response.json().
+mcp_tool_result_json() {
+  sed -n 's/^data: //p' "$1" | tail -n1 | jq -r '.result.content[0].text' 2>/dev/null | tr -d '\r'
 }
 
 # ─── Token ────────────────────────────────────────────────────────────────────
@@ -237,13 +340,13 @@ if [[ "$STATUS_CODE" != "200" ]] || \
    [[ "$(jq -r '.data.stubMode' /tmp/edocs_status.json 2>/dev/null)" != "false" ]] || \
    [[ "$(jq -r '.data.authenticated' /tmp/edocs_status.json 2>/dev/null)" != "true" ]]; then
   echo ""
-  echo "  ! Skipping workspace/document steps — status pre-flight did not pass."
+  echo "  ! Skipping workspace/document steps - status pre-flight did not pass."
   echo ""
   echo "  Results: $PASS passed, $FAIL failed"
   exit 1
 fi
 
-# ─── 2. List workspaces ───────────────────────────────────────────────────────
+# ─── 2. List workspaces (view-only — no create/delete, see header) ────────────
 
 echo ""
 echo "── Workspaces ───────────────────────────────────────────────────────────"
@@ -251,37 +354,19 @@ echo "── Workspaces ──────────────────�
 WS_LIST_CODE=$(curl -s -o /tmp/edocs_ws_list.json -w "%{http_code}" \
   "${BASE_URL}/v1/edocs/workspaces" "${AUTH[@]}")
 check_status "GET /v1/edocs/workspaces" "$WS_LIST_CODE" "200"
-[[ "$WS_LIST_CODE" == "200" ]] && \
+if [[ "$WS_LIST_CODE" == "200" ]]; then
   check_field "workspace list body" "$(cat /tmp/edocs_ws_list.json)" '.success' 'true'
-
-# ─── 3. Ensure workspace ──────────────────────────────────────────────────────
-
-echo ""
-echo "── Ensure workspace ($PROJECT_NUMBER) ───────────────────────────────────"
-
-WS_ENSURE_CODE=$(curl -s -o /tmp/edocs_ws_ensure.json -w "%{http_code}" \
-  -X POST "${BASE_URL}/v1/edocs/workspaces/ensure" "${AUTH[@]}" \
-  -H "Content-Type: application/json" \
-  -d "{\"projectNumber\":\"${PROJECT_NUMBER}\",\"projectName\":\"${PROJECT_NAME}\"}")
-check_status "POST /v1/edocs/workspaces/ensure" "$WS_ENSURE_CODE" "200"
-
-WORKSPACE_ID=""
-if [[ "$WS_ENSURE_CODE" == "200" ]]; then
-  check_field "ensure body" "$(cat /tmp/edocs_ws_ensure.json)" '.success' 'true'
-  WORKSPACE_ID=$(jq -r '.data.workspaceId // empty' /tmp/edocs_ws_ensure.json)
-  if [[ -n "$WORKSPACE_ID" ]]; then
-    pass "workspace id returned: $WORKSPACE_ID (created=$(jq -r '.data.created' /tmp/edocs_ws_ensure.json))"
-  else
-    fail "ensure returned no workspaceId"
-  fi
+  WS_COUNT=$(jq -r '.data | length' /tmp/edocs_ws_list.json 2>/dev/null)
+  echo "  Workspaces (${WS_COUNT:-0}):"
+  jq -r '.data[]? | "    " + (.id // "?") + "  -  " + (.DOCNAME // "?")' \
+    /tmp/edocs_ws_list.json 2>/dev/null
 fi
 
-# ─── 4. Upload a document — standalone (the confirmed-working path) ───────────
+# ─── 3. Upload a document — standalone (the confirmed-working path) ───────────
 #
 # The workspace-ref path (passing workspaceId) is still broken server-side
 # (see EDOCS-GO-LIVE.md § Known issues) — this uploads standalone instead,
-# which is the only path confirmed working live. This no longer depends on
-# WORKSPACE_ID from step 3; ensure-workspace above is validated independently.
+# which is the only path confirmed working live, and doesn't need a workspace.
 
 echo ""
 echo "── Upload document (standalone) ─────────────────────────────────────────"
@@ -330,24 +415,8 @@ if [[ "$DOC_CODE" == "200" ]]; then
     || fail "upload returned no documentNumber"
 fi
 
-# ─── 5. List the workspace's content (endpoint check) ─────────────────────────
-# The document above is standalone, so this exercises the endpoint fix without
-# expecting to see it — only runs when step 3 produced a WORKSPACE_ID.
-if [[ -n "$WORKSPACE_ID" ]]; then
-  echo ""
-  echo "── Workspace documents ──────────────────────────────────────────────────"
-  DOCS_CODE=$(curl -s -o /tmp/edocs_docs.json -w "%{http_code}" \
-    "${BASE_URL}/v1/edocs/workspaces/${WORKSPACE_ID}/documents" "${AUTH[@]}")
-  check_status "GET /v1/edocs/workspaces/:id/documents" "$DOCS_CODE" "200"
-  [[ "$DOCS_CODE" == "200" ]] && \
-    check_field "documents body" "$(cat /tmp/edocs_docs.json)" '.success' 'true'
-else
-  echo ""
-  echo "  ~ workspace-documents check skipped — no workspace id"
-fi
-
 if [[ -n "$DOCUMENT_ID" ]]; then
-  # ─── 6. Document profile ────────────────────────────────────────────────
+  # ─── 4. Document profile ────────────────────────────────────────────────
   echo ""
   echo "── Document profile ─────────────────────────────────────────────────────"
   PROFILE_CODE=$(curl -s -o /tmp/edocs_profile.json -w "%{http_code}" \
@@ -356,7 +425,7 @@ if [[ -n "$DOCUMENT_ID" ]]; then
   [[ "$PROFILE_CODE" == "200" ]] && \
     check_field "profile body" "$(cat /tmp/edocs_profile.json)" '.success' 'true'
 
-  # ─── 7. Document versions (informational — not a download prerequisite) ─
+  # ─── 5. Document versions (informational — not a download prerequisite) ─
   echo ""
   echo "── Document versions ────────────────────────────────────────────────────"
   VERSIONS_CODE=$(curl -s -o /tmp/edocs_versions.json -w "%{http_code}" \
@@ -365,7 +434,7 @@ if [[ -n "$DOCUMENT_ID" ]]; then
   [[ "$VERSIONS_CODE" == "200" ]] && \
     pass "versions listed ($(jq -r '.data.versions | length' /tmp/edocs_versions.json) found)"
 
-  # ─── 8. Download + verify the content round-trips ───────────────────────
+  # ─── 6. Download + verify the content round-trips ───────────────────────
   # "0" is a confirmed-working version sentinel ("current version") — the
   # versions list's VERSION_ID/VERSION values both 400 here ("Kan
   # documentversie niet vinden"), so this does not depend on step 7's result.
@@ -389,53 +458,155 @@ if [[ -n "$DOCUMENT_ID" ]]; then
   fi
 else
   echo ""
-  echo "  ~ profile/versions/download skipped — no document id"
+  echo "  ~ profile/versions/download skipped - no document id"
 fi
 
-# ─── 9. Browse before cleanup, then confirm ────────────────────────────────────
+# ─── Route 2 — same reads, via the Python MCP POC ──────────────────────────────
+#
+# Runs before route 2's own upload below — it needs the document route 1
+# created above to still exist. Local-only: the POC container isn't deployed
+# to acc. document_profile / document_versions take the exact DOCUMENT_ID
+# route 1 just created, so a success there is a real cross-path proof
+# (MCP → Python container → this backend → live eDOCS DM server, same
+# object, same id) — not just "the tool responds". workspace_list has no
+# per-item id to cross-check against route 1 (nothing creates a workspace
+# any more, see header) — it's listed here purely as a view, same as route 1's.
+
+echo ""
+echo "── eDOCS via Python MCP POC (read-only mirror, route 2) ──────────────────"
+
+MCP_DOCUMENT_ID=""
+MCP_DOC_NUMBER=""
+
+if [[ "$PYTHON_MCP_POC_ENABLED" != "true" ]]; then
+  echo "  ~ skipped - PYTHON_MCP_POC_ENABLED=$PYTHON_MCP_POC_ENABLED (set it to true in $ENV_FILE, or export it, to run route 2)"
+elif [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" != "local" ]]; then
+  echo "  ~ skipped - Python MCP POC is local-only, not deployed to $TARGET"
+elif ! mcp_call_tool "$PYTHON_MCP_POC_URL" "workspace_list" "{}" /tmp/edocs_mcp_ws_list.json; then
+  echo "  ~ skipped - Python MCP POC not reachable at $PYTHON_MCP_POC_URL (start with: docker compose up -d python-mcp-poc)"
+else
+  MCP_WS_LIST_BODY="$(mcp_tool_result_json /tmp/edocs_mcp_ws_list.json)"
+  check_field "workspace_list via MCP" "$MCP_WS_LIST_BODY" '.success' 'true'
+  MCP_WS_COUNT=$(echo "$MCP_WS_LIST_BODY" | jq -r '.data | length' 2>/dev/null)
+  echo "  Workspaces via MCP (${MCP_WS_COUNT:-0}):"
+  echo "$MCP_WS_LIST_BODY" | jq -r '.data[]? | "    " + (.id // "?") + "  -  " + (.DOCNAME // "?")' 2>/dev/null
+
+  if [[ -n "$DOCUMENT_ID" ]]; then
+    if mcp_call_tool "$PYTHON_MCP_POC_URL" "document_profile" \
+        "{\"document_id\":\"${DOCUMENT_ID}\"}" /tmp/edocs_mcp_profile.json; then
+      check_field "document_profile via MCP (same document as route 1)" \
+        "$(mcp_tool_result_json /tmp/edocs_mcp_profile.json)" '.success' 'true'
+    else
+      fail "document_profile via MCP - call failed"
+    fi
+
+    if mcp_call_tool "$PYTHON_MCP_POC_URL" "document_versions" \
+        "{\"document_id\":\"${DOCUMENT_ID}\"}" /tmp/edocs_mcp_versions.json; then
+      VERSIONS_MCP_BODY=$(mcp_tool_result_json /tmp/edocs_mcp_versions.json)
+      check_field "document_versions via MCP (same document as route 1)" "$VERSIONS_MCP_BODY" '.success' 'true'
+      if [[ "$(echo "$VERSIONS_MCP_BODY" | jq -r '.success' 2>/dev/null)" == "true" ]]; then
+        pass "versions listed via MCP ($(echo "$VERSIONS_MCP_BODY" | jq -r '.data.versions | length' 2>/dev/null) found)"
+      fi
+    else
+      fail "document_versions via MCP - call failed"
+    fi
+  else
+    echo "  ~ document_profile/document_versions via MCP skipped - no document id from route 1"
+  fi
+
+  # ─── Route 2 creates its OWN document too (parity, not just a mirror) ──────
+  # document_upload/document_download are not chat-exposed (see
+  # PythonPocMcpProvider.ts ALLOWED_TOOLS) — called directly here over raw
+  # MCP, the same way this script already calls the read tools. Proves the
+  # MCP route can independently create+read back its own document, not just
+  # read what route 1 made.
+  echo ""
+  echo "── eDOCS via Python MCP POC - own upload (route 2 parity) ────────────────"
+
+  MCP_MARKER="SMOKE-MCP-${PROJECT_NUMBER}-$(date -u +%FT%TZ)"
+  MCP_PDF_TEXT="BT /F1 11 Tf 20 120 Td (eDOCS MCP POC upload) Tj 0 -16 Td (${MCP_MARKER}) Tj ET"
+  MCP_PDF_TEXT_LEN=$(printf '%s' "$MCP_PDF_TEXT" | wc -c)
+  MCP_PDF_CONTENT=$(cat <<PDFEOF
+%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 500 150]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj
+4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
+5 0 obj<</Length ${MCP_PDF_TEXT_LEN}>>
+stream
+${MCP_PDF_TEXT}
+endstream
+endobj
+trailer<</Root 1 0 R>>
+%%EOF
+PDFEOF
+)
+  MCP_CONTENT_B64=$(printf '%s' "$MCP_PDF_CONTENT" | base64 | tr -d '\n')
+  MCP_ORIGINAL_HASH=$(printf '%s' "$MCP_PDF_CONTENT" | sha256sum | cut -d' ' -f1)
+
+  if mcp_call_tool "$PYTHON_MCP_POC_URL" "document_upload" \
+      "{\"filename\":\"smoke-test-mcp.pdf\",\"content_base64\":\"${MCP_CONTENT_B64}\",\"doc_name\":\"eDOCS MCP POC smoke test\",\"department\":\"${EDOCS_DEPARTMENT}\"}" \
+      /tmp/edocs_mcp_upload.json; then
+    MCP_UPLOAD_BODY=$(mcp_tool_result_json /tmp/edocs_mcp_upload.json)
+    check_field "document_upload via MCP" "$MCP_UPLOAD_BODY" '.success' 'true'
+    MCP_DOCUMENT_ID=$(echo "$MCP_UPLOAD_BODY" | jq -r '.data.documentId // empty' 2>/dev/null)
+    MCP_DOC_NUMBER=$(echo "$MCP_UPLOAD_BODY" | jq -r '.data.documentNumber // empty' 2>/dev/null)
+    if [[ -n "$MCP_DOC_NUMBER" ]]; then
+      pass "document uploaded via MCP (documentNumber=$MCP_DOC_NUMBER, documentId=$MCP_DOCUMENT_ID)"
+    else
+      fail "document_upload via MCP returned no documentNumber"
+    fi
+  else
+    fail "document_upload via MCP - call failed"
+  fi
+
+  if [[ -n "$MCP_DOCUMENT_ID" ]]; then
+    if mcp_call_tool "$PYTHON_MCP_POC_URL" "document_profile" \
+        "{\"document_id\":\"${MCP_DOCUMENT_ID}\"}" /tmp/edocs_mcp_own_profile.json; then
+      check_field "document_profile via MCP (own upload)" \
+        "$(mcp_tool_result_json /tmp/edocs_mcp_own_profile.json)" '.success' 'true'
+    else
+      fail "document_profile via MCP (own upload) - call failed"
+    fi
+
+    if mcp_call_tool "$PYTHON_MCP_POC_URL" "document_download" \
+        "{\"document_id\":\"${MCP_DOCUMENT_ID}\",\"version\":\"0\"}" /tmp/edocs_mcp_download.json; then
+      MCP_DOWNLOAD_BODY=$(mcp_tool_result_json /tmp/edocs_mcp_download.json)
+      check_field "document_download via MCP (own upload)" "$MCP_DOWNLOAD_BODY" '.success' 'true'
+      MCP_DOWNLOADED_B64=$(echo "$MCP_DOWNLOAD_BODY" | jq -r '.data.contentBase64 // empty' 2>/dev/null)
+      if [[ -n "$MCP_DOWNLOADED_B64" ]]; then
+        MCP_DOWNLOADED_HASH=$(printf '%s' "$MCP_DOWNLOADED_B64" | base64 -d 2>/dev/null | sha256sum | cut -d' ' -f1)
+        if [[ "$MCP_DOWNLOADED_HASH" == "$MCP_ORIGINAL_HASH" ]]; then
+          pass "MCP-uploaded content round-trips correctly (sha256 ${MCP_ORIGINAL_HASH:0:12}…)"
+        else
+          fail "MCP-uploaded content does not match on download (got ${MCP_DOWNLOADED_HASH:0:12}…, want ${MCP_ORIGINAL_HASH:0:12}…)"
+        fi
+      else
+        fail "document_download via MCP returned no content"
+      fi
+    else
+      fail "document_download via MCP - call failed"
+    fi
+  fi
+fi
+
+# ─── 7. Summary — no cleanup step (see "Known limitations" in the header) ─────
+# Nothing is deleted: workspaces are never created by this script (view-only,
+# per the header), and document delete is known to 502 for this account
+# (no delete-document right) — so there's nothing to usefully prompt for.
 echo ""
 echo "─────────────────────────────────────────────────────────────────────────"
-echo "  Created in eDOCS:"
-[[ -n "$WORKSPACE_ID" ]] && \
-  echo "    workspace : ${WORKSPACE_ID}  (${PROJECT_NUMBER} — ${PROJECT_NAME})"
+echo "  Created in eDOCS this run (left in place - see header):"
 [[ -n "$DOCUMENT_ID" ]] && \
-  echo "    document  : ${DOCUMENT_ID}  (documentNumber=${DOC_NUMBER}, standalone — no workspace ref)"
+  echo "    document : ${DOCUMENT_ID}  (documentNumber=${DOC_NUMBER})  [route 1 - direct HTTP]"
+[[ -n "$MCP_DOCUMENT_ID" ]] && \
+  echo "    document : ${MCP_DOCUMENT_ID}  (documentNumber=${MCP_DOC_NUMBER})  [route 2 - Python MCP POC]"
 if [[ -n "${EDOCS_PORTAL_URL:-}" ]]; then
   echo "    InfoCenter: ${EDOCS_PORTAL_URL%/}"
 else
   echo "    (set EDOCS_PORTAL_URL to print a direct InfoCenter link here)"
 fi
 echo "─────────────────────────────────────────────────────────────────────────"
-
-if [[ -n "$WORKSPACE_ID" || -n "$DOCUMENT_ID" ]]; then
-  DO_CLEANUP=0
-  if [[ "${AUTO_CONFIRM_CLEANUP:-0}" == "1" ]]; then
-    DO_CLEANUP=1
-    echo "  AUTO_CONFIRM_CLEANUP=1 — deleting without prompting."
-  elif [[ -t 0 ]]; then
-    read -r -p "  Reviewed in InfoCenter? Delete what was created now? [y/N] " REPLY
-    [[ "$REPLY" =~ ^[Yy]$ ]] && DO_CLEANUP=1
-  else
-    echo "  ~ non-interactive shell — skipping cleanup (set AUTO_CONFIRM_CLEANUP=1 to auto-delete)."
-  fi
-
-  if [[ "$DO_CLEANUP" == "1" ]]; then
-    echo ""
-    echo "── Cleanup ───────────────────────────────────────────────────────────────"
-    if [[ -n "$DOCUMENT_ID" ]]; then
-      DEL_DOC_CODE=$(curl -s -o /tmp/edocs_del_doc.json -w "%{http_code}" \
-        -X DELETE "${BASE_URL}/v1/edocs/documents/${DOCUMENT_ID}" "${AUTH[@]}")
-      check_status "DELETE /v1/edocs/documents/:id" "$DEL_DOC_CODE" "200"
-    fi
-    if [[ -n "$WORKSPACE_ID" ]]; then
-      DEL_WS_CODE=$(curl -s -o /tmp/edocs_del_ws.json -w "%{http_code}" \
-        -X DELETE "${BASE_URL}/v1/edocs/workspaces/${WORKSPACE_ID}" "${AUTH[@]}")
-      check_status "DELETE /v1/edocs/workspaces/:id" "$DEL_WS_CODE" "200"
-    fi
-  else
-    echo "  ~ cleanup skipped — workspace ${WORKSPACE_ID} / document ${DOCUMENT_ID} left in eDOCS."
-  fi
-fi
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
 
@@ -452,8 +623,9 @@ if [[ $FAIL -gt 0 ]]; then
 fi
 
 echo ""
-rm -f /tmp/edocs_status.json /tmp/edocs_ws_list.json /tmp/edocs_ws_ensure.json \
-      /tmp/edocs_doc.json /tmp/edocs_docs.json /tmp/edocs_profile.json \
-      /tmp/edocs_versions.json /tmp/edocs_download.json /tmp/edocs_del_doc.json \
-      /tmp/edocs_del_ws.json
+rm -f /tmp/edocs_status.json /tmp/edocs_ws_list.json /tmp/edocs_doc.json \
+      /tmp/edocs_profile.json /tmp/edocs_versions.json /tmp/edocs_download.json \
+      /tmp/edocs_mcp_init_headers.txt /tmp/edocs_mcp_ws_list.json /tmp/edocs_mcp_profile.json \
+      /tmp/edocs_mcp_versions.json /tmp/edocs_mcp_upload.json /tmp/edocs_mcp_own_profile.json \
+      /tmp/edocs_mcp_download.json
 exit 0
