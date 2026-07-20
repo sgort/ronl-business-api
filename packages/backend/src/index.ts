@@ -24,6 +24,7 @@ import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
 import { TriplyDbMcpProvider } from '@services/mcp/TriplyDbMcpProvider';
 import { CprmvMcpProvider } from '@services/mcp/CprmvMcpProvider';
 import { LdeMcpProvider } from '@services/mcp/LdeMcpProvider';
+import { PythonPocMcpProvider } from '@services/mcp/PythonPocMcpProvider';
 import { llmRegistry } from '@services/llm/LlmRegistry';
 import { AnthropicLlmProvider } from '@services/llm/AnthropicLlmProvider';
 import { OpenAILlmProvider } from '@services/llm/OpenAILlmProvider';
@@ -267,6 +268,9 @@ const startServer = async () => {
     }
     if (config.lde.enabled) {
       mcpRegistry.register(new LdeMcpProvider());
+    }
+    if (config.pythonMcpPoc.enabled) {
+      mcpRegistry.register(new PythonPocMcpProvider());
     }
     await mcpRegistry.connectAll();
     appLogger.info('MCP registry ready');

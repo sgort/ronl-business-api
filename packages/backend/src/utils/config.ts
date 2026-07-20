@@ -127,6 +127,10 @@ interface Config {
     enabled: boolean;
     databaseUrl: string;
   };
+  pythonMcpPoc: {
+    enabled: boolean;
+    url: string;
+  };
   altcha: {
     hmacKey: string;
   };
@@ -272,6 +276,11 @@ export const config: Config = {
   lde: {
     enabled: parseEnvBool(process.env.LDE_MCP_ENABLED, false),
     databaseUrl: process.env.LDE_DATABASE_URL ?? '',
+  },
+
+  pythonMcpPoc: {
+    enabled: parseEnvBool(process.env.PYTHON_MCP_POC_ENABLED, false),
+    url: process.env.PYTHON_MCP_POC_URL ?? 'http://localhost:8765/mcp',
   },
 
   anthropic: {

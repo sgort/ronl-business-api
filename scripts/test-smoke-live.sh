@@ -39,6 +39,10 @@
 #     SMOKE_PASSWORD     its password; on local, auto-loaded from .env
 #                          SMOKE_TEST_PASSWORD when not exported
 #   NODE_ENV             picks the .env for creds + the eDOCS probe (default: development)
+#   PYTHON_MCP_POC_URL   MCP streamable-HTTP endpoint for the local Python MCP POC
+#                          container (default: http://localhost:8765/mcp). Only
+#                          checked on TARGET=local — it's a local-only proof of
+#                          concept (see docs/Python-MCP-server.md), not deployed to acc.
 #
 # Exit code: 0 when nothing failed, 1 when any check failed (skips never fail).
 
@@ -178,6 +182,42 @@ get_user_token() {
     -d "client_id=${USER_CLIENT_ID}" \
     -d "username=${SMOKE_USER}" \
     -d "password=${SMOKE_PASSWORD}" | jq -r '.access_token // empty'
+}
+
+# Perform a full MCP streamable-HTTP handshake against $1 (initialize →
+# notifications/initialized → tools/list), writing the tools/list JSON-RPC
+# response (SSE-framed, "data: {...}") to $2. Returns 1 on any curl failure,
+# non-200 initialize response, or a missing Mcp-Session-Id header — 0 otherwise.
+# No auth involved; this only proves the MCP server itself is alive and
+# advertising the tools it should, independent of the Node backend.
+mcp_list_tools() {
+  local url="$1" out="$2"
+  local init_headers="$TMP/mcp_init_headers.txt" init_body="$TMP/mcp_init_body.txt" session_id
+
+  curl -s -D "$init_headers" -o "$init_body" --max-time 5 -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke-test","version":"1.0.0"}}}' \
+    2>/dev/null || return 1
+
+  grep -qi "^HTTP/[0-9.]* 200" "$init_headers" || return 1
+  session_id=$(grep -i "^mcp-session-id:" "$init_headers" | tr -d '\r' \
+    | sed -E 's/^[Mm]cp-[Ss]ession-[Ii]d:[[:space:]]*//')
+  [[ -z "$session_id" ]] && return 1
+
+  curl -s -o /dev/null --max-time 5 -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Mcp-Session-Id: $session_id" \
+    -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    2>/dev/null
+
+  curl -s --max-time 5 -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Mcp-Session-Id: $session_id" \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+    > "$out" 2>/dev/null
 }
 
 echo ""
@@ -325,6 +365,34 @@ else
   fi
 fi
 
+# ── Python MCP POC check — DIRECT (streamable HTTP · no Keycloak · local-only) ─
+#
+# Proof-of-concept container (docs/Python-MCP-server.md) — a Python-SDK MCP
+# server reachable over streamable HTTP, independent of the Node backend. This
+# talks to it directly, the same way the Node PythonPocMcpProvider does, so it
+# catches "container not built/started" or "tools changed" before the backend
+# is even involved. Local-only: not deployed to acc.
+
+echo ""
+echo "── Python MCP POC (proof of concept, direct streamable HTTP) ─────────────"
+
+PYTHON_MCP_POC_URL="${PYTHON_MCP_POC_URL:-http://localhost:8765/mcp}"
+
+if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" != "local" ]]; then
+  skip "Python MCP POC — local-only proof of concept, not deployed to $TARGET"
+elif ! mcp_list_tools "$PYTHON_MCP_POC_URL" "$TMP/python_poc_tools.txt"; then
+  skip "Python MCP POC — not reachable at $PYTHON_MCP_POC_URL (start with: docker compose up -d python-mcp-poc)"
+else
+  pass "Python MCP POC reachable (MCP initialize handshake OK, $PYTHON_MCP_POC_URL)"
+  PP_TOOLS=$(sed -n 's/^data: //p' "$TMP/python_poc_tools.txt" | tail -n1 \
+    | jq -r '.result.tools[]?.name' 2>/dev/null | tr -d '\r' | sort | paste -sd, -)
+  if echo ",$PP_TOOLS," | grep -q ",process_list," && echo ",$PP_TOOLS," | grep -q ",process_status,"; then
+    pass "Python MCP POC tools present (process_list, process_status)"
+  else
+    fail "Python MCP POC tools/list missing expected tools — got: ${PP_TOOLS:-<none>}"
+  fi
+fi
+
 # ── Tier 2 — authenticated seams (two Keycloak flows) ─────────────────────────
 #
 # 2a — CLIENT flow (client_credentials): a confidential client + secret. M2M, no
@@ -411,6 +479,18 @@ else
         pass "MCP layer reachable ($n provider(s): $(jq -rc '[.data[].id] // [.data[].name]' "$TMP/mcp.json" 2>/dev/null))"
       else
         skip "MCP layer — no providers advertised (MCP disabled by config?)"
+      fi
+
+      # python-poc specifically — the backend's own connection to the Python MCP
+      # POC (compare against the direct check above: this reflects the running
+      # backend PROCESS's config, which can differ if it started before an edit).
+      pp_connected=$(jq -r '.data[] | select(.id=="python-poc") | .connected' "$TMP/mcp.json" 2>/dev/null)
+      if [[ "$pp_connected" == "true" ]]; then
+        pass "python-poc provider connected (via backend GET /v1/mcp/sources)"
+      elif [[ "$pp_connected" == "false" ]]; then
+        fail "python-poc provider registered but not connected (via backend GET /v1/mcp/sources)"
+      else
+        skip "python-poc provider not registered on the backend (PYTHON_MCP_POC_ENABLED=false?)"
       fi
     elif [[ "$MCP_CODE" == "401" || "$MCP_CODE" == "403" ]]; then
       fail "MCP /sources — HTTP $MCP_CODE: user '${SMOKE_USER}' lacks the caseworker/admin role"

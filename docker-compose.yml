@@ -79,6 +79,25 @@ services:
     networks:
       - ronl-network
 
+  # Python MCP POC server
+  python-mcp-poc:
+    build:
+      context: ./packages/backend/src/python-mcp
+    container_name: ronl-python-mcp-poc
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ronl
+      PYTHON_MCP_CLIENT_ID: python-mcp-poc-client
+      PYTHON_MCP_CLIENT_SECRET: change-me-in-keycloak-console
+      BACKEND_BASE_URL: http://host.docker.internal:3002
+    ports:
+      - "8765:8765"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - ronl-network
+
 volumes:
   keycloak-data:
     driver: local
