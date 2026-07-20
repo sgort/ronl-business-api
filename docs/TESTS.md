@@ -21,6 +21,10 @@ npx jest --config packages/backend/jest.config.js --no-coverage --testPathPatter
 From the repo root, `npm test` runs every workspace's test script — the backend
 Jest suite and the frontend Vitest suite.
 
+This file documents the **backend** suite in detail. For the frontend suite —
+conventions, tooling, and the coverage backlog — see
+[`TESTING-FRONTEND.md`](./TESTING-FRONTEND.md).
+
 ---
 
 ## Test files
