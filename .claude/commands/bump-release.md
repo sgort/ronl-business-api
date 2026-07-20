@@ -1,10 +1,11 @@
 # bump-release
 
 Cut a release: flip the current Upcoming changelog entry to Released, version
-**only the package(s) the release actually changed**, and reconcile the root
-endpoint map. Handles both changelog entry shapes — the current per-commit
-format (`format: 'commits'`, used by every new entry) and the legacy
-sections-based format still carried by historical entries.
+**only the package(s) the release actually changed**, reconcile the root
+endpoint map, and land the result on `acc`. Handles both changelog entry
+shapes — the current per-commit format (`format: 'commits'`, used by every
+new entry) and the legacy sections-based format still carried by historical
+entries.
 
 > Why scope matters: the ACC build workflows are path-filtered
 > (`packages/backend/**`, `packages/frontend/**`, `packages/shared/**`). Bumping
@@ -195,3 +196,34 @@ When committing, use the message format:
 and do **not** include a Co-Authored-By line. If more than one entry was
 released in the same pass, use the highest version as the headline (matching
 root's version) and summarize the other entry/entries in the commit body.
+
+### 8. Fast-forward onto `acc` and clean up the working branch
+
+Once the bump commit from step 7 exists, land it on `acc` by default — do not
+ask first, this is now the standard flow. Skip this step only if the commit
+was already made directly on `acc` (no separate working branch involved).
+
+```bash
+git checkout acc
+git merge --ff-only <working-branch>
+```
+
+- If this isn't a clean fast-forward (`acc` has diverged — e.g. something
+  else landed on it since the working branch forked), **stop and ask** how
+  to proceed. Never force-merge, rebase, or `--no-ff` silently to route
+  around a divergence.
+- On success, delete the now-fully-merged working branch:
+
+  ```bash
+  git branch -d <working-branch>
+  ```
+
+  Use `-d`, not `-D` — a plain delete only succeeds when the branch is fully
+  merged, which it will be immediately after an `--ff-only` merge. If `-d`
+  refuses, stop and investigate rather than forcing it.
+
+- This is local-only: it does **not** push `acc` to `origin`, and does not
+  touch a same-named remote branch if one exists. Report the new local `acc`
+  HEAD (short SHA) and ask separately whether to push — pushing to a shared
+  branch still needs explicit confirmation, per the usual rule for actions
+  visible to others.
