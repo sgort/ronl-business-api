@@ -341,11 +341,57 @@ child component's own test file.
 
 ### SSE streaming (`businessApi.mcp.chatStream`)
 
-Lower priority, harder to mock — it bypasses `axios` entirely and reads a raw
-`fetch` `ReadableStream` via `TextDecoder`. `msw` supports streamed
-responses (`new ReadableStream({ start(controller) { controller.enqueue(...) } })`
-as the mock body), but write this once the simpler layers below have
-established the team's comfort with the tooling — don't start here.
+Bypasses `axios` entirely — it's an async generator reading a raw `fetch`
+`ReadableStream` via `TextDecoder`, splitting on `\n`, and parsing
+`data: {...}` lines as JSON. Rather than fighting `msw`'s streamed-response
+API, mock the reader directly — it's a two-method interface
+(`{ read(), releaseLock() }`), trivial to fake:
+
+```ts
+function makeStreamResponse(chunks: string[], opts: { ok?: boolean; status?: number } = {}) {
+  const encoder = new TextEncoder();
+  let i = 0;
+  const reader = {
+    read: vi.fn(async () =>
+      i < chunks.length
+        ? { done: false, value: encoder.encode(chunks[i++]) }
+        : { done: true, value: undefined }
+    ),
+    releaseLock: vi.fn(),
+  };
+  return {
+    ok: opts.ok ?? true,
+    status: opts.status ?? 200,
+    body: { getReader: () => reader },
+  } as unknown as Response;
+}
+
+vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeStreamResponse(['data: {"type":"done"}\n'])));
+```
+
+Consume the async generator the same way calling code does:
+
+```ts
+async function collect(gen: AsyncGenerator<McpChatStreamEvent>) {
+  const out: McpChatStreamEvent[] = [];
+  for await (const ev of gen) out.push(ev);
+  return out;
+}
+```
+
+Worked example: `packages/frontend/src/services/api.chatStream.test.ts`
+(kept as its own file, separate from `api.test.ts`, since it needs raw
+`fetch` stubbing instead of `msw` — a deliberate, documented exception to
+"one test file per source file"). Covers: normal event parsing; a line
+split across two chunks (real buffering logic, not just decoding);
+malformed JSON on one line without losing subsequent valid events;
+non-`data:` lines (SSE comments/blank lines) ignored; the reader's lock
+released once the stream ends; the two distinct error paths (`!response.ok`
+with a parseable vs. unparseable error body, and `fetch` itself rejecting);
+the `AbortError` case, which yields nothing at all rather than an error
+event (it's a deliberate cancellation, not a failure); and the auth
+interceptor attaching a bearer token, including the branch where a failed
+token refresh causes `keycloak.login()` without ever calling `fetch`.
 
 ## Coverage
 
@@ -394,14 +440,30 @@ cover thoroughly, same as P1's services.
 
 **After P5** (dashboard containers, critical interactions only —
 `InfraBoardDashboard`, `WooDashboard`, `CaseworkerDashboardV2`,
-`PADashboardV2`, `Dashboard.tsx`): **25.67% statements / 20.03% branches /
-21.03% functions / 25.76% lines** overall, 292 tests total (up from 251
-after P4). `src/pages` alone jumped from ~15% to 54.18% statements —
-unlike P1–P4, these are large files (300–1,000+ lines each), so even a
-scoped, non-exhaustive pass moves the top-line number a lot. Per-file
-numbers (60–86% statements) reflect what "critical interactions only"
-actually covers — the untested remainder is mostly deep branches inside
-inline sub-forms and rail-rendering variants that weren't worth chasing.
+`PADashboardV2`, `Dashboard.tsx`): 25.67% statements / 20.03% branches
+overall, 292 tests total (up from 251 after P4). `src/pages` alone jumped
+from ~15% to 54.18% statements — unlike P1–P4, these are large files
+(300–1,000+ lines each), so even a scoped, non-exhaustive pass moves the
+top-line number a lot. Per-file numbers (60–86% statements) reflect what
+"critical interactions only" actually covers — the untested remainder is
+mostly deep branches inside inline sub-forms and rail-rendering variants
+that weren't worth chasing.
+
+**After P6** (SSE streaming chat — `businessApi.mcp.chatStream`, the final
+backlog item): **26.33% statements / 20.41% branches / 21.09% functions /
+26.46% lines** overall, 303 tests total (up from 292 after P5). `api.ts`
+itself went from 13.23% to 39.7% statements — `chatStream` alone is a
+sizeable chunk of that file's statement count, and it's now fully covered
+including the buffer/reassembly logic, malformed-line handling, and both
+error paths (HTTP error, network/fetch rejection, abort).
+
+**Full P1–P6 baseline: 1.6% → 26.33% statements, 11 → 303 tests, in six
+scoped passes.** The remaining ~74% is P1b (`api.ts`'s other ~40 methods)
+plus everything below P6 in feature-area terms: most page/section
+components (`Vandaag`, `Monitoring`, `AgendaView`, `Issuekaart`,
+`WooDashboard`'s section views, `CaseworkerDashboardV2`'s section views,
+etc.) and `AuthCallback`/`LoginChoice`/`ChangelogPanel`, none of which were
+in scope for this backlog.
 
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
@@ -412,10 +474,12 @@ current "manual discipline" approach documented in `TESTS.md`.
 Neither `azure-frontend-acc.yml` nor `azure-frontend-prod.yml` currently run
 lint or tests — they go straight from `npm ci` to `vite build` to deploy.
 That's an intentional, separate decision from this guide: **no CI test gate
-is being added yet.** Once frontend coverage is meaningful (roughly: the P1–P3
-backlog items below are done), add a test step to both workflows before the
-build step, mirroring how `azure-backend-*.yml` already runs `npm run lint`
-before building.
+is being added yet**, even now that the full P1–P6 backlog is done (303
+tests, 26.33% statement coverage). Coverage is real but still partial —
+most page/section components remain untested (see the backlog table's
+closing note). Revisit this once that gap has closed further; when ready,
+add a test step to both workflows before the build step, mirroring how
+`azure-backend-*.yml` already runs `npm run lint` before building.
 
 ## Coverage backlog (priority order)
 
@@ -427,7 +491,9 @@ before building.
 | **P3**   | Small reusable components — **done** (`SessionExpiryWarning`, `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine` all fully tested)                                                                                                                                                           | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                                                           |
 | **P4**   | Remaining pure logic/data modules — **done** (`woo/modes.config.ts`, `login-choice/boards.config.ts`, `infra-board/modes.config.ts`, `caseworker-v2/modes.config.ts`, `infra-board/rip-model.ts`, `infra-board/infra-board.data.ts`, `woo/woo.data.ts` all fully tested)                                                              | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                                                           |
 | **P5**   | Page-level dashboard containers — **done, scoped to critical interactions** (`InfraBoardDashboard`, `WooDashboard`, `CaseworkerDashboardV2`, `PADashboardV2`, `Dashboard.tsx` — auth gates, tab/mode switching, login/logout, command palette, and the highest-value form flows; deliberately not exhaustive on 500+ line containers) | High value but expensive. Mock every child section/dock/palette component and go one level below `PaDataProvider`/`usePaData` rather than through the real context, so each test targets this container's own wiring, not a re-test of already-covered children. |
-| **P6**   | SSE streaming chat (`businessApi.mcp.chatStream`)                                                                                                                                                                                                                                                                                     | Defer — hardest to mock correctly, lowest immediate risk.                                                                                                                                                                                                        |
+| **P6**   | SSE streaming chat — **done** (`businessApi.mcp.chatStream`: SSE parsing/buffering across chunk boundaries, malformed-line handling, error/abort paths, auth)                                                                                                                                                                         | Bypasses `axios`/`msw` entirely (raw `fetch` + `ReadableStream`); mock a `{ getReader, releaseLock }` reader directly instead. See `api.chatStream.test.ts`.                                                                                                     |
+
+**P1–P6 backlog complete.** All six priorities from the original plan are done. Remaining known gaps, not part of this backlog: P1b (the ~40 other `api.ts` methods, mechanical repetition of an established pattern) and the two follow-ups below. Next candidates for a future pass: the untested `components/*Dashboard*` section components (each dashboard's individual sections — Vandaag, Monitoring, Bezwaar, etc. — currently exercised only indirectly through their container's mocked-out router), and the two follow-ups.
 
 **Follow-ups found while writing P4 tests** (not acted on — flagged for a deliberate decision later, not folded into this branch):
 
