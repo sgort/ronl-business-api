@@ -189,6 +189,20 @@ level lower keeps the test focused. Worked example:
 rejected promise, and a conditional short-circuit (hook called with a null
 id skips the API call entirely).
 
+Two more worked examples, for two different hook shapes:
+
+- `packages/frontend/src/hooks/useProfielData.test.ts` — a manual
+  loading/error/data hook exposing an imperative `load()` function (not
+  auto-fetching on mount). Demonstrates asserting the `loading: true` state
+  mid-flight by resolving a manually-controlled promise inside `act()`.
+- `packages/frontend/src/pages/public-affairs-v2/PaDataProvider.test.tsx` —
+  a Context provider wrapping several `useResource` instances plus a set of
+  write-actions that call an API function and then selectively `refetch()`
+  one or more sibling resources. Uses RTL's `renderHook(fn, { wrapper })` to
+  render the hook under `PaDataProvider`, and asserts the "outside a
+  provider" error path by calling the hook with no wrapper at all — spy on
+  `console.error` first, since React logs the render-time throw.
+
 ### Components
 
 `render` + `screen` + `userEvent`, `// @vitest-environment jsdom`. Worked
@@ -246,12 +260,17 @@ the whole `src` tree, the report now reflects reality.
 worked examples): 1.6% statements / 0.5% branches across 5,499 statements.
 
 **After P1** (`services/*.ts` fully worked through, `api.ts` left at its
-worked-example level — see the backlog table below): **9.72% statements /
-6.89% branches / 7.33% functions / 9.51% lines** overall; `src/services`
-itself at 73.41% statements / 70.35% branches. That's the shape to expect
-going forward — a service/hook-heavy file lifts the total a lot per file,
-a component or page barely moves it, since `src/services` is a small
-fraction of the codebase's total statement count.
+worked-example level — see the backlog table below): 9.72% statements /
+6.89% branches overall; `src/services` itself at 73.41% statements / 70.35%
+branches.
+
+**After P2** (hooks — `useProfielData.ts` and `PaDataProvider.tsx`):
+**10.92% statements / 7.01% branches / 8.46% functions / 10.71% lines**
+overall; `PaDataProvider.tsx` alone at 86.44% statements / 100% branches.
+That's the shape to expect going forward — a service/hook-heavy file lifts
+the total a lot per file, a component or page barely moves it, since
+`src/services` + `src/hooks` are a small fraction of the codebase's total
+statement count.
 
 No threshold is enforced yet — that becomes a later milestone once the
 backlog below is substantially worked through, matching the backend's
@@ -273,7 +292,7 @@ before building.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **P1**   | `services/*.ts` — **done** (`keycloak.ts`, `tenant.ts`, `bsn.mapping.ts`, `brp.api.ts`, `brp.timeline.ts`, `dossierbeheer.api.ts`, `infra.api.ts`, `pa.api.ts` fully tested; `api.ts` has a worked example on `businessApi.health` but its other ~40 methods, listed below, are not yet covered) | Highest value, lowest cost — no DOM needed, and this is the auth/error-handling layer everything else depends on.                                                                                                                |
 | **P1b**  | Remaining `api.ts` methods (`evaluateDecision`, `process.*`, `task.*`, `portal.*`, `hr.*`, `rip.*`, `admin.*`, `capacityClaim.*`, `edocs.*`, `mcp.*`, `externalStatus`)                                                                                                                          | Same `msw` pattern as `businessApi.health` — mechanical repetition, not a new pattern to establish. Lower priority than P1 was because the auth-interceptor risk (the part that's shared across all of them) is already covered. |
-| **P2**   | Hooks — `infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; remaining: `hooks/useProfielData.ts`, `PaDataProvider.tsx`'s `useResource`                                                                                                                                      | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                              |
+| **P2**   | Hooks — **done** (`infra.api.ts`'s `useOpenTasks`/`useActivityHistory` done as part of P1; `hooks/useProfielData.ts` and `PaDataProvider.tsx`'s `useResource`/`usePaData` context now fully tested)                                                                                              | Needs jsdom + `renderHook`; covers the loading/error/success state machine repeated across the app.                                                                                                                              |
 | **P3**   | Small reusable components (`SessionExpiryWarning` done; `AltchaWidget`, `DecisionViewer`, `PersonalDataPanel`, `ProcessStartFormViewer`, `TimeLine`)                                                                                                                                             | Isolated, low-complexity — good next targets for establishing the RTL pattern broadly across the team.                                                                                                                           |
 | **P4**   | Remaining pure logic/data modules (`pages/*/*.data.ts`, `modes.config.ts` across `infra-board`, `caseworker-v2`, `woo`, `login-choice`)                                                                                                                                                          | Same pattern as the 2 existing PA tests, just extended to the other feature areas — cheap, mechanical.                                                                                                                           |
 | **P5**   | Page-level dashboard containers (`Dashboard.tsx`, `PADashboardV2.tsx`, `CaseworkerDashboardV2.tsx`, `WooDashboard`, `InfraBoardDashboard`)                                                                                                                                                       | High value but expensive. Scope to critical interactions (tab switching, form submit success/error paths) — don't chase exhaustive coverage on 500+ line container components.                                                   |
