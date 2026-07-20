@@ -404,3 +404,21 @@ never reach a terminal, were left as-is).
    a UTF-8-vs-CP1252 encoding mismatch — so every user-facing output string
    was switched to plain ASCII. Comments (never printed to a terminal) were
    left as-is.
+8. **Deferred — stays on `docs/custom-connector-plan`, not merged to `acc`
+   for now.** Deployment-risk analysis (walking the `azure-backend-acc.yml`
+   / `azure-backend-prod.yml` trigger paths and build steps) showed merging
+   would already be safe as-is — `docker-compose.yml`, `ronl-realm.json`,
+   and `scripts/*.sh` sit outside the pipeline's trigger paths entirely, the
+   Python source under `packages/backend/src/python-mcp/` never makes it
+   into the `tsc` build output that actually ships, and `PythonPocMcpProvider`
+   only registers when `PYTHON_MCP_POC_ENABLED=true` — an App Setting that
+   would need to be added deliberately and defaults to `false`. But the POC
+   already runs fully from this branch on localhost, which is all that's
+   needed right now, so merging and carrying that flag-hygiene requirement
+   into `acc`/`prod` App Settings forever would add process for no present
+   benefit. Revisit this decision if/when the POC needs to run somewhere
+   other than localhost.
+   **Consequence**: since this branch won't merge for a while, periodically
+   run `git merge acc` into it (no fixed cadence — whenever `acc` has moved
+   meaningfully) so it doesn't drift into a painful conflict resolution
+   later. Local-only testing is unaffected by this either way.
