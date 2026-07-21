@@ -6,7 +6,7 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-REQUIRED_CONTAINERS=("ronl-keycloak" "ronl-postgres" "ronl-redis")
+REQUIRED_CONTAINERS=("ronl-keycloak" "ronl-postgres" "ronl-redis" "ronl-operaton")
 
 echo ""
 echo "Checking Docker services..."
