@@ -62,6 +62,43 @@ services:
     networks:
       - ronl-network
 
+  # Operaton BPMN Engine (local, for E2E process/task testing — see
+  # docs/TESTING-FRONTEND-UI.md item 4; keeps test runs off the real
+  # operaton.open-regels.nl engine). H2 file-based DB, no external DB
+  # dependency. Host port 8081 matches OPERATON_BASE_URL in
+  # packages/backend/.env.example.
+  #
+  # One-time setup on a FRESH operaton-data volume: the image runs as a
+  # non-root user (uid 1000), but Docker creates a brand-new named volume
+  # owned by root, so the engine crashes on startup with
+  # java.nio.file.AccessDeniedException on its .mv.db file. Fix once, before
+  # first `docker compose up operaton`:
+  #   docker run --rm -v ronl-business-api_operaton-data:/data alpine chown -R 1000:1000 /data
+  # (On Windows/Git Bash, prefix with MSYS_NO_PATHCONV=1 or the /data path
+  # gets mangled into a Windows path.) Not needed again unless the volume is
+  # deleted and recreated.
+  operaton:
+    image: operaton/operaton:latest
+    container_name: ronl-operaton
+    environment:
+      TZ: Europe/Amsterdam
+      DB_DRIVER: org.h2.Driver
+      DB_URL: jdbc:h2:file:/operaton/h2-data/operaton-local;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      JAVA_OPTS: -XX:MaxRAMPercentage=70.0
+      DEBUG: 'false'
+    volumes:
+      - operaton-data:/operaton/h2-data
+    ports:
+      - '8081:8080'
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/127.0.0.1/8080' && exit 0 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - ronl-network
+
   # Redis Cache (for session storage and rate limiting)
   redis:
     image: redis:7-alpine
@@ -83,6 +120,8 @@ volumes:
   keycloak-data:
     driver: local
   postgres-data:
+    driver: local
+  operaton-data:
     driver: local
   redis-data:
     driver: local
