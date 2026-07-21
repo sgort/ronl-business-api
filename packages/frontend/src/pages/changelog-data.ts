@@ -79,6 +79,54 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '3.9.6',
+      status: 'Upcoming',
+      date: '21 jul 2026',
+      scope: 'frontend',
+      commits: [
+        {
+          sha: 'e3dec89',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "AuditSection's load-on-mount effect now gated behind the admin role",
+          details: [
+            "The effect fetched /admin/audit on every mount regardless of the user's roles — only the rendered UI was gated behind the admin check, which came after the hooks, so non-admin users still triggered the network call even though they'd never see the result.",
+            'Now checks the same isAdmin flag the render guard uses and skips the fetch entirely for a non-admin user, re-firing if the user gains the role later (e.g. a role refresh mid-session).',
+          ],
+        },
+        {
+          sha: '82b519d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Two UX fixes in IouFeedbackSection and IouGebruiksscenarioSection',
+          details: [
+            "IouFeedbackSection: the form-watching persist effect now skips writing to sessionStorage while submitState is 'success', so clearDraft()'s removal on a successful submit actually sticks instead of being immediately undone by the effect rewriting a blank draft right after. Persistence resumes once the user starts a new submission.",
+            'IouGebruiksscenarioSection: the "Overig / Other" materials checkbox is now wrapped in a <label> like its sibling options, so clicking the text toggles it too, not just the checkbox itself.',
+          ],
+        },
+        {
+          sha: 'a65e840',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'check-deps.sh compares lockfile content instead of mtimes',
+          details: [
+            "git checkout / merge --ff-only rewrite tracked files to disk as part of updating the working tree even when content is byte-identical, bumping package-lock.json's mtime on every branch switch regardless of whether dependencies actually changed — no .gitattributes setting can prevent that, it's fundamental to how git checkout works.",
+            'Adds scripts/write-deps-marker.sh, wired as the root postinstall script, which snapshots package-lock.json into node_modules/.package-lock-installed.json after every successful npm install. check-deps.sh now does a byte-for-byte content comparison against that snapshot instead of an mtime check — immune to git touching mtimes, only trips on a real lockfile change.',
+          ],
+        },
+        {
+          sha: '40a7575',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Dossierbeheer's actionError banner now also renders in the edit view",
+          details: [
+            "handleSave's catch doesn't switch the view back to 'list' on failure, so a failed save while still in the editor left actionError set but invisible. The banner JSX is now a shared actionErrorBanner variable rendered in both the edit view and the overview.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '3.9.5',
       status: 'Released',
       date: '21 jul 2026',
