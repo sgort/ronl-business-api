@@ -38,14 +38,12 @@ beforeEach(() => {
   URL.revokeObjectURL = vi.fn();
   vi.stubGlobal(
     'fetch',
-    vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({
-          success: true,
-          data: { iid: 42, web_url: 'https://gitlab.example.test/issues/42' },
-        })
-      )
+    vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        data: { iid: 42, web_url: 'https://gitlab.example.test/issues/42' },
+      })
+    )
   );
 });
 

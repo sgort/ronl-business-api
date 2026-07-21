@@ -79,6 +79,96 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '3.9.5',
+      status: 'Released',
+      date: '21 jul 2026',
+      scope: 'frontend',
+      commits: [
+        {
+          sha: 'd1d0dfc',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'bump-release now fast-forwards onto acc and cleans up the working branch',
+          details: [
+            'Adds a step to the bump-release skill: after the version-bump commit, fast-forward acc onto the working branch and delete it, by default — no confirmation needed for that part. Still stops on a non-fast-forward (diverged acc) instead of forcing, and still asks separately before pushing acc to origin.',
+          ],
+        },
+        {
+          sha: 'ad93e53',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Completed P7: small/medium file test coverage for the shared CaseworkerDashboard library',
+          details: [
+            'Covers the 18 small/medium files (<200 lines) in the shared CaseworkerDashboard/ section-component library reused across CaseworkerDashboardV2, InfraBoardDashboard, and PADashboardV2: ProcessVarsSection, processSteps.ts, DvtpStartSection, HrOnboardingSection, CapacityClaimSection, ProcessStepsTimeline, RollenSection, RipFase1Section, BerichtenSection, NieuwsSection, OnboardingArchiefSection, RipFase1WipSection, RipFase1GereedSection, TaskFormViewer, CapacityClaimArchiefSection, ProfielSection, DvtpTakenSection, AuditSection.',
+            "466 → 581 tests, 46.59% → 54.28% statement coverage. Found and documented (not fixed) a real gap: AuditSection's load-on-mount effect has no role guard, so it fetches /admin/audit regardless of the user's role — only the rendered UI is gated.",
+          ],
+        },
+        {
+          sha: '4915ccc',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Completed P8: large file test coverage for the shared CaseworkerDashboard library',
+          details: [
+            'Covers the 11 larger files (200+ lines) in the shared CaseworkerDashboard/ section-component library, scoped to critical interactions only per the P5/ZoekcriteriaSection convention: ArchiefSection, IouZakenSection, CapacityClaimDocumentsViewer, GereedschapSection, RipFase1WipViewer, ProcesBibliotheek, ProductenDienstenCatalogus, McpChatSection, IouFeedbackSection, RegelCatalogus (704 lines), and IouGebruiksscenarioSection (826 lines, the largest file in the folder).',
+            "This closes out components/CaseworkerDashboard/ entirely — all ~29 files now have tests. 581 → 660 tests, 54.28% → 67.92% statement coverage. Two small UX findings documented (not fixed): IouFeedbackSection's clearDraft() gets immediately undone by a persist effect, and IouGebruiksscenarioSection's \"Overig / Other\" checkbox isn't label-wrapped.",
+          ],
+        },
+        {
+          sha: '5e5778f',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P9: dossierbeheer PA-authoring surface test coverage',
+          details: [
+            'Covers all 8 files in components/PADashboardV2/dossierbeheer/: DeleteDialog, KompasScorer, TemplateGallery, DossierRow, ArchiveDialog, MdEditor, DossierEditor (scoped to critical interactions), and the Dossierbeheer container itself (mocked one level below — DossierRow/DossierEditor/TemplateGallery/ArchiveDialog/DeleteDialog stubbed as clickable buttons, same pattern as the P5 dashboard containers).',
+            "660 → 722 tests, 67.92% → 72.24% statement coverage. Found and documented (not fixed) a real gap: Dossierbeheer's actionError banner only renders in the overview branch, so a failed save while still in the editor sets the error state but never shows it to the user.",
+          ],
+        },
+        {
+          sha: '2d29e5b',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Completed P10: LoginChoice, AuthCallback, and ChangelogPanel test coverage',
+          details: [
+            'Covers BoardCard, BoardPreview, LoginChoice.tsx (the entry landing page), AuthCallback.tsx (OAuth redirect handling — medewerker vs. citizen IdP branches, the role-to-dashboard fallback table, and the post-login-redirect allow/deny logic including the infra-projectteam vs. caseworker precedence case), and ChangelogPanel.tsx (scoped, using the real changelog-data.ts).',
+            '722 → 758 tests, 72.24% → 74.86% statement coverage. Fixed a real flakiness issue along the way: ChangelogPanel.test.tsx renders the full 60+-entry real changelog dataset, which could cross the 5s default test timeout under full-suite CPU contention — fixed with a per-file testTimeout: 15000 rather than trimming the fixture.',
+          ],
+        },
+        {
+          sha: '8038709',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Completed P11: dashboard shell component test coverage, closing the P1–P11 backlog',
+          details: [
+            'Covers all 17 *CommandPalette*/*Dock*/*SectionRouter*/*NoAccessPanel* shell files across the 4 dashboards (Woo, InfraBoard, PA, Caseworker-V2). The two SectionRouter files (~190 lines each) are the largest here — each dispatches a section id to a dozen+ already-tested child components plus a defence-in-depth role/org-type gate, so the tests focus on the routing table and the gate logic rather than re-testing children.',
+            '758 → 888 tests, 74.86% → 83.39% statement coverage. This closes the entire P1–P11 backlog: every component and page in the frontend now has at least a test file.',
+          ],
+        },
+        {
+          sha: '1785718',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Pinned text file line endings to LF via .gitattributes',
+          details: [
+            "Windows checkouts with core.autocrlf=true let git silently rewrite committed LF files to CRLF on disk on every checkout/commit, even when content is unchanged. That rewrite bumps the file's mtime, which caused two separate false positives in this repo: scripts/check-deps.sh flagging package-lock.json as stale against node_modules/.package-lock.json purely from line-ending churn, and the pre-push hook's prettier --check failing on files nobody touched in the current branch.",
+            'Confirmed via git add --renormalize . that every tracked file was already stored as LF internally — only .gitattributes itself needed adding, so this is a forward-looking fix with no other content changes.',
+          ],
+        },
+        {
+          sha: '83d47a4',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Documented expected console noise in frontend test output',
+          details: [
+            "Adds a \"Reading test output\" section covering the act() warning and the three stray Error stack traces that show up in a clean run (AuthCallback's own console.error, PaDataProvider's outside-provider negative test, SectionErrorBoundary's intentional throw) — all from tests that pass, so the guidance is to triage the pass/fail summary, not individual console lines.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '3.9.4',
       status: 'Released',
       date: '20 jul 2026',
