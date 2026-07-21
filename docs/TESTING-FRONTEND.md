@@ -28,6 +28,61 @@ There is currently **no CI test gate** for either package — `npm test` is a
 manual discipline enforced by review, same as the backend. See
 [CI roadmap](#ci-roadmap) below for when/how that changes.
 
+## Reading test output — expected console noise
+
+A clean run still prints warnings and `Error: ...` stack traces to the
+console. That's expected — **don't triage individual console lines, triage
+the pass/fail summary**:
+
+```
+✓ src/pages/AuthCallback.test.tsx (16 tests)
+✓ src/pages/public-affairs-v2/PaDataProvider.test.tsx (10 tests)
+✓ src/components/CaseworkerDashboardV2/SectionErrorBoundary.test.tsx (4 tests)
+...
+ Test Files  119 passed (119)
+      Tests  888 passed (888)
+```
+
+A real failure shows a red `×` next to the specific test name and a `FAIL`
+block with an assertion diff. The noise below is not that — it falls into
+two categories:
+
+**`Warning: An update to <Component> inside a test was not wrapped in
+act(...)`** — React's own dev-mode warning, not an error. It fires when a
+component's state changes (typically a `useEffect` resolving a mocked
+promise) slightly after the test's assertions already ran and React can't
+guarantee the update was flushed inside its `act()` batching. Harmless when
+the test already `await`ed the data it needed before asserting — this is a
+late second update nobody's asserting on. Seen in several P5 dashboard
+containers (`PADashboardV2`, `WooDashboard`, `CaseworkerDashboardV2`,
+`CuratieSpecSection`); not something to chase down per file.
+
+**A stray `Error: ...` stack trace with no matching `FAIL` block** —
+almost always a test deliberately making something throw or reject to
+verify the app's own error-handling UI, where the error path's own logging
+(or React's dev-mode error reporting) prints as a side effect even though
+the resulting assertions all pass. Three flavors show up in this suite:
+
+- **The app's own `console.error` call, firing as designed.**
+  `AuthCallback.tsx`'s catch block does `console.error('Keycloak
+initialization error:', err)` before setting the fallback error message.
+  `AuthCallback.test.tsx` mocks `keycloak.init` to reject specifically to
+  exercise that catch block — the log is the component working correctly,
+  not a problem.
+- **A negative-path hook test with no error boundary.**
+  `PaDataProvider.test.tsx` asserts `usePaData()` throws when called
+  outside its provider (`renderHook` with no wrapper). The test spies on
+  `console.error` to suppress React's first log, but `renderHook` has no
+  boundary around it, so React also reports the uncaught render error
+  through jsdom's `window` error-event path — a second channel the spy
+  doesn't reach. The test is asserting exactly this thrown message.
+- **An error-boundary test, by design.**
+  `SectionErrorBoundary.test.tsx` renders a `Bomb` component that throws on
+  purpose to verify the boundary catches it and renders the fallback panel.
+  React _does_ catch it — that's correct behavior — but development-mode
+  React still logs caught errors to the console via multiple paths
+  regardless of whether a boundary handled them for rendering purposes.
+
 ## Test runner & environment strategy
 
 Frontend tests run on **Vitest**, configured in `packages/frontend/vite.config.ts`:
