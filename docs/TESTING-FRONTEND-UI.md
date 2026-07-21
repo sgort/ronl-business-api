@@ -114,11 +114,11 @@ login/redirect contract, not exhaustive coverage — that's the same
 "critical interactions only" discipline `TESTING-FRONTEND.md`'s P5/P8 used
 for the component suite.
 
-1. **Smoke test** — app loads at `/`, `LoginChoice` renders its board
+1. **Done** — Smoke test: app loads at `/`, `LoginChoice` renders its board
    options, no console errors.
-2. **Login → redirect contract**, one test per role, using a single tenant
-   (Flevoland — it has the widest role set: citizen, caseworker, hr, mngr,
-   infra):
+2. **Done** — Login → redirect contract, one test per role, Flevoland
+   tenant (widest role set), driving the real Keycloak hosted login form
+   (`e2e/helpers/auth.ts`, `e2e/login-redirect.spec.ts`) — all 5 pass:
    - `test-citizen-flevoland` → lands on `/dashboard/citizen`.
    - `test-caseworker-flevoland` → lands on `/dashboard/caseworker`.
    - `test-infra-flevoland` → lands on `/dashboard/infra-board`.
@@ -126,11 +126,27 @@ for the component suite.
      `/dashboard/woo`.
    - `test-pa-flevoland` (`public-affairs`, `pa-author`, `pa-editor`,
      `pa-admin` roles) → lands on `/dashboard/public-affairs`.
-3. **`ProtectedRoute` cross-role redirect** — a citizen user hitting
-   `/dashboard/caseworker` directly gets redirected to
-   `/dashboard/citizen`, and vice versa (this is exactly the kind of
-   router-guard behavior that's cheap to fake in a component test but only
-   _proven_ by driving the real router).
+3. **Done, found 2 gaps** — `ProtectedRoute` cross-role redirect
+   (`e2e/protected-route.spec.ts`). The original plan ("citizen hitting
+   `/dashboard/caseworker` redirects to `/dashboard/citizen`, and vice
+   versa") turned out wrong on **both** legs once actually driven against
+   the real router — found, not fixed, same pattern as `TESTING-FRONTEND.md`'s
+   P7–P9:
+   - **A fresh page load of `/dashboard/citizen` always redirects to `/`,
+     even for an authenticated user with a live Keycloak SSO session.**
+     `keycloak.init()` is only ever called inside `AuthCallback.tsx`;
+     `ProtectedRoute` checks `keycloak.authenticated` synchronously with no
+     init of its own, so on a real browser navigation (URL bar, bookmark,
+     refresh) that field is always false. The "wrong-role redirect to
+     `/dashboard/caseworker`" behavior the plan assumed only fires via
+     client-side SPA navigation while already authenticated in-memory,
+     never via a real page load — which is exactly what a Vitest/RTL test
+     (mocking `keycloak.ts` entirely) can't catch, but Playwright,
+     navigating for real, does.
+   - **`/dashboard/caseworker` is not wrapped in `ProtectedRoute` at all.**
+     `CaseworkerDashboardV2` self-gates by filtering which rail items are
+     visible per role; it never redirects a wrong-role (e.g. citizen) user
+     away, so a citizen who navigates there directly just stays.
 4. **One deep journey, caseworker**: log in as `test-caseworker-flevoland`,
    open a section from `CaseworkerDashboardV2`'s section router (e.g.
    `TakenInbox`), interact with one real backend-backed flow. Exact flow to
@@ -205,6 +221,10 @@ src\win\async.c` instead of exiting cleanly — happens with both
    (item 1) passes end-to-end against the real stack (frontend, backend,
    LDE backend all running locally) — `1 passed` via
    `npm run test:e2e --workspace=@ronl/frontend`.
-2. Login/redirect matrix (Phase 1 items 2–3 above).
+2. **Done** — Login/redirect matrix + `ProtectedRoute` cross-role checks
+   (Phase 1 items 2–3): `e2e/helpers/auth.ts`, `e2e/login-redirect.spec.ts`
+   (5 tests), `e2e/protected-route.spec.ts` (2 tests, both documenting a
+   found-not-fixed gap rather than the originally-planned behavior). `8
+passed` via `npm run test:e2e --workspace=@ronl/frontend`.
 3. One deep caseworker journey + tenant isolation spot-check (items 4–5).
 4. Write up results, decide on CI wiring as a separate follow-up plan.
