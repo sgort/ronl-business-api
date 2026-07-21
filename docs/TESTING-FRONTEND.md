@@ -541,18 +541,35 @@ default timeout under full-suite CPU contention — fixed with a per-file
 `vi.setConfig({ testTimeout: 15000 })` rather than shrinking the fixture to
 something unrealistic.
 
+**After P11** (all 17 `*CommandPalette*`/`*Dock*`/`*SectionRouter*`/
+`*NoAccessPanel*` shell files across the 4 dashboards): **83.39% statements
+/ 75.09% branches / 79.18% functions / 84.99% lines** overall, 888 tests
+across 119 files (up from 758 tests / 74.86% statements). This closes the
+entire P1–P11 backlog — **every component and page in the frontend now has
+at least a test file**, following the established layer-by-layer patterns
+throughout: mock the network boundary for API calls, mock one level below
+for containers/routers (their children already have dedicated tests), keep
+pure logic/data modules unmocked. The two `*SectionRouter*` files (`PA` and
+`Caseworker-V2`, ~190 lines each) were the largest in this priority —
+each dispatches a section id to one of a dozen+ already-tested child
+components plus a defence-in-depth role/org-type gate, so the tests focus
+on the routing table and the gate logic itself rather than re-testing
+children.
+
 ## CI roadmap
 
 Neither `azure-frontend-acc.yml` nor `azure-frontend-prod.yml` currently run
 lint or tests — they go straight from `npm ci` to `vite build` to deploy.
 That's an intentional, separate decision from this guide: **no CI test gate
-is being added yet**, even now that the full P1–P6 backlog plus P1b, the
-section-component pass, and P7–P10 are done (758 tests, 74.86% statement
-coverage). Coverage is real but still partial — various command-palette/
-dock components remain
-untested. Revisit this once that gap has closed further; when ready,
-add a test step to both workflows before the build step, mirroring how
-`azure-backend-*.yml` already runs `npm run lint` before building.
+is being added yet**, even now that the full P1–P11 backlog is done (888
+tests, 83.39% statement coverage, every component/page has a test file).
+The remaining ~17% of uncovered statements is depth, not breadth — dense
+inline sub-branches inside already-tested files, deliberately left out
+under the "critical interactions only" scoping used throughout P5/P8/P9 for
+large files. Revisit adding a CI gate once that depth gap has closed
+further, or once the team decides breadth alone is enough to gate on; when
+ready, add a test step to both workflows before the build step, mirroring
+how `azure-backend-*.yml` already runs `npm run lint` before building.
 
 ## Coverage backlog (priority order)
 
@@ -576,7 +593,7 @@ add a test step to both workflows before the build step, mirroring how
 | **P8**   | `components/CaseworkerDashboard/` — larger files (200+ lines, 11 files: `ArchiefSection`, `IouZakenSection`, `CapacityClaimDocumentsViewer`, `GereedschapSection`, `RipFase1WipViewer`, `ProcesBibliotheek`, `ProductenDienstenCatalogus`, `McpChatSection`, `IouFeedbackSection`, `RegelCatalogus` (704 lines), `IouGebruiksscenarioSection` (826 lines, the largest file in this folder)) — **done**                                                                                  | Same shared-library leverage as P7, but expensive per file — scope to critical interactions only, the P5/`ZoekcriteriaSection` convention, not exhaustive branch coverage of 700–800 line files.                                                                                                                                                                 |
 | **P9**   | `components/PADashboardV2/dossierbeheer/` (8 files: `Dossierbeheer.tsx`, `DossierEditor.tsx`, `DossierRow.tsx`, `ArchiveDialog.tsx`, `DeleteDialog.tsx`, `MdEditor.tsx`, `KompasScorer.tsx`, `TemplateGallery.tsx`) — **done**                                                                                                                                                                                                                                                          | Self-contained PA-authoring feature, not a shared dependency of anything else — lower leverage than P7/P8 but still a real, live surface (gated behind `pa-author`/`editor`/`admin` Keycloak roles that aren't provisioned yet, per project notes, but the code path is real once they are).                                                                     |
 | **P10**  | Remaining top-level pages and their components: `LoginChoice.tsx` + `components/LoginChoice/{BoardCard,BoardPreview}.tsx`, `AuthCallback.tsx` (OAuth redirect handling), `ChangelogPanel.tsx` (mostly static-data rendering) — **done**                                                                                                                                                                                                                                                 | The first thing every user sees (`LoginChoice`) and the OAuth redirect glue (`AuthCallback`) are worth real behavioral tests; `ChangelogPanel` is lower-value (renders `changelog-data.ts`, already exercised indirectly) but cheap smoke coverage closes the gap.                                                                                               |
-| **P11**  | `*CommandPalette*` / `*Dock*` / `*SectionRouter*` / `*NoAccessPanel*` shells across all 4 dashboards (17 files)                                                                                                                                                                                                                                                                                                                                                                         | Lowest leverage of what's left — thin routing/keyboard-shortcut wrappers around components that already have their own test files (from P5's mocking and this backlog). Worth a pass for keyboard-shortcut wiring and role-gating regressions, but last in line.                                                                                                 |
+| **P11**  | `*CommandPalette*` / `*Dock*` / `*SectionRouter*` / `*NoAccessPanel*` shells across all 4 dashboards (17 files) — **done**                                                                                                                                                                                                                                                                                                                                                              | Lowest leverage of what's left — thin routing/keyboard-shortcut wrappers around components that already have their own test files (from P5's mocking and this backlog). Worth a pass for keyboard-shortcut wiring and role-gating regressions, but last in line.                                                                                                 |
 
 **Follow-ups found while writing P4 tests:**
 
