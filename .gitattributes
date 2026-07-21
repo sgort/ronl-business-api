@@ -1,0 +1,29 @@
+# Normalize all text files to LF on checkout and commit, regardless of a
+# given contributor's core.autocrlf setting.
+#
+# Without this, Windows checkouts with core.autocrlf=true let git rewrite
+# committed LF files to CRLF on disk on every checkout/commit -- even when
+# the file's actual content hasn't changed. That silent rewrite bumps the
+# file's mtime, which has caused two separate false positives in this repo:
+#   - scripts/check-deps.sh comparing package-lock.json's mtime against
+#     node_modules/.package-lock.json to detect a stale install; a CRLF-only
+#     rewrite looks identical to a real dependency change to that check.
+#   - the pre-push hook's `npm run check-format` (prettier --check) failing
+#     on files nobody touched in the current branch, because Windows
+#     re-normalized them to CRLF while prettier expects LF.
+# Pinning everything to LF here removes the churn at the source instead of
+# working around it in each affected script.
+* text=auto eol=lf
+
+# Explicit binary types -- git's own heuristic already detects these, but
+# being explicit avoids any risk of eol=lf accidentally corrupting them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
