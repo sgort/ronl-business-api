@@ -664,7 +664,9 @@ how `azure-backend-*.yml` already runs `npm run lint` before building.
 ## E2E / Playwright (future initiative — main lines only)
 
 Not in scope for the tooling added alongside this guide. Noted here so the
-next person doesn't have to rediscover the reasoning:
+next person doesn't have to rediscover the reasoning. The detailed Phase 1
+plan lives in [`docs/TESTING-FRONTEND-UI.md`](./TESTING-FRONTEND-UI.md)
+(branch `test/e2e-playwright-phase1`).
 
 - **Why**: unit/component tests can't cover the full Keycloak login redirect,
   cross-page navigation, or real network behavior end-to-end.
