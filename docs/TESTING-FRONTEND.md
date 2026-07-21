@@ -562,14 +562,15 @@ role refresh mid-session).
 interactions only): **67.92% statements / 60.9% branches / 64.63% functions
 / 69.68% lines** overall, 660 tests across 89 files (up from 581 tests /
 54.28% statements). This closes out `components/CaseworkerDashboard/`
-entirely — every one of its ~29 files now has a test file. Two small,
-unfixed UX findings surfaced along the way: `IouFeedbackSection.tsx`'s
-`clearDraft()` call on successful submit is immediately undone by the
-form-watching persist effect, which rewrites a blank draft right after (same
-observable end state, just not literally "cleared"); and
-`IouGebruiksscenarioSection.tsx`'s "Overig / Other" materials checkbox isn't
-wrapped in a `<label>` like its sibling options are, so clicking its text
-does nothing — only the checkbox itself is clickable.
+entirely — every one of its ~29 files now has a test file. Two small UX
+findings surfaced along the way, both **fixed** on `fix/audit-section-role-gate`:
+`IouFeedbackSection.tsx`'s persist effect now skips writing while
+`submitState === 'success'`, so `clearDraft()`'s removal on a successful
+submit sticks instead of being immediately undone by the form-watching
+effect rewriting a blank draft right after; and
+`IouGebruiksscenarioSection.tsx`'s "Overig / Other" materials checkbox is
+now wrapped in a `<label>` like its sibling options, so clicking its text
+toggles it too, not just the checkbox itself.
 
 **After P9** (`components/PADashboardV2/dossierbeheer/`'s 8 files — the PA
 dossier-authoring surface): **72.24% statements / 66.03% branches / 70.1%

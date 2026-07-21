@@ -172,10 +172,6 @@ describe('IouGebruiksscenarioSection', () => {
   });
 
   it('selecting the "Overig / Other" checkbox enables its text input', async () => {
-    // The "Overig / Other" row's checkbox is not wrapped in a <label> like the
-    // other material options are, so clicking its text does nothing — the
-    // checkbox itself (5th checkbox: 4 material options + this one) must be
-    // clicked directly.
     const user = userEvent.setup();
     render(<IouGebruiksscenarioSection />);
 
@@ -183,6 +179,19 @@ describe('IouGebruiksscenarioSection', () => {
     expect(otherInput).toBeDisabled();
 
     await user.click(screen.getAllByRole('checkbox')[4]);
+    expect(otherInput).toBeEnabled();
+  });
+
+  it('clicking the "Overig / Other" label text also toggles its checkbox', async () => {
+    // The row's checkbox is now wrapped in a <label> like the other material
+    // options, so clicking the text (not just the checkbox itself) works too.
+    const user = userEvent.setup();
+    render(<IouGebruiksscenarioSection />);
+
+    const otherInput = screen.getByPlaceholderText('specify…');
+    expect(otherInput).toBeDisabled();
+
+    await user.click(screen.getByText('Overig / Other:'));
     expect(otherInput).toBeEnabled();
   });
 

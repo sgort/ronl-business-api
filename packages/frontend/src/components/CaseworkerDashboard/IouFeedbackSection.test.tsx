@@ -158,21 +158,41 @@ describe('IouFeedbackSection', () => {
     expect(container.querySelectorAll('img').length).toBe(5);
   });
 
-  it('persists text field changes as a sessionStorage draft, reset to blank on success', async () => {
+  it('persists text field changes as a sessionStorage draft', async () => {
     const user = userEvent.setup();
     const { container } = render(<IouFeedbackSection />);
 
     await user.type(getFields(container).name, 'Jan Jansen');
     expect(JSON.parse(sessionStorage.getItem('iouFeedback.draft')!).name).toBe('Jan Jansen');
+  });
+
+  it('clears the sessionStorage draft entirely on a successful submit', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<IouFeedbackSection />);
+
+    await fillRequired(user, container);
+    expect(sessionStorage.getItem('iouFeedback.draft')).not.toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+    await screen.findByText('Feedback ingediend');
+
+    // clearDraft() removes the key; the persist effect skips re-writing it
+    // while submitState is 'success', so the key stays genuinely absent
+    // instead of coming back as a blank draft.
+    expect(sessionStorage.getItem('iouFeedback.draft')).toBeNull();
+  });
+
+  it('resumes persisting once the user starts a new submission', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<IouFeedbackSection />);
 
     await fillRequired(user, container);
     await user.click(screen.getByRole('button', { name: 'Indienen' }));
     await screen.findByText('Feedback ingediend');
+    await user.click(screen.getByRole('button', { name: 'Nieuwe feedback indienen' }));
 
-    // Note: clearDraft() removes the key, but the form-watching persist
-    // effect fires again right after the post-submit reset and rewrites a
-    // blank draft — so the key ends up present-but-blank, not absent. Same
-    // observable end state on next load either way, just worth knowing.
-    expect(JSON.parse(sessionStorage.getItem('iouFeedback.draft')!).name).toBe('');
+    await user.type(getFields(container).name, 'Nieuwe naam');
+
+    expect(JSON.parse(sessionStorage.getItem('iouFeedback.draft')!).name).toBe('Nieuwe naam');
   });
 });
