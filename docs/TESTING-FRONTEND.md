@@ -527,15 +527,28 @@ doesn't switch the view back to 'list' on failure — so a failed save while
 still in the editor sets the error state but never renders it anywhere; the
 user sees no feedback that anything went wrong.
 
+**After P10** (`LoginChoice.tsx` + `BoardCard`/`BoardPreview`,
+`AuthCallback.tsx`, `ChangelogPanel.tsx`): **74.86% statements / 68.15%
+branches / 72.81% functions / 76.81% lines** overall, 758 tests across 102
+files (up from 722 tests / 72.24% statements). `AuthCallback.tsx` got the
+most thorough coverage of the three — the medewerker vs. citizen IdP
+branches, the role→dashboard fallback table, and the post-login-redirect
+allow/deny logic (including the infra-projectteam-vs-caseworker precedence
+case) are all real behavior worth locking in, not just smoke tests.
+`ChangelogPanel.test.tsx` renders the real `changelog-data.ts` (60+ version
+entries) rather than a trimmed fixture, which pushed one test over the 5s
+default timeout under full-suite CPU contention — fixed with a per-file
+`vi.setConfig({ testTimeout: 15000 })` rather than shrinking the fixture to
+something unrealistic.
+
 ## CI roadmap
 
 Neither `azure-frontend-acc.yml` nor `azure-frontend-prod.yml` currently run
 lint or tests — they go straight from `npm ci` to `vite build` to deploy.
 That's an intentional, separate decision from this guide: **no CI test gate
 is being added yet**, even now that the full P1–P6 backlog plus P1b, the
-section-component pass, and P7–P9 are done (722 tests, 72.24% statement
-coverage). Coverage is real but still partial — some page containers
-(`AuthCallback`/`LoginChoice`/`ChangelogPanel`) and various command-palette/
+section-component pass, and P7–P10 are done (758 tests, 74.86% statement
+coverage). Coverage is real but still partial — various command-palette/
 dock components remain
 untested. Revisit this once that gap has closed further; when ready,
 add a test step to both workflows before the build step, mirroring how
@@ -562,7 +575,7 @@ add a test step to both workflows before the build step, mirroring how
 | **P7**   | `components/CaseworkerDashboard/` — small/medium files (<200 lines, 18 files: `ProcessVarsSection`, `processSteps.ts`, `DvtpStartSection`, `HrOnboardingSection`, `CapacityClaimSection`, `ProcessStepsTimeline`, `RollenSection`, `RipFase1Section`, `BerichtenSection`, `NieuwsSection`, `OnboardingArchiefSection`, `RipFase1WipSection`, `RipFase1GereedSection`, `TaskFormViewer`, `CapacityClaimArchiefSection`, `ProfielSection`, `DvtpTakenSection`, `AuditSection`) — **done** | Highest leverage in the whole remaining backlog — every file here is reused by 2–3 of the 4 V2 dashboards (`SectionRouter`/`InfraSectionRouter`/`PASectionRouter`, plus `TaskFormViewer`/`ProcessVarsSection` from `TakenInbox`/`ProjectDetail`), so one test file benefits multiple dashboards at once. Cheap and mechanical at this size — same pattern as P3. |
 | **P8**   | `components/CaseworkerDashboard/` — larger files (200+ lines, 11 files: `ArchiefSection`, `IouZakenSection`, `CapacityClaimDocumentsViewer`, `GereedschapSection`, `RipFase1WipViewer`, `ProcesBibliotheek`, `ProductenDienstenCatalogus`, `McpChatSection`, `IouFeedbackSection`, `RegelCatalogus` (704 lines), `IouGebruiksscenarioSection` (826 lines, the largest file in this folder)) — **done**                                                                                  | Same shared-library leverage as P7, but expensive per file — scope to critical interactions only, the P5/`ZoekcriteriaSection` convention, not exhaustive branch coverage of 700–800 line files.                                                                                                                                                                 |
 | **P9**   | `components/PADashboardV2/dossierbeheer/` (8 files: `Dossierbeheer.tsx`, `DossierEditor.tsx`, `DossierRow.tsx`, `ArchiveDialog.tsx`, `DeleteDialog.tsx`, `MdEditor.tsx`, `KompasScorer.tsx`, `TemplateGallery.tsx`) — **done**                                                                                                                                                                                                                                                          | Self-contained PA-authoring feature, not a shared dependency of anything else — lower leverage than P7/P8 but still a real, live surface (gated behind `pa-author`/`editor`/`admin` Keycloak roles that aren't provisioned yet, per project notes, but the code path is real once they are).                                                                     |
-| **P10**  | Remaining top-level pages and their components: `LoginChoice.tsx` + `components/LoginChoice/{BoardCard,BoardPreview}.tsx`, `AuthCallback.tsx` (OAuth redirect handling), `ChangelogPanel.tsx` (mostly static-data rendering)                                                                                                                                                                                                                                                            | The first thing every user sees (`LoginChoice`) and the OAuth redirect glue (`AuthCallback`) are worth real behavioral tests; `ChangelogPanel` is lower-value (renders `changelog-data.ts`, already exercised indirectly) but cheap smoke coverage closes the gap.                                                                                               |
+| **P10**  | Remaining top-level pages and their components: `LoginChoice.tsx` + `components/LoginChoice/{BoardCard,BoardPreview}.tsx`, `AuthCallback.tsx` (OAuth redirect handling), `ChangelogPanel.tsx` (mostly static-data rendering) — **done**                                                                                                                                                                                                                                                 | The first thing every user sees (`LoginChoice`) and the OAuth redirect glue (`AuthCallback`) are worth real behavioral tests; `ChangelogPanel` is lower-value (renders `changelog-data.ts`, already exercised indirectly) but cheap smoke coverage closes the gap.                                                                                               |
 | **P11**  | `*CommandPalette*` / `*Dock*` / `*SectionRouter*` / `*NoAccessPanel*` shells across all 4 dashboards (17 files)                                                                                                                                                                                                                                                                                                                                                                         | Lowest leverage of what's left — thin routing/keyboard-shortcut wrappers around components that already have their own test files (from P5's mocking and this backlog). Worth a pass for keyboard-shortcut wiring and role-gating regressions, but last in line.                                                                                                 |
 
 **Follow-ups found while writing P4 tests:**
