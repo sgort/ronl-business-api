@@ -579,11 +579,14 @@ tests / 67.92% statements). `Dossierbeheer.tsx` (the container) was tested
 by mocking one level below — `DossierRow`/`DossierEditor`/`TemplateGallery`/
 `ArchiveDialog`/`DeleteDialog` all get lightweight stubs exposing their
 props as clickable buttons, same pattern as the P5 dashboard containers. One
-real gap found and documented (not fixed): `actionError` is only rendered
-inside the overview ('list' mode) JSX branch, but `handleSave`'s catch
-doesn't switch the view back to 'list' on failure — so a failed save while
-still in the editor sets the error state but never renders it anywhere; the
-user sees no feedback that anything went wrong.
+real gap found here — `actionError` was only rendered inside the overview
+('list' mode) JSX branch, but `handleSave`'s catch doesn't switch the view
+back to 'list' on failure, so a failed save while still in the editor set
+the error state but never rendered it anywhere — was **fixed** on
+`fix/audit-section-role-gate`: the banner JSX is now a shared
+`actionErrorBanner` variable rendered in both the edit view and the
+overview, so a failed save is visible regardless of which view the user is
+still on.
 
 **After P10** (`LoginChoice.tsx` + `BoardCard`/`BoardPreview`,
 `AuthCallback.tsx`, `ChangelogPanel.tsx`): **74.86% statements / 68.15%

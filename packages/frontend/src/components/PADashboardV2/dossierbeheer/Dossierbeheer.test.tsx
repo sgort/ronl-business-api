@@ -259,11 +259,10 @@ describe('Dossierbeheer', () => {
     );
   });
 
-  it('a save failure while in the editor sets actionError but never renders it — the banner only exists in the list view', async () => {
-    // Real gap, not a test artifact: `actionError` is JSX-rendered only inside
-    // the overview ('list' mode) return block. handleSave's catch doesn't
-    // switch the view back to 'list' on failure, so on a failed save the user
-    // stays on the editor with no visible feedback that anything went wrong.
+  it('a save failure while in the editor shows the error banner without leaving the editor', async () => {
+    // handleSave's catch doesn't switch the view back to 'list' on failure,
+    // so the shared actionErrorBanner must render in the edit view too, not
+    // just the list-mode overview.
     mockApi.fetchAdminDossiers.mockResolvedValue([makeDossier()]);
     mockApi.updateDossier.mockRejectedValue(new Error('fail'));
     const user = userEvent.setup();
@@ -275,7 +274,7 @@ describe('Dossierbeheer', () => {
 
     await waitFor(() => expect(mockApi.updateDossier).toHaveBeenCalled());
     expect(screen.getByText('editor:Jeugdzorg')).toBeInTheDocument(); // still in the editor
-    expect(screen.queryByText(/mislukt/)).not.toBeInTheDocument(); // no error shown anywhere
+    expect(await screen.findByText(/mislukt/)).toBeInTheDocument(); // error now visible
   });
 
   it('archiving from a list row opens the ArchiveDialog, confirming calls archiveDossier and closes it', async () => {

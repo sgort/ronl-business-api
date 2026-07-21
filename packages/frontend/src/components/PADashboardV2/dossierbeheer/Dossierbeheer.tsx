@@ -238,6 +238,19 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
     }
   };
 
+  // Shared banner for handleSave/handleArchive/handleUnarchive/handleDelete
+  // failures — rendered in both the edit view and the overview below, since
+  // a save can fail while the user is still in the editor (the view only
+  // returns to 'list' on success).
+  const actionErrorBanner = actionError && (
+    <div className="pac-db-actionerror">
+      <span>⚠ {actionError}</span>
+      <button type="button" onClick={() => setActionError(null)} aria-label="Sluiten">
+        ✕
+      </button>
+    </div>
+  );
+
   // ── Create / edit views ──────────────────────────────────────────
   if (view.mode === 'template') {
     return (
@@ -260,6 +273,7 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
     }
     return (
       <>
+        {actionErrorBanner}
         <DossierEditor
           record={record}
           isNew={view.isNew}
@@ -413,14 +427,7 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
         </span>
       </div>
 
-      {actionError && (
-        <div className="pac-db-actionerror">
-          <span>⚠ {actionError}</span>
-          <button type="button" onClick={() => setActionError(null)} aria-label="Sluiten">
-            ✕
-          </button>
-        </div>
-      )}
+      {actionErrorBanner}
 
       {status === 'loading' && <div className="pac-db-empty">Dossiers laden…</div>}
       {status === 'error' && (
