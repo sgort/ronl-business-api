@@ -67,9 +67,11 @@ Procesbibliotheek`.** `ProcesBibliotheek.tsx` (caseworker dashboard,
   (`npm run dev:full` in that repo also starts its own frontend on top —
   not needed here, only `dev:backend` is required.) If that backend isn't
   running, `ProcesBibliotheek`'s bundle fetch fails and the journey can't
-  be exercised — worth an explicit precondition check (e.g. hitting
-  `http://localhost:3001/v1` before the test suite runs) rather than
-  letting it fail deep inside a test with a confusing network error.
+  be exercised — `e2e/global-setup.ts` checks `http://localhost:3001/v1/health`
+  (LDE backend's health route, same `/v1/health` shape as this repo's own
+  backend) alongside frontend/backend before any test runs, and fails fast
+  with the exact start commands instead of letting it fail deep inside a
+  test with a confusing network error.
 
 So a Playwright run needs: `docker compose up -d` (Keycloak+Postgres+Redis),
 backend running against them, frontend dev server (or a `vite preview` of a
@@ -84,8 +86,15 @@ no new docker services.
   need to know about it, and so `e2e/` can have its own `tsconfig` if
   needed.
 - `playwright.config.ts` points `baseURL` at the Vite dev server
-  (`http://localhost:5173`) for local runs; CI will use a `webServer` block
-  to boot backend+frontend itself (see "CI" below).
+  (`http://localhost:5173`). It does **not** start the dev stack itself —
+  frontend, backend, and the sibling `linked-data-explorer` backend are all
+  started manually (each in its own terminal, per the Environment section
+  above). A `globalSetup` (`e2e/global-setup.ts`) checks all three are
+  reachable before any test runs and fails fast with a clear message +
+  exact start commands if one isn't, instead of a confusing mid-test
+  connection error. CI wiring (a `webServer`-style auto-boot, since CI has
+  no human to start things manually) is deferred — see "Not in Phase 1"
+  below.
 - Auth handling: Playwright's
   [storage state](https://playwright.dev/docs/auth) — a one-time login
   script per role/tenant combination that saves cookies/localStorage to a
@@ -113,10 +122,10 @@ for the component suite.
    - `test-citizen-flevoland` → lands on `/dashboard/citizen`.
    - `test-caseworker-flevoland` → lands on `/dashboard/caseworker`.
    - `test-infra-flevoland` → lands on `/dashboard/infra-board`.
-   - (woo-coordinatie and public-affairs roles aren't in the Flevoland
-     fixture set — check the realm for a tenant that has them, or add role
-     assignment to an existing test user; resolve during scaffolding, not
-     blocking the plan.)
+   - `test-woo-flevoland` (`woo-coordinatie` role) → lands on
+     `/dashboard/woo`.
+   - `test-pa-flevoland` (`public-affairs`, `pa-author`, `pa-editor`,
+     `pa-admin` roles) → lands on `/dashboard/public-affairs`.
 3. **`ProtectedRoute` cross-role redirect** — a citizen user hitting
    `/dashboard/caseworker` directly gets redirected to
    `/dashboard/citizen`, and vice versa (this is exactly the kind of
@@ -134,10 +143,29 @@ for the component suite.
    tenant's data in a shared view (if any dashboard has one — confirm
    during scaffolding).
 
-Explicitly **not** in Phase 1: Woo dashboard journeys, infra-board journeys
-beyond the login redirect, PA/public-affairs dossier authoring (blocked on
-`pa-author`/`editor`/`admin` Keycloak roles not being provisioned yet, per
-existing project notes), HR onboarding flow, MCP chat streaming.
+Explicitly **not** in Phase 1: Woo dashboard journeys beyond the login
+redirect, infra-board journeys beyond the login redirect, PA/public-affairs
+dossier authoring beyond the login redirect, HR onboarding flow, MCP chat
+streaming — kept narrow by choice (item 4's single deep journey stays
+caseworker-only for Phase 1), not because of a missing precondition:
+`test-pa-flevoland` already carries `pa-author`/`pa-editor`/`pa-admin`
+locally (only real ACC kernteam accounts still need those roles assigned
+operationally, which doesn't affect local E2E testing).
+
+## Known issues
+
+- **Node v24 on Windows crashes on exit after `globalSetup` fails.** When
+  the active shell is on Node v24.x instead of the repo's pinned v22
+  (`.nvmrc`), a failing `globalSetup` (e.g. LDE backend not running) prints
+  the correct precondition error, then the process crashes with a native
+  `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file
+src\win\async.c` instead of exiting cleanly — happens with both
+  `AbortSignal.timeout()` and a manually managed `AbortController` +
+  `clearTimeout`, so it's a Node/libuv issue on that version, not something
+  fixable in `global-setup.ts` itself. The precondition check's own logic is
+  unaffected (correct pass/fail per service, correct message) — only
+  process teardown afterward is broken. Re-check once running under the
+  pinned Node 22.
 
 ## Not in Phase 1
 
@@ -156,21 +184,27 @@ existing project notes), HR onboarding flow, MCP chat streaming.
 
 ## Open questions to resolve before/during scaffolding
 
-- Which tenant fixture (if any) has both `woo-coordinatie` and
-  `public-affairs` roles assigned, for the login-redirect matrix in item 2
-  above — or whether a role needs adding to an existing test user.
 - Whether backend test data needs a reset/seed step between local E2E runs
   (Postgres volume is persistent via `docker-compose.yml`'s
   `postgres-data` volume — repeated runs will accumulate state unless
   something resets it).
-- Where `playwright.config.ts`'s `webServer` should point for local runs
-  that don't already have `npm run dev` running — auto-start vs. require
-  it running already (require-running is simpler and matches how Vitest is
-  already run manually per `TESTING-FRONTEND.md`).
+- ~~Where `playwright.config.ts` should point for local runs that don't
+  already have `npm run dev` running~~ — resolved: require it running
+  already (`globalSetup` checks and fails fast; no auto-start). Matches how
+  Vitest is already run manually per `TESTING-FRONTEND.md`.
 
 ## Milestones (tracking, from `TESTING-FRONTEND.md`'s original note)
 
-1. Install & scaffold Playwright (`e2e/` dir, config, `test:e2e` script).
-2. Smoke test + login/redirect matrix (Phase 1 items 1–3 above).
+1. **Done** — Playwright scaffolded: `@playwright/test` devDependency,
+   `packages/frontend/e2e/{playwright.config.ts,global-setup.ts,smoke.spec.ts}`,
+   `npm run test:e2e --workspace=@ronl/frontend` (must pass
+   `--config=e2e/playwright.config.ts` explicitly — Playwright's own config
+   auto-discovery only walks cwd + ancestors, never subdirectories, so a
+   bare `playwright test` run from `packages/frontend` silently falls back
+   to config-less mode instead of erroring, which is worse). Smoke test
+   (item 1) passes end-to-end against the real stack (frontend, backend,
+   LDE backend all running locally) — `1 passed` via
+   `npm run test:e2e --workspace=@ronl/frontend`.
+2. Login/redirect matrix (Phase 1 items 2–3 above).
 3. One deep caseworker journey + tenant isolation spot-check (items 4–5).
 4. Write up results, decide on CI wiring as a separate follow-up plan.
