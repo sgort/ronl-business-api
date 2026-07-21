@@ -550,11 +550,13 @@ current "manual discipline" approach documented in `TESTS.md`.
 branch `test/p7-p11-remaining-coverage`): **54.28% statements / 46.54%
 branches / 50.98% functions / 55.27% lines** overall, 581 tests across 78
 files (up from 466 tests / 46.59% statements). One real finding along the
-way: `AuditSection.tsx`'s load-on-mount effect has no role guard — it
-fetches `/admin/audit` on every mount regardless of `user.roles`, and only
-the _rendered_ UI is gated behind the admin check that comes after the
-hooks. Not fixed (out of scope for a test pass; the backend presumably
-still rejects the call), but worth a follow-up look.
+way: `AuditSection.tsx`'s load-on-mount effect had no role guard — it
+fetched `/admin/audit` on every mount regardless of `user.roles`, and only
+the _rendered_ UI was gated behind the admin check that came after the
+hooks. **Fixed** on `fix/audit-section-role-gate`: the effect now checks
+the same `isAdmin` flag the render guard uses and skips `load(0)` entirely
+for a non-admin user, re-firing if the user gains the role later (e.g. a
+role refresh mid-session).
 
 **After P8** (`components/CaseworkerDashboard/`'s 11 larger files, critical
 interactions only): **67.92% statements / 60.9% branches / 64.63% functions

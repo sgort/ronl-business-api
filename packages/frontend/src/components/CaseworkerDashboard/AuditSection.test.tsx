@@ -56,11 +56,28 @@ afterEach(() => {
 });
 
 describe('AuditSection', () => {
-  it('shows an access-restricted panel for a non-admin user', () => {
-    // Note: the load-on-mount effect has no role guard, so it fires
-    // regardless — only the rendered UI is gated. See TESTING-FRONTEND.md.
+  it('shows an access-restricted panel for a non-admin user and never fetches the audit log', () => {
     render(<AuditSection activeTab="audit-overzicht" user={{ sub: '1', roles: [] } as never} />);
     expect(screen.getByText('Toegang beperkt')).toBeInTheDocument();
+    expect(mockBusinessApi.admin.auditLogs).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch the audit log for a user with no roles at all', () => {
+    render(<AuditSection activeTab="audit-overzicht" user={null} />);
+    expect(screen.getByText('Toegang beperkt')).toBeInTheDocument();
+    expect(mockBusinessApi.admin.auditLogs).not.toHaveBeenCalled();
+  });
+
+  it('starts fetching once a user gains the admin role after mount', async () => {
+    mockBusinessApi.admin.auditLogs.mockResolvedValue(page([makeLog()]));
+    const { rerender } = render(
+      <AuditSection activeTab="audit-overzicht" user={{ sub: '1', roles: [] } as never} />
+    );
+    expect(mockBusinessApi.admin.auditLogs).not.toHaveBeenCalled();
+
+    rerender(<AuditSection activeTab="audit-overzicht" user={adminUser} />);
+
+    expect(await screen.findByText('almere')).toBeInTheDocument();
   });
 
   it('audit-overzicht renders a row with tenant, truncated user id, action, and result', async () => {

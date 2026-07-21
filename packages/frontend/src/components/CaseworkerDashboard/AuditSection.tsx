@@ -15,6 +15,8 @@ interface Props {
 }
 
 export default function AuditSection({ activeTab, user }: Props) {
+  const isAdmin = user?.roles?.includes('admin') ?? false;
+
   const [logs, setLogs] = useState<AuditLogRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +45,12 @@ export default function AuditSection({ activeTab, user }: Props) {
   };
 
   useEffect(() => {
+    if (!isAdmin) return;
     load(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, isAdmin]);
 
-  if (!user?.roles?.includes('admin')) {
+  if (!isAdmin) {
     return (
       <div className="max-w-lg">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
