@@ -12,7 +12,12 @@ const mockKeycloak = vi.hoisted(() => ({
   login: vi.fn(),
   tokenParsed: null as { realm_access?: { roles: string[] } } | null,
 }));
-vi.mock('../services/keycloak', () => ({ default: mockKeycloak }));
+vi.mock('../services/keycloak', () => ({
+  default: mockKeycloak,
+  // Real initializeKeycloak() always uses fixed check-sso options now,
+  // regardless of caller — see services/keycloak.ts for why.
+  initializeKeycloak: () => mockKeycloak.init({ onLoad: 'check-sso', checkLoginIframe: false }),
+}));
 
 function setRoles(roles: string[]) {
   mockKeycloak.tokenParsed = { realm_access: { roles } };
@@ -78,7 +83,7 @@ describe('AuthCallback', () => {
     );
   });
 
-  it('citizen flow passes the selected idp as idpHint and navigates on success', async () => {
+  it('citizen flow already authenticated navigates without ever calling keycloak.login', async () => {
     sessionStorage.setItem('selected_idp', 'digid');
     mockKeycloak.init.mockResolvedValue(true);
     setRoles([]);
@@ -86,44 +91,44 @@ describe('AuthCallback', () => {
     render(<AuthCallback />);
 
     await vi.waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    // Only ever check-sso — login-required would have been wrong the moment
+    // anything else (e.g. ProtectedRoute) already called the shared,
+    // memoized init first with different options; see services/keycloak.ts.
     expect(mockKeycloak.init).toHaveBeenCalledWith(
-      expect.objectContaining({ onLoad: 'login-required', idpHint: 'digid' })
+      expect.objectContaining({ onLoad: 'check-sso' })
     );
+    expect(mockKeycloak.login).not.toHaveBeenCalled();
   });
 
-  it('citizen flow with no stored idp omits idpHint entirely', async () => {
-    mockKeycloak.init.mockResolvedValue(true);
-    setRoles([]);
-
-    render(<AuthCallback />);
-
-    await vi.waitFor(() => expect(mockKeycloak.init).toHaveBeenCalled());
-    const initArg = mockKeycloak.init.mock.calls[0][0];
-    expect(initArg).not.toHaveProperty('idpHint');
-  });
-
-  it('citizen flow that fails to authenticate shows an error with a way back', async () => {
+  it('citizen flow calls keycloak.login with the selected idp when not authenticated', async () => {
+    sessionStorage.setItem('selected_idp', 'digid');
     mockKeycloak.init.mockResolvedValue(false);
-    const user = userEvent.setup();
 
     render(<AuthCallback />);
 
-    expect(
-      await screen.findByText('Authenticatie mislukt. Probeer het opnieuw.')
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Terug naar inlogkeuze' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    await vi.waitFor(() => expect(mockKeycloak.login).toHaveBeenCalledWith({ idpHint: 'digid' }));
   });
 
-  it('a thrown init error shows the generic error message', async () => {
+  it('citizen flow with no stored idp calls keycloak.login with no idpHint when not authenticated', async () => {
+    mockKeycloak.init.mockResolvedValue(false);
+
+    render(<AuthCallback />);
+
+    await vi.waitFor(() => expect(mockKeycloak.login).toHaveBeenCalledWith(undefined));
+  });
+
+  it('a thrown init error shows the generic error message with a way back', async () => {
     mockKeycloak.init.mockRejectedValue(new Error('network down'));
+    const user = userEvent.setup();
 
     render(<AuthCallback />);
 
     expect(
       await screen.findByText('Er is een fout opgetreden bij het inloggen. Probeer het opnieuw.')
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Terug naar inlogkeuze' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/');
   });
 
   it.each([

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import keycloak from '../services/keycloak';
+import keycloak, { initializeKeycloak } from '../services/keycloak';
 
 const POST_LOGIN_KEY = 'post_login_redirect';
 
@@ -58,16 +58,26 @@ function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean })
 /**
  * Authentication callback page.
  *
+ * Both flows now start the same way: `initializeKeycloak()` — a passive
+ * `check-sso`, never triggers a redirect by itself — then explicitly call
+ * `keycloak.login(...)` if that comes back unauthenticated. (An earlier
+ * version had the citizen flow call `keycloak.init({ onLoad:
+ * 'login-required', idpHint })` directly; that broke the moment anything
+ * else in the app — e.g. ProtectedRoute on a protected route visited while
+ * logged out — had already called the shared, memoized init first with
+ * different options. `.init()` can only run once ever; `.login()` has no
+ * such restriction, so it's the only safe way to trigger a real redirect
+ * from more than one call site.)
+ *
  * Citizen flows (digid / eherkenning / eidas):
- *   keycloak.init({ onLoad: 'login-required', idpHint }) — Keycloak immediately
- *   redirects to the external IdP. In dev (no real IdPs configured) it falls back
- *   to the native login form without a context banner.
+ *   Not authenticated → keycloak.login({ idpHint }) redirects to the
+ *   external IdP. In dev (no real IdPs configured) it falls back to the
+ *   native login form without a context banner.
  *
  * Medewerker flow:
- *   keycloak.init({ onLoad: 'check-sso' }) — does NOT trigger a redirect.
- *   If already authenticated, go straight to dashboard.
- *   Otherwise call keycloak.login({ loginHint: '__medewerker__' }) so the
- *   login.ftl template can detect the sentinel and show the medewerker banner.
+ *   Not authenticated → keycloak.login({ loginHint: '__medewerker__' }) so
+ *   the login.ftl template can detect the sentinel and show the medewerker
+ *   banner.
  *
  * Post-login redirect:
  *   If sessionStorage holds a `post_login_redirect` value (set by the calling
@@ -84,13 +94,9 @@ export default function AuthCallback() {
       try {
         const selectedIdp = sessionStorage.getItem('selected_idp');
         const isMedewerker = selectedIdp === 'medewerker';
+        const authenticated = await initializeKeycloak();
 
         if (isMedewerker) {
-          const authenticated = await keycloak.init({
-            onLoad: 'check-sso',
-            checkLoginIframe: false,
-          });
-
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
             sessionStorage.removeItem('username_hint');
@@ -101,23 +107,11 @@ export default function AuthCallback() {
             await keycloak.login({ loginHint: usernameHint ?? '__medewerker__' });
           }
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const initOptions: any = {
-            onLoad: 'login-required',
-            checkLoginIframe: false,
-          };
-
-          if (selectedIdp) {
-            initOptions.idpHint = selectedIdp;
-          }
-
-          const authenticated = await keycloak.init(initOptions);
-
           if (authenticated) {
             sessionStorage.removeItem('selected_idp');
             navigateAfterLogin(navigate);
           } else {
-            setError('Authenticatie mislukt. Probeer het opnieuw.');
+            await keycloak.login(selectedIdp ? { idpHint: selectedIdp } : undefined);
           }
         }
       } catch (err) {

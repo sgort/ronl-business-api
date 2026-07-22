@@ -126,27 +126,76 @@ for the component suite.
      `/dashboard/woo`.
    - `test-pa-flevoland` (`public-affairs`, `pa-author`, `pa-editor`,
      `pa-admin` roles) → lands on `/dashboard/public-affairs`.
-3. **Done, found 2 gaps** — `ProtectedRoute` cross-role redirect
+3. **Done, found and fixed 2 gaps** — `ProtectedRoute` cross-role redirect
    (`e2e/protected-route.spec.ts`). The original plan ("citizen hitting
    `/dashboard/caseworker` redirects to `/dashboard/citizen`, and vice
    versa") turned out wrong on **both** legs once actually driven against
-   the real router — found, not fixed, same pattern as `TESTING-FRONTEND.md`'s
-   P7–P9:
-   - **A fresh page load of `/dashboard/citizen` always redirects to `/`,
+   the real router — found the same way P7–P9 in `TESTING-FRONTEND.md`
+   were, both since fixed (unlike P7–P9, which stayed found-not-fixed by
+   choice):
+   - **A fresh page load of `/dashboard/citizen` always redirected to `/`,
      even for an authenticated user with a live Keycloak SSO session.**
-     `keycloak.init()` is only ever called inside `AuthCallback.tsx`;
-     `ProtectedRoute` checks `keycloak.authenticated` synchronously with no
-     init of its own, so on a real browser navigation (URL bar, bookmark,
-     refresh) that field is always false. The "wrong-role redirect to
-     `/dashboard/caseworker`" behavior the plan assumed only fires via
-     client-side SPA navigation while already authenticated in-memory,
-     never via a real page load — which is exactly what a Vitest/RTL test
-     (mocking `keycloak.ts` entirely) can't catch, but Playwright,
-     navigating for real, does.
-   - **`/dashboard/caseworker` is not wrapped in `ProtectedRoute` at all.**
-     `CaseworkerDashboardV2` self-gates by filtering which rail items are
-     visible per role; it never redirects a wrong-role (e.g. citizen) user
-     away, so a citizen who navigates there directly just stays.
+     `keycloak.init()` used to only ever be called inside
+     `AuthCallback.tsx`; `ProtectedRoute` checked `keycloak.authenticated`
+     synchronously with no init of its own, so on a real browser
+     navigation (URL bar, bookmark, refresh) that field was always false.
+     **Fixed**: `services/keycloak.ts` now exports `initializeKeycloak()`,
+     an idempotent wrapper memoizing the first `keycloak.init()` call in a
+     module-level promise — safe to call from both `AuthCallback` (real
+     login flow, its own `onLoad` options) and `ProtectedRoute` (passive
+     `check-sso`), whichever happens to be first in a given page load.
+     `ProtectedRoute` now awaits its own `check-sso` init on mount before
+     deciding anything (rendering `null` while pending). New tests:
+     `App.test.tsx` (didn't exist before — `ProtectedRoute` is now
+     exported from `App.tsx` and tested in isolation via `MemoryRouter`)
+     and two new cases in `services/keycloak.test.ts` covering the
+     memoization itself (`vi.resetModules()` + dynamic re-import per test,
+     since `initPromise` is module-level state).
+   - **`/dashboard/caseworker` was not wrapped in `ProtectedRoute` at
+     all.** `CaseworkerDashboardV2` self-gates by filtering which rail
+     items are visible per role; it never redirected a wrong-role (e.g.
+     citizen) user away, so a citizen who navigated there directly just
+     stayed. **Fixed**: the route is now wrapped in
+     `<ProtectedRoute requiredRole="caseworker">`, same as
+     `/dashboard/citizen`. Known, accepted trade-off:
+     `CaseworkerDashboardV2` has its own inline public "zoeken" (search)
+     mode for unauthenticated visitors
+     (`{!isAuth && mode !== 'zoeken' ? <login-gate> : ...}`) — wrapping
+     the whole route in `ProtectedRoute` means an unauthenticated visitor
+     can no longer reach that public search mode at all, since they're
+     redirected to `/` before the component ever mounts. Chosen
+     deliberately over leaving the gap in place; revisit if that public
+     access turns out to matter.
+
+   **Real regression found manually, after these fixes, and fixed**: the
+   first version of `initializeKeycloak()` accepted caller-supplied
+   options and memoized whichever ones the _first_ caller passed, for the
+   lifetime of the page. Repro: visit `/dashboard/caseworker` while logged
+   out (`ProtectedRoute`'s `check-sso`, resolves `false`) redirects to `/`
+   as expected — but then clicking "Login met DigiD" (which wanted a real
+   `onLoad: 'login-required', idpHint: 'digid'` init) got `AuthCallback`
+   back the _already-resolved_ `false` from `ProtectedRoute`'s earlier
+   call instead of a fresh one — the real DigiD redirect never fired, and
+   the citizen flow showed "Authenticatie mislukt. Probeer het opnieuw."
+   even though nothing had actually gone wrong yet. (Logging out as
+   caseworker "reset" it — a fresh page load clears all in-memory JS
+   state, including `initPromise`.) **Fixed**: `initializeKeycloak()` now
+   takes no options at all — always a fixed passive `check-sso` — and
+   every real login (medewerker or citizen/DigiD) triggers its actual
+   redirect via a separate, explicit `keycloak.login(...)` call instead,
+   which has no "only once" restriction unlike `.init()`. `AuthCallback`'s
+   citizen branch changed from a single `init({onLoad: 'login-required',
+idpHint})` call to `initializeKeycloak()` + `keycloak.login({idpHint})`
+   if not authenticated — mirroring the medewerker branch's existing,
+   already-correct pattern. New E2E test
+   (`protected-route.spec.ts`, "DigiD login still works after an
+   unauthenticated visit to a protected route in the same tab")
+   reproduces the exact repro steps and confirms the fix. Updated
+   `AuthCallback.test.tsx` (3 tests rewritten: the old "citizen flow
+   fails to authenticate" test's premise no longer applies — not being
+   authenticated now triggers a real login attempt, not an error) and
+   `keycloak.test.ts`/`App.test.tsx` (signature change, no options).
+
 4. **Done, found and fixed 2 bugs** — One deep journey
    (`e2e/caseworker-journey.spec.ts`): `test-citizen-flevoland` submits a
    real Kapvergunning (tree felling permit) request via `AwbShellProcess`
@@ -186,23 +235,21 @@ voltooid.' })` and `setSelectedId(null)` in the same synchronous
      message only rendered inside the `{!selected ? <empty> :
      <article>…}` branch, `selected` was already `null` before the
      message ever painted. The success confirmation never appeared for
-     any caseworker, on any task completion, ever.
-     - First fix attempt — just drop the manual `setSelectedId(null)` and
-       let the task naturally drop out of `visible` once `loadTasks()`'s
-       refetch excludes it. This passed a Vitest test using a
-       manually-deferred refetch promise, but was still **flaky against
-       the real browser**: the message's visible window is bounded by
-       how fast the real refetch resolves (fast against a local backend
-       — tens of ms), which is too short/racy to reliably assert on and
-       poor UX regardless (a caseworker might never consciously register
-       it).
-     - Real fix: moved the `actionMessage` banner to render as a sibling
-       of the `{!selected ? … : …}` block instead of nested inside the
-       `<article>` — it now persists independently of whether a task is
-       currently selected, until the next `handleSelect`/`handleClaim`
-       clears it. `TakenInbox.test.tsx`'s regression test (deferred-promise
-       technique) still passes unchanged; `caseworker-journey.spec.ts`
-       passes reliably against the real browser now.
+     any caseworker, on any task completion, ever. - First fix attempt — just drop the manual `setSelectedId(null)` and
+     let the task naturally drop out of `visible` once `loadTasks()`'s
+     refetch excludes it. This passed a Vitest test using a
+     manually-deferred refetch promise, but was still **flaky against
+     the real browser**: the message's visible window is bounded by
+     how fast the real refetch resolves (fast against a local backend
+     — tens of ms), which is too short/racy to reliably assert on and
+     poor UX regardless (a caseworker might never consciously register
+     it). - Real fix: moved the `actionMessage` banner to render as a sibling
+     of the `{!selected ? … : …}` block instead of nested inside the
+     `<article>` — it now persists independently of whether a task is
+     currently selected, until the next `handleSelect`/`handleClaim`
+     clears it. `TakenInbox.test.tsx`'s regression test (deferred-promise
+     technique) still passes unchanged; `caseworker-journey.spec.ts`
+     passes reliably against the real browser now.
 
    Also found: Vitest's default file matching had no `exclude` for `e2e/`,
    so `npm run test` was quietly also trying to import Playwright's

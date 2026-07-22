@@ -63,3 +63,38 @@ describe('getToken', () => {
     expect(getToken()).toBeUndefined();
   });
 });
+
+describe('initializeKeycloak', () => {
+  // A Keycloak instance can only be .init()'d once ever, and AuthCallback /
+  // ProtectedRoute can each be the first caller in a given page load — this
+  // memoizes across both. `initPromise` is module-level state, so each test
+  // needs its own fresh module instance (vi.resetModules + re-import) rather
+  // than sharing the top-level `keycloak` import the getUser/getToken tests
+  // above use.
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('calls keycloak.init with passive check-sso options on the first call', async () => {
+    const { default: kc, initializeKeycloak } = await import('./keycloak');
+    const initSpy = vi.spyOn(kc, 'init').mockResolvedValue(true);
+
+    const result = await initializeKeycloak();
+
+    expect(result).toBe(true);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(initSpy).toHaveBeenCalledWith(expect.objectContaining({ onLoad: 'check-sso' }));
+  });
+
+  it('memoizes — a later call does not init() again', async () => {
+    const { default: kc, initializeKeycloak } = await import('./keycloak');
+    const initSpy = vi.spyOn(kc, 'init').mockResolvedValue(true);
+
+    const first = await initializeKeycloak();
+    const second = await initializeKeycloak();
+
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+  });
+});
