@@ -147,13 +147,97 @@ for the component suite.
      `CaseworkerDashboardV2` self-gates by filtering which rail items are
      visible per role; it never redirects a wrong-role (e.g. citizen) user
      away, so a citizen who navigates there directly just stays.
-4. **One deep journey, caseworker**: log in as `test-caseworker-flevoland`,
-   open a section from `CaseworkerDashboardV2`'s section router (e.g.
-   `TakenInbox`), interact with one real backend-backed flow. Exact flow to
-   be picked once scaffolding starts — needs a backend endpoint that's safe
-   to exercise repeatedly against local Postgres without leaving unbounded
-   test data (candidate: viewing/claiming a seeded task, not a
-   process-start that creates new Operaton instances every run).
+4. **Done, found and fixed 2 bugs** — One deep journey
+   (`e2e/caseworker-journey.spec.ts`): `test-citizen-flevoland` submits a
+   real Kapvergunning (tree felling permit) request via `AwbShellProcess`
+   on the local Operaton container; DMN evaluates it (`Permit
+Decision: Permit`, `Replacement Decision: true` for a 35cm tree);
+   `TreeFellingPermitSubProcess` creates a "Case review: tree felling
+   permit decision" task for the `caseworker` candidate group;
+   `test-caseworker-flevoland` claims and completes it via `TakenInbox` /
+   `TaskFormViewer`, which advances `AwbShellProcess` itself to its own
+   caseworker task (`Task_Phase6_Notify`, also `candidateGroups=
+"caseworker"`) — the same caseworker completes that too, for a
+   genuinely finalized roundtrip (zero open tasks/instances left in
+   Operaton afterward) rather than leaving a dangling notify step nobody
+   ever closes, which is what an earlier version of this test did and
+   what prompted this fix. Two persona contexts (`browser.newContext()`
+   ×2), not the default `page` fixture, since citizen and caseworker must
+   not share a Keycloak session. Unlike the original plan, using a real
+   process-start turned out fine — Operaton is now a disposable local
+   container (see Environment above), not the shared remote engine the
+   original concern was about.
+
+   Driving the form for real (not mocked) surfaced things a Vitest/RTL
+   test never would have:
+   - **form-js's `select` fields aren't native `<select>`s.** They're a
+     custom combobox: the `<label>`/accessible-textbox role both target a
+     visually-hidden, zero-size input (the real form value holder) —
+     `selectOption()`/`getByLabel()` resolve to it but can't click it
+     ("outside of viewport"). The actual clickable trigger is a sibling
+     `<div class="fjs-select-display">` with a randomized id prefix per
+     render; targeted via an "ends with" attribute selector, e.g.
+     `locator('[id$="-Field_ReviewAction-display"]')`, in
+     `caseworker-journey.spec.ts`.
+   - **Real bug, fixed (two rounds)**: `TakenInbox.tsx`'s `onCompleted`
+     handler called `setActionMessage({ type: 'success', text: 'Taak
+voltooid.' })` and `setSelectedId(null)` in the same synchronous
+     handler — React batches both into one render, and since the success
+     message only rendered inside the `{!selected ? <empty> :
+     <article>…}` branch, `selected` was already `null` before the
+     message ever painted. The success confirmation never appeared for
+     any caseworker, on any task completion, ever.
+     - First fix attempt — just drop the manual `setSelectedId(null)` and
+       let the task naturally drop out of `visible` once `loadTasks()`'s
+       refetch excludes it. This passed a Vitest test using a
+       manually-deferred refetch promise, but was still **flaky against
+       the real browser**: the message's visible window is bounded by
+       how fast the real refetch resolves (fast against a local backend
+       — tens of ms), which is too short/racy to reliably assert on and
+       poor UX regardless (a caseworker might never consciously register
+       it).
+     - Real fix: moved the `actionMessage` banner to render as a sibling
+       of the `{!selected ? … : …}` block instead of nested inside the
+       `<article>` — it now persists independently of whether a task is
+       currently selected, until the next `handleSelect`/`handleClaim`
+       clears it. `TakenInbox.test.tsx`'s regression test (deferred-promise
+       technique) still passes unchanged; `caseworker-journey.spec.ts`
+       passes reliably against the real browser now.
+
+   Also found: Vitest's default file matching had no `exclude` for `e2e/`,
+   so `npm run test` was quietly also trying to import Playwright's
+   `*.spec.ts` files as Vitest tests once any existed, and erroring on
+   each. Fixed in `vite.config.ts` (`exclude: [...configDefaults.exclude,
+'e2e/**']`).
+
+   **Optional Operaton history cleanup**: local Operaton keeps full
+   history of every process/task by default (confirmed — running this
+   test repeatedly during development left over a dozen completed
+   `AwbShellProcess`/`TreeFellingPermitSubProcess` history entries behind),
+   which isn't always wanted across repeated local runs. Rather than
+   deleting it unconditionally (some runs you _do_ want to inspect
+   afterward via Operaton's Cockpit), the test asks first — but **not**
+   from within the test body itself: Playwright runs each test in a worker
+   child process that doesn't forward the CLI's real TTY stdin (confirmed,
+   matches [microsoft/playwright#33061](https://github.com/microsoft/playwright/issues/33061)
+   exactly — a `readline` prompt inside a test silently never reaches the
+   terminal, even from a genuinely interactive shell). `global-teardown.ts`
+   runs in the main CLI process instead, which does have real stdin, so
+   the split is: the test calls
+   `helpers/operaton-cleanup.ts`'s `recordPendingCleanup(businessKey)` —
+   using the dossier/businessKey captured from the citizen's success
+   screen — to write it to a gitignored state file
+   (`e2e/.pending-operaton-cleanup.json`); `global-teardown.ts` (wired via
+   `playwright.config.ts`'s `globalTeardown`) reads that file once, after
+   all tests finish, and prompts per key there. Confirming deletes both
+   the top-level `AwbShellProcess` instance and its
+   `TreeFellingPermitSubProcess` call-activity instance — Operaton tracks
+   call-activity subprocesses as separate history entries with their own
+   ids, linked via `superProcessInstanceId`; deleting the parent's history
+   does not cascade to them. No-ops silently (leaving the state file for
+   next time) when `process.stdin.isTTY` is false, so a future CI run
+   never hangs unattended.
+
 5. **Tenant isolation spot-check**: logging in as `test-caseworker-utrecht`
    and `test-caseworker-amsterdam` in two tests never shows the other
    tenant's data in a shared view (if any dashboard has one — confirm
@@ -200,10 +284,15 @@ src\win\async.c` instead of exiting cleanly — happens with both
 
 ## Open questions to resolve before/during scaffolding
 
-- Whether backend test data needs a reset/seed step between local E2E runs
-  (Postgres volume is persistent via `docker-compose.yml`'s
-  `postgres-data` volume — repeated runs will accumulate state unless
-  something resets it).
+- **Confirmed real, not hypothetical**: repeated `caseworker-journey.spec.ts`
+  runs do accumulate state — each completed review task spawns a
+  follow-up "Phase 6: Notify applicant" task in `AwbShellProcess` that
+  nothing ever completes, and Operaton's own history keeps every prior
+  process instance. Not a blocker for Phase 1 (H2/local, cheap to ignore or
+  wipe via the Operaton container's Cockpit UI per the docker-compose.yml
+  comment), but a real gap to close before any CI wiring — needs either a
+  per-run cleanup step or accept unbounded local growth between manual
+  resets.
 - ~~Where `playwright.config.ts` should point for local runs that don't
   already have `npm run dev` running~~ — resolved: require it running
   already (`globalSetup` checks and fails fast; no auto-start). Matches how
@@ -226,5 +315,11 @@ src\win\async.c` instead of exiting cleanly — happens with both
    (5 tests), `e2e/protected-route.spec.ts` (2 tests, both documenting a
    found-not-fixed gap rather than the originally-planned behavior). `8
 passed` via `npm run test:e2e --workspace=@ronl/frontend`.
-3. One deep caseworker journey + tenant isolation spot-check (items 4–5).
+3. **Item 4 done, item 5 pending** — One deep caseworker journey
+   (`e2e/caseworker-journey.spec.ts`), which also found and fixed a real
+   bug in `TakenInbox.tsx` (task-completion success message never
+   rendered) plus a `vite.config.ts` gap (Vitest picking up Playwright's
+   own spec files). `9 passed` via
+   `npm run test:e2e --workspace=@ronl/frontend`. Tenant isolation
+   spot-check (item 5) not started.
 4. Write up results, decide on CI wiring as a separate follow-up plan.

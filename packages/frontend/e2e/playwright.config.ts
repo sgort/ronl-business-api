@@ -15,6 +15,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
   globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
 
   use: {
     baseURL: 'http://localhost:5173',

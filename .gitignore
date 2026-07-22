@@ -39,6 +39,7 @@ packages/frontend/e2e/test-results/
 packages/frontend/playwright-report/
 packages/frontend/e2e/playwright-report/
 packages/frontend/e2e/.auth/
+packages/frontend/e2e/.pending-operaton-cleanup.json
 
 # IDEs and editors
 .vscode/
