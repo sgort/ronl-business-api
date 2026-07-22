@@ -85,23 +85,78 @@ export const changelog: Changelog = {
       scope: 'frontend',
       commits: [
         {
-          sha: 'e3dec89',
+          sha: '45d007e',
           author: 'Steven Gort',
-          type: 'fix',
-          subject: "AuditSection's load-on-mount effect now gated behind the admin role",
+          type: 'test',
+          subject: 'Deep caseworker journey E2E test — full roundtrip against local Operaton',
           details: [
-            "The effect fetched /admin/audit on every mount regardless of the user's roles — only the rendered UI was gated behind the admin check, which came after the hooks, so non-admin users still triggered the network call even though they'd never see the result.",
-            'Now checks the same isAdmin flag the render guard uses and skips the fetch entirely for a non-admin user, re-firing if the user gains the role later (e.g. a role refresh mid-session).',
+            'e2e/caseworker-journey.spec.ts: citizen submits a real Kapvergunning request via AwbShellProcess on the local Operaton container; DMN evaluates it; caseworker claims and completes the resulting TreeFellingPermitSubProcess review task, which advances AwbShellProcess to its own follow-up caseworker task — that gets completed too, for a genuinely finalized roundtrip (zero open tasks/instances left in Operaton).',
+            "Also adds optional Operaton history cleanup (e2e/helpers/operaton-cleanup.ts + e2e/global-teardown.ts) — Playwright runs test bodies in worker child processes that don't forward the CLI's real TTY stdin, so the interactive y/n prompt has to run from globalTeardown (the main CLI process) instead of the test itself.",
           ],
         },
         {
-          sha: '82b519d',
+          sha: 'b288eb0',
           author: 'Steven Gort',
           type: 'fix',
-          subject: 'Two UX fixes in IouFeedbackSection and IouGebruiksscenarioSection',
+          subject: 'TakenInbox success message now actually renders after task completion',
           details: [
-            "IouFeedbackSection: the form-watching persist effect now skips writing to sessionStorage while submitState is 'success', so clearDraft()'s removal on a successful submit actually sticks instead of being immediately undone by the effect rewriting a blank draft right after. Persistence resumes once the user starts a new submission.",
-            'IouGebruiksscenarioSection: the "Overig / Other" materials checkbox is now wrapped in a <label> like its sibling options, so clicking the text toggles it too, not just the checkbox itself.',
+            'onCompleted called setActionMessage(success) and setSelectedId(null) in the same synchronous handler. React batches both into one render, and since the message only rendered inside the {!selected ? <empty> : <article>...} branch, selected was already null before the message ever painted — the success confirmation never appeared for any caseworker, on any task completion.',
+            'Fixed by moving the actionMessage banner to render as a sibling of the selected/empty branches instead of nested inside <article>, so it persists independently of whether a task is currently selected.',
+          ],
+        },
+        {
+          sha: '4942b18',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'docker:check now also verifies the Operaton container',
+          details: [
+            "npm run dev's docker:check step didn't know about the new Operaton container, so it would report all-clear even if Operaton wasn't up or healthy.",
+          ],
+        },
+        {
+          sha: '5da8971',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Local Operaton container added for E2E process/task testing',
+          details: [
+            'Adds an operaton service to docker-compose.yml (H2 file-based DB, host port 8081) so the E2E deep caseworker journey can exercise a real backend-backed flow without touching the real operaton.open-regels.nl engine.',
+          ],
+        },
+        {
+          sha: 'ae2c711',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Login/redirect matrix + ProtectedRoute checks — found 2 real gaps',
+          details: [
+            'e2e/login-redirect.spec.ts: one test per Flevoland role (citizen, caseworker, infra, woo, pa) confirming login lands on the correct dashboard.',
+            "e2e/protected-route.spec.ts: found that a fresh page load of /dashboard/citizen always redirects to / even with a live SSO session (keycloak.init() only runs inside AuthCallback.tsx, so ProtectedRoute's synchronous check is always false on a real navigation), and that /dashboard/caseworker isn't wrapped in ProtectedRoute at all so a citizen who navigates there directly just stays. Both documented as found-not-fixed gaps.",
+          ],
+        },
+        {
+          sha: 'c8a184a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Playwright E2E harness scaffolded — smoke test passes end-to-end',
+          details: [
+            'Adds @playwright/test, packages/frontend/e2e/{playwright.config.ts,global-setup.ts,smoke.spec.ts}, and test:e2e/test:e2e:ui scripts. globalSetup checks frontend, backend, and the sibling linked-data-explorer backend are all reachable before any test runs, failing fast with the exact start commands instead of a confusing mid-test connection error — no webServer auto-boot, the dev stack is expected to already be running.',
+          ],
+        },
+        {
+          sha: 'f0c6c90',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Detailed Playwright E2E Phase 1 plan drafted',
+          details: [
+            "Adds docs/TESTING-FRONTEND-UI.md — scope, tooling, and journey list for Phase 1 of frontend E2E testing (real Keycloak login/redirect, real router, real backend), plus environment setup including the sibling linked-data-explorer repo's backend, required for Zoeken >> Procesbibliotheek journeys.",
+          ],
+        },
+        {
+          sha: '40a7575',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Dossierbeheer's actionError banner now also renders in the edit view",
+          details: [
+            "handleSave's catch doesn't switch the view back to 'list' on failure, so a failed save while still in the editor left actionError set but invisible. The banner JSX is now a shared actionErrorBanner variable rendered in both the edit view and the overview.",
           ],
         },
         {
@@ -115,12 +170,23 @@ export const changelog: Changelog = {
           ],
         },
         {
-          sha: '40a7575',
+          sha: '82b519d',
           author: 'Steven Gort',
           type: 'fix',
-          subject: "Dossierbeheer's actionError banner now also renders in the edit view",
+          subject: 'Two UX fixes in IouFeedbackSection and IouGebruiksscenarioSection',
           details: [
-            "handleSave's catch doesn't switch the view back to 'list' on failure, so a failed save while still in the editor left actionError set but invisible. The banner JSX is now a shared actionErrorBanner variable rendered in both the edit view and the overview.",
+            "IouFeedbackSection: the form-watching persist effect now skips writing to sessionStorage while submitState is 'success', so clearDraft()'s removal on a successful submit actually sticks instead of being immediately undone by the effect rewriting a blank draft right after. Persistence resumes once the user starts a new submission.",
+            'IouGebruiksscenarioSection: the "Overig / Other" materials checkbox is now wrapped in a <label> like its sibling options, so clicking the text toggles it too, not just the checkbox itself.',
+          ],
+        },
+        {
+          sha: 'e3dec89',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "AuditSection's load-on-mount effect now gated behind the admin role",
+          details: [
+            "The effect fetched /admin/audit on every mount regardless of the user's roles — only the rendered UI was gated behind the admin check, which came after the hooks, so non-admin users still triggered the network call even though they'd never see the result.",
+            'Now checks the same isAdmin flag the render guard uses and skips the fetch entirely for a non-admin user, re-firing if the user gains the role later (e.g. a role refresh mid-session).',
           ],
         },
       ],

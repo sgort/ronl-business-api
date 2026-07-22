@@ -59,7 +59,13 @@ fields, and the `3.9.2` entry for a worked example.
    full subject + body: `git log -1 --format='%h|%an|%s%n%b' <sha>`. Derive
    `type` from the commit's conventional-commit prefix — `feat`, `fix`,
    `test`, `docs`, `chore`, or `refactor` — falling back to `other` for
-   anything non-conforming.
+   anything non-conforming. Order the `commits` array **descending** —
+   most recent commit first, oldest last (`ChangelogPanel.tsx` renders it
+   in array order, no reversal). When extending an already-existing
+   Upcoming entry with new commits found on a later pass, prepend the new
+   ones above the existing list rather than appending — the whole array
+   stays newest-first. Do not reorder or otherwise touch the commit lists
+   of entries that are already `Released` — this convention is forward-only.
 3. Write `subject` as a clean, readable release-note header — informed by
    the commit subject but not required to be verbatim (e.g. reword for
    clarity, the way `9248982`'s "route WatchBell toggles through
