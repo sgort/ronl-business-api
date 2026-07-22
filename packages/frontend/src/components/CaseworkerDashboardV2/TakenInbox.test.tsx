@@ -17,7 +17,14 @@ const mockBusinessApi = vi.hoisted(() => ({
 }));
 vi.mock('../../services/api', () => ({ businessApi: mockBusinessApi }));
 
-vi.mock('../CaseworkerDashboard/TaskFormViewer', () => ({ default: () => <div>task-form</div> }));
+vi.mock('../CaseworkerDashboard/TaskFormViewer', () => ({
+  default: ({ onCompleted }: { onCompleted: () => void }) => (
+    <div>
+      task-form
+      <button onClick={onCompleted}>complete-task</button>
+    </div>
+  ),
+}));
 vi.mock('../CaseworkerDashboard/ProcessVarsSection', () => ({ default: () => null }));
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -119,5 +126,43 @@ describe('TakenInbox', () => {
     await user.click(await screen.findByText('Aanvraag beoordelen'));
 
     expect(await screen.findByText('task-form')).toBeInTheDocument();
+  });
+
+  it('completing a task shows the success message before the detail pane clears', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValueOnce({
+      success: true,
+      data: [makeTask({ assignee: 'user-1' })],
+    });
+
+    // A real completed task drops out of the refetched list. Use a
+    // manually-controlled promise (not mockResolvedValueOnce) so the test
+    // can observe the state in between — an eagerly-resolved mock settles
+    // within the same act() flush as the click, which would hide a
+    // regression where setSelectedId(null) clears the message before it
+    // ever paints, the same way a real (slower) network round-trip would
+    // NOT hide it.
+    let resolveRefetch!: (value: { success: true; data: Task[] }) => void;
+    mockBusinessApi.task.list.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefetch = resolve;
+        })
+    );
+
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Aanvraag beoordelen'));
+    await screen.findByText('task-form');
+
+    await user.click(screen.getByRole('button', { name: 'complete-task' }));
+
+    // Regression check: setSelectedId(null) used to run in the same batched
+    // render as setActionMessage, so this text never actually painted.
+    expect(await screen.findByText('Taak voltooid.')).toBeInTheDocument();
+
+    resolveRefetch({ success: true, data: [] });
+    await waitFor(() =>
+      expect(screen.getByText('Selecteer een taak om de details te bekijken.')).toBeInTheDocument()
+    );
   });
 });

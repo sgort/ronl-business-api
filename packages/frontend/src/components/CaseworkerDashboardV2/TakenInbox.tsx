@@ -278,6 +278,15 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
 
       {/* Detail pane (column 3) */}
       <section className="v2-taken-detail" aria-label="Taakdetails">
+        {/* Rendered outside the selected/empty branches below — a
+            completion message must survive the task disappearing from
+            `visible` once loadTasks() refetches, not just while a task is
+            still selected. */}
+        {actionMessage && (
+          <div className={`v2-taken-msg v2-taken-msg-${actionMessage.type}`}>
+            {actionMessage.text}
+          </div>
+        )}
         {!selected ? (
           <div className="v2-taken-empty">
             <p>Selecteer een taak om de details te bekijken.</p>
@@ -291,12 +300,6 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
               <h2>{selected.name}</h2>
               {selected.description && <p className="v2-taken-desc">{selected.description}</p>}
             </header>
-
-            {actionMessage && (
-              <div className={`v2-taken-msg v2-taken-msg-${actionMessage.type}`}>
-                {actionMessage.text}
-              </div>
-            )}
 
             <dl className="v2-taken-meta">
               <div>
@@ -387,10 +390,12 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                   taskId={selected.id}
                   variables={taskVariables}
                   onCompleted={() => {
+                    // Don't null selectedId here — that would clear `selected`
+                    // in this same render (before the message ever paints),
+                    // since the detail pane only renders when `selected` is
+                    // set. Let it clear itself naturally once loadTasks()
+                    // drops the now-completed task from `tasks`.
                     setActionMessage({ type: 'success', text: 'Taak voltooid.' });
-                    setSelectedId(null);
-                    setTaskVariables(null);
-                    setActivity(null);
                     loadTasks();
                   }}
                   onError={() => setActionMessage({ type: 'error', text: 'Opslaan mislukt.' })}
