@@ -11,6 +11,17 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: '.',
   fullyParallel: true,
+  // Every Operaton-touching spec shares the same stateful local engine.
+  // Two files creating identically-named tasks for the same caseworker
+  // (tenant-isolation.spec.ts and zorgtoeslag-journey.spec.ts, both
+  // "Case review: provisional entitlement decision" for
+  // test-caseworker-toeslagen) raced when run in different workers: a
+  // `.first()` task-list match grabbed the other file's task mid-flight,
+  // causing a real Operaton save conflict ("Opslaan mislukt"), not just a
+  // bad selector. One worker serializes everything, trading suite speed
+  // for correctness — acceptable for this small, locally-run Phase 1
+  // suite (see "Not in Phase 1" for CI throughput tuning).
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',

@@ -82,6 +82,14 @@ export async function runPendingCleanupPrompts(): Promise<void> {
   if (businessKeys.length === 0) return;
   if (!process.stdin.isTTY) return;
 
+  // Only entries actually confirmed+deleted get dropped from the file —
+  // a declined (or, e.g. under a sandboxed/non-interactive stdin that
+  // still reports isTTY true, silently-EOF'd) entry must stay tracked for
+  // a future run rather than being silently forgotten. An earlier version
+  // unconditionally unlinked the file after the loop regardless of each
+  // answer, which lost track of real, never-actually-deleted Operaton
+  // history this way.
+  const remaining: string[] = [];
   for (const businessKey of businessKeys) {
     const shouldClean = await askYesNo(
       `\nClean up Operaton history for business key "${businessKey}"? [y/N] `
@@ -89,8 +97,14 @@ export async function runPendingCleanupPrompts(): Promise<void> {
     if (shouldClean) {
       const deleted = await deleteHistory(businessKey);
       console.log(`Deleted ${deleted} historic process-instance record(s) for "${businessKey}".`);
+    } else {
+      remaining.push(businessKey);
     }
   }
 
-  fs.unlinkSync(PENDING_FILE);
+  if (remaining.length > 0) {
+    fs.writeFileSync(PENDING_FILE, JSON.stringify(remaining));
+  } else {
+    fs.unlinkSync(PENDING_FILE);
+  }
 }

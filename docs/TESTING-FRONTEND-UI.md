@@ -6,8 +6,9 @@ unit/component testing (Vitest + RTL). That guide's own
 sketched the rationale and milestones; this document is the detailed plan for
 actually building Phase 1, on branch `test/e2e-playwright-phase1`.
 
-**Status: planning — no code written yet.** This document exists to work out
-scope, tooling, and the test-user/journey list before scaffolding anything.
+**Status: Phase 1 complete.** All 5 scope items done — see the Milestones
+section at the bottom for the final tally and what's deliberately deferred
+to a follow-up (CI wiring).
 
 ## Why unit/component tests aren't enough
 
@@ -285,10 +286,71 @@ voltooid.' })` and `setSelectedId(null)` in the same synchronous
    next time) when `process.stdin.isTTY` is false, so a future CI run
    never hangs unattended.
 
-5. **Tenant isolation spot-check**: logging in as `test-caseworker-utrecht`
-   and `test-caseworker-amsterdam` in two tests never shows the other
-   tenant's data in a shared view (if any dashboard has one — confirm
-   during scaffolding).
+   **Real bug found and fixed**: `runPendingCleanupPrompts()` used to call
+   `fs.unlinkSync(PENDING_FILE)` unconditionally after the prompt loop,
+   regardless of each entry's answer — so a declined entry (or, observed
+   in practice, a non-interactive/sandboxed stdin that still reports
+   `isTTY: true` but has no real input, silently resolving each prompt as
+   EOF/"no") lost its tracking entirely, with the underlying Operaton
+   history never actually deleted. Concretely: 3 real
+   `AwbZorgtoeslagProcess`/`ZorgtoeslagProvisionalSubProcess` history
+   entries survived a full pending-file wipe this way and had to be found
+   and purged manually via direct REST calls. Fixed: only entries actually
+   confirmed-and-deleted are dropped from the file now; anything declined
+   (or unanswered) stays recorded for a future run instead of being
+   silently forgotten.
+
+   **Second deep journey added** (`e2e/zorgtoeslag-journey.spec.ts`):
+   `test-citizen-unive` (a commercial org) submits a Zorgtoeslag claim via
+   `AwbZorgtoeslagProcess`; `test-caseworker-toeslagen` claims and
+   completes both the review and follow-up notify steps, same finalized-
+   roundtrip pattern as the Kapvergunning journey. Same form-js
+   custom-combobox handling reused. The `claimIfNeeded` helper (previously
+   inline in `caseworker-journey.spec.ts`) moved to
+   `e2e/helpers/tasks.ts` and is now shared by all three journey/isolation
+   specs.
+
+   **Real concurrency bug found and fixed**: adding this second Zorgtoeslag
+   journey alongside the pre-existing `tenant-isolation.spec.ts` (item 5,
+   below) exposed a genuine race. Both files create a task named exactly
+   "Case review: provisional entitlement decision" for the same
+   caseworker (`test-caseworker-toeslagen`), and `playwright.config.ts`'s
+   `fullyParallel: true` ran them in different workers at the same time —
+   one file's `.first()` task-list match grabbed the _other_ file's task
+   mid-flight, causing a genuine Operaton save conflict ("Opslaan
+   mislukt" visibly in the UI), not just a flaky selector. Every
+   Operaton-touching spec shares the same stateful local engine, so
+   rather than hand-rolling per-test task disambiguation (correlating by
+   dossier/businessKey, which `TakenInbox`'s list view doesn't even
+   surface), fixed by setting `workers: 1` in `playwright.config.ts` —
+   trading suite parallelism for correctness. Acceptable for this small,
+   locally-run Phase 1 suite (12 tests, ~40s serialized); revisit if/when
+   CI wiring needs the speed back, at which point per-test task
+   correlation would be the real fix.
+
+5. **Done** — Tenant isolation spot-check (`e2e/tenant-isolation.spec.ts`).
+   The original plan (`test-caseworker-utrecht` vs. `test-caseworker-amsterdam`
+   in a shared view) turned out not to be checkable with current seed data:
+   only Flevoland has any real Operaton-backed process/task data, so
+   Utrecht/Amsterdam caseworkers would both just see an empty `TakenInbox`
+   — proving nothing. Used a real cross-tenant fixture instead:
+   `AwbZorgtoeslagProcess` always runs under the `toeslagen` processing
+   authority regardless of which channel the citizen came from
+   (`process.routes.ts` explicitly overrides the `municipality` variable to
+   `'toeslagen'`, recording the real submitter's tenant separately as
+   `originTenantId`), and task listing is genuinely tenant-filtered
+   server-side (`operaton.service.ts`'s
+   `processVariables: municipality_eq_${tenantId}`) — a real security
+   boundary, not a guess. `test-citizen-unive` (a commercial org) submits a
+   Zorgtoeslag claim; `test-caseworker-flevoland` is confirmed **not** to
+   see the resulting task in their `TakenInbox`; `test-caseworker-toeslagen`
+   is confirmed to see it, then claims and completes both steps (review +
+   the shell's own follow-up notify task) for a finalized roundtrip, same
+   pattern as `caseworker-journey.spec.ts`. Citizen-side flow needed one
+   extra step not present in the Kapvergunning journey: the "Zorgtoeslag"
+   service card leads to a calculator screen with two paths
+   ("Berekenen" = DMN preview only, "Aanvragen" = go straight to the real,
+   fully-prefilled submission form) — the test clicks "Aanvragen".
 
 Explicitly **not** in Phase 1: Woo dashboard journeys beyond the login
 redirect, infra-board journeys beyond the login redirect, PA/public-affairs
@@ -362,11 +424,24 @@ src\win\async.c` instead of exiting cleanly — happens with both
    (5 tests), `e2e/protected-route.spec.ts` (2 tests, both documenting a
    found-not-fixed gap rather than the originally-planned behavior). `8
 passed` via `npm run test:e2e --workspace=@ronl/frontend`.
-3. **Item 4 done, item 5 pending** — One deep caseworker journey
-   (`e2e/caseworker-journey.spec.ts`), which also found and fixed a real
-   bug in `TakenInbox.tsx` (task-completion success message never
-   rendered) plus a `vite.config.ts` gap (Vitest picking up Playwright's
-   own spec files). `9 passed` via
-   `npm run test:e2e --workspace=@ronl/frontend`. Tenant isolation
-   spot-check (item 5) not started.
-4. Write up results, decide on CI wiring as a separate follow-up plan.
+3. **Done** — One deep caseworker journey (`e2e/caseworker-journey.spec.ts`),
+   which also found and fixed a real bug in `TakenInbox.tsx`
+   (task-completion success message never rendered) plus a
+   `vite.config.ts` gap (Vitest picking up Playwright's own spec files);
+   found and fixed both `ProtectedRoute` gaps (item 3) plus a real
+   regression that fix caused (DigiD login broken after visiting a
+   protected route while logged out); a second deep journey
+   (`e2e/zorgtoeslag-journey.spec.ts`) plus the tenant isolation spot-check
+   (item 5, `e2e/tenant-isolation.spec.ts`) using `AwbZorgtoeslagProcess` as
+   a real cross-tenant fixture — which together found and fixed a real
+   concurrency bug (both specs racing to claim identically-named tasks for
+   the same caseworker; fixed via `workers: 1`). `12 passed` via
+   `npm run test:e2e --workspace=@ronl/frontend`.
+4. **Phase 1 complete.** Full Playwright suite: 12 tests across 6 spec
+   files, all passing serially against the real stack (Keycloak, backend,
+   LDE backend, local Operaton). Full Vitest suite unaffected: 901 tests,
+   120 files. CI wiring (a `webServer`-style auto-boot for CI, since there's no
+   human to start the stack manually there; the Node v24-on-Windows
+   `globalSetup` exit-crash; the Operaton-history-accumulation gap noted
+   above) is deliberately deferred as a separate follow-up plan, not
+   bundled into Phase 1 — see "Not in Phase 1" above.

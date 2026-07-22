@@ -1,15 +1,7 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
-
-// Idempotent: a rerun without a full reset may find the task already
-// claimed by a previous partial run.
-async function claimIfNeeded(page: Page) {
-  const claimButton = page.getByRole('button', { name: 'Taak claimen' });
-  if (await claimButton.isVisible()) {
-    await claimButton.click();
-  }
-}
+import { claimIfNeeded } from './helpers/tasks';
 
 // Phase 1 item 4 — one deep journey against a real backend-backed flow.
 // Citizen submits a Kapvergunning (tree felling permit) request via
