@@ -79,11 +79,53 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
-      version: '3.9.6',
-      status: 'Upcoming',
-      date: '21 jul 2026',
+      version: '2026.07.0',
+      status: 'Released',
+      date: '23 jul 2026',
       scope: 'frontend',
       commits: [
+        {
+          sha: 'e6e8f97',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'bump-release adopts CalVer (YYYY.MM.patch) versioning',
+          details: [
+            "Released versions now use CalVer (e.g. 2026.07.0) instead of SemVer, matching the same adoption already done for the CPSV Editor and linked-data-explorer repos. The next version is computed from the current date's YYYY.MM prefix: patch increments on a same-month follow-up release, resets to 0 on the first release of a new month. This is a version-string convention only — no git tags, no other change to the release workflow. Historical SemVer entries in this changelog (3.9.6 and earlier) are left as-is; this is the first release cut under the new scheme.",
+          ],
+        },
+        {
+          sha: '009b9ba',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Tenant isolation spot-check + second deep journey (Zorgtoeslag) — found a concurrency bug and a cleanup-tracking bug',
+          details: [
+            "Adds e2e/tenant-isolation.spec.ts (Phase 1 item 5): test-citizen-unive submits a Zorgtoeslag claim via AwbZorgtoeslagProcess, which always runs under the toeslagen processing authority regardless of which channel the citizen came from. Confirms test-caseworker-flevoland cannot see the resulting task while test-caseworker-toeslagen can — task listing is genuinely tenant-filtered server-side, a real security boundary, not a guess. The original plan (test-caseworker-utrecht vs amsterdam) wasn't checkable: only Flevoland has real Operaton-backed task data right now.",
+            "Adds e2e/zorgtoeslag-journey.spec.ts, a second deep journey for item 4 (same finalized-roundtrip pattern as the existing Kapvergunning journey), which surfaced a real concurrency bug: two spec files creating identically-named tasks for the same caseworker raced across parallel workers, one grabbing the other's task mid-flight and causing a genuine Operaton save conflict. Fixed via workers: 1 in playwright.config.ts.",
+            'Also fixed: the pending-cleanup tracking file was being deleted unconditionally after its prompt loop regardless of each answer, so a declined entry lost its tracking entirely with the underlying Operaton history never actually deleted — found via 3 real leftover history entries that had to be purged manually. Only confirmed-and-deleted entries are dropped from the file now.',
+          ],
+        },
+        {
+          sha: 'fe689d4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'ProtectedRoute check-sso gap and caseworker route guard fixed — plus a login regression they caused',
+          details: [
+            'A fresh page load of a protected route (URL bar, bookmark, refresh) always redirected to / even with a live Keycloak SSO session, because keycloak.init() was only ever called inside AuthCallback.tsx and ProtectedRoute checked keycloak.authenticated synchronously with no init of its own. services/keycloak.ts now exports initializeKeycloak(), an idempotent wrapper memoizing the first keycloak.init() call; ProtectedRoute awaits it on mount before deciding anything.',
+            '/dashboard/caseworker was not wrapped in ProtectedRoute at all, so a citizen who navigated there directly just stayed. Now wrapped the same as /dashboard/citizen — accepted trade-off: CaseworkerDashboardV2\'s public "zoeken" mode for unauthenticated visitors is no longer reachable, since the route now redirects before the component mounts.',
+            'Manual testing after the above surfaced a real regression: the first version of initializeKeycloak() accepted caller-supplied options and memoized whichever ones its first caller passed for the life of the page, so visiting /dashboard/caseworker while logged out followed by "Login met DigiD" got back the already-resolved false from ProtectedRoute\'s earlier check-sso call instead of a real login attempt — the DigiD redirect never fired. Fixed by always using a fixed check-sso init and triggering every real login redirect via an explicit keycloak.login(...) call instead, which has no "only once" restriction unlike .init().',
+          ],
+        },
+        {
+          sha: 'c23c175',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Changelog commit lists now ordered newest-first',
+          details: [
+            "Reorders this entry's commits array to descending (latest commit first) — ChangelogPanel.tsx renders it in array order with no reversal, so this was previously showing oldest-first. Patches the bump-release skill to author new/extended entries in this order going forward.",
+          ],
+        },
         {
           sha: '45d007e',
           author: 'Steven Gort',
