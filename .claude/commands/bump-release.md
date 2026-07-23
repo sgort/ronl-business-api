@@ -14,14 +14,42 @@ entries.
 > version lie. So bump-release versions per scope, and the package versions are
 > allowed to drift apart.
 
+## Versioning: CalVer `YYYY.MM.patch`
+
+Released versions use CalVer, not SemVer — matching the Norm Editor's
+convention (`scripts/generate-changelog.mjs`'s release-tagging scheme) and
+the same adoption already done for the CPSV Editor and for
+`linked-data-explorer`:
+
+- `2026.07.0` — first release cut in July 2026
+- `2026.07.1` — a same-month follow-up release
+- `2026.08.0` — the first release of the next month (patch resets to `0`)
+
+To pick the next version: take the current date's `YYYY.MM`. If the most
+recent **Released** entry in `changelog-data.ts` already has that same
+`YYYY.MM` prefix, increment its patch number by 1. Otherwise (first release
+of a new month, or no prior release at all this month) use patch `0`. This
+is a single, product-wide version sequence — it does not vary by `scope`; a
+backend-only release and a frontend-only release still share the same
+next-CalVer-in-sequence number.
+
+Note this is a CalVer _string_ only — no git tags are created, and nothing
+else about the release workflow changes (no `generate-changelog.mjs`, no
+commit-message enforcement, no `versions.json`). Historical entries already
+in `changelog-data.ts` (SemVer strings like `3.9.6`, `3.7.3`) are left as-is;
+only new entries going forward use CalVer.
+
 ## Steps
 
 ### 1. Determine the released version and scope
 
 - Read `packages/frontend/src/pages/changelog-data.ts`
 - The first entry in `changelog.versions` is the one being released — extract
-  its `version` string (e.g. `'3.7.3'`). If an explicit version was passed as an
-  argument, use that instead and find it in the array.
+  its `version` string (e.g. `'3.7.3'`, or a CalVer string like `'2026.07.0'`
+  once new entries start using it). If an explicit version was passed as an
+  argument, use that instead and find it in the array. If no version was
+  passed and a new entry needs authoring, compute the next CalVer string per
+  "Versioning" above.
 - `changelog.versions` holds two entry shapes — `ChangelogEntry` is a union of
   `ChangelogVersion` and `ChangelogVersionV2` — discriminated by a `format`
   field:
@@ -74,7 +102,8 @@ fields, and the `3.9.2` entry for a worked example.
    the commit body at the **same technical depth** the body already has —
    this is a developer-facing changelog, not marketing copy. Strip any
    `Co-Authored-By` / `Claude-Session` trailer lines; never surface them.
-4. Determine `scope` the same way step 2 below does (diff the touched
+4. Set `version` to the next CalVer string computed per "Versioning" above.
+   Determine `scope` the same way step 2 below does (diff the touched
    packages). Set `status: 'Upcoming'` — bump-release flips it to `Released`
    in step 3.
 5. If the release closes a tracked RONL feedback/use-case work item
