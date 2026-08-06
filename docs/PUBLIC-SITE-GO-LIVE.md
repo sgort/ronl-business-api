@@ -92,24 +92,28 @@ Application settings) — not in any file in this repo.
 - [ ] Restart both App Services after saving (Azure App Service settings changes
       require a restart to take effect)
 
-## 4. Caddy deploy — Skosmos CSP fix (blocking for the Gegevenswoordenboek page)
+## 4. Caddy deploy — Skosmos CSP fix (✅ done — blocking for the Gegevenswoordenboek page)
 
-`skosmos.open-regels.nl` currently sends `X-Frame-Options: DENY`, which blocks
+`skosmos.open-regels.nl` previously sent `X-Frame-Options: DENY`, which blocked
 **all** iframe embedding — including the caseworker app's existing
-Gegevenswoordenboek, not just the new public site. Already fixed in this branch
+Gegevenswoordenboek, not just the new public site. Fixed in this branch
 ([Caddyfile](../Caddyfile), [deployment/vm/caddy/Caddyfile](../deployment/vm/caddy/Caddyfile)):
 a dedicated `skosmos_security_headers` snippet replaces the blanket
 `X-Frame-Options: DENY` with a CSP `frame-ancestors` allow-list scoped to the
-origins that actually embed it.
+origins that actually embed it — `'self'`, the caseworker app (`mijn` / `acc.mijn`),
+the public site (`publiek` / `acc.publiek`), and both dev servers
+(`localhost:5173` / `localhost:5175`), so it works across local, ACC and prod.
 
-- [ ] Deploy the updated Caddyfile to the server hosting `skosmos.open-regels.nl`
+- [x] Deploy the updated Caddyfile to the server hosting `skosmos.open-regels.nl`
       (however Caddy config normally gets pushed there).
-- [ ] Reload Caddy (`caddy reload` / `docker compose restart` / whatever the
+- [x] Reload Caddy (`caddy reload` / `docker compose restart` / whatever the
       existing flow is — this repo's Caddy deploy isn't scripted, unlike the
       backend).
-- [ ] Verify: open `https://acc.publiek.open-regels.nl/woordenboek` (once step 1
+- [x] Verify: open `https://acc.publiek.open-regels.nl/woordenboek` (once step 1
       is live) or `http://localhost:5175/woordenboek` locally — the iframe should
-      load, not show "heeft geweigerd verbinding te maken".
+      load, not show "heeft geweigerd verbinding te maken". _Verified 2026-08-06 at
+      `http://localhost:5175/woordenboek`: the Skosmos thesaurus renders in the
+      iframe._
 
 ## 5. DNS — Azure DNS zone `open-regels.nl` (blocking)
 
