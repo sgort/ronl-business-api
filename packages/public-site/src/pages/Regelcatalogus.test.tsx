@@ -78,6 +78,35 @@ describe('Regelcatalogus', () => {
     expect(screen.getByRole('tab', { name: /Begrippen/ })).toHaveTextContent('1');
   });
 
+  it('Organisaties tab: renders a logo image when present, and initials when not', async () => {
+    const dataWithLogo = {
+      ...DATA,
+      organizations: [
+        ...DATA.organizations,
+        {
+          uri: 'o2',
+          identifier: '2',
+          name: 'Rijksdienst voor Ondernemend Nederland',
+          homepage: 'https://rvo.nl',
+          logo: 'https://assets.example/rvo-logo.png',
+          services: [],
+        },
+      ],
+    };
+    vi.mocked(api.getRegelcatalogus).mockResolvedValue(dataWithLogo);
+
+    renderPage();
+    await waitFor(() => screen.getByText('Rijksdienst voor Ondernemend Nederland'));
+
+    // Has a logo → real <img>, correct src and alt
+    const logo = screen.getByRole('img', { name: 'Rijksdienst voor Ondernemend Nederland' });
+    expect(logo).toHaveAttribute('src', 'https://assets.example/rvo-logo.png');
+
+    // No logo (Belastingdienst, logo: null in the base fixture) → initials fallback, no <img>.
+    // "Belastingdienst" is a single word, so the two-initials algorithm yields just "B".
+    expect(screen.getByText('B')).toBeInTheDocument();
+  });
+
   it('Rules tab: a service with count > 0 renders exactly that many rows, and 0-rule services are absent', async () => {
     renderPage();
     await waitFor(() => screen.getByRole('tab', { name: /Regels/ }));

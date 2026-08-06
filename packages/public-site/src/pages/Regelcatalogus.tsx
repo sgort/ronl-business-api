@@ -1,5 +1,6 @@
 // packages/public-site/src/pages/Regelcatalogus.tsx
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import type { CatalogOrganization } from '../lib/api';
 import { Link } from 'react-router-dom';
 import type { Translations, Lang } from '../i18n';
 import { sectionForType, sectionLabel, sectionSub } from '../lib/sections';
@@ -71,27 +72,55 @@ function OrganisatiesTab({
   return (
     <div className="pub-orgcards">
       {organizations.map((o) => (
-        <div key={o.uri} className="pub-orgcard">
-          <h3>{o.name}</h3>
-          {o.homepage && (
+        <OrgCard key={o.uri} org={o} />
+      ))}
+    </div>
+  );
+}
+
+function initialsFor(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
+
+function OrgCard({ org }: { org: CatalogOrganization }) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div className="pub-orgcard">
+      <div className="pub-orgcard-head">
+        <div className="pub-org-logo">
+          {org.logo && !imgError ? (
+            <img src={org.logo} alt={org.name} onError={() => setImgError(true)} />
+          ) : (
+            <span>{initialsFor(org.name)}</span>
+          )}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <h3>{org.name}</h3>
+          {org.homepage && (
             <a
-              href={o.homepage}
+              href={org.homepage}
               target="_blank"
               rel="noreferrer"
               style={{ fontSize: 13, wordBreak: 'break-all' }}
             >
-              {o.homepage}
+              {org.homepage}
             </a>
           )}
-          <div className="pub-chips">
-            {o.services.map((s) => (
-              <span key={s.uri} className="pub-chip">
-                {s.title}
-              </span>
-            ))}
-          </div>
         </div>
-      ))}
+      </div>
+      <div className="pub-chips">
+        {org.services.map((s) => (
+          <span key={s.uri} className="pub-chip">
+            {s.title}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
