@@ -1,5 +1,5 @@
 // packages/public-site/src/pages/Regelcatalogus.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Translations, Lang } from '../i18n';
 import { sectionForType, sectionLabel, sectionSub } from '../lib/sections';
@@ -124,7 +124,17 @@ function RegelsTab({
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(services[0]?.uri ?? null);
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
   const needle = q.trim().toLowerCase();
+
+  function toggleRule(key: string) {
+    setExpandedRules((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   return (
     <div>
@@ -171,14 +181,50 @@ function RegelsTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((r, i) => (
-                    <tr key={i}>
-                      <th style={{ fontWeight: 400, fontFamily: 'var(--pub-font)', fontSize: 14 }}>
-                        {r.ruleTitle}
-                      </th>
-                      <td>{r.validFrom ?? '—'}</td>
-                    </tr>
-                  ))}
+                  {visible.map((r, i) => {
+                    const key = `${service.uri}-${i}`;
+                    const isExpanded = expandedRules.has(key);
+                    return (
+                      <Fragment key={key}>
+                        <tr>
+                          <th
+                            style={{ fontWeight: 400, fontFamily: 'var(--pub-font)', fontSize: 14 }}
+                          >
+                            {r.description ? (
+                              <button
+                                type="button"
+                                className="pub-rule-toggle"
+                                aria-expanded={isExpanded}
+                                onClick={() => toggleRule(key)}
+                              >
+                                <span className="pub-rule-caret" aria-hidden="true">
+                                  {isExpanded ? '▾' : '▸'}
+                                </span>
+                                {r.ruleTitle}
+                              </button>
+                            ) : (
+                              r.ruleTitle
+                            )}
+                          </th>
+                          <td>
+                            {r.validFrom ?? '—'}
+                            {r.confidence && (
+                              <span className="pub-chip" style={{ marginLeft: 8 }}>
+                                {r.confidence}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && r.description && (
+                          <tr>
+                            <td colSpan={2} style={{ padding: '0 0 12px' }}>
+                              <pre className="pub-rule-desc">{r.description}</pre>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               <p style={{ marginTop: 12 }}>

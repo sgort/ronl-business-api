@@ -97,6 +97,43 @@ describe('Regelcatalogus', () => {
     expect(screen.queryByText('Geen regels dienst')).not.toBeInTheDocument();
   });
 
+  it('Rules tab: a rule with a description is collapsed by default and expands on click; a rule without one has no toggle', async () => {
+    const dataWithDescription = {
+      ...DATA,
+      rules: [
+        {
+          serviceTitle: 'Zorgtoeslag',
+          ruleTitle: 'Recht op zorgtoeslag',
+          validFrom: '2026-01-01',
+          confidence: 'high',
+          description: 'De aanvrager heeft recht op zorgtoeslag als...',
+        },
+        DATA.rules[1], // Leeftijdseis 18 jaar — description: null
+      ],
+    };
+    vi.mocked(api.getRegelcatalogus).mockResolvedValue(dataWithDescription);
+
+    renderPage();
+    await waitFor(() => screen.getByRole('tab', { name: /Regels/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Regels/ }));
+    await screen.findByText('Recht op zorgtoeslag');
+
+    // Description hidden until expanded
+    expect(screen.queryByText('De aanvrager heeft recht op zorgtoeslag als...')).toBeNull();
+
+    const toggle = screen.getByRole('button', { name: /Recht op zorgtoeslag/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByText('De aanvrager heeft recht op zorgtoeslag als...')
+    ).toBeInTheDocument();
+
+    // A rule with no description is plain text, not a toggle button
+    expect(screen.queryByRole('button', { name: /Leeftijdseis 18 jaar/ })).toBeNull();
+    expect(screen.getByText('Leeftijdseis 18 jaar')).toBeInTheDocument();
+  });
+
   it('Concepts tab: every row links out to Skosmos', async () => {
     renderPage();
     await waitFor(() => screen.getByRole('tab', { name: /Begrippen/ }));

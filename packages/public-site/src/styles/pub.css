@@ -601,6 +601,40 @@
   font-family: var(--pub-mono);
   font-size: 13px;
 }
+/* Per-rule drill-down (Regelcatalogus Rules tab): a rule row with a
+   description becomes a toggle button; expanding it reveals the decision
+   text in an extra row, same "▸/▾" affordance as .pub-acc/.pub-tech. */
+.pub-rule-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+.pub-rule-toggle:hover {
+  color: var(--ro-link-hover);
+}
+.pub-rule-toggle .pub-rule-caret {
+  color: var(--ro-link);
+  font-size: 12px;
+  flex: none;
+}
+.pub-rule-desc {
+  white-space: pre-wrap;
+  font-family: var(--pub-font);
+  font-size: 13px;
+  color: var(--ro-ink-2);
+  background: var(--ro-bg);
+  border: 1px solid var(--ro-rule-2);
+  border-radius: 2px;
+  padding: 10px 12px;
+  margin: 0;
+}
 .pub-callout {
   border-left: 5px solid var(--ro-mint);
   background: #f2f9f9;
