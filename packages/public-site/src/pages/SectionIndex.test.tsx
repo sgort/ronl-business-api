@@ -56,7 +56,7 @@ describe('SectionIndex (berichten)', () => {
           subject: 'Wegwerkzaamheden',
           preview: '',
           content: null,
-          publishedAt: null,
+          publishedAt: '2026-01-01',
           sender: { id: 'x', name: 'X' },
         },
         {
@@ -64,7 +64,7 @@ describe('SectionIndex (berichten)', () => {
           subject: 'Subsidieronde open',
           preview: '',
           content: null,
-          publishedAt: null,
+          publishedAt: '2026-01-02',
           sender: { id: 'x', name: 'X' },
         },
       ],
