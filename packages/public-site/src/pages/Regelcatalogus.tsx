@@ -158,15 +158,25 @@ function RegelsTab({
         if (needle && visible.length === 0) return null;
         const isOpen = needle ? true : open === service.uri;
         return (
-          <details
-            key={service.uri}
-            className="pub-acc"
-            open={isOpen}
-            onToggle={(e) => {
-              if (!needle) setOpen(e.currentTarget.open ? service.uri : null);
-            }}
-          >
-            <summary>
+          <details key={service.uri} className="pub-acc" open={isOpen}>
+            {/*
+              This accordion is exclusive (opening one closes the rest), so it's
+              fully React-controlled via `open`/`onClick` rather than the native
+              onToggle event: letting the browser drive open state natively and
+              only reading it back via onToggle causes a real bug here — closing
+              the previously-open <details> via the `open` prop update itself
+              re-fires a toggle event (Chrome fires `toggle` on programmatic
+              open-attribute changes too), which overwrites the just-set state
+              back to "nothing open" before the newly-clicked one visibly opens.
+              preventDefault() stops the native toggle so React's state is the
+              single source of truth and there's no such feedback loop.
+            */}
+            <summary
+              onClick={(e) => {
+                e.preventDefault();
+                if (!needle) setOpen((prev) => (prev === service.uri ? null : service.uri));
+              }}
+            >
               <b>{service.title}</b>
               <span className="pub-tc">
                 {visible.length} / {serviceRules.length}

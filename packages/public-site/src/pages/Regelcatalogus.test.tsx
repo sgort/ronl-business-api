@@ -134,6 +134,43 @@ describe('Regelcatalogus', () => {
     expect(screen.getByText('Leeftijdseis 18 jaar')).toBeInTheDocument();
   });
 
+  it('Rules tab: selecting a different service accordion opens it and closes the previous one in a single click', async () => {
+    const twoServicesData = {
+      ...DATA,
+      services: [
+        ...DATA.services,
+        { uri: 's3', title: 'Kapvergunning', description: 'Bomen kappen' },
+      ],
+      rules: [
+        ...DATA.rules,
+        {
+          serviceTitle: 'Kapvergunning',
+          ruleTitle: 'Vervangingsplicht houtopstand',
+          validFrom: '2026-01-01',
+          confidence: 'high',
+          description: null,
+        },
+      ],
+    };
+    vi.mocked(api.getRegelcatalogus).mockResolvedValue(twoServicesData);
+
+    renderPage();
+    await waitFor(() => screen.getByRole('tab', { name: /Regels/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Regels/ }));
+
+    // Zorgtoeslag (first service) is open by default; Kapvergunning is closed
+    const zorgtoeslagDetails = (await screen.findByText('Zorgtoeslag')).closest('details')!;
+    const kapvergunningDetails = screen.getByText('Kapvergunning').closest('details')!;
+    expect(zorgtoeslagDetails).toHaveAttribute('open');
+    expect(kapvergunningDetails).not.toHaveAttribute('open');
+
+    // One click on Kapvergunning's summary: it opens AND Zorgtoeslag closes —
+    // no second click required.
+    fireEvent.click(screen.getByText('Kapvergunning'));
+    expect(kapvergunningDetails).toHaveAttribute('open');
+    expect(zorgtoeslagDetails).not.toHaveAttribute('open');
+  });
+
   it('Concepts tab: every row links out to Skosmos', async () => {
     renderPage();
     await waitFor(() => screen.getByRole('tab', { name: /Begrippen/ }));
