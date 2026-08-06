@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Keycloak IAM Server
   keycloak:
@@ -62,21 +60,28 @@ services:
     networks:
       - ronl-network
 
+  # One-time init for the operaton-data volume. The operaton image runs as a
+  # non-root user (uid 1000), but Docker creates a brand-new named volume owned
+  # by root, so the engine would crash on a FRESH volume with
+  # java.nio.file.AccessDeniedException on its .mv.db file. This throwaway
+  # container chowns the volume to uid 1000 and exits; operaton waits for it to
+  # complete (see depends_on below). Idempotent — a no-op on an already-owned
+  # volume, so it is safe to leave enabled on every `docker compose up`.
+  operaton-init:
+    image: alpine:latest
+    container_name: ronl-operaton-init
+    command: chown -R 1000:1000 /data
+    volumes:
+      - operaton-data:/data
+    networks:
+      - ronl-network
+
   # Operaton BPMN Engine (local, for E2E process/task testing — see
   # docs/TESTING-FRONTEND-UI.md item 4; keeps test runs off the real
   # operaton.open-regels.nl engine). H2 file-based DB, no external DB
   # dependency. Host port 8081 matches OPERATON_BASE_URL in
-  # packages/backend/.env.example.
-  #
-  # One-time setup on a FRESH operaton-data volume: the image runs as a
-  # non-root user (uid 1000), but Docker creates a brand-new named volume
-  # owned by root, so the engine crashes on startup with
-  # java.nio.file.AccessDeniedException on its .mv.db file. Fix once, before
-  # first `docker compose up operaton`:
-  #   docker run --rm -v ronl-business-api_operaton-data:/data alpine chown -R 1000:1000 /data
-  # (On Windows/Git Bash, prefix with MSYS_NO_PATHCONV=1 or the /data path
-  # gets mangled into a Windows path.) Not needed again unless the volume is
-  # deleted and recreated.
+  # packages/backend/.env.example. Volume permissions are fixed by the
+  # operaton-init service above before this container starts.
   operaton:
     image: operaton/operaton:latest
     container_name: ronl-operaton
@@ -90,6 +95,9 @@ services:
       - operaton-data:/operaton/h2-data
     ports:
       - '8081:8080'
+    depends_on:
+      operaton-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/127.0.0.1/8080' && exit 0 || exit 1"]
       interval: 10s
