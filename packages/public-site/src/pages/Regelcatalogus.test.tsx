@@ -86,7 +86,12 @@ describe('Regelcatalogus', () => {
     // Zorgtoeslag has 2 rules — both rendered
     expect(await screen.findByText('Recht op zorgtoeslag')).toBeInTheDocument();
     expect(screen.getByText('Leeftijdseis 18 jaar')).toBeInTheDocument();
-    expect(screen.getByText('Zorgtoeslag').closest('details')).toHaveTextContent('2 / 2');
+    const zorgtoeslagDetails = screen.getByText('Zorgtoeslag').closest('details')!;
+    expect(zorgtoeslagDetails).toHaveTextContent('2 / 2');
+    // Direct DOM row count — not just "these 2 titles are present somewhere" —
+    // guards against a stray/duplicate row leaking in from another service.
+    const bodyRows = zorgtoeslagDetails.querySelectorAll('tbody tr');
+    expect(bodyRows).toHaveLength(2);
 
     // "Geen regels dienst" has 0 rules — no accordion for it at all
     expect(screen.queryByText('Geen regels dienst')).not.toBeInTheDocument();
