@@ -26,6 +26,15 @@ fail on first push without them.
   - [ ] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC`
   - [ ] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_PROD`
 
+> **Resolved in this branch** (`fix(public-site): ship staticwebapp.config.json in
+the build output`): the SWA config previously lived at the package root, which
+> the deploy workflow (`app_location: dist`, `skip_app_build: true`) never uploads
+> — so the live site would have had no SPA `navigationFallback` (deep-link refresh
+> → 404), no CSP/security headers, and no mimeTypes. It now lives in
+> `packages/public-site/public/`, so Vite copies it into `dist/` and it ships. No
+> manual step needed; noted here because it directly affects the SWA deploy this
+> section sets up.
+
 ## 2. Backend deploy — ACC and PROD (blocking)
 
 This branch's whole Phase 1 (`GET /v1/public/processen`, `GET /v1/public/zoeken`,
@@ -35,13 +44,32 @@ prerender step 404'd against `api.open-regels.nl` for exactly this reason — th
 routes aren't there yet. Public-site has nothing to talk to in ACC/prod until this
 is deployed.
 
-- [ ] Merge `feature/public-site` → `acc`.
-- [ ] `bash deploy-backend-to-acc.sh` (must run from a clean `acc` checkout — the
-      script enforces this itself).
+**Deploy order matters — backend before the push.** The backend is deployed by
+`deploy-backend-to-acc.sh` (a local `az webapp deploy` from a clean `acc` checkout;
+it does **not** push). The frontend **and** public-site deploy from a **push to
+`acc`**, which fires their GitHub Actions. The public-site build's prerender step
+fetches `acc.api.open-regels.nl/v1/public/*`, so if the push lands before the
+backend is live, that build 404s and fails. Deploy the backend first, in the window
+between merging locally and pushing:
+
+- [ ] `git checkout acc && git merge feature/public-site` — **locally, do not push
+      yet**.
+- [ ] `bash deploy-backend-to-acc.sh` — deploys the backend from local `acc` (the
+      script enforces on-`acc`-and-clean itself; no push happens here).
 - [ ] Smoke-test: `curl https://acc.api.open-regels.nl/v1/public/zoeken` returns
       real data, not 404.
-- [ ] Repeat for prod once ACC is verified: merge to whatever branch
-      `deploy-backend-to-prod.sh` deploys from, then run it.
+- [ ] `git push origin acc` — triggers the frontend + public-site GitHub Actions;
+      public-site's prerender now has a live backend. Requires the ACC SWA resource
+      and its token secret (step 1) to already exist, or the Action fails at the
+      deploy step.
+- [ ] Repeat for prod once ACC is verified: merge to prod's deploy branch, run
+      `deploy-backend-to-prod.sh`, smoke-test, then push to trigger the prod
+      Actions.
+
+> The caseworker frontend has no such dependency — it's a runtime-fetch SPA with no
+> prerender, so its build never calls the backend. Only public-site does. And if you
+> do push before the backend is up, nothing is broken: the public-site Action just
+> fails at prerender; re-run it (`workflow_dispatch`) once the backend is live.
 
 ## 3. Backend environment variables — ACC and PROD (blocking)
 
