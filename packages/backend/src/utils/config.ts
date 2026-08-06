@@ -126,6 +126,7 @@ interface Config {
   lde: {
     enabled: boolean;
     databaseUrl: string;
+    apiUrl: string;
   };
   altcha: {
     hmacKey: string;
@@ -272,6 +273,7 @@ export const config: Config = {
   lde: {
     enabled: parseEnvBool(process.env.LDE_MCP_ENABLED, false),
     databaseUrl: process.env.LDE_DATABASE_URL ?? '',
+    apiUrl: process.env.LDE_API_URL || 'https://acc.backend.linkeddata.open-regels.nl/v1',
   },
 
   anthropic: {
