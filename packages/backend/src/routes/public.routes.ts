@@ -7,6 +7,14 @@ import {
   getRegelcatalogusData,
   getRegelcatalogusCacheInfo,
 } from '@services/regelcatalogus.service';
+import { getPublicProcesses, getPublicProcessByKey } from '@services/lde.service';
+import {
+  getPublicIndex,
+  searchPublicIndex,
+  facetCounts,
+  getPublicItemBySlug,
+  PublicItemType,
+} from '@services/search.service';
 import axios from 'axios';
 import { config } from '@utils/config';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
@@ -271,6 +279,132 @@ router.get('/regelcatalogus', async (req: Request, res: Response) => {
     });
   }
 });
+
+/**
+ * GET /v1/public/processen
+ * Publicly-visible deployed BPMN processes (Camunda deployment index via LDE).
+ * No authentication required. Cached 5 minutes server-side.
+ */
+router.get('/processen', async (_req: Request, res: Response) => {
+  try {
+    const items = await getPublicProcesses();
+    res.json({ success: true, data: items, meta: meta() });
+  } catch (error) {
+    logger.error('Failed to serve processen', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESSEN_FETCH_FAILED', message: 'Processen konden niet worden opgehaald.' },
+    });
+  }
+});
+
+/**
+ * GET /v1/public/processen/:key
+ */
+router.get('/processen/:key', async (req: Request, res: Response) => {
+  try {
+    const item = await getPublicProcessByKey(req.params.key);
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'PROCES_NOT_FOUND', message: 'Proces niet gevonden.' },
+      });
+    }
+    res.json({ success: true, data: item, meta: meta() });
+  } catch (error) {
+    logger.error('Failed to serve proces detail', {
+      key: req.params.key,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCES_FETCH_FAILED', message: 'Proces kon niet worden opgehaald.' },
+    });
+  }
+});
+
+/**
+ * GET /v1/public/zoeken?q=&soort=&bron=&doelgroep=&sort=
+ * Federated search across berichten, nieuws, producten, regels en processen.
+ * Facet counts reflect the query WITHOUT that facet's own filter applied,
+ * so checking a box never makes its own count disappear.
+ */
+router.get('/zoeken', async (req: Request, res: Response) => {
+  const q = String(req.query.q ?? '');
+  const csv = (v: unknown) => (typeof v === 'string' && v ? v.split(',') : undefined);
+  const types = csv(req.query.soort);
+  const orgs = csv(req.query.bron);
+  const audience = csv(req.query.doelgroep);
+  const sort = (req.query.sort as 'rel' | 'date' | 'az' | undefined) ?? undefined;
+
+  try {
+    const index = await getPublicIndex();
+    const base = searchPublicIndex(index, q, { sort });
+    const hits = searchPublicIndex(index, q, { types, orgs, audience, sort });
+
+    res.json({
+      success: true,
+      data: {
+        items: hits.slice(0, 50),
+        total: hits.length,
+        facets: {
+          soort: facetCounts(base, (i) => i.type),
+          bron: facetCounts(base, (i) => i.org),
+          doelgroep: facetCounts(base, (i) => i.audience),
+        },
+      },
+      meta: meta(),
+    });
+  } catch (error) {
+    logger.error('Failed to serve zoeken', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'ZOEKEN_FAILED', message: 'Zoeken is mislukt.' },
+    });
+  }
+});
+
+/**
+ * Shared handler for the per-type `:slug` detail routes below — every
+ * detail item is resolved through the same federated index so the count and
+ * the list it came from can never drift apart.
+ */
+function detailBySlug(type: PublicItemType) {
+  return async (req: Request, res: Response) => {
+    try {
+      const index = await getPublicIndex();
+      const item = getPublicItemBySlug(index, type, req.params.slug);
+      if (!item) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'ITEM_NOT_FOUND', message: 'Item niet gevonden.' },
+        });
+      }
+      res.json({ success: true, data: item, meta: meta() });
+    } catch (error) {
+      logger.error('Failed to serve item detail', {
+        type,
+        slug: req.params.slug,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({
+        success: false,
+        error: { code: 'ITEM_FETCH_FAILED', message: 'Item kon niet worden opgehaald.' },
+      });
+    }
+  };
+}
+
+/** GET /v1/public/nieuws/:slug */
+router.get('/nieuws/:slug', detailBySlug('nieuws'));
+/** GET /v1/public/producten/:slug */
+router.get('/producten/:slug', detailBySlug('product'));
+/** GET /v1/public/regels/:slug */
+router.get('/regels/:slug', detailBySlug('regel'));
 
 /**
  * POST /v1/public/use-case

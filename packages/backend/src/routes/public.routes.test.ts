@@ -20,6 +20,16 @@ jest.mock('@services/regelcatalogus.service', () => ({
   getRegelcatalogusData: jest.fn(),
   getRegelcatalogusCacheInfo: jest.fn(() => ({ cached: false, fetchedAt: null, ageMs: null })),
 }));
+jest.mock('@services/lde.service', () => ({
+  getPublicProcesses: jest.fn(),
+  getPublicProcessByKey: jest.fn(),
+}));
+jest.mock('@services/search.service', () => ({
+  getPublicIndex: jest.fn(),
+  searchPublicIndex: jest.fn(),
+  facetCounts: jest.fn(),
+  getPublicItemBySlug: jest.fn(),
+}));
 jest.mock('axios', () => ({
   __esModule: true,
   default: { post: jest.fn(), get: jest.fn(), isAxiosError: () => false },
@@ -43,6 +53,13 @@ import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems, getBerichtById } from '@services/berichten.service';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
 import { getRegelcatalogusData } from '@services/regelcatalogus.service';
+import { getPublicProcesses, getPublicProcessByKey } from '@services/lde.service';
+import {
+  getPublicIndex,
+  searchPublicIndex,
+  facetCounts,
+  getPublicItemBySlug,
+} from '@services/search.service';
 
 const mockAxios = axios as unknown as { post: jest.Mock; get: jest.Mock };
 const m = {
@@ -53,6 +70,12 @@ const m = {
   berichtById: getBerichtById as jest.Mock,
   producten: getProductenDienstenItems as jest.Mock,
   regels: getRegelcatalogusData as jest.Mock,
+  processenList: getPublicProcesses as jest.Mock,
+  processByKey: getPublicProcessByKey as jest.Mock,
+  index: getPublicIndex as jest.Mock,
+  doSearch: searchPublicIndex as jest.Mock,
+  facets: facetCounts as jest.Mock,
+  bySlug: getPublicItemBySlug as jest.Mock,
 };
 
 const app = express();
@@ -338,5 +361,84 @@ describe('POST /upload-file and /feedback (validation branches)', () => {
     const res = await request(app).post('/v1/public/feedback').send({ name: 'Bob' });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('MISSING_FIELDS');
+  });
+});
+
+describe('GET /processen', () => {
+  it('returns the public process list', async () => {
+    m.processenList.mockResolvedValue([{ key: 'zorgtoeslag-process', naam: 'Zorgtoeslag' }]);
+    const res = await request(app).get('/v1/public/processen');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([{ key: 'zorgtoeslag-process', naam: 'Zorgtoeslag' }]);
+  });
+
+  it('500 on failure', async () => {
+    m.processenList.mockRejectedValue(new Error('down'));
+    expect((await request(app).get('/v1/public/processen')).status).toBe(500);
+  });
+});
+
+describe('GET /processen/:key', () => {
+  it('returns a process or 404', async () => {
+    m.processByKey.mockResolvedValueOnce({ key: 'zorgtoeslag-process', naam: 'Zorgtoeslag' });
+    expect((await request(app).get('/v1/public/processen/zorgtoeslag-process')).status).toBe(200);
+    m.processByKey.mockResolvedValueOnce(null);
+    const res = await request(app).get('/v1/public/processen/nope');
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('PROCES_NOT_FOUND');
+  });
+});
+
+describe('GET /zoeken', () => {
+  it('returns hits + facets computed on the base (pre-facet-filter) query', async () => {
+    const indexed = [{ id: 'a', type: 'regel', org: 'X', audience: ['Inwoner'] }];
+    m.index.mockResolvedValue(indexed);
+    m.doSearch.mockReturnValue(indexed);
+    m.facets.mockReturnValue([['X', 1]]);
+
+    const res = await request(app).get('/v1/public/zoeken?q=zorg&soort=regel');
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toEqual(indexed);
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.facets).toHaveProperty('soort');
+    expect(res.body.data.facets).toHaveProperty('bron');
+    expect(res.body.data.facets).toHaveProperty('doelgroep');
+    // facets are computed on the query WITHOUT the facet filters (base), called twice:
+    // once for hits (with filters) and once for facets (sort-only)
+    expect(m.doSearch).toHaveBeenCalledWith(indexed, 'zorg', { sort: undefined });
+    expect(m.doSearch).toHaveBeenCalledWith(indexed, 'zorg', {
+      types: ['regel'],
+      orgs: undefined,
+      audience: undefined,
+      sort: undefined,
+    });
+  });
+
+  it('500 on failure', async () => {
+    m.index.mockRejectedValue(new Error('down'));
+    expect((await request(app).get('/v1/public/zoeken')).status).toBe(500);
+  });
+});
+
+describe('GET /nieuws/:slug, /producten/:slug, /regels/:slug', () => {
+  it('returns the item when found', async () => {
+    m.index.mockResolvedValue([]);
+    m.bySlug.mockReturnValue({ id: 'nieuws-n1', slug: 'n1', type: 'nieuws', title: 'X' });
+    const res = await request(app).get('/v1/public/nieuws/n1');
+    expect(res.status).toBe(200);
+    expect(res.body.data.title).toBe('X');
+  });
+
+  it('404 when not found', async () => {
+    m.index.mockResolvedValue([]);
+    m.bySlug.mockReturnValue(undefined);
+    const res = await request(app).get('/v1/public/regels/nope');
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('ITEM_NOT_FOUND');
+  });
+
+  it('500 on failure', async () => {
+    m.index.mockRejectedValue(new Error('down'));
+    expect((await request(app).get('/v1/public/producten/x')).status).toBe(500);
   });
 });
