@@ -123,3 +123,6 @@ docs/edocs-rest-api-1.0.0.json
 .claude/scheduled_tasks.lock
 # superpowers scratch state (progress ledgers, review packages) — never committed
 .superpowers/
+
+# design-handoff reference material — port content into the app, never commit the folder itself
+publiek-handoff/
