@@ -27,6 +27,14 @@
 *::after {
   box-sizing: border-box;
 }
+/* Reserve the vertical scrollbar's width at all times, so navigating between
+   a short page (no scrollbar) and a tall one (scrollbar) never shifts the
+   whole layout horizontally — every route (react-router client nav) fully
+   swaps <main>'s content without a page reload, and the resulting height
+   change was the cause of the jitter. */
+html {
+  scrollbar-gutter: stable;
+}
 .pub {
   font-family: var(--pub-font);
   color: var(--ro-ink);
