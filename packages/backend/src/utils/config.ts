@@ -153,6 +153,7 @@ export const config: Config = {
   corsOrigin: parseEnvArray(process.env.CORS_ORIGIN, [
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://localhost:5175', // public-site dev server
     'http://localhost:3002',
   ]),
   keycloak: {
