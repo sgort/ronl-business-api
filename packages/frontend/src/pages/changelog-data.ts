@@ -93,10 +93,10 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
-      version: '2026.08.1',
-      status: 'Upcoming',
+      version: '2026.08.0',
+      status: 'Released',
       date: '6 aug 2026',
-      scope: ['public-site'],
+      scope: ['backend', 'public-site'],
       commits: [
         {
           sha: 'cc6481d',
@@ -107,15 +107,6 @@ export const changelog: Changelog = {
             "Both the Rules tab's open service accordion and the Concepts tab's dienst filter dropdown lived in local component state, which React destroys whenever the tab's component unmounts. Lifted both into the parent Regelcatalogus component so a selection survives navigating to another Regelcatalogus tab and back. Also fixed the Rules tab defaulting to the first service open — it now starts fully closed.",
           ],
         },
-      ],
-    },
-    {
-      format: 'commits',
-      version: '2026.08.0',
-      status: 'Released',
-      date: '6 aug 2026',
-      scope: ['backend', 'public-site'],
-      commits: [
         {
           sha: 'c93868d',
           author: 'Steven Gort',
