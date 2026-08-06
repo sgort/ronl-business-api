@@ -42,7 +42,7 @@ export default function App() {
         <Route path="/regels/:slug" element={<Detail t={t} lang={lang} type="regel" />} />
         <Route path="/processen" element={<SectionIndex t={t} lang={lang} type="proces" />} />
         <Route path="/processen/:slug" element={<Detail t={t} lang={lang} type="proces" />} />
-        <Route path="/woordenboek" element={<Woordenboek lang={lang} />} />
+        <Route path="/woordenboek" element={<Woordenboek t={t} lang={lang} />} />
         <Route path="/toegankelijkheid" element={<Toegankelijkheid lang={lang} />} />
         <Route path="/open-data" element={<OpenData lang={lang} />} />
         <Route path="*" element={<NotFound lang={lang} />} />
