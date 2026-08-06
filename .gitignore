@@ -121,3 +121,5 @@ docs/edocs-rest-api-1.0.0.json
 # stay tracked)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+# superpowers scratch state (progress ledgers, review packages) — never committed
+.superpowers/
