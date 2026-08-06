@@ -1,0 +1,79 @@
+name: Deploy Public Site to Azure ACC
+
+on:
+  push:
+    branches:
+      - acc
+    paths:
+      - 'packages/public-site/**'
+      - '.github/workflows/azure-publicsite-acc.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - acc
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy ACC Public Site
+    environment:
+      name: acc
+      url: https://acc.publiek.open-regels.nl
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        working-directory: packages/public-site
+        run: npm run lint
+
+      - name: Type-check
+        working-directory: packages/public-site
+        run: npm run type-check
+
+      - name: Unit tests
+        working-directory: packages/public-site
+        run: npm test
+
+      - name: Build for ACC (includes prerender + bundle-cleanliness gate)
+        working-directory: packages/public-site
+        run: |
+          npm run build:acc
+          test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
+          test -f dist/sitemap.xml || (echo "ERROR: sitemap.xml not found!" && exit 1)
+          test -f dist/robots.txt || (echo "ERROR: robots.txt not found!" && exit 1)
+          echo "✅ Build completed successfully"
+
+      - name: Deploy to Azure Static Web Apps
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: '/packages/public-site/dist'
+          skip_app_build: true
+
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC }}
+          action: 'close'
