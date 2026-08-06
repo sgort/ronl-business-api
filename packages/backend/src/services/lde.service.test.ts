@@ -10,9 +10,11 @@ jest.mock('axios', () => ({ __esModule: true, default: mockAxios }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
-jest.mock('@utils/config', () => ({
-  config: { lde: { apiUrl: 'https://lde.test/v1' } },
-}));
+const mockConfig = {
+  lde: { apiUrl: 'https://lde.test/v1' },
+  public: { showWipProcesses: false },
+};
+jest.mock('@utils/config', () => ({ config: mockConfig }));
 
 type Mod = typeof import('./lde.service');
 
@@ -59,11 +61,25 @@ const draftBundle = {
   bpmnProcessId: 'draft-x',
   status: 'draft',
 };
+const wipCaseworkerBundle = {
+  ...activeCaseworkerBundle,
+  id: 'b5',
+  bpmnProcessId: 'wip-caseworker',
+  status: 'wip',
+};
+const wipInfraBundle = {
+  ...activeCaseworkerBundle,
+  id: 'b6',
+  bpmnProcessId: 'wip-infra',
+  status: 'wip',
+  boardOwner: 'infra-board',
+};
 
 let getPublicProcesses: Mod['getPublicProcesses'];
 let getPublicProcessByKey: Mod['getPublicProcessByKey'];
 beforeEach(() => {
   jest.clearAllMocks();
+  mockConfig.public.showWipProcesses = false;
   ({ getPublicProcesses, getPublicProcessByKey } = freshModule());
 });
 
@@ -113,6 +129,29 @@ describe('getPublicProcesses', () => {
     mockAxios.get.mockRejectedValueOnce(new Error('down again'));
     const stale = await getPublicProcesses(true);
     expect(stale).toHaveLength(1);
+  });
+
+  it('excludes wip bundles by default (config.public.showWipProcesses = false)', async () => {
+    mockAxios.get.mockResolvedValue({
+      data: { success: true, data: [activeCaseworkerBundle, wipCaseworkerBundle] },
+    });
+    const items = await getPublicProcesses();
+    expect(items.map((i) => i.key)).toEqual(['zorgtoeslag-process']);
+  });
+
+  it('includes wip bundles when config.public.showWipProcesses is true, still gated on board', async () => {
+    mockConfig.public.showWipProcesses = true;
+    ({ getPublicProcesses } = freshModule());
+    mockAxios.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: [activeCaseworkerBundle, wipCaseworkerBundle, wipInfraBundle, draftBundle],
+      },
+    });
+    const items = await getPublicProcesses();
+    // wip-caseworker included (wip + caseworker board); wip-infra still excluded
+    // (wrong board, regardless of status); draft still excluded (neither active nor wip).
+    expect(items.map((i) => i.key).sort()).toEqual(['wip-caseworker', 'zorgtoeslag-process']);
   });
 });
 

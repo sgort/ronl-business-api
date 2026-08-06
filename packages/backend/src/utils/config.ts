@@ -131,6 +131,13 @@ interface Config {
   altcha: {
     hmacKey: string;
   };
+  public: {
+    /** ACC-only escape hatch: also expose 'wip' process bundles on the
+     * public site's process library, not just 'active' ones, so ACC can
+     * be used to preview in-progress processes before they go live. Must
+     * stay false/unset in production. */
+    showWipProcesses: boolean;
+  };
   pa: {
     tkApiBase: string;
     euApiBase: string;
@@ -294,6 +301,10 @@ export const config: Config = {
 
   altcha: {
     hmacKey: process.env.ALTCHA_HMAC_KEY || '',
+  },
+
+  public: {
+    showWipProcesses: parseEnvBool(process.env.PUBLIC_SHOW_WIP_PROCESSES, false),
   },
 
   pa: {

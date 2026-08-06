@@ -55,7 +55,8 @@ export interface PublicProcess {
 }
 
 function isPubliclyVisible(b: LdeProcessBundle): boolean {
-  return b.status === 'active' && (!b.boardOwner || PUBLIC_PROCESS_BOARDS.has(b.boardOwner));
+  const statusOk = b.status === 'active' || (config.public.showWipProcesses && b.status === 'wip');
+  return statusOk && (!b.boardOwner || PUBLIC_PROCESS_BOARDS.has(b.boardOwner));
 }
 
 function toPublicProcess(b: LdeProcessBundle): PublicProcess {
