@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hrefFor } from './slug';
+import { hrefFor, slugify } from './slug';
 
 describe('hrefFor', () => {
   it('builds the per-type detail path', () => {
@@ -10,5 +10,15 @@ describe('hrefFor', () => {
     expect(hrefFor({ type: 'proces', slug: 'zorgtoeslag-process' })).toBe(
       '/processen/zorgtoeslag-process'
     );
+  });
+});
+
+describe('slugify', () => {
+  it('matches the backend algorithm exactly (lowercase, hyphenated, 64-char cap)', () => {
+    expect(slugify('Zorgtoeslag')).toBe('zorgtoeslag');
+    expect(slugify('Regeling bekostiging vo-scholen (2026)')).toBe(
+      'regeling-bekostiging-vo-scholen-2026'
+    );
+    expect(slugify('a'.repeat(100))).toHaveLength(64);
   });
 });
