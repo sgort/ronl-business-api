@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run deps:check && npm run docker:check && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "npm run deps:check && npm run docker:check && concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:public-site\"",
     "deps:check": "bash scripts/check-deps.sh",
     "postinstall": "bash scripts/write-deps-marker.sh",
     "docker:check": "bash scripts/check-docker.sh",
