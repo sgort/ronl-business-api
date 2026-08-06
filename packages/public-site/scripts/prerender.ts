@@ -54,6 +54,12 @@ export function injectIntoShell(
   opts: { title: string; description: string; canonical: string; bodyFragment: string }
 ): string {
   let html = shell.replace(/<title>.*?<\/title>/, `<title>${escapeHtml(opts.title)}</title>`);
+  // The shell (index.html) already ships a generic <meta name="description">
+  // (see packages/public-site/index.html) — strip it before inserting the
+  // per-page one, otherwise two description tags end up in the document and
+  // the generic one (being first) wins in most crawlers, defeating the point
+  // of a per-page description.
+  html = html.replace(/\s*<meta\s+name="description"[^>]*\/?>/is, '');
   html = html.replace(
     '</head>',
     `  <meta name="description" content="${escapeHtml(opts.description)}" />\n` +

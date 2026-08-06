@@ -42,4 +42,27 @@ describe('injectIntoShell', () => {
     );
     expect(html).toContain('<div id="root"><main><h1>Zorgtoeslag</h1></main></div>');
   });
+
+  it('replaces an existing <meta name="description"> instead of duplicating it', () => {
+    const shellWithDescription = `<!doctype html><html lang="nl"><head>
+      <meta charset="UTF-8" />
+      <meta
+        name="description"
+        content="Generic site-wide description."
+      />
+      <title>Old</title>
+    </head><body><div id="root"></div></body></html>`;
+
+    const html = injectIntoShell(shellWithDescription, {
+      title: 'Zorgtoeslag — Open Regels Nederland',
+      description: 'Toeslag voor zorgkosten.',
+      canonical: 'https://publiek.open-regels.nl/regels/zorgtoeslag',
+      bodyFragment: '<main><h1>Zorgtoeslag</h1></main>',
+    });
+
+    const descriptionCount = (html.match(/<meta\s+name="description"/g) ?? []).length;
+    expect(descriptionCount).toBe(1);
+    expect(html).toContain('content="Toeslag voor zorgkosten."');
+    expect(html).not.toContain('Generic site-wide description.');
+  });
 });
