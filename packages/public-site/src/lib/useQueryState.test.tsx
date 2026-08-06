@@ -5,7 +5,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { useQueryState } from './useQueryState';
 
 function wrapper({ children }: { children: ReactNode }) {
-  return <MemoryRouter initialEntries={['/zoeken?q=zorg&soort=regel%2Cproduct&sort=az']}>{children}</MemoryRouter>;
+  return (
+    <MemoryRouter initialEntries={['/zoeken?q=zorg&soort=regel%2Cproduct&sort=az']}>
+      {children}
+    </MemoryRouter>
+  );
 }
 
 describe('useQueryState', () => {
@@ -22,7 +26,9 @@ describe('useQueryState', () => {
 
   it('defaults to an empty query when no params are present', () => {
     const { result } = renderHook(() => useQueryState(), {
-      wrapper: ({ children }) => <MemoryRouter initialEntries={['/zoeken']}>{children}</MemoryRouter>,
+      wrapper: ({ children }) => (
+        <MemoryRouter initialEntries={['/zoeken']}>{children}</MemoryRouter>
+      ),
     });
     expect(result.current[0]).toEqual({ q: '', soort: [], bron: [], doelgroep: [], sort: 'rel' });
   });

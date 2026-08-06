@@ -8,6 +8,7 @@ import {
   type ChangelogCommit,
   type CommitType,
   type FeedbackItem,
+  type ScopeTag,
 } from './changelog-data';
 
 interface ChangelogPanelProps {
@@ -399,19 +400,33 @@ function FeedbackBlock({ items }: { items: FeedbackItem[] }) {
   );
 }
 
-// Scope Badge — which deployable(s) a release touched (frontend / backend / both)
-function ScopeBadge({ scope }: { scope: NonNullable<ChangelogVersion['scope']> }) {
-  const config = {
-    frontend: { label: 'Frontend', cls: 'bg-blue-100 text-blue-800' },
-    backend: { label: 'Backend', cls: 'bg-purple-100 text-purple-800' },
-    both: { label: 'Full-stack', cls: 'bg-gray-200 text-gray-700' },
-  }[scope];
+// Scope Badge — which deployable(s) a release touched. Two shapes coexist:
+// legacy entries carry a flat 'frontend' | 'backend' | 'both' string; new
+// entries carry a ScopeTag[] (even for a single package), which is what
+// lets a release express combinations 'both' never covered — e.g.
+// backend + public-site, without frontend.
+const SCOPE_TAG_LABELS: Record<ScopeTag, string> = {
+  frontend: 'Frontend',
+  backend: 'Backend',
+  'public-site': 'Public Site',
+};
 
-  return (
-    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${config.cls}`}>
-      {config.label}
-    </span>
-  );
+function ScopeBadge({ scope }: { scope: NonNullable<ChangelogVersion['scope']> }) {
+  const isMulti = Array.isArray(scope) ? scope.length > 1 : scope === 'both';
+  const label = Array.isArray(scope)
+    ? scope.map((tag) => SCOPE_TAG_LABELS[tag]).join(' + ')
+    : scope === 'both'
+      ? 'Full-stack'
+      : SCOPE_TAG_LABELS[scope];
+  const cls = isMulti
+    ? 'bg-gray-200 text-gray-700'
+    : (Array.isArray(scope) ? scope[0] : scope) === 'frontend'
+      ? 'bg-blue-100 text-blue-800'
+      : (Array.isArray(scope) ? scope[0] : scope) === 'backend'
+        ? 'bg-purple-100 text-purple-800'
+        : 'bg-teal-100 text-teal-800';
+
+  return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${cls}`}>{label}</span>;
 }
 
 // ── Legacy (sections) format rendering + color lookups ──────────────

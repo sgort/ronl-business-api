@@ -17,6 +17,20 @@ export interface ChangelogSection {
   items: ChangelogItem[];
 }
 
+// Individual deployable a release can touch. 'both' is kept as a distinct
+// legacy literal (see ScopeValue below) rather than folded into this set —
+// every existing 'both' entry predates packages/public-site and specifically
+// means "frontend + backend"; reusing it for a different combination later
+// would retroactively misrepresent those historical entries.
+export type ScopeTag = 'frontend' | 'backend' | 'public-site';
+
+// New entries express scope as an array of ScopeTag, even for a single
+// package (e.g. ['backend']) — this is what lets a release touch backend +
+// public-site (or any future combination) without inventing a new flat
+// literal per combination. Old entries keep their pre-existing flat string
+// ('frontend' | 'backend' | 'both'); ScopeBadge renders both forms.
+export type ScopeValue = 'frontend' | 'backend' | 'both' | ScopeTag[];
+
 export interface ChangelogVersion {
   version: string;
   status: string;
@@ -27,7 +41,7 @@ export interface ChangelogVersion {
   // and tells bump-release which package.json files to version — a frontend-only
   // release must NOT bump packages/backend/package.json, or it triggers the
   // backend ACC build for nothing. Omitted on legacy (pre-3.8.2) entries.
-  scope?: 'frontend' | 'backend' | 'both';
+  scope?: ScopeValue;
   sections: ChangelogSection[];
 }
 
@@ -61,7 +75,7 @@ export interface ChangelogVersionV2 {
   version: string;
   status: string;
   date: string;
-  scope: 'frontend' | 'backend' | 'both';
+  scope: ScopeValue;
   commits: ChangelogCommit[];
   /** RONL-specific: external GitLab work items (feedback/use-case) this
    *  release resolves. Rendered as its own labeled block below the commit
@@ -77,6 +91,332 @@ export interface Changelog {
 
 export const changelog: Changelog = {
   versions: [
+    {
+      format: 'commits',
+      version: '2026.08.0',
+      status: 'Released',
+      date: '6 aug 2026',
+      scope: ['backend', 'public-site'],
+      commits: [
+        {
+          sha: 'c93868d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'PUBLIC_SHOW_WIP_PROCESSES — ACC-only escape hatch for the process library',
+          details: [
+            "Lets ACC preview 'wip' process bundles on the public site's process library, not just 'active' ones, so in-progress processes can be checked before they go live. Defaults to false; must stay off in production. Still gated on boardOwner (caseworker/untagged only) — this only widens the status check, not the board allow-list.",
+          ],
+        },
+        {
+          sha: '2f341cd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Skosmos now allows framing from the caseworker app and the public site',
+          details: [
+            "skosmos.open-regels.nl imported basic_security_headers, which sets X-Frame-Options: DENY — blocking iframe embedding from every origin, including the caseworker app's Gegevenswoordenboek and the new public site's Woordenboek page. Replaced with a dedicated skosmos_security_headers snippet: drops the blanket X-Frame-Options and adds a CSP frame-ancestors allow-list scoped to the origins that actually embed it.",
+          ],
+        },
+        {
+          sha: '74a17ee',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fixed horizontal jitter on public-site route navigation',
+          details: [
+            'Different pages have different content heights, so the vertical scrollbar was appearing/disappearing between routes, shifting the whole layout horizontally each time. scrollbar-gutter: stable on html keeps that space reserved at all times.',
+          ],
+        },
+        {
+          sha: '02613cf',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Organisation logos on the Regelcatalogus Organisaties tab',
+          details: [
+            "Not in the original design spec, but the data (CatalogOrganization.logo) was already being fetched and unused. Mirrors the caseworker's OrgCard: a logo box with object-fit:contain, falling back to a two-letter initials badge when there's no logo or the image fails to load.",
+          ],
+        },
+        {
+          sha: '525441d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Regelcatalogus accordion needed two clicks to switch services',
+          details: [
+            'Driving the exclusive accordion via <details open> + onToggle let the browser natively toggle each element; closing the previously-open one through the React-driven open prop re-fired a toggle event (Chrome does this on programmatic attribute changes too), which overwrote the just-clicked state back to nothing-open before the new one visibly opened. Now fully React-controlled via onClick+preventDefault on the summary.',
+          ],
+        },
+        {
+          sha: '118f436',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Drill down into individual rules on the Regelcatalogus Rules tab',
+          details: [
+            "Each rule row with a decision-logic description becomes a click-to-expand toggle, matching the caseworker RegelCatalogus's per-rule drill-down. Rules with no description stay plain text. Not in the original design spec — added per request during review.",
+          ],
+        },
+        {
+          sha: '065067d',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'public-site included in the root npm run dev',
+          details: [
+            'npm run dev from the repo root now starts backend, frontend and public-site together via concurrently, instead of just the first two.',
+          ],
+        },
+        {
+          sha: 'ba6b196',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Azure Static Web App deploy workflows for public-site (no auth routes)',
+          details: [
+            'azure-publicsite-acc.yml/-prod.yml mirror the frontend\'s branch-triggered SWA deploy pattern; staticwebapp.config.json has no routes/allowedRoles block at all, matching every other "no auth" requirement in this release.',
+          ],
+        },
+        {
+          sha: '134f506',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Automated bundle-cleanliness gate — fails the build on any auth/telemetry code',
+          details: [
+            'scripts/check-bundle.mjs scans every built .js file for forbidden strings (keycloak, msal, oidc-client, analytics libraries) and fails the build if any are found; wired into build/build:acc/build:prod as their last step.',
+          ],
+        },
+        {
+          sha: '7e33b51',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Prerendered public-site pages no longer duplicate the <meta description> tag',
+          details: [
+            "The prerender script's injectIntoShell was inserting a per-page description without removing the shell's generic one, so two description tags ended up in the document and the generic one (being first) won in most crawlers — defeating the point of a per-page description.",
+          ],
+        },
+        {
+          sha: '307ad0a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Prerendering, sitemap.xml and robots.txt for public-site',
+          details: [
+            'A post-build step fetches real content via the same lib/api.ts the app itself uses and writes a static, crawlable HTML fragment per section/detail route into dist/, plus sitemap.xml and robots.txt — /zoeken and /woordenboek are excluded from the sitemap by design.',
+          ],
+        },
+        {
+          sha: '08261b6',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Backend CORS now allows public-site's dev server (:5175)",
+          details: [
+            "Discovered by the e2e suite's live run: the backend's default CORS allow-list (and .env.example template) never included the public-site package's dev port, so a fresh checkout following .env.example would have every fetch from the public site blocked by CORS in local dev.",
+          ],
+        },
+        {
+          sha: '5bf5c17',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'e2e: search journey, deep links, keyboard path, axe-core scans for public-site',
+          details: [
+            'Playwright suite covering search → filter → detail → back, a deep link with filters pre-applied, a keyboard-only path, and three axe-core scans (home/results/detail) — ran live against real backend data during review, 6/6 passing.',
+          ],
+        },
+        {
+          sha: '5e19f27',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Toegankelijkheid and Open Data pages',
+          details: [
+            'Static accessibility statement (WCAG 2.1 AA target, stated in both languages) and an open-data page listing the real /v1/public/* GET endpoints.',
+          ],
+        },
+        {
+          sha: '4feb206',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Woordenboek (Skosmos embed) and Detail pages',
+          details: [
+            'Woordenboek is a pure Skosmos iframe embed (title attribute, visible "open in new tab" fallback, src follows the language switch). Detail is the generic per-type detail page for all five content types, with a collapsed-by-default technical-details section and the exact GET /v1/public/... path for that item.',
+          ],
+        },
+        {
+          sha: 'e294f0f',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Stronger Regelcatalogus Rules-tab test — asserts DOM row count, not just title presence',
+          details: [
+            'The DoD-named "every service with count > 0 renders exactly count rule rows" assertion now counts actual <tr> elements in the DOM, not just that the expected titles are present somewhere — catches a stray/duplicate row a title-only check would miss.',
+          ],
+        },
+        {
+          sha: '10f7ca1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Regelcatalogus page — Organisations / Services / Rules / Concepts tabs',
+          details: [
+            'Four-tab rule catalogue matching the caseworker version: Organisations (with logos), Services, Rules (accordion per service, count and list from the same query), Concepts (every row links out to Skosmos, no local detail page).',
+          ],
+        },
+        {
+          sha: '1867cd5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'SectionIndex test fixture uses a valid non-null publishedAt',
+          details: [
+            "BerichtItem.publishedAt is typed as a non-nullable string (matching the real backend contract); a test fixture using null failed type-check even though Vitest itself doesn't type-check test files.",
+          ],
+        },
+        {
+          sha: '7388c86',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'SectionIndex page for berichten / nieuws / producten / processen',
+          details: [
+            "Generic per-section list page for the four content types that don't get their own dedicated page (regel has Regelcatalogus instead): fetches the section's native list endpoint, normalizes into the common Hit shape, supports a local text filter.",
+          ],
+        },
+        {
+          sha: 'd85be29',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Results page — federated search with URL-backed facets',
+          details: [
+            "Filter state (q/soort/bron/doelgroep/sort) lives entirely in the URL via useQueryState; facet counts come from the server response, computed on the query before that facet's own filter, so checking a box never makes its own count disappear.",
+          ],
+        },
+        {
+          sha: '58b5e26',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Routing shell, Home (variant B), NotFound and page stubs',
+          details: [
+            'App.tsx registers all 15 routes and syncs document.documentElement.lang to the language switch. Home is the search-bar-plus-card-grid variant (the only one built — the two other prototype variants are explicitly out of scope).',
+          ],
+        },
+        {
+          sha: 'cee1c85',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Highlight utility and chrome components (nav, search, hit, facet, tabs, footer)',
+          details: [
+            'Twelve presentational building blocks every page assembles, plus highlight() — wraps query-term matches in <mark> via React node splitting, never dangerouslySetInnerHTML, matching only 3+ character terms.',
+          ],
+        },
+        {
+          sha: '0647ab2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Detail-URL builder and URL-backed query state',
+          details: [
+            "hrefFor() builds the permanent per-type detail path for any search result; useQueryState wraps react-router's useSearchParams so a filtered result set is always a shareable link.",
+          ],
+        },
+        {
+          sha: '1d9d7f2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Typed client for /v1/public/*',
+          details: [
+            'Every response type and fetch function the frontend pages use, with dual-runtime base-URL resolution (browser via import.meta.env, the Node prerender script via process.env) and a 404-vs-throw split between list and per-item lookups.',
+          ],
+        },
+        {
+          sha: '838b21a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'i18n (NL/EN) and section metadata for public-site',
+          details: [
+            'Dutch/English translation dictionaries (structurally enforced to declare the same keys) and the five searchable section definitions — the data dictionary is deliberately excluded, it has no search type or detail route of its own.',
+          ],
+        },
+        {
+          sha: '47fb67c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'pub.css port (media-query responsive) and main.tsx',
+          details: [
+            "Rijkshuisstijl tokens ported from the design prototype, cleaned up for production: mobile is plain @media rules (no preview-toggle class), and the prototype-only WCAG-annotation overlay and dropped Home variants' CSS were left out.",
+          ],
+        },
+        {
+          sha: '47fbd47',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'public-site package scaffold — Vite + React + TS, no auth deps',
+          details: [
+            'New workspace package, dev server on :5175. No keycloak-js, no @azure/msal, no @ronl/shared, no Tailwind — the bundle-cleanliness gate later in this release enforces that for good.',
+          ],
+        },
+        {
+          sha: 'd0e3506',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Guard test: /v1/public/* stays GET-only and unauthenticated',
+          details: [
+            'Introspects the real Express router (not a mock) so a future change adding a write verb or auth middleware to a content route fails this test immediately, rather than shipping unnoticed.',
+          ],
+        },
+        {
+          sha: '9d346df',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'New routes: /processen, /zoeken, and per-type :slug detail lookups',
+          details: [
+            "/zoeken's facet counts are computed on the query without that facet's own filter applied; all three :slug detail routes resolve through the same federated index the search itself uses, so the count and the list can never drift apart.",
+          ],
+        },
+        {
+          sha: '574a6f1',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Removed the publiek-handoff/ reference folder from tracking',
+          details: [
+            'Design-handoff reference material (prototype CSS/JSX, architecture doc) gets ported into the app but the folder itself is never committed, per repo convention — it had been swept in accidentally by an earlier commit.',
+          ],
+        },
+        {
+          sha: 'd363f89',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "sort:'date' in the federated search index is now actually chronological",
+          details: [
+            'The sort only partitioned dated vs. undated items rather than comparing actual date values, so within the "has a date" group items kept an arbitrary order — inherited from the original design prototype, caught by review before it shipped.',
+          ],
+        },
+        {
+          sha: 'ab5cab5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Federated public search index (search.service)',
+          details: [
+            "Aggregates berichten, nieuws, producten, regelcatalogus services and LDE process bundles into one cached, server-side searchable index — replacing the design prototype's browser-side search, which doesn't scale past a few hundred items.",
+          ],
+        },
+        {
+          sha: 'a47cce4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'LDE process-bundle proxy (lde.service)',
+          details: [
+            'Proxies the public process-bundle list from the LDE API, filtered to status active and boardOwner caseworker/untagged only — internal boards and non-active drafts stay caseworker-only.',
+          ],
+        },
+        {
+          sha: '79d8405',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Ignore .superpowers/ scratch directory',
+          details: [
+            'Progress ledgers and code-review packages generated during subagent-driven development are local scratch state, never meant to be committed.',
+          ],
+        },
+        {
+          sha: 'e6690f0',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'slugify utility for public detail routes',
+          details: [
+            'Deterministic, pure slug generation for rule-catalogue services (which have no natural short id) — used identically on both the backend (building the federated index) and the frontend (building the matching link), so the two can never disagree on a slug.',
+          ],
+        },
+      ],
+    },
     {
       format: 'commits',
       version: '2026.07.0',

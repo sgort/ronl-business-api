@@ -154,9 +154,7 @@ describe('Regelcatalogus', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(
-      screen.getByText('De aanvrager heeft recht op zorgtoeslag als...')
-    ).toBeInTheDocument();
+    expect(screen.getByText('De aanvrager heeft recht op zorgtoeslag als...')).toBeInTheDocument();
 
     // A rule with no description is plain text, not a toggle button
     expect(screen.queryByRole('button', { name: /Leeftijdseis 18 jaar/ })).toBeNull();
