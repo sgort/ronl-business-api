@@ -268,8 +268,14 @@ export function searchPublicIndex(
   }
 
   if (filters.sort === 'az') rows.sort((a, b) => a.it.title.localeCompare(b.it.title, 'nl'));
-  else if (filters.sort === 'date') rows.sort((a, b) => (b.it.date ? 1 : 0) - (a.it.date ? 1 : 0));
-  else rows.sort((a, b) => b.score - a.score);
+  else if (filters.sort === 'date') {
+    rows.sort((a, b) => {
+      if (!a.it.date && !b.it.date) return 0;
+      if (!a.it.date) return 1;
+      if (!b.it.date) return -1;
+      return b.it.date.localeCompare(a.it.date); // newest first
+    });
+  } else rows.sort((a, b) => b.score - a.score);
 
   return rows.map((r) => r.it);
 }

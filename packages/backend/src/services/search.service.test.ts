@@ -250,7 +250,33 @@ describe('searchPublicIndex', () => {
       title: 'Kabinet nieuws',
       summary: 'Landelijk beleid',
       org: 'Rijksoverheid',
-      date: '2026-01-01',
+      date: '2026-03-15T00:00:00.000Z',
+      audience: ['Inwoner'],
+      external: null,
+      facts: [],
+      tech: [],
+    },
+    {
+      id: 'd',
+      slug: 'd',
+      type: 'bericht',
+      title: 'Weg dicht',
+      summary: 'N23 afgesloten',
+      org: 'Provincie Flevoland',
+      date: '2026-07-01T00:00:00.000Z',
+      audience: ['Inwoner'],
+      external: null,
+      facts: [],
+      tech: [],
+    },
+    {
+      id: 'e',
+      slug: 'e',
+      type: 'nieuws',
+      title: 'Oud nieuws',
+      summary: 'Heel oud bericht',
+      org: 'Rijksoverheid',
+      date: '2026-01-01T00:00:00.000Z',
       audience: ['Inwoner'],
       external: null,
       facts: [],
@@ -259,7 +285,7 @@ describe('searchPublicIndex', () => {
   ] as import('./search.service').PublicIndexItem[];
 
   it('an empty query returns everything', () => {
-    expect(search.searchPublicIndex(index, '', {})).toHaveLength(3);
+    expect(search.searchPublicIndex(index, '', {})).toHaveLength(5);
   });
 
   it('matches by title and summary, case-insensitively', () => {
@@ -273,7 +299,7 @@ describe('searchPublicIndex', () => {
   });
 
   it('filters by org and audience', () => {
-    expect(search.searchPublicIndex(index, '', { orgs: ['Rijksoverheid'] })).toHaveLength(1);
+    expect(search.searchPublicIndex(index, '', { orgs: ['Rijksoverheid'] })).toHaveLength(2);
     expect(search.searchPublicIndex(index, '', { audience: ['Ondernemer'] })).toHaveLength(1);
   });
 
@@ -284,10 +310,12 @@ describe('searchPublicIndex', () => {
 
   it('sorts by az, date, or relevance', () => {
     const az = search.searchPublicIndex(index, '', { sort: 'az' });
-    // Alphabetical (nl locale): Kabinet nieuws, Kapvergunning, Zorgtoeslag
-    expect(az.map((h) => h.id)).toEqual(['c', 'b', 'a']);
+    // Alphabetical (nl locale): Kabinet nieuws, Kapvergunning, Oud nieuws, Weg dicht, Zorgtoeslag
+    expect(az.map((h) => h.id)).toEqual(['c', 'b', 'e', 'd', 'a']);
     const byDate = search.searchPublicIndex(index, '', { sort: 'date' });
-    expect(byDate[0].id).toBe('c'); // only item with a date sorts first
+    // Should sort by date newest-first (2026-07-01, 2026-03-15, 2026-01-01),
+    // then undated items last (a, b)
+    expect(byDate.map((h) => h.id)).toEqual(['d', 'c', 'e', 'a', 'b']);
   });
 });
 
