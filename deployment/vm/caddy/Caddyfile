@@ -35,6 +35,20 @@
     header Cross-Origin-Resource-Policy "same-origin"
 }
 
+# Skosmos security headers — X-Frame-Options: DENY (basic_security_headers)
+# blocks ALL framing, including the caseworker app and the public site that
+# both need to embed the RONL thesaurus. A CSP frame-ancestors allow-list
+# replaces it: only these specific origins may frame this site, everything
+# else is still refused.
+(skosmos_security_headers) {
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    header X-XSS-Protection "1; mode=block"
+    header Referrer-Policy "same-origin"
+    header Content-Security-Policy "frame-ancestors 'self' https://mijn.open-regels.nl https://acc.mijn.open-regels.nl https://publiek.open-regels.nl https://acc.publiek.open-regels.nl http://localhost:5173 http://localhost:5175"
+    header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+}
+
 # Updated security headers snippet for Nextcloud
 (nextcloud_security_headers) {
     header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -58,7 +72,7 @@ skosmos.open-regels.nl {
         root * /srv/static
         file_server
     }
-    import basic_security_headers
+    import skosmos_security_headers
     reverse_proxy skosmos-web:80
     encode gzip
 }
