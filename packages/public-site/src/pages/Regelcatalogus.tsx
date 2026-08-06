@@ -15,6 +15,15 @@ export default function Regelcatalogus({ t, lang }: { t: Translations; lang: Lan
   const section = sectionForType('regel');
   const [data, setData] = useState<RegelcatalogusData | null>(null);
   const [tab, setTab] = useState<Tab>('organisaties');
+  // Lifted out of RegelsTab: that component unmounts whenever `tab` switches
+  // away from 'regels' (it's only rendered via `tab === 'regels' && <RegelsTab .../>`),
+  // which would otherwise reset which service accordion is open every time the
+  // user navigates to another tab and back.
+  const [openService, setOpenService] = useState<string | null>(null);
+  // Same reasoning as `openService` above: BegrippenTab unmounts on tab
+  // switch, so its dienst-filter selection has to live up here to survive
+  // navigating away and back.
+  const [begrippenService, setBegrippenService] = useState('');
 
   useEffect(() => {
     getRegelcatalogus().then(setData);
@@ -56,9 +65,24 @@ export default function Regelcatalogus({ t, lang }: { t: Translations; lang: Lan
         {tab === 'organisaties' && <OrganisatiesTab organizations={data.organizations} />}
         {tab === 'diensten' && <DienstenTab services={data.services} />}
         {tab === 'regels' && (
-          <RegelsTab t={t} lang={lang} services={servicesWithRules} rules={data.rules} />
+          <RegelsTab
+            t={t}
+            lang={lang}
+            services={servicesWithRules}
+            rules={data.rules}
+            open={openService}
+            onOpenChange={setOpenService}
+          />
         )}
-        {tab === 'begrippen' && <BegrippenTab t={t} lang={lang} concepts={data.concepts} />}
+        {tab === 'begrippen' && (
+          <BegrippenTab
+            t={t}
+            lang={lang}
+            concepts={data.concepts}
+            service={begrippenService}
+            onServiceChange={setBegrippenService}
+          />
+        )}
       </div>
     </main>
   );
@@ -145,14 +169,19 @@ function RegelsTab({
   lang,
   services,
   rules,
+  open,
+  onOpenChange,
 }: {
   t: Translations;
   lang: Lang;
   services: CatalogService[];
   rules: RegelcatalogusData['rules'];
+  /** Which service's accordion is open, or null if none — owned by the
+   * parent so it survives this component unmounting on tab switches. */
+  open: string | null;
+  onOpenChange: (uri: string | null) => void;
 }) {
   const [q, setQ] = useState('');
-  const [open, setOpen] = useState<string | null>(services[0]?.uri ?? null);
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
   const needle = q.trim().toLowerCase();
 
@@ -203,7 +232,7 @@ function RegelsTab({
             <summary
               onClick={(e) => {
                 e.preventDefault();
-                if (!needle) setOpen((prev) => (prev === service.uri ? null : service.uri));
+                if (!needle) onOpenChange(open === service.uri ? null : service.uri);
               }}
             >
               <b>{service.title}</b>
@@ -283,13 +312,18 @@ function BegrippenTab({
   t,
   lang,
   concepts,
+  service,
+  onServiceChange,
 }: {
   t: Translations;
   lang: Lang;
   concepts: RegelcatalogusData['concepts'];
+  /** Selected dienst filter, or '' for "all" — owned by the parent so it
+   * survives this component unmounting on tab switches. */
+  service: string;
+  onServiceChange: (service: string) => void;
 }) {
   const services = useMemo(() => [...new Set(concepts.map((c) => c.serviceTitle))], [concepts]);
-  const [service, setService] = useState('');
   const [q, setQ] = useState('');
   const rows = concepts.filter(
     (c) =>
@@ -312,7 +346,7 @@ function BegrippenTab({
         </div>
         <div className="pub-field">
           <label htmlFor="pub-bg-d">{t.filterDienst}</label>
-          <select id="pub-bg-d" value={service} onChange={(e) => setService(e.target.value)}>
+          <select id="pub-bg-d" value={service} onChange={(e) => onServiceChange(e.target.value)}>
             <option value="">{t.allDiensten}</option>
             {services.map((s) => (
               <option key={s} value={s}>
