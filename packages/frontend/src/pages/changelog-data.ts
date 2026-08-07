@@ -93,6 +93,70 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.1',
+      status: 'Released',
+      date: '7 aug 2026',
+      scope: ['backend', 'public-site'],
+      commits: [
+        {
+          sha: '2d44aee',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Blue focus ring on public-site form fields instead of the yellow',
+          details: [
+            'The search boxes and the Regelcatalogus dienst-filter dropdown showed a thick yellow focus ring (the Rijkshuisstijl --ro-focus token). Swapped it for the brand blue (--ro-link) on input/select :focus-visible, keeping the 2px dark outline plus a 4px ring so keyboard focus stays clearly visible — WCAG 2.4.7 (Focus Visible) is preserved. Scoped to form fields; link and button focus styling is unchanged.',
+          ],
+        },
+        {
+          sha: '903ad06',
+          author: 'Steven Gort',
+          type: 'other',
+          subject: 'Regelcatalogus seeds from prerendered data to cut the loading flash',
+          details: [
+            "The prerender emits a crawler-only HTML fragment that createRoot discards on the client; the Regelcatalogus page then rendered a short 'Laden…' placeholder and re-fetched, so content grew in after first paint and pushed the footer down — the layout shift behind the page's live CLS.",
+            "The prerender now embeds each route's data as a JSON <script> (route-scoped, <-escaped) and the page seeds its state from it via a pure reader, skipping the initial fetch. The first client render already shows the full catalogue — no placeholder, no refetch round-trip.",
+          ],
+        },
+        {
+          sha: 'f15ffba',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'e2e suite can target a deployed URL',
+          details: [
+            'The Playwright config now honours an E2E_BASE_URL env var: when set, it runs the suite against that already-deployed site and skips starting the local dev server — used to verify the public site against the live ACC URL. Also gitignores the public-site Playwright output dirs, which had been missing.',
+          ],
+        },
+        {
+          sha: '2039ec1',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Drop non-null assertions in searchPublicIndex',
+          details: [
+            'Capture filters.{types,orgs,audience} into const locals so TypeScript carries the ?.length narrowing into the filter closures, removing three @typescript-eslint/no-non-null-assertion warnings. Behaviour unchanged.',
+          ],
+        },
+        {
+          sha: 'c9c4d3f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Regelcatalogus organisation logos now load',
+          details: [
+            "Org-card logos are <img>s served from the RONL knowledge-graph host (api.open-regels.triply.cc), but the public site's Content-Security-Policy img-src was \"'self' data:\" — so the browser blocked every logo and each card fell back to an initials badge. Added the host to img-src; guarded by a test that parses the shipped SWA config's CSP.",
+          ],
+        },
+        {
+          sha: 'cb92458',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'staticwebapp.config.json now ships in the build output',
+          details: [
+            'The SWA config lived at the package root, but the deploy workflow uploads only packages/public-site/dist with skip_app_build. Moved it into public/ so Vite copies it into dist — otherwise Azure never sees it and the deployed site gets no SPA navigationFallback (deep-link refresh 404s), no CSP/security headers, and no mimeTypes overrides.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.0',
       status: 'Released',
       date: '6 aug 2026',

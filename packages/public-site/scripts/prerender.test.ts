@@ -74,9 +74,7 @@ describe('injectIntoShell', () => {
       bodyFragment: '<main/>',
       embeddedData: { route: '/regels', data: { services: [{ title: 'Zorgtoeslag' }] } },
     });
-    const m = html.match(
-      /<script id="__PUB_DATA__" type="application\/json">(.*?)<\/script>/s
-    );
+    const m = html.match(/<script id="__PUB_DATA__" type="application\/json">(.*?)<\/script>/s);
     expect(m).toBeTruthy();
     const parsed = JSON.parse(m![1].replace(/\\u003c/g, '<'));
     expect(parsed).toEqual({ route: '/regels', data: { services: [{ title: 'Zorgtoeslag' }] } });
