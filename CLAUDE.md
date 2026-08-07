@@ -14,3 +14,7 @@ merge and told you to go ahead.**
 - The same caution applies to a `git push` that would deploy or fast-forward a shared
   branch: confirm first.
 - If in doubt, don't merge — ask.
+
+**One exception:** invoking `/bump-release` is itself the approval for that
+command's single fast-forward of the release commit onto `acc` (see
+`.claude/commands/bump-release.md`, step 8). No other merge is covered by it.

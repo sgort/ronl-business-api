@@ -8,8 +8,9 @@ new entry) and the legacy sections-based format still carried by historical
 entries.
 
 > Why scope matters: the ACC build workflows are path-filtered
-> (`packages/backend/**`, `packages/frontend/**`, `packages/shared/**`). Bumping
-> `packages/backend/package.json` on a frontend-only release triggers _Build
+> (`packages/backend/**`, `packages/frontend/**`, `packages/shared/**`, and
+> `packages/public-site/**` via its own `azure-publicsite-*.yml`). Bumping
+> `packages/backend/package.json` on a public-site-only release triggers _Build
 > Backend for ACC_ for nothing — and makes the backend's runtime `/health`
 > version lie. So bump-release versions per scope, and the package versions are
 > allowed to drift apart.
@@ -63,10 +64,19 @@ only new entries going forward use CalVer.
   entry** — do not treat 3.8.2-already-released as "the release." Stop and
   author a new entry first (see "Authoring a new entry" below) before
   continuing. Do not fabricate changelog content without confirming it.
-- Read that entry's `scope` field: `'frontend' | 'backend' | 'both'`.
-  - `frontend` → bump root + `packages/frontend/package.json`
-  - `backend` → bump root + `packages/backend/package.json`
-  - `both` → bump all three
+- Read that entry's `scope` field — on new (`format: 'commits'`) entries it is
+  an **array** of the packages the release changed, e.g. `['backend',
+'public-site']`. Bump the root `package.json` (always) plus one package.json
+  per array member:
+  - `'frontend'` → `packages/frontend/package.json`
+  - `'backend'` → `packages/backend/package.json`
+  - `'public-site'` → `packages/public-site/package.json`
+  - `ScopeTag` is only these three — there is **no `'shared'` tag**. A
+    `packages/shared/**` change is expressed as `['frontend','backend']` (shared
+    feeds both builds); bump root + frontend + backend, and bump
+    `packages/shared/package.json` too if shared itself was versioned.
+  - (Legacy entries carry a string `scope` like `'both'` instead — `'both'`
+    means frontend + backend. Never author a new one of these.)
   - If `scope` is **absent** (only possible on a legacy entry — new entries
     require it at the type level), do not guess silently — infer it from the
     diff in step 2, tell the user what you inferred, and ask them to add the
@@ -124,12 +134,17 @@ PREV=$(git log --grep='^chore: bump release' -n 1 --format=%H)
 git diff --name-only "$PREV"..HEAD -- packages/
 ```
 
-Map the touched top-level dirs to a scope:
+Map the touched top-level dirs to the `scope` array (one entry per package):
 
-- `packages/shared/**` changed → scope **must** be `both` (shared feeds both builds)
-- only `packages/frontend/**` → `frontend`
-- only `packages/backend/**` → `backend`
-- both frontend and backend → `both`
+- `packages/frontend/**` → include `'frontend'`
+- `packages/backend/**` → include `'backend'`
+- `packages/public-site/**` → include `'public-site'`
+- `packages/shared/**` → include **both** `'frontend'` and `'backend'` (shared
+  feeds both builds; there is no `'shared'` scope tag)
+
+Do **not** count the changelog file itself
+(`packages/frontend/src/pages/changelog-data.ts`) as a `'frontend'` change — every
+release edits it, so it would make every release look frontend-scoped.
 
 If the declared `scope` does not cover the changed packages, **stop and warn**
 the user with the specifics (declared vs. detected) and ask how to proceed. Do
@@ -174,8 +189,13 @@ Read each file before editing (required by the Edit tool). Set `"version"` to
 the released version in:
 
 - `package.json` (repo root) — **always** (canonical product version; triggers no CI)
-- `packages/frontend/package.json` — only if scope is `frontend` or `both`
-- `packages/backend/package.json` — only if scope is `backend` or `both`
+- one package.json per `scope` array member:
+  - `packages/frontend/package.json` — if scope includes `'frontend'`
+  - `packages/backend/package.json` — if scope includes `'backend'`
+  - `packages/public-site/package.json` — if scope includes `'public-site'`
+  - `packages/shared/package.json` — only if a `packages/shared/**` change was
+    part of the release (there is no `'shared'` scope tag; such a release carries
+    `['frontend','backend']`)
 
 Leave an out-of-scope package.json untouched — its version legitimately lags at
 the last release that changed it. Run the in-scope edits in parallel.
@@ -195,7 +215,8 @@ not "whichever ran last."
 - Use camelCase keys that describe the domain, not the path
   (e.g. `curator` for `/v1/pa`, `mediaAggregator` for `/v1/media-aggregator`)
 - Do not list `/v1/health` separately if it is already present — keep it
-- Skip this step if scope is `frontend` (no backend routes could have changed)
+- Skip this step if scope does **not** include `'backend'` (no backend routes
+  could have changed)
 
 ### 6. Normalize formatting before committing
 
@@ -234,9 +255,13 @@ root's version) and summarize the other entry/entries in the commit body.
 
 ### 8. Fast-forward onto `acc` and clean up the working branch
 
-Once the bump commit from step 7 exists, land it on `acc` by default — do not
-ask first, this is now the standard flow. Skip this step only if the commit
-was already made directly on `acc` (no separate working branch involved).
+Once the bump commit from step 7 exists, land it on `acc`. **Invoking
+`/bump-release` is itself the explicit approval that the standing "never merge
+without approval" rule (see `CLAUDE.md`) requires for this one fast-forward onto
+`acc`** — so proceed without a separate ask. That rule still governs every other
+merge; running this command pre-authorizes only this release fast-forward. Skip
+this step only if the commit was already made directly on `acc` (no separate
+working branch involved).
 
 ```bash
 git checkout acc
