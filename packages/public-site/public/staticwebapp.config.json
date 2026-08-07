@@ -4,7 +4,7 @@
     "exclude": ["/assets/*", "*.{png,jpg,jpeg,svg,ico,css,js,xml,txt}"]
   },
   "globalHeaders": {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src https://skosmos.open-regels.nl; connect-src 'self' https://api.open-regels.nl https://acc.api.open-regels.nl",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://api.open-regels.triply.cc; frame-src https://skosmos.open-regels.nl; connect-src 'self' https://api.open-regels.nl https://acc.api.open-regels.nl",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin"
   },
