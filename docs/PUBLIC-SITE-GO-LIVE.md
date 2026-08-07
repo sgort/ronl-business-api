@@ -11,19 +11,23 @@ different integration), `docs/superpowers/plans/2026-08-06-public-site.md` (the
 
 ## 1. Azure Static Web App resources (blocking)
 
-Neither SWA resource exists yet. The CI workflows
+The CI workflows
 ([azure-publicsite-acc.yml](../.github/workflows/azure-publicsite-acc.yml),
 [azure-publicsite-prod.yml](../.github/workflows/azure-publicsite-prod.yml)) will
-fail on first push without them.
+fail on first push without the resource + token secret. **ACC done; PROD pending.**
 
-- [ ] Create the **ACC** Static Web App in Azure (matches `azure-frontend-acc.yml`'s
+Create each SWA with deployment **Source: `Other`** (not GitHub) — that yields just
+the resource + a deployment token and does **not** generate a competing workflow;
+our hand-tuned workflow already deploys the pre-built `dist` via `skip_app_build`.
+
+- [x] Create the **ACC** Static Web App in Azure (matches `azure-frontend-acc.yml`'s
       resource for the pattern to copy).
 - [ ] Create the **PROD** Static Web App in Azure.
-- [ ] Copy each resource's deployment token (Azure Portal → the SWA resource →
-      "Manage deployment token", or `az staticwebapp secrets list`).
+- [x] Copy the **ACC** deployment token (Azure Portal → the SWA resource → "Manage
+      deployment token", or `az staticwebapp secrets list`). PROD token pending.
 - [ ] Add both tokens as GitHub repo secrets, **exact names** (already referenced
       by the workflows):
-  - [ ] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC`
+  - [x] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC`
   - [ ] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_PROD`
 
 > **Resolved in this branch** (`fix(public-site): ship staticwebapp.config.json in
@@ -85,12 +89,16 @@ Application settings) — not in any file in this repo.
 | `LDE_API_URL`               | leave unset (code default already `https://acc.backend.linkeddata.open-regels.nl/v1`) | **must set explicitly** — code default is the ACC LDE URL | Without this, prod's process library would silently proxy ACC's LDE data instead of prod's. Likely value: `https://backend.linkeddata.open-regels.nl/v1` (matches the frontend's own `.env.production`). |
 | `PUBLIC_SHOW_WIP_PROCESSES` | `true` (already agreed — preview WIP processes on ACC)                                | leave unset (defaults to `false`)                         | ACC-only escape hatch; must never be true in prod.                                                                                                                                                       |
 
-- [ ] `CORS_ORIGIN` updated on ACC backend App Service
+**ACC done** (set on `ronl-business-api-acc` / `rg-ronl-acc` via
+`az webapp config appsettings set`, which restarts the App Service automatically —
+no manual restart needed). **PROD pending.**
+
+- [x] `CORS_ORIGIN` updated on ACC backend App Service
 - [ ] `CORS_ORIGIN` updated on PROD backend App Service
 - [ ] `LDE_API_URL` set explicitly on PROD backend App Service
-- [ ] `PUBLIC_SHOW_WIP_PROCESSES=true` set on ACC backend App Service
-- [ ] Restart both App Services after saving (Azure App Service settings changes
-      require a restart to take effect)
+- [x] `PUBLIC_SHOW_WIP_PROCESSES=true` set on ACC backend App Service
+- [x] ACC App Service restarted (automatic on `appsettings set`); PROD restart still
+      pending after its settings are saved
 
 ## 4. Caddy deploy — Skosmos CSP fix (✅ done — blocking for the Gegevenswoordenboek page)
 
