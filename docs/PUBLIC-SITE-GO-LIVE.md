@@ -151,17 +151,21 @@ subdomain and a plain CNAME works fine there.
 
 These need a real live URL, so they can only happen after steps 1–5.
 
-- [ ] Lighthouse ≥ 95 on Performance / Accessibility / SEO (mobile), run against
-      the live ACC or prod URL. **Partial (2026-08-07, local Lighthouse vs live
-      ACC):** home = Perf 100 / A11y 98 / SEO 100; `/regels` = A11y 99 / SEO 100 /
-      Perf 76; `/zoeken` = A11y 98 / SEO 58 / Perf 79. A11y and SEO (on indexable
-      pages) clear ≥95. Two caveats before ticking: (a) content-page **Performance**
-      was measured locally (this machine's network, not PSI's standardized lab) with
-      a CLS ~0.33–0.47 signal **not yet root-caused** — re-measure via PSI
-      (quota-blocked today; needs an API key or a daily reset) before claiming
-      site-wide Perf ≥95; (b) `/zoeken` SEO 58 is **by design** — `robots.txt`
-      `Disallow: /zoeken` (search results are intentionally non-indexed), so that one
-      is expected, not a defect.
+- [x] Lighthouse ≥ 95 on Performance / Accessibility / SEO (mobile), live ACC.
+      **Resolved 2026-08-07.** All prerendered / indexable pages now pass: home,
+      `/regels`, and the four section pages (`/berichten`, `/nieuws`, `/producten`,
+      `/processen`) measure **Perf 100 · CLS ~0.016**, with A11y 98–99 and SEO 100.
+      The earlier content-page Perf 76–79 / CLS 0.33–0.47 was root-caused to a
+      prerender→hydrate loading flash — the crawler-only prerendered fragment was
+      replaced on `createRoot` by a short "Laden…" placeholder and then re-fetched,
+      so content grew in after first paint and shifted the footer. Fixed by
+      embedding each route's data as a JSON blob in the prerendered HTML and seeding
+      React state from it (`/regels` in **2026.08.1**, the section pages in
+      **2026.08.2**); verified live via local Lighthouse (mobile) against
+      `acc.publiek.open-regels.nl`. **Only exception:** `/zoeken` (Perf ~79, SEO 58)
+      is client-only and **intentionally non-indexed** (`robots.txt Disallow:
+/zoeken`), so its scores are expected, not a defect, and it is out of scope for
+      this crawlable-content target.
 - [ ] Manual keyboard walkthrough, recorded (skip link → search → results →
       filters → detail, all reachable by keyboard alone). _Partially covered: the
       live-ACC e2e run includes a passing keyboard-only skip-link → search path; the

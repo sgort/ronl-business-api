@@ -1,5 +1,15 @@
 # Test suite — ronl-business-api
 
+This is the umbrella entry point for the repo's tests. It documents the **backend**
+(Jest) suite in detail; every other component has its own guide:
+
+| Component                                         | Runner              | Guide                                                |
+| ------------------------------------------------- | ------------------- | ---------------------------------------------------- |
+| `packages/backend`                                | Jest                | **this file**                                        |
+| `packages/frontend` (caseworker) — unit/component | Vitest + RTL        | [`TESTING-FRONTEND.md`](./TESTING-FRONTEND.md)       |
+| `packages/frontend` (caseworker) — end-to-end     | Playwright          | [`TESTING-FRONTEND-UI.md`](./TESTING-FRONTEND-UI.md) |
+| `packages/public-site` — unit + end-to-end        | Vitest + Playwright | [`TESTING-PUBLIC-SITE.md`](./TESTING-PUBLIC-SITE.md) |
+
 ## Running the tests
 
 All backend tests run with Jest. The test script lives in `packages/backend`.
@@ -19,11 +29,14 @@ npx jest --config packages/backend/jest.config.js --no-coverage --testPathPatter
 ```
 
 From the repo root, `npm test` runs every workspace's test script — the backend
-Jest suite and the frontend Vitest suite.
+Jest suite plus the frontend and public-site Vitest suites. The Playwright e2e
+suites run separately, via each package's own `test:e2e`.
 
-This file documents the **backend** suite in detail. For the frontend suite —
-conventions, tooling, and the coverage backlog — see
-[`TESTING-FRONTEND.md`](./TESTING-FRONTEND.md).
+This file documents the **backend** suite in detail. For the other components see
+the guides in the map above — [`TESTING-FRONTEND.md`](./TESTING-FRONTEND.md)
+(caseworker unit/component), [`TESTING-FRONTEND-UI.md`](./TESTING-FRONTEND-UI.md)
+(caseworker E2E), and [`TESTING-PUBLIC-SITE.md`](./TESTING-PUBLIC-SITE.md)
+(public-site).
 
 ---
 
