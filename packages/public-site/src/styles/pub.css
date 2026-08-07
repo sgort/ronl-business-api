@@ -349,7 +349,13 @@ html {
   margin-bottom: 12px;
 }
 .pub-facet {
+  /* Reset the browser's default <fieldset> box border + margin so only the
+     intended bottom separator shows; otherwise each group renders inside a
+     grooved border with a notch around the legend (the stray "tiny lines"). */
+  border: 0;
   border-bottom: 1px solid var(--ro-rule-2);
+  margin: 0;
+  min-inline-size: 0;
   padding: 12px 0;
 }
 .pub-facet legend {
