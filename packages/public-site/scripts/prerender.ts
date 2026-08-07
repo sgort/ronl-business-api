@@ -17,6 +17,7 @@ import {
   getProcessen,
 } from '../src/lib/api';
 import { PUB_SECTIONS } from '../src/lib/sections';
+import { mapToHits } from '../src/lib/sectionHits';
 import { slugify } from '../src/lib/slug';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -200,6 +201,7 @@ async function main() {
       'Officiële berichten van Provincie Flevoland.',
       berichten.map((b) => ({ title: b.subject, summary: b.preview }))
     ),
+    data: mapToHits('bericht', berichten.slice(0, 200)),
   });
   for (const b of berichten) {
     urls.push(`/berichten/${b.id}`);
@@ -222,6 +224,7 @@ async function main() {
       'Landelijk nieuws van de Rijksoverheid.',
       nieuws.map((n) => ({ title: n.title, summary: n.summary }))
     ),
+    data: mapToHits('nieuws', nieuws.slice(0, 200)),
   });
   for (const n of nieuws) {
     urls.push(`/nieuws/${n.id}`);
@@ -242,6 +245,7 @@ async function main() {
       'Vergunningen, meldingen en subsidies.',
       producten.map((p) => ({ title: p.title, summary: p.description }))
     ),
+    data: mapToHits('product', producten.slice(0, 200)),
   });
   for (const p of producten) {
     urls.push(`/producten/${p.id}`);
@@ -291,6 +295,7 @@ async function main() {
       'Hoe een aanvraag stap voor stap door de organisatie loopt.',
       processen.map((p) => ({ title: p.naam, summary: p.beschrijving ?? '' }))
     ),
+    data: mapToHits('proces', processen.slice(0, 200)),
   });
   for (const p of processen) {
     urls.push(`/processen/${p.key}`);

@@ -1,5 +1,5 @@
 // packages/public-site/src/pages/SectionIndex.test.tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SectionIndex from './SectionIndex';
@@ -84,5 +84,70 @@ describe('SectionIndex (berichten)', () => {
       expect(screen.queryByRole('link', { name: /Wegwerkzaamheden/ })).not.toBeInTheDocument()
     );
     expect(screen.getByRole('link', { name: /Subsidieronde/ })).toBeInTheDocument();
+  });
+});
+
+describe('SectionIndex — prerendered seeding', () => {
+  function setBlob(route: string, data: unknown) {
+    document.getElementById('__PUB_DATA__')?.remove();
+    const s = document.createElement('script');
+    s.id = '__PUB_DATA__';
+    s.type = 'application/json';
+    s.textContent = JSON.stringify({ route, data });
+    document.body.appendChild(s);
+  }
+  afterEach(() => document.getElementById('__PUB_DATA__')?.remove());
+
+  it('renders items from the prerendered blob on first paint, without fetching', () => {
+    vi.mocked(api.getBerichten).mockResolvedValue({ items: [], total: 0 });
+    setBlob('/berichten', [
+      {
+        id: 'b1',
+        slug: 'b1',
+        type: 'bericht',
+        title: 'Seeded bericht',
+        summary: 'x',
+        org: 'Provincie Flevoland',
+        date: '2026-07-01',
+        audience: [],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    // Present synchronously — seeded during render, no "Laden…" then fetch.
+    expect(screen.getByRole('link', { name: /Seeded bericht/ })).toBeInTheDocument();
+    expect(screen.getByText('1 items')).toBeInTheDocument();
+    expect(api.getBerichten).not.toHaveBeenCalled();
+  });
+
+  it('still fetches when no blob is present (cold load)', async () => {
+    vi.mocked(api.getBerichten).mockResolvedValue({
+      items: [
+        {
+          id: 'b9',
+          subject: 'Fetched bericht',
+          preview: '',
+          content: null,
+          publishedAt: '2026-07-01',
+          sender: { id: 'x', name: 'X' },
+        },
+      ],
+      total: 1,
+    });
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Fetched bericht/ })).toBeInTheDocument()
+    );
+    expect(api.getBerichten).toHaveBeenCalled();
   });
 });

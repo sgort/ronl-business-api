@@ -3,76 +3,22 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Translations, Lang } from '../i18n';
 import { sectionForType, sectionLabel, sectionSub, type PubType } from '../lib/sections';
 import { getBerichten, getNieuws, getProducten, getProcessen, type PublicHit } from '../lib/api';
+import { mapToHits } from '../lib/sectionHits';
+import { readPrerenderedData } from '../lib/prerenderedData';
 import SearchForm from '../components/SearchForm';
 import Hit from '../components/Hit';
 import Crumbs from '../components/Crumbs';
 
 async function loadItems(type: PubType): Promise<PublicHit[]> {
   switch (type) {
-    case 'bericht': {
-      const { items } = await getBerichten(200);
-      return items.map((b) => ({
-        id: b.id,
-        slug: b.id,
-        type: 'bericht' as const,
-        title: b.subject,
-        summary: b.preview,
-        org: b.sender.name,
-        date: b.publishedAt,
-        audience: [],
-        external: null,
-        facts: [],
-        tech: [],
-      }));
-    }
-    case 'nieuws': {
-      const { items } = await getNieuws(200);
-      return items.map((n) => ({
-        id: n.id,
-        slug: n.id,
-        type: 'nieuws' as const,
-        title: n.title,
-        summary: n.summary,
-        org: n.source.name,
-        date: n.publishedAt,
-        audience: [],
-        external: null,
-        facts: [],
-        tech: [],
-      }));
-    }
-    case 'product': {
-      const { items } = await getProducten(200);
-      return items.map((p) => ({
-        id: p.id,
-        slug: p.id,
-        type: 'product' as const,
-        title: p.title,
-        summary: p.description,
-        org: 'Provincie Flevoland',
-        date: p.modified,
-        audience: p.audience,
-        external: null,
-        facts: [],
-        tech: [],
-      }));
-    }
-    case 'proces': {
-      const items = await getProcessen();
-      return items.map((p) => ({
-        id: p.key,
-        slug: p.key,
-        type: 'proces' as const,
-        title: p.naam,
-        summary: p.beschrijving ?? '',
-        org: 'Provincie Flevoland',
-        date: p.gepubliceerd,
-        audience: [],
-        external: null,
-        facts: [],
-        tech: [],
-      }));
-    }
+    case 'bericht':
+      return mapToHits('bericht', (await getBerichten(200)).items);
+    case 'nieuws':
+      return mapToHits('nieuws', (await getNieuws(200)).items);
+    case 'product':
+      return mapToHits('product', (await getProducten(200)).items);
+    case 'proces':
+      return mapToHits('proces', await getProcessen());
     case 'regel':
       return []; // Regelcatalogus (Task 15) owns this type
   }
@@ -88,11 +34,25 @@ export default function SectionIndex({
   type: PubType;
 }) {
   const section = sectionForType(type);
-  const [all, setAll] = useState<PublicHit[]>([]);
+  // Seed from the data the prerender embedded for this section's route so the
+  // first client render already shows the list — no "Laden…" placeholder that
+  // then grows and shifts the footer (the section-page CLS). Cold loads (no
+  // blob) still fetch.
+  const [all, setAll] = useState<PublicHit[]>(
+    () => readPrerenderedData<PublicHit[]>(section.path) ?? []
+  );
   const [q, setQ] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(
+    () => readPrerenderedData<PublicHit[]>(section.path) == null
+  );
 
   useEffect(() => {
+    const seed = readPrerenderedData<PublicHit[]>(sectionForType(type).path);
+    if (seed) {
+      setAll(seed);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     loadItems(type).then((items) => {
