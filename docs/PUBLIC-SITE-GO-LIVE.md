@@ -123,7 +123,7 @@ the public site (`publiek` / `acc.publiek`), and both dev servers
       `http://localhost:5175/woordenboek`: the Skosmos thesaurus renders in the
       iframe._
 
-## 5. DNS — Azure DNS zone `open-regels.nl` (blocking)
+## 5. DNS — Azure DNS zone `open-regels.nl` (blocking — **ACC done; PROD pending**)
 
 You own this zone in Azure DNS, which matters for `publiek.open-regels.nl`
 specifically: it's an **apex/root record**, and a plain CNAME is not valid at a
@@ -132,12 +132,14 @@ an Alias record at the apex can point directly at an Azure resource (the Static
 Web App), unlike a plain CNAME. `acc.publiek.open-regels.nl` is an ordinary
 subdomain and a plain CNAME works fine there.
 
-- [ ] In the Azure Static Web App resource (ACC), add the custom domain
+- [x] In the Azure Static Web App resource (ACC), add the custom domain
       `acc.publiek.open-regels.nl` — Azure will show the exact validation record
       to add first (typically a `TXT` record).
-- [ ] Add that validation `TXT` record in the `open-regels.nl` Azure DNS zone.
-- [ ] Add a `CNAME` record: `acc.publiek` → the SWA's default hostname (Azure
-      shows this on the custom domain screen).
+- [x] Add that validation `TXT` record in the `open-regels.nl` Azure DNS zone.
+- [x] Add a `CNAME` record: `acc.publiek` → the SWA's default hostname (Azure
+      shows this on the custom domain screen). _Verified 2026-08-07:
+      `https://acc.publiek.open-regels.nl/` resolves with valid TLS and serves the
+      SWA (the Azure placeholder page — real content lands once §2's push runs)._
 - [ ] Repeat domain validation for the PROD Static Web App, root domain
       `publiek.open-regels.nl`.
 - [ ] Add an **Alias record** (not a plain A/CNAME) at the zone apex pointing at
