@@ -65,4 +65,42 @@ describe('injectIntoShell', () => {
     expect(html).toContain('content="Toeslag voor zorgkosten."');
     expect(html).not.toContain('Generic site-wide description.');
   });
+
+  it('embeds route-scoped prerendered data as a JSON script when provided', () => {
+    const html = injectIntoShell(shell, {
+      title: 't',
+      description: 'd',
+      canonical: 'c',
+      bodyFragment: '<main/>',
+      embeddedData: { route: '/regels', data: { services: [{ title: 'Zorgtoeslag' }] } },
+    });
+    const m = html.match(
+      /<script id="__PUB_DATA__" type="application\/json">(.*?)<\/script>/s
+    );
+    expect(m).toBeTruthy();
+    const parsed = JSON.parse(m![1].replace(/\\u003c/g, '<'));
+    expect(parsed).toEqual({ route: '/regels', data: { services: [{ title: 'Zorgtoeslag' }] } });
+  });
+
+  it('adds no data script when embeddedData is omitted', () => {
+    const html = injectIntoShell(shell, {
+      title: 't',
+      description: 'd',
+      canonical: 'c',
+      bodyFragment: '<main/>',
+    });
+    expect(html).not.toContain('__PUB_DATA__');
+  });
+
+  it('escapes < in embedded data so a payload cannot break out of the script', () => {
+    const html = injectIntoShell(shell, {
+      title: 't',
+      description: 'd',
+      canonical: 'c',
+      bodyFragment: '<main/>',
+      embeddedData: { route: '/x', data: { evil: '</script><script>alert(1)</script>' } },
+    });
+    const scriptSection = html.slice(html.indexOf('__PUB_DATA__'));
+    expect(scriptSection).not.toContain('</script><script>alert(1)');
+  });
 });

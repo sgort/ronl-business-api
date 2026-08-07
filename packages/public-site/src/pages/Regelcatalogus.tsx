@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Translations, Lang } from '../i18n';
 import { sectionForType, sectionLabel, sectionSub } from '../lib/sections';
 import { getRegelcatalogus, type RegelcatalogusData, type CatalogService } from '../lib/api';
+import { readPrerenderedData } from '../lib/prerenderedData';
 import { slugify, hrefFor } from '../lib/slug';
 import Crumbs from '../components/Crumbs';
 import Tabs from '../components/Tabs';
@@ -13,7 +14,12 @@ type Tab = 'organisaties' | 'diensten' | 'regels' | 'begrippen';
 
 export default function Regelcatalogus({ t, lang }: { t: Translations; lang: Lang }) {
   const section = sectionForType('regel');
-  const [data, setData] = useState<RegelcatalogusData | null>(null);
+  // Seed from the data the prerender step embedded for /regels, so the first
+  // client render already shows the full catalogue instead of a "Laden…"
+  // placeholder that then grows — the layout shift behind this page's CLS.
+  const [data, setData] = useState<RegelcatalogusData | null>(() =>
+    readPrerenderedData<RegelcatalogusData>('/regels')
+  );
   const [tab, setTab] = useState<Tab>('organisaties');
   // Lifted out of RegelsTab: that component unmounts whenever `tab` switches
   // away from 'regels' (it's only rendered via `tab === 'regels' && <RegelsTab .../>`),
@@ -26,7 +32,11 @@ export default function Regelcatalogus({ t, lang }: { t: Translations; lang: Lan
   const [begrippenService, setBegrippenService] = useState('');
 
   useEffect(() => {
+    // Already seeded from the prerendered blob (initial load) — skip the fetch.
+    if (data) return;
     getRegelcatalogus().then(setData);
+    // Runs once on mount; `data` here is the seed value, intentionally not a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!data) {
