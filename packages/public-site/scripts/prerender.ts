@@ -51,7 +51,16 @@ export function escapeHtml(s: string): string {
 
 export function injectIntoShell(
   shell: string,
-  opts: { title: string; description: string; canonical: string; bodyFragment: string }
+  opts: {
+    title: string;
+    description: string;
+    canonical: string;
+    bodyFragment: string;
+    // When set, the fetched data is embedded as a JSON script so the client's
+    // first render already has it (no loading→refetch flash → no CLS). Scoped to
+    // its route so a stale blob isn't reused after client-side navigation.
+    embeddedData?: { route: string; data: unknown };
+  }
 ): string {
   let html = shell.replace(/<title>.*?<\/title>/, `<title>${escapeHtml(opts.title)}</title>`);
   // The shell (index.html) already ships a generic <meta name="description">
@@ -66,6 +75,15 @@ export function injectIntoShell(
       `  <link rel="canonical" href="${opts.canonical}" />\n</head>`
   );
   html = html.replace('<div id="root"></div>', `<div id="root">${opts.bodyFragment}</div>`);
+  if (opts.embeddedData) {
+    // Escape `<` so a string value containing "</script>" can't break out of
+    // the tag. JSON.parse on the client reverses < transparently.
+    const json = JSON.stringify(opts.embeddedData).replace(/</g, '\\u003c');
+    html = html.replace(
+      '</body>',
+      `  <script id="__PUB_DATA__" type="application/json">${json}</script>\n</body>`
+    );
+  }
   return html;
 }
 
@@ -128,6 +146,9 @@ async function writeRoute(
     title: string;
     description: string;
     bodyFragment: string;
+    // When provided, embedded (scoped to this route) so the client's first
+    // render has the data without a loading→refetch flash.
+    data?: unknown;
   }
 ) {
   const html = injectIntoShell(shell, {
@@ -135,6 +156,7 @@ async function writeRoute(
     description: opts.description,
     canonical: `${origin}${route}`,
     bodyFragment: opts.bodyFragment,
+    ...(opts.data !== undefined ? { embeddedData: { route, data: opts.data } } : {}),
   });
   const dir = route === '/' ? distDir : path.join(distDir, ...route.split('/').filter(Boolean));
   await mkdir(dir, { recursive: true });
@@ -242,6 +264,7 @@ async function main() {
       'Publieke diensten en de regels waarmee de overheid ze uitvoert.',
       catalogus.services.map((s) => ({ title: s.title, summary: s.description }))
     ),
+    data: catalogus,
   });
   for (const s of catalogus.services) {
     const slug = slugify(s.title);
