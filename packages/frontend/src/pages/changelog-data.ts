@@ -93,6 +93,34 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.3',
+      status: 'Released',
+      date: '7 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: 'c86588a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Footer shows the environment site URL and current release version',
+          details: [
+            "The footer's site line was hardcoded to publiek.open-regels.nl (prod) on every environment. It's now driven by a per-environment VITE_SITE_URL — dev shows localhost:5175, ACC acc.publiek.open-regels.nl, prod publiek.open-regels.nl — rendered as a link to that origin.",
+            'It also shows the current release: the public-site package version, injected via a Vite `define` (__APP_VERSION__), so it always matches the latest public-site changelog entry.',
+          ],
+        },
+        {
+          sha: 'e21f086',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Remove the stray borders around the search facet groups',
+          details: [
+            "The Verfijn filter groups (Soort / Bron / Voor wie) are <fieldset>s, but their CSS only set a bottom separator and never reset the browser's default fieldset box border — so each rendered inside a grooved border with a notch around its legend. Reset the fieldset defaults so only the intended separator shows.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.2',
       status: 'Released',
       date: '7 aug 2026',
