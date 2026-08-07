@@ -8,6 +8,11 @@ import { defineConfig, devices } from '@playwright/test';
 // suite, Playwright starts the dev server itself. The BACKEND must already
 // be running on the port VITE_API_URL points at — these specs hit real
 // search results, not mocked ones.
+// Set E2E_BASE_URL to run against an already-deployed site (e.g. the live ACC
+// URL for the go-live §6 verification) instead of a local dev server. When it's
+// set we point baseURL at it and skip starting the local server entirely.
+const liveTarget = process.env.E2E_BASE_URL;
+
 export default defineConfig({
   testDir: '.',
   fullyParallel: true,
@@ -15,14 +20,19 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5175',
+    baseURL: liveTarget ?? 'http://localhost:5175',
     trace: 'on-first-retry',
   },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5175',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  // Only spin up the local dev server when testing locally.
+  ...(liveTarget
+    ? {}
+    : {
+        webServer: {
+          command: 'npm run dev',
+          url: 'http://localhost:5175',
+          reuseExistingServer: !process.env.CI,
+          timeout: 30_000,
+        },
+      }),
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

@@ -39,6 +39,10 @@ packages/frontend/e2e/test-results/
 packages/frontend/playwright-report/
 packages/frontend/e2e/playwright-report/
 packages/frontend/e2e/.auth/
+packages/public-site/test-results/
+packages/public-site/e2e/test-results/
+packages/public-site/playwright-report/
+packages/public-site/e2e/playwright-report/
 packages/frontend/e2e/.pending-operaton-cleanup.json
 
 # IDEs and editors

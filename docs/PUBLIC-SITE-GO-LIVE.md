@@ -152,16 +152,29 @@ subdomain and a plain CNAME works fine there.
 These need a real live URL, so they can only happen after steps 1–5.
 
 - [ ] Lighthouse ≥ 95 on Performance / Accessibility / SEO (mobile), run against
-      the live ACC or prod URL.
+      the live ACC or prod URL. **Partial (2026-08-07, local Lighthouse vs live
+      ACC):** home = Perf 100 / A11y 98 / SEO 100; `/regels` = A11y 99 / SEO 100 /
+      Perf 76; `/zoeken` = A11y 98 / SEO 58 / Perf 79. A11y and SEO (on indexable
+      pages) clear ≥95. Two caveats before ticking: (a) content-page **Performance**
+      was measured locally (this machine's network, not PSI's standardized lab) with
+      a CLS ~0.33–0.47 signal **not yet root-caused** — re-measure via PSI
+      (quota-blocked today; needs an API key or a daily reset) before claiming
+      site-wide Perf ≥95; (b) `/zoeken` SEO 58 is **by design** — `robots.txt`
+      `Disallow: /zoeken` (search results are intentionally non-indexed), so that one
+      is expected, not a defect.
 - [ ] Manual keyboard walkthrough, recorded (skip link → search → results →
-      filters → detail, all reachable by keyboard alone).
+      filters → detail, all reachable by keyboard alone). _Partially covered: the
+      live-ACC e2e run includes a passing keyboard-only skip-link → search path; the
+      full recorded walkthrough is still a manual/browser-driven step._
 - [ ] One manual `npx vite-bundle-visualizer` spot-check on a real ACC/prod build
       — Task 20's automated bundle-cleanliness gate already runs on every build,
       this is the human eyeball pass on top of it.
-- [ ] Re-run the e2e suite (`npm run test:e2e --workspace=@ronl/public-site`)
-      pointed at the live ACC URL instead of localhost, to catch anything that
-      only differs in a real deployed environment (real TLS, real CDN caching
-      headers, etc.).
+- [x] Re-run the e2e suite against the live ACC URL (2026-08-07) — **6/6 passing**
+      against `https://acc.publiek.open-regels.nl`: search journey, deep-link
+      filters, keyboard-only skip-link path, and axe-core scans (no critical/serious
+      violations on home/results/detail). Run with
+      `E2E_BASE_URL=<url> npm run test:e2e -w @ronl/public-site` — the config now
+      skips the local dev server whenever `E2E_BASE_URL` is set.
 - [ ] Register the accessibility statement (`/toegankelijkheid`) in the
       DigiToegankelijk register — content is live, the registration itself is a
       separate manual step on that external site.
