@@ -39,14 +39,14 @@ the build output`): the SWA config previously lived at the package root, which
 > manual step needed; noted here because it directly affects the SWA deploy this
 > section sets up.
 
-## 2. Backend deploy — ACC and PROD (blocking)
+## 2. Backend deploy — ACC and PROD (**ACC done; PROD pending**)
 
-This branch's whole Phase 1 (`GET /v1/public/processen`, `GET /v1/public/zoeken`,
-the `/v1/public/{nieuws,producten,regels}/:slug` detail routes) only exists on
-`feature/public-site` locally right now. Confirmed today: a real production build's
-prerender step 404'd against `api.open-regels.nl` for exactly this reason — the
-routes aren't there yet. Public-site has nothing to talk to in ACC/prod until this
-is deployed.
+Phase 1 (`GET /v1/public/processen`, `GET /v1/public/zoeken`, the
+`/v1/public/{nieuws,producten,regels}/:slug` detail routes) is **deployed and live
+on ACC** (`acc.api.open-regels.nl`) — verified by the smoke-test below.
+`feature/public-site` was merged into `acc` and deleted. PROD is still pending:
+until Phase 1 is on `api.open-regels.nl`, a prod public-site build's prerender step
+will 404 (exactly as an early ACC build did).
 
 **Deploy order matters — backend before the push.** The backend is deployed by
 `deploy-backend-to-acc.sh` (a local `az webapp deploy` from a clean `acc` checkout;
@@ -56,16 +56,13 @@ fetches `acc.api.open-regels.nl/v1/public/*`, so if the push lands before the
 backend is live, that build 404s and fails. Deploy the backend first, in the window
 between merging locally and pushing:
 
-- [ ] `git checkout acc && git merge feature/public-site` — **locally, do not push
-      yet**.
-- [ ] `bash deploy-backend-to-acc.sh` — deploys the backend from local `acc` (the
-      script enforces on-`acc`-and-clean itself; no push happens here).
-- [ ] Smoke-test: `curl https://acc.api.open-regels.nl/v1/public/zoeken` returns
+- [x] `git checkout acc && git merge feature/public-site` (done; branch since
+      deleted — its commits all live on `acc`).
+- [x] `bash deploy-backend-to-acc.sh` — deployed the backend from local `acc`.
+- [x] Smoke-test: `curl https://acc.api.open-regels.nl/v1/public/zoeken` returned
       real data, not 404.
-- [ ] `git push origin acc` — triggers the frontend + public-site GitHub Actions;
-      public-site's prerender now has a live backend. Requires the ACC SWA resource
-      and its token secret (step 1) to already exist, or the Action fails at the
-      deploy step.
+- [x] `git push origin acc` — triggered the frontend + public-site Actions; both
+      deployed successfully (public-site live at `acc.publiek.open-regels.nl`).
 - [ ] Repeat for prod once ACC is verified: merge to prod's deploy branch, run
       `deploy-backend-to-prod.sh`, smoke-test, then push to trigger the prod
       Actions.
