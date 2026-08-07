@@ -183,6 +183,60 @@ These need a real live URL, so they can only happen after steps 1–5.
       DigiToegankelijk register — content is live, the registration itself is a
       separate manual step on that external site.
 
+## 7. PROD promotion — the rest of the `acc` → `main` delta (read before merging)
+
+§1–6 cover the **public-site** slice. But PROD currently runs **v3.8.2 (Jul 17)** and
+`acc` is **2026.08.3** — merging `acc → main` deploys **136 commits / ~13 releases**
+across the **backend, the caseworker frontend (161 files), and the new public-site**,
+not just the public site. The extra things to handle:
+
+### 7a. Backend before the push — now app-wide (blocking)
+
+Same trap as §2, but it affects the **whole caseworker app**, not only public-site.
+The caseworker **frontend auto-deploys on push to `main`** (SWA), while the **backend
+is the manual `deploy-backend-to-prod.sh`**. The new frontend (`2026.07.0`) calls
+backend routes/behavior that PROD's v3.8.2 backend doesn't have, so:
+
+- [ ] Merge `acc → main` **locally** (do not push yet).
+- [ ] `bash deploy-backend-to-prod.sh` — backend live on PROD first.
+- [ ] Smoke-test the PROD backend (`/health` reports the new version; a `/v1/public/*`
+      route responds, not 404).
+- [ ] **Then** push `main` — triggers the frontend + public-site SWA deploys against the
+      now-current backend.
+
+### 7b. New backend env vars on the PROD App Service (verify)
+
+Beyond §3's `CORS_ORIGIN` / `LDE_API_URL` / `PUBLIC_SHOW_WIP_PROCESSES`, these arrived
+since v3.8.2. All are **safe by default** — this is a "confirm", not a "configure":
+
+| Var                                             | Default                            | PROD action                                                                                |
+| ----------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------ |
+| `EDOCS_MCP_ENABLED` / `EDOCS_MCP_CLIENT_SECRET` | code default **off** (`false`)     | leave unset unless you want the eDOCS assistant in PROD (then enable + set the M2M secret) |
+| `DOCCLE_*` (new `/v1/doccle` route)             | `DOCCLE_STUB_MODE` **true** (stub) | leave stubbed unless real Doccle is wanted (then base URL + creds + `STUB_MODE=false`)     |
+| `PUBLIC_SHOW_WIP_PROCESSES`                     | `false`                            | keep **false/unset** in PROD                                                               |
+
+- [ ] Confirm eDOCS-MCP + Doccle are off/stubbed on the PROD App Service (or configured
+      deliberately).
+
+### 7c. Frontend PROD build
+
+- [ ] `VITE_PA_DOSSIERS_MOCK=false` set in the frontend's `.env.production` (real PA data —
+      depends on the new backend from 7a being live).
+
+### 7d. No action needed (verified)
+
+- **DB**: the backend auto-migrates on boot — `initPaDb()` / `initDossiersDb()` run
+  `CREATE TABLE IF NOT EXISTS` **and** `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, so new
+  `pa_*` tables/columns apply idempotently to the existing PROD database. No manual step.
+- The new **`form-data`** dep installs on deploy; the **Caddy Skosmos fix** (§4) is already
+  deployed (shared across environments).
+
+### 7e. Post-deploy — smoke-test the caseworker app too
+
+§6 verifies the public site. A month of caseworker-frontend changes also ships, so once
+PROD is up, smoke-test the **caseworker app** (login → a dashboard per role), not only
+`publiek.open-regels.nl`.
+
 ## Rollback
 
 Static Web Apps deploy is push-based per branch (`acc` → ACC, `main` → prod) with
