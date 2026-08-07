@@ -261,10 +261,15 @@ export function searchPublicIndex(
   });
 
   if (terms.length) rows = rows.filter((r) => r.score > 0);
-  if (filters.types?.length) rows = rows.filter((r) => filters.types!.includes(r.it.type));
-  if (filters.orgs?.length) rows = rows.filter((r) => filters.orgs!.includes(r.it.org));
-  if (filters.audience?.length) {
-    rows = rows.filter((r) => (r.it.audience || []).some((a) => filters.audience!.includes(a)));
+
+  // Capture into const locals so TS carries the `?.length` narrowing into the
+  // filter closures — mutable properties like filters.types don't narrow past a
+  // closure boundary, which is why this previously needed non-null assertions.
+  const { types, orgs, audience } = filters;
+  if (types?.length) rows = rows.filter((r) => types.includes(r.it.type));
+  if (orgs?.length) rows = rows.filter((r) => orgs.includes(r.it.org));
+  if (audience?.length) {
+    rows = rows.filter((r) => (r.it.audience || []).some((a) => audience.includes(a)));
   }
 
   if (filters.sort === 'az') rows.sort((a, b) => a.it.title.localeCompare(b.it.title, 'nl'));
