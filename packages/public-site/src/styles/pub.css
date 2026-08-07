@@ -81,8 +81,10 @@ html {
 }
 .pub input:focus-visible,
 .pub select:focus-visible {
+  /* Blue focus ring instead of the Rijkshuisstijl yellow, on request. The 2px
+     dark outline + blue ring keep focus clearly visible (WCAG 2.4.7). */
   outline: 2px solid var(--ro-ink);
-  box-shadow: 0 0 0 4px var(--ro-focus);
+  box-shadow: 0 0 0 4px var(--ro-link);
   background: var(--ro-paper);
 }
 .pub-wrap {
