@@ -93,6 +93,25 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.2',
+      status: 'Released',
+      date: '7 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '45fb9cd',
+          author: 'Steven Gort',
+          type: 'other',
+          subject: 'Section pages seed from prerendered data, like the Regelcatalogus',
+          details: [
+            'The Berichten, Nieuws, Producten & Diensten and Procesbibliotheek pages now seed their list from data the prerender embeds per route, instead of rendering a "Laden…" placeholder and then fetching. Content is present on first client render — no loading flash that grows in and shifts the footer (the same CLS the /regels fix removed).',
+            'The raw→PublicHit mapping is extracted from SectionIndex into a shared mapToHits() so the prerender and the page produce identical items from one source; a cold load with no embedded blob still fetches through it.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.1',
       status: 'Released',
       date: '7 aug 2026',

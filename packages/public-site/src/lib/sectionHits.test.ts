@@ -35,23 +35,56 @@ describe('mapToHits', () => {
 
   it('maps nieuws (title/summary/source)', () => {
     const [hit] = mapToHits('nieuws', [
-      { id: 'n1', title: 'Kabinet', summary: 'Beleid', source: { id: 's', name: 'Rijksoverheid' }, publishedAt: '2026-07-02' },
+      {
+        id: 'n1',
+        title: 'Kabinet',
+        summary: 'Beleid',
+        source: { id: 's', name: 'Rijksoverheid' },
+        publishedAt: '2026-07-02',
+      },
     ]);
-    expect(hit).toMatchObject({ slug: 'n1', type: 'nieuws', title: 'Kabinet', org: 'Rijksoverheid' });
+    expect(hit).toMatchObject({
+      slug: 'n1',
+      type: 'nieuws',
+      title: 'Kabinet',
+      org: 'Rijksoverheid',
+    });
   });
 
   it('maps producten and keeps audience', () => {
     const [hit] = mapToHits('product', [
-      { id: 'p1', title: 'Kapvergunning', description: 'Bomen kappen', modified: '2026-06-01', audience: ['ondernemer'] },
+      {
+        id: 'p1',
+        title: 'Kapvergunning',
+        description: 'Bomen kappen',
+        modified: '2026-06-01',
+        audience: ['ondernemer'],
+      },
     ]);
-    expect(hit).toMatchObject({ type: 'product', org: 'Provincie Flevoland', audience: ['ondernemer'] });
+    expect(hit).toMatchObject({
+      type: 'product',
+      org: 'Provincie Flevoland',
+      audience: ['ondernemer'],
+    });
   });
 
   it('maps processen (key→slug, null beschrijving → empty summary)', () => {
     const [hit] = mapToHits('proces', [
-      { key: 'ZorgtoeslagProces', naam: 'Zorgtoeslag', beschrijving: null, gepubliceerd: '2026-06-01', status: 'active' },
+      {
+        key: 'ZorgtoeslagProces',
+        naam: 'Zorgtoeslag',
+        beschrijving: null,
+        gepubliceerd: '2026-06-01',
+        status: 'active',
+      },
     ]);
-    expect(hit).toMatchObject({ id: 'ZorgtoeslagProces', slug: 'ZorgtoeslagProces', type: 'proces', title: 'Zorgtoeslag', summary: '' });
+    expect(hit).toMatchObject({
+      id: 'ZorgtoeslagProces',
+      slug: 'ZorgtoeslagProces',
+      type: 'proces',
+      title: 'Zorgtoeslag',
+      summary: '',
+    });
   });
 
   it('returns [] for regel (owned by Regelcatalogus)', () => {
