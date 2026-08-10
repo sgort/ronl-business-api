@@ -15,6 +15,17 @@ afterEach(() => {
   document.body.style.overflow = '';
 });
 
+// A plain `name.includes('v2026.08.1')` also matches 'v2026.08.13' (and any
+// other version the string is a prefix of) — harmless while every patch
+// stayed single-digit, but the release history now has 2026.08.1 alongside
+// 2026.08.10-13, so a bare substring check is ambiguous. Require the version
+// not be immediately followed by another digit.
+function versionButtonName(version: string) {
+  const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`v${escaped}(?!\\d)`);
+  return (name: string) => pattern.test(name);
+}
+
 describe('ChangelogPanel', () => {
   it('renders nothing when closed', () => {
     const { container } = render(<ChangelogPanel isOpen={false} onClose={vi.fn()} />);
@@ -27,13 +38,13 @@ describe('ChangelogPanel', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     const latest = changelog.versions[0];
     const latestToggle = screen.getByRole('button', {
-      name: (name) => name.includes(`v${latest.version}`),
+      name: versionButtonName(latest.version),
     });
     expect(latestToggle).toHaveAttribute('aria-expanded', 'true');
 
     // Every version gets its own toggle button.
     const versionButtons = changelog.versions.map((v) =>
-      screen.getByRole('button', { name: (name) => name.includes(`v${v.version}`) })
+      screen.getByRole('button', { name: versionButtonName(v.version) })
     );
     expect(versionButtons).toHaveLength(changelog.versions.length);
   });
@@ -44,7 +55,7 @@ describe('ChangelogPanel', () => {
 
     const second = changelog.versions[1];
     const toggle = screen.getByRole('button', {
-      name: (name) => name.includes(`v${second.version}`),
+      name: versionButtonName(second.version),
     });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
@@ -101,7 +112,7 @@ describe('ChangelogPanel', () => {
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
 
     const toggle = screen.getByRole('button', {
-      name: (name) => name.includes(`v${commitVersion.version}`),
+      name: versionButtonName(commitVersion.version),
     });
     if (toggle.getAttribute('aria-expanded') === 'false') {
       // Only expand if not already the default-open latest version.

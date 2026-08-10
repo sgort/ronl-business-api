@@ -4,15 +4,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Portfolio from './Portfolio';
 import { getMockPortfolio, MIJN_PROJECT_NRS } from '../../pages/infra-board/infra-board.data';
-import { PHASES } from '../../pages/infra-board/rip-model';
+import { RIP_PHASES, RIP_STAGES } from '../../pages/infra-board/rip-phases.catalog';
 
 const mockUseActivePhase1 = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
   return { ...actual, useActivePhase1: mockUseActivePhase1 };
 });
-
-const phaseLabels = PHASES.map((p) => p.name);
 
 beforeEach(() => {
   mockUseActivePhase1.mockReturnValue({
@@ -29,7 +27,7 @@ afterEach(() => {
 
 describe('Portfolio', () => {
   it('shows the total project count and defaults to the Tijdlijn (Gantt) view', () => {
-    const { container } = render(<Portfolio phaseLabels={phaseLabels} onOpenProject={vi.fn()} />);
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
     const total = getMockPortfolio().length;
     expect(screen.getByText(`${total} projecten`, { exact: false })).toBeInTheDocument();
     expect(container.querySelector('.pb-gantt')).not.toBeNull();
@@ -38,7 +36,7 @@ describe('Portfolio', () => {
 
   it('switches to the Kanban view', async () => {
     const user = userEvent.setup();
-    const { container } = render(<Portfolio phaseLabels={phaseLabels} onOpenProject={vi.fn()} />);
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Per fase' }));
 
@@ -48,7 +46,7 @@ describe('Portfolio', () => {
 
   it('"Mijn" scope filters to only MIJN_PROJECT_NRS', async () => {
     const user = userEvent.setup();
-    render(<Portfolio phaseLabels={phaseLabels} onOpenProject={vi.fn()} />);
+    render(<Portfolio onOpenProject={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: `Mijn · ${MIJN_PROJECT_NRS.length}` }));
 
@@ -61,7 +59,7 @@ describe('Portfolio', () => {
   it('clicking a project row calls onOpenProject with its project number', async () => {
     const onOpenProject = vi.fn();
     const user = userEvent.setup();
-    render(<Portfolio phaseLabels={phaseLabels} onOpenProject={onOpenProject} />);
+    render(<Portfolio onOpenProject={onOpenProject} />);
 
     const first = getMockPortfolio()[0];
     await user.click(screen.getByText(first.naam));
@@ -86,9 +84,49 @@ describe('Portfolio', () => {
       reload: vi.fn(),
     });
 
-    render(<Portfolio phaseLabels={phaseLabels} onOpenProject={vi.fn()} />);
+    render(<Portfolio onOpenProject={vi.fn()} />);
 
     expect(screen.getByText(/actieve RIP Fase 1 instanties/)).toBeInTheDocument();
     expect(screen.getByText('Live project')).toBeInTheDocument();
+  });
+
+  it("a Gantt bar for a project's current phase carries the real RIP code as its label", () => {
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
+    const first = getMockPortfolio()[0];
+    const currentBar = container.querySelector('.pb-gantt-bar.current');
+    expect(currentBar).not.toBeNull();
+    expect(currentBar!.textContent).toContain(first.ripPhaseCode);
+  });
+
+  it('Kanban renders twelve columns grouped under five stage headers', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Per fase' }));
+
+    const columns = container.querySelectorAll('.pb-kan-col');
+    expect(columns.length).toBe(RIP_PHASES.length);
+    RIP_STAGES.forEach((s) => {
+      expect(screen.getByText(`${s.code} · ${s.name}`)).toBeInTheDocument();
+    });
+  });
+
+  it('shows Kanban cards with status wachtend as "Wacht op start van {code}" instead of their milestone', async () => {
+    const user = userEvent.setup();
+    render(<Portfolio onOpenProject={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Per fase' }));
+
+    const wachtendProject = getMockPortfolio().find((p) => p.ripPhaseState === 'wachtend');
+    expect(wachtendProject).toBeDefined();
+    expect(
+      screen.getAllByText(`Wacht op start van ${wachtendProject!.ripPhaseCode}`, { exact: false })
+        .length
+    ).toBeGreaterThan(0);
+  });
+
+  it('shows a wachtend swatch in the legend', () => {
+    render(<Portfolio onOpenProject={vi.fn()} />);
+    expect(screen.getByText('Wachtend')).toBeInTheDocument();
   });
 });

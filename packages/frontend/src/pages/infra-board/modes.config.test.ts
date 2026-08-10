@@ -3,15 +3,25 @@ import {
   findModeForSection,
   INFRA_GATE_ROLE,
   isRailItemVisible,
+  phaseCodeFromSectionId,
+  phaseSectionId,
   type InfraRailItem,
 } from './modes.config';
+import { RIP_PHASES } from './rip-phases.catalog';
 
 describe('findModeForSection', () => {
   it('resolves each section id to the mode that owns it', () => {
     expect(findModeForSection('overzicht')).toBe('mijn-dag');
     expect(findModeForSection('project-updates')).toBe('mijn-dag');
-    expect(findModeForSection('portfolio')).toBe('portfolio');
-    expect(findModeForSection('rip-fase1-wip')).toBe('beheer');
+    // Portfolio's rail carries stats only, no nav item with id 'portfolio' —
+    // see the rail-stats-panel spec, Section 4. The top-nav tab still
+    // routes to Portfolio directly via setMode, so this is expected.
+    expect(findModeForSection('portfolio')).toBeNull();
+    // Faseladder (like the 12 phase items and Archief) is hand-rendered by
+    // InfraBoardDashboard.tsx now, not listed in modes.config's groups —
+    // see the rail-stats-panel spec, Task 4. findModeForSection can't
+    // resolve it from the static config anymore.
+    expect(findModeForSection('faseladder')).toBeNull();
     expect(findModeForSection('profiel')).toBe('beheer');
   });
 
@@ -52,5 +62,17 @@ describe('isRailItemVisible', () => {
 
   it('shows an item with neither authRequired nor requiredRoles regardless of context', () => {
     expect(isRailItemVisible(openItem, { isAuthenticated: false, userRoles: [] })).toBe(true);
+  });
+});
+
+describe('phaseSectionId / phaseCodeFromSectionId', () => {
+  it('round-trips every phase code', () => {
+    for (const p of RIP_PHASES) {
+      expect(phaseCodeFromSectionId(phaseSectionId(p.code))).toBe(p.code);
+    }
+  });
+
+  it('returns undefined for a non-phase section id', () => {
+    expect(phaseCodeFromSectionId('archief')).toBeUndefined();
   });
 });

@@ -108,6 +108,51 @@ export class OperatonService {
   }
 
   /**
+   * Given a list of process-definition keys, return the subset that is
+   * actually deployed on this environment's Operaton instance. One query
+   * regardless of how many keys are asked about.
+   */
+  async getDeployedProcessKeys(keys: string[]): Promise<string[]> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { keysIn: keys.join(','), latestVersion: true },
+      });
+      const found = new Set((response.data as Array<{ key: string }>).map((d) => d.key));
+      return keys.filter((k) => found.has(k));
+    } catch (error) {
+      logger.error('Failed to query deployed process keys', {
+        keys,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * For each given process-definition key, the count of active (WIP) and
+   * completed (Gereed) instances on this environment's Operaton instance.
+   * Count-only queries — no instance payloads.
+   */
+  async getPhaseInstanceCounts(
+    keys: string[]
+  ): Promise<Record<string, { wip: number; gereed: number }>> {
+    const entries = await Promise.all(
+      keys.map(async (key) => {
+        const [wipRes, gereedRes] = await Promise.all([
+          this.client.get('/process-instance/count', {
+            params: { processDefinitionKey: key },
+          }),
+          this.client.get('/history/process-instance/count', {
+            params: { processDefinitionKey: key, finished: true },
+          }),
+        ]);
+        return [key, { wip: wipRes.data.count, gereed: gereedRes.data.count }] as const;
+      })
+    );
+    return Object.fromEntries(entries);
+  }
+
+  /**
    * Start a process instance
    */
   async startProcess(
@@ -143,11 +188,23 @@ export class OperatonService {
 
       return response.data;
     } catch (error) {
+      const operatonBody = axios.isAxiosError(error) ? error.response?.data : null;
+      const operatonMessage: string = operatonBody?.message ?? '';
+
       logger.error('Failed to start process', {
         processKey,
         tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+
+      // Detect a missing deployment and throw a descriptive message instead
+      // of leaking Operaton's raw engine wording.
+      if (operatonMessage.includes('No matching process definition with key')) {
+        throw new Error(
+          `Proces '${processKey}' is niet gevonden op deze Operaton-omgeving. Controleer of de BPMN-bundel voor dit proces is gedeployed en probeer het opnieuw.`
+        );
+      }
+
       throw error;
     }
   }

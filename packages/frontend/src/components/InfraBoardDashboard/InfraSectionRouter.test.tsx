@@ -16,12 +16,14 @@ vi.mock('./ProjectDetail', () => ({
   },
 }));
 
-vi.mock('../CaseworkerDashboard/RipFase1Section', () => ({ default: () => <div>rip-fase1</div> }));
-vi.mock('../CaseworkerDashboard/RipFase1WipSection', () => ({
-  default: () => <div>rip-fase1-wip</div>,
-}));
-vi.mock('../CaseworkerDashboard/RipFase1GereedSection', () => ({
-  default: () => <div>rip-fase1-gereed</div>,
+vi.mock('./FaseladderOverview', () => ({ default: () => <div>faseladder</div> }));
+
+const mockPhaseDetail = vi.hoisted(() => vi.fn());
+vi.mock('./PhaseDetail', () => ({
+  default: (props: never) => {
+    mockPhaseDetail(props);
+    return <div>phase-detail</div>;
+  },
 }));
 
 const mockArchiefSection = vi.hoisted(() => vi.fn());
@@ -59,10 +61,11 @@ const baseProps = {
   openProject: null,
   user: null,
   tenantConfig: null,
-  phaseLabels: [],
   onOpenProject: vi.fn(),
   onBack: vi.fn(),
   onGotoPortfolio: vi.fn(),
+  onOpenPhase: vi.fn(),
+  onBackToFaseladder: vi.fn(),
 };
 
 describe('InfraSectionRouter', () => {
@@ -95,15 +98,19 @@ describe('InfraSectionRouter', () => {
   it.each([
     ['profiel', 'profiel'],
     ['rollen', 'rollen'],
-    ['rip-fase1', 'rip-fase1'],
-    ['rip-fase1-wip', 'rip-fase1-wip'],
-    ['rip-fase1-gereed', 'rip-fase1-gereed'],
+    ['faseladder', 'faseladder'],
     ['iou-gebruiksscenario', 'iou-gebruiksscenario'],
     ['iou-feedback', 'iou-feedback'],
     ['gereedschap-overzicht', 'gereedschap'],
   ])('beheer section "%s" routes to its component', (section, text) => {
     render(<InfraSectionRouter {...baseProps} mode="beheer" section={section} />);
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it('a fase-* section renders PhaseDetail with the matching phase code', () => {
+    render(<InfraSectionRouter {...baseProps} mode="beheer" section="fase-r2-1" />);
+    expect(screen.getByText('phase-detail')).toBeInTheDocument();
+    expect(mockPhaseDetail).toHaveBeenCalledWith(expect.objectContaining({ phaseCode: 'R2.1' }));
   });
 
   it('an unrecognised beheer section falls back to ProfielSection', () => {

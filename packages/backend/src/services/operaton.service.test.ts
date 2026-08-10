@@ -116,6 +116,96 @@ describe('startProcess', () => {
     mockClient.post.mockRejectedValue(new Error('start failed'));
     await expect(svc.startProcess('P', req(), 't')).rejects.toThrow('start failed');
   });
+
+  it('translates a missing-deployment 404 into a friendly Dutch message', async () => {
+    mockClient.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          type: 'RestException',
+          message: 'No matching process definition with key: RipPhase1Process and no tenant-id',
+        },
+      },
+    });
+    await expect(svc.startProcess('RipPhase1Process', req(), 'flevoland')).rejects.toThrow(
+      /RipPhase1Process' is niet gevonden op deze Operaton-omgeving/
+    );
+  });
+});
+
+describe('getDeployedProcessKeys', () => {
+  it('queries with keysIn + latestVersion and returns only the deployed subset, in input order', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ key: 'RipPhase1Process' }, { key: 'SomeOtherProcess' }],
+    });
+
+    const result = await svc.getDeployedProcessKeys(['RipPhase1Process', 'NotDeployedYet']);
+
+    expect(result).toEqual(['RipPhase1Process']);
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { keysIn: 'RipPhase1Process,NotDeployedYet', latestVersion: true },
+    });
+  });
+
+  it('returns an empty array when none of the requested keys are deployed', async () => {
+    mockClient.get.mockResolvedValue({ data: [] });
+
+    const result = await svc.getDeployedProcessKeys(['NotDeployedYet']);
+
+    expect(result).toEqual([]);
+  });
+
+  it('rethrows on failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+
+    await expect(svc.getDeployedProcessKeys(['RipPhase1Process'])).rejects.toThrow('boom');
+  });
+});
+
+describe('getPhaseInstanceCounts', () => {
+  it('queries active + completed counts per key and maps the result', async () => {
+    mockClient.get.mockImplementation(
+      (url: string, _config: { params: Record<string, unknown> }) => {
+        if (url === '/process-instance/count') {
+          return Promise.resolve({ data: { count: 3 } });
+        }
+        if (url === '/history/process-instance/count') {
+          return Promise.resolve({ data: { count: 7 } });
+        }
+        throw new Error(`unexpected url ${url}`);
+      }
+    );
+
+    const result = await svc.getPhaseInstanceCounts(['RipPhase1Process']);
+
+    expect(result).toEqual({ RipPhase1Process: { wip: 3, gereed: 7 } });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance/count', {
+      params: { processDefinitionKey: 'RipPhase1Process' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/count', {
+      params: { processDefinitionKey: 'RipPhase1Process', finished: true },
+    });
+  });
+
+  it('queries multiple keys in parallel', async () => {
+    mockClient.get.mockImplementation(
+      (_url: string, config: { params: { processDefinitionKey: string } }) =>
+        Promise.resolve({ data: { count: config.params.processDefinitionKey === 'A' ? 1 : 2 } })
+    );
+
+    const result = await svc.getPhaseInstanceCounts(['A', 'B']);
+
+    expect(result).toEqual({
+      A: { wip: 1, gereed: 1 },
+      B: { wip: 2, gereed: 2 },
+    });
+  });
+
+  it('rethrows on failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+
+    await expect(svc.getPhaseInstanceCounts(['RipPhase1Process'])).rejects.toThrow('boom');
+  });
 });
 
 describe('getActivityHistory', () => {

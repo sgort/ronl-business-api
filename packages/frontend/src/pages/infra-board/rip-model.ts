@@ -9,7 +9,7 @@
  * NOTE: only Fase 1 (R2.1) is modelled. Fases 2–6 are lifecycle placeholders.
  */
 
-export type StatusKey = 'done' | 'active' | 'risk' | 'overdue' | 'action' | 'todo';
+export type StatusKey = 'done' | 'active' | 'wachtend' | 'risk' | 'overdue' | 'action' | 'todo';
 
 export const STATUS: Record<
   StatusKey,
@@ -17,6 +17,7 @@ export const STATUS: Record<
 > = {
   done: { label: 'Afgerond', short: 'Afgerond', color: '#3fa535', glyph: '✓' },
   active: { label: 'Loopt', short: 'Loopt', color: '#0046ad', glyph: '●' },
+  wachtend: { label: 'Wachtend', short: 'Wacht', color: '#7a5af0', glyph: '○' },
   risk: { label: 'Risico', short: 'Risico', color: '#e5b700', glyph: '▲' },
   overdue: { label: 'Te laat', short: 'Te laat', color: '#b0103c', glyph: '■' },
   action: { label: 'Actie nodig', short: 'Actie', color: '#e70077', glyph: '!' },
@@ -29,28 +30,6 @@ export const HEALTH: Record<HealthKey, { label: string; color: string }> = {
   geel: { label: 'Aandacht', color: '#e5b700' },
   rood: { label: 'Risico', color: '#b0103c' },
 };
-
-export interface Phase {
-  n: number;
-  code: string;
-  name: string;
-  defaultName: string;
-}
-
-/** Lifecycle phases. Fase 1 is authoritative; 2–6 are placeholders. */
-export const PHASES: Phase[] = [
-  {
-    n: 1,
-    code: 'R2.1',
-    name: 'Projectplan Planvoorbereiding',
-    defaultName: 'Projectplan Planvoorbereiding',
-  },
-  { n: 2, code: 'R2.2', name: 'Planuitwerking (VO)', defaultName: 'Planuitwerking (VO)' },
-  { n: 3, code: 'R2.3', name: 'Definitief ontwerp', defaultName: 'Definitief ontwerp' },
-  { n: 4, code: 'R2.4', name: 'Aanbesteding', defaultName: 'Aanbesteding' },
-  { n: 5, code: 'R3', name: 'Uitvoering', defaultName: 'Uitvoering' },
-  { n: 6, code: 'R4', name: 'Decharge', defaultName: 'Decharge' },
-];
 
 export interface RoleDef {
   key: string;
@@ -92,6 +71,7 @@ export const FASE1_LANES: SwimLane[] = [
   { key: 'rip-team', label: 'RIP-team' },
 ];
 const ROW = Object.fromEntries(FASE1_LANES.map((l, i) => [l.key, i]));
+const ROW_TO_LANE_KEY: string[] = FASE1_LANES.map((l) => l.key);
 
 export type NodeKind = 'start' | 'end' | 'task' | 'service' | 'gateway';
 export interface SwimNode {
@@ -337,4 +317,81 @@ export function nodeStatusFromHistory(
     }
   }
   return out;
+}
+
+export interface WipStepInfo {
+  step: string;
+  stepRole: string;
+  daysInStep: number;
+  blocked: string | null;
+}
+
+/**
+ * Derives the current-step summary for one process instance from its
+ * activity history. The running node (no endTime, not canceled) is the
+ * current step; if it's the target of a `back: true` edge, the gateway
+ * that sent it back is surfaced as `blocked`. R2.1-specific —
+ * FASE1_NODES/FASE1_EDGES model only R2.1's BPMN.
+ */
+export function getWipStepInfo(history: ActivityHistoryItem[]): WipStepInfo | null {
+  const running = history.find((h) => !h.endTime && !h.canceled);
+  if (!running) return null;
+  const node = FASE1_NODES.find((n) => n.bpmnId === running.activityId);
+  if (!node) return null;
+  const backEdge = FASE1_EDGES.find((e) => e.back && e.to === node.id);
+  // A node targeted by a back edge is only "blocked" if this is a
+  // genuine rework re-execution — i.e. this activityId has run before.
+  // Two FASE1 nodes (t_aanvullen2, t_aanvullen4) are ALSO the normal
+  // forward-path target of an earlier task/gateway, so a first-ever
+  // visit must not be reported as blocked just because SOME edge into
+  // the node happens to be a back edge.
+  const executionCount = history.filter((h) => h.activityId === running.activityId).length;
+  const blocked =
+    backEdge && executionCount > 1
+      ? (FASE1_NODES.find((n) => n.id === backEdge.from)?.label ?? null)
+      : null;
+  const daysInStep = Math.floor(
+    (Date.now() - new Date(running.startTime).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return {
+    step: node.label,
+    stepRole: roleByKey(ROW_TO_LANE_KEY[node.row]).label,
+    daysInStep,
+    blocked,
+  };
+}
+
+/**
+ * Counts rework-loop re-executions in a (typically completed) instance's
+ * activity history: for each `back: true` edge in FASE1_EDGES, its target
+ * node's bpmnId is counted once per execution beyond the first — the
+ * first execution is the normal forward pass, not a loop.
+ */
+export function countReworkLoops(history: ActivityHistoryItem[]): number {
+  const backTargetBpmnIds = new Set(
+    FASE1_EDGES.filter((e) => e.back)
+      .map((e) => FASE1_NODES.find((n) => n.id === e.to)?.bpmnId)
+      .filter((id): id is string => !!id)
+  );
+  let loops = 0;
+  for (const bpmnId of backTargetBpmnIds) {
+    const count = history.filter((h) => h.activityId === bpmnId).length;
+    loops += Math.max(0, count - 1);
+  }
+  return loops;
+}
+
+export interface DocProgress {
+  docsDone: number;
+  docsTotal: number;
+}
+
+/**
+ * Product-progress for a live R2.1 instance: how many of FASE1_DOCS are
+ * finished, per nodeStatusFromHistory's node-status derivation.
+ */
+export function getDocProgress(history: ActivityHistoryItem[]): DocProgress {
+  const status = nodeStatusFromHistory(history);
+  const docsDone = FASE1_DOCS.filter((d) => status[d.produceNode] === 'done').length;
+  return { docsDone, docsTotal: FASE1_DOCS.length };
 }

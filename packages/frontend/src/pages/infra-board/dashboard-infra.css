@@ -760,3 +760,375 @@
 .pb-tweaks .pb-tweak-labels label { display: flex; align-items: center; gap: 7px; }
 .pb-tweaks .pb-tweak-labels .code { font-family: "JetBrains Mono", monospace; font-size: 9px; color: #6b7280; width: 30px; flex-shrink: 0; }
 .pb-tweaks .pb-tweak-labels input { flex: 1; min-width: 0; border: 1px solid #d1d5db; padding: 4px 6px; font: inherit; font-size: 11.5px; }
+
+/* ============================================================
+   FASELADDER OVERVIEW
+   ============================================================ */
+.pbd .pb-kpi-row {
+  display: flex;
+  gap: 16px;
+  margin: 16px 0 24px;
+  flex-wrap: wrap;
+}
+.pbd .pb-kpi {
+  border: 1px solid var(--v2-rule);
+  background: var(--v2-bg);
+  padding: 14px 18px;
+  min-width: 160px;
+}
+.pbd .pb-kpi .v {
+  display: block;
+  font-family: var(--v2-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--v2-ink);
+}
+.pbd .pb-kpi .l {
+  display: block;
+  font-size: 11px;
+  color: var(--v2-ink-3);
+  margin-top: 4px;
+}
+.pbd .pb-faseladder-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pbd .pb-faseladder-table th,
+.pbd .pb-faseladder-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--v2-rule);
+  text-align: left;
+}
+.pbd .pb-stage-row th {
+  background: var(--v2-bg);
+  font-family: var(--v2-serif);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pbd .pb-deploy-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* PhaseDetail — header, side panel, Starten tab */
+.pbd .pb-back-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  background: none;
+  border: none;
+  color: var(--v2-accent);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+.pbd .pb-phase-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--v2-chrome);
+  color: #fff;
+  font-family: var(--v2-mono);
+  font-size: 13px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.pbd .pb-meta-strip {
+  display: flex;
+  gap: 24px;
+  border: 1px solid var(--v2-rule);
+  padding: 12px 16px;
+  margin: 14px 0 20px;
+}
+.pbd .pb-meta-strip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pbd .pb-meta-strip .l {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v2-ink-3);
+}
+.pbd .pb-meta-strip .v {
+  font-size: 13px;
+  color: var(--v2-ink);
+}
+.pbd .pb-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--v2-rule);
+  margin-bottom: 16px;
+}
+.pbd .pb-tabs button {
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 2px solid transparent;
+}
+.pbd .pb-tabs button.active {
+  border-bottom-color: var(--v2-accent);
+  font-weight: 600;
+}
+.pbd .pb-tab-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  background: var(--v2-bg);
+  border-radius: 8px;
+  font-size: 11px;
+}
+.pbd .pb-starten-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 24px;
+}
+.pbd .pb-ready-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.pbd .pb-ready-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v2-rule);
+}
+.pbd .pb-badge-klaar {
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: #e7f6e8;
+  color: #3fa535;
+  font-size: 11px;
+  border-radius: 3px;
+}
+.pbd .pb-badge-afwijking {
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: #fdf0e0;
+  color: #b85c00;
+  font-size: 11px;
+  border-radius: 3px;
+}
+.pbd .pb-ready-list .sub {
+  font-size: 12px;
+  color: var(--v2-ink-3);
+  margin-top: 4px;
+}
+.pbd .pb-side-panel {
+  border: 1px solid var(--v2-rule);
+  padding: 16px;
+}
+.pbd .pb-banner {
+  padding: 10px 14px;
+  background: #fdf6e3;
+  border: 1px solid #e5b700;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.pbd .pb-banner-success {
+  background: #e7f6e8;
+  border-color: #3fa535;
+}
+.pbd .pb-banner-error {
+  background: #fdeceb;
+  border-color: #b0103c;
+}
+.pbd .pb-placeholder {
+  color: var(--v2-ink-3);
+  font-style: italic;
+}
+.pbd .pb-instance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.pbd .pb-instance-table th,
+.pbd .pb-instance-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--v2-rule);
+  text-align: left;
+}
+.pbd .pb-health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.pbd .pb-gereed-summary {
+  color: var(--v2-ink-2);
+  font-size: 13px;
+  margin: 12px 0 4px;
+}
+
+.pbd .pb-parked-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.pbd .pb-parked-list li {
+  position: relative;
+  padding: 10px 0 10px 0;
+  padding-right: 24px;
+  border-bottom: 1px solid var(--v2-rule);
+}
+.pbd .pb-parked-list .sub {
+  font-size: 12px;
+  color: var(--v2-ink-3);
+  margin-top: 4px;
+}
+.pbd .pb-parked-list .pb-health-dot {
+  position: absolute;
+  right: 4px;
+  top: 14px;
+}
+
+.pbd .pb-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 7px;
+  vertical-align: 1px;
+}
+.pbd .pb-kan-col.stage-start {
+  margin-left: 14px;
+}
+.pbd .pb-kan-stage {
+  font-family: var(--v2-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+  white-space: nowrap;
+  min-height: 14px;
+  line-height: 14px;
+}
+.pbd .pb-kan-head .t .kc {
+  display: inline-block;
+  font-family: var(--v2-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+  padding: 1px 5px;
+  margin-right: 7px;
+  letter-spacing: 0.03em;
+}
+
+/* Wat er gebeurt bij starten — Tailwind's Preflight (@tailwind base) strips
+   list-style/margin/padding from every ol/ul app-wide, and this card's
+   <ol>/<dl> never got counter-restoring CSS, so it silently rendered as
+   plain unnumbered running text instead of the design's numbered steps +
+   label/value rows. */
+.pbd .pb-side-panel h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.pbd .pb-side-panel ol {
+  list-style: decimal;
+  padding-left: 18px;
+  margin: 0 0 16px;
+}
+.pbd .pb-side-panel ol li {
+  font-size: 13px;
+  color: var(--v2-ink);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.pbd .pb-side-panel dl {
+  margin: 0;
+}
+.pbd .pb-side-panel dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v2-rule);
+}
+.pbd .pb-side-panel dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v2-ink-3);
+}
+.pbd .pb-side-panel dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-ink);
+}
+.pbd .pb-side-panel .pb-bron {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--v2-ink-3);
+}
+
+/* Rail phase-item code chip + badges — Beheer's phase nav items, and
+   Portfolio's stage-grouped stat rows (rail-stats-panel spec). The base
+   .cwd-v2 .v2-rail-item rule (dashboard-v2.css) is already display:flex;
+   justify-content:space-between — no extra layout rule needed here, just
+   the chip/badge/muted appearance. */
+.pbd .pb-rail-code {
+  font-family: var(--v2-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-ink-3);
+  margin-right: 8px;
+  letter-spacing: 0.04em;
+}
+.pbd .v2-rail-item.active .pb-rail-code {
+  color: inherit;
+  opacity: 0.75;
+}
+.pbd .v2-rail-item.muted {
+  opacity: 0.62;
+}
+.pbd .pb-rail-badge {
+  font-family: var(--v2-mono);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--pb-blue);
+  color: #fff;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+}
+.pbd .pb-rail-badge.parked {
+  background: #eceef1;
+  color: var(--v2-ink-2);
+  border: 1px solid var(--v2-rule);
+}
+
+/* Two rules missed in the original port of docs/infra-beheer-handoff-v2/
+   reference/project-board.css — added here to close the gap vs. reference. */
+
+/* Portfolio's stat-row phase code chip (inside a .pb-rail-stat) is a
+   smaller, column-aligned, grey variant distinct from the Beheer-nav
+   .pb-rail-code above (reference project-board.css line ~865). Without
+   this, it fell back to the 10px/--v2-ink-3 nav-item rule. */
+.pbd .pb-rail-stat .pb-rail-code {
+  display: inline-block;
+  min-width: 30px;
+  font-family: var(--v2-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--pb-grey);
+  letter-spacing: 0.04em;
+}
+
+/* Long Beheer phase names (e.g. R5.3's "(Vervroegde) ingebruikname /
+   oplevering") can butt up against the count/parked badge — the base
+   .cwd-v2 .v2-rail-item rule (dashboard-v2.css) has no gap between its
+   flex children. */
+.pbd .v2-rail-item {
+  gap: 8px;
+}

@@ -30,7 +30,7 @@ export default function InfraCommandPalette({
     const views: Hit[] = [
       { kind: 'view', id: 'mijn-dag', label: 'Mijn dag', tag: 'weergave' },
       { kind: 'view', id: 'portfolio', label: 'Portfolio', tag: 'weergave' },
-      { kind: 'view', id: 'beheer', label: 'Beheer · RIP Fase 1', tag: 'weergave' },
+      { kind: 'view', id: 'beheer', label: 'Beheer · Faseladder', tag: 'weergave' },
     ];
     const liveRows: Hit[] = (live ?? []).map((i) => ({
       kind: 'project',

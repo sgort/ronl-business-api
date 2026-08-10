@@ -26,15 +26,38 @@ import {
   INFRA_GATE_ROLE,
   findModeForSection,
   isRailItemVisible,
+  phaseSectionId,
   type InfraModeId,
 } from './infra-board/modes.config';
-import { PHASES } from './infra-board/rip-model';
 import InfraSectionRouter from '../components/InfraBoardDashboard/InfraSectionRouter';
 import InfraCommandPalette from '../components/InfraBoardDashboard/InfraCommandPalette';
 import InfraDock from '../components/InfraBoardDashboard/InfraDock';
 import InfraNoAccessPanel from '../components/InfraBoardDashboard/InfraNoAccessPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
 import ChangelogPanel from './ChangelogPanel';
+import {
+  useOpenTasks,
+  useActivePhase1,
+  useDeployedProcessKeys,
+  useLivePhaseCounts,
+} from '../services/infra.api';
+import {
+  getMockPortfolio,
+  getMockTodos,
+  getMockPhaseCounts,
+  makePhase1Row,
+  type PortfolioProject,
+} from './infra-board/infra-board.data';
+import { RIP_PHASES } from './infra-board/rip-phases.catalog';
+import { combinePhaseCounts, normalizeLiveCounts } from './infra-board/rip-phase-counts';
+import {
+  mijnDagRailStats,
+  portfolioRailStageGroups,
+  portfolioRailTransitions,
+  portfolioRailHealth,
+  beheerRailSubtitle,
+  beheerRailPhaseGroups,
+} from './infra-board/rail-stats';
 
 import './infra-board/dashboard-infra.css';
 
@@ -68,7 +91,6 @@ export default function InfraBoardDashboard() {
   // Tweaks
   const [accent, _setAccent] = useState('#e70077');
   const [density, _setDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [phaseLabels, _setPhaseLabels] = useState<string[]>(PHASES.map((p) => p.name));
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -123,6 +145,61 @@ export default function InfraBoardDashboard() {
         .map((g) => ({ ...g, items: g.items.filter((i) => isRailItemVisible(i, gateContext)) }))
         .filter((g) => g.items.length > 0),
     [currentMode, gateContext]
+  );
+
+  // Live data for the rail stats panels. Unconditional, like every other
+  // Infra-board component's hook calls — cheap, and consistent with how
+  // Portfolio.tsx/FaseladderOverview.tsx already source their own live data
+  // rather than lifting it here and threading it down as props.
+  const { data: liveTasks } = useOpenTasks();
+  const { data: liveInstances } = useActivePhase1();
+  const { data: deployment } = useDeployedProcessKeys();
+  const { data: liveCountsRaw } = useLivePhaseCounts();
+
+  const liveRows: PortfolioProject[] = (liveInstances ?? []).map(makePhase1Row);
+  const liveNrs = new Set(liveRows.map((r) => r.nr));
+  const allProjects = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
+
+  const deployedKeys = new Set(deployment?.deployedKeys ?? []);
+  const combinedCounts = combinePhaseCounts(
+    getMockPhaseCounts(),
+    normalizeLiveCounts(liveCountsRaw?.counts ?? {}, RIP_PHASES)
+  );
+
+  const mijnDagStats = mijnDagRailStats(liveTasks, getMockTodos(), allProjects);
+  const portfolioStageGroups = portfolioRailStageGroups(allProjects);
+  const portfolioTransitions = portfolioRailTransitions(allProjects);
+  const portfolioHealth = portfolioRailHealth(allProjects);
+  const beheerSubtitle = beheerRailSubtitle(combinedCounts);
+
+  const beheerPhaseGroups = beheerRailPhaseGroups(combinedCounts, deployedKeys);
+
+  // Shared renderer for every plain (non-badge) rail group — Account, IOU,
+  // Hulpmiddelen, and (for mijn-dag/portfolio's own unaffected paths)
+  // whatever they still pass through here. Beheer's Faseladder/phase/
+  // Archief section is hand-rendered separately below, spliced between
+  // visibleGroups[0] (Account) and visibleGroups.slice(1) (IOU,
+  // Hulpmiddelen) — see the JSX.
+  const renderNavGroup = (g: (typeof visibleGroups)[number], key: string | number) => (
+    <div key={key} className="v2-rail-group">
+      {g.label && <div className="v2-rail-group-label">{g.label}</div>}
+      <ul className="v2-rail-list">
+        {g.items.map((it) => (
+          <li key={it.id}>
+            <button
+              type="button"
+              className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''}`}
+              onClick={() => {
+                setOpenProject(null);
+                setActiveSection(it.id);
+              }}
+            >
+              <span>{it.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 
   const goToProject = (ref: ProjectRef) => setOpenProject(ref);
@@ -223,28 +300,171 @@ export default function InfraBoardDashboard() {
                 Persoonlijk · {user?.name ?? user?.preferred_username}
               </span>
             )}
+            {mode === 'portfolio' && isAuth && (
+              <span className="pb-rail-sub">
+                {allProjects.length} projecten · venster 2022–2027
+              </span>
+            )}
+            {mode === 'beheer' && isAuth && <span className="pb-rail-sub">{beheerSubtitle}</span>}
           </div>
-          {visibleGroups.map((g, i) => (
-            <div key={g.label || i} className="v2-rail-group">
-              {g.label && <div className="v2-rail-group-label">{g.label}</div>}
-              <ul className="v2-rail-list">
-                {g.items.map((it) => (
-                  <li key={it.id}>
-                    <button
-                      type="button"
-                      className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''}`}
-                      onClick={() => {
-                        setOpenProject(null);
-                        setActiveSection(it.id);
-                      }}
-                    >
-                      <span>{it.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+
+          {mode === 'mijn-dag' && isAuth && (
+            <div className="pb-rail-stats">
+              {mijnDagStats.map((s) => (
+                <div className="pb-rail-stat" key={s.label}>
+                  <span>
+                    {s.dotColor && <span className="dot" style={{ background: s.dotColor }} />}
+                    {s.label}
+                  </span>
+                  <b>{s.value}</b>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {mode === 'portfolio' && isAuth && (
+            <>
+              {portfolioStageGroups.map(({ stage, phases }) => (
+                <div className="v2-rail-group" key={stage.code}>
+                  <div className="v2-rail-group-label">
+                    <span className="pb-stage-dot" style={{ background: stage.color }} />
+                    {stage.code} · {stage.name}
+                  </div>
+                  <div className="pb-rail-stats">
+                    {phases.map(({ phase, count }) => (
+                      <div className="pb-rail-stat" key={phase.code}>
+                        <span>
+                          <span className="pb-rail-code">{phase.code}</span>
+                          {phase.name}
+                        </span>
+                        <b>{count}</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="v2-rail-group">
+                <div className="v2-rail-group-label">Overgangen</div>
+                <div className="pb-rail-stats">
+                  {portfolioTransitions.map((s) => (
+                    <div className="pb-rail-stat" key={s.label}>
+                      <span>
+                        {s.dotColor && <span className="dot" style={{ background: s.dotColor }} />}
+                        {s.label}
+                      </span>
+                      <b>{s.value}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="v2-rail-group">
+                <div className="v2-rail-group-label">Gezondheid</div>
+                <div className="pb-rail-stats">
+                  {portfolioHealth.map((s) => (
+                    <div className="pb-rail-stat" key={s.label}>
+                      <span>
+                        {s.dotColor && <span className="dot" style={{ background: s.dotColor }} />}
+                        {s.label}
+                      </span>
+                      <b>{s.value}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {mode === 'beheer' ? (
+            <>
+              {/* visibleGroups[0] is always the Account group in beheer
+                  mode — Account/IOU/Hulpmiddelen all gate on authRequired
+                  only (no role checks), so filtering never drops or
+                  reorders one without the others. */}
+              {visibleGroups[0] && renderNavGroup(visibleGroups[0], visibleGroups[0].label ?? 0)}
+
+              {isAuth && (
+                <div className="v2-rail-group">
+                  <ul className="v2-rail-list">
+                    <li>
+                      <button
+                        type="button"
+                        className={`v2-rail-item ${activeSection === 'faseladder' && !openProject ? 'active' : ''}`}
+                        onClick={() => {
+                          setOpenProject(null);
+                          setActiveSection('faseladder');
+                        }}
+                      >
+                        <span>Faseladder</span>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {hasGateRole &&
+                beheerPhaseGroups.map(({ stage, phases }) => (
+                  <div className="v2-rail-group" key={stage.code}>
+                    <div className="v2-rail-group-label">
+                      <span className="pb-stage-dot" style={{ background: stage.color }} />
+                      {stage.code} · {stage.name}
+                    </div>
+                    <ul className="v2-rail-list">
+                      {phases.map(({ phase, count, parkedCount, muted }) => {
+                        const sectionId = phaseSectionId(phase.code);
+                        return (
+                          <li key={phase.code}>
+                            <button
+                              type="button"
+                              className={`v2-rail-item ${activeSection === sectionId && !openProject ? 'active' : ''} ${muted ? 'muted' : ''}`}
+                              onClick={() => {
+                                setOpenProject(null);
+                                setActiveSection(sectionId);
+                              }}
+                            >
+                              <span>
+                                <span className="pb-rail-code">{phase.code}</span>
+                                {phase.name}
+                              </span>
+                              {count !== undefined && count > 0 && (
+                                <span className="pb-rail-badge">{count}</span>
+                              )}
+                              {parkedCount !== undefined && parkedCount > 0 && (
+                                <span className="pb-rail-badge parked" title="Geparkeerd">
+                                  {parkedCount}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+
+              {isAuth && (
+                <div className="v2-rail-group">
+                  <ul className="v2-rail-list">
+                    <li>
+                      <button
+                        type="button"
+                        className={`v2-rail-item ${activeSection === 'archief' && !openProject ? 'active' : ''}`}
+                        onClick={() => {
+                          setOpenProject(null);
+                          setActiveSection('archief');
+                        }}
+                      >
+                        <span>Archief</span>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {visibleGroups.slice(1).map((g, i) => renderNavGroup(g, g.label ?? i + 1))}
+            </>
+          ) : (
+            visibleGroups.map((g, i) => renderNavGroup(g, g.label ?? i))
+          )}
         </aside>
 
         <main className="v2-main">
@@ -269,13 +489,14 @@ export default function InfraBoardDashboard() {
               openProject={openProject}
               user={user}
               tenantConfig={tenantConfig}
-              phaseLabels={phaseLabels}
               onOpenProject={goToProject}
               onBack={() => setOpenProject(null)}
               onGotoPortfolio={() => {
                 setOpenProject(null);
                 setMode('portfolio');
               }}
+              onOpenPhase={(code) => setActiveSection(phaseSectionId(code))}
+              onBackToFaseladder={() => setActiveSection('faseladder')}
             />
           )}
         </main>
@@ -300,7 +521,7 @@ export default function InfraBoardDashboard() {
       />
 
       {/* Tweaks panel — wire to your host Tweaks protocol or a toolbar button.
-          Controls: accent (setAccent), density (setDensity), phaseLabels (setPhaseLabels). */}
+          Controls: accent (setAccent), density (setDensity). */}
     </div>
   );
 }

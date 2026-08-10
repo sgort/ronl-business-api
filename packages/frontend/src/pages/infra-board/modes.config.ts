@@ -11,6 +11,8 @@
  * `requiredRoles` is wired so sections can be split per user later.
  */
 
+import { RIP_PHASES } from './rip-phases.catalog';
+
 export type InfraModeId = 'mijn-dag' | 'portfolio' | 'beheer';
 
 export interface InfraRailItem {
@@ -50,12 +52,17 @@ export const INFRA_MODES: InfraModeConfig[] = [
     id: 'portfolio',
     label: 'Portfolio',
     defaultSectionId: 'portfolio',
-    groups: [{ items: [{ id: 'portfolio', label: 'Alle projecten', authRequired: true }] }],
+    // No rail nav item — the design's Portfolio rail is stats-only
+    // (stage-grouped phase counts, Overgangen, Gezondheid). The top-nav
+    // "Portfolio" tab still routes here via setMode('portfolio');
+    // InfraSectionRouter switches on `mode`, not `section`, so this is
+    // unaffected. See rail-stats-panel spec, Section 4.
+    groups: [],
   },
   {
     id: 'beheer',
     label: 'Beheer',
-    defaultSectionId: 'rip-fase1-wip',
+    defaultSectionId: 'faseladder',
     groups: [
       {
         label: 'Account',
@@ -64,30 +71,15 @@ export const INFRA_MODES: InfraModeConfig[] = [
           { id: 'rollen', label: 'Rollen & rechten', authRequired: true },
         ],
       },
-      {
-        label: 'Projecten',
-        items: [
-          {
-            id: 'rip-fase1',
-            label: 'RIP Fase 1 starten',
-            authRequired: true,
-            requiredRoles: [INFRA_GATE_ROLE],
-          },
-          {
-            id: 'rip-fase1-wip',
-            label: 'RIP Fase 1 WIP',
-            authRequired: true,
-            requiredRoles: [INFRA_GATE_ROLE],
-          },
-          {
-            id: 'rip-fase1-gereed',
-            label: 'RIP Fase 1 gereed',
-            authRequired: true,
-            requiredRoles: [INFRA_GATE_ROLE],
-          },
-          { id: 'archief', label: 'Archief', authRequired: true },
-        ],
-      },
+      // Faseladder, the 12 phase items, and Archief are intentionally not
+      // listed here — the reference (pb-shell.reference.jsx:71-110) groups
+      // the phase items by stage (a header per RIP_STAGES entry, matching
+      // Portfolio's rail treatment), which this flat items[] shape can't
+      // express. InfraBoardDashboard.tsx hand-renders that whole section
+      // (Faseladder button, stage-grouped phase buttons via
+      // beheerRailPhaseGroups(), Archief button) directly, gated the same
+      // way these items were (isAuth for Faseladder/Archief, hasGateRole
+      // for the phase items).
       {
         label: 'IOU',
         items: [
@@ -110,6 +102,14 @@ export function findModeForSection(sectionId: string): InfraModeId | null {
     for (const g of m.groups) if (g.items.some((i) => i.id === sectionId)) return m.id;
   }
   return null;
+}
+
+export function phaseSectionId(code: string): string {
+  return `fase-${code.toLowerCase().replace('.', '-')}`;
+}
+
+export function phaseCodeFromSectionId(id: string): string | undefined {
+  return RIP_PHASES.find((p) => phaseSectionId(p.code) === id)?.code;
 }
 
 export interface InfraGateContext {

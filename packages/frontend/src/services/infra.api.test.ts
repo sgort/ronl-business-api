@@ -2,11 +2,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { Task } from '@ronl/shared';
-import { groupTasksByHorizon, useActivityHistory, useOpenTasks } from './infra.api';
+import {
+  groupTasksByHorizon,
+  useActivityHistory,
+  useDeployedProcessKeys,
+  useLivePhaseCounts,
+  useOpenTasks,
+  usePhase1Completed,
+} from './infra.api';
 
 const mockBusinessApi = vi.hoisted(() => ({
   task: { list: vi.fn() },
-  rip: { phase1Active: vi.fn(), phase1Documents: vi.fn() },
+  rip: {
+    phase1Active: vi.fn(),
+    phase1Completed: vi.fn(),
+    phase1Documents: vi.fn(),
+    deploymentStatus: vi.fn(),
+    phasesCounts: vi.fn(),
+  },
   process: { activityHistory: vi.fn() },
 }));
 
@@ -146,6 +159,69 @@ describe('useOpenTasks', () => {
   });
 });
 
+describe('useDeployedProcessKeys', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the deployed keys and exposes them once resolved', async () => {
+    mockBusinessApi.rip.deploymentStatus.mockResolvedValue({
+      success: true,
+      data: { deployedKeys: ['RipPhase1Process'] },
+    });
+
+    const { result } = renderHook(() => useDeployedProcessKeys());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual({ deployedKeys: ['RipPhase1Process'] });
+    expect(result.current.error).toBe(false);
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.deploymentStatus.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => useDeployedProcessKeys());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
+  });
+});
+
+describe('useLivePhaseCounts', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the phase counts and exposes them once resolved', async () => {
+    mockBusinessApi.rip.phasesCounts.mockResolvedValue({
+      success: true,
+      data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+    });
+
+    const { result } = renderHook(() => useLivePhaseCounts());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual({
+      counts: { RipPhase1Process: { wip: 3, gereed: 7 } },
+    });
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.phasesCounts.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => useLivePhaseCounts());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
+  });
+});
+
 describe('useActivityHistory', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -168,5 +244,43 @@ describe('useActivityHistory', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(mockBusinessApi.process.activityHistory).toHaveBeenCalledWith('proc-1');
+  });
+});
+
+describe('usePhase1Completed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads completed instances and exposes them once resolved', async () => {
+    const completed = [
+      {
+        id: 'done-1',
+        startTime: '2026-01-01T00:00:00Z',
+        endTime: '2026-03-15T00:00:00Z',
+        projectNumber: '88888',
+        projectName: 'Afgerond testproject',
+        edocsWorkspaceId: 'w2',
+      },
+    ];
+    mockBusinessApi.rip.phase1Completed.mockResolvedValue({ success: true, data: completed });
+
+    const { result } = renderHook(() => usePhase1Completed());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual(completed);
+    expect(result.current.error).toBe(false);
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.phase1Completed.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => usePhase1Completed());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
   });
 });

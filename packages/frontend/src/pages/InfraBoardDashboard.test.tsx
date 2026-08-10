@@ -42,11 +42,45 @@ vi.mock('../components/InfraBoardDashboard/InfraNoAccessPanel', () => ({
 vi.mock('../components/SessionExpiryWarning', () => ({ default: () => null }));
 vi.mock('./ChangelogPanel', () => ({ default: () => null }));
 
+const mockUseOpenTasks = vi.hoisted(() => vi.fn());
+const mockUseActivePhase1 = vi.hoisted(() => vi.fn());
+const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
+const mockUseLivePhaseCounts = vi.hoisted(() => vi.fn());
+vi.mock('../services/infra.api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/infra.api')>();
+  return {
+    ...actual,
+    useOpenTasks: mockUseOpenTasks,
+    useActivePhase1: mockUseActivePhase1,
+    useDeployedProcessKeys: mockUseDeployedProcessKeys,
+    useLivePhaseCounts: mockUseLivePhaseCounts,
+  };
+});
+
 describe('InfraBoardDashboard', () => {
   beforeEach(() => {
     mockKeycloak.authenticated = false;
     mockGetUser.mockReturnValue(null);
     window.sessionStorage.clear();
+    mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
+    mockUseActivePhase1.mockReturnValue({
+      data: null,
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseDeployedProcessKeys.mockReturnValue({
+      data: { deployedKeys: ['RipPhase1Process'] },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseLivePhaseCounts.mockReturnValue({
+      data: { counts: {} },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
   });
 
   afterEach(() => {
@@ -134,5 +168,96 @@ describe('InfraBoardDashboard', () => {
 
     expect(screen.getByTestId('dock')).toBeInTheDocument();
     expect(window.sessionStorage.getItem('infraBoard.dock.open')).toBe('1');
+  });
+
+  it('shows Mijn dag rail stats for a gated user', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+
+    render(<InfraBoardDashboard />);
+
+    await waitFor(() => expect(screen.getByText('Taken vandaag')).toBeInTheDocument());
+    expect(screen.getByText('Urgent / te laat')).toBeInTheDocument();
+    expect(screen.getByText('Mijn projecten')).toBeInTheDocument();
+  });
+
+  it('Portfolio rail has no "Alle projecten" nav item, and shows stage/health stats instead', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Portfolio' }));
+
+    await waitFor(() => expect(screen.getByText('Op schema')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Alle projecten' })).not.toBeInTheDocument();
+    expect(screen.getByText('Aandacht')).toBeInTheDocument();
+    expect(screen.getByText('Risico')).toBeInTheDocument();
+    expect(screen.getByText('Wacht op start')).toBeInTheDocument();
+  });
+
+  it('Beheer rail shows the faseladder subtitle and a deployed-phase item with no muted class', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    await waitFor(() => expect(screen.getByText(/RIP-faseladder ·/)).toBeInTheDocument());
+    const r21Item = screen.getByRole('button', { name: /Projectplan planvoorbereiding/ });
+    expect(r21Item.className).not.toContain('muted');
+  });
+
+  it('Beheer rail mutes an undeployed phase item', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    mockUseDeployedProcessKeys.mockReturnValue({
+      data: { deployedKeys: [] },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    const r21Item = await screen.findByRole('button', { name: /Projectplan planvoorbereiding/ });
+    expect(r21Item.className).toContain('muted');
+  });
+
+  it('Beheer rail groups phase items under stage headers, and keeps Faseladder/Archief navigable', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    await waitFor(() => expect(screen.getByText(/R2 · Planvoorbereiding/)).toBeInTheDocument());
+    expect(screen.getByText(/R6 · Decharge/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Faseladder' })).toBeInTheDocument();
+    // Two "Archief" buttons legitimately coexist — the Projecten section's
+    // own Archief item, and the unrelated IOU group's "Archief" item
+    // (id: 'iou-archief', pre-existing, untouched by this task).
+    expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
+  });
+
+  it('hides Beheer phase items (but not Faseladder/Archief) from an authenticated user without the gate role', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['other-role'] });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    expect(await screen.findByRole('button', { name: 'Faseladder' })).toBeInTheDocument();
+    // Two "Archief" buttons legitimately coexist here too — the Projecten
+    // section's own Archief item (gated on isAuth) and the unrelated IOU
+    // group's "Archief" item (id: 'iou-archief', also gated on isAuth only,
+    // not hasGateRole) — see the sibling "groups phase items..." test above.
+    expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
+    expect(screen.queryByText(/R2 · Planvoorbereiding/)).not.toBeInTheDocument();
   });
 });

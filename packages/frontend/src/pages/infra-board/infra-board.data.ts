@@ -9,7 +9,9 @@
  * Swap each accessor for an async service one view at a time (same shape).
  */
 
-import { PHASES, ROLES, type StatusKey, type HealthKey } from './rip-model';
+import { ROLES, type StatusKey, type HealthKey } from './rip-model';
+import { RIP_PHASES, type RipPhase } from './rip-phases.catalog';
+import type { PhaseCounts } from './rip-phase-counts';
 
 /** Valid portfolio lead-role keys (rip-model vocabulary). */
 const ROLE_KEYS = new Set(ROLES.map((r) => r.key));
@@ -25,31 +27,28 @@ export const normalizeLeadRole = (raw?: string): string =>
 // ── Timeline window: 2022 Q1 … 2027 Q4 ──────────────────────────────────────
 export const TL = { startYear: 2022, quarters: 24, todayIdx: 17 };
 const qIdx = (year: number, q: number) => (year - TL.startYear) * 4 + (q - 1);
-/** Mock per-phase durations (quarters). Replace with planning data. */
-export const PHASE_DUR = [2, 3, 3, 2, 5, 2];
-
-export interface GanttSegment {
-  phase: number;
-  from: number;
-  len: number;
+export interface RipGanttSegment {
+  phaseCode: string;
+  from: number; // quarter index into the TL window
+  len: number; // quarters
   status: StatusKey;
 }
 export interface PortfolioProject {
   id: string;
   nr: string;
   naam: string;
-  phase: number;
   role: string;
   health: HealthKey;
-  phaseStatuses: StatusKey[];
   milestone: string;
   budget: string;
   startYear: number;
   start: number;
   end: number;
-  segments: GanttSegment[];
+  segments: RipGanttSegment[];
   /** Set when this row is backed by a live Operaton process instance. */
   instanceId?: string;
+  ripPhaseCode: string;
+  ripPhaseState: 'wip' | 'wachtend';
 }
 
 export interface TodoItem {
@@ -67,11 +66,43 @@ export interface UpdateItem {
   tekst: string;
 }
 
-function phaseStatuses(current: number, flags: Partial<Record<number, StatusKey>>): StatusKey[] {
-  return PHASES.map((p) => {
-    if (p.n < current) return 'done';
-    if (p.n === current) return flags[p.n] ?? 'active';
-    return 'todo';
+/** Quarters per phase, derived from the catalogue's own `weeks` — never
+ *  drifts out of sync with RIP_PHASES the way a parallel hardcoded
+ *  array could. 13 weeks/quarter, minimum 1 quarter for visual sanity. */
+const RIP_PHASE_DUR: number[] = RIP_PHASES.map((p) => Math.max(1, Math.round(p.weeks / 13)));
+
+function buildRipSegments(fromIdx: number, statuses: StatusKey[]): RipGanttSegment[] {
+  let cursor = fromIdx;
+  return RIP_PHASES.map((p, i) => {
+    const seg: RipGanttSegment = {
+      phaseCode: p.code,
+      from: cursor,
+      len: RIP_PHASE_DUR[i],
+      status: statuses[i],
+    };
+    cursor += RIP_PHASE_DUR[i];
+    return seg;
+  });
+}
+
+/**
+ * Per-phase status across the whole ladder for one mock project.
+ * Replaces the old flags-based override map (RAW's now-unused 6th
+ * tuple field) — same "spread mock variety via a legacy indirection"
+ * pattern the v2 catalogue patch already retired for ladder
+ * positioning (LADDER_FROM_LEGACY). A deterministic hash instead:
+ * illustrative variety at the current phase, not a business rule.
+ */
+function ripPhaseStatuses(nr: string, curIdx: number, awaiting: boolean): StatusKey[] {
+  return RIP_PHASES.map((_, i) => {
+    if (i < curIdx) return 'done';
+    if (i > curIdx) return 'todo';
+    if (awaiting) return 'wachtend';
+    const r = pbHash(`${nr}|status|${i}`) % 100;
+    if (r < 8) return 'overdue';
+    if (r < 18) return 'action';
+    if (r < 30) return 'risk';
+    return 'active';
   });
 }
 
@@ -269,15 +300,147 @@ const RAW: Raw[] = [
     2,
   ],
   [
-    '25090',
-    'Aalscholverweg — nieuwe rotonde',
-    1,
+    '23078',
+    'Marknesserweg — passeerstroken',
+    5,
     'projectleider',
     'groen',
-    { 1: 'active' },
-    'Risicodossier opstellen',
-    '€ 5,2 mln',
+    {},
+    'Bermbeveiliging',
+    '€ 2,6 mln',
+    2023,
+    4,
+  ],
+  [
+    '22203',
+    'Lage Vaart — sluis Kampen',
+    6,
+    'manager-pb',
+    'geel',
+    {},
+    'Restpunten',
+    '€ 21 mln',
+    2022,
+    3,
+  ],
+  [
+    '24090',
+    'Tollebekerweg — fietspad',
+    3,
+    'projectleider',
+    'groen',
+    {},
+    'Definitief ontwerp',
+    '€ 4,1 mln',
+    2024,
+    2,
+  ],
+  [
+    '25040',
+    'Baanweg — kruispunt N709',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Voorkeursvariant',
+    '€ 8,8 mln',
     2025,
+    1,
+  ],
+  [
+    '23133',
+    'Ramsweg — geluidsmaatregelen',
+    4,
+    'manager-pb',
+    'rood',
+    { 4: 'overdue' },
+    'Bezwaar afhandelen',
+    '€ 6,3 mln',
+    2023,
+    2,
+  ],
+  [
+    '24044',
+    'Vlierweg — verbreding',
+    5,
+    'projectleider',
+    'groen',
+    {},
+    'Oplevering',
+    '€ 11 mln',
+    2024,
+    1,
+  ],
+  [
+    '25055',
+    'Pijlerweg — nieuwe ontsluiting',
+    1,
+    'projectleider',
+    'geel',
+    { 1: 'action' },
+    'Intake-overleg',
+    '€ 16 mln',
+    2025,
+    3,
+  ],
+  [
+    '23190',
+    'Bremerbergweg — recreatieverkeer',
+    5,
+    'manager-pb',
+    'groen',
+    {},
+    'Markeringen',
+    '€ 3,4 mln',
+    2023,
+    3,
+  ],
+  [
+    '24118',
+    'Wisentweg — duurzaam asfalt pilot',
+    3,
+    'projectleider',
+    'groen',
+    {},
+    'VO vaststellen',
+    '€ 9,2 mln',
+    2024,
+    2,
+  ],
+  [
+    '22150',
+    'Hertenweg — onderhoud kunstwerken',
+    6,
+    'manager-pb',
+    'groen',
+    {},
+    'Eindoplevering',
+    '€ 5,8 mln',
+    2022,
+    2,
+  ],
+  [
+    '25067',
+    'Ossenkampweg — verkeersplein',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Omgevingsproces',
+    '€ 13 mln',
+    2025,
+    1,
+  ],
+  [
+    '24063',
+    'Visvijverweg — natuurvriendelijke oever',
+    4,
+    'projectleider',
+    'geel',
+    {},
+    'Aanbesteding',
+    '€ 7,1 mln',
+    2024,
     3,
   ],
   [
@@ -293,6 +456,90 @@ const RAW: Raw[] = [
     1,
   ],
   [
+    '25073',
+    'Reigerweg — fietsstraat',
+    1,
+    'projectleider',
+    'groen',
+    { 1: 'active' },
+    'Intake-verslag',
+    '€ 2,9 mln',
+    2025,
+    4,
+  ],
+  [
+    '24025',
+    'Buizerdweg — komgrens herinrichting',
+    3,
+    'projectleider',
+    'groen',
+    {},
+    'Ontwerp',
+    '€ 4,7 mln',
+    2024,
+    1,
+  ],
+  [
+    '22168',
+    'Meeuwenweg — brugbediening centraliseren',
+    6,
+    'manager-pb',
+    'groen',
+    {},
+    'Decharge',
+    '€ 17 mln',
+    2022,
+    2,
+  ],
+  [
+    '25081',
+    'Karekietweg — aansluiting bedrijventerrein',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Variantenstudie',
+    '€ 10 mln',
+    2025,
+    2,
+  ],
+  [
+    '24142',
+    'Plevierweg — verkeerslichten',
+    4,
+    'manager-pb',
+    'groen',
+    {},
+    'Gunning',
+    '€ 3,8 mln',
+    2024,
+    2,
+  ],
+  [
+    '23240',
+    'Futenweg — groot onderhoud',
+    5,
+    'projectleider',
+    'geel',
+    {},
+    'Deklaag',
+    '€ 6,6 mln',
+    2023,
+    4,
+  ],
+  [
+    '25090',
+    'Aalscholverweg — nieuwe rotonde',
+    1,
+    'projectleider',
+    'groen',
+    { 1: 'active' },
+    'Intake-formulier',
+    '€ 5,2 mln',
+    2025,
+    3,
+  ],
+  [
     '24158',
     'Zwaanweg — onderdoorgang spoor',
     3,
@@ -303,6 +550,78 @@ const RAW: Raw[] = [
     '€ 38 mln',
     2024,
     1,
+  ],
+  [
+    '23260',
+    'Roerdompweg — bermverharding',
+    5,
+    'projectleider',
+    'groen',
+    {},
+    'Afronding',
+    '€ 1,9 mln',
+    2023,
+    4,
+  ],
+  [
+    '25104',
+    'Kievitweg — schoolzone',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Omgevingsproces',
+    '€ 2,4 mln',
+    2025,
+    1,
+  ],
+  [
+    '24170',
+    'Lepelaarweg — verbreding N701',
+    4,
+    'projectleider',
+    'groen',
+    {},
+    'Aanbestedingsdossier',
+    '€ 29 mln',
+    2024,
+    2,
+  ],
+  [
+    '22185',
+    'Sterappelweg — kunstwerk renovatie',
+    6,
+    'manager-pb',
+    'groen',
+    {},
+    'Eindafrekening',
+    '€ 8,1 mln',
+    2022,
+    3,
+  ],
+  [
+    '25118',
+    'Goudplevierweg — fietstunnel',
+    1,
+    'projectleider',
+    'geel',
+    { 1: 'action' },
+    'Intake-overleg',
+    '€ 12 mln',
+    2025,
+    2,
+  ],
+  [
+    '24188',
+    'Kwartelweg — herinrichting centrum',
+    3,
+    'manager-pb',
+    'groen',
+    {},
+    'Definitief ontwerp',
+    '€ 15 mln',
+    2024,
+    3,
   ],
 ];
 
@@ -317,67 +636,264 @@ export function makePhase1Row(inst: {
   const d = new Date(inst.startTime);
   const q = Math.floor(d.getMonth() / 3) + 1;
   const fromIdx = qIdx(d.getFullYear(), q);
-  const statuses: StatusKey[] = PHASES.map((p) => (p.n === 1 ? 'active' : 'todo'));
-  let cursor = fromIdx;
-  const segments: GanttSegment[] = PHASES.map((p, i) => {
-    const seg: GanttSegment = { phase: p.n, from: cursor, len: PHASE_DUR[i], status: statuses[i] };
-    cursor += PHASE_DUR[i];
-    return seg;
-  });
+  const statuses: StatusKey[] = RIP_PHASES.map((p) => (p.code === 'R2.1' ? 'active' : 'todo'));
+  const segments = buildRipSegments(fromIdx, statuses);
+  const last = segments[segments.length - 1];
   return {
     id: 'live-' + inst.id,
     nr: inst.projectNumber || inst.id.slice(0, 8),
     naam: inst.projectName || 'RIP Fase 1 project',
-    phase: 1,
     role: normalizeLeadRole(inst.leadRole),
     health: 'groen',
-    phaseStatuses: statuses,
     milestone: 'Fase 1 lopend',
     budget: '—',
     startYear: d.getFullYear(),
     start: fromIdx,
-    end: cursor,
+    end: last.from + last.len,
     segments,
     instanceId: inst.id,
+    ripPhaseCode: RIP_PHASES[0].code,
+    ripPhaseState: 'wip',
   };
+}
+
+function pbHash(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/**
+ * Deterministic per-project ladder position, spread directly across all
+ * twelve real RIP phases via a stable hash of the project number. Per
+ * the v2 handoff prompt ("do not carry over LADDER_FROM_LEGACY or
+ * pbAwaits from the prototype — use real phase data"): this no longer
+ * routes through RAW's old 6-phase legacy value at all. The v2
+ * reference prototype still does — but only because it's a static
+ * browser demo with no backend; this app's mock/live merge layer
+ * doesn't need that indirection. RAW's legacy `phase` field (1-6) is
+ * still used elsewhere in this file for Portfolio's own Gantt/kanban
+ * model — untouched here.
+ */
+function pbLadderFor(nr: string): number {
+  return 1 + (pbHash(nr + '|ladder') % RIP_PHASES.length);
+}
+
+/** Deterministic per-project coin flip: sits this project BETWEEN two phases? */
+function pbAwaits(nr: string): boolean {
+  return pbHash(nr + '|await') % 100 < 30;
 }
 
 let _projects: PortfolioProject[] | null = null;
 export function getMockPortfolio(): PortfolioProject[] {
   if (_projects) return _projects;
-  _projects = RAW.map(
-    ([nr, naam, phase, role, health, flags, milestone, budget, startYear, startQ], i) => {
-      const statuses = phaseStatuses(phase, flags);
-      let cursor = qIdx(startYear, startQ);
-      const start = cursor;
-      const segments = PHASES.map((p, idx) => {
-        const seg: GanttSegment = {
-          phase: p.n,
-          from: cursor,
-          len: PHASE_DUR[idx],
-          status: statuses[idx],
-        };
-        cursor += PHASE_DUR[idx];
-        return seg;
-      });
-      return {
-        id: 'p' + i,
-        nr,
-        naam,
-        phase,
-        role,
-        health,
-        phaseStatuses: statuses,
-        milestone,
-        budget,
-        startYear,
-        start,
-        end: cursor,
-        segments,
-      };
-    }
-  );
+  _projects = RAW.map(([nr, naam, , role, health, , milestone, budget, startYear, startQ], i) => {
+    const start = qIdx(startYear, startQ);
+    const ladderPos = pbLadderFor(nr);
+    const curIdx = ladderPos - 1;
+    const ripPhaseCode = RIP_PHASES[curIdx].code;
+    const awaiting = ladderPos > 1 && ladderPos < RIP_PHASES.length && pbAwaits(nr);
+    const ripPhaseState: 'wip' | 'wachtend' = awaiting ? 'wachtend' : 'wip';
+    const statuses = ripPhaseStatuses(nr, curIdx, awaiting);
+    const segments = buildRipSegments(start, statuses);
+    const last = segments[segments.length - 1];
+    return {
+      id: 'p' + i,
+      nr,
+      naam,
+      role,
+      health,
+      milestone,
+      budget,
+      startYear,
+      start,
+      end: last.from + last.len,
+      segments,
+      ripPhaseCode,
+      ripPhaseState,
+    };
+  });
   return _projects;
+}
+
+/**
+ * WIP / Gereed / geparkeerd counts per RIP phase, derived from the mock
+ * projects' ripPhaseCode/ripPhaseState. Mirrors
+ * reference/pb-instances.reference.jsx's status derivation.
+ */
+export function getMockPhaseCounts(): Record<string, PhaseCounts> {
+  const projects = getMockPortfolio();
+  const out: Record<string, PhaseCounts> = {};
+  RIP_PHASES.forEach((phase: RipPhase, i) => {
+    let wip = 0;
+    let gereed = 0;
+    let geparkeerd = 0;
+    for (const p of projects) {
+      const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+      // gereed = the project's current ladder position is PAST this phase
+      // (it has already completed it) — not before it.
+      if (curIdx > i) {
+        gereed++;
+        continue;
+      }
+      if (phase.beyond) {
+        if (curIdx === i) geparkeerd++;
+        continue;
+      }
+      if (curIdx === i && p.ripPhaseState === 'wip') wip++;
+    }
+    out[phase.code] = { wip, gereed, geparkeerd };
+  });
+  return out;
+}
+
+/**
+ * Mock projects currently WIP at this phase — same classification
+ * getMockPhaseCounts uses for its `wip` count (curIdx === i, state ===
+ * 'wip', never for a `beyond` phase — the ladder's last rung is always
+ * 'wip' by construction but counted as geparkeerd instead). Exposed as
+ * rows for the WIP tab.
+ */
+export function getMockWipRows(phase: RipPhase): PortfolioProject[] {
+  if (phase.beyond) return [];
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter((p) => {
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx === idx && p.ripPhaseState === 'wip';
+  });
+}
+
+/**
+ * Mock projects already past this phase — same classification
+ * getMockPhaseCounts uses for its `gereed` count. Exposed as rows for
+ * the Gereed tab.
+ */
+export function getMockGereedRows(phase: RipPhase): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter((p) => {
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx > idx;
+  });
+}
+
+/**
+ * Mock projects currently sitting on a `beyond` phase (R5.3) — every
+ * project at this ladder position, regardless of ripPhaseState. Unlike
+ * getMockWipRows, this does NOT exclude 'wachtend' projects: a project
+ * that hasn't "started" R5.3 in the wip sense is still, in the real
+ * sense that matters here, sitting there unwatched — matching
+ * getMockPhaseCounts's own `geparkeerd` count, which counts both states.
+ * Only meaningful for a `beyond` phase; called only from PhaseDetail's
+ * beyond branch.
+ */
+export function getMockGeparkeerdRows(phase: RipPhase): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter((p) => {
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx === idx;
+  });
+}
+
+/**
+ * Projects whose current ladder position is exactly this phase's
+ * predecessor, sitting in 'wachtend' (previous phase accorded, this one
+ * not yet started). Always empty for the first phase in ladder order —
+ * there is no predecessor to be ready from.
+ */
+export function getReadyProjects(phaseCode: string): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
+  if (idx <= 0) return [];
+  const prevCode = RIP_PHASES[idx - 1].code;
+  return getMockPortfolio().filter(
+    (p) => p.ripPhaseCode === prevCode && p.ripPhaseState === 'wachtend'
+  );
+}
+
+/**
+ * Projects not yet in sequence for this phase — still working an earlier
+ * phase, or still 'wip' on the immediate predecessor (not yet accorded).
+ * These are the "Toon N projecten die nog niet aan beurt zijn" set.
+ */
+export function getOutOfSequenceProjects(phaseCode: string): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
+  if (idx <= 0) return [];
+  const ready = new Set(getReadyProjects(phaseCode).map((p) => p.id));
+  return getMockPortfolio().filter((p) => {
+    if (ready.has(p.id)) return false;
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx < idx;
+  });
+}
+
+export interface MockPhaseInstanceDetail {
+  step: string | null;
+  stepRole: string | null;
+  daysInStep: number;
+  blocked: string | null;
+  docsDone: number;
+  docsTotal: number;
+  loops: number;
+  plannedWeeks: number;
+  actualWeeks: number | null;
+  doneBy: string | null;
+  doneDate: string | null;
+}
+
+/** A handful of plausible completion-date strings, picked
+ *  deterministically — not tied to any real timeline consistency. */
+const MOCK_DONE_MONTHS = [
+  'jan',
+  'feb',
+  'mrt',
+  'apr',
+  'mei',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'okt',
+  'nov',
+  'dec',
+];
+function formatDeterministicDate(seed: number): string {
+  const day = 1 + (seed % 28);
+  const month = MOCK_DONE_MONTHS[Math.floor(seed / 28) % 12];
+  const year = TL.startYear + (Math.floor(seed / 336) % (TL.quarters / 4));
+  return `${day} ${month} ${year}`;
+}
+
+/**
+ * Deterministic per-project-per-phase illustrative detail, ported from
+ * reference/pb-instances.reference.jsx. Meaningful fields are only
+ * populated for the project's OWN current wip phase; every other
+ * phase gets docsDone === docsTotal (implying "done") and null/zero
+ * wip-only fields, since the simplified ripPhaseCode/ripPhaseState
+ * model doesn't retain historical per-phase detail for phases already
+ * passed.
+ */
+export function getMockPhaseInstanceDetail(
+  project: PortfolioProject,
+  phase: RipPhase
+): MockPhaseInstanceDetail {
+  const seed = pbHash(`${project.nr}|${phase.code}|detail`);
+  const rnd = (salt: number) => ((seed * (salt + 1)) % 10000) / 10000;
+  const isWip = project.ripPhaseCode === phase.code && project.ripPhaseState === 'wip';
+  return {
+    step: isWip ? (phase.docs[Math.floor(rnd(1) * phase.docs.length)] ?? phase.exit) : null,
+    stepRole: isWip ? phase.roles[Math.floor(rnd(2) * phase.roles.length)] : null,
+    daysInStep: isWip ? 1 + Math.floor(rnd(3) * 34) : 0,
+    blocked:
+      isWip && phase.gates.length && rnd(4) > 0.72
+        ? phase.gates[Math.floor(rnd(5) * phase.gates.length)]
+        : null,
+    docsDone: isWip ? Math.floor(rnd(6) * (phase.docs.length + 1)) : phase.docs.length,
+    docsTotal: phase.docs.length,
+    loops: Math.floor(rnd(7) * 3),
+    plannedWeeks: phase.weeks,
+    actualWeeks: Math.max(2, Math.round(phase.weeks * (0.75 + rnd(8) * 0.8))),
+    doneBy: ['AO', 'Aandrager', 'Projectleider', 'Concerndirecteur'][Math.floor(rnd(9) * 4)],
+    doneDate: formatDeterministicDate(seed),
+  };
 }
 
 export const MIJN_PROJECT_NRS = ['23102', '24011', '24102', '25031', '23166', '25090'];
