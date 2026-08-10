@@ -295,6 +295,13 @@ export const businessApi = {
       return response.data;
     },
 
+    phasesCounts: async (): Promise<
+      ApiResponse<{ counts: Record<string, { wip: number; gereed: number }> }>
+    > => {
+      const response = await api.get('/rip/phases/counts');
+      return response.data;
+    },
+
     phase1Completed: async (): Promise<
       ApiResponse<
         Array<{

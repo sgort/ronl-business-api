@@ -64,6 +64,13 @@ export const useOpenTasks = () => useAsync<Task[]>(() => businessApi.task.list()
 export const useDeployedProcessKeys = () =>
   useAsync<{ deployedKeys: string[] }>(() => businessApi.rip.deploymentStatus(), []);
 
+/** Live per-phase WIP/Gereed instance counts for the Faseladder overview. */
+export const useLivePhaseCounts = () =>
+  useAsync<{ counts: Record<string, { wip: number; gereed: number }> }>(
+    () => businessApi.rip.phasesCounts(),
+    []
+  );
+
 /** Running RIP Fase 1 instances (portfolio — live Fase-1 rows). */
 export const useActivePhase1 = () =>
   useAsync<Phase1Instance[]>(() => businessApi.rip.phase1Active(), []);

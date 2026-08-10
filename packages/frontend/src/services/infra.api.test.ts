@@ -6,12 +6,18 @@ import {
   groupTasksByHorizon,
   useActivityHistory,
   useDeployedProcessKeys,
+  useLivePhaseCounts,
   useOpenTasks,
 } from './infra.api';
 
 const mockBusinessApi = vi.hoisted(() => ({
   task: { list: vi.fn() },
-  rip: { phase1Active: vi.fn(), phase1Documents: vi.fn(), deploymentStatus: vi.fn() },
+  rip: {
+    phase1Active: vi.fn(),
+    phase1Documents: vi.fn(),
+    deploymentStatus: vi.fn(),
+    phasesCounts: vi.fn(),
+  },
   process: { activityHistory: vi.fn() },
 }));
 
@@ -175,6 +181,38 @@ describe('useDeployedProcessKeys', () => {
     mockBusinessApi.rip.deploymentStatus.mockRejectedValue(new Error('network down'));
 
     const { result } = renderHook(() => useDeployedProcessKeys());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
+  });
+});
+
+describe('useLivePhaseCounts', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the phase counts and exposes them once resolved', async () => {
+    mockBusinessApi.rip.phasesCounts.mockResolvedValue({
+      success: true,
+      data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+    });
+
+    const { result } = renderHook(() => useLivePhaseCounts());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual({
+      counts: { RipPhase1Process: { wip: 3, gereed: 7 } },
+    });
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.phasesCounts.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => useLivePhaseCounts());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

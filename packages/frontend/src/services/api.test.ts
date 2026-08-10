@@ -465,6 +465,21 @@ describe('businessApi.rip', () => {
     });
   });
 
+  it('phasesCounts fetches per-phase WIP/Gereed counts', async () => {
+    server.use(
+      http.get('*/rip/phases/counts', () =>
+        HttpResponse.json({
+          success: true,
+          data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+        })
+      )
+    );
+    expect(await businessApi.rip.phasesCounts()).toEqual({
+      success: true,
+      data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+    });
+  });
+
   it('phase1Completed fetches the completed Fase 1 instances', async () => {
     server.use(
       http.get('*/rip/phase1/completed', () => HttpResponse.json({ success: true, data: [] }))
