@@ -7,8 +7,8 @@
  * fill it in at the same time the process itself is deployed.
  */
 export interface RipPhaseKey {
-  code: string; // 'R2.1' … 'R5.2'
-  stage: string; // 'R2' | 'R3' | 'R4' | 'R5'
+  code: string; // 'R2.1' … 'R6.1'
+  stage: string; // 'R2' | 'R3' | 'R4' | 'R5' | 'R6'
   processDefinitionKey?: string;
 }
 
@@ -22,4 +22,7 @@ export const RIP_PHASE_KEYS: RipPhaseKey[] = [
   { code: 'R4.1', stage: 'R4' },
   { code: 'R5.1', stage: 'R5' },
   { code: 'R5.2', stage: 'R5' },
+  { code: 'R5.3', stage: 'R5' },
+  { code: 'R5.4', stage: 'R5' },
+  { code: 'R6.1', stage: 'R6' },
 ];
