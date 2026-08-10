@@ -11,7 +11,7 @@ describe('findModeForSection', () => {
     expect(findModeForSection('overzicht')).toBe('mijn-dag');
     expect(findModeForSection('project-updates')).toBe('mijn-dag');
     expect(findModeForSection('portfolio')).toBe('portfolio');
-    expect(findModeForSection('rip-fase1-wip')).toBe('beheer');
+    expect(findModeForSection('faseladder')).toBe('beheer');
     expect(findModeForSection('profiel')).toBe('beheer');
   });
 

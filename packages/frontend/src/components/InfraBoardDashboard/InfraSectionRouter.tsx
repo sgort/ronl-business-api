@@ -9,9 +9,7 @@ import { getMockUpdates } from '../../pages/infra-board/infra-board.data';
 import { INFRA_PROCESS_KEYS } from '../../services/infra.api';
 
 // Reused, unchanged V1 components for the Beheer surface:
-import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
-import RipFase1WipSection from '../CaseworkerDashboard/RipFase1WipSection';
-import RipFase1GereedSection from '../CaseworkerDashboard/RipFase1GereedSection';
+import FaseladderOverview from './FaseladderOverview';
 import ArchiefSection from '../CaseworkerDashboard/ArchiefSection';
 import ProfielSection from '../CaseworkerDashboard/ProfielSection';
 import RollenSection from '../CaseworkerDashboard/RollenSection';
@@ -78,21 +76,16 @@ export default function InfraSectionRouter(p: Props) {
   // Beheer — reuse the existing V1 components verbatim, wrapped in the
   // same v2-main-pad padding that CaseworkerDashboardV2 applies.
   let content: React.ReactNode;
-  switch (section) {
+  const normalizedSection = section.startsWith('fase-') ? 'faseladder' : section;
+  switch (normalizedSection) {
     case 'profiel':
       content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
       break;
     case 'rollen':
       content = <RollenSection user={user} />;
       break;
-    case 'rip-fase1':
-      content = <RipFase1Section user={user} />;
-      break;
-    case 'rip-fase1-wip':
-      content = <RipFase1WipSection user={user} />;
-      break;
-    case 'rip-fase1-gereed':
-      content = <RipFase1GereedSection user={user} />;
+    case 'faseladder':
+      content = <FaseladderOverview />;
       break;
     case 'archief':
       content = <ArchiefSection boardId="infra-board" allowProcessKeys={INFRA_PROCESS_KEYS} />;

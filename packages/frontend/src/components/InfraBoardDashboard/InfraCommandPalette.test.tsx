@@ -49,7 +49,7 @@ describe('InfraCommandPalette', () => {
 
     expect(screen.getByText('Mijn dag')).toBeInTheDocument();
     expect(screen.getByText('Portfolio')).toBeInTheDocument();
-    expect(screen.getByText('Beheer · RIP Fase 1')).toBeInTheDocument();
+    expect(screen.getByText('Beheer · Faseladder')).toBeInTheDocument();
     const first = getMockPortfolio()[0];
     expect(screen.getByText(`${first.nr} · ${first.naam}`)).toBeInTheDocument();
   });

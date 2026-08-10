@@ -16,13 +16,7 @@ vi.mock('./ProjectDetail', () => ({
   },
 }));
 
-vi.mock('../CaseworkerDashboard/RipFase1Section', () => ({ default: () => <div>rip-fase1</div> }));
-vi.mock('../CaseworkerDashboard/RipFase1WipSection', () => ({
-  default: () => <div>rip-fase1-wip</div>,
-}));
-vi.mock('../CaseworkerDashboard/RipFase1GereedSection', () => ({
-  default: () => <div>rip-fase1-gereed</div>,
-}));
+vi.mock('./FaseladderOverview', () => ({ default: () => <div>faseladder</div> }));
 
 const mockArchiefSection = vi.hoisted(() => vi.fn());
 vi.mock('../CaseworkerDashboard/ArchiefSection', () => ({
@@ -95,9 +89,8 @@ describe('InfraSectionRouter', () => {
   it.each([
     ['profiel', 'profiel'],
     ['rollen', 'rollen'],
-    ['rip-fase1', 'rip-fase1'],
-    ['rip-fase1-wip', 'rip-fase1-wip'],
-    ['rip-fase1-gereed', 'rip-fase1-gereed'],
+    ['faseladder', 'faseladder'],
+    ['fase-r2-1', 'faseladder'],
     ['iou-gebruiksscenario', 'iou-gebruiksscenario'],
     ['iou-feedback', 'iou-feedback'],
     ['gereedschap-overzicht', 'gereedschap'],

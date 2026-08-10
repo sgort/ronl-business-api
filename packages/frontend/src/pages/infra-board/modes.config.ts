@@ -11,6 +11,8 @@
  * `requiredRoles` is wired so sections can be split per user later.
  */
 
+import { RIP_STAGES, RIP_PHASES } from './rip-phases.catalog';
+
 export type InfraModeId = 'mijn-dag' | 'portfolio' | 'beheer';
 
 export interface InfraRailItem {
@@ -55,7 +57,7 @@ export const INFRA_MODES: InfraModeConfig[] = [
   {
     id: 'beheer',
     label: 'Beheer',
-    defaultSectionId: 'rip-fase1-wip',
+    defaultSectionId: 'faseladder',
     groups: [
       {
         label: 'Account',
@@ -67,24 +69,15 @@ export const INFRA_MODES: InfraModeConfig[] = [
       {
         label: 'Projecten',
         items: [
-          {
-            id: 'rip-fase1',
-            label: 'RIP Fase 1 starten',
-            authRequired: true,
-            requiredRoles: [INFRA_GATE_ROLE],
-          },
-          {
-            id: 'rip-fase1-wip',
-            label: 'RIP Fase 1 WIP',
-            authRequired: true,
-            requiredRoles: [INFRA_GATE_ROLE],
-          },
-          {
-            id: 'rip-fase1-gereed',
-            label: 'RIP Fase 1 gereed',
-            authRequired: true,
-            requiredRoles: [INFRA_GATE_ROLE],
-          },
+          { id: 'faseladder', label: 'Faseladder', authRequired: true },
+          ...RIP_STAGES.flatMap((stage) =>
+            RIP_PHASES.filter((p) => p.stage === stage.code).map((p) => ({
+              id: `fase-${p.code.toLowerCase().replace('.', '-')}`,
+              label: `${p.code} · ${p.name}`,
+              authRequired: true,
+              requiredRoles: [INFRA_GATE_ROLE],
+            }))
+          ),
           { id: 'archief', label: 'Archief', authRequired: true },
         ],
       },
