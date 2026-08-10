@@ -771,6 +771,24 @@ export function getMockGereedRows(phase: RipPhase): PortfolioProject[] {
 }
 
 /**
+ * Mock projects currently sitting on a `beyond` phase (R5.3) — every
+ * project at this ladder position, regardless of ripPhaseState. Unlike
+ * getMockWipRows, this does NOT exclude 'wachtend' projects: a project
+ * that hasn't "started" R5.3 in the wip sense is still, in the real
+ * sense that matters here, sitting there unwatched — matching
+ * getMockPhaseCounts's own `geparkeerd` count, which counts both states.
+ * Only meaningful for a `beyond` phase; called only from PhaseDetail's
+ * beyond branch.
+ */
+export function getMockGeparkeerdRows(phase: RipPhase): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter((p) => {
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx === idx;
+  });
+}
+
+/**
  * Projects whose current ladder position is exactly this phase's
  * predecessor, sitting in 'wachtend' (previous phase accorded, this one
  * not yet started). Always empty for the first phase in ladder order —

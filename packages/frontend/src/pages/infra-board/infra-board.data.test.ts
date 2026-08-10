@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getMockGeparkeerdRows,
   getMockGereedRows,
   getMockPhaseCounts,
   getMockPhaseInstanceDetail,
@@ -250,7 +251,7 @@ describe('getMockPhaseInstanceDetail', () => {
   });
 });
 
-describe('getMockWipRows / getMockGereedRows', () => {
+describe('getMockWipRows / getMockGereedRows / getMockGeparkeerdRows', () => {
   it('matches getMockPhaseCounts wip/gereed counts for every phase', () => {
     const counts = getMockPhaseCounts();
     for (const phase of RIP_PHASES) {
@@ -268,5 +269,11 @@ describe('getMockWipRows / getMockGereedRows', () => {
     const codes = new Set(getMockPortfolio().map((p) => p.ripPhaseCode));
     expect(codes.has('R5.4')).toBe(true);
     expect(codes.has('R6.1')).toBe(true);
+  });
+
+  it('getMockGeparkeerdRows matches getMockPhaseCounts geparkeerd count for R5.3', () => {
+    const counts = getMockPhaseCounts();
+    const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
+    expect(getMockGeparkeerdRows(r53).length).toBe(counts['R5.3'].geparkeerd);
   });
 });
