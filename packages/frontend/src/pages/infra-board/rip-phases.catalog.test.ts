@@ -7,8 +7,22 @@ import {
   type RipPhase,
 } from './rip-phases.catalog';
 
+const NON_R21_CODES = [
+  'R2.2',
+  'R2.3',
+  'R2.4',
+  'R3.1',
+  'R3.2',
+  'R4.1',
+  'R5.1',
+  'R5.2',
+  'R5.3',
+  'R5.4',
+  'R6.1',
+];
+
 describe('RIP_PHASES catalogue', () => {
-  it('has exactly nine phases in R2.1…R5.2 order', () => {
+  it('has exactly twelve phases in R2.1…R6.1 order', () => {
     expect(RIP_PHASES.map((p) => p.code)).toEqual([
       'R2.1',
       'R2.2',
@@ -19,24 +33,47 @@ describe('RIP_PHASES catalogue', () => {
       'R4.1',
       'R5.1',
       'R5.2',
+      'R5.3',
+      'R5.4',
+      'R6.1',
     ]);
   });
 
-  it('has four stages matching the phase codes', () => {
-    expect(RIP_STAGES.map((s) => s.code)).toEqual(['R2', 'R3', 'R4', 'R5']);
+  it('has five stages matching the phase codes', () => {
+    expect(RIP_STAGES.map((s) => s.code)).toEqual(['R2', 'R3', 'R4', 'R5', 'R6']);
   });
 
   it('only R2.1 carries a processDefinitionKey', () => {
     expect(ripPhaseByCode('R2.1')?.processDefinitionKey).toBe('RipPhase1Process');
-    for (const code of ['R2.2', 'R2.3', 'R2.4', 'R3.1', 'R3.2', 'R4.1', 'R5.1', 'R5.2']) {
+    for (const code of NON_R21_CODES) {
       expect(ripPhaseByCode(code)?.processDefinitionKey).toBeUndefined();
     }
   });
 
-  it('marks only R5.2 as beyond (no process model even planned)', () => {
-    expect(ripPhaseByCode('R5.2')?.beyond).toBe(true);
-    for (const code of ['R2.1', 'R2.2', 'R2.3', 'R2.4', 'R3.1', 'R3.2', 'R4.1', 'R5.1']) {
+  it('marks only R5.3 as beyond (no process model even planned)', () => {
+    expect(ripPhaseByCode('R5.3')?.beyond).toBe(true);
+    const notBeyond = [
+      'R2.1',
+      'R2.2',
+      'R2.3',
+      'R2.4',
+      'R3.1',
+      'R3.2',
+      'R4.1',
+      'R5.1',
+      'R5.2',
+      'R5.4',
+      'R6.1',
+    ];
+    for (const code of notBeyond) {
       expect(ripPhaseByCode(code)?.beyond).toBeUndefined();
+    }
+  });
+
+  it('every phase resolves to a real stage', () => {
+    const stageCodes = new Set(RIP_STAGES.map((s) => s.code));
+    for (const phase of RIP_PHASES) {
+      expect(stageCodes.has(phase.stage)).toBe(true);
     }
   });
 });
@@ -44,7 +81,7 @@ describe('RIP_PHASES catalogue', () => {
 describe('getPhaseDeployStatus', () => {
   const withKey: RipPhase = { ...ripPhaseByCode('R2.1')! };
   const withoutKey: RipPhase = { ...ripPhaseByCode('R2.2')! };
-  const beyond: RipPhase = { ...ripPhaseByCode('R5.2')! };
+  const beyond: RipPhase = { ...ripPhaseByCode('R5.3')! };
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {
     expect(getPhaseDeployStatus(withKey, new Set(['RipPhase1Process']))).toBe('gedeployed');
@@ -69,10 +106,16 @@ describe('kredietBeslisser', () => {
     expect(ripPhaseByCode('R2.4')?.kredietBeslisser).toBe('Infra-overleg');
     expect(ripPhaseByCode('R3.2')?.kredietBeslisser).toBe('Infra-overleg');
     expect(ripPhaseByCode('R4.1')?.kredietBeslisser).toBe('Concerndirecteur');
+    expect(ripPhaseByCode('R5.2')?.kredietBeslisser).toBe(
+      'AO of Concerndirecteur (afhankelijk van drempel)'
+    );
+    expect(ripPhaseByCode('R5.4')?.kredietBeslisser).toBe(
+      'AO of Concerndirecteur (afhankelijk van drempel)'
+    );
   });
 
   it('is undefined for every phase with krediet: false', () => {
-    for (const code of ['R2.1', 'R2.2', 'R3.1', 'R5.1', 'R5.2']) {
+    for (const code of ['R2.1', 'R2.2', 'R3.1', 'R5.1', 'R5.3', 'R6.1']) {
       expect(ripPhaseByCode(code)?.kredietBeslisser).toBeUndefined();
     }
   });
