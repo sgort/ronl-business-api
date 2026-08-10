@@ -775,6 +775,77 @@ export function getOutOfSequenceProjects(phaseCode: string): PortfolioProject[] 
   });
 }
 
+export interface MockPhaseInstanceDetail {
+  step: string | null;
+  stepRole: string | null;
+  daysInStep: number;
+  blocked: string | null;
+  docsDone: number;
+  docsTotal: number;
+  loops: number;
+  plannedWeeks: number;
+  actualWeeks: number | null;
+  doneBy: string | null;
+  doneDate: string | null;
+}
+
+/** A handful of plausible completion-date strings, picked
+ *  deterministically — not tied to any real timeline consistency. */
+const MOCK_DONE_MONTHS = [
+  'jan',
+  'feb',
+  'mrt',
+  'apr',
+  'mei',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'okt',
+  'nov',
+  'dec',
+];
+function formatDeterministicDate(seed: number): string {
+  const day = 1 + (seed % 28);
+  const month = MOCK_DONE_MONTHS[Math.floor(seed / 28) % 12];
+  const year = TL.startYear + (Math.floor(seed / 336) % (TL.quarters / 4));
+  return `${day} ${month} ${year}`;
+}
+
+/**
+ * Deterministic per-project-per-phase illustrative detail, ported from
+ * reference/pb-instances.reference.jsx. Meaningful fields are only
+ * populated for the project's OWN current wip phase; every other
+ * phase gets docsDone === docsTotal (implying "done") and null/zero
+ * wip-only fields, since the simplified ripPhaseCode/ripPhaseState
+ * model doesn't retain historical per-phase detail for phases already
+ * passed.
+ */
+export function getMockPhaseInstanceDetail(
+  project: PortfolioProject,
+  phase: RipPhase
+): MockPhaseInstanceDetail {
+  const seed = pbHash(`${project.nr}|${phase.code}|detail`);
+  const rnd = (salt: number) => ((seed * (salt + 1)) % 10000) / 10000;
+  const isWip = project.ripPhaseCode === phase.code && project.ripPhaseState === 'wip';
+  return {
+    step: isWip ? (phase.docs[Math.floor(rnd(1) * phase.docs.length)] ?? phase.exit) : null,
+    stepRole: isWip ? phase.roles[Math.floor(rnd(2) * phase.roles.length)] : null,
+    daysInStep: isWip ? 1 + Math.floor(rnd(3) * 34) : 0,
+    blocked:
+      isWip && phase.gates.length && rnd(4) > 0.72
+        ? phase.gates[Math.floor(rnd(5) * phase.gates.length)]
+        : null,
+    docsDone: isWip ? Math.floor(rnd(6) * (phase.docs.length + 1)) : phase.docs.length,
+    docsTotal: phase.docs.length,
+    loops: Math.floor(rnd(7) * 3),
+    plannedWeeks: phase.weeks,
+    actualWeeks: Math.max(2, Math.round(phase.weeks * (0.75 + rnd(8) * 0.8))),
+    doneBy: ['AO', 'Aandrager', 'Projectleider', 'Concerndirecteur'][Math.floor(rnd(9) * 4)],
+    doneDate: formatDeterministicDate(seed),
+  };
+}
+
 export const MIJN_PROJECT_NRS = ['23102', '24011', '24102', '25031', '23166', '25090'];
 
 export function getMockTodos(): {

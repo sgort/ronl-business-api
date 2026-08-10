@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getMockPhaseCounts,
+  getMockPhaseInstanceDetail,
   getMockPortfolio,
   getMockTodos,
   getMockUpdates,
@@ -205,5 +206,44 @@ describe('getReadyProjects / getOutOfSequenceProjects', () => {
       if (curIdx >= idx) continue; // at or past this phase — not a candidate at all
       expect(readyIds.has(p.id) || outIds.has(p.id)).toBe(true);
     }
+  });
+});
+
+describe('getMockPhaseInstanceDetail', () => {
+  it('is deterministic across calls for the same project and phase', () => {
+    const project = getMockPortfolio()[0];
+    const phase = RIP_PHASES[0];
+    const a = getMockPhaseInstanceDetail(project, phase);
+    const b = getMockPhaseInstanceDetail(project, phase);
+    expect(a).toEqual(b);
+  });
+
+  it('zeroes the wip-only fields when the project is not wip at that phase', () => {
+    // Pick a phase the project has already passed (gereed) — step/stepRole
+    // must be null there, since the project isn't actively working it.
+    const project = getMockPortfolio().find((p) => p.ripPhaseCode !== RIP_PHASES[0].code)!;
+    const passedPhase = RIP_PHASES[0]; // every non-R2.1 project has passed R2.1
+    const detail = getMockPhaseInstanceDetail(project, passedPhase);
+    expect(detail.step).toBeNull();
+    expect(detail.stepRole).toBeNull();
+    expect(detail.daysInStep).toBe(0);
+    expect(detail.docsDone).toBe(detail.docsTotal);
+  });
+
+  it('sets wip-only fields when the project is wip at that phase', () => {
+    const project = getMockPortfolio().find(
+      (p) => p.ripPhaseState === 'wip' && p.ripPhaseCode !== 'R5.2'
+    )!;
+    const phase = RIP_PHASES.find((p) => p.code === project.ripPhaseCode)!;
+    const detail = getMockPhaseInstanceDetail(project, phase);
+    expect(detail.step).not.toBeNull();
+    expect(detail.stepRole).not.toBeNull();
+    expect(detail.daysInStep).toBeGreaterThan(0);
+  });
+
+  it('always returns a docsTotal matching the phase catalogue', () => {
+    const project = getMockPortfolio()[0];
+    const phase = RIP_PHASES[3];
+    expect(getMockPhaseInstanceDetail(project, phase).docsTotal).toBe(phase.docs.length);
   });
 });
