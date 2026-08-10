@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ProjectDetail from './ProjectDetail';
 import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
-import { PHASES } from '../../pages/infra-board/rip-model';
+import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
 
 const mockUseActivityHistory = vi.hoisted(() => vi.fn());
 const mockUsePhase1Documents = vi.hoisted(() => vi.fn());
@@ -30,8 +30,6 @@ vi.mock('../../services/api', () => ({ businessApi: mockBusinessApi }));
 vi.mock('../CaseworkerDashboard/TaskFormViewer', () => ({ default: () => <div>task-form</div> }));
 vi.mock('../CaseworkerDashboard/ProcessVarsSection', () => ({ default: () => null }));
 
-const phaseLabels = PHASES.map((p) => p.name);
-
 beforeEach(() => {
   mockUseActivityHistory.mockReturnValue({
     data: null,
@@ -56,9 +54,7 @@ afterEach(() => {
 describe('ProjectDetail — mock project', () => {
   it('renders the mock project header info', () => {
     const project = getMockPortfolio()[0];
-    render(
-      <ProjectDetail projectRef={{ nr: project.nr }} phaseLabels={phaseLabels} onBack={vi.fn()} />
-    );
+    render(<ProjectDetail projectRef={{ nr: project.nr }} phaseLabels={[]} onBack={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: project.naam })).toBeInTheDocument();
     expect(screen.getByText(project.budget)).toBeInTheDocument();
@@ -70,7 +66,7 @@ describe('ProjectDetail — mock project', () => {
     render(
       <ProjectDetail
         projectRef={{ nr: getMockPortfolio()[0].nr }}
-        phaseLabels={phaseLabels}
+        phaseLabels={[]}
         onBack={onBack}
       />
     );
@@ -80,19 +76,55 @@ describe('ProjectDetail — mock project', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('selecting a phase other than 1 shows the "not modelled" message', async () => {
+  it('selecting a phase other than R2.1 shows the "not modelled" message', async () => {
     const user = userEvent.setup();
     render(
       <ProjectDetail
         projectRef={{ nr: getMockPortfolio()[0].nr }}
-        phaseLabels={phaseLabels}
+        phaseLabels={[]}
         onBack={vi.fn()}
       />
     );
 
-    await user.click(screen.getByRole('button', { name: (name) => name.includes(phaseLabels[1]) }));
+    await user.click(
+      screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[1].name) })
+    );
 
     expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
+  });
+
+  it('renders twelve stepper steps with real RIP codes', () => {
+    const { container } = render(
+      <ProjectDetail
+        projectRef={{ nr: getMockPortfolio()[0].nr }}
+        phaseLabels={[]}
+        onBack={vi.fn()}
+      />
+    );
+    // Scoped to the stepper: the current phase's code also legitimately
+    // appears in the meta strip and the phase-detail panel, so an
+    // unscoped getByText would find multiple matches for it.
+    const stepper = container.querySelector('.pb-stepper') as HTMLElement;
+    RIP_PHASES.forEach((p) => {
+      expect(within(stepper).getByText(p.code, { exact: false })).toBeInTheDocument();
+    });
+  });
+
+  it('selecting R2.1 shows the swimlane', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectDetail
+        projectRef={{ nr: getMockPortfolio()[0].nr }}
+        phaseLabels={[]}
+        onBack={vi.fn()}
+      />
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
+    );
+
+    expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
   });
 });
 
@@ -121,7 +153,7 @@ describe('ProjectDetail — live instance with open tasks', () => {
     render(
       <ProjectDetail
         projectRef={{ nr: '99999', instanceId: 'pi-1' }}
-        phaseLabels={phaseLabels}
+        phaseLabels={[]}
         onBack={vi.fn()}
       />
     );

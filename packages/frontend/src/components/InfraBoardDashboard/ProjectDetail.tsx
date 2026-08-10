@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
-  PHASES,
   FASE1_NODES,
   FASE1_DOCS,
   HEALTH,
   nodeStatusFromHistory,
   type StatusKey,
 } from '../../pages/infra-board/rip-model';
+import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
 import { useActivityHistory, usePhase1Documents, useOpenTasks } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
@@ -25,10 +25,15 @@ interface Props {
 /** Derive a node-status map for a MOCK project (no live instance). */
 function deriveMockStatus(project: PortfolioProject | undefined): Record<string, StatusKey> {
   const out: Record<string, StatusKey> = {};
-  const flag = project?.phaseStatuses[0];
+  const curIdx = project ? RIP_PHASES.findIndex((p) => p.code === project.ripPhaseCode) : -1;
+  const isOnR21 = curIdx === 0;
+  // A mock project can never be 'wachtend' AT R2.1 (the ladder's first
+  // rung — there's no predecessor to await), so when isOnR21 is true
+  // this is always the illustrative wip-status the mock model gives it.
+  const flag = isOnR21 ? project!.segments[0].status : undefined;
   const reached = !project
     ? 0
-    : project.phase > 1
+    : !isOnR21
       ? 99
       : flag === 'active'
         ? 5
@@ -39,13 +44,10 @@ function deriveMockStatus(project: PortfolioProject | undefined): Record<string,
     if (n.col < reached) out[n.id] = 'done';
     else if (n.col === reached)
       out[n.id] =
-        project &&
-        project.phase === 1 &&
-        flag &&
-        (['risk', 'overdue', 'action'] as StatusKey[]).includes(flag)
+        isOnR21 && flag && (['risk', 'overdue', 'action'] as StatusKey[]).includes(flag)
           ? flag
           : 'active';
-    else out[n.id] = project && project.phase > 1 ? 'done' : 'todo';
+    else out[n.id] = !isOnR21 && project ? 'done' : 'todo';
   }
   return out;
 }
@@ -144,7 +146,7 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
   );
 }
 
-export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props) {
+export default function ProjectDetail({ projectRef, onBack }: Props) {
   const mock = getMockPortfolio().find((p) => p.nr === projectRef.nr);
   const isLive = !!projectRef.instanceId;
 
@@ -162,11 +164,11 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
   const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
 
   // live instances are always in Fase 1 (R2.1); mock rows carry their own phase.
-  const currentPhase = isLive ? 1 : (mock?.phase ?? 1);
-  const [selPhase, setSelPhase] = useState(currentPhase);
+  const currentPhaseCode = isLive ? 'R2.1' : (mock?.ripPhaseCode ?? 'R2.1');
+  const [selPhase, setSelPhase] = useState(currentPhaseCode);
   useEffect(() => {
-    setSelPhase(currentPhase);
-  }, [projectRef.nr, projectRef.instanceId, currentPhase]);
+    setSelPhase(currentPhaseCode);
+  }, [projectRef.nr, projectRef.instanceId, currentPhaseCode]);
 
   const statusById: Record<string, StatusKey> =
     isLive && history ? nodeStatusFromHistory(history) : deriveMockStatus(mock);
@@ -184,10 +186,12 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
   const milestone = mock?.milestone ?? 'Lopende processtap';
   const startYear = mock?.startYear ?? new Date().getFullYear();
 
-  const stepClass = (n: number) => {
-    if (n < currentPhase) return 'done';
-    if (n === currentPhase) {
-      const f = mock?.phaseStatuses[n - 1];
+  const stepClass = (code: string) => {
+    const idx = RIP_PHASES.findIndex((p) => p.code === code);
+    const curIdx = RIP_PHASES.findIndex((p) => p.code === currentPhaseCode);
+    if (idx < curIdx) return 'done';
+    if (idx === curIdx) {
+      const f = mock?.segments[idx]?.status;
       return f && (['risk', 'overdue', 'action'] as StatusKey[]).includes(f)
         ? `active ${f}`
         : 'active';
@@ -196,8 +200,8 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
   };
 
   const docOk = (produceNode: string) => statusById[produceNode] === 'done';
-  const phaseInfo = PHASES.find((p) => p.n === selPhase)!;
-  const curInfo = PHASES.find((p) => p.n === currentPhase)!;
+  const phaseInfo = ripPhaseByCode(selPhase)!;
+  const curInfo = ripPhaseByCode(currentPhaseCode)!;
 
   return (
     <div className="pb-view">
@@ -220,7 +224,7 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
         <div>
           <dt>Huidige fase</dt>
           <dd>
-            F{currentPhase} · {curInfo.name}
+            {curInfo.name}
             <span className="rcode">{curInfo.code}</span>
           </dd>
         </div>
@@ -239,18 +243,18 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
       </div>
 
       <div className="pb-stepper">
-        {PHASES.map((p) => {
-          const base = stepClass(p.n);
+        {RIP_PHASES.map((p, i) => {
+          const base = stepClass(p.code);
           return (
             <button
               type="button"
-              key={p.n}
-              className={`pb-step ${base} ${p.n === selPhase ? 'selected' : ''}`}
-              onClick={() => setSelPhase(p.n)}
+              key={p.code}
+              className={`pb-step ${base} ${p.code === selPhase ? 'selected' : ''}`}
+              onClick={() => setSelPhase(p.code)}
             >
-              <span className="pb-step-dot">{base.includes('done') ? '✓' : p.n}</span>
+              <span className="pb-step-dot">{base.includes('done') ? '✓' : i + 1}</span>
               <span className="pb-step-name">
-                {phaseLabels[p.n - 1]}
+                {p.name}
                 <span className="pb-step-code">{p.code}</span>
               </span>
             </button>
@@ -258,11 +262,11 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
         })}
       </div>
 
-      {selPhase === 1 ? (
+      {selPhase === 'R2.1' ? (
         <>
           <div className="pb-phase-titlebar">
             <h3>
-              Fase 1 · {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+              {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
             </h3>
             <span className="meta">
               Processtappen &amp; rollen — RIP Fase 1 procesmodel{isLive ? ' (live)' : ''}
@@ -290,12 +294,15 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
       ) : (
         <div className="pb-phase-empty">
           <h3>
-            Fase {selPhase} · {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+            {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
           </h3>
           <p>
             Het processtappen-model voor deze fase is nog niet gemodelleerd. Alleen{' '}
-            <b>Fase 1 ({PHASES[0].code})</b> is volledig uitgewerkt — selecteer Fase 1 hierboven
-            voor de swimlane met rollen, taken en deliverables.
+            <b>
+              {RIP_PHASES[0].name} ({RIP_PHASES[0].code})
+            </b>{' '}
+            is volledig uitgewerkt — selecteer {RIP_PHASES[0].code} hierboven voor de swimlane met
+            rollen, taken en deliverables.
           </p>
         </div>
       )}
