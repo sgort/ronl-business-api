@@ -727,7 +727,9 @@ export function getMockPhaseCounts(): Record<string, PhaseCounts> {
     let geparkeerd = 0;
     for (const p of projects) {
       const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
-      if (curIdx < i) {
+      // gereed = the project's current ladder position is PAST this phase
+      // (it has already completed it) — not before it.
+      if (curIdx > i) {
         gereed++;
         continue;
       }

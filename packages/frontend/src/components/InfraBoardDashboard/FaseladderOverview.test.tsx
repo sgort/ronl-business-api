@@ -3,6 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import FaseladderOverview from './FaseladderOverview';
 import { RIP_STAGES, RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
+import { getMockPhaseCounts } from '../../pages/infra-board/infra-board.data';
+import { combinePhaseCounts, getKlaarCounts } from '../../pages/infra-board/rip-phase-counts';
+
+// Mirrors the mocked useLivePhaseCounts data below, normalized to phase
+// codes the same way the component does — so expected values account for
+// the live contribution, not just mock data.
+const LIVE_COUNTS = { 'R2.1': { wip: 1, gereed: 2, geparkeerd: 0 } };
+
+function kpiValue(name: string): string | null {
+  const label = screen.getByText(name);
+  const kpi = label.closest('.pb-kpi');
+  return kpi?.querySelector('.v')?.textContent ?? null;
+}
 
 const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
 const mockUseLivePhaseCounts = vi.hoisted(() => vi.fn());
@@ -58,5 +71,52 @@ describe('FaseladderOverview', () => {
   it('does not render table rows as clickable', () => {
     const { container } = render(<FaseladderOverview />);
     expect(container.querySelectorAll('tbody tr button')).toHaveLength(0);
+  });
+
+  it('shows Fasen in uitvoering as the total WIP across all phases (mock + live), not a phase-count capped at 9', () => {
+    render(<FaseladderOverview />);
+    const mockCounts = getMockPhaseCounts();
+    const totalMockWip = Object.values(mockCounts).reduce((sum, c) => sum + c.wip, 0);
+    const expected = totalMockWip + 1; // + the mocked live R2.1 wip:1
+    expect(expected).toBeGreaterThan(9); // sanity: proves this isn't a 9-capped phase count
+    expect(kpiValue('Fasen in uitvoering')).toContain(String(expected));
+  });
+
+  it('shows Deelprocessen inzetbaar as "N / 9"', () => {
+    render(<FaseladderOverview />);
+    expect(kpiValue('Deelprocessen inzetbaar')).toBe('1 / 9');
+  });
+
+  it('shows Klaar om te starten as the total Klaar across all non-beyond phases, not deployed-only', () => {
+    render(<FaseladderOverview />);
+    const combined = combinePhaseCounts(getMockPhaseCounts(), LIVE_COUNTS);
+    const klaar = getKlaarCounts(RIP_PHASES, combined);
+    const totalKlaar = RIP_PHASES.filter((p) => !p.beyond).reduce(
+      (sum, p) => sum + (klaar[p.code] ?? 0),
+      0
+    );
+    // Only R2.1 is deployed in this test's mock; a deployed-only total would
+    // be far smaller than the true portfolio-wide total computed above.
+    expect(totalKlaar).toBeGreaterThan(1);
+    expect(kpiValue('Klaar om te starten')).toContain(String(totalKlaar));
+  });
+
+  it('renders a zero-value Klaar cell as "—", not "0"', () => {
+    render(<FaseladderOverview />);
+    const mockCounts = getMockPhaseCounts();
+    const klaar = getKlaarCounts(RIP_PHASES, mockCounts);
+    const zeroPhase = RIP_PHASES.find((p, i) => i > 0 && !p.beyond && klaar[p.code] === 0);
+    expect(zeroPhase).toBeDefined();
+    const row = screen.getByText(zeroPhase!.code, { exact: false }).closest('tr');
+    expect(row?.textContent).toContain('—');
+  });
+
+  it('labels the WIP column "WIP / Geparkeerd" and shows R5.2\'s geparkeerd count there', () => {
+    render(<FaseladderOverview />);
+    expect(screen.getByText('WIP / Geparkeerd')).toBeInTheDocument();
+    const mockCounts = getMockPhaseCounts();
+    const r52 = RIP_PHASES.find((p) => p.code === 'R5.2')!;
+    const row = screen.getByText(r52.code, { exact: false }).closest('tr');
+    expect(row?.textContent).toContain(String(mockCounts['R5.2'].geparkeerd));
   });
 });

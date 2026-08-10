@@ -151,10 +151,12 @@ describe('getMockPhaseCounts', () => {
       expect(counts[phase.code].wip).toBe(phase.beyond ? 0 : wipHere);
       expect(counts[phase.code].geparkeerd).toBe(geparkeerdHere);
 
-      const beforeThisPhase = projects.filter(
-        (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) < i
+      // gereed = projects whose current ladder position is PAST this phase
+      // (they've already completed it), not before it.
+      const pastThisPhase = projects.filter(
+        (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) > i
       ).length;
-      expect(counts[phase.code].gereed).toBe(beforeThisPhase);
+      expect(counts[phase.code].gereed).toBe(pastThisPhase);
     });
   });
 });

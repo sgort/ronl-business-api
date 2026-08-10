@@ -37,11 +37,27 @@ export default function FaseladderOverview() {
   const deployedPhases = RIP_PHASES.filter(
     (p) => getPhaseDeployStatus(p, deployedKeys) === 'gedeployed'
   );
-  const fasenInUitvoering = RIP_PHASES.filter((p) => combined[p.code]?.wip > 0).length;
-  const fasenInUitvoeringLive = RIP_PHASES.filter((p) => combined[p.code]?.liveWip > 0).length;
-  const klaarOmTeStarten = deployedPhases.reduce((sum, p) => sum + (klaarCombined[p.code] ?? 0), 0);
-  const klaarOmTeStartenLive = deployedPhases.reduce((sum, p) => sum + (klaarLive[p.code] ?? 0), 0);
-  const nietDeployedPhases = RIP_PHASES.filter((p) => !deployedPhases.includes(p));
+  // Total active projects portfolio-wide, not a phase-count — a phase-count
+  // is capped at 9 and can never read e.g. "27".
+  const fasenInUitvoering = RIP_PHASES.reduce((sum, p) => sum + (combined[p.code]?.wip ?? 0), 0);
+  const fasenInUitvoeringLive = RIP_PHASES.reduce(
+    (sum, p) => sum + (combined[p.code]?.liveWip ?? 0),
+    0
+  );
+  // "Klaar om te starten" is the total Klaar across every phase that has a
+  // Starten concept at all (i.e. not `beyond`) — not filtered to deployed
+  // phases. "Wacht op deployment" is the same total restricted to the
+  // undeployed subset; together they partition the non-beyond phases.
+  const startablePhases = RIP_PHASES.filter((p) => !p.beyond);
+  const klaarOmTeStarten = startablePhases.reduce(
+    (sum, p) => sum + (klaarCombined[p.code] ?? 0),
+    0
+  );
+  const klaarOmTeStartenLive = startablePhases.reduce(
+    (sum, p) => sum + (klaarLive[p.code] ?? 0),
+    0
+  );
+  const nietDeployedPhases = startablePhases.filter((p) => !deployedPhases.includes(p));
   const wachtOpDeployment = nietDeployedPhases.reduce(
     (sum, p) => sum + (klaarCombined[p.code] ?? 0),
     0
@@ -64,7 +80,9 @@ export default function FaseladderOverview() {
           <span className="l">Fasen in uitvoering</span>
         </div>
         <div className="pb-kpi">
-          <span className="v">{deployedPhases.length}</span>
+          <span className="v">
+            {deployedPhases.length} / {RIP_PHASES.length}
+          </span>
           <span className="l">Deelprocessen inzetbaar</span>
         </div>
         <div className="pb-kpi">
@@ -89,7 +107,7 @@ export default function FaseladderOverview() {
             <th>Trekker</th>
             <th>Sluit met</th>
             <th>Klaar</th>
-            <th>WIP</th>
+            <th>WIP / Geparkeerd</th>
             <th>Gereed</th>
           </tr>
         </thead>
@@ -127,9 +145,19 @@ export default function FaseladderOverview() {
                     </td>
                     <td>{phase.lead}</td>
                     <td>{phase.exit}</td>
-                    <td>{klaar === undefined ? '—' : <Metric combined={klaar} live={klaarL} />}</td>
                     <td>
-                      <Metric combined={c.wip} live={c.liveWip} />
+                      {klaar === undefined || klaar === 0 ? (
+                        '—'
+                      ) : (
+                        <Metric combined={klaar} live={klaarL} />
+                      )}
+                    </td>
+                    <td>
+                      {phase.beyond ? (
+                        <Metric combined={c.geparkeerd} live={c.liveGeparkeerd} />
+                      ) : (
+                        <Metric combined={c.wip} live={c.liveWip} />
+                      )}
                     </td>
                     <td>
                       <Metric combined={c.gereed} live={c.liveGereed} />
