@@ -72,6 +72,37 @@ router.get('/phases/deployment-status', async (req, res) => {
 });
 
 /**
+ * GET /v1/rip/phases/counts
+ * WIP + Gereed instance counts per deployed RIP phase process-definition key.
+ */
+router.get('/phases/counts', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+  try {
+    const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(keys);
+    const counts = await operatonService.getPhaseInstanceCounts(deployedKeys);
+    res.json({ success: true, data: { counts } });
+  } catch (error) {
+    logger.error('Failed to fetch RIP phase instance counts', {
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'PHASE_COUNTS_FAILED',
+        message: 'Failed to retrieve phase instance counts',
+      },
+    });
+  }
+});
+
+/**
  * GET /v1/rip/phase1/:instanceId/documents
  * Fetch all three document templates + current process variables for a RIP Phase 1 instance.
  */

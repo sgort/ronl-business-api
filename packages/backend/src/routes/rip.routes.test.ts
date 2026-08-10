@@ -22,6 +22,7 @@ jest.mock('@services/operaton.service', () => ({
     getRipPhase1CompletedList: jest.fn(),
     getRipPhase1Documents: jest.fn(),
     getDeployedProcessKeys: jest.fn(),
+    getPhaseInstanceCounts: jest.fn(),
   },
 }));
 jest.mock('@utils/logger', () => ({
@@ -38,6 +39,7 @@ const svc = operatonService as unknown as {
   getRipPhase1CompletedList: jest.Mock;
   getRipPhase1Documents: jest.Mock;
   getDeployedProcessKeys: jest.Mock;
+  getPhaseInstanceCounts: jest.Mock;
 };
 
 const app = express();
@@ -101,6 +103,32 @@ describe('GET /phases/deployment-status', () => {
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
+  });
+});
+
+describe('GET /phases/counts', () => {
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/counts');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns counts for the deployed keys only', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipPhase1Process']);
+    svc.getPhaseInstanceCounts.mockResolvedValue({
+      RipPhase1Process: { wip: 3, gereed: 7 },
+    });
+    const res = await auth(request(app).get('/v1/rip/phases/counts'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ counts: { RipPhase1Process: { wip: 3, gereed: 7 } } });
+    expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipPhase1Process']);
+  });
+
+  it('500 with PHASE_COUNTS_FAILED on service failure', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipPhase1Process']);
+    svc.getPhaseInstanceCounts.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/counts'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
   });
 });
 
