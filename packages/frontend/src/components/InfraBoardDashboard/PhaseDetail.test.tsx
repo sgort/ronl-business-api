@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PhaseDetail from './PhaseDetail';
-import { ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
+import { ripPhaseByCode, RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
 import {
   getReadyProjects,
   getOutOfSequenceProjects,
@@ -35,10 +35,16 @@ vi.mock('../../pages/infra-board/rip-phases.catalog', async (importOriginal) => 
 const mockStart = vi.hoisted(() => vi.fn());
 const mockPhase1Active = vi.hoisted(() => vi.fn());
 const mockActivityHistory = vi.hoisted(() => vi.fn());
+const mockPhase1Completed = vi.hoisted(() => vi.fn());
+const mockPhase1Documents = vi.hoisted(() => vi.fn());
 vi.mock('../../services/api', () => ({
   businessApi: {
     process: { start: mockStart, activityHistory: mockActivityHistory },
-    rip: { phase1Active: mockPhase1Active },
+    rip: {
+      phase1Active: mockPhase1Active,
+      phase1Completed: mockPhase1Completed,
+      phase1Documents: mockPhase1Documents,
+    },
   },
 }));
 
@@ -61,6 +67,11 @@ beforeEach(() => {
   mockStart.mockResolvedValue({ success: true, data: { processInstanceId: 'pi-1' } });
   mockPhase1Active.mockResolvedValue({ success: true, data: [] });
   mockActivityHistory.mockResolvedValue({ success: true, data: [] });
+  mockPhase1Completed.mockResolvedValue({ success: true, data: [] });
+  mockPhase1Documents.mockResolvedValue({
+    success: true,
+    data: { variables: {}, intakeReport: null, psuReport: null, pdp: null },
+  });
 });
 
 afterEach(() => {
@@ -267,5 +278,142 @@ describe('PhaseDetail — WIP tab', () => {
     expect(wipProject).toBeDefined();
     expect(screen.getByText(wipProject!.naam, { exact: false })).toBeInTheDocument();
     expect(screen.queryByText('LIVE')).not.toBeInTheDocument();
+  });
+});
+
+describe('PhaseDetail — Gereed tab', () => {
+  it('renders the summary line and a real R2.1 row with a LIVE badge', async () => {
+    mockPhase1Completed.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'done-1',
+          startTime: '2026-01-01T00:00:00Z',
+          endTime: '2026-03-15T00:00:00Z',
+          projectNumber: '88888',
+          projectName: 'Afgerond testproject',
+          edocsWorkspaceId: 'w2',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({ success: true, data: [] });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+
+    // The mock portfolio's own "gereed for R2.1" backlog (any project whose
+    // current ladder position is past R2.1) is non-trivial — 35 projects at
+    // time of writing — so the summary is 1 live row plus that mock count,
+    // not just "1". Computed dynamically rather than hardcoded so this
+    // doesn't silently drift if the mock catalogue changes size.
+    const mockGereedCount = getMockPortfolio().filter(
+      (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) > 0
+    ).length;
+    expect(await screen.findByText('Afgerond testproject', { exact: false })).toBeInTheDocument();
+    expect(
+      screen.getByText(`${mockGereedCount + 1} afgerond`, { exact: false })
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('LIVE', { exact: false }).length).toBeGreaterThan(0);
+  });
+
+  it('reveals the document viewer when Openen is clicked on a real row', async () => {
+    mockPhase1Completed.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'done-1',
+          startTime: '2026-01-01T00:00:00Z',
+          endTime: '2026-03-15T00:00:00Z',
+          projectNumber: '88888',
+          projectName: 'Afgerond testproject',
+          edocsWorkspaceId: 'w2',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({ success: true, data: [] });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+    await user.click(await screen.findByRole('button', { name: 'Openen' }));
+
+    expect(mockPhase1Documents).toHaveBeenCalledWith('done-1');
+  });
+
+  it('shows the computed rework-loop count for a real completed row', async () => {
+    mockPhase1Completed.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'done-2',
+          startTime: '2026-01-01T00:00:00Z',
+          endTime: '2026-03-15T00:00:00Z',
+          projectNumber: '77777',
+          projectName: 'Project met rework',
+          edocsWorkspaceId: 'w3',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'a1',
+          activityId: 'Task_AanvullenProjectplan2',
+          activityName: 'Aanvullen Projectplan',
+          activityType: 'userTask',
+          assignee: null,
+          startTime: '2026-01-05T00:00:00Z',
+          endTime: '2026-01-06T00:00:00Z',
+          durationInMillis: 1,
+          canceled: false,
+        },
+        {
+          id: 'a2',
+          activityId: 'Gateway_Akkoord2',
+          activityName: 'Akkoord?',
+          activityType: 'exclusiveGateway',
+          assignee: null,
+          startTime: '2026-01-06T00:00:00Z',
+          endTime: '2026-01-06T00:00:01Z',
+          durationInMillis: 1,
+          canceled: false,
+        },
+        {
+          id: 'a3',
+          activityId: 'Task_AanvullenProjectplan2',
+          activityName: 'Aanvullen Projectplan',
+          activityType: 'userTask',
+          assignee: null,
+          startTime: '2026-01-07T00:00:00Z',
+          endTime: '2026-01-08T00:00:00Z',
+          durationInMillis: 1,
+          canceled: false,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+
+    const row = (await screen.findByText('Project met rework', { exact: false })).closest('tr');
+    expect(within(row!).getByText('1')).toBeInTheDocument();
+  });
+
+  it('shows mock rows without a Dossier link', async () => {
+    mockGetPhaseDeployStatus.mockReturnValue('gedeployed');
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.4" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+
+    const gereedProject = getMockPortfolio().find(
+      (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) > 3
+    );
+    expect(gereedProject).toBeDefined();
+    const row = screen.getByText(gereedProject!.naam, { exact: false }).closest('tr');
+    expect(within(row!).queryByRole('button', { name: 'Openen' })).not.toBeInTheDocument();
   });
 });

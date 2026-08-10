@@ -21,7 +21,13 @@ import {
 } from '../../pages/infra-board/rip-phase-counts';
 import { useDeployedProcessKeys, useLivePhaseCounts } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
-import { getWipStepInfo, HEALTH, type HealthKey } from '../../pages/infra-board/rip-model';
+import {
+  getWipStepInfo,
+  countReworkLoops,
+  HEALTH,
+  type HealthKey,
+} from '../../pages/infra-board/rip-model';
+import RipFase1WipViewer from '../CaseworkerDashboard/RipFase1WipViewer';
 
 interface Props {
   phaseCode: string;
@@ -47,6 +53,13 @@ function getMockPortfolioWipRows(phase: RipPhase) {
   );
 }
 
+function getMockPortfolioGereedRows(phase: RipPhase) {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter(
+    (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) > idx
+  );
+}
+
 export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const phase = ripPhaseByCode(phaseCode);
   const { data: deployment } = useDeployedProcessKeys();
@@ -62,6 +75,17 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const [liveWip, setLiveWip] = useState<
     Array<{ id: string; nr: string; naam: string; info: ReturnType<typeof getWipStepInfo> }>
   >([]);
+  const [liveGereed, setLiveGereed] = useState<
+    Array<{
+      id: string;
+      nr: string;
+      naam: string;
+      startTime: string;
+      endTime: string;
+      loops: number;
+    }>
+  >([]);
+  const [openDossier, setOpenDossier] = useState<string | null>(null);
 
   useEffect(() => {
     if (phaseCode !== 'R2.1') return;
@@ -81,6 +105,32 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
         })
       );
       if (alive) setLiveWip(rows);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [phaseCode]);
+
+  useEffect(() => {
+    if (phaseCode !== 'R2.1') return;
+    let alive = true;
+    businessApi.rip.phase1Completed().then(async (res) => {
+      if (!res.success || !res.data || !alive) return;
+      const rows = await Promise.all(
+        res.data.map(async (inst) => {
+          const histRes = await businessApi.process.activityHistory(inst.id);
+          const loops = histRes.success && histRes.data ? countReworkLoops(histRes.data) : 0;
+          return {
+            id: inst.id,
+            nr: inst.projectNumber || inst.id.slice(0, 8),
+            naam: inst.projectName || 'RIP Fase 1 project',
+            startTime: inst.startTime,
+            endTime: inst.endTime,
+            loops,
+          };
+        })
+      );
+      if (alive) setLiveGereed(rows);
     });
     return () => {
       alive = false;
@@ -295,7 +345,89 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
         </table>
       )}
       {tab === 'gereed' && (
-        <p className="pb-placeholder">Gereed-overzicht wordt gebouwd in een volgend deelproject.</p>
+        <>
+          <p className="pb-gereed-summary">
+            {liveGereed.length + getMockPortfolioGereedRows(phase).length} afgerond
+          </p>
+          <table className="pb-instance-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Afgerond</th>
+                <th>Geaccordeerd door</th>
+                <th>Doorlooptijd</th>
+                <th>Loops</th>
+                <th>Producten</th>
+                <th>Dossier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liveGereed.map((row) => {
+                const weeks = Math.round(
+                  (new Date(row.endTime).getTime() - new Date(row.startTime).getTime()) /
+                    (1000 * 60 * 60 * 24 * 7)
+                );
+                return (
+                  <>
+                    <tr key={row.id}>
+                      <td>
+                        <span className="pb-proj-nr">{row.nr}</span> {row.naam}
+                        <span className="pb-live-badge">LIVE</span>
+                      </td>
+                      <td>{new Date(row.endTime).toLocaleDateString('nl-NL')}</td>
+                      {/* Geaccordeerd door: Operaton only returns a raw assignee
+                        UUID and there's no user-directory lookup anywhere in
+                        this app to resolve it to a name — a dash beats a raw
+                        UUID here (see design spec §2, deliberate simplification). */}
+                      <td>—</td>
+                      <td>
+                        {weeks} wk / {phase.weeks} wk
+                      </td>
+                      <td>{row.loops}</td>
+                      <td>—</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="v2-btn v2-btn-ghost v2-btn-sm"
+                          onClick={() => setOpenDossier(openDossier === row.id ? null : row.id)}
+                        >
+                          Openen
+                        </button>
+                      </td>
+                    </tr>
+                    {openDossier === row.id && (
+                      <tr key={`${row.id}-dossier`}>
+                        <td colSpan={7}>
+                          <RipFase1WipViewer instanceId={row.id} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+              {getMockPortfolioGereedRows(phase).map((p) => {
+                const detail = getMockPhaseInstanceDetail(p, phase);
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <span className="pb-proj-nr">{p.nr}</span> {p.naam}
+                    </td>
+                    <td>{detail.doneDate}</td>
+                    <td>{detail.doneBy}</td>
+                    <td>
+                      {detail.actualWeeks} wk / {detail.plannedWeeks} wk
+                    </td>
+                    <td>{detail.loops}</td>
+                    <td>
+                      {detail.docsDone}/{detail.docsTotal}
+                    </td>
+                    <td>—</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
       )}
 
       {tab === 'starten' && (
