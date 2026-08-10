@@ -7,6 +7,7 @@ import { ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 import {
   getReadyProjects,
   getOutOfSequenceProjects,
+  getMockPortfolio,
 } from '../../pages/infra-board/infra-board.data';
 
 const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
@@ -32,8 +33,13 @@ vi.mock('../../pages/infra-board/rip-phases.catalog', async (importOriginal) => 
 });
 
 const mockStart = vi.hoisted(() => vi.fn());
+const mockPhase1Active = vi.hoisted(() => vi.fn());
+const mockActivityHistory = vi.hoisted(() => vi.fn());
 vi.mock('../../services/api', () => ({
-  businessApi: { process: { start: mockStart } },
+  businessApi: {
+    process: { start: mockStart, activityHistory: mockActivityHistory },
+    rip: { phase1Active: mockPhase1Active },
+  },
 }));
 
 beforeEach(() => {
@@ -53,6 +59,8 @@ beforeEach(() => {
     phase.code === 'R2.1' ? 'gedeployed' : 'ontwerp'
   );
   mockStart.mockResolvedValue({ success: true, data: { processInstanceId: 'pi-1' } });
+  mockPhase1Active.mockResolvedValue({ success: true, data: [] });
+  mockActivityHistory.mockResolvedValue({ success: true, data: [] });
 });
 
 afterEach(() => {
@@ -203,5 +211,61 @@ describe('PhaseDetail — Starten tab, deployed phase with ready projects', () =
 
     await user.type(reasonInput, 'cd');
     expect(outOfSequenceCheckbox).not.toBeDisabled();
+  });
+});
+
+describe('PhaseDetail — WIP tab', () => {
+  it('renders a real R2.1 row with a LIVE badge, using the live activity history', async () => {
+    mockPhase1Active.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'live-1',
+          startTime: '2026-08-10T10:54:47.658+0200',
+          projectNumber: '99999',
+          projectName: 'Live testproject',
+          edocsWorkspaceId: 'w1',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'a1',
+          activityId: 'Task_OrganiserenIntakeoverleg',
+          activityName: 'Organiseren intake-overleg',
+          activityType: 'userTask',
+          assignee: null,
+          startTime: '2026-08-10T10:55:38.009+0200',
+          endTime: null,
+          durationInMillis: null,
+          canceled: false,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /WIP/ }));
+
+    expect(await screen.findByText('Live testproject', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('Organiseren intake-overleg', { exact: false })).toBeInTheDocument();
+    expect(screen.getAllByText('LIVE', { exact: false }).length).toBeGreaterThan(0);
+  });
+
+  it('renders mock rows for a phase with wip projects, unbadged', async () => {
+    mockGetPhaseDeployStatus.mockReturnValue('gedeployed');
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.3" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /WIP/ }));
+
+    const wipProject = getMockPortfolio().find(
+      (p) => p.ripPhaseCode === 'R2.3' && p.ripPhaseState === 'wip'
+    );
+    expect(wipProject).toBeDefined();
+    expect(screen.getByText(wipProject!.naam, { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText('LIVE')).not.toBeInTheDocument();
   });
 });

@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   RIP_PHASES,
   RIP_STAGES,
   RIP_DEPLOY_META,
   getPhaseDeployStatus,
   ripPhaseByCode,
+  type RipPhase,
 } from '../../pages/infra-board/rip-phases.catalog';
 import {
   getMockPhaseCounts,
   getReadyProjects,
   getOutOfSequenceProjects,
+  getMockPhaseInstanceDetail,
+  getMockPortfolio,
 } from '../../pages/infra-board/infra-board.data';
 import {
   combinePhaseCounts,
@@ -18,6 +21,7 @@ import {
 } from '../../pages/infra-board/rip-phase-counts';
 import { useDeployedProcessKeys, useLivePhaseCounts } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
+import { getWipStepInfo, HEALTH, type HealthKey } from '../../pages/infra-board/rip-model';
 
 interface Props {
   phaseCode: string;
@@ -27,6 +31,20 @@ interface Props {
 interface StartError {
   cause?: string;
   instance?: string;
+}
+
+/** groen/geel/rood heuristic — illustrative only, no per-step norm
+ *  exists in the catalogue at this granularity (see design spec §1). */
+function computeHealth(blocked: string | null, daysInStep: number): HealthKey {
+  if (daysInStep > 28 || (blocked && daysInStep > 14)) return 'rood';
+  if (blocked || daysInStep > 14) return 'geel';
+  return 'groen';
+}
+
+function getMockPortfolioWipRows(phase: RipPhase) {
+  return getMockPortfolio().filter(
+    (p) => p.ripPhaseCode === phase.code && p.ripPhaseState === 'wip'
+  );
 }
 
 export default function PhaseDetail({ phaseCode, onBack }: Props) {
@@ -41,6 +59,33 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const [justStarted, setJustStarted] = useState(0);
   const [fallbackStarted, setFallbackStarted] = useState(false);
   const [fallbackError, setFallbackError] = useState<StartError | null>(null);
+  const [liveWip, setLiveWip] = useState<
+    Array<{ id: string; nr: string; naam: string; info: ReturnType<typeof getWipStepInfo> }>
+  >([]);
+
+  useEffect(() => {
+    if (phaseCode !== 'R2.1') return;
+    let alive = true;
+    businessApi.rip.phase1Active().then(async (res) => {
+      if (!res.success || !res.data || !alive) return;
+      const rows = await Promise.all(
+        res.data.map(async (inst) => {
+          const histRes = await businessApi.process.activityHistory(inst.id);
+          const info = histRes.success && histRes.data ? getWipStepInfo(histRes.data) : null;
+          return {
+            id: inst.id,
+            nr: inst.projectNumber || inst.id.slice(0, 8),
+            naam: inst.projectName || 'RIP Fase 1 project',
+            info,
+          };
+        })
+      );
+      if (alive) setLiveWip(rows);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [phaseCode]);
 
   if (!phase) return null;
 
@@ -191,7 +236,63 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
       </div>
 
       {tab === 'wip' && (
-        <p className="pb-placeholder">WIP-overzicht wordt gebouwd in een volgend deelproject.</p>
+        <table className="pb-instance-table">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Huidige stap</th>
+              <th>Rol</th>
+              <th>Dagen</th>
+              <th>Producten</th>
+              <th>Blokkade</th>
+              <th>Gezondheid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {liveWip.map((row) => {
+              const health = computeHealth(row.info?.blocked ?? null, row.info?.daysInStep ?? 0);
+              return (
+                <tr key={row.id}>
+                  <td>
+                    <span className="pb-proj-nr">{row.nr}</span> {row.naam}
+                    <span className="pb-live-badge">LIVE</span>
+                  </td>
+                  <td>{row.info?.step ?? '—'}</td>
+                  <td>{row.info?.stepRole ?? '—'}</td>
+                  <td>{row.info ? `${row.info.daysInStep}d` : '—'}</td>
+                  <td>—</td>
+                  <td>{row.info?.blocked ?? '—'}</td>
+                  <td>
+                    <span className="pb-health-dot" style={{ background: HEALTH[health].color }} />{' '}
+                    {HEALTH[health].label}
+                  </td>
+                </tr>
+              );
+            })}
+            {getMockPortfolioWipRows(phase).map((p) => {
+              const detail = getMockPhaseInstanceDetail(p, phase);
+              const health = computeHealth(detail.blocked, detail.daysInStep);
+              return (
+                <tr key={p.id}>
+                  <td>
+                    <span className="pb-proj-nr">{p.nr}</span> {p.naam}
+                  </td>
+                  <td>{detail.step}</td>
+                  <td>{detail.stepRole}</td>
+                  <td>{detail.daysInStep}d</td>
+                  <td>
+                    {detail.docsDone}/{detail.docsTotal}
+                  </td>
+                  <td>{detail.blocked ?? '—'}</td>
+                  <td>
+                    <span className="pb-health-dot" style={{ background: HEALTH[health].color }} />{' '}
+                    {HEALTH[health].label}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
       {tab === 'gereed' && (
         <p className="pb-placeholder">Gereed-overzicht wordt gebouwd in een volgend deelproject.</p>

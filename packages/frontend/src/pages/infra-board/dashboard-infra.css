@@ -944,3 +944,22 @@
   color: var(--v2-ink-3);
   font-style: italic;
 }
+.pbd .pb-instance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.pbd .pb-instance-table th,
+.pbd .pb-instance-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--v2-rule);
+  text-align: left;
+}
+.pbd .pb-health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
