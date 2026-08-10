@@ -92,6 +92,7 @@ export const FASE1_LANES: SwimLane[] = [
   { key: 'rip-team', label: 'RIP-team' },
 ];
 const ROW = Object.fromEntries(FASE1_LANES.map((l, i) => [l.key, i]));
+const ROW_TO_LANE_KEY: string[] = FASE1_LANES.map((l) => l.key);
 
 export type NodeKind = 'start' | 'end' | 'task' | 'service' | 'gateway';
 export interface SwimNode {
@@ -337,4 +338,58 @@ export function nodeStatusFromHistory(
     }
   }
   return out;
+}
+
+export interface WipStepInfo {
+  step: string;
+  stepRole: string;
+  daysInStep: number;
+  blocked: string | null;
+}
+
+/**
+ * Derives the current-step summary for one process instance from its
+ * activity history. The running node (no endTime, not canceled) is the
+ * current step; if it's the target of a `back: true` edge, the gateway
+ * that sent it back is surfaced as `blocked`. R2.1-specific —
+ * FASE1_NODES/FASE1_EDGES model only R2.1's BPMN.
+ */
+export function getWipStepInfo(history: ActivityHistoryItem[]): WipStepInfo | null {
+  const running = history.find((h) => !h.endTime && !h.canceled);
+  if (!running) return null;
+  const node = FASE1_NODES.find((n) => n.bpmnId === running.activityId);
+  if (!node) return null;
+  const backEdge = FASE1_EDGES.find((e) => e.back && e.to === node.id);
+  const blocked = backEdge
+    ? (FASE1_NODES.find((n) => n.id === backEdge.from)?.label ?? null)
+    : null;
+  const daysInStep = Math.floor(
+    (Date.now() - new Date(running.startTime).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return {
+    step: node.label,
+    stepRole: roleByKey(ROW_TO_LANE_KEY[node.row]).label,
+    daysInStep,
+    blocked,
+  };
+}
+
+/**
+ * Counts rework-loop re-executions in a (typically completed) instance's
+ * activity history: for each `back: true` edge in FASE1_EDGES, its target
+ * node's bpmnId is counted once per execution beyond the first — the
+ * first execution is the normal forward pass, not a loop.
+ */
+export function countReworkLoops(history: ActivityHistoryItem[]): number {
+  const backTargetBpmnIds = new Set(
+    FASE1_EDGES.filter((e) => e.back)
+      .map((e) => FASE1_NODES.find((n) => n.id === e.to)?.bpmnId)
+      .filter((id): id is string => !!id)
+  );
+  let loops = 0;
+  for (const bpmnId of backTargetBpmnIds) {
+    const count = history.filter((h) => h.activityId === bpmnId).length;
+    loops += Math.max(0, count - 1);
+  }
+  return loops;
 }
