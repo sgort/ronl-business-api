@@ -131,3 +131,5 @@ docs/edocs-rest-api-1.0.0.json
 
 # design-handoff reference material — port content into the app, never commit the folder itself
 publiek-handoff/
+docs/infra-beheer-handoff/
+docs/infra-beheer-handoff-v2/
