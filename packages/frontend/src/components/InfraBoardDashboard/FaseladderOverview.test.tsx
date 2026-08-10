@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import FaseladderOverview from './FaseladderOverview';
 import { RIP_STAGES, RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
 import { getMockPhaseCounts } from '../../pages/infra-board/infra-board.data';
@@ -49,7 +50,7 @@ afterEach(() => {
 
 describe('FaseladderOverview', () => {
   it('renders one row per phase, grouped under four stage headers', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     RIP_PHASES.forEach((p) => {
       expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
     });
@@ -59,22 +60,27 @@ describe('FaseladderOverview', () => {
   });
 
   it('shows a live annotation only for R2.1, which has nonzero live counts', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     expect(screen.getAllByText('1 live').length).toBeGreaterThan(0);
   });
 
   it('renders the deployment pill for R2.1 as gedeployed', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     expect(screen.getByText('Gedeployed')).toBeInTheDocument();
   });
 
-  it('does not render table rows as clickable', () => {
-    const { container } = render(<FaseladderOverview />);
-    expect(container.querySelectorAll('tbody tr button')).toHaveLength(0);
+  it('calls onOpenPhase with the phase code when a row is clicked', async () => {
+    const onOpenPhase = vi.fn();
+    const user = userEvent.setup();
+    render(<FaseladderOverview onOpenPhase={onOpenPhase} />);
+
+    await user.click(screen.getByText('R2.1', { exact: false }));
+
+    expect(onOpenPhase).toHaveBeenCalledWith('R2.1');
   });
 
   it('shows Fasen in uitvoering as the total WIP across all phases (mock + live), not a phase-count capped at 9', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     const mockCounts = getMockPhaseCounts();
     const totalMockWip = Object.values(mockCounts).reduce((sum, c) => sum + c.wip, 0);
     const expected = totalMockWip + 1; // + the mocked live R2.1 wip:1
@@ -83,12 +89,12 @@ describe('FaseladderOverview', () => {
   });
 
   it('shows Deelprocessen inzetbaar as "N / 9"', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     expect(kpiValue('Deelprocessen inzetbaar')).toBe('1 / 9');
   });
 
   it('shows Klaar om te starten as the total Klaar across all non-beyond phases, not deployed-only', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     const combined = combinePhaseCounts(getMockPhaseCounts(), LIVE_COUNTS);
     const klaar = getKlaarCounts(RIP_PHASES, combined);
     const totalKlaar = RIP_PHASES.filter((p) => !p.beyond).reduce(
@@ -102,7 +108,7 @@ describe('FaseladderOverview', () => {
   });
 
   it('renders a zero-value Klaar cell as "—", not "0"', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     const mockCounts = getMockPhaseCounts();
     const klaar = getKlaarCounts(RIP_PHASES, mockCounts);
     const zeroPhase = RIP_PHASES.find((p, i) => i > 0 && !p.beyond && klaar[p.code] === 0);
@@ -112,7 +118,7 @@ describe('FaseladderOverview', () => {
   });
 
   it('labels the WIP column "WIP / Geparkeerd" and shows R5.2\'s geparkeerd count there', () => {
-    render(<FaseladderOverview />);
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     expect(screen.getByText('WIP / Geparkeerd')).toBeInTheDocument();
     const mockCounts = getMockPhaseCounts();
     const r52 = RIP_PHASES.find((p) => p.code === 'R5.2')!;

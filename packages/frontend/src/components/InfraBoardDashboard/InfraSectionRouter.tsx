@@ -1,10 +1,12 @@
 import type { KeycloakUser } from '@ronl/shared';
 import type { InfraModeId } from '../../pages/infra-board/modes.config';
+import { phaseCodeFromSectionId } from '../../pages/infra-board/modes.config';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 import type { TenantConfig } from '../../services/tenant';
 import MijnDag from './MijnDag';
 import Portfolio from './Portfolio';
 import ProjectDetail from './ProjectDetail';
+import PhaseDetail from './PhaseDetail';
 import { getMockUpdates } from '../../pages/infra-board/infra-board.data';
 import { INFRA_PROCESS_KEYS } from '../../services/infra.api';
 
@@ -55,6 +57,8 @@ interface Props {
   onOpenProject: (ref: ProjectRef) => void;
   onBack: () => void;
   onGotoPortfolio: () => void;
+  onOpenPhase: (phaseCode: string) => void;
+  onBackToFaseladder: () => void;
 }
 
 export default function InfraSectionRouter(p: Props) {
@@ -76,37 +80,45 @@ export default function InfraSectionRouter(p: Props) {
   // Beheer — reuse the existing V1 components verbatim, wrapped in the
   // same v2-main-pad padding that CaseworkerDashboardV2 applies.
   let content: React.ReactNode;
-  const normalizedSection = section.startsWith('fase-') ? 'faseladder' : section;
-  switch (normalizedSection) {
-    case 'profiel':
-      content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
-      break;
-    case 'rollen':
-      content = <RollenSection user={user} />;
-      break;
-    case 'faseladder':
-      content = <FaseladderOverview />;
-      break;
-    case 'archief':
-      content = <ArchiefSection boardId="infra-board" allowProcessKeys={INFRA_PROCESS_KEYS} />;
-      break;
-    case 'iou-gebruiksscenario':
-      content = <IouGebruiksscenarioSection />;
-      break;
-    case 'iou-feedback':
-      content = <IouFeedbackSection />;
-      break;
-    case 'iou-actieve-zaken':
-      content = <IouZakenSection state="opened" />;
-      break;
-    case 'iou-archief':
-      content = <IouZakenSection state="closed" />;
-      break;
-    case 'gereedschap-overzicht':
-      content = <GereedschapSection user={user} />;
-      break;
-    default:
-      content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
+  const phaseCode = section.startsWith('fase-') ? phaseCodeFromSectionId(section) : undefined;
+  if (phaseCode) {
+    content = <PhaseDetail phaseCode={phaseCode} onBack={p.onBackToFaseladder} />;
+  } else {
+    switch (section) {
+      case 'profiel':
+        content = (
+          <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />
+        );
+        break;
+      case 'rollen':
+        content = <RollenSection user={user} />;
+        break;
+      case 'faseladder':
+        content = <FaseladderOverview onOpenPhase={p.onOpenPhase} />;
+        break;
+      case 'archief':
+        content = <ArchiefSection boardId="infra-board" allowProcessKeys={INFRA_PROCESS_KEYS} />;
+        break;
+      case 'iou-gebruiksscenario':
+        content = <IouGebruiksscenarioSection />;
+        break;
+      case 'iou-feedback':
+        content = <IouFeedbackSection />;
+        break;
+      case 'iou-actieve-zaken':
+        content = <IouZakenSection state="opened" />;
+        break;
+      case 'iou-archief':
+        content = <IouZakenSection state="closed" />;
+        break;
+      case 'gereedschap-overzicht':
+        content = <GereedschapSection user={user} />;
+        break;
+      default:
+        content = (
+          <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />
+        );
+    }
   }
   return <div className="v2-main-pad">{content}</div>;
 }

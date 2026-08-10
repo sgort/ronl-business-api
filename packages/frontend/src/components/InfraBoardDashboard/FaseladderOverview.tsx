@@ -23,7 +23,11 @@ function Metric({ combined, live }: { combined: number; live: number }) {
   );
 }
 
-export default function FaseladderOverview() {
+interface Props {
+  onOpenPhase: (phaseCode: string) => void;
+}
+
+export default function FaseladderOverview({ onOpenPhase }: Props) {
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
 
@@ -131,7 +135,11 @@ export default function FaseladderOverview() {
                 const klaar = klaarCombined[phase.code];
                 const klaarL = klaarLive[phase.code] ?? 0;
                 return (
-                  <tr key={phase.code}>
+                  <tr
+                    key={phase.code}
+                    onClick={() => onOpenPhase(phase.code)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td>
                       {phase.code} · {phase.name}
                     </td>

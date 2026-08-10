@@ -18,6 +18,14 @@ vi.mock('./ProjectDetail', () => ({
 
 vi.mock('./FaseladderOverview', () => ({ default: () => <div>faseladder</div> }));
 
+const mockPhaseDetail = vi.hoisted(() => vi.fn());
+vi.mock('./PhaseDetail', () => ({
+  default: (props: never) => {
+    mockPhaseDetail(props);
+    return <div>phase-detail</div>;
+  },
+}));
+
 const mockArchiefSection = vi.hoisted(() => vi.fn());
 vi.mock('../CaseworkerDashboard/ArchiefSection', () => ({
   default: (props: never) => {
@@ -57,6 +65,8 @@ const baseProps = {
   onOpenProject: vi.fn(),
   onBack: vi.fn(),
   onGotoPortfolio: vi.fn(),
+  onOpenPhase: vi.fn(),
+  onBackToFaseladder: vi.fn(),
 };
 
 describe('InfraSectionRouter', () => {
@@ -90,13 +100,18 @@ describe('InfraSectionRouter', () => {
     ['profiel', 'profiel'],
     ['rollen', 'rollen'],
     ['faseladder', 'faseladder'],
-    ['fase-r2-1', 'faseladder'],
     ['iou-gebruiksscenario', 'iou-gebruiksscenario'],
     ['iou-feedback', 'iou-feedback'],
     ['gereedschap-overzicht', 'gereedschap'],
   ])('beheer section "%s" routes to its component', (section, text) => {
     render(<InfraSectionRouter {...baseProps} mode="beheer" section={section} />);
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it('a fase-* section renders PhaseDetail with the matching phase code', () => {
+    render(<InfraSectionRouter {...baseProps} mode="beheer" section="fase-r2-1" />);
+    expect(screen.getByText('phase-detail')).toBeInTheDocument();
+    expect(mockPhaseDetail).toHaveBeenCalledWith(expect.objectContaining({ phaseCode: 'R2.1' }));
   });
 
   it('an unrecognised beheer section falls back to ProfielSection', () => {

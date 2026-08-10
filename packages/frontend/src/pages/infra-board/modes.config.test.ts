@@ -3,8 +3,11 @@ import {
   findModeForSection,
   INFRA_GATE_ROLE,
   isRailItemVisible,
+  phaseCodeFromSectionId,
+  phaseSectionId,
   type InfraRailItem,
 } from './modes.config';
+import { RIP_PHASES } from './rip-phases.catalog';
 
 describe('findModeForSection', () => {
   it('resolves each section id to the mode that owns it', () => {
@@ -52,5 +55,17 @@ describe('isRailItemVisible', () => {
 
   it('shows an item with neither authRequired nor requiredRoles regardless of context', () => {
     expect(isRailItemVisible(openItem, { isAuthenticated: false, userRoles: [] })).toBe(true);
+  });
+});
+
+describe('phaseSectionId / phaseCodeFromSectionId', () => {
+  it('round-trips every phase code', () => {
+    for (const p of RIP_PHASES) {
+      expect(phaseCodeFromSectionId(phaseSectionId(p.code))).toBe(p.code);
+    }
+  });
+
+  it('returns undefined for a non-phase section id', () => {
+    expect(phaseCodeFromSectionId('archief')).toBeUndefined();
   });
 });

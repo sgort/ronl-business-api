@@ -72,7 +72,7 @@ export const INFRA_MODES: InfraModeConfig[] = [
           { id: 'faseladder', label: 'Faseladder', authRequired: true },
           ...RIP_STAGES.flatMap((stage) =>
             RIP_PHASES.filter((p) => p.stage === stage.code).map((p) => ({
-              id: `fase-${p.code.toLowerCase().replace('.', '-')}`,
+              id: phaseSectionId(p.code),
               label: `${p.code} · ${p.name}`,
               authRequired: true,
               requiredRoles: [INFRA_GATE_ROLE],
@@ -103,6 +103,14 @@ export function findModeForSection(sectionId: string): InfraModeId | null {
     for (const g of m.groups) if (g.items.some((i) => i.id === sectionId)) return m.id;
   }
   return null;
+}
+
+export function phaseSectionId(code: string): string {
+  return `fase-${code.toLowerCase().replace('.', '-')}`;
+}
+
+export function phaseCodeFromSectionId(id: string): string | undefined {
+  return RIP_PHASES.find((p) => phaseSectionId(p.code) === id)?.code;
 }
 
 export interface InfraGateContext {

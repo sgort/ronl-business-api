@@ -26,6 +26,7 @@ import {
   INFRA_GATE_ROLE,
   findModeForSection,
   isRailItemVisible,
+  phaseSectionId,
   type InfraModeId,
 } from './infra-board/modes.config';
 import { PHASES } from './infra-board/rip-model';
@@ -276,6 +277,8 @@ export default function InfraBoardDashboard() {
                 setOpenProject(null);
                 setMode('portfolio');
               }}
+              onOpenPhase={(code) => setActiveSection(phaseSectionId(code))}
+              onBackToFaseladder={() => setActiveSection('faseladder')}
             />
           )}
         </main>
