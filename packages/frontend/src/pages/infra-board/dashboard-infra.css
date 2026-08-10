@@ -1023,3 +1023,51 @@
   margin-right: 7px;
   letter-spacing: 0.03em;
 }
+
+/* Wat er gebeurt bij starten — Tailwind's Preflight (@tailwind base) strips
+   list-style/margin/padding from every ol/ul app-wide, and this card's
+   <ol>/<dl> never got counter-restoring CSS, so it silently rendered as
+   plain unnumbered running text instead of the design's numbered steps +
+   label/value rows. */
+.pbd .pb-side-panel h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.pbd .pb-side-panel ol {
+  list-style: decimal;
+  padding-left: 18px;
+  margin: 0 0 16px;
+}
+.pbd .pb-side-panel ol li {
+  font-size: 13px;
+  color: var(--v2-ink);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.pbd .pb-side-panel dl {
+  margin: 0;
+}
+.pbd .pb-side-panel dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v2-rule);
+}
+.pbd .pb-side-panel dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v2-ink-3);
+}
+.pbd .pb-side-panel dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-ink);
+}
+.pbd .pb-side-panel .pb-bron {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--v2-ink-3);
+}
