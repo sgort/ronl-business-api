@@ -129,6 +129,30 @@ export class OperatonService {
   }
 
   /**
+   * For each given process-definition key, the count of active (WIP) and
+   * completed (Gereed) instances on this environment's Operaton instance.
+   * Count-only queries — no instance payloads.
+   */
+  async getPhaseInstanceCounts(
+    keys: string[]
+  ): Promise<Record<string, { wip: number; gereed: number }>> {
+    const entries = await Promise.all(
+      keys.map(async (key) => {
+        const [wipRes, gereedRes] = await Promise.all([
+          this.client.get('/process-instance/count', {
+            params: { processDefinitionKey: key },
+          }),
+          this.client.get('/history/process-instance/count', {
+            params: { processDefinitionKey: key, finished: true },
+          }),
+        ]);
+        return [key, { wip: wipRes.data.count, gereed: gereedRes.data.count }] as const;
+      })
+    );
+    return Object.fromEntries(entries);
+  }
+
+  /**
    * Start a process instance
    */
   async startProcess(

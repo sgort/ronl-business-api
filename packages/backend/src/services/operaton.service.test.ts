@@ -162,6 +162,52 @@ describe('getDeployedProcessKeys', () => {
   });
 });
 
+describe('getPhaseInstanceCounts', () => {
+  it('queries active + completed counts per key and maps the result', async () => {
+    mockClient.get.mockImplementation(
+      (url: string, _config: { params: Record<string, unknown> }) => {
+        if (url === '/process-instance/count') {
+          return Promise.resolve({ data: { count: 3 } });
+        }
+        if (url === '/history/process-instance/count') {
+          return Promise.resolve({ data: { count: 7 } });
+        }
+        throw new Error(`unexpected url ${url}`);
+      }
+    );
+
+    const result = await svc.getPhaseInstanceCounts(['RipPhase1Process']);
+
+    expect(result).toEqual({ RipPhase1Process: { wip: 3, gereed: 7 } });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance/count', {
+      params: { processDefinitionKey: 'RipPhase1Process' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/count', {
+      params: { processDefinitionKey: 'RipPhase1Process', finished: true },
+    });
+  });
+
+  it('queries multiple keys in parallel', async () => {
+    mockClient.get.mockImplementation(
+      (_url: string, config: { params: { processDefinitionKey: string } }) =>
+        Promise.resolve({ data: { count: config.params.processDefinitionKey === 'A' ? 1 : 2 } })
+    );
+
+    const result = await svc.getPhaseInstanceCounts(['A', 'B']);
+
+    expect(result).toEqual({
+      A: { wip: 1, gereed: 1 },
+      B: { wip: 2, gereed: 2 },
+    });
+  });
+
+  it('rethrows on failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+
+    await expect(svc.getPhaseInstanceCounts(['RipPhase1Process'])).rejects.toThrow('boom');
+  });
+});
+
 describe('getActivityHistory', () => {
   it('queries oldest-first and maps the activity items', async () => {
     mockClient.get.mockResolvedValue({
