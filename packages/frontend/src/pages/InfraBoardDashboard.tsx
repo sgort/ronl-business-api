@@ -300,15 +300,15 @@ export default function InfraBoardDashboard() {
                 Persoonlijk · {user?.name ?? user?.preferred_username}
               </span>
             )}
-            {mode === 'portfolio' && (
+            {mode === 'portfolio' && isAuth && (
               <span className="pb-rail-sub">
                 {allProjects.length} projecten · venster 2022–2027
               </span>
             )}
-            {mode === 'beheer' && <span className="pb-rail-sub">{beheerSubtitle}</span>}
+            {mode === 'beheer' && isAuth && <span className="pb-rail-sub">{beheerSubtitle}</span>}
           </div>
 
-          {mode === 'mijn-dag' && (
+          {mode === 'mijn-dag' && isAuth && (
             <div className="pb-rail-stats">
               {mijnDagStats.map((s) => (
                 <div className="pb-rail-stat" key={s.label}>
@@ -322,7 +322,7 @@ export default function InfraBoardDashboard() {
             </div>
           )}
 
-          {mode === 'portfolio' && (
+          {mode === 'portfolio' && isAuth && (
             <>
               {portfolioStageGroups.map(({ stage, phases }) => (
                 <div className="v2-rail-group" key={stage.code}>

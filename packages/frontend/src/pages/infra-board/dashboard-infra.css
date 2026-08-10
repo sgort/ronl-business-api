@@ -1107,3 +1107,28 @@
   color: var(--v2-ink-2);
   border: 1px solid var(--v2-rule);
 }
+
+/* Two rules missed in the original port of docs/infra-beheer-handoff-v2/
+   reference/project-board.css — added here to close the gap vs. reference. */
+
+/* Portfolio's stat-row phase code chip (inside a .pb-rail-stat) is a
+   smaller, column-aligned, grey variant distinct from the Beheer-nav
+   .pb-rail-code above (reference project-board.css line ~865). Without
+   this, it fell back to the 10px/--v2-ink-3 nav-item rule. */
+.pbd .pb-rail-stat .pb-rail-code {
+  display: inline-block;
+  min-width: 30px;
+  font-family: var(--v2-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--pb-grey);
+  letter-spacing: 0.04em;
+}
+
+/* Long Beheer phase names (e.g. R5.3's "(Vervroegde) ingebruikname /
+   oplevering") can butt up against the count/parked badge — the base
+   .cwd-v2 .v2-rail-item rule (dashboard-v2.css) has no gap between its
+   flex children. */
+.pbd .v2-rail-item {
+  gap: 8px;
+}

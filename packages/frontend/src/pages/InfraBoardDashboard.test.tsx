@@ -243,4 +243,21 @@ describe('InfraBoardDashboard', () => {
     // (id: 'iou-archief', pre-existing, untouched by this task).
     expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
   });
+
+  it('hides Beheer phase items (but not Faseladder/Archief) from an authenticated user without the gate role', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['other-role'] });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    expect(await screen.findByRole('button', { name: 'Faseladder' })).toBeInTheDocument();
+    // Two "Archief" buttons legitimately coexist here too — the Projecten
+    // section's own Archief item (gated on isAuth) and the unrelated IOU
+    // group's "Archief" item (id: 'iou-archief', also gated on isAuth only,
+    // not hasGateRole) — see the sibling "groups phase items..." test above.
+    expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
+    expect(screen.queryByText(/R2 · Planvoorbereiding/)).not.toBeInTheDocument();
+  });
 });
