@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ActivityHistoryItem } from '@ronl/shared';
 import {
   countReworkLoops,
+  getDocProgress,
   getWipStepInfo,
   nodeStatusFromHistory,
   roleByKey,
@@ -131,12 +132,20 @@ describe('getWipStepInfo', () => {
     expect(result!.blocked).toBeNull();
   });
 
-  it('surfaces the originating gateway when the running node is a rework target', () => {
+  it('surfaces the originating gateway when the running node is a genuine rework re-execution', () => {
+    // Task_AanvullenProjectplan2 ran once already (the normal forward
+    // pass), the gateway then fired 'niet akkoord', and it's now running
+    // a SECOND time — that repeat execution is the actual rework signal.
     const history: ActivityHistoryItem[] = [
+      activity({
+        activityId: 'Task_AanvullenProjectplan2',
+        startTime: '2026-07-30T00:00:00Z',
+        endTime: '2026-07-30T01:00:00Z',
+      }),
       activity({
         activityId: 'Gateway_Akkoord2',
         activityType: 'exclusiveGateway',
-        endTime: '2026-07-31T23:59:00Z', // already fired — only the rework task below is running
+        endTime: '2026-07-31T23:59:00Z',
       }),
       activity({
         activityId: 'Task_AanvullenProjectplan2',
@@ -148,6 +157,24 @@ describe('getWipStepInfo', () => {
     const result = getWipStepInfo(history);
 
     expect(result!.blocked).toBe('Akkoord?');
+  });
+
+  it('does NOT flag a first-time pass through a rework-target node as blocked', () => {
+    // t_aanvullen2 is ALSO the normal forward-path target of g_intake's
+    // 'Ja' edge — a brand-new instance's first, entirely normal visit
+    // must not be reported as blocked just because SOME edge into this
+    // node happens to be a back edge.
+    const history: ActivityHistoryItem[] = [
+      activity({
+        activityId: 'Task_AanvullenProjectplan2',
+        startTime: '2026-08-01T00:00:00Z',
+        endTime: null,
+      }),
+    ];
+
+    const result = getWipStepInfo(history);
+
+    expect(result!.blocked).toBeNull();
   });
 
   it('returns null when every activity has finished (process complete)', () => {
@@ -196,5 +223,34 @@ describe('countReworkLoops', () => {
 
   it('returns 0 for an empty history', () => {
     expect(countReworkLoops([])).toBe(0);
+  });
+});
+
+describe('getDocProgress', () => {
+  it('counts FASE1_DOCS whose produceNode has finished', () => {
+    // t_aanleveren (doc 1, bpmnId Task_AanlevrenProjectplan) and
+    // t_aanvullen2 (doc 2, bpmnId Task_AanvullenProjectplan2) finished;
+    // t_psu (doc 3) and t_aanvullen4 (doc 4) have not been reached.
+    const history: ActivityHistoryItem[] = [
+      activity({ activityId: 'Task_AanlevrenProjectplan', endTime: '2026-08-01T00:00:00Z' }),
+      activity({ activityId: 'Task_AanvullenProjectplan2', endTime: '2026-08-02T00:00:00Z' }),
+    ];
+    const result = getDocProgress(history);
+    expect(result.docsDone).toBe(2);
+    expect(result.docsTotal).toBe(4);
+  });
+
+  it('returns 0/4 for an empty history', () => {
+    expect(getDocProgress([])).toEqual({ docsDone: 0, docsTotal: 4 });
+  });
+
+  it('returns 4/4 when every produceNode has finished', () => {
+    const history: ActivityHistoryItem[] = [
+      activity({ activityId: 'Task_AanlevrenProjectplan', endTime: '2026-08-01T00:00:00Z' }),
+      activity({ activityId: 'Task_AanvullenProjectplan2', endTime: '2026-08-02T00:00:00Z' }),
+      activity({ activityId: 'Task_UitvoerenPSU', endTime: '2026-08-03T00:00:00Z' }),
+      activity({ activityId: 'Task_AanvullenProjectplan4', endTime: '2026-08-04T00:00:00Z' }),
+    ];
+    expect(getDocProgress(history).docsDone).toBe(4);
   });
 });

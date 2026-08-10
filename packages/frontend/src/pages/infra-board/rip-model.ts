@@ -360,9 +360,17 @@ export function getWipStepInfo(history: ActivityHistoryItem[]): WipStepInfo | nu
   const node = FASE1_NODES.find((n) => n.bpmnId === running.activityId);
   if (!node) return null;
   const backEdge = FASE1_EDGES.find((e) => e.back && e.to === node.id);
-  const blocked = backEdge
-    ? (FASE1_NODES.find((n) => n.id === backEdge.from)?.label ?? null)
-    : null;
+  // A node targeted by a back edge is only "blocked" if this is a
+  // genuine rework re-execution — i.e. this activityId has run before.
+  // Two FASE1 nodes (t_aanvullen2, t_aanvullen4) are ALSO the normal
+  // forward-path target of an earlier task/gateway, so a first-ever
+  // visit must not be reported as blocked just because SOME edge into
+  // the node happens to be a back edge.
+  const executionCount = history.filter((h) => h.activityId === running.activityId).length;
+  const blocked =
+    backEdge && executionCount > 1
+      ? (FASE1_NODES.find((n) => n.id === backEdge.from)?.label ?? null)
+      : null;
   const daysInStep = Math.floor(
     (Date.now() - new Date(running.startTime).getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -392,4 +400,19 @@ export function countReworkLoops(history: ActivityHistoryItem[]): number {
     loops += Math.max(0, count - 1);
   }
   return loops;
+}
+
+export interface DocProgress {
+  docsDone: number;
+  docsTotal: number;
+}
+
+/**
+ * Product-progress for a live R2.1 instance: how many of FASE1_DOCS are
+ * finished, per nodeStatusFromHistory's node-status derivation.
+ */
+export function getDocProgress(history: ActivityHistoryItem[]): DocProgress {
+  const status = nodeStatusFromHistory(history);
+  const docsDone = FASE1_DOCS.filter((d) => status[d.produceNode] === 'done').length;
+  return { docsDone, docsTotal: FASE1_DOCS.length };
 }
