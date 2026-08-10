@@ -4,6 +4,8 @@ import {
   getMockPortfolio,
   getMockTodos,
   getMockUpdates,
+  getOutOfSequenceProjects,
+  getReadyProjects,
   makePhase1Row,
   normalizeLeadRole,
   PHASE_DUR,
@@ -158,5 +160,50 @@ describe('getMockPhaseCounts', () => {
       ).length;
       expect(counts[phase.code].gereed).toBe(pastThisPhase);
     });
+  });
+});
+
+describe('getReadyProjects / getOutOfSequenceProjects', () => {
+  it('are both empty for the first phase in ladder order (no predecessor)', () => {
+    expect(getReadyProjects(RIP_PHASES[0].code)).toEqual([]);
+    expect(getOutOfSequenceProjects(RIP_PHASES[0].code)).toEqual([]);
+  });
+
+  it('ready = projects at the predecessor phase with state wachtend', () => {
+    const phase = RIP_PHASES[1]; // R2.2
+    const ready = getReadyProjects(phase.code);
+    const prevCode = RIP_PHASES[0].code;
+    for (const p of ready) {
+      expect(p.ripPhaseCode).toBe(prevCode);
+      expect(p.ripPhaseState).toBe('wachtend');
+    }
+    // and nothing eligible was left out
+    const allEligible = getMockPortfolio().filter(
+      (p) => p.ripPhaseCode === prevCode && p.ripPhaseState === 'wachtend'
+    );
+    expect(ready).toHaveLength(allEligible.length);
+  });
+
+  it('out-of-sequence = projects that have not passed the predecessor, excluding ready', () => {
+    const phase = RIP_PHASES[2]; // R2.3
+    const idx = 2;
+    const ready = getReadyProjects(phase.code);
+    const readyIds = new Set(ready.map((p) => p.id));
+    const outOfSequence = getOutOfSequenceProjects(phase.code);
+
+    for (const p of outOfSequence) {
+      expect(readyIds.has(p.id)).toBe(false);
+      const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+      expect(curIdx).toBeLessThan(idx);
+    }
+
+    // every project either at-or-past this phase, ready, or out-of-sequence — no one lost
+    const projects = getMockPortfolio();
+    const outIds = new Set(outOfSequence.map((p) => p.id));
+    for (const p of projects) {
+      const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+      if (curIdx >= idx) continue; // at or past this phase — not a candidate at all
+      expect(readyIds.has(p.id) || outIds.has(p.id)).toBe(true);
+    }
   });
 });

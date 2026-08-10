@@ -744,6 +744,37 @@ export function getMockPhaseCounts(): Record<string, PhaseCounts> {
   return out;
 }
 
+/**
+ * Projects whose current ladder position is exactly this phase's
+ * predecessor, sitting in 'wachtend' (previous phase accorded, this one
+ * not yet started). Always empty for the first phase in ladder order —
+ * there is no predecessor to be ready from.
+ */
+export function getReadyProjects(phaseCode: string): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
+  if (idx <= 0) return [];
+  const prevCode = RIP_PHASES[idx - 1].code;
+  return getMockPortfolio().filter(
+    (p) => p.ripPhaseCode === prevCode && p.ripPhaseState === 'wachtend'
+  );
+}
+
+/**
+ * Projects not yet in sequence for this phase — still working an earlier
+ * phase, or still 'wip' on the immediate predecessor (not yet accorded).
+ * These are the "Toon N projecten die nog niet aan beurt zijn" set.
+ */
+export function getOutOfSequenceProjects(phaseCode: string): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
+  if (idx <= 0) return [];
+  const ready = new Set(getReadyProjects(phaseCode).map((p) => p.id));
+  return getMockPortfolio().filter((p) => {
+    if (ready.has(p.id)) return false;
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx < idx;
+  });
+}
+
 export const MIJN_PROJECT_NRS = ['23102', '24011', '24102', '25031', '23166', '25090'];
 
 export function getMockTodos(): {
