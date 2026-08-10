@@ -2,11 +2,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { Task } from '@ronl/shared';
-import { groupTasksByHorizon, useActivityHistory, useOpenTasks } from './infra.api';
+import {
+  groupTasksByHorizon,
+  useActivityHistory,
+  useDeployedProcessKeys,
+  useOpenTasks,
+} from './infra.api';
 
 const mockBusinessApi = vi.hoisted(() => ({
   task: { list: vi.fn() },
-  rip: { phase1Active: vi.fn(), phase1Documents: vi.fn() },
+  rip: { phase1Active: vi.fn(), phase1Documents: vi.fn(), deploymentStatus: vi.fn() },
   process: { activityHistory: vi.fn() },
 }));
 
@@ -139,6 +144,37 @@ describe('useOpenTasks', () => {
     mockBusinessApi.task.list.mockRejectedValue(new Error('network down'));
 
     const { result } = renderHook(() => useOpenTasks());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
+  });
+});
+
+describe('useDeployedProcessKeys', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the deployed keys and exposes them once resolved', async () => {
+    mockBusinessApi.rip.deploymentStatus.mockResolvedValue({
+      success: true,
+      data: { deployedKeys: ['RipPhase1Process'] },
+    });
+
+    const { result } = renderHook(() => useDeployedProcessKeys());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual({ deployedKeys: ['RipPhase1Process'] });
+    expect(result.current.error).toBe(false);
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.deploymentStatus.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => useDeployedProcessKeys());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

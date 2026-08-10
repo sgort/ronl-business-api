@@ -453,6 +453,18 @@ describe('businessApi.rip', () => {
     });
   });
 
+  it('deploymentStatus fetches the live deployed process keys', async () => {
+    server.use(
+      http.get('*/rip/phases/deployment-status', () =>
+        HttpResponse.json({ success: true, data: { deployedKeys: ['RipPhase1Process'] } })
+      )
+    );
+    expect(await businessApi.rip.deploymentStatus()).toEqual({
+      success: true,
+      data: { deployedKeys: ['RipPhase1Process'] },
+    });
+  });
+
   it('phase1Completed fetches the completed Fase 1 instances', async () => {
     server.use(
       http.get('*/rip/phase1/completed', () => HttpResponse.json({ success: true, data: [] }))

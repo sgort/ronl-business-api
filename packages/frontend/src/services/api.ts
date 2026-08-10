@@ -290,6 +290,11 @@ export const businessApi = {
       return response.data;
     },
 
+    deploymentStatus: async (): Promise<ApiResponse<{ deployedKeys: string[] }>> => {
+      const response = await api.get('/rip/phases/deployment-status');
+      return response.data;
+    },
+
     phase1Completed: async (): Promise<
       ApiResponse<
         Array<{

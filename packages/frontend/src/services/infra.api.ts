@@ -60,6 +60,10 @@ function useAsync<T>(
 /** The signed-in user's open engine tasks (the work surface). */
 export const useOpenTasks = () => useAsync<Task[]>(() => businessApi.task.list(), []);
 
+/** Live "is this phase's process deployed here?" data for the RIP catalogue. */
+export const useDeployedProcessKeys = () =>
+  useAsync<{ deployedKeys: string[] }>(() => businessApi.rip.deploymentStatus(), []);
+
 /** Running RIP Fase 1 instances (portfolio — live Fase-1 rows). */
 export const useActivePhase1 = () =>
   useAsync<Phase1Instance[]>(() => businessApi.rip.phase1Active(), []);
