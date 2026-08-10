@@ -93,6 +93,526 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.13',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '53beb82',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Gitignore the design-handoff reference folders',
+          details: [
+            'docs/infra-beheer-handoff/ and docs/infra-beheer-handoff-v2/ are local reference material for porting the RIP Beheer design into the app, not meant to be committed to the repo — same treatment as the existing publiek-handoff/ folder.',
+          ],
+        },
+        {
+          sha: '36121e6',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Gate the new rail stats behind login, close a role-gate test gap, add two missed CSS rules',
+          details: [
+            'The new Mijn dag/Portfolio/Beheer rail stats were rendering for anonymous visitors — an unauthenticated visit to the Infra-board showed live-looking project numbers beside a "please log in" main pane. Fixed by gating all four rail-stat blocks behind login, matching how the rest of the shell already behaves.',
+            "Also added a regression test for the phase items' team-role gate (moved into hand-written rendering in this same release, with no test covering it until now), and ported two CSS rules the original design port had missed: Portfolio's smaller, column-aligned phase-code chip, and breathing room between long phase names and their count badge.",
+          ],
+        },
+        {
+          sha: 'c712deb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Group Beheer's rail phase items by stage, matching Portfolio",
+          details: [
+            "Comparing the deployed app against the design screenshots showed Beheer's phase list in the rail was still one flat list, missing the R2–R6 stage headers Portfolio's rail already had. Regrouped to match the design exactly, with Faseladder and Archief as their own entries before and after the five stage groups.",
+          ],
+        },
+        {
+          sha: '63cea04',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Wire Mijn dag/Portfolio/Beheer rail stats into the app shell',
+          details: [
+            "The app shell's left rail previously only rendered navigable links. It now shows real numbers per mode: Mijn dag gets Taken vandaag / Urgent-te laat / Mijn projecten counts, Portfolio gets stage-grouped phase counts plus Overgangen (Wacht op start) and Gezondheid (groen/geel/rood) breakdowns, and Beheer's phase items gain WIP/geparkeerd count badges and a muted style for phases that aren't deployed yet.",
+          ],
+        },
+        {
+          sha: '83d8c70',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Drop Portfolio\'s static "Alle projecten" rail link',
+          details: [
+            'Portfolio\'s rail is now stats-only, matching the design — the single "Alle projecten" nav item is gone. The top-nav Portfolio tab still routes there directly.',
+          ],
+        },
+        {
+          sha: 'a3a90dc',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the rail-stats module',
+          details: [
+            "New pure-function module computing each mode's rail content from already-fetched mock and live data, with no fetching of its own — the same pattern every other Infra-board component already uses to source live data.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.12',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: 'b72b1be',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Restore the "Wat er gebeurt bij starten" card\'s numbered list and label/value styling',
+          details: [
+            "Tailwind's Preflight base reset strips list-style and margin/padding from every ol/ul app-wide. The Beheer phase detail's side panel never got counter-restoring CSS for its numbered steps and definition list, so it silently rendered as plain unnumbered running text instead of the design's numbered list and label/value rows.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.11',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '36f53b9',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Retire the old six-phase project model',
+          details: [
+            'Removed the superseded six-phase PHASES model and the phaseLabels prop that threaded it through Portfolio, Mijn dag and the project stepper, now that all three render off the real twelve-phase RIP ladder.',
+          ],
+        },
+        {
+          sha: 'a1c3867',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Move the project detail stepper onto the real RIP ladder',
+          details: [
+            "The project detail page's phase stepper now renders all twelve real RIP phases (R2.1–R6.1) instead of the old six mock phases.",
+          ],
+        },
+        {
+          sha: '5cd4f1f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Show the real RIP phase on Mijn dag's project cards",
+          details: [
+            'Mijn dag\'s "Mijn projecten" cards now show each project\'s real current RIP phase instead of the old mock phase label.',
+          ],
+        },
+        {
+          sha: 'e944f67',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Move Portfolio's Gantt and Kanban onto the real RIP ladder",
+          details: [
+            "Portfolio's timeline and per-fase board now iterate the real twelve-phase catalogue, grouped by stage, instead of the old six-phase mock model.",
+          ],
+        },
+        {
+          sha: 'fcffd52',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Rebuild the mock Gantt and status model on the twelve-phase ladder',
+          details: [
+            "Portfolio's mock project data now spans all twelve real phases, with stage-grouped durations and a deterministic status model, replacing the old flags-override mechanism.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.10',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '3103d94',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Build out the R5.3 "Geparkeerde projecten" page',
+          details: [
+            'The R5.3 placeholder in Beheer now lists the projects currently parked at that phase, with health and a link back to each project.',
+          ],
+        },
+        {
+          sha: 'd3927e4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the parked-projects list selector',
+          details: [
+            "New getMockGeparkeerdRows selector backing the R5.3 placeholder's parked-projects list.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.9',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '7df1e1b',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Fix Faseladder/PhaseDetail tests for the twelve-phase catalogue',
+          details: [
+            'Updated tests to match the grown catalogue — R5.2 is now a real modelled phase, R5.3 is the new unmodelled placeholder.',
+          ],
+        },
+        {
+          sha: '1bb693c',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Drop the legacy-phase ladder indirection',
+          details: [
+            'Mock projects now hash directly across all twelve real phases instead of going through the old legacy-bucket lookup table.',
+          ],
+        },
+        {
+          sha: 'd2377b5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Grow the RIP phase catalogue to twelve phases',
+          details: [
+            'The RIP phase ladder grew from 9 phases across 4 stages to 12 phases across 5 stages (R2.1–R6.1), matching an updated design handoff. R5.2 became a real modelled phase (Directievoering en toezicht); R5.3 is the new unmodelled placeholder.',
+          ],
+        },
+        {
+          sha: '9b9b935',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Grow the shared RIP phase key list to twelve phases',
+          details: [
+            'The frontend/backend-shared RIP_PHASE_KEYS list grew to match the twelve-phase catalogue.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.8',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '0c65538',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Route the WIP/Gereed tabs through proper loading, error and empty states',
+          details: [
+            'The Beheer phase detail\'s WIP and Gereed tabs now go through the hook layer with real loading/error/empty states and a retry option, compute live "Producten" document progress, complete the Gereed tab\'s summary line, and refetch automatically after starting a new instance.',
+          ],
+        },
+        {
+          sha: '911dceb',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Dedupe mock WIP/Gereed row selection',
+          details: [
+            'Mock WIP/Gereed row selection moved into infra-board.data.ts and deduplicated against the existing phase-counts logic, so the two stay in sync.',
+          ],
+        },
+        {
+          sha: '79c9e20',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the completed-instances hook',
+          details: ["New usePhase1Completed hook feeding the Gereed tab's live rows."],
+        },
+        {
+          sha: '5d44977',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix a false "blocked" status on a project\'s first pass through a step',
+          details: [
+            'The WIP tab could flag a running instance as blocked after its very first pass through a step, even with no rework loop — fixed to only flag blocked when the running activity has genuinely executed more than once.',
+          ],
+        },
+        {
+          sha: '3c09d6c',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Retire the old WIP/Gereed sections from the caseworker dashboard',
+          details: [
+            'RipFase1WipSection and RipFase1GereedSection are superseded by the new Beheer phase detail tabs.',
+          ],
+        },
+        {
+          sha: '5cdda13',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix a missing key on the Gereed tab's live rows",
+          details: [
+            "The Gereed tab's live-row map used a shorthand fragment, which can't carry a key prop — switched to an explicit keyed Fragment.",
+          ],
+        },
+        {
+          sha: 'f5b0e40',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Gereed tab',
+          details: [
+            'New Gereed tab on the Beheer phase detail page, showing real R2.1 instances alongside mock rows.',
+          ],
+        },
+        {
+          sha: '1d8d1bd',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the WIP tab',
+          details: [
+            'New WIP tab on the Beheer phase detail page, showing real R2.1 instances alongside mock rows.',
+          ],
+        },
+        {
+          sha: '878c394',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add mock WIP/Gereed row data',
+          details: [
+            "New getMockPhaseInstanceDetail selector backing the WIP/Gereed tabs' mock rows.",
+          ],
+        },
+        {
+          sha: 'dab0c73',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add real R2.1 WIP-step derivation',
+          details: [
+            "New getWipStepInfo and countReworkLoops helpers deriving a running R2.1 instance's current step and rework count from its activity history.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.7',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '0cc1ff3',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Style the Starten tab's buttons properly",
+          details: [
+            'The two start buttons and the sequence-guard toggle rendered as unstyled native buttons — applied the existing v2-btn/v2-btn-ghost styles.',
+          ],
+        },
+        {
+          sha: '9ec0365',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Wire the phase detail page into the rail, router and Faseladder',
+          details: [
+            'Clicking a phase row in the Faseladder now opens its phase detail page; the rail and section router both know how to reach it.',
+          ],
+        },
+        {
+          sha: 'a29174e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the phase detail header, side panel and Starten tab',
+          details: [
+            'New PhaseDetail page: header, side panel and a Starten tab for beginning a new instance. Retired the old RipFase1Section, including a dead import, dispatch branch and rail item that were still referencing it.',
+          ],
+        },
+        {
+          sha: 'ff7f57f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add ready and out-of-sequence project selectors',
+          details: [
+            "New getReadyProjects/getOutOfSequenceProjects selectors backing the Starten tab's eligibility checks.",
+          ],
+        },
+        {
+          sha: '444f8f4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add kredietBeslisser to the phase catalogue',
+          details: ['Each phase that requires a krediet decision now names who decides it.'],
+        },
+        {
+          sha: 'a2eeb21',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Correct the Gereed direction and Faseladder KPI semantics',
+          details: [
+            "Verified against the design handoff's screenshots: the gereed condition was checking for projects before a phase instead of past it, feeding wrong figures into every downstream Klaar calculation — fixed and cross-checked every phase against the reference, exact match.",
+            '"Fasen in uitvoering" now shows total WIP across all phases rather than a phase-count capped at 9; "Klaar om te starten" now totals Klaar across every non-beyond phase; zero-value Klaar cells render "—" consistently; the WIP column is relabelled "WIP / Geparkeerd" and shows geparkeerd counts for beyond phases.',
+          ],
+        },
+        {
+          sha: 'b821a59',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix a blank white page from an unbundled @ronl/shared import',
+          details: [
+            "@ronl/shared compiles to CommonJS for its Node/backend consumer. Vite doesn't apply CJS→ESM interop to workspace-linked packages unless they're in its dependency optimizer, so the first genuine runtime value import from it (RIP_PHASE_KEYS) failed at runtime with no build-time error — a blank white page. Added @ronl/shared to Vite's optimizeDeps.include.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.6',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '3fd36f6',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Wire the Faseladder overview into the rail, router and command palette',
+          details: [
+            'The Beheer Faseladder overview is now reachable from the rail, the section router and the ⌘K command palette.',
+          ],
+        },
+        {
+          sha: '78ac4dc',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Faseladder overview',
+          details: [
+            'New Beheer landing page: one row per RIP phase, grouped by stage, with live/mock combined counts and deploy status.',
+          ],
+        },
+        {
+          sha: 'c014862',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add live phase-counts API and hook',
+          details: [
+            "New businessApi.rip.phasesCounts call and useLivePhaseCounts hook feeding the Faseladder overview's live WIP/Gereed figures.",
+          ],
+        },
+        {
+          sha: '9a36e47',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Expand the mock portfolio to 42 projects',
+          details: [
+            'Mock portfolio data grew to 42 projects and gained the RIP ladder fields the Faseladder overview needs.',
+          ],
+        },
+        {
+          sha: '1e38f1b',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Klaar formula and mock/live combining logic',
+          details: [
+            'New rip-phase-counts module: the "Klaar" (ready-to-start) formula per phase, and a combinePhaseCounts helper merging mock and live counts with the live subset kept alongside for annotation.',
+          ],
+        },
+        {
+          sha: '21f81d2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add GET /v1/rip/phases/counts',
+          details: ['New backend endpoint returning live per-phase WIP/Gereed instance counts.'],
+        },
+        {
+          sha: 'fc7745f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add live phase-instance counting to the Operaton service',
+          details: [
+            'New OperatonService.getPhaseInstanceCounts backing the phase-counts endpoint.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.5',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '898e4c0',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add deployment-status API and hook',
+          details: [
+            'New businessApi.rip.deploymentStatus call and useDeployedProcessKeys hook, telling the RIP catalogue which phases are actually deployed on this environment.',
+          ],
+        },
+        {
+          sha: '04d6e42',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the RIP phase catalogue and deploy-status computation',
+          details: [
+            'New rip-phases.catalog module: the RIP phase/stage data plus a getPhaseDeployStatus helper (gedeployed / ontwerp / onbekend) used across the Beheer surface.',
+          ],
+        },
+        {
+          sha: 'ade3050',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add GET /v1/rip/phases/deployment-status',
+          details: [
+            'New backend endpoint reporting which RIP process-definition keys are currently deployed.',
+          ],
+        },
+        {
+          sha: '1ad473d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add deployed-process-key lookup to the Operaton service',
+          details: [
+            'New OperatonService.getDeployedProcessKeys backing the deployment-status endpoint.',
+          ],
+        },
+        {
+          sha: '6c46327',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the RIP phase to process-definition-key mapping',
+          details: [
+            'New shared mapping from RIP phase codes to their Operaton process-definition keys, the single source of truth for which phases have a real process behind them.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.4',
+      status: 'Released',
+      date: '10 aug 2026',
+      scope: ['backend'],
+      commits: [
+        {
+          sha: '109b136',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Friendlier error when starting a process with no deployment',
+          details: [
+            "Starting a RIP Fase 1 instance against an environment where the process isn't deployed now shows a clear, specific message instead of a raw engine error.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.3',
       status: 'Released',
       date: '7 aug 2026',
