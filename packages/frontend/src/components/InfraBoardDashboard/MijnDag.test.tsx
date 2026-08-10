@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MijnDag from './MijnDag';
 import { MIJN_PROJECT_NRS, getMockPortfolio } from '../../pages/infra-board/infra-board.data';
+import { ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
@@ -61,5 +62,19 @@ describe('MijnDag', () => {
     await user.click(screen.getByText(project.naam));
 
     expect(onOpenProject).toHaveBeenCalledWith({ nr: firstNr });
+  });
+
+  it('shows the real RIP phase code and name for each "Mijn projecten" card', () => {
+    render(<MijnDag user={null} onOpenProject={vi.fn()} onGotoPortfolio={vi.fn()} />);
+
+    const firstNr = MIJN_PROJECT_NRS[0];
+    const project = getMockPortfolio().find((p) => p.nr === firstNr)!;
+    const phase = ripPhaseByCode(project.ripPhaseCode)!;
+
+    // Scoped to this project's own card: several "Mijn projecten" mock
+    // entries can land on the same RIP phase, so a page-wide text query
+    // isn't guaranteed unique.
+    const card = screen.getByText(project.naam).closest('button')!;
+    expect(within(card).getByText(`${phase.code} · ${phase.name}`)).toBeInTheDocument();
   });
 });
