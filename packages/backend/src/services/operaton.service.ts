@@ -143,11 +143,23 @@ export class OperatonService {
 
       return response.data;
     } catch (error) {
+      const operatonBody = axios.isAxiosError(error) ? error.response?.data : null;
+      const operatonMessage: string = operatonBody?.message ?? '';
+
       logger.error('Failed to start process', {
         processKey,
         tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+
+      // Detect a missing deployment and throw a descriptive message instead
+      // of leaking Operaton's raw engine wording.
+      if (operatonMessage.includes('No matching process definition with key')) {
+        throw new Error(
+          `Proces '${processKey}' is niet gevonden op deze Operaton-omgeving. Controleer of de BPMN-bundel voor dit proces is gedeployed en probeer het opnieuw.`
+        );
+      }
+
       throw error;
     }
   }

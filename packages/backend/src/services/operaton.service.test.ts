@@ -116,6 +116,21 @@ describe('startProcess', () => {
     mockClient.post.mockRejectedValue(new Error('start failed'));
     await expect(svc.startProcess('P', req(), 't')).rejects.toThrow('start failed');
   });
+
+  it('translates a missing-deployment 404 into a friendly Dutch message', async () => {
+    mockClient.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          type: 'RestException',
+          message: 'No matching process definition with key: RipPhase1Process and no tenant-id',
+        },
+      },
+    });
+    await expect(svc.startProcess('RipPhase1Process', req(), 'flevoland')).rejects.toThrow(
+      /RipPhase1Process' is niet gevonden op deze Operaton-omgeving/
+    );
+  });
 });
 
 describe('getActivityHistory', () => {
