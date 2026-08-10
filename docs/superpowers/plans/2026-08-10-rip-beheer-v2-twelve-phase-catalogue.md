@@ -96,12 +96,15 @@ This task is a direct data edit, verified by Task 2's tests.
 
   Run (from the repo root): `npm run build --workspace=@ronl/shared`
 
-  Expected: builds clean, no errors.
+  Expected: builds clean, no errors. `packages/shared/dist` is gitignored
+  (blanket `dist/` rule, never tracked in this repo's history) — this
+  rebuild is only so the frontend's later tasks in this plan pick up the
+  change locally in this session; it is **not** committed.
 
 - [ ] **Step 3: Commit**
 
   ```bash
-  git add packages/shared/src/rip-phases.ts packages/shared/dist
+  git add packages/shared/src/rip-phases.ts
   git commit -m "feat(shared): grow RIP_PHASE_KEYS to twelve phases (R2.1-R6.1)"
   ```
 
