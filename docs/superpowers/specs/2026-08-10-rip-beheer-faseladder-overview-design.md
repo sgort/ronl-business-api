@@ -23,13 +23,17 @@ mechanism), not from the app's own smaller, independently-authored
 
 ## Scope
 
-Both real (live Operaton) and mock data, shown **separately and clearly
-labelled**, never blended — this is a transition period; mock data is
-deleted phase-by-phase as each phase goes live, per the existing "Decision
-1" in `ARCHITECTURE.md`. `packages/backend` (two additions to
-`OperatonService`/`rip.routes.ts`) and `packages/frontend` (mock-data
-expansion, live-data hooks, the new Faseladder overview page + rail
-entries).
+Both real (live Operaton) and mock data — **combined into one number per
+metric, with the live subset called out**, matching the pattern the
+Portfolio page already established (mock+live rows merged into one kanban
+column, live rows tagged with a `LIVE` badge; the page header reads "23
+projecten … · 5 actieve RIP Fase 1 instanties" — one combined total, one
+live sub-count, never two parallel totals). This is a transition period;
+mock data is deleted phase-by-phase as each phase goes live, per the
+existing "Decision 1" in `ARCHITECTURE.md`. `packages/backend` (two
+additions to `OperatonService`/`rip.routes.ts`) and `packages/frontend`
+(mock-data expansion, live-data hooks, the new Faseladder overview page +
+rail entries).
 
 ## Design
 
@@ -125,9 +129,47 @@ export function getKlaarCounts(
 }
 ```
 
-Used identically for live counts and mock counts (same function, different
-input) — this is the mechanism that keeps the two comparable and prevents
-two disagreeing "ready" computations from ever existing.
+One combined counts object is what actually gets displayed and fed to
+`getKlaarCounts` — never two parallel Klaar computations. A second helper,
+also in this file, merges mock and live and keeps the live component
+alongside for the "· N live" annotation:
+
+```ts
+export interface AnnotatedPhaseCounts extends PhaseCounts {
+  liveWip: number;
+  liveGereed: number;
+  liveGeparkeerd: number;
+}
+
+/** Sums mock + live per phase; keeps the live figures alongside for the
+ *  "· N live" annotation shown next to each combined number — the same
+ *  pattern as Portfolio's "23 projecten · 5 actieve RIP Fase 1 instanties". */
+export function combinePhaseCounts(
+  mock: Record<string, PhaseCounts>,
+  live: Record<string, PhaseCounts>
+): Record<string, AnnotatedPhaseCounts> {
+  const codes = new Set([...Object.keys(mock), ...Object.keys(live)]);
+  const out: Record<string, AnnotatedPhaseCounts> = {};
+  for (const code of codes) {
+    const m = mock[code] ?? { wip: 0, gereed: 0, geparkeerd: 0 };
+    const l = live[code] ?? { wip: 0, gereed: 0, geparkeerd: 0 };
+    out[code] = {
+      wip: m.wip + l.wip,
+      gereed: m.gereed + l.gereed,
+      geparkeerd: m.geparkeerd + l.geparkeerd,
+      liveWip: l.wip,
+      liveGereed: l.gereed,
+      liveGeparkeerd: l.geparkeerd,
+    };
+  }
+  return out;
+}
+```
+
+The displayed Klaar number is `getKlaarCounts(phases, combined)`. Its "· N
+live" annotation is a second, clearly-subordinate call —
+`getKlaarCounts(phases, live)` — read only as "how many of the combined
+number are real," never rendered as a competing total of its own.
 
 ### 5. Frontend — mock data (lifted from the handoff reference)
 
@@ -161,15 +203,15 @@ and everything else consuming `getMockPortfolio()`/`PortfolioProject.phase`
 
 ### 6. KPI semantics
 
-Four KPIs, each computed once for mock and once for live, rendered
-side-by-side and separately labelled:
+Four KPIs, each a single combined number with a "· N live" annotation
+(omitted when the live subset is 0):
 
-| KPI                     | Meaning                                                        | Formula                                                                                                                                                            |
-| ----------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Fasen in uitvoering     | count of _phases_ (out of 9) with ≥1 WIP project               | `RIP_PHASES.filter(p => counts[p.code]?.wip > 0).length`                                                                                                           |
-| Deelprocessen inzetbaar | count of _phases_ (out of 9) that are deployed                 | `RIP_PHASES.filter(p => getPhaseDeployStatus(p, deployedKeys) === 'gedeployed').length` (sub-project A; not mock/live-split — deployment state isn't project data) |
-| Klaar om te starten     | sum of `klaar[N]` over _deployed_ phases (actionable now)      | `sum(klaar[N] for N where deployed)`                                                                                                                               |
-| Wacht op deployment     | sum of `klaar[N]` over _non-deployed_ phases (blocked backlog) | `sum(klaar[N] for N where !deployed)`                                                                                                                              |
+| KPI                     | Meaning                                                     | Formula                                                                                                                                                                    |
+| ----------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fasen in uitvoering     | count of _phases_ (out of 9) with ≥1 WIP project (combined) | `RIP_PHASES.filter(p => combined[p.code]?.wip > 0).length` · live annotation: `RIP_PHASES.filter(p => combined[p.code]?.liveWip > 0).length`                               |
+| Deelprocessen inzetbaar | count of _phases_ (out of 9) that are deployed              | `RIP_PHASES.filter(p => getPhaseDeployStatus(p, deployedKeys) === 'gedeployed').length` (sub-project A; no mock/live concept — deployment state isn't project data at all) |
+| Klaar om te starten     | sum of combined `klaar[N]` over _deployed_ phases           | `sum(klaarCombined[N] for N where deployed)` · live annotation: `sum(klaarLive[N] for N where deployed)`                                                                   |
+| Wacht op deployment     | sum of combined `klaar[N]` over _non-deployed_ phases       | `sum(klaarCombined[N] for N where !deployed)` · live annotation: `sum(klaarLive[N] for N where !deployed)`                                                                 |
 
 ### 7. UI
 
@@ -180,8 +222,11 @@ side-by-side and separately labelled:
 - New component `FaseladderOverview.tsx` in `InfraBoardDashboard/`: KPI row
   (§6) + table with a stage sub-header row per stage and one row per
   sub-process — deployment pill (`RIP_DEPLOY_META`, sub-project A), lead
-  role, `phase.exit` (closing accorderingsmoment), and Klaar/WIP/Gereed as
-  mock+live pairs (§4/§5).
+  role, `phase.exit` (closing accorderingsmoment), and Klaar/WIP/Gereed each
+  as one combined number with a small "· N live" annotation when the live
+  subset is nonzero (§4/§5) — the same visual convention as Portfolio's
+  existing `LIVE` badge and "N actieve instanties" header line, not a
+  second, competing number.
 - Wired into `InfraSectionRouter.tsx` under the `beheer` mode's new
   `faseladder` section id.
 - Table rows are **not** clickable in this sub-project — "row click → phase
@@ -198,7 +243,9 @@ side-by-side and separately labelled:
   deployed process key only, 401 unauthenticated, 500 on service failure.
 - `rip-phase-counts.test.ts` (new) — `getKlaarCounts`: R2.1 always
   `undefined`; correct arithmetic for a hand-built counts fixture including
-  the `max(0, …)` floor.
+  the `max(0, …)` floor. `combinePhaseCounts`: mock+live sum correctly per
+  field; live figures carried through unchanged for the annotation; a
+  phase present in only one input still produces a complete entry.
 - `infra-board.data.test.ts` (extend existing, or new if none exists) —
   `getMockPortfolio()` still returns 42 rows with the old `phase` field
   intact; `ripPhaseCode`/`ripPhaseState` assigned to every project;
@@ -207,8 +254,9 @@ side-by-side and separately labelled:
 - `infra.api.test.ts` — `useLivePhaseCounts` hook, same pattern as
   `useDeployedProcessKeys`'s tests.
 - `FaseladderOverview.test.tsx` (new) — renders 9 rows grouped by 4 stages,
-  KPI row shows mock and live figures separately, deployment pill matches
-  `RIP_DEPLOY_META`, rows are not clickable.
+  KPI row shows combined figures with a live annotation only when the live
+  subset is nonzero, deployment pill matches `RIP_DEPLOY_META`, rows are
+  not clickable.
 
 ## Out of scope
 
