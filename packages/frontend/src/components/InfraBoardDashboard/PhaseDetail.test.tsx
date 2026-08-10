@@ -155,6 +155,18 @@ describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
 
     expect(await screen.findByText('Proces niet gevonden')).toBeInTheDocument();
   });
+
+  it('refetches live WIP data after successfully starting a process', async () => {
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+    await screen.findByRole('button', { name: 'R2.1 starten' });
+    mockPhase1Active.mockClear();
+
+    await user.click(screen.getByRole('button', { name: 'R2.1 starten' }));
+    await screen.findByText('R2.1 gestart', { exact: false });
+
+    expect(mockPhase1Active).toHaveBeenCalled();
+  });
 });
 
 describe('PhaseDetail — Starten tab, undeployed phase', () => {
@@ -261,7 +273,9 @@ describe('PhaseDetail — WIP tab', () => {
     await user.click(screen.getByRole('button', { name: /WIP/ }));
 
     expect(await screen.findByText('Live testproject', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText('Organiseren intake-overleg', { exact: false })).toBeInTheDocument();
+    expect(
+      await screen.findByText('Organiseren intake-overleg', { exact: false })
+    ).toBeInTheDocument();
     expect(screen.getAllByText('LIVE', { exact: false }).length).toBeGreaterThan(0);
   });
 
@@ -278,6 +292,121 @@ describe('PhaseDetail — WIP tab', () => {
     expect(wipProject).toBeDefined();
     expect(screen.getByText(wipProject!.naam, { exact: false })).toBeInTheDocument();
     expect(screen.queryByText('LIVE')).not.toBeInTheDocument();
+  });
+
+  it('shows a loading indicator while live WIP data is in flight', async () => {
+    mockPhase1Active.mockImplementation(() => new Promise(() => {})); // never resolves
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /WIP/ }));
+
+    expect(screen.getByText('Bezig met laden…')).toBeInTheDocument();
+  });
+
+  it('shows an error banner with a retry button when live WIP data fails to load', async () => {
+    mockPhase1Active.mockResolvedValue({ success: false });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /WIP/ }));
+
+    expect(
+      await screen.findByText('Live WIP-gegevens konden niet worden geladen.', { exact: false })
+    ).toBeInTheDocument();
+    mockPhase1Active.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Opnieuw proberen' }));
+    expect(mockPhase1Active).toHaveBeenCalledTimes(1);
+  });
+
+  it('computes Producten (docsDone/docsTotal) for a live WIP row from its activity history', async () => {
+    mockPhase1Active.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'live-2',
+          startTime: '2026-08-01T00:00:00Z',
+          projectNumber: '55555',
+          projectName: 'Doc progress project',
+          edocsWorkspaceId: 'w4',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'a1',
+          activityId: 'Task_AanlevrenProjectplan',
+          activityName: 'Aanleveren Projectplan',
+          activityType: 'userTask',
+          assignee: null,
+          startTime: '2026-08-01T00:00:00Z',
+          endTime: '2026-08-01T01:00:00Z',
+          durationInMillis: 1,
+          canceled: false,
+        },
+        {
+          id: 'a2',
+          activityId: 'Task_AanvullenProjectplan2',
+          activityName: 'Aanvullen Projectplan',
+          activityType: 'userTask',
+          assignee: null,
+          startTime: '2026-08-02T00:00:00Z',
+          endTime: '2026-08-02T01:00:00Z',
+          durationInMillis: 1,
+          canceled: false,
+        },
+        {
+          id: 'a3',
+          activityId: 'Task_OrganiserenIntakeoverleg',
+          activityName: 'Organiseren intake-overleg',
+          activityType: 'userTask',
+          assignee: null,
+          startTime: '2026-08-03T00:00:00Z',
+          endTime: null,
+          durationInMillis: null,
+          canceled: false,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /WIP/ }));
+
+    const row = (await screen.findByText('Doc progress project', { exact: false })).closest('tr');
+    // Producten is populated by a SECOND async hop (activity-history fetch,
+    // chained off the first list fetch resolving) — use findByText, not a
+    // synchronous getByText, so this doesn't race the two hops.
+    expect(await within(row!).findByText('2/4')).toBeInTheDocument();
+  });
+
+  it('renders a dash for Gezondheid, not a false "Op schema", when a live row has no derivable step info', async () => {
+    mockPhase1Active.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'live-3',
+          startTime: '2026-08-01T00:00:00Z',
+          projectNumber: '44444',
+          projectName: 'Unknown state project',
+          edocsWorkspaceId: 'w6',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({ success: false });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /WIP/ }));
+
+    // Scoped to this live row: R2.1 also has its own mock WIP rows
+    // rendered in the same table, some of which legitimately have
+    // 'groen' health ("Op schema") — an unscoped query would false-fail
+    // on those unrelated rows.
+    const row = (await screen.findByText('Unknown state project', { exact: false })).closest('tr');
+    expect(within(row!).queryByText('Op schema')).not.toBeInTheDocument();
   });
 });
 
@@ -399,7 +528,7 @@ describe('PhaseDetail — Gereed tab', () => {
     await user.click(screen.getByRole('button', { name: /Gereed/ }));
 
     const row = (await screen.findByText('Project met rework', { exact: false })).closest('tr');
-    expect(within(row!).getByText('1')).toBeInTheDocument();
+    expect(await within(row!).findByText('1')).toBeInTheDocument();
   });
 
   it('shows mock rows without a Dossier link', async () => {
@@ -415,5 +544,57 @@ describe('PhaseDetail — Gereed tab', () => {
     expect(gereedProject).toBeDefined();
     const row = screen.getByText(gereedProject!.naam, { exact: false }).closest('tr');
     expect(within(row!).queryByRole('button', { name: 'Openen' })).not.toBeInTheDocument();
+  });
+
+  it('shows a loading indicator while live Gereed data is in flight', async () => {
+    mockPhase1Completed.mockImplementation(() => new Promise(() => {})); // never resolves
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+
+    expect(screen.getByText('Bezig met laden…')).toBeInTheDocument();
+  });
+
+  it('shows an error banner with a retry button when live Gereed data fails to load', async () => {
+    mockPhase1Completed.mockResolvedValue({ success: false });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+
+    expect(
+      await screen.findByText('Live Gereed-gegevens konden niet worden geladen.', { exact: false })
+    ).toBeInTheDocument();
+    mockPhase1Completed.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Opnieuw proberen' }));
+    expect(mockPhase1Completed).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the full Gereed summary line with average doorlooptijd, norm, and review-loop count', async () => {
+    mockPhase1Completed.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'done-3',
+          startTime: '2026-01-01T00:00:00Z',
+          endTime: '2026-03-15T00:00:00Z',
+          projectNumber: '66666',
+          projectName: 'Summary testproject',
+          edocsWorkspaceId: 'w5',
+        },
+      ],
+    });
+    mockActivityHistory.mockResolvedValue({ success: true, data: [] });
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Gereed/ }));
+
+    expect(
+      await screen.findByText(
+        /afgerond · Gemiddelde doorlooptijd \d+ wk · norm 10 wk · \d+ met review-loop/
+      )
+    ).toBeInTheDocument();
   });
 });

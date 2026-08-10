@@ -963,3 +963,8 @@
   border-radius: 50%;
   vertical-align: middle;
 }
+.pbd .pb-gereed-summary {
+  color: var(--v2-ink-2);
+  font-size: 13px;
+  margin: 12px 0 4px;
+}

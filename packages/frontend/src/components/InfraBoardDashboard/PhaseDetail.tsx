@@ -5,27 +5,35 @@ import {
   RIP_DEPLOY_META,
   getPhaseDeployStatus,
   ripPhaseByCode,
-  type RipPhase,
 } from '../../pages/infra-board/rip-phases.catalog';
 import {
   getMockPhaseCounts,
   getReadyProjects,
   getOutOfSequenceProjects,
   getMockPhaseInstanceDetail,
-  getMockPortfolio,
+  getMockWipRows,
+  getMockGereedRows,
 } from '../../pages/infra-board/infra-board.data';
 import {
   combinePhaseCounts,
   getKlaarCounts,
   normalizeLiveCounts,
 } from '../../pages/infra-board/rip-phase-counts';
-import { useDeployedProcessKeys, useLivePhaseCounts } from '../../services/infra.api';
+import {
+  useDeployedProcessKeys,
+  useLivePhaseCounts,
+  useActivePhase1,
+  usePhase1Completed,
+} from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import {
   getWipStepInfo,
+  getDocProgress,
   countReworkLoops,
   HEALTH,
   type HealthKey,
+  type WipStepInfo,
+  type DocProgress,
 } from '../../pages/infra-board/rip-model';
 import RipFase1WipViewer from '../CaseworkerDashboard/RipFase1WipViewer';
 
@@ -47,19 +55,6 @@ function computeHealth(blocked: string | null, daysInStep: number): HealthKey {
   return 'groen';
 }
 
-function getMockPortfolioWipRows(phase: RipPhase) {
-  return getMockPortfolio().filter(
-    (p) => p.ripPhaseCode === phase.code && p.ripPhaseState === 'wip'
-  );
-}
-
-function getMockPortfolioGereedRows(phase: RipPhase) {
-  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
-  return getMockPortfolio().filter(
-    (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) > idx
-  );
-}
-
 export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const phase = ripPhaseByCode(phaseCode);
   const { data: deployment } = useDeployedProcessKeys();
@@ -72,70 +67,59 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const [justStarted, setJustStarted] = useState(0);
   const [fallbackStarted, setFallbackStarted] = useState(false);
   const [fallbackError, setFallbackError] = useState<StartError | null>(null);
-  const [liveWip, setLiveWip] = useState<
-    Array<{ id: string; nr: string; naam: string; info: ReturnType<typeof getWipStepInfo> }>
-  >([]);
-  const [liveGereed, setLiveGereed] = useState<
-    Array<{
-      id: string;
-      nr: string;
-      naam: string;
-      startTime: string;
-      endTime: string;
-      loops: number;
-    }>
-  >([]);
   const [openDossier, setOpenDossier] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (phaseCode !== 'R2.1') return;
-    let alive = true;
-    businessApi.rip.phase1Active().then(async (res) => {
-      if (!res.success || !res.data || !alive) return;
-      const rows = await Promise.all(
-        res.data.map(async (inst) => {
-          const histRes = await businessApi.process.activityHistory(inst.id);
-          const info = histRes.success && histRes.data ? getWipStepInfo(histRes.data) : null;
-          return {
-            id: inst.id,
-            nr: inst.projectNumber || inst.id.slice(0, 8),
-            naam: inst.projectName || 'RIP Fase 1 project',
-            info,
-          };
-        })
-      );
-      if (alive) setLiveWip(rows);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [phaseCode]);
+  const {
+    data: activeInstances,
+    loading: wipLoading,
+    error: wipError,
+    reload: reloadWip,
+  } = useActivePhase1();
+  const {
+    data: completedInstances,
+    loading: gereedLoading,
+    error: gereedError,
+    reload: reloadGereed,
+  } = usePhase1Completed();
+
+  const [wipDerived, setWipDerived] = useState<
+    Record<string, { info: WipStepInfo | null; docs: DocProgress }>
+  >({});
+  const [gereedDerived, setGereedDerived] = useState<Record<string, { loops: number }>>({});
 
   useEffect(() => {
-    if (phaseCode !== 'R2.1') return;
+    if (phaseCode !== 'R2.1' || !activeInstances) return;
     let alive = true;
-    businessApi.rip.phase1Completed().then(async (res) => {
-      if (!res.success || !res.data || !alive) return;
-      const rows = await Promise.all(
-        res.data.map(async (inst) => {
-          const histRes = await businessApi.process.activityHistory(inst.id);
-          const loops = histRes.success && histRes.data ? countReworkLoops(histRes.data) : 0;
-          return {
-            id: inst.id,
-            nr: inst.projectNumber || inst.id.slice(0, 8),
-            naam: inst.projectName || 'RIP Fase 1 project',
-            startTime: inst.startTime,
-            endTime: inst.endTime,
-            loops,
-          };
-        })
-      );
-      if (alive) setLiveGereed(rows);
+    Promise.all(
+      activeInstances.map(async (inst) => {
+        const histRes = await businessApi.process.activityHistory(inst.id);
+        const history = histRes.success && histRes.data ? histRes.data : [];
+        return [inst.id, { info: getWipStepInfo(history), docs: getDocProgress(history) }] as const;
+      })
+    ).then((entries) => {
+      if (alive) setWipDerived(Object.fromEntries(entries));
     });
     return () => {
       alive = false;
     };
-  }, [phaseCode]);
+  }, [phaseCode, activeInstances]);
+
+  useEffect(() => {
+    if (phaseCode !== 'R2.1' || !completedInstances) return;
+    let alive = true;
+    Promise.all(
+      completedInstances.map(async (inst) => {
+        const histRes = await businessApi.process.activityHistory(inst.id);
+        const history = histRes.success && histRes.data ? histRes.data : [];
+        return [inst.id, { loops: countReworkLoops(history) }] as const;
+      })
+    ).then((entries) => {
+      if (alive) setGereedDerived(Object.fromEntries(entries));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [phaseCode, completedInstances]);
 
   if (!phase) return null;
 
@@ -214,6 +198,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
       setSelected(new Set());
       setReasons({});
       setJustStarted(nrs.length);
+      reloadWip();
     } finally {
       setSubmitting(false);
     }
@@ -224,8 +209,12 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     setFallbackError(null);
     try {
       const res = await businessApi.process.start('RipPhase1Process', {});
-      if (res.success) setFallbackStarted(true);
-      else setFallbackError({ cause: res.error?.details, instance: res.error?.instance });
+      if (res.success) {
+        setFallbackStarted(true);
+        reloadWip();
+      } else {
+        setFallbackError({ cause: res.error?.details, instance: res.error?.instance });
+      }
     } catch {
       setFallbackError({});
     } finally {
@@ -257,6 +246,38 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     }
   }
 
+  const isR21 = phaseCode === 'R2.1';
+  const liveActive = isR21 ? (activeInstances ?? []) : [];
+  const liveCompleted = isR21 ? (completedInstances ?? []) : [];
+  const showWipLoading = isR21 && wipLoading && !activeInstances;
+  const showWipError = isR21 && wipError;
+  const showGereedLoading = isR21 && gereedLoading && !completedInstances;
+  const showGereedError = isR21 && gereedError;
+
+  const mockWipRows = getMockWipRows(phase);
+  const mockGereedRows = getMockGereedRows(phase);
+
+  // Gereed summary line stats — combines live + mock rows into one set
+  // of arithmetic, same "never two parallel totals" merge convention as
+  // everywhere else in this file.
+  const liveGereedStats = liveCompleted.map((inst) => ({
+    weeks: Math.round(
+      (new Date(inst.endTime).getTime() - new Date(inst.startTime).getTime()) /
+        (1000 * 60 * 60 * 24 * 7)
+    ),
+    loops: gereedDerived[inst.id]?.loops ?? 0,
+  }));
+  const mockGereedStats = mockGereedRows.map((p) => {
+    const detail = getMockPhaseInstanceDetail(p, phase);
+    return { weeks: detail.actualWeeks ?? phase.weeks, loops: detail.loops };
+  });
+  const allGereedStats = [...liveGereedStats, ...mockGereedStats];
+  const totalAfgerond = allGereedStats.length;
+  const avgWeeks = totalAfgerond
+    ? Math.round(allGereedStats.reduce((sum, r) => sum + r.weeks, 0) / totalAfgerond)
+    : 0;
+  const metLoop = allGereedStats.filter((r) => r.loops > 0).length;
+
   return (
     <div className="pb-view">
       {header}
@@ -286,147 +307,209 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
       </div>
 
       {tab === 'wip' && (
-        <table className="pb-instance-table">
-          <thead>
-            <tr>
-              <th>Project</th>
-              <th>Huidige stap</th>
-              <th>Rol</th>
-              <th>Dagen</th>
-              <th>Producten</th>
-              <th>Blokkade</th>
-              <th>Gezondheid</th>
-            </tr>
-          </thead>
-          <tbody>
-            {liveWip.map((row) => {
-              const health = computeHealth(row.info?.blocked ?? null, row.info?.daysInStep ?? 0);
-              return (
-                <tr key={row.id}>
-                  <td>
-                    <span className="pb-proj-nr">{row.nr}</span> {row.naam}
-                    <span className="pb-live-badge">LIVE</span>
-                  </td>
-                  <td>{row.info?.step ?? '—'}</td>
-                  <td>{row.info?.stepRole ?? '—'}</td>
-                  <td>{row.info ? `${row.info.daysInStep}d` : '—'}</td>
-                  <td>—</td>
-                  <td>{row.info?.blocked ?? '—'}</td>
-                  <td>
-                    <span className="pb-health-dot" style={{ background: HEALTH[health].color }} />{' '}
-                    {HEALTH[health].label}
-                  </td>
+        <>
+          {showWipError && (
+            <div className="pb-banner pb-banner-error">
+              Live WIP-gegevens konden niet worden geladen.{' '}
+              <button type="button" className="v2-btn v2-btn-ghost v2-btn-sm" onClick={reloadWip}>
+                Opnieuw proberen
+              </button>
+            </div>
+          )}
+          {showWipLoading ? (
+            <p className="pb-placeholder">Bezig met laden…</p>
+          ) : liveActive.length + mockWipRows.length === 0 ? (
+            <p className="pb-placeholder">Geen projecten in uitvoering voor {phase.code}.</p>
+          ) : (
+            <table className="pb-instance-table">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Huidige stap</th>
+                  <th>Rol</th>
+                  <th>Dagen</th>
+                  <th>Producten</th>
+                  <th>Blokkade</th>
+                  <th>Gezondheid</th>
                 </tr>
-              );
-            })}
-            {getMockPortfolioWipRows(phase).map((p) => {
-              const detail = getMockPhaseInstanceDetail(p, phase);
-              const health = computeHealth(detail.blocked, detail.daysInStep);
-              return (
-                <tr key={p.id}>
-                  <td>
-                    <span className="pb-proj-nr">{p.nr}</span> {p.naam}
-                  </td>
-                  <td>{detail.step}</td>
-                  <td>{detail.stepRole}</td>
-                  <td>{detail.daysInStep}d</td>
-                  <td>
-                    {detail.docsDone}/{detail.docsTotal}
-                  </td>
-                  <td>{detail.blocked ?? '—'}</td>
-                  <td>
-                    <span className="pb-health-dot" style={{ background: HEALTH[health].color }} />{' '}
-                    {HEALTH[health].label}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {liveActive.map((inst) => {
+                  const derived = wipDerived[inst.id];
+                  const info = derived?.info ?? null;
+                  const health = info ? computeHealth(info.blocked, info.daysInStep) : null;
+                  return (
+                    <tr key={inst.id}>
+                      <td>
+                        <span className="pb-proj-nr">
+                          {inst.projectNumber || inst.id.slice(0, 8)}
+                        </span>{' '}
+                        {inst.projectName || 'RIP Fase 1 project'}
+                        <span className="pb-live-badge">LIVE</span>
+                      </td>
+                      <td>{info?.step ?? '—'}</td>
+                      <td>{info?.stepRole ?? '—'}</td>
+                      <td>{info ? `${info.daysInStep}d` : '—'}</td>
+                      <td>
+                        {derived ? `${derived.docs.docsDone}/${derived.docs.docsTotal}` : '—'}
+                      </td>
+                      <td>{info?.blocked ?? '—'}</td>
+                      <td>
+                        {health ? (
+                          <>
+                            <span
+                              className="pb-health-dot"
+                              style={{ background: HEALTH[health].color }}
+                            />{' '}
+                            {HEALTH[health].label}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {mockWipRows.map((p) => {
+                  const detail = getMockPhaseInstanceDetail(p, phase);
+                  const health = computeHealth(detail.blocked, detail.daysInStep);
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <span className="pb-proj-nr">{p.nr}</span> {p.naam}
+                      </td>
+                      <td>{detail.step}</td>
+                      <td>{detail.stepRole}</td>
+                      <td>{detail.daysInStep}d</td>
+                      <td>
+                        {detail.docsDone}/{detail.docsTotal}
+                      </td>
+                      <td>{detail.blocked ?? '—'}</td>
+                      <td>
+                        <span
+                          className="pb-health-dot"
+                          style={{ background: HEALTH[health].color }}
+                        />{' '}
+                        {HEALTH[health].label}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
       {tab === 'gereed' && (
         <>
-          <p className="pb-gereed-summary">
-            {liveGereed.length + getMockPortfolioGereedRows(phase).length} afgerond
-          </p>
-          <table className="pb-instance-table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Afgerond</th>
-                <th>Geaccordeerd door</th>
-                <th>Doorlooptijd</th>
-                <th>Loops</th>
-                <th>Producten</th>
-                <th>Dossier</th>
-              </tr>
-            </thead>
-            <tbody>
-              {liveGereed.map((row) => {
-                const weeks = Math.round(
-                  (new Date(row.endTime).getTime() - new Date(row.startTime).getTime()) /
-                    (1000 * 60 * 60 * 24 * 7)
-                );
-                return (
-                  <Fragment key={row.id}>
-                    <tr>
-                      <td>
-                        <span className="pb-proj-nr">{row.nr}</span> {row.naam}
-                        <span className="pb-live-badge">LIVE</span>
-                      </td>
-                      <td>{new Date(row.endTime).toLocaleDateString('nl-NL')}</td>
-                      {/* Geaccordeerd door: Operaton only returns a raw assignee
-                        UUID and there's no user-directory lookup anywhere in
-                        this app to resolve it to a name — a dash beats a raw
-                        UUID here (see design spec §2, deliberate simplification). */}
-                      <td>—</td>
-                      <td>
-                        {weeks} wk / {phase.weeks} wk
-                      </td>
-                      <td>{row.loops}</td>
-                      <td>—</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="v2-btn v2-btn-ghost v2-btn-sm"
-                          onClick={() => setOpenDossier(openDossier === row.id ? null : row.id)}
-                        >
-                          Openen
-                        </button>
-                      </td>
-                    </tr>
-                    {openDossier === row.id && (
-                      <tr>
-                        <td colSpan={7}>
-                          <RipFase1WipViewer instanceId={row.id} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-              {getMockPortfolioGereedRows(phase).map((p) => {
-                const detail = getMockPhaseInstanceDetail(p, phase);
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <span className="pb-proj-nr">{p.nr}</span> {p.naam}
-                    </td>
-                    <td>{detail.doneDate}</td>
-                    <td>{detail.doneBy}</td>
-                    <td>
-                      {detail.actualWeeks} wk / {detail.plannedWeeks} wk
-                    </td>
-                    <td>{detail.loops}</td>
-                    <td>
-                      {detail.docsDone}/{detail.docsTotal}
-                    </td>
-                    <td>—</td>
+          {showGereedError && (
+            <div className="pb-banner pb-banner-error">
+              Live Gereed-gegevens konden niet worden geladen.{' '}
+              <button
+                type="button"
+                className="v2-btn v2-btn-ghost v2-btn-sm"
+                onClick={reloadGereed}
+              >
+                Opnieuw proberen
+              </button>
+            </div>
+          )}
+          {showGereedLoading ? (
+            <p className="pb-placeholder">Bezig met laden…</p>
+          ) : totalAfgerond === 0 ? (
+            <p className="pb-placeholder">Nog geen afgeronde projecten voor {phase.code}.</p>
+          ) : (
+            <>
+              <p className="pb-gereed-summary">
+                {totalAfgerond} afgerond · Gemiddelde doorlooptijd {avgWeeks} wk · norm{' '}
+                {phase.weeks} wk · {metLoop} met review-loop
+              </p>
+              <table className="pb-instance-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Afgerond</th>
+                    <th>Geaccordeerd door</th>
+                    <th>Doorlooptijd</th>
+                    <th>Loops</th>
+                    <th>Producten</th>
+                    <th>Dossier</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {liveCompleted.map((inst) => {
+                    const weeks = Math.round(
+                      (new Date(inst.endTime).getTime() - new Date(inst.startTime).getTime()) /
+                        (1000 * 60 * 60 * 24 * 7)
+                    );
+                    const loops = gereedDerived[inst.id]?.loops ?? 0;
+                    return (
+                      <Fragment key={inst.id}>
+                        <tr>
+                          <td>
+                            <span className="pb-proj-nr">
+                              {inst.projectNumber || inst.id.slice(0, 8)}
+                            </span>{' '}
+                            {inst.projectName || 'RIP Fase 1 project'}
+                            <span className="pb-live-badge">LIVE</span>
+                          </td>
+                          <td>{new Date(inst.endTime).toLocaleDateString('nl-NL')}</td>
+                          {/* Geaccordeerd door: Operaton only returns a raw assignee
+                            UUID and there's no user-directory lookup anywhere in
+                            this app to resolve it to a name — a dash beats a raw
+                            UUID here (see design spec §2, deliberate simplification). */}
+                          <td>—</td>
+                          <td>
+                            {weeks} wk / {phase.weeks} wk
+                          </td>
+                          <td>{loops}</td>
+                          <td>—</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="v2-btn v2-btn-ghost v2-btn-sm"
+                              onClick={() =>
+                                setOpenDossier(openDossier === inst.id ? null : inst.id)
+                              }
+                            >
+                              Openen
+                            </button>
+                          </td>
+                        </tr>
+                        {openDossier === inst.id && (
+                          <tr>
+                            <td colSpan={7}>
+                              <RipFase1WipViewer instanceId={inst.id} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                  {mockGereedRows.map((p) => {
+                    const detail = getMockPhaseInstanceDetail(p, phase);
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <span className="pb-proj-nr">{p.nr}</span> {p.naam}
+                        </td>
+                        <td>{detail.doneDate}</td>
+                        <td>{detail.doneBy}</td>
+                        <td>
+                          {detail.actualWeeks} wk / {detail.plannedWeeks} wk
+                        </td>
+                        <td>{detail.loops}</td>
+                        <td>
+                          {detail.docsDone}/{detail.docsTotal}
+                        </td>
+                        <td>—</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
         </>
       )}
 
