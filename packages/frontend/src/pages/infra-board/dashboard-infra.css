@@ -990,3 +990,36 @@
   right: 4px;
   top: 14px;
 }
+
+.pbd .pb-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 7px;
+  vertical-align: 1px;
+}
+.pbd .pb-kan-col.stage-start {
+  margin-left: 14px;
+}
+.pbd .pb-kan-stage {
+  font-family: var(--v2-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+  white-space: nowrap;
+  min-height: 14px;
+  line-height: 14px;
+}
+.pbd .pb-kan-head .t .kc {
+  display: inline-block;
+  font-family: var(--v2-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+  padding: 1px 5px;
+  margin-right: 7px;
+  letter-spacing: 0.03em;
+}
