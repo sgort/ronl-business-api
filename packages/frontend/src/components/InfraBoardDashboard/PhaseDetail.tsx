@@ -229,7 +229,12 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                       {fallbackError.cause && <p>{fallbackError.cause}</p>}
                     </div>
                   )}
-                  <button type="button" disabled={submitting} onClick={handleFallbackStart}>
+                  <button
+                    type="button"
+                    className="v2-btn"
+                    disabled={submitting}
+                    onClick={handleFallbackStart}
+                  >
                     {phase.code} starten
                   </button>
                 </>
@@ -253,13 +258,18 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                 </ul>
                 <button
                   type="button"
+                  className="v2-btn"
                   disabled={!canStart || selected.size === 0 || submitting}
                   onClick={handleStartSelected}
                 >
                   {phase.code} starten
                 </button>{' '}
                 {outOfSequenceProjects.length > 0 && !showOutOfSequence && (
-                  <button type="button" onClick={() => setShowOutOfSequence(true)}>
+                  <button
+                    type="button"
+                    className="v2-btn v2-btn-ghost"
+                    onClick={() => setShowOutOfSequence(true)}
+                  >
                     Toon {outOfSequenceProjects.length} projecten die nog niet aan beurt zijn
                   </button>
                 )}
