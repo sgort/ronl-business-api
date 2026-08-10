@@ -1071,3 +1071,39 @@
   font-size: 11px;
   color: var(--v2-ink-3);
 }
+
+/* Rail phase-item code chip + badges — Beheer's phase nav items, and
+   Portfolio's stage-grouped stat rows (rail-stats-panel spec). The base
+   .cwd-v2 .v2-rail-item rule (dashboard-v2.css) is already display:flex;
+   justify-content:space-between — no extra layout rule needed here, just
+   the chip/badge/muted appearance. */
+.pbd .pb-rail-code {
+  font-family: var(--v2-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-ink-3);
+  margin-right: 8px;
+  letter-spacing: 0.04em;
+}
+.pbd .v2-rail-item.active .pb-rail-code {
+  color: inherit;
+  opacity: 0.75;
+}
+.pbd .v2-rail-item.muted {
+  opacity: 0.62;
+}
+.pbd .pb-rail-badge {
+  font-family: var(--v2-mono);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--pb-blue);
+  color: #fff;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+}
+.pbd .pb-rail-badge.parked {
+  background: #eceef1;
+  color: var(--v2-ink-2);
+  border: 1px solid var(--v2-rule);
+}

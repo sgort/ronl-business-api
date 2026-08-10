@@ -27,6 +27,7 @@ import {
   findModeForSection,
   isRailItemVisible,
   phaseSectionId,
+  phaseCodeFromSectionId,
   type InfraModeId,
 } from './infra-board/modes.config';
 import InfraSectionRouter from '../components/InfraBoardDashboard/InfraSectionRouter';
@@ -35,6 +36,28 @@ import InfraDock from '../components/InfraBoardDashboard/InfraDock';
 import InfraNoAccessPanel from '../components/InfraBoardDashboard/InfraNoAccessPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
 import ChangelogPanel from './ChangelogPanel';
+import {
+  useOpenTasks,
+  useActivePhase1,
+  useDeployedProcessKeys,
+  useLivePhaseCounts,
+} from '../services/infra.api';
+import {
+  getMockPortfolio,
+  getMockTodos,
+  getMockPhaseCounts,
+  makePhase1Row,
+  type PortfolioProject,
+} from './infra-board/infra-board.data';
+import { RIP_PHASES, getPhaseDeployStatus } from './infra-board/rip-phases.catalog';
+import { combinePhaseCounts, normalizeLiveCounts } from './infra-board/rip-phase-counts';
+import {
+  mijnDagRailStats,
+  portfolioRailStageGroups,
+  portfolioRailTransitions,
+  portfolioRailHealth,
+  beheerRailSubtitle,
+} from './infra-board/rail-stats';
 
 import './infra-board/dashboard-infra.css';
 
@@ -122,6 +145,47 @@ export default function InfraBoardDashboard() {
         .map((g) => ({ ...g, items: g.items.filter((i) => isRailItemVisible(i, gateContext)) }))
         .filter((g) => g.items.length > 0),
     [currentMode, gateContext]
+  );
+
+  // Live data for the rail stats panels. Unconditional, like every other
+  // Infra-board component's hook calls — cheap, and consistent with how
+  // Portfolio.tsx/FaseladderOverview.tsx already source their own live data
+  // rather than lifting it here and threading it down as props.
+  const { data: liveTasks } = useOpenTasks();
+  const { data: liveInstances } = useActivePhase1();
+  const { data: deployment } = useDeployedProcessKeys();
+  const { data: liveCountsRaw } = useLivePhaseCounts();
+
+  const liveRows: PortfolioProject[] = (liveInstances ?? []).map(makePhase1Row);
+  const liveNrs = new Set(liveRows.map((r) => r.nr));
+  const allProjects = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
+
+  const deployedKeys = new Set(deployment?.deployedKeys ?? []);
+  const combinedCounts = combinePhaseCounts(
+    getMockPhaseCounts(),
+    normalizeLiveCounts(liveCountsRaw?.counts ?? {}, RIP_PHASES)
+  );
+
+  const mijnDagStats = mijnDagRailStats(liveTasks, getMockTodos(), allProjects);
+  const portfolioStageGroups = portfolioRailStageGroups(allProjects);
+  const portfolioTransitions = portfolioRailTransitions(allProjects);
+  const portfolioHealth = portfolioRailHealth(allProjects);
+  const beheerSubtitle = beheerRailSubtitle(combinedCounts);
+
+  // Per-phase badge/muted data for Beheer's existing phase <li> items,
+  // keyed by rail item id so the render below is a plain lookup.
+  const beheerBadges = new Map(
+    RIP_PHASES.map((phase) => {
+      const counts = combinedCounts[phase.code];
+      return [
+        phaseSectionId(phase.code),
+        {
+          count: phase.beyond ? undefined : (counts?.wip ?? 0),
+          parkedCount: phase.beyond ? (counts?.geparkeerd ?? 0) : undefined,
+          muted: getPhaseDeployStatus(phase, deployedKeys) !== 'gedeployed',
+        },
+      ] as const;
+    })
   );
 
   const goToProject = (ref: ProjectRef) => setOpenProject(ref);
@@ -222,25 +286,113 @@ export default function InfraBoardDashboard() {
                 Persoonlijk · {user?.name ?? user?.preferred_username}
               </span>
             )}
+            {mode === 'portfolio' && (
+              <span className="pb-rail-sub">
+                {allProjects.length} projecten · venster 2022–2027
+              </span>
+            )}
+            {mode === 'beheer' && <span className="pb-rail-sub">{beheerSubtitle}</span>}
           </div>
+
+          {mode === 'mijn-dag' && (
+            <div className="pb-rail-stats">
+              {mijnDagStats.map((s) => (
+                <div className="pb-rail-stat" key={s.label}>
+                  <span>
+                    {s.dotColor && <span className="dot" style={{ background: s.dotColor }} />}
+                    {s.label}
+                  </span>
+                  <b>{s.value}</b>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {mode === 'portfolio' && (
+            <>
+              {portfolioStageGroups.map(({ stage, phases }) => (
+                <div className="v2-rail-group" key={stage.code}>
+                  <div className="v2-rail-group-label">
+                    <span className="pb-stage-dot" style={{ background: stage.color }} />
+                    {stage.code} · {stage.name}
+                  </div>
+                  <div className="pb-rail-stats">
+                    {phases.map(({ phase, count }) => (
+                      <div className="pb-rail-stat" key={phase.code}>
+                        <span>
+                          <span className="pb-rail-code">{phase.code}</span>
+                          {phase.name}
+                        </span>
+                        <b>{count}</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="v2-rail-group">
+                <div className="v2-rail-group-label">Overgangen</div>
+                <div className="pb-rail-stats">
+                  {portfolioTransitions.map((s) => (
+                    <div className="pb-rail-stat" key={s.label}>
+                      <span>
+                        {s.dotColor && <span className="dot" style={{ background: s.dotColor }} />}
+                        {s.label}
+                      </span>
+                      <b>{s.value}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="v2-rail-group">
+                <div className="v2-rail-group-label">Gezondheid</div>
+                <div className="pb-rail-stats">
+                  {portfolioHealth.map((s) => (
+                    <div className="pb-rail-stat" key={s.label}>
+                      <span>
+                        {s.dotColor && <span className="dot" style={{ background: s.dotColor }} />}
+                        {s.label}
+                      </span>
+                      <b>{s.value}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           {visibleGroups.map((g, i) => (
             <div key={g.label || i} className="v2-rail-group">
               {g.label && <div className="v2-rail-group-label">{g.label}</div>}
               <ul className="v2-rail-list">
-                {g.items.map((it) => (
-                  <li key={it.id}>
-                    <button
-                      type="button"
-                      className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''}`}
-                      onClick={() => {
-                        setOpenProject(null);
-                        setActiveSection(it.id);
-                      }}
-                    >
-                      <span>{it.label}</span>
-                    </button>
-                  </li>
-                ))}
+                {g.items.map((it) => {
+                  const badge = mode === 'beheer' ? beheerBadges.get(it.id) : undefined;
+                  const code = badge ? phaseCodeFromSectionId(it.id) : undefined;
+                  return (
+                    <li key={it.id}>
+                      <button
+                        type="button"
+                        className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''} ${badge?.muted ? 'muted' : ''}`}
+                        onClick={() => {
+                          setOpenProject(null);
+                          setActiveSection(it.id);
+                        }}
+                      >
+                        <span>
+                          {code && <span className="pb-rail-code">{code}</span>}
+                          {it.label}
+                        </span>
+                        {badge?.count !== undefined && badge.count > 0 && (
+                          <span className="pb-rail-badge">{badge.count}</span>
+                        )}
+                        {badge?.parkedCount !== undefined && badge.parkedCount > 0 && (
+                          <span className="pb-rail-badge parked" title="Geparkeerd">
+                            {badge.parkedCount}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
