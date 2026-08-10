@@ -1023,9 +1023,653 @@ git commit -m "feat: wire Mijn dag/Portfolio/Beheer rail stats into InfraBoardDa
 
 ---
 
+### Task 4: Group Beheer's rail phase items by stage (addendum, added after Task 3 shipped)
+
+**Why this was added:** Task 3 shipped and was reviewed clean, but comparing
+the live result against `docs/infra-beheer-handoff-v2/reference/pb-shell.reference.jsx:71-110`
+(the authoritative reference for this whole feature, confirmed by
+[[handoff-specs-are-source-of-truth]]) surfaced a real spec gap: the
+reference groups Beheer's phase nav items by stage — a header per
+`RIP_STAGES` entry, exactly like Portfolio's rail — but the original
+spec's Section 3 only described adding a subtitle and badges to Beheer's
+existing **flat** phase list, never mentioning the stage grouping. That's
+a gap in the spec I wrote, not a defect in Task 3's implementation of it —
+Task 3 built exactly what it was told to build. This task fixes the gap.
+
+Reference structure (verbatim):
+
+```jsx
+// beheer — one rail entry per RIP sub-phase, grouped by stage
+<div className="v2-rail-group">
+  {' '}
+  {/* Faseladder, unlabeled */}
+  <ul className="v2-rail-list">
+    <li>...Faseladder button...</li>
+  </ul>
+</div>;
+{
+  window.PB_STAGES.map((st) => (
+    <div className="v2-rail-group" key={st.code}>
+      <div className="v2-rail-group-label">
+        <span className="pb-stage-dot" style={{ background: st.color }} />
+        {st.code} · {st.name}
+      </div>
+      <ul className="v2-rail-list">
+        {window.PB_RIP_PHASES.filter((ph) => ph.stage === st.code).map((ph) => (
+          <li key={ph.code}>
+            <button className={`v2-rail-item pb-rail-phase ${active} ${can ? '' : 'muted'}`}>
+              <span>
+                <span className="pb-rail-code">{ph.code}</span>
+                {ph.name}
+              </span>
+              {wip > 0 && <span className="pb-rail-badge">{wip}</span>}
+              {parked > 0 && (
+                <span className="pb-rail-badge parked" title="Geparkeerd">
+                  {parked}
+                </span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ));
+}
+<div className="v2-rail-group">
+  {' '}
+  {/* Archief, unlabeled */}
+  <ul className="v2-rail-list">
+    <li>...Archief button...</li>
+  </ul>
+</div>;
+```
+
+Our app additionally has Account/IOU/Hulpmiddelen groups around this
+section (not in the reference, built in an earlier sub-project) — those
+stay exactly as they are, in their current position (Account before,
+IOU/Hulpmiddelen after). Only the "Projecten" group's internals change.
+
+This also resolves Task 3's second deferred Minor finding: `InfraRailItem`'s
+`count`/`parkedCount`/`muted` fields (added in Task 2) ended up unused by
+any consumer, because Task 3 built a parallel `beheerBadges` Map instead of
+populating them. This task removes the phase items from `modes.config.ts`
+entirely (mirroring how Task 2 already removed Portfolio's static rail
+item), which makes those three fields genuinely dead — so they're deleted
+from `InfraRailItem`, restoring it to its pre-Task-2 shape.
+
+**Files:**
+
+- Modify: `packages/frontend/src/pages/infra-board/rail-stats.ts`
+- Modify: `packages/frontend/src/pages/infra-board/rail-stats.test.ts`
+- Modify: `packages/frontend/src/pages/infra-board/modes.config.ts`
+- Modify: `packages/frontend/src/pages/InfraBoardDashboard.tsx`
+- Modify: `packages/frontend/src/pages/InfraBoardDashboard.test.tsx`
+
+**Interfaces:**
+
+- Consumes: `RIP_STAGES`, `RIP_PHASES`, `RipStage`, `RipPhase`,
+  `getPhaseDeployStatus` from `./rip-phases.catalog`; `AnnotatedPhaseCounts`
+  from `./rip-phase-counts` (all already imported somewhere on the branch).
+- Produces (used by this task's own InfraBoardDashboard.tsx edit):
+  `BeheerPhaseRailItem { phase: RipPhase; count?: number; parkedCount?: number; muted: boolean }`,
+  `beheerRailPhaseGroups(combined: Record<string, AnnotatedPhaseCounts>, deployedKeys: ReadonlySet<string>): { stage: RipStage; phases: BeheerPhaseRailItem[] }[]`.
+
+- [ ] **Step 1: Add the failing tests for `beheerRailPhaseGroups`**
+
+Append to `packages/frontend/src/pages/infra-board/rail-stats.test.ts`
+(after the existing `describe('beheerRailSubtitle', ...)` block, same file
+— do not touch the existing `describe` blocks above it):
+
+```ts
+describe('beheerRailPhaseGroups', () => {
+  it('returns one entry per RIP_STAGES, in order, each carrying only its own phases', () => {
+    const groups = beheerRailPhaseGroups({}, new Set());
+    expect(groups.map((g) => g.stage.code)).toEqual(RIP_STAGES.map((s) => s.code));
+    groups.forEach((g) => {
+      g.phases.forEach(({ phase }) => expect(phase.stage).toBe(g.stage.code));
+    });
+  });
+
+  it('gives every non-beyond phase a count (0 if absent from combined) and no parkedCount', () => {
+    const groups = beheerRailPhaseGroups({}, new Set());
+    const allPhases = groups.flatMap((g) => g.phases);
+    allPhases
+      .filter((p) => !p.phase.beyond)
+      .forEach((p) => {
+        expect(p.count).toBe(0);
+        expect(p.parkedCount).toBeUndefined();
+      });
+  });
+
+  it('gives the one beyond phase (R5.3) a parkedCount and no count', () => {
+    const combined: Record<string, AnnotatedPhaseCounts> = {
+      'R5.3': { wip: 0, gereed: 0, geparkeerd: 4, liveWip: 0, liveGereed: 0, liveGeparkeerd: 0 },
+    };
+    const groups = beheerRailPhaseGroups(combined, new Set());
+    const r53 = groups.flatMap((g) => g.phases).find((p) => p.phase.code === 'R5.3');
+    expect(r53?.count).toBeUndefined();
+    expect(r53?.parkedCount).toBe(4);
+  });
+
+  it('sources count from the combined map when present', () => {
+    const combined: Record<string, AnnotatedPhaseCounts> = {
+      'R2.1': { wip: 7, gereed: 0, geparkeerd: 0, liveWip: 0, liveGereed: 0, liveGeparkeerd: 0 },
+    };
+    const groups = beheerRailPhaseGroups(combined, new Set());
+    const r21 = groups.flatMap((g) => g.phases).find((p) => p.phase.code === 'R2.1');
+    expect(r21?.count).toBe(7);
+  });
+
+  it('mutes every phase whose process key is not in deployedKeys, and un-mutes the one that is', () => {
+    const groups = beheerRailPhaseGroups({}, new Set(['RipPhase1Process']));
+    const all = groups.flatMap((g) => g.phases);
+    const r21 = all.find((p) => p.phase.code === 'R2.1');
+    const others = all.filter((p) => p.phase.code !== 'R2.1');
+    expect(r21?.muted).toBe(false);
+    others.forEach((p) => expect(p.muted).toBe(true));
+  });
+});
+```
+
+Also add `beheerRailPhaseGroups` to the file's existing import from
+`./rail-stats` (it currently imports `mijnDagRailStats`,
+`portfolioRailStageGroups`, `portfolioRailTransitions`,
+`portfolioRailHealth`, `beheerRailSubtitle` — add `beheerRailPhaseGroups`
+to that same import list).
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run (from `packages/frontend`): `npx vitest run src/pages/infra-board/rail-stats.test.ts`
+Expected: FAIL — `beheerRailPhaseGroups` is not exported yet.
+
+- [ ] **Step 3: Add `beheerRailPhaseGroups` to `rail-stats.ts`**
+
+In `packages/frontend/src/pages/infra-board/rail-stats.ts`, change the
+existing import:
+
+```ts
+import { RIP_PHASES, RIP_STAGES, type RipPhase, type RipStage } from './rip-phases.catalog';
+```
+
+to:
+
+```ts
+import {
+  RIP_PHASES,
+  RIP_STAGES,
+  getPhaseDeployStatus,
+  type RipPhase,
+  type RipStage,
+} from './rip-phases.catalog';
+```
+
+Then append this at the end of the file (after `beheerRailSubtitle`):
+
+```ts
+export interface BeheerPhaseRailItem {
+  phase: RipPhase;
+  /** WIP badge — undefined for the one `beyond` phase (R5.3), which shows
+   *  parkedCount instead. */
+  count?: number;
+  /** Geparkeerd badge — R5.3 only, mutually exclusive with `count` by
+   *  construction (RIP_PHASES has exactly one `beyond: true` phase). */
+  parkedCount?: number;
+  /** Dims the item — true unless getPhaseDeployStatus resolves to 'gedeployed'. */
+  muted: boolean;
+}
+
+/** Beheer's phase nav items, grouped by stage — same shape as
+ *  portfolioRailStageGroups but carrying WIP/geparkeerd badges and
+ *  deploy-muted state instead of project counts. Reference:
+ *  pb-shell.reference.jsx:82-103. */
+export function beheerRailPhaseGroups(
+  combined: Record<string, AnnotatedPhaseCounts>,
+  deployedKeys: ReadonlySet<string>
+): { stage: RipStage; phases: BeheerPhaseRailItem[] }[] {
+  return RIP_STAGES.map((stage) => ({
+    stage,
+    phases: RIP_PHASES.filter((p) => p.stage === stage.code).map((phase) => {
+      const counts = combined[phase.code];
+      return {
+        phase,
+        count: phase.beyond ? undefined : (counts?.wip ?? 0),
+        parkedCount: phase.beyond ? (counts?.geparkeerd ?? 0) : undefined,
+        muted: getPhaseDeployStatus(phase, deployedKeys) !== 'gedeployed',
+      };
+    }),
+  }));
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run (from `packages/frontend`): `npx vitest run src/pages/infra-board/rail-stats.test.ts`
+Expected: PASS, all 15 tests green (10 from Task 1 + 5 new).
+
+- [ ] **Step 5: Remove the phase items from `modes.config.ts`, and the now-dead badge fields**
+
+Replace:
+
+```ts
+export interface InfraRailItem {
+  id: string;
+  label: string;
+  authRequired?: boolean;
+  requiredRoles?: string[];
+  /** WIP count badge (Beheer phase items only). Merged in at render time —
+   *  the static INFRA_MODES array can't carry live counts. */
+  count?: number;
+  /** Geparkeerd count badge — R5.3 only, mutually exclusive with `count`. */
+  parkedCount?: number;
+  /** Dims the item — set when the phase isn't deployable yet. */
+  muted?: boolean;
+}
+```
+
+with:
+
+```ts
+export interface InfraRailItem {
+  id: string;
+  label: string;
+  authRequired?: boolean;
+  requiredRoles?: string[];
+}
+```
+
+(These three fields were added in an earlier task on this branch for a
+render-time-merge approach that didn't end up being used — Beheer's phase
+items are being pulled out of this static config entirely in this same
+step, for the reason below, which makes the fields have no consumer.)
+
+Replace:
+
+```ts
+      {
+        label: 'Projecten',
+        items: [
+          { id: 'faseladder', label: 'Faseladder', authRequired: true },
+          ...RIP_STAGES.flatMap((stage) =>
+            RIP_PHASES.filter((p) => p.stage === stage.code).map((p) => ({
+              id: phaseSectionId(p.code),
+              // Code intentionally not baked into the label string —
+              // InfraBoardDashboard.tsx renders it as its own
+              // `.pb-rail-code` chip via phaseCodeFromSectionId(id).
+              label: p.name,
+              authRequired: true,
+              requiredRoles: [INFRA_GATE_ROLE],
+            }))
+          ),
+          { id: 'archief', label: 'Archief', authRequired: true },
+        ],
+      },
+```
+
+with:
+
+```ts
+// Faseladder, the 12 phase items, and Archief are intentionally not
+// listed here — the reference (pb-shell.reference.jsx:71-110) groups
+// the phase items by stage (a header per RIP_STAGES entry, matching
+// Portfolio's rail treatment), which this flat items[] shape can't
+// express. InfraBoardDashboard.tsx hand-renders that whole section
+// (Faseladder button, stage-grouped phase buttons via
+// beheerRailPhaseGroups(), Archief button) directly, gated the same
+// way these items were (isAuth for Faseladder/Archief, hasGateRole
+// for the phase items).
+```
+
+(That replacement leaves a comment where the group used to be, between the
+`Account` group and the `IOU` group in the `groups: [...]` array — no
+trailing comma issue, since the comment sits between two array elements
+that both still have their own commas.)
+
+- [ ] **Step 6: Run the `modes.config` test file and typecheck**
+
+Run (from `packages/frontend`): `npx vitest run src/pages/infra-board/modes.config.test.ts`
+Expected: PASS — this file never asserted on the removed phase items or the
+removed `InfraRailItem` fields, so all 9 existing tests stay green
+unmodified.
+
+Run (from `packages/frontend`): `npx tsc --noEmit`
+Expected: FAIL at this point — `InfraBoardDashboard.tsx` still imports
+`phaseCodeFromSectionId` (now only used there, and about to become
+unneeded) and still builds the old `beheerBadges` Map referencing
+`getPhaseDeployStatus`; that's fine, Step 7 fixes it. Note the exact
+errors before moving on, to confirm Step 7 clears all of them and nothing
+else.
+
+- [ ] **Step 7: Rewire `InfraBoardDashboard.tsx`**
+
+**7a.** Change the `modes.config` import:
+
+```ts
+import {
+  INFRA_MODES,
+  INFRA_GATE_ROLE,
+  findModeForSection,
+  isRailItemVisible,
+  phaseSectionId,
+  phaseCodeFromSectionId,
+  type InfraModeId,
+} from './infra-board/modes.config';
+```
+
+to (drops `phaseCodeFromSectionId` — no longer used in this file, phase
+buttons now read `.code` directly off the `RipPhase` object):
+
+```ts
+import {
+  INFRA_MODES,
+  INFRA_GATE_ROLE,
+  findModeForSection,
+  isRailItemVisible,
+  phaseSectionId,
+  type InfraModeId,
+} from './infra-board/modes.config';
+```
+
+**7b.** Change the `rip-phases.catalog` import:
+
+```ts
+import { RIP_PHASES, getPhaseDeployStatus } from './infra-board/rip-phases.catalog';
+```
+
+to (drops `getPhaseDeployStatus` — the badge computation moves into
+`rail-stats.ts`, which imports it itself):
+
+```ts
+import { RIP_PHASES } from './infra-board/rip-phases.catalog';
+```
+
+**7c.** Change the `rail-stats` import:
+
+```ts
+import {
+  mijnDagRailStats,
+  portfolioRailStageGroups,
+  portfolioRailTransitions,
+  portfolioRailHealth,
+  beheerRailSubtitle,
+} from './infra-board/rail-stats';
+```
+
+to:
+
+```ts
+import {
+  mijnDagRailStats,
+  portfolioRailStageGroups,
+  portfolioRailTransitions,
+  portfolioRailHealth,
+  beheerRailSubtitle,
+  beheerRailPhaseGroups,
+} from './infra-board/rail-stats';
+```
+
+**7d.** Replace the per-phase badge Map computation:
+
+```ts
+// Per-phase badge/muted data for Beheer's existing phase <li> items,
+// keyed by rail item id so the render below is a plain lookup.
+const beheerBadges = new Map(
+  RIP_PHASES.map((phase) => {
+    const counts = combinedCounts[phase.code];
+    return [
+      phaseSectionId(phase.code),
+      {
+        count: phase.beyond ? undefined : (counts?.wip ?? 0),
+        parkedCount: phase.beyond ? (counts?.geparkeerd ?? 0) : undefined,
+        muted: getPhaseDeployStatus(phase, deployedKeys) !== 'gedeployed',
+      },
+    ] as const;
+  })
+);
+```
+
+with:
+
+```ts
+  const beheerPhaseGroups = beheerRailPhaseGroups(combinedCounts, deployedKeys);
+
+  // Shared renderer for every plain (non-badge) rail group — Account, IOU,
+  // Hulpmiddelen, and (for mijn-dag/portfolio's own unaffected paths)
+  // whatever they still pass through here. Beheer's Faseladder/phase/
+  // Archief section is hand-rendered separately below, spliced between
+  // visibleGroups[0] (Account) and visibleGroups.slice(1) (IOU,
+  // Hulpmiddelen) — see the JSX.
+  const renderNavGroup = (g: (typeof visibleGroups)[number], key: string | number) => (
+    <div key={key} className="v2-rail-group">
+      {g.label && <div className="v2-rail-group-label">{g.label}</div>}
+      <ul className="v2-rail-list">
+        {g.items.map((it) => (
+          <li key={it.id}>
+            <button
+              type="button"
+              className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''}`}
+              onClick={() => {
+                setOpenProject(null);
+                setActiveSection(it.id);
+              }}
+            >
+              <span>{it.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+```
+
+(`RIP_PHASES` stays imported and used elsewhere in this file — in
+`normalizeLiveCounts(liveCountsRaw?.counts ?? {}, RIP_PHASES)` — so the
+Step 7b import change only drops `getPhaseDeployStatus`, not `RIP_PHASES`
+itself.)
+
+**7e.** Replace the final rail-rendering block:
+
+```tsx
+{
+  visibleGroups.map((g, i) => (
+    <div key={g.label || i} className="v2-rail-group">
+      {g.label && <div className="v2-rail-group-label">{g.label}</div>}
+      <ul className="v2-rail-list">
+        {g.items.map((it) => {
+          const badge = mode === 'beheer' ? beheerBadges.get(it.id) : undefined;
+          const code = badge ? phaseCodeFromSectionId(it.id) : undefined;
+          return (
+            <li key={it.id}>
+              <button
+                type="button"
+                className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''} ${badge?.muted ? 'muted' : ''}`}
+                onClick={() => {
+                  setOpenProject(null);
+                  setActiveSection(it.id);
+                }}
+              >
+                <span>
+                  {code && <span className="pb-rail-code">{code}</span>}
+                  {it.label}
+                </span>
+                {badge?.count !== undefined && badge.count > 0 && (
+                  <span className="pb-rail-badge">{badge.count}</span>
+                )}
+                {badge?.parkedCount !== undefined && badge.parkedCount > 0 && (
+                  <span className="pb-rail-badge parked" title="Geparkeerd">
+                    {badge.parkedCount}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  ));
+}
+```
+
+with:
+
+```tsx
+{
+  mode === 'beheer' ? (
+    <>
+      {/* visibleGroups[0] is always the Account group in beheer
+                  mode — Account/IOU/Hulpmiddelen all gate on authRequired
+                  only (no role checks), so filtering never drops or
+                  reorders one without the others. */}
+      {visibleGroups[0] && renderNavGroup(visibleGroups[0], visibleGroups[0].label ?? 0)}
+
+      {isAuth && (
+        <div className="v2-rail-group">
+          <ul className="v2-rail-list">
+            <li>
+              <button
+                type="button"
+                className={`v2-rail-item ${activeSection === 'faseladder' && !openProject ? 'active' : ''}`}
+                onClick={() => {
+                  setOpenProject(null);
+                  setActiveSection('faseladder');
+                }}
+              >
+                <span>Faseladder</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {hasGateRole &&
+        beheerPhaseGroups.map(({ stage, phases }) => (
+          <div className="v2-rail-group" key={stage.code}>
+            <div className="v2-rail-group-label">
+              <span className="pb-stage-dot" style={{ background: stage.color }} />
+              {stage.code} · {stage.name}
+            </div>
+            <ul className="v2-rail-list">
+              {phases.map(({ phase, count, parkedCount, muted }) => {
+                const sectionId = phaseSectionId(phase.code);
+                return (
+                  <li key={phase.code}>
+                    <button
+                      type="button"
+                      className={`v2-rail-item ${activeSection === sectionId && !openProject ? 'active' : ''} ${muted ? 'muted' : ''}`}
+                      onClick={() => {
+                        setOpenProject(null);
+                        setActiveSection(sectionId);
+                      }}
+                    >
+                      <span>
+                        <span className="pb-rail-code">{phase.code}</span>
+                        {phase.name}
+                      </span>
+                      {count !== undefined && count > 0 && (
+                        <span className="pb-rail-badge">{count}</span>
+                      )}
+                      {parkedCount !== undefined && parkedCount > 0 && (
+                        <span className="pb-rail-badge parked" title="Geparkeerd">
+                          {parkedCount}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+
+      {isAuth && (
+        <div className="v2-rail-group">
+          <ul className="v2-rail-list">
+            <li>
+              <button
+                type="button"
+                className={`v2-rail-item ${activeSection === 'archief' && !openProject ? 'active' : ''}`}
+                onClick={() => {
+                  setOpenProject(null);
+                  setActiveSection('archief');
+                }}
+              >
+                <span>Archief</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {visibleGroups.slice(1).map((g, i) => renderNavGroup(g, g.label ?? i + 1))}
+    </>
+  ) : (
+    visibleGroups.map((g, i) => renderNavGroup(g, g.label ?? i))
+  );
+}
+```
+
+Why `isAuth` for Faseladder/Archief and `hasGateRole` for the phase groups:
+these exactly replicate the gating the removed `InfraRailItem`s had
+(`authRequired: true` alone ⇒ `isAuth`; `authRequired: true` +
+`requiredRoles: [INFRA_GATE_ROLE]` ⇒ `hasGateRole`, which is already
+`false` whenever `!isAuth` since it reads `user?.roles`).
+
+- [ ] **Step 8: Run the test to verify it passes, then typecheck**
+
+Run (from `packages/frontend`): `npx vitest run src/pages/InfraBoardDashboard.test.tsx`
+Expected: PASS — all of Task 3's tests still pass unmodified (the phase
+button's accessible name, class list, and click behavior are unchanged;
+only their DOM position/grouping changed).
+
+Run (from `packages/frontend`): `npx tsc --noEmit`
+Expected: clean — no unused-import errors, no missing-export errors.
+
+- [ ] **Step 9: Add a regression test for the stage grouping**
+
+Append to `packages/frontend/src/pages/InfraBoardDashboard.test.tsx`, right
+after Task 3's four Beheer/Portfolio/Mijn-dag rail tests, inside the same
+`describe('InfraBoardDashboard', ...)` block:
+
+```tsx
+it('Beheer rail groups phase items under stage headers, and keeps Faseladder/Archief navigable', async () => {
+  mockKeycloak.authenticated = true;
+  mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+  const user = userEvent.setup();
+
+  render(<InfraBoardDashboard />);
+  await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+  await waitFor(() => expect(screen.getByText(/R2 · Planvoorbereiding/)).toBeInTheDocument());
+  expect(screen.getByText(/R6 · Decharge/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Faseladder' })).toBeInTheDocument();
+  // Two "Archief" buttons legitimately coexist — the Projecten section's
+  // own Archief item, and the unrelated IOU group's "Archief" item
+  // (id: 'iou-archief', pre-existing, untouched by this task).
+  expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
+});
+```
+
+- [ ] **Step 10: Run the test to verify it passes**
+
+Run (from `packages/frontend`): `npx vitest run src/pages/InfraBoardDashboard.test.tsx`
+Expected: PASS, all 13 tests green (12 from Task 3 + 1 new).
+
+- [ ] **Step 11: Run the full frontend test suite and typecheck**
+
+Run (from `packages/frontend`): `npx vitest run && npx tsc --noEmit`
+Expected: all green, no errors.
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add packages/frontend/src/pages/infra-board/rail-stats.ts packages/frontend/src/pages/infra-board/rail-stats.test.ts packages/frontend/src/pages/infra-board/modes.config.ts packages/frontend/src/pages/InfraBoardDashboard.tsx packages/frontend/src/pages/InfraBoardDashboard.test.tsx
+git commit -m "fix: group Beheer's rail phase items by stage, matching Portfolio and the reference"
+```
+
+---
+
 ## Final verification
 
-After Task 3: run the full suite once more from `packages/frontend`
+After Task 4: run the full suite once more from `packages/frontend`
 (`npx vitest run && npx tsc --noEmit`), then hand off to
 `superpowers:finishing-a-development-branch` for the merge-back menu into
 `feat/rip-beheer-starten-tab`.
