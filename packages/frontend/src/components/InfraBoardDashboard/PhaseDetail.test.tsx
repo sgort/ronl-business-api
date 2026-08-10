@@ -107,9 +107,9 @@ describe('PhaseDetail — header and side panel', () => {
   });
 });
 
-describe('PhaseDetail — R5.2 (beyond)', () => {
+describe('PhaseDetail — R5.3 (beyond)', () => {
   it('renders a placeholder instead of the tab shell', () => {
-    render(<PhaseDetail phaseCode="R5.2" onBack={vi.fn()} />);
+    render(<PhaseDetail phaseCode="R5.3" onBack={vi.fn()} />);
     expect(screen.queryByText('Starten')).not.toBeInTheDocument();
     expect(screen.queryByText('WIP')).not.toBeInTheDocument();
     expect(screen.getByText('Niet gemodelleerd', { exact: false })).toBeInTheDocument();

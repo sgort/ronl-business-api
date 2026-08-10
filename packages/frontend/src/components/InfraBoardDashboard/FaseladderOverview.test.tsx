@@ -49,7 +49,7 @@ afterEach(() => {
 });
 
 describe('FaseladderOverview', () => {
-  it('renders one row per phase, grouped under four stage headers', () => {
+  it('renders one row per phase, grouped under five stage headers', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     RIP_PHASES.forEach((p) => {
       expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
@@ -88,9 +88,9 @@ describe('FaseladderOverview', () => {
     expect(kpiValue('Fasen in uitvoering')).toContain(String(expected));
   });
 
-  it('shows Deelprocessen inzetbaar as "N / 9"', () => {
+  it('shows Deelprocessen inzetbaar as "N / 12"', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
-    expect(kpiValue('Deelprocessen inzetbaar')).toBe('1 / 9');
+    expect(kpiValue('Deelprocessen inzetbaar')).toBe('1 / 12');
   });
 
   it('shows Klaar om te starten as the total Klaar across all non-beyond phases, not deployed-only', () => {
@@ -117,12 +117,12 @@ describe('FaseladderOverview', () => {
     expect(row?.textContent).toContain('—');
   });
 
-  it('labels the WIP column "WIP / Geparkeerd" and shows R5.2\'s geparkeerd count there', () => {
+  it('labels the WIP column "WIP / Geparkeerd" and shows R5.3\'s geparkeerd count there', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     expect(screen.getByText('WIP / Geparkeerd')).toBeInTheDocument();
     const mockCounts = getMockPhaseCounts();
-    const r52 = RIP_PHASES.find((p) => p.code === 'R5.2')!;
-    const row = screen.getByText(r52.code, { exact: false }).closest('tr');
-    expect(row?.textContent).toContain(String(mockCounts['R5.2'].geparkeerd));
+    const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
+    const row = screen.getByText(r53.code, { exact: false }).closest('tr');
+    expect(row?.textContent).toContain(String(mockCounts['R5.3'].geparkeerd));
   });
 });
