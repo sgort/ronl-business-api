@@ -37,7 +37,7 @@ export interface RipPhase {
   weeks: number;
   bron: string;
   processDefinitionKey?: string;
-  /** No process model even planned (R5.2) — never counts as WIP. */
+  /** No process model even planned (R5.3) — never counts as WIP. */
   beyond?: boolean;
 }
 
