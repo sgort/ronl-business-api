@@ -18,7 +18,6 @@ import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
   projectRef: ProjectRef;
-  phaseLabels: string[];
   onBack: () => void;
 }
 

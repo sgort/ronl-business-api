@@ -54,7 +54,7 @@ afterEach(() => {
 describe('ProjectDetail — mock project', () => {
   it('renders the mock project header info', () => {
     const project = getMockPortfolio()[0];
-    render(<ProjectDetail projectRef={{ nr: project.nr }} phaseLabels={[]} onBack={vi.fn()} />);
+    render(<ProjectDetail projectRef={{ nr: project.nr }} onBack={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: project.naam })).toBeInTheDocument();
     expect(screen.getByText(project.budget)).toBeInTheDocument();
@@ -63,13 +63,7 @@ describe('ProjectDetail — mock project', () => {
   it('"Terug naar portfolio" calls onBack', async () => {
     const onBack = vi.fn();
     const user = userEvent.setup();
-    render(
-      <ProjectDetail
-        projectRef={{ nr: getMockPortfolio()[0].nr }}
-        phaseLabels={[]}
-        onBack={onBack}
-      />
-    );
+    render(<ProjectDetail projectRef={{ nr: getMockPortfolio()[0].nr }} onBack={onBack} />);
 
     await user.click(screen.getByRole('button', { name: /Terug naar portfolio/ }));
 
@@ -78,13 +72,7 @@ describe('ProjectDetail — mock project', () => {
 
   it('selecting a phase other than R2.1 shows the "not modelled" message', async () => {
     const user = userEvent.setup();
-    render(
-      <ProjectDetail
-        projectRef={{ nr: getMockPortfolio()[0].nr }}
-        phaseLabels={[]}
-        onBack={vi.fn()}
-      />
-    );
+    render(<ProjectDetail projectRef={{ nr: getMockPortfolio()[0].nr }} onBack={vi.fn()} />);
 
     await user.click(
       screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[1].name) })
@@ -95,11 +83,7 @@ describe('ProjectDetail — mock project', () => {
 
   it('renders twelve stepper steps with real RIP codes', () => {
     const { container } = render(
-      <ProjectDetail
-        projectRef={{ nr: getMockPortfolio()[0].nr }}
-        phaseLabels={[]}
-        onBack={vi.fn()}
-      />
+      <ProjectDetail projectRef={{ nr: getMockPortfolio()[0].nr }} onBack={vi.fn()} />
     );
     // Scoped to the stepper: the current phase's code also legitimately
     // appears in the meta strip and the phase-detail panel, so an
@@ -112,13 +96,7 @@ describe('ProjectDetail — mock project', () => {
 
   it('selecting R2.1 shows the swimlane', async () => {
     const user = userEvent.setup();
-    render(
-      <ProjectDetail
-        projectRef={{ nr: getMockPortfolio()[0].nr }}
-        phaseLabels={[]}
-        onBack={vi.fn()}
-      />
-    );
+    render(<ProjectDetail projectRef={{ nr: getMockPortfolio()[0].nr }} onBack={vi.fn()} />);
 
     await user.click(
       screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
@@ -150,13 +128,7 @@ describe('ProjectDetail — live instance with open tasks', () => {
       reload: vi.fn(),
     });
 
-    render(
-      <ProjectDetail
-        projectRef={{ nr: '99999', instanceId: 'pi-1' }}
-        phaseLabels={[]}
-        onBack={vi.fn()}
-      />
-    );
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
 
     expect(screen.getByText('Open taken (1)')).toBeInTheDocument();
     // The swimlane also renders a node labelled "Aanleveren Projectplan", so

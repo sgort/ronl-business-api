@@ -27,7 +27,7 @@ afterEach(() => {
 
 describe('Portfolio', () => {
   it('shows the total project count and defaults to the Tijdlijn (Gantt) view', () => {
-    const { container } = render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
     const total = getMockPortfolio().length;
     expect(screen.getByText(`${total} projecten`, { exact: false })).toBeInTheDocument();
     expect(container.querySelector('.pb-gantt')).not.toBeNull();
@@ -36,7 +36,7 @@ describe('Portfolio', () => {
 
   it('switches to the Kanban view', async () => {
     const user = userEvent.setup();
-    const { container } = render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Per fase' }));
 
@@ -46,7 +46,7 @@ describe('Portfolio', () => {
 
   it('"Mijn" scope filters to only MIJN_PROJECT_NRS', async () => {
     const user = userEvent.setup();
-    render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    render(<Portfolio onOpenProject={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: `Mijn · ${MIJN_PROJECT_NRS.length}` }));
 
@@ -59,7 +59,7 @@ describe('Portfolio', () => {
   it('clicking a project row calls onOpenProject with its project number', async () => {
     const onOpenProject = vi.fn();
     const user = userEvent.setup();
-    render(<Portfolio phaseLabels={[]} onOpenProject={onOpenProject} />);
+    render(<Portfolio onOpenProject={onOpenProject} />);
 
     const first = getMockPortfolio()[0];
     await user.click(screen.getByText(first.naam));
@@ -84,14 +84,14 @@ describe('Portfolio', () => {
       reload: vi.fn(),
     });
 
-    render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    render(<Portfolio onOpenProject={vi.fn()} />);
 
     expect(screen.getByText(/actieve RIP Fase 1 instanties/)).toBeInTheDocument();
     expect(screen.getByText('Live project')).toBeInTheDocument();
   });
 
   it("a Gantt bar for a project's current phase carries the real RIP code as its label", () => {
-    const { container } = render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
     const first = getMockPortfolio()[0];
     const currentBar = container.querySelector('.pb-gantt-bar.current');
     expect(currentBar).not.toBeNull();
@@ -100,7 +100,7 @@ describe('Portfolio', () => {
 
   it('Kanban renders twelve columns grouped under five stage headers', async () => {
     const user = userEvent.setup();
-    const { container } = render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Per fase' }));
 
@@ -113,7 +113,7 @@ describe('Portfolio', () => {
 
   it('shows Kanban cards with status wachtend as "Wacht op start van {code}" instead of their milestone', async () => {
     const user = userEvent.setup();
-    render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    render(<Portfolio onOpenProject={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Per fase' }));
 
@@ -126,7 +126,7 @@ describe('Portfolio', () => {
   });
 
   it('shows a wachtend swatch in the legend', () => {
-    render(<Portfolio phaseLabels={[]} onOpenProject={vi.fn()} />);
+    render(<Portfolio onOpenProject={vi.fn()} />);
     expect(screen.getByText('Wachtend')).toBeInTheDocument();
   });
 });

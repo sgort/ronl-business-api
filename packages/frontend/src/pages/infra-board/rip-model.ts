@@ -31,28 +31,6 @@ export const HEALTH: Record<HealthKey, { label: string; color: string }> = {
   rood: { label: 'Risico', color: '#b0103c' },
 };
 
-export interface Phase {
-  n: number;
-  code: string;
-  name: string;
-  defaultName: string;
-}
-
-/** Lifecycle phases. Fase 1 is authoritative; 2–6 are placeholders. */
-export const PHASES: Phase[] = [
-  {
-    n: 1,
-    code: 'R2.1',
-    name: 'Projectplan Planvoorbereiding',
-    defaultName: 'Projectplan Planvoorbereiding',
-  },
-  { n: 2, code: 'R2.2', name: 'Planuitwerking (VO)', defaultName: 'Planuitwerking (VO)' },
-  { n: 3, code: 'R2.3', name: 'Definitief ontwerp', defaultName: 'Definitief ontwerp' },
-  { n: 4, code: 'R2.4', name: 'Aanbesteding', defaultName: 'Aanbesteding' },
-  { n: 5, code: 'R3', name: 'Uitvoering', defaultName: 'Uitvoering' },
-  { n: 6, code: 'R4', name: 'Decharge', defaultName: 'Decharge' },
-];
-
 export interface RoleDef {
   key: string;
   label: string;

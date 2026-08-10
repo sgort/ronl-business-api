@@ -29,7 +29,6 @@ import {
   phaseSectionId,
   type InfraModeId,
 } from './infra-board/modes.config';
-import { PHASES } from './infra-board/rip-model';
 import InfraSectionRouter from '../components/InfraBoardDashboard/InfraSectionRouter';
 import InfraCommandPalette from '../components/InfraBoardDashboard/InfraCommandPalette';
 import InfraDock from '../components/InfraBoardDashboard/InfraDock';
@@ -69,7 +68,6 @@ export default function InfraBoardDashboard() {
   // Tweaks
   const [accent, _setAccent] = useState('#e70077');
   const [density, _setDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [phaseLabels, _setPhaseLabels] = useState<string[]>(PHASES.map((p) => p.name));
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -270,7 +268,6 @@ export default function InfraBoardDashboard() {
               openProject={openProject}
               user={user}
               tenantConfig={tenantConfig}
-              phaseLabels={phaseLabels}
               onOpenProject={goToProject}
               onBack={() => setOpenProject(null)}
               onGotoPortfolio={() => {
@@ -303,7 +300,7 @@ export default function InfraBoardDashboard() {
       />
 
       {/* Tweaks panel — wire to your host Tweaks protocol or a toolbar button.
-          Controls: accent (setAccent), density (setDensity), phaseLabels (setPhaseLabels). */}
+          Controls: accent (setAccent), density (setDensity). */}
     </div>
   );
 }

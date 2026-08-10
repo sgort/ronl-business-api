@@ -61,7 +61,6 @@ const baseProps = {
   openProject: null,
   user: null,
   tenantConfig: null,
-  phaseLabels: [],
   onOpenProject: vi.fn(),
   onBack: vi.fn(),
   onGotoPortfolio: vi.fn(),

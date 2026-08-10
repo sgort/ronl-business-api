@@ -12,7 +12,6 @@ import { useActivePhase1 } from '../../services/infra.api';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
-  phaseLabels: string[];
   onOpenProject: (ref: ProjectRef) => void;
 }
 

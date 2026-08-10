@@ -53,7 +53,6 @@ interface Props {
   openProject: ProjectRef | null;
   user: KeycloakUser | null;
   tenantConfig: TenantConfig | null;
-  phaseLabels: string[];
   onOpenProject: (ref: ProjectRef) => void;
   onBack: () => void;
   onGotoPortfolio: () => void;
@@ -64,9 +63,7 @@ interface Props {
 export default function InfraSectionRouter(p: Props) {
   const { user, tenantConfig, section } = p;
   if (p.openProject) {
-    return (
-      <ProjectDetail projectRef={p.openProject} phaseLabels={p.phaseLabels} onBack={p.onBack} />
-    );
+    return <ProjectDetail projectRef={p.openProject} onBack={p.onBack} />;
   }
   if (p.mode === 'mijn-dag') {
     if (section === 'project-updates') return <ProjectUpdatesView />;
@@ -75,7 +72,7 @@ export default function InfraSectionRouter(p: Props) {
     );
   }
   if (p.mode === 'portfolio') {
-    return <Portfolio phaseLabels={p.phaseLabels} onOpenProject={p.onOpenProject} />;
+    return <Portfolio onOpenProject={p.onOpenProject} />;
   }
   // Beheer — reuse the existing V1 components verbatim, wrapped in the
   // same v2-main-pad padding that CaseworkerDashboardV2 applies.
