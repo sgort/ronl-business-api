@@ -1207,88 +1207,88 @@ files listed below.**
 - [ ] **Step 1: Write the failing tests**
 
   In `ProjectDetail.test.tsx`:
-  1.  Remove `import { PHASES } from '../../pages/infra-board/rip-model';`
-      and the `const phaseLabels = PHASES.map((p) => p.name);` line. Add:
+  1. Remove `import { PHASES } from '../../pages/infra-board/rip-model';`
+     and the `const phaseLabels = PHASES.map((p) => p.name);` line. Add:
 
-      ```ts
-      import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
-      ```
+     ```ts
+     import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
+     ```
 
-  2.  In every existing `phaseLabels={phaseLabels}` prop (four occurrences),
-      change to `phaseLabels={[]}`.
+  2. In every existing `phaseLabels={phaseLabels}` prop (four occurrences),
+     change to `phaseLabels={[]}`.
 
-  3.  Replace the test `'selecting a phase other than 1 shows the "not
-modelled" message'`:
+  3. Replace the test `'selecting a phase other than 1 shows the "not
+modelled" message'` with the tests below.
 
-                                   ```tsx
-                                   it('selecting a phase other than 1 shows the "not modelled" message', async () => {
-                                     const user = userEvent.setup();
-                                     render(
-                                       <ProjectDetail
-                                         projectRef={{ nr: getMockPortfolio()[0].nr }}
-                                         phaseLabels={phaseLabels}
-                                         onBack={vi.fn()}
-                                       />
-                                     );
+  Before:
 
-                                     await user.click(
-                                       screen.getByRole('button', { name: (name) => name.includes(phaseLabels[1]) })
-                                     );
+  ```tsx
+  it('selecting a phase other than 1 shows the "not modelled" message', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectDetail
+        projectRef={{ nr: getMockPortfolio()[0].nr }}
+        phaseLabels={phaseLabels}
+        onBack={vi.fn()}
+      />
+    );
 
-                                     expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
-                                   });
-                                   ```
+    await user.click(screen.getByRole('button', { name: (name) => name.includes(phaseLabels[1]) }));
 
-                                   with:
+    expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
+  });
+  ```
 
-                                   ```tsx
-                                   it('selecting a phase other than R2.1 shows the "not modelled" message', async () => {
-                                     const user = userEvent.setup();
-                                     render(
-                                       <ProjectDetail
-                                         projectRef={{ nr: getMockPortfolio()[0].nr }}
-                                         phaseLabels={[]}
-                                         onBack={vi.fn()}
-                                       />
-                                     );
+  After:
 
-                                     await user.click(
-                                       screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[1].name) })
-                                     );
+  ```tsx
+  it('selecting a phase other than R2.1 shows the "not modelled" message', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectDetail
+        projectRef={{ nr: getMockPortfolio()[0].nr }}
+        phaseLabels={[]}
+        onBack={vi.fn()}
+      />
+    );
 
-                                     expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
-                                   });
+    await user.click(
+      screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[1].name) })
+    );
 
-                                   it('renders twelve stepper steps with real RIP codes', () => {
-                                     render(
-                                       <ProjectDetail
-                                         projectRef={{ nr: getMockPortfolio()[0].nr }}
-                                         phaseLabels={[]}
-                                         onBack={vi.fn()}
-                                       />
-                                     );
-                                     RIP_PHASES.forEach((p) => {
-                                       expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
-                                     });
-                                   });
+    expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
+  });
 
-                                   it('selecting R2.1 shows the swimlane', async () => {
-                                     const user = userEvent.setup();
-                                     render(
-                                       <ProjectDetail
-                                         projectRef={{ nr: getMockPortfolio()[0].nr }}
-                                         phaseLabels={[]}
-                                         onBack={vi.fn()}
-                                       />
-                                     );
+  it('renders twelve stepper steps with real RIP codes', () => {
+    render(
+      <ProjectDetail
+        projectRef={{ nr: getMockPortfolio()[0].nr }}
+        phaseLabels={[]}
+        onBack={vi.fn()}
+      />
+    );
+    RIP_PHASES.forEach((p) => {
+      expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
+    });
+  });
 
-                                     await user.click(
-                                       screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
-                                     );
+  it('selecting R2.1 shows the swimlane', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectDetail
+        projectRef={{ nr: getMockPortfolio()[0].nr }}
+        phaseLabels={[]}
+        onBack={vi.fn()}
+      />
+    );
 
-                                     expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
-                                   });
-                                   ```
+    await user.click(
+      screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
+    );
+
+    expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
+  });
+  ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
