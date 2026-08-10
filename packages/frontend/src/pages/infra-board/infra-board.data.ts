@@ -9,7 +9,7 @@
  * Swap each accessor for an async service one view at a time (same shape).
  */
 
-import { PHASES, ROLES, type StatusKey, type HealthKey } from './rip-model';
+import { ROLES, type StatusKey, type HealthKey } from './rip-model';
 import { RIP_PHASES, type RipPhase } from './rip-phases.catalog';
 import type { PhaseCounts } from './rip-phase-counts';
 
@@ -27,34 +27,26 @@ export const normalizeLeadRole = (raw?: string): string =>
 // ── Timeline window: 2022 Q1 … 2027 Q4 ──────────────────────────────────────
 export const TL = { startYear: 2022, quarters: 24, todayIdx: 17 };
 const qIdx = (year: number, q: number) => (year - TL.startYear) * 4 + (q - 1);
-/** Mock per-phase durations (quarters). Replace with planning data. */
-export const PHASE_DUR = [2, 3, 3, 2, 5, 2];
-
-export interface GanttSegment {
-  phase: number;
-  from: number;
-  len: number;
+export interface RipGanttSegment {
+  phaseCode: string;
+  from: number; // quarter index into the TL window
+  len: number; // quarters
   status: StatusKey;
 }
 export interface PortfolioProject {
   id: string;
   nr: string;
   naam: string;
-  phase: number;
   role: string;
   health: HealthKey;
-  phaseStatuses: StatusKey[];
   milestone: string;
   budget: string;
   startYear: number;
   start: number;
   end: number;
-  segments: GanttSegment[];
+  segments: RipGanttSegment[];
   /** Set when this row is backed by a live Operaton process instance. */
   instanceId?: string;
-  /** Position on the real 9-phase RIP ladder (R2.1…R5.2). Additive —
-   *  unrelated to `phase` above, which stays on the old 6-phase model
-   *  for Portfolio.tsx compatibility. */
   ripPhaseCode: string;
   ripPhaseState: 'wip' | 'wachtend';
 }
@@ -74,11 +66,43 @@ export interface UpdateItem {
   tekst: string;
 }
 
-function phaseStatuses(current: number, flags: Partial<Record<number, StatusKey>>): StatusKey[] {
-  return PHASES.map((p) => {
-    if (p.n < current) return 'done';
-    if (p.n === current) return flags[p.n] ?? 'active';
-    return 'todo';
+/** Quarters per phase, derived from the catalogue's own `weeks` — never
+ *  drifts out of sync with RIP_PHASES the way a parallel hardcoded
+ *  array could. 13 weeks/quarter, minimum 1 quarter for visual sanity. */
+const RIP_PHASE_DUR: number[] = RIP_PHASES.map((p) => Math.max(1, Math.round(p.weeks / 13)));
+
+function buildRipSegments(fromIdx: number, statuses: StatusKey[]): RipGanttSegment[] {
+  let cursor = fromIdx;
+  return RIP_PHASES.map((p, i) => {
+    const seg: RipGanttSegment = {
+      phaseCode: p.code,
+      from: cursor,
+      len: RIP_PHASE_DUR[i],
+      status: statuses[i],
+    };
+    cursor += RIP_PHASE_DUR[i];
+    return seg;
+  });
+}
+
+/**
+ * Per-phase status across the whole ladder for one mock project.
+ * Replaces the old flags-based override map (RAW's now-unused 6th
+ * tuple field) — same "spread mock variety via a legacy indirection"
+ * pattern the v2 catalogue patch already retired for ladder
+ * positioning (LADDER_FROM_LEGACY). A deterministic hash instead:
+ * illustrative variety at the current phase, not a business rule.
+ */
+function ripPhaseStatuses(nr: string, curIdx: number, awaiting: boolean): StatusKey[] {
+  return RIP_PHASES.map((_, i) => {
+    if (i < curIdx) return 'done';
+    if (i > curIdx) return 'todo';
+    if (awaiting) return 'wachtend';
+    const r = pbHash(`${nr}|status|${i}`) % 100;
+    if (r < 8) return 'overdue';
+    if (r < 18) return 'action';
+    if (r < 30) return 'risk';
+    return 'active';
   });
 }
 
@@ -612,26 +636,20 @@ export function makePhase1Row(inst: {
   const d = new Date(inst.startTime);
   const q = Math.floor(d.getMonth() / 3) + 1;
   const fromIdx = qIdx(d.getFullYear(), q);
-  const statuses: StatusKey[] = PHASES.map((p) => (p.n === 1 ? 'active' : 'todo'));
-  let cursor = fromIdx;
-  const segments: GanttSegment[] = PHASES.map((p, i) => {
-    const seg: GanttSegment = { phase: p.n, from: cursor, len: PHASE_DUR[i], status: statuses[i] };
-    cursor += PHASE_DUR[i];
-    return seg;
-  });
+  const statuses: StatusKey[] = RIP_PHASES.map((p) => (p.code === 'R2.1' ? 'active' : 'todo'));
+  const segments = buildRipSegments(fromIdx, statuses);
+  const last = segments[segments.length - 1];
   return {
     id: 'live-' + inst.id,
     nr: inst.projectNumber || inst.id.slice(0, 8),
     naam: inst.projectName || 'RIP Fase 1 project',
-    phase: 1,
     role: normalizeLeadRole(inst.leadRole),
     health: 'groen',
-    phaseStatuses: statuses,
     milestone: 'Fase 1 lopend',
     budget: '—',
     startYear: d.getFullYear(),
     start: fromIdx,
-    end: cursor,
+    end: last.from + last.len,
     segments,
     instanceId: inst.id,
     ripPhaseCode: RIP_PHASES[0].code,
@@ -669,44 +687,32 @@ function pbAwaits(nr: string): boolean {
 let _projects: PortfolioProject[] | null = null;
 export function getMockPortfolio(): PortfolioProject[] {
   if (_projects) return _projects;
-  _projects = RAW.map(
-    ([nr, naam, phase, role, health, flags, milestone, budget, startYear, startQ], i) => {
-      const statuses = phaseStatuses(phase, flags);
-      let cursor = qIdx(startYear, startQ);
-      const start = cursor;
-      const segments = PHASES.map((p, idx) => {
-        const seg: GanttSegment = {
-          phase: p.n,
-          from: cursor,
-          len: PHASE_DUR[idx],
-          status: statuses[idx],
-        };
-        cursor += PHASE_DUR[idx];
-        return seg;
-      });
-      const ladderPos = pbLadderFor(nr);
-      const ripPhaseCode = RIP_PHASES[ladderPos - 1].code;
-      const awaiting = ladderPos > 1 && ladderPos < RIP_PHASES.length && pbAwaits(nr);
-      const ripPhaseState: 'wip' | 'wachtend' = awaiting ? 'wachtend' : 'wip';
-      return {
-        id: 'p' + i,
-        nr,
-        naam,
-        phase,
-        role,
-        health,
-        phaseStatuses: statuses,
-        milestone,
-        budget,
-        startYear,
-        start,
-        end: cursor,
-        segments,
-        ripPhaseCode,
-        ripPhaseState,
-      };
-    }
-  );
+  _projects = RAW.map(([nr, naam, , role, health, , milestone, budget, startYear, startQ], i) => {
+    const start = qIdx(startYear, startQ);
+    const ladderPos = pbLadderFor(nr);
+    const curIdx = ladderPos - 1;
+    const ripPhaseCode = RIP_PHASES[curIdx].code;
+    const awaiting = ladderPos > 1 && ladderPos < RIP_PHASES.length && pbAwaits(nr);
+    const ripPhaseState: 'wip' | 'wachtend' = awaiting ? 'wachtend' : 'wip';
+    const statuses = ripPhaseStatuses(nr, curIdx, awaiting);
+    const segments = buildRipSegments(start, statuses);
+    const last = segments[segments.length - 1];
+    return {
+      id: 'p' + i,
+      nr,
+      naam,
+      role,
+      health,
+      milestone,
+      budget,
+      startYear,
+      start,
+      end: last.from + last.len,
+      segments,
+      ripPhaseCode,
+      ripPhaseState,
+    };
+  });
   return _projects;
 }
 

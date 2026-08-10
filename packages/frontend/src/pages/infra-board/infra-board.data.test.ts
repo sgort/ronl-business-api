@@ -12,10 +12,8 @@ import {
   getReadyProjects,
   makePhase1Row,
   normalizeLeadRole,
-  PHASE_DUR,
   TL,
 } from './infra-board.data';
-import { PHASES } from './rip-model';
 import { RIP_PHASES } from './rip-phases.catalog';
 
 describe('normalizeLeadRole', () => {
@@ -43,19 +41,20 @@ describe('makePhase1Row', () => {
     });
 
     const expectedStart = (2024 - TL.startYear) * 4 + (2 - 1); // April = Q2
-    const totalLen = PHASE_DUR.reduce((a, b) => a + b, 0);
 
     expect(row.id).toBe('live-abcdefgh-1234');
     expect(row.nr).toBe('24099');
     expect(row.naam).toBe('Test project');
-    expect(row.phase).toBe(1);
+    expect(row.ripPhaseCode).toBe('R2.1');
+    expect(row.ripPhaseState).toBe('wip');
     expect(row.role).toBe('manager-pb');
     expect(row.health).toBe('groen');
     expect(row.start).toBe(expectedStart);
-    expect(row.end).toBe(expectedStart + totalLen);
-    expect(row.segments).toHaveLength(PHASES.length);
-    expect(row.phaseStatuses[0]).toBe('active');
-    expect(row.phaseStatuses.slice(1).every((s) => s === 'todo')).toBe(true);
+    expect(row.segments).toHaveLength(RIP_PHASES.length);
+    const last = row.segments[row.segments.length - 1];
+    expect(row.end).toBe(last.from + last.len);
+    expect(row.segments[0].status).toBe('active');
+    expect(row.segments.slice(1).every((s) => s.status === 'todo')).toBe(true);
   });
 
   it('falls back to the instance id and a default name when nr/naam are blank', () => {
@@ -73,25 +72,35 @@ describe('makePhase1Row', () => {
 });
 
 describe('getMockPortfolio', () => {
-  it('returns rows whose segments each span every lifecycle phase', () => {
+  it('returns rows whose segments each span every RIP phase', () => {
     const projects = getMockPortfolio();
 
     expect(projects.length).toBeGreaterThan(0);
     for (const project of projects) {
-      expect(project.segments).toHaveLength(PHASES.length);
-      expect(project.phaseStatuses).toHaveLength(PHASES.length);
+      expect(project.segments).toHaveLength(RIP_PHASES.length);
     }
   });
 
   it('marks phases before the current phase as done and after as todo', () => {
-    const project = getMockPortfolio().find((p) => p.phase > 1 && p.phase < PHASES.length);
+    const project = getMockPortfolio().find((p) => {
+      const idx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+      return idx > 0 && idx < RIP_PHASES.length - 1;
+    });
     expect(project).toBeDefined();
 
-    project!.phaseStatuses.forEach((status, i) => {
-      const phaseNumber = PHASES[i].n;
-      if (phaseNumber < project!.phase) expect(status).toBe('done');
-      if (phaseNumber > project!.phase) expect(status).toBe('todo');
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === project!.ripPhaseCode);
+    project!.segments.forEach((seg, i) => {
+      if (i < curIdx) expect(seg.status).toBe('done');
+      if (i > curIdx) expect(seg.status).toBe('todo');
     });
+  });
+
+  it('marks the current-phase segment status as wachtend exactly when ripPhaseState is wachtend', () => {
+    const project = getMockPortfolio().find((p) => p.ripPhaseState === 'wachtend');
+    expect(project).toBeDefined();
+
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === project!.ripPhaseCode);
+    expect(project!.segments[curIdx].status).toBe('wachtend');
   });
 
   it('memoizes the generated portfolio across calls', () => {
@@ -121,13 +130,6 @@ describe('getMockUpdates', () => {
 describe('getMockPortfolio — RIP ladder fields', () => {
   it('returns 42 projects', () => {
     expect(getMockPortfolio()).toHaveLength(42);
-  });
-
-  it('keeps the old 6-phase `phase` field intact (Portfolio.tsx compat)', () => {
-    const p = getMockPortfolio()[0];
-    expect(typeof p.phase).toBe('number');
-    expect(p.phase).toBeGreaterThanOrEqual(1);
-    expect(p.phase).toBeLessThanOrEqual(6);
   });
 
   it('assigns every project a valid ripPhaseCode and ripPhaseState', () => {
