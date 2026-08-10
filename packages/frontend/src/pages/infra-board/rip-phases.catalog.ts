@@ -30,6 +30,9 @@ export interface RipPhase {
   docs: string[];
   gates: string[];
   krediet: boolean;
+  /** Named body that decides the kredietbesluit, shown when krediet is
+   *  true (e.g. "Ja — Infra-overleg"). Undefined when krediet is false. */
+  kredietBeslisser?: string;
   weeks: number;
   bron: string;
   processDefinitionKey?: string;
@@ -117,6 +120,7 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
     ],
     gates: ['Raming binnen projectkrediet?', 'Akkoord Projectplan 5?'],
     krediet: true,
+    kredietBeslisser: 'Infra-overleg',
     weeks: 8,
     bron: 'Overzichtsplaat R2.3 — VO-raming (14-8-2025)',
   },
@@ -154,6 +158,7 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
       'Raming binnen projectkrediet?',
     ],
     krediet: true,
+    kredietBeslisser: 'Infra-overleg',
     weeks: 20,
     bron: 'Overzichtsplaat R2.4 — DO en -raming (12-8-2025)',
   },
@@ -217,6 +222,7 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
     ],
     gates: ['Akkoord projectraming bestek?', 'Beoordelen concept toezichtplan — akkoord?'],
     krediet: true,
+    kredietBeslisser: 'Infra-overleg',
     weeks: 6,
     bron: 'Overzichtsplaat R3.2 (23-3-2026)',
   },
@@ -251,6 +257,7 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
       'Over-/onderschrijding dekkingsbron?',
     ],
     krediet: true,
+    kredietBeslisser: 'Concerndirecteur',
     weeks: 12,
     bron: 'Overzichtsplaat R4.1 (17-7-2025) — koppeling TenderNed / inkoopproces IN1',
   },

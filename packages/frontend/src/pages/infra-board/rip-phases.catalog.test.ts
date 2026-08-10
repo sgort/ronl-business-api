@@ -62,3 +62,18 @@ describe('getPhaseDeployStatus', () => {
     expect(getPhaseDeployStatus(beyond, new Set(['RipPhase1Process']))).toBe('onbekend');
   });
 });
+
+describe('kredietBeslisser', () => {
+  it('is set for every phase with krediet: true', () => {
+    expect(ripPhaseByCode('R2.3')?.kredietBeslisser).toBe('Infra-overleg');
+    expect(ripPhaseByCode('R2.4')?.kredietBeslisser).toBe('Infra-overleg');
+    expect(ripPhaseByCode('R3.2')?.kredietBeslisser).toBe('Infra-overleg');
+    expect(ripPhaseByCode('R4.1')?.kredietBeslisser).toBe('Concerndirecteur');
+  });
+
+  it('is undefined for every phase with krediet: false', () => {
+    for (const code of ['R2.1', 'R2.2', 'R3.1', 'R5.1', 'R5.2']) {
+      expect(ripPhaseByCode(code)?.kredietBeslisser).toBeUndefined();
+    }
+  });
+});
