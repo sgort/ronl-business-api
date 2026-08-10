@@ -10,8 +10,8 @@ import type { RipPhase } from './rip-phases.catalog';
 export interface PhaseCounts {
   wip: number;
   gereed: number;
-  /** R5.2 only (beyond: true). Always 0 for live counts today — nothing
-   *  can reach R5.2 while only R2.1 is deployed. */
+  /** R5.3 only (beyond: true). Always 0 for live counts today — nothing
+   *  can reach R5.3 while only R2.1 is deployed. */
   geparkeerd: number;
 }
 
