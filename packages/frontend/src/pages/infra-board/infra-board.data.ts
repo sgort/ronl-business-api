@@ -10,6 +10,8 @@
  */
 
 import { PHASES, ROLES, type StatusKey, type HealthKey } from './rip-model';
+import { RIP_PHASES, type RipPhase } from './rip-phases.catalog';
+import type { PhaseCounts } from './rip-phase-counts';
 
 /** Valid portfolio lead-role keys (rip-model vocabulary). */
 const ROLE_KEYS = new Set(ROLES.map((r) => r.key));
@@ -50,6 +52,11 @@ export interface PortfolioProject {
   segments: GanttSegment[];
   /** Set when this row is backed by a live Operaton process instance. */
   instanceId?: string;
+  /** Position on the real 9-phase RIP ladder (R2.1…R5.2). Additive —
+   *  unrelated to `phase` above, which stays on the old 6-phase model
+   *  for Portfolio.tsx compatibility. */
+  ripPhaseCode: string;
+  ripPhaseState: 'wip' | 'wachtend';
 }
 
 export interface TodoItem {
@@ -269,15 +276,147 @@ const RAW: Raw[] = [
     2,
   ],
   [
-    '25090',
-    'Aalscholverweg — nieuwe rotonde',
-    1,
+    '23078',
+    'Marknesserweg — passeerstroken',
+    5,
     'projectleider',
     'groen',
-    { 1: 'active' },
-    'Risicodossier opstellen',
-    '€ 5,2 mln',
+    {},
+    'Bermbeveiliging',
+    '€ 2,6 mln',
+    2023,
+    4,
+  ],
+  [
+    '22203',
+    'Lage Vaart — sluis Kampen',
+    6,
+    'manager-pb',
+    'geel',
+    {},
+    'Restpunten',
+    '€ 21 mln',
+    2022,
+    3,
+  ],
+  [
+    '24090',
+    'Tollebekerweg — fietspad',
+    3,
+    'projectleider',
+    'groen',
+    {},
+    'Definitief ontwerp',
+    '€ 4,1 mln',
+    2024,
+    2,
+  ],
+  [
+    '25040',
+    'Baanweg — kruispunt N709',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Voorkeursvariant',
+    '€ 8,8 mln',
     2025,
+    1,
+  ],
+  [
+    '23133',
+    'Ramsweg — geluidsmaatregelen',
+    4,
+    'manager-pb',
+    'rood',
+    { 4: 'overdue' },
+    'Bezwaar afhandelen',
+    '€ 6,3 mln',
+    2023,
+    2,
+  ],
+  [
+    '24044',
+    'Vlierweg — verbreding',
+    5,
+    'projectleider',
+    'groen',
+    {},
+    'Oplevering',
+    '€ 11 mln',
+    2024,
+    1,
+  ],
+  [
+    '25055',
+    'Pijlerweg — nieuwe ontsluiting',
+    1,
+    'projectleider',
+    'geel',
+    { 1: 'action' },
+    'Intake-overleg',
+    '€ 16 mln',
+    2025,
+    3,
+  ],
+  [
+    '23190',
+    'Bremerbergweg — recreatieverkeer',
+    5,
+    'manager-pb',
+    'groen',
+    {},
+    'Markeringen',
+    '€ 3,4 mln',
+    2023,
+    3,
+  ],
+  [
+    '24118',
+    'Wisentweg — duurzaam asfalt pilot',
+    3,
+    'projectleider',
+    'groen',
+    {},
+    'VO vaststellen',
+    '€ 9,2 mln',
+    2024,
+    2,
+  ],
+  [
+    '22150',
+    'Hertenweg — onderhoud kunstwerken',
+    6,
+    'manager-pb',
+    'groen',
+    {},
+    'Eindoplevering',
+    '€ 5,8 mln',
+    2022,
+    2,
+  ],
+  [
+    '25067',
+    'Ossenkampweg — verkeersplein',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Omgevingsproces',
+    '€ 13 mln',
+    2025,
+    1,
+  ],
+  [
+    '24063',
+    'Visvijverweg — natuurvriendelijke oever',
+    4,
+    'projectleider',
+    'geel',
+    {},
+    'Aanbesteding',
+    '€ 7,1 mln',
+    2024,
     3,
   ],
   [
@@ -293,6 +432,90 @@ const RAW: Raw[] = [
     1,
   ],
   [
+    '25073',
+    'Reigerweg — fietsstraat',
+    1,
+    'projectleider',
+    'groen',
+    { 1: 'active' },
+    'Intake-verslag',
+    '€ 2,9 mln',
+    2025,
+    4,
+  ],
+  [
+    '24025',
+    'Buizerdweg — komgrens herinrichting',
+    3,
+    'projectleider',
+    'groen',
+    {},
+    'Ontwerp',
+    '€ 4,7 mln',
+    2024,
+    1,
+  ],
+  [
+    '22168',
+    'Meeuwenweg — brugbediening centraliseren',
+    6,
+    'manager-pb',
+    'groen',
+    {},
+    'Decharge',
+    '€ 17 mln',
+    2022,
+    2,
+  ],
+  [
+    '25081',
+    'Karekietweg — aansluiting bedrijventerrein',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Variantenstudie',
+    '€ 10 mln',
+    2025,
+    2,
+  ],
+  [
+    '24142',
+    'Plevierweg — verkeerslichten',
+    4,
+    'manager-pb',
+    'groen',
+    {},
+    'Gunning',
+    '€ 3,8 mln',
+    2024,
+    2,
+  ],
+  [
+    '23240',
+    'Futenweg — groot onderhoud',
+    5,
+    'projectleider',
+    'geel',
+    {},
+    'Deklaag',
+    '€ 6,6 mln',
+    2023,
+    4,
+  ],
+  [
+    '25090',
+    'Aalscholverweg — nieuwe rotonde',
+    1,
+    'projectleider',
+    'groen',
+    { 1: 'active' },
+    'Intake-formulier',
+    '€ 5,2 mln',
+    2025,
+    3,
+  ],
+  [
     '24158',
     'Zwaanweg — onderdoorgang spoor',
     3,
@@ -303,6 +526,78 @@ const RAW: Raw[] = [
     '€ 38 mln',
     2024,
     1,
+  ],
+  [
+    '23260',
+    'Roerdompweg — bermverharding',
+    5,
+    'projectleider',
+    'groen',
+    {},
+    'Afronding',
+    '€ 1,9 mln',
+    2023,
+    4,
+  ],
+  [
+    '25104',
+    'Kievitweg — schoolzone',
+    2,
+    'projectleider',
+    'groen',
+    {},
+    'Omgevingsproces',
+    '€ 2,4 mln',
+    2025,
+    1,
+  ],
+  [
+    '24170',
+    'Lepelaarweg — verbreding N701',
+    4,
+    'projectleider',
+    'groen',
+    {},
+    'Aanbestedingsdossier',
+    '€ 29 mln',
+    2024,
+    2,
+  ],
+  [
+    '22185',
+    'Sterappelweg — kunstwerk renovatie',
+    6,
+    'manager-pb',
+    'groen',
+    {},
+    'Eindafrekening',
+    '€ 8,1 mln',
+    2022,
+    3,
+  ],
+  [
+    '25118',
+    'Goudplevierweg — fietstunnel',
+    1,
+    'projectleider',
+    'geel',
+    { 1: 'action' },
+    'Intake-overleg',
+    '€ 12 mln',
+    2025,
+    2,
+  ],
+  [
+    '24188',
+    'Kwartelweg — herinrichting centrum',
+    3,
+    'manager-pb',
+    'groen',
+    {},
+    'Definitief ontwerp',
+    '€ 15 mln',
+    2024,
+    3,
   ],
 ];
 
@@ -339,7 +634,39 @@ export function makePhase1Row(inst: {
     end: cursor,
     segments,
     instanceId: inst.id,
+    ripPhaseCode: RIP_PHASES[0].code,
+    ripPhaseState: 'wip',
   };
+}
+
+/**
+ * Ported from docs/infra-beheer-handoff/reference/pb-data.reference.jsx —
+ * spreads each RAW row's old 6-phase legacy value across the real
+ * 9-phase RIP ladder via a stable hash of the project number, so all
+ * nine deelprocessen are populated in the mock data.
+ *   F1 Projectplan   → R2.1
+ *   F2 Planuitwerking→ R2.2
+ *   F3 Def. ontwerp  → R2.3 VO-raming | R2.4 DO en -raming
+ *   F4 Aanbesteding  → R3.1 bestek | R3.2 afronding bestek | R4.1 aanbesteding
+ *   F5 Uitvoering    → R5.1 voorbereiding op uitvoering
+ *   F6 Decharge      → R5.2 start werk buiten (niet-gemodelleerd staartstuk)
+ */
+const LADDER_FROM_LEGACY: number[][] = [[1], [2], [3, 4], [5, 6, 7], [8], [9]];
+
+function pbHash(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function pbLadderFor(nr: string, legacy: number): number {
+  const opts = LADDER_FROM_LEGACY[legacy - 1];
+  return opts[pbHash(nr + '|ladder') % opts.length];
+}
+
+/** Deterministic per-project coin flip: sits this project BETWEEN two phases? */
+function pbAwaits(nr: string): boolean {
+  return pbHash(nr + '|await') % 100 < 30;
 }
 
 let _projects: PortfolioProject[] | null = null;
@@ -360,6 +687,10 @@ export function getMockPortfolio(): PortfolioProject[] {
         cursor += PHASE_DUR[idx];
         return seg;
       });
+      const ladderPos = pbLadderFor(nr, phase);
+      const ripPhaseCode = RIP_PHASES[ladderPos - 1].code;
+      const awaiting = ladderPos > 1 && ladderPos < RIP_PHASES.length && pbAwaits(nr);
+      const ripPhaseState: 'wip' | 'wachtend' = awaiting ? 'wachtend' : 'wip';
       return {
         id: 'p' + i,
         nr,
@@ -374,10 +705,41 @@ export function getMockPortfolio(): PortfolioProject[] {
         start,
         end: cursor,
         segments,
+        ripPhaseCode,
+        ripPhaseState,
       };
     }
   );
   return _projects;
+}
+
+/**
+ * WIP / Gereed / geparkeerd counts per RIP phase, derived from the mock
+ * projects' ripPhaseCode/ripPhaseState. Mirrors
+ * reference/pb-instances.reference.jsx's status derivation.
+ */
+export function getMockPhaseCounts(): Record<string, PhaseCounts> {
+  const projects = getMockPortfolio();
+  const out: Record<string, PhaseCounts> = {};
+  RIP_PHASES.forEach((phase: RipPhase, i) => {
+    let wip = 0;
+    let gereed = 0;
+    let geparkeerd = 0;
+    for (const p of projects) {
+      const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+      if (curIdx < i) {
+        gereed++;
+        continue;
+      }
+      if (phase.beyond) {
+        if (curIdx === i) geparkeerd++;
+        continue;
+      }
+      if (curIdx === i && p.ripPhaseState === 'wip') wip++;
+    }
+    out[phase.code] = { wip, gereed, geparkeerd };
+  });
+  return out;
 }
 
 export const MIJN_PROJECT_NRS = ['23102', '24011', '24102', '25031', '23166', '25090'];

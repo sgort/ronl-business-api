@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getMockPhaseCounts,
   getMockPortfolio,
   getMockTodos,
   getMockUpdates,
@@ -9,6 +10,7 @@ import {
   TL,
 } from './infra-board.data';
 import { PHASES } from './rip-model';
+import { RIP_PHASES } from './rip-phases.catalog';
 
 describe('normalizeLeadRole', () => {
   it('passes through a known rip-model role key unchanged', () => {
@@ -107,5 +109,52 @@ describe('getMockUpdates', () => {
     const updates = getMockUpdates();
     expect(updates.length).toBeGreaterThan(0);
     expect(updates[0]).toMatchObject({ proj: '24011' });
+  });
+});
+
+describe('getMockPortfolio — RIP ladder fields', () => {
+  it('returns 42 projects', () => {
+    expect(getMockPortfolio()).toHaveLength(42);
+  });
+
+  it('keeps the old 6-phase `phase` field intact (Portfolio.tsx compat)', () => {
+    const p = getMockPortfolio()[0];
+    expect(typeof p.phase).toBe('number');
+    expect(p.phase).toBeGreaterThanOrEqual(1);
+    expect(p.phase).toBeLessThanOrEqual(6);
+  });
+
+  it('assigns every project a valid ripPhaseCode and ripPhaseState', () => {
+    const codes = new Set(RIP_PHASES.map((p) => p.code));
+    for (const p of getMockPortfolio()) {
+      expect(codes.has(p.ripPhaseCode)).toBe(true);
+      expect(['wip', 'wachtend']).toContain(p.ripPhaseState);
+    }
+  });
+
+  it('is deterministic across calls (same hash input every time)', () => {
+    const a = getMockPortfolio().map((p) => p.ripPhaseCode);
+    const b = getMockPortfolio().map((p) => p.ripPhaseCode);
+    expect(a).toEqual(b);
+  });
+});
+
+describe('getMockPhaseCounts', () => {
+  it('accounts for every project exactly once per phase bucket', () => {
+    const counts = getMockPhaseCounts();
+    const projects = getMockPortfolio();
+
+    RIP_PHASES.forEach((phase, i) => {
+      const atThisPhase = projects.filter((p) => p.ripPhaseCode === phase.code);
+      const wipHere = atThisPhase.filter((p) => p.ripPhaseState === 'wip').length;
+      const geparkeerdHere = phase.beyond ? atThisPhase.length : 0;
+      expect(counts[phase.code].wip).toBe(phase.beyond ? 0 : wipHere);
+      expect(counts[phase.code].geparkeerd).toBe(geparkeerdHere);
+
+      const beforeThisPhase = projects.filter(
+        (p) => RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode) < i
+      ).length;
+      expect(counts[phase.code].gereed).toBe(beforeThisPhase);
+    });
   });
 });
