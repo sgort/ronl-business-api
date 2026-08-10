@@ -75,6 +75,19 @@ export const useLivePhaseCounts = () =>
 export const useActivePhase1 = () =>
   useAsync<Phase1Instance[]>(() => businessApi.rip.phase1Active(), []);
 
+export interface Phase1CompletedInstance {
+  id: string;
+  startTime: string;
+  endTime: string;
+  projectNumber: string;
+  projectName: string;
+  edocsWorkspaceId: string;
+}
+
+/** Completed RIP Fase 1 instances (Gereed tab — live Fase-1 rows). */
+export const usePhase1Completed = () =>
+  useAsync<Phase1CompletedInstance[]>(() => businessApi.rip.phase1Completed(), []);
+
 /** Activity-history for a process instance — drives swimlane node status. */
 export const useActivityHistory = (instanceId: string | null) =>
   useAsync<ActivityHistoryItem[]>(

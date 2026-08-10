@@ -8,12 +8,14 @@ import {
   useDeployedProcessKeys,
   useLivePhaseCounts,
   useOpenTasks,
+  usePhase1Completed,
 } from './infra.api';
 
 const mockBusinessApi = vi.hoisted(() => ({
   task: { list: vi.fn() },
   rip: {
     phase1Active: vi.fn(),
+    phase1Completed: vi.fn(),
     phase1Documents: vi.fn(),
     deploymentStatus: vi.fn(),
     phasesCounts: vi.fn(),
@@ -242,5 +244,43 @@ describe('useActivityHistory', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(mockBusinessApi.process.activityHistory).toHaveBeenCalledWith('proc-1');
+  });
+});
+
+describe('usePhase1Completed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads completed instances and exposes them once resolved', async () => {
+    const completed = [
+      {
+        id: 'done-1',
+        startTime: '2026-01-01T00:00:00Z',
+        endTime: '2026-03-15T00:00:00Z',
+        projectNumber: '88888',
+        projectName: 'Afgerond testproject',
+        edocsWorkspaceId: 'w2',
+      },
+    ];
+    mockBusinessApi.rip.phase1Completed.mockResolvedValue({ success: true, data: completed });
+
+    const { result } = renderHook(() => usePhase1Completed());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual(completed);
+    expect(result.current.error).toBe(false);
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.phase1Completed.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => usePhase1Completed());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
   });
 });
