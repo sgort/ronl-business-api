@@ -745,6 +745,35 @@ export function getMockPhaseCounts(): Record<string, PhaseCounts> {
 }
 
 /**
+ * Mock projects currently WIP at this phase — same classification
+ * getMockPhaseCounts uses for its `wip` count (curIdx === i, state ===
+ * 'wip', never for a `beyond` phase — the ladder's last rung is always
+ * 'wip' by construction but counted as geparkeerd instead). Exposed as
+ * rows for the WIP tab.
+ */
+export function getMockWipRows(phase: RipPhase): PortfolioProject[] {
+  if (phase.beyond) return [];
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter((p) => {
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx === idx && p.ripPhaseState === 'wip';
+  });
+}
+
+/**
+ * Mock projects already past this phase — same classification
+ * getMockPhaseCounts uses for its `gereed` count. Exposed as rows for
+ * the Gereed tab.
+ */
+export function getMockGereedRows(phase: RipPhase): PortfolioProject[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
+  return getMockPortfolio().filter((p) => {
+    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+    return curIdx > idx;
+  });
+}
+
+/**
  * Projects whose current ladder position is exactly this phase's
  * predecessor, sitting in 'wachtend' (previous phase accorded, this one
  * not yet started). Always empty for the first phase in ladder order —

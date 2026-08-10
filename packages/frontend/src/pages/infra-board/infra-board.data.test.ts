@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getMockGereedRows,
   getMockPhaseCounts,
   getMockPhaseInstanceDetail,
   getMockPortfolio,
   getMockTodos,
   getMockUpdates,
+  getMockWipRows,
   getOutOfSequenceProjects,
   getReadyProjects,
   makePhase1Row,
@@ -245,5 +247,20 @@ describe('getMockPhaseInstanceDetail', () => {
     const project = getMockPortfolio()[0];
     const phase = RIP_PHASES[3];
     expect(getMockPhaseInstanceDetail(project, phase).docsTotal).toBe(phase.docs.length);
+  });
+});
+
+describe('getMockWipRows / getMockGereedRows', () => {
+  it('matches getMockPhaseCounts wip/gereed counts for every phase', () => {
+    const counts = getMockPhaseCounts();
+    for (const phase of RIP_PHASES) {
+      expect(getMockWipRows(phase).length).toBe(counts[phase.code].wip);
+      expect(getMockGereedRows(phase).length).toBe(counts[phase.code].gereed);
+    }
+  });
+
+  it('never returns wip rows for the beyond (R5.2) phase', () => {
+    const r52 = RIP_PHASES.find((p) => p.code === 'R5.2')!;
+    expect(getMockWipRows(r52)).toEqual([]);
   });
 });
