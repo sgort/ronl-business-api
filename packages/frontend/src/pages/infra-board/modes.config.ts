@@ -20,6 +20,13 @@ export interface InfraRailItem {
   label: string;
   authRequired?: boolean;
   requiredRoles?: string[];
+  /** WIP count badge (Beheer phase items only). Merged in at render time —
+   *  the static INFRA_MODES array can't carry live counts. */
+  count?: number;
+  /** Geparkeerd count badge — R5.3 only, mutually exclusive with `count`. */
+  parkedCount?: number;
+  /** Dims the item — set when the phase isn't deployable yet. */
+  muted?: boolean;
 }
 export interface InfraRailGroup {
   label?: string;
@@ -52,7 +59,12 @@ export const INFRA_MODES: InfraModeConfig[] = [
     id: 'portfolio',
     label: 'Portfolio',
     defaultSectionId: 'portfolio',
-    groups: [{ items: [{ id: 'portfolio', label: 'Alle projecten', authRequired: true }] }],
+    // No rail nav item — the design's Portfolio rail is stats-only
+    // (stage-grouped phase counts, Overgangen, Gezondheid). The top-nav
+    // "Portfolio" tab still routes here via setMode('portfolio');
+    // InfraSectionRouter switches on `mode`, not `section`, so this is
+    // unaffected. See rail-stats-panel spec, Section 4.
+    groups: [],
   },
   {
     id: 'beheer',
@@ -73,7 +85,10 @@ export const INFRA_MODES: InfraModeConfig[] = [
           ...RIP_STAGES.flatMap((stage) =>
             RIP_PHASES.filter((p) => p.stage === stage.code).map((p) => ({
               id: phaseSectionId(p.code),
-              label: `${p.code} · ${p.name}`,
+              // Code intentionally not baked into the label string —
+              // InfraBoardDashboard.tsx renders it as its own
+              // `.pb-rail-code` chip via phaseCodeFromSectionId(id).
+              label: p.name,
               authRequired: true,
               requiredRoles: [INFRA_GATE_ROLE],
             }))

@@ -13,7 +13,10 @@ describe('findModeForSection', () => {
   it('resolves each section id to the mode that owns it', () => {
     expect(findModeForSection('overzicht')).toBe('mijn-dag');
     expect(findModeForSection('project-updates')).toBe('mijn-dag');
-    expect(findModeForSection('portfolio')).toBe('portfolio');
+    // Portfolio's rail carries stats only, no nav item with id 'portfolio' —
+    // see the rail-stats-panel spec, Section 4. The top-nav tab still
+    // routes to Portfolio directly via setMode, so this is expected.
+    expect(findModeForSection('portfolio')).toBeNull();
     expect(findModeForSection('faseladder')).toBe('beheer');
     expect(findModeForSection('profiel')).toBe('beheer');
   });
