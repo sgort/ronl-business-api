@@ -81,158 +81,159 @@ files listed below.**
   via `infra-board.data.test.ts` below).
 
   In `infra-board.data.test.ts`:
-  1. Remove `PHASE_DUR` from the import list (line ~15) and remove the
-     `import { PHASES } from './rip-model';` line entirely (line ~18) —
-     replace it with nothing (this file no longer needs anything from
-     `rip-model.ts` directly).
+  1.  Remove `PHASE_DUR` from the import list (line ~15) and remove the
+      `import { PHASES } from './rip-model';` line entirely (line ~18) —
+      replace it with nothing (this file no longer needs anything from
+      `rip-model.ts` directly).
 
-  2. Replace the `makePhase1Row` describe block's first test:
+  2.  Replace the `makePhase1Row` describe block's first test:
 
-     ```ts
-     it('builds a live portfolio row anchored on the instance start quarter', () => {
-       const row = makePhase1Row({
-         id: 'abcdefgh-1234',
-         startTime: '2024-04-15T00:00:00Z',
-         projectNumber: '24099',
-         projectName: 'Test project',
-         leadRole: 'manager-pb',
-       });
+      ```ts
+      it('builds a live portfolio row anchored on the instance start quarter', () => {
+        const row = makePhase1Row({
+          id: 'abcdefgh-1234',
+          startTime: '2024-04-15T00:00:00Z',
+          projectNumber: '24099',
+          projectName: 'Test project',
+          leadRole: 'manager-pb',
+        });
 
-       const expectedStart = (2024 - TL.startYear) * 4 + (2 - 1); // April = Q2
-       const totalLen = PHASE_DUR.reduce((a, b) => a + b, 0);
+        const expectedStart = (2024 - TL.startYear) * 4 + (2 - 1); // April = Q2
+        const totalLen = PHASE_DUR.reduce((a, b) => a + b, 0);
 
-       expect(row.id).toBe('live-abcdefgh-1234');
-       expect(row.nr).toBe('24099');
-       expect(row.naam).toBe('Test project');
-       expect(row.phase).toBe(1);
-       expect(row.role).toBe('manager-pb');
-       expect(row.health).toBe('groen');
-       expect(row.start).toBe(expectedStart);
-       expect(row.end).toBe(expectedStart + totalLen);
-       expect(row.segments).toHaveLength(PHASES.length);
-       expect(row.phaseStatuses[0]).toBe('active');
-       expect(row.phaseStatuses.slice(1).every((s) => s === 'todo')).toBe(true);
-     });
-     ```
+        expect(row.id).toBe('live-abcdefgh-1234');
+        expect(row.nr).toBe('24099');
+        expect(row.naam).toBe('Test project');
+        expect(row.phase).toBe(1);
+        expect(row.role).toBe('manager-pb');
+        expect(row.health).toBe('groen');
+        expect(row.start).toBe(expectedStart);
+        expect(row.end).toBe(expectedStart + totalLen);
+        expect(row.segments).toHaveLength(PHASES.length);
+        expect(row.phaseStatuses[0]).toBe('active');
+        expect(row.phaseStatuses.slice(1).every((s) => s === 'todo')).toBe(true);
+      });
+      ```
 
-     with:
+      with:
 
-     ```ts
-     it('builds a live portfolio row anchored on the instance start quarter', () => {
-       const row = makePhase1Row({
-         id: 'abcdefgh-1234',
-         startTime: '2024-04-15T00:00:00Z',
-         projectNumber: '24099',
-         projectName: 'Test project',
-         leadRole: 'manager-pb',
-       });
+      ```ts
+      it('builds a live portfolio row anchored on the instance start quarter', () => {
+        const row = makePhase1Row({
+          id: 'abcdefgh-1234',
+          startTime: '2024-04-15T00:00:00Z',
+          projectNumber: '24099',
+          projectName: 'Test project',
+          leadRole: 'manager-pb',
+        });
 
-       const expectedStart = (2024 - TL.startYear) * 4 + (2 - 1); // April = Q2
+        const expectedStart = (2024 - TL.startYear) * 4 + (2 - 1); // April = Q2
 
-       expect(row.id).toBe('live-abcdefgh-1234');
-       expect(row.nr).toBe('24099');
-       expect(row.naam).toBe('Test project');
-       expect(row.ripPhaseCode).toBe('R2.1');
-       expect(row.ripPhaseState).toBe('wip');
-       expect(row.role).toBe('manager-pb');
-       expect(row.health).toBe('groen');
-       expect(row.start).toBe(expectedStart);
-       expect(row.segments).toHaveLength(RIP_PHASES.length);
-       const last = row.segments[row.segments.length - 1];
-       expect(row.end).toBe(last.from + last.len);
-       expect(row.segments[0].status).toBe('active');
-       expect(row.segments.slice(1).every((s) => s.status === 'todo')).toBe(true);
-     });
-     ```
+        expect(row.id).toBe('live-abcdefgh-1234');
+        expect(row.nr).toBe('24099');
+        expect(row.naam).toBe('Test project');
+        expect(row.ripPhaseCode).toBe('R2.1');
+        expect(row.ripPhaseState).toBe('wip');
+        expect(row.role).toBe('manager-pb');
+        expect(row.health).toBe('groen');
+        expect(row.start).toBe(expectedStart);
+        expect(row.segments).toHaveLength(RIP_PHASES.length);
+        const last = row.segments[row.segments.length - 1];
+        expect(row.end).toBe(last.from + last.len);
+        expect(row.segments[0].status).toBe('active');
+        expect(row.segments.slice(1).every((s) => s.status === 'todo')).toBe(true);
+      });
+      ```
 
-  3. Replace the `getMockPortfolio` describe block:
+  3.  Replace the `getMockPortfolio` describe block:
 
-     ```ts
-     describe('getMockPortfolio', () => {
-       it('returns rows whose segments each span every lifecycle phase', () => {
-         const projects = getMockPortfolio();
+      ```ts
+      describe('getMockPortfolio', () => {
+        it('returns rows whose segments each span every lifecycle phase', () => {
+          const projects = getMockPortfolio();
 
-         expect(projects.length).toBeGreaterThan(0);
-         for (const project of projects) {
-           expect(project.segments).toHaveLength(PHASES.length);
-           expect(project.phaseStatuses).toHaveLength(PHASES.length);
-         }
-       });
+          expect(projects.length).toBeGreaterThan(0);
+          for (const project of projects) {
+            expect(project.segments).toHaveLength(PHASES.length);
+            expect(project.phaseStatuses).toHaveLength(PHASES.length);
+          }
+        });
 
-       it('marks phases before the current phase as done and after as todo', () => {
-         const project = getMockPortfolio().find((p) => p.phase > 1 && p.phase < PHASES.length);
-         expect(project).toBeDefined();
+        it('marks phases before the current phase as done and after as todo', () => {
+          const project = getMockPortfolio().find((p) => p.phase > 1 && p.phase < PHASES.length);
+          expect(project).toBeDefined();
 
-         project!.phaseStatuses.forEach((status, i) => {
-           const phaseNumber = PHASES[i].n;
-           if (phaseNumber < project!.phase) expect(status).toBe('done');
-           if (phaseNumber > project!.phase) expect(status).toBe('todo');
-         });
-       });
+          project!.phaseStatuses.forEach((status, i) => {
+            const phaseNumber = PHASES[i].n;
+            if (phaseNumber < project!.phase) expect(status).toBe('done');
+            if (phaseNumber > project!.phase) expect(status).toBe('todo');
+          });
+        });
 
-       it('memoizes the generated portfolio across calls', () => {
-         expect(getMockPortfolio()).toBe(getMockPortfolio());
-       });
-     });
-     ```
+        it('memoizes the generated portfolio across calls', () => {
+          expect(getMockPortfolio()).toBe(getMockPortfolio());
+        });
+      });
+      ```
 
-     with:
+      with:
 
-     ```ts
-     describe('getMockPortfolio', () => {
-       it('returns rows whose segments each span every RIP phase', () => {
-         const projects = getMockPortfolio();
+      ```ts
+      describe('getMockPortfolio', () => {
+        it('returns rows whose segments each span every RIP phase', () => {
+          const projects = getMockPortfolio();
 
-         expect(projects.length).toBeGreaterThan(0);
-         for (const project of projects) {
-           expect(project.segments).toHaveLength(RIP_PHASES.length);
-         }
-       });
+          expect(projects.length).toBeGreaterThan(0);
+          for (const project of projects) {
+            expect(project.segments).toHaveLength(RIP_PHASES.length);
+          }
+        });
 
-       it('marks phases before the current phase as done and after as todo', () => {
-         const project = getMockPortfolio().find((p) => {
-           const idx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
-           return idx > 0 && idx < RIP_PHASES.length - 1;
-         });
-         expect(project).toBeDefined();
+        it('marks phases before the current phase as done and after as todo', () => {
+          const project = getMockPortfolio().find((p) => {
+            const idx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
+            return idx > 0 && idx < RIP_PHASES.length - 1;
+          });
+          expect(project).toBeDefined();
 
-         const curIdx = RIP_PHASES.findIndex((rp) => rp.code === project!.ripPhaseCode);
-         project!.segments.forEach((seg, i) => {
-           if (i < curIdx) expect(seg.status).toBe('done');
-           if (i > curIdx) expect(seg.status).toBe('todo');
-         });
-       });
+          const curIdx = RIP_PHASES.findIndex((rp) => rp.code === project!.ripPhaseCode);
+          project!.segments.forEach((seg, i) => {
+            if (i < curIdx) expect(seg.status).toBe('done');
+            if (i > curIdx) expect(seg.status).toBe('todo');
+          });
+        });
 
-       it('marks the current-phase segment status as wachtend exactly when ripPhaseState is wachtend', () => {
-         const project = getMockPortfolio().find((p) => p.ripPhaseState === 'wachtend');
-         expect(project).toBeDefined();
+        it('marks the current-phase segment status as wachtend exactly when ripPhaseState is wachtend', () => {
+          const project = getMockPortfolio().find((p) => p.ripPhaseState === 'wachtend');
+          expect(project).toBeDefined();
 
-         const curIdx = RIP_PHASES.findIndex((rp) => rp.code === project!.ripPhaseCode);
-         expect(project!.segments[curIdx].status).toBe('wachtend');
-       });
+          const curIdx = RIP_PHASES.findIndex((rp) => rp.code === project!.ripPhaseCode);
+          expect(project!.segments[curIdx].status).toBe('wachtend');
+        });
 
-       it('memoizes the generated portfolio across calls', () => {
-         expect(getMockPortfolio()).toBe(getMockPortfolio());
-       });
-     });
-     ```
+        it('memoizes the generated portfolio across calls', () => {
+          expect(getMockPortfolio()).toBe(getMockPortfolio());
+        });
+      });
+      ```
 
-  4. In the `describe('getMockPortfolio — RIP ladder fields', ...)` block,
-     remove this test entirely (the field it guards is being deleted, on
-     purpose, by this exact task):
+  4.  In the `describe('getMockPortfolio — RIP ladder fields', ...)` block,
+      remove this test entirely (the field it guards is being deleted, on
+      purpose, by this exact task):
 
-     ```ts
-     it('keeps the old 6-phase `phase` field intact (Portfolio.tsx compat)', () => {
-       const p = getMockPortfolio()[0];
-       expect(typeof p.phase).toBe('number');
-       expect(p.phase).toBeGreaterThanOrEqual(1);
-       expect(p.phase).toBeLessThanOrEqual(6);
-     });
-     ```
+           ```ts
+           it('keeps the old 6-phase `phase` field intact (Portfolio.tsx compat)', () => {
+             const p = getMockPortfolio()[0];
+             expect(typeof p.phase).toBe('number');
+             expect(p.phase).toBeGreaterThanOrEqual(1);
+             expect(p.phase).toBeLessThanOrEqual(6);
+           });
+           ```
 
-     Leave the other two tests in that block (`'assigns every project a
-valid ripPhaseCode and ripPhaseState'`, `'is deterministic across
-calls...'`) exactly as they are — untouched by this task.
+           Leave the other two tests in that block (`'assigns every project a
+
+      valid ripPhaseCode and ripPhaseState'`, `'is deterministic across
+      calls...'`) exactly as they are — untouched by this task.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1206,88 +1207,88 @@ calls...'`) exactly as they are — untouched by this task.
 - [ ] **Step 1: Write the failing tests**
 
   In `ProjectDetail.test.tsx`:
-  1. Remove `import { PHASES } from '../../pages/infra-board/rip-model';`
-     and the `const phaseLabels = PHASES.map((p) => p.name);` line. Add:
+  1.  Remove `import { PHASES } from '../../pages/infra-board/rip-model';`
+      and the `const phaseLabels = PHASES.map((p) => p.name);` line. Add:
 
-     ```ts
-     import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
-     ```
+      ```ts
+      import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
+      ```
 
-  2. In every existing `phaseLabels={phaseLabels}` prop (four occurrences),
-     change to `phaseLabels={[]}`.
+  2.  In every existing `phaseLabels={phaseLabels}` prop (four occurrences),
+      change to `phaseLabels={[]}`.
 
-  3. Replace the test `'selecting a phase other than 1 shows the "not
+  3.  Replace the test `'selecting a phase other than 1 shows the "not
 modelled" message'`:
 
-     ```tsx
-     it('selecting a phase other than 1 shows the "not modelled" message', async () => {
-       const user = userEvent.setup();
-       render(
-         <ProjectDetail
-           projectRef={{ nr: getMockPortfolio()[0].nr }}
-           phaseLabels={phaseLabels}
-           onBack={vi.fn()}
-         />
-       );
+           ```tsx
+           it('selecting a phase other than 1 shows the "not modelled" message', async () => {
+             const user = userEvent.setup();
+             render(
+               <ProjectDetail
+                 projectRef={{ nr: getMockPortfolio()[0].nr }}
+                 phaseLabels={phaseLabels}
+                 onBack={vi.fn()}
+               />
+             );
 
-       await user.click(
-         screen.getByRole('button', { name: (name) => name.includes(phaseLabels[1]) })
-       );
+             await user.click(
+               screen.getByRole('button', { name: (name) => name.includes(phaseLabels[1]) })
+             );
 
-       expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
-     });
-     ```
+             expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
+           });
+           ```
 
-     with:
+           with:
 
-     ```tsx
-     it('selecting a phase other than R2.1 shows the "not modelled" message', async () => {
-       const user = userEvent.setup();
-       render(
-         <ProjectDetail
-           projectRef={{ nr: getMockPortfolio()[0].nr }}
-           phaseLabels={[]}
-           onBack={vi.fn()}
-         />
-       );
+           ```tsx
+           it('selecting a phase other than R2.1 shows the "not modelled" message', async () => {
+             const user = userEvent.setup();
+             render(
+               <ProjectDetail
+                 projectRef={{ nr: getMockPortfolio()[0].nr }}
+                 phaseLabels={[]}
+                 onBack={vi.fn()}
+               />
+             );
 
-       await user.click(
-         screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[1].name) })
-       );
+             await user.click(
+               screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[1].name) })
+             );
 
-       expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
-     });
+             expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
+           });
 
-     it('renders twelve stepper steps with real RIP codes', () => {
-       render(
-         <ProjectDetail
-           projectRef={{ nr: getMockPortfolio()[0].nr }}
-           phaseLabels={[]}
-           onBack={vi.fn()}
-         />
-       );
-       RIP_PHASES.forEach((p) => {
-         expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
-       });
-     });
+           it('renders twelve stepper steps with real RIP codes', () => {
+             render(
+               <ProjectDetail
+                 projectRef={{ nr: getMockPortfolio()[0].nr }}
+                 phaseLabels={[]}
+                 onBack={vi.fn()}
+               />
+             );
+             RIP_PHASES.forEach((p) => {
+               expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
+             });
+           });
 
-     it('selecting R2.1 shows the swimlane', async () => {
-       const user = userEvent.setup();
-       render(
-         <ProjectDetail
-           projectRef={{ nr: getMockPortfolio()[0].nr }}
-           phaseLabels={[]}
-           onBack={vi.fn()}
-         />
-       );
+           it('selecting R2.1 shows the swimlane', async () => {
+             const user = userEvent.setup();
+             render(
+               <ProjectDetail
+                 projectRef={{ nr: getMockPortfolio()[0].nr }}
+                 phaseLabels={[]}
+                 onBack={vi.fn()}
+               />
+             );
 
-       await user.click(
-         screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
-       );
+             await user.click(
+               screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
+             );
 
-       expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
-     });
-     ```
+             expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
+           });
+           ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1682,7 +1683,19 @@ modelled" message'`:
 - Modify: `packages/frontend/src/components/InfraBoardDashboard/InfraSectionRouter.tsx`
 - Modify: `packages/frontend/src/components/InfraBoardDashboard/InfraSectionRouter.test.tsx`
 - Modify: `packages/frontend/src/components/InfraBoardDashboard/Portfolio.tsx`
+- Modify: `packages/frontend/src/components/InfraBoardDashboard/Portfolio.test.tsx`
 - Modify: `packages/frontend/src/components/InfraBoardDashboard/ProjectDetail.tsx`
+- Modify: `packages/frontend/src/components/InfraBoardDashboard/ProjectDetail.test.tsx`
+
+**Correction found during execution:** the original version of this plan
+omitted `Portfolio.test.tsx`/`ProjectDetail.test.tsx` from this list. Tasks
+2 and 4 left a literal `phaseLabels={[]}` in every render call in both
+files (needed while `Props` still declared the field) — once Steps 1-2
+below remove `phaseLabels` from `Portfolio`'s and `ProjectDetail`'s `Props`
+interfaces, those literal props become a TypeScript excess-property error
+(`TS2322`), caught by Step 7's `tsc --noEmit` gate. Strip every
+`phaseLabels={[]}` (and its surrounding whitespace) from both test files'
+render calls — mechanical, no other change needed in either file.
 
 **Interfaces:**
 
