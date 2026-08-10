@@ -17,6 +17,19 @@ export default defineConfig({
   optimizeDeps: {
     include: ['@ronl/shared'],
   },
+  // The dev-server fix above (optimizeDeps) only covers `vite dev` —
+  // production builds go through Rollup directly, which by default only
+  // runs its CommonJS→ESM interop on node_modules/**. @ronl/shared resolves
+  // to a relative workspace path (../shared/dist), not a node_modules
+  // symlink, so it was never being interop-transformed at all: Rollup
+  // parsed it as plain ESM, saw no `export` keyword, and reported every
+  // named value import as missing. Explicitly including it here makes
+  // Rollup's CJS plugin actually process it.
+  build: {
+    commonjsOptions: {
+      include: [/shared\/dist/, /node_modules/],
+    },
+  },
   test: {
     environment: 'node',
     globals: true,
