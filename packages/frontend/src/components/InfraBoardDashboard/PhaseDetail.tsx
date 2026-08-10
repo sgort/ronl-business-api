@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   RIP_PHASES,
   RIP_STAGES,
@@ -368,8 +368,8 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                     (1000 * 60 * 60 * 24 * 7)
                 );
                 return (
-                  <>
-                    <tr key={row.id}>
+                  <Fragment key={row.id}>
+                    <tr>
                       <td>
                         <span className="pb-proj-nr">{row.nr}</span> {row.naam}
                         <span className="pb-live-badge">LIVE</span>
@@ -396,13 +396,13 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                       </td>
                     </tr>
                     {openDossier === row.id && (
-                      <tr key={`${row.id}-dossier`}>
+                      <tr>
                         <td colSpan={7}>
                           <RipFase1WipViewer instanceId={row.id} />
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
               {getMockPortfolioGereedRows(phase).map((p) => {
