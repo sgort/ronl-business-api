@@ -11,7 +11,7 @@
  * `requiredRoles` is wired so sections can be split per user later.
  */
 
-import { RIP_STAGES, RIP_PHASES } from './rip-phases.catalog';
+import { RIP_PHASES } from './rip-phases.catalog';
 
 export type InfraModeId = 'mijn-dag' | 'portfolio' | 'beheer';
 
@@ -20,13 +20,6 @@ export interface InfraRailItem {
   label: string;
   authRequired?: boolean;
   requiredRoles?: string[];
-  /** WIP count badge (Beheer phase items only). Merged in at render time —
-   *  the static INFRA_MODES array can't carry live counts. */
-  count?: number;
-  /** Geparkeerd count badge — R5.3 only, mutually exclusive with `count`. */
-  parkedCount?: number;
-  /** Dims the item — set when the phase isn't deployable yet. */
-  muted?: boolean;
 }
 export interface InfraRailGroup {
   label?: string;
@@ -78,24 +71,15 @@ export const INFRA_MODES: InfraModeConfig[] = [
           { id: 'rollen', label: 'Rollen & rechten', authRequired: true },
         ],
       },
-      {
-        label: 'Projecten',
-        items: [
-          { id: 'faseladder', label: 'Faseladder', authRequired: true },
-          ...RIP_STAGES.flatMap((stage) =>
-            RIP_PHASES.filter((p) => p.stage === stage.code).map((p) => ({
-              id: phaseSectionId(p.code),
-              // Code intentionally not baked into the label string —
-              // InfraBoardDashboard.tsx renders it as its own
-              // `.pb-rail-code` chip via phaseCodeFromSectionId(id).
-              label: p.name,
-              authRequired: true,
-              requiredRoles: [INFRA_GATE_ROLE],
-            }))
-          ),
-          { id: 'archief', label: 'Archief', authRequired: true },
-        ],
-      },
+      // Faseladder, the 12 phase items, and Archief are intentionally not
+      // listed here — the reference (pb-shell.reference.jsx:71-110) groups
+      // the phase items by stage (a header per RIP_STAGES entry, matching
+      // Portfolio's rail treatment), which this flat items[] shape can't
+      // express. InfraBoardDashboard.tsx hand-renders that whole section
+      // (Faseladder button, stage-grouped phase buttons via
+      // beheerRailPhaseGroups(), Archief button) directly, gated the same
+      // way these items were (isAuth for Faseladder/Archief, hasGateRole
+      // for the phase items).
       {
         label: 'IOU',
         items: [

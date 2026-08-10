@@ -17,7 +17,11 @@ describe('findModeForSection', () => {
     // see the rail-stats-panel spec, Section 4. The top-nav tab still
     // routes to Portfolio directly via setMode, so this is expected.
     expect(findModeForSection('portfolio')).toBeNull();
-    expect(findModeForSection('faseladder')).toBe('beheer');
+    // Faseladder (like the 12 phase items and Archief) is hand-rendered by
+    // InfraBoardDashboard.tsx now, not listed in modes.config's groups —
+    // see the rail-stats-panel spec, Task 4. findModeForSection can't
+    // resolve it from the static config anymore.
+    expect(findModeForSection('faseladder')).toBeNull();
     expect(findModeForSection('profiel')).toBe('beheer');
   });
 

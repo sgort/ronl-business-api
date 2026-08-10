@@ -10,7 +10,13 @@
 import type { Task } from '@ronl/shared';
 import { groupTasksByHorizon } from '../../services/infra.api';
 import { MIJN_PROJECT_NRS, getMockTodos, type PortfolioProject } from './infra-board.data';
-import { RIP_PHASES, RIP_STAGES, type RipPhase, type RipStage } from './rip-phases.catalog';
+import {
+  RIP_PHASES,
+  RIP_STAGES,
+  getPhaseDeployStatus,
+  type RipPhase,
+  type RipStage,
+} from './rip-phases.catalog';
 import { HEALTH, type HealthKey } from './rip-model';
 import type { AnnotatedPhaseCounts } from './rip-phase-counts';
 
@@ -78,4 +84,38 @@ export function portfolioRailHealth(projects: PortfolioProject[]): RailStat[] {
 export function beheerRailSubtitle(combined: Record<string, AnnotatedPhaseCounts>): string {
   const total = RIP_PHASES.reduce((sum, p) => sum + (combined[p.code]?.wip ?? 0), 0);
   return `RIP-faseladder · ${total} in uitvoering`;
+}
+
+export interface BeheerPhaseRailItem {
+  phase: RipPhase;
+  /** WIP badge — undefined for the one `beyond` phase (R5.3), which shows
+   *  parkedCount instead. */
+  count?: number;
+  /** Geparkeerd badge — R5.3 only, mutually exclusive with `count` by
+   *  construction (RIP_PHASES has exactly one `beyond: true` phase). */
+  parkedCount?: number;
+  /** Dims the item — true unless getPhaseDeployStatus resolves to 'gedeployed'. */
+  muted: boolean;
+}
+
+/** Beheer's phase nav items, grouped by stage — same shape as
+ *  portfolioRailStageGroups but carrying WIP/geparkeerd badges and
+ *  deploy-muted state instead of project counts. Reference:
+ *  pb-shell.reference.jsx:82-103. */
+export function beheerRailPhaseGroups(
+  combined: Record<string, AnnotatedPhaseCounts>,
+  deployedKeys: ReadonlySet<string>
+): { stage: RipStage; phases: BeheerPhaseRailItem[] }[] {
+  return RIP_STAGES.map((stage) => ({
+    stage,
+    phases: RIP_PHASES.filter((p) => p.stage === stage.code).map((phase) => {
+      const counts = combined[phase.code];
+      return {
+        phase,
+        count: phase.beyond ? undefined : (counts?.wip ?? 0),
+        parkedCount: phase.beyond ? (counts?.geparkeerd ?? 0) : undefined,
+        muted: getPhaseDeployStatus(phase, deployedKeys) !== 'gedeployed',
+      };
+    }),
+  }));
 }

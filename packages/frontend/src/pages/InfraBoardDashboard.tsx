@@ -27,7 +27,6 @@ import {
   findModeForSection,
   isRailItemVisible,
   phaseSectionId,
-  phaseCodeFromSectionId,
   type InfraModeId,
 } from './infra-board/modes.config';
 import InfraSectionRouter from '../components/InfraBoardDashboard/InfraSectionRouter';
@@ -49,7 +48,7 @@ import {
   makePhase1Row,
   type PortfolioProject,
 } from './infra-board/infra-board.data';
-import { RIP_PHASES, getPhaseDeployStatus } from './infra-board/rip-phases.catalog';
+import { RIP_PHASES } from './infra-board/rip-phases.catalog';
 import { combinePhaseCounts, normalizeLiveCounts } from './infra-board/rip-phase-counts';
 import {
   mijnDagRailStats,
@@ -57,6 +56,7 @@ import {
   portfolioRailTransitions,
   portfolioRailHealth,
   beheerRailSubtitle,
+  beheerRailPhaseGroups,
 } from './infra-board/rail-stats';
 
 import './infra-board/dashboard-infra.css';
@@ -172,20 +172,34 @@ export default function InfraBoardDashboard() {
   const portfolioHealth = portfolioRailHealth(allProjects);
   const beheerSubtitle = beheerRailSubtitle(combinedCounts);
 
-  // Per-phase badge/muted data for Beheer's existing phase <li> items,
-  // keyed by rail item id so the render below is a plain lookup.
-  const beheerBadges = new Map(
-    RIP_PHASES.map((phase) => {
-      const counts = combinedCounts[phase.code];
-      return [
-        phaseSectionId(phase.code),
-        {
-          count: phase.beyond ? undefined : (counts?.wip ?? 0),
-          parkedCount: phase.beyond ? (counts?.geparkeerd ?? 0) : undefined,
-          muted: getPhaseDeployStatus(phase, deployedKeys) !== 'gedeployed',
-        },
-      ] as const;
-    })
+  const beheerPhaseGroups = beheerRailPhaseGroups(combinedCounts, deployedKeys);
+
+  // Shared renderer for every plain (non-badge) rail group — Account, IOU,
+  // Hulpmiddelen, and (for mijn-dag/portfolio's own unaffected paths)
+  // whatever they still pass through here. Beheer's Faseladder/phase/
+  // Archief section is hand-rendered separately below, spliced between
+  // visibleGroups[0] (Account) and visibleGroups.slice(1) (IOU,
+  // Hulpmiddelen) — see the JSX.
+  const renderNavGroup = (g: (typeof visibleGroups)[number], key: string | number) => (
+    <div key={key} className="v2-rail-group">
+      {g.label && <div className="v2-rail-group-label">{g.label}</div>}
+      <ul className="v2-rail-list">
+        {g.items.map((it) => (
+          <li key={it.id}>
+            <button
+              type="button"
+              className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''}`}
+              onClick={() => {
+                setOpenProject(null);
+                setActiveSection(it.id);
+              }}
+            >
+              <span>{it.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 
   const goToProject = (ref: ProjectRef) => setOpenProject(ref);
@@ -360,42 +374,97 @@ export default function InfraBoardDashboard() {
             </>
           )}
 
-          {visibleGroups.map((g, i) => (
-            <div key={g.label || i} className="v2-rail-group">
-              {g.label && <div className="v2-rail-group-label">{g.label}</div>}
-              <ul className="v2-rail-list">
-                {g.items.map((it) => {
-                  const badge = mode === 'beheer' ? beheerBadges.get(it.id) : undefined;
-                  const code = badge ? phaseCodeFromSectionId(it.id) : undefined;
-                  return (
-                    <li key={it.id}>
+          {mode === 'beheer' ? (
+            <>
+              {/* visibleGroups[0] is always the Account group in beheer
+                  mode — Account/IOU/Hulpmiddelen all gate on authRequired
+                  only (no role checks), so filtering never drops or
+                  reorders one without the others. */}
+              {visibleGroups[0] && renderNavGroup(visibleGroups[0], visibleGroups[0].label ?? 0)}
+
+              {isAuth && (
+                <div className="v2-rail-group">
+                  <ul className="v2-rail-list">
+                    <li>
                       <button
                         type="button"
-                        className={`v2-rail-item ${activeSection === it.id && !openProject ? 'active' : ''} ${badge?.muted ? 'muted' : ''}`}
+                        className={`v2-rail-item ${activeSection === 'faseladder' && !openProject ? 'active' : ''}`}
                         onClick={() => {
                           setOpenProject(null);
-                          setActiveSection(it.id);
+                          setActiveSection('faseladder');
                         }}
                       >
-                        <span>
-                          {code && <span className="pb-rail-code">{code}</span>}
-                          {it.label}
-                        </span>
-                        {badge?.count !== undefined && badge.count > 0 && (
-                          <span className="pb-rail-badge">{badge.count}</span>
-                        )}
-                        {badge?.parkedCount !== undefined && badge.parkedCount > 0 && (
-                          <span className="pb-rail-badge parked" title="Geparkeerd">
-                            {badge.parkedCount}
-                          </span>
-                        )}
+                        <span>Faseladder</span>
                       </button>
                     </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                  </ul>
+                </div>
+              )}
+
+              {hasGateRole &&
+                beheerPhaseGroups.map(({ stage, phases }) => (
+                  <div className="v2-rail-group" key={stage.code}>
+                    <div className="v2-rail-group-label">
+                      <span className="pb-stage-dot" style={{ background: stage.color }} />
+                      {stage.code} · {stage.name}
+                    </div>
+                    <ul className="v2-rail-list">
+                      {phases.map(({ phase, count, parkedCount, muted }) => {
+                        const sectionId = phaseSectionId(phase.code);
+                        return (
+                          <li key={phase.code}>
+                            <button
+                              type="button"
+                              className={`v2-rail-item ${activeSection === sectionId && !openProject ? 'active' : ''} ${muted ? 'muted' : ''}`}
+                              onClick={() => {
+                                setOpenProject(null);
+                                setActiveSection(sectionId);
+                              }}
+                            >
+                              <span>
+                                <span className="pb-rail-code">{phase.code}</span>
+                                {phase.name}
+                              </span>
+                              {count !== undefined && count > 0 && (
+                                <span className="pb-rail-badge">{count}</span>
+                              )}
+                              {parkedCount !== undefined && parkedCount > 0 && (
+                                <span className="pb-rail-badge parked" title="Geparkeerd">
+                                  {parkedCount}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+
+              {isAuth && (
+                <div className="v2-rail-group">
+                  <ul className="v2-rail-list">
+                    <li>
+                      <button
+                        type="button"
+                        className={`v2-rail-item ${activeSection === 'archief' && !openProject ? 'active' : ''}`}
+                        onClick={() => {
+                          setOpenProject(null);
+                          setActiveSection('archief');
+                        }}
+                      >
+                        <span>Archief</span>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {visibleGroups.slice(1).map((g, i) => renderNavGroup(g, g.label ?? i + 1))}
+            </>
+          ) : (
+            visibleGroups.map((g, i) => renderNavGroup(g, g.label ?? i))
+          )}
         </aside>
 
         <main className="v2-main">

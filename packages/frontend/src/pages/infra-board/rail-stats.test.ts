@@ -7,6 +7,7 @@ import {
   portfolioRailTransitions,
   portfolioRailHealth,
   beheerRailSubtitle,
+  beheerRailPhaseGroups,
 } from './rail-stats';
 import { MIJN_PROJECT_NRS, type PortfolioProject, type TodoItem } from './infra-board.data';
 import { RIP_PHASES, RIP_STAGES } from './rip-phases.catalog';
@@ -161,5 +162,54 @@ describe('beheerRailSubtitle', () => {
 
   it('treats a phase missing from the combined map as zero', () => {
     expect(beheerRailSubtitle({})).toBe('RIP-faseladder · 0 in uitvoering');
+  });
+});
+
+describe('beheerRailPhaseGroups', () => {
+  it('returns one entry per RIP_STAGES, in order, each carrying only its own phases', () => {
+    const groups = beheerRailPhaseGroups({}, new Set());
+    expect(groups.map((g) => g.stage.code)).toEqual(RIP_STAGES.map((s) => s.code));
+    groups.forEach((g) => {
+      g.phases.forEach(({ phase }) => expect(phase.stage).toBe(g.stage.code));
+    });
+  });
+
+  it('gives every non-beyond phase a count (0 if absent from combined) and no parkedCount', () => {
+    const groups = beheerRailPhaseGroups({}, new Set());
+    const allPhases = groups.flatMap((g) => g.phases);
+    allPhases
+      .filter((p) => !p.phase.beyond)
+      .forEach((p) => {
+        expect(p.count).toBe(0);
+        expect(p.parkedCount).toBeUndefined();
+      });
+  });
+
+  it('gives the one beyond phase (R5.3) a parkedCount and no count', () => {
+    const combined: Record<string, AnnotatedPhaseCounts> = {
+      'R5.3': { wip: 0, gereed: 0, geparkeerd: 4, liveWip: 0, liveGereed: 0, liveGeparkeerd: 0 },
+    };
+    const groups = beheerRailPhaseGroups(combined, new Set());
+    const r53 = groups.flatMap((g) => g.phases).find((p) => p.phase.code === 'R5.3');
+    expect(r53?.count).toBeUndefined();
+    expect(r53?.parkedCount).toBe(4);
+  });
+
+  it('sources count from the combined map when present', () => {
+    const combined: Record<string, AnnotatedPhaseCounts> = {
+      'R2.1': { wip: 7, gereed: 0, geparkeerd: 0, liveWip: 0, liveGereed: 0, liveGeparkeerd: 0 },
+    };
+    const groups = beheerRailPhaseGroups(combined, new Set());
+    const r21 = groups.flatMap((g) => g.phases).find((p) => p.phase.code === 'R2.1');
+    expect(r21?.count).toBe(7);
+  });
+
+  it('mutes every phase whose process key is not in deployedKeys, and un-mutes the one that is', () => {
+    const groups = beheerRailPhaseGroups({}, new Set(['RipPhase1Process']));
+    const all = groups.flatMap((g) => g.phases);
+    const r21 = all.find((p) => p.phase.code === 'R2.1');
+    const others = all.filter((p) => p.phase.code !== 'R2.1');
+    expect(r21?.muted).toBe(false);
+    others.forEach((p) => expect(p.muted).toBe(true));
   });
 });

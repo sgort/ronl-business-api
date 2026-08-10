@@ -226,4 +226,21 @@ describe('InfraBoardDashboard', () => {
     const r21Item = await screen.findByRole('button', { name: /Projectplan planvoorbereiding/ });
     expect(r21Item.className).toContain('muted');
   });
+
+  it('Beheer rail groups phase items under stage headers, and keeps Faseladder/Archief navigable', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    await waitFor(() => expect(screen.getByText(/R2 · Planvoorbereiding/)).toBeInTheDocument());
+    expect(screen.getByText(/R6 · Decharge/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Faseladder' })).toBeInTheDocument();
+    // Two "Archief" buttons legitimately coexist — the Projecten section's
+    // own Archief item, and the unrelated IOU group's "Archief" item
+    // (id: 'iou-archief', pre-existing, untouched by this task).
+    expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
+  });
 });
