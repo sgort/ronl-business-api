@@ -234,7 +234,7 @@ describe('getMockPhaseInstanceDetail', () => {
 
   it('sets wip-only fields when the project is wip at that phase', () => {
     const project = getMockPortfolio().find(
-      (p) => p.ripPhaseState === 'wip' && p.ripPhaseCode !== 'R5.2'
+      (p) => p.ripPhaseState === 'wip' && p.ripPhaseCode !== 'R5.3'
     )!;
     const phase = RIP_PHASES.find((p) => p.code === project.ripPhaseCode)!;
     const detail = getMockPhaseInstanceDetail(project, phase);
@@ -259,8 +259,14 @@ describe('getMockWipRows / getMockGereedRows', () => {
     }
   });
 
-  it('never returns wip rows for the beyond (R5.2) phase', () => {
-    const r52 = RIP_PHASES.find((p) => p.code === 'R5.2')!;
-    expect(getMockWipRows(r52)).toEqual([]);
+  it('never returns wip rows for the beyond (R5.3) phase', () => {
+    const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
+    expect(getMockWipRows(r53)).toEqual([]);
+  });
+
+  it('reaches R5.4 and R6.1 — unreachable under the old legacy-bucket derivation', () => {
+    const codes = new Set(getMockPortfolio().map((p) => p.ripPhaseCode));
+    expect(codes.has('R5.4')).toBe(true);
+    expect(codes.has('R6.1')).toBe(true);
   });
 });

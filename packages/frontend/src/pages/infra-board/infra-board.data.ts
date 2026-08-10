@@ -639,29 +639,26 @@ export function makePhase1Row(inst: {
   };
 }
 
-/**
- * Ported from docs/infra-beheer-handoff/reference/pb-data.reference.jsx —
- * spreads each RAW row's old 6-phase legacy value across the real
- * 9-phase RIP ladder via a stable hash of the project number, so all
- * nine deelprocessen are populated in the mock data.
- *   F1 Projectplan   → R2.1
- *   F2 Planuitwerking→ R2.2
- *   F3 Def. ontwerp  → R2.3 VO-raming | R2.4 DO en -raming
- *   F4 Aanbesteding  → R3.1 bestek | R3.2 afronding bestek | R4.1 aanbesteding
- *   F5 Uitvoering    → R5.1 voorbereiding op uitvoering
- *   F6 Decharge      → R5.2 start werk buiten (niet-gemodelleerd staartstuk)
- */
-const LADDER_FROM_LEGACY: number[][] = [[1], [2], [3, 4], [5, 6, 7], [8], [9]];
-
 function pbHash(s: string): number {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
   return h;
 }
 
-function pbLadderFor(nr: string, legacy: number): number {
-  const opts = LADDER_FROM_LEGACY[legacy - 1];
-  return opts[pbHash(nr + '|ladder') % opts.length];
+/**
+ * Deterministic per-project ladder position, spread directly across all
+ * twelve real RIP phases via a stable hash of the project number. Per
+ * the v2 handoff prompt ("do not carry over LADDER_FROM_LEGACY or
+ * pbAwaits from the prototype — use real phase data"): this no longer
+ * routes through RAW's old 6-phase legacy value at all. The v2
+ * reference prototype still does — but only because it's a static
+ * browser demo with no backend; this app's mock/live merge layer
+ * doesn't need that indirection. RAW's legacy `phase` field (1-6) is
+ * still used elsewhere in this file for Portfolio's own Gantt/kanban
+ * model — untouched here.
+ */
+function pbLadderFor(nr: string): number {
+  return 1 + (pbHash(nr + '|ladder') % RIP_PHASES.length);
 }
 
 /** Deterministic per-project coin flip: sits this project BETWEEN two phases? */
@@ -687,7 +684,7 @@ export function getMockPortfolio(): PortfolioProject[] {
         cursor += PHASE_DUR[idx];
         return seg;
       });
-      const ladderPos = pbLadderFor(nr, phase);
+      const ladderPos = pbLadderFor(nr);
       const ripPhaseCode = RIP_PHASES[ladderPos - 1].code;
       const awaiting = ladderPos > 1 && ladderPos < RIP_PHASES.length && pbAwaits(nr);
       const ripPhaseState: 'wip' | 'wachtend' = awaiting ? 'wachtend' : 'wip';
