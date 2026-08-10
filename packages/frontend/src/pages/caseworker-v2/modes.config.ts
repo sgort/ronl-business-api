@@ -192,21 +192,7 @@ export const MODES: ModeConfig[] = [
       {
         // V1 "Projecten" — RIP flows + Actieve zaken + Archief
         label: 'Projecten',
-        items: [
-          {
-            id: 'rip-fase1-wip',
-            label: 'RIP Fase 1 WIP',
-            authRequired: true,
-            requiredRoles: ['infra-projectteam'],
-          },
-          {
-            id: 'rip-fase1-gereed',
-            label: 'RIP Fase 1 gereed',
-            authRequired: true,
-            requiredRoles: ['infra-projectteam'],
-          },
-          { id: 'archief', label: 'Archief', authRequired: true },
-        ],
+        items: [{ id: 'archief', label: 'Archief', authRequired: true }],
       },
       {
         // V1 "IOU" tab
