@@ -133,6 +133,35 @@ describe('startProcess', () => {
   });
 });
 
+describe('getDeployedProcessKeys', () => {
+  it('queries with keysIn + latestVersion and returns only the deployed subset, in input order', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ key: 'RipPhase1Process' }, { key: 'SomeOtherProcess' }],
+    });
+
+    const result = await svc.getDeployedProcessKeys(['RipPhase1Process', 'NotDeployedYet']);
+
+    expect(result).toEqual(['RipPhase1Process']);
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { keysIn: 'RipPhase1Process,NotDeployedYet', latestVersion: true },
+    });
+  });
+
+  it('returns an empty array when none of the requested keys are deployed', async () => {
+    mockClient.get.mockResolvedValue({ data: [] });
+
+    const result = await svc.getDeployedProcessKeys(['NotDeployedYet']);
+
+    expect(result).toEqual([]);
+  });
+
+  it('rethrows on failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+
+    await expect(svc.getDeployedProcessKeys(['RipPhase1Process'])).rejects.toThrow('boom');
+  });
+});
+
 describe('getActivityHistory', () => {
   it('queries oldest-first and maps the activity items', async () => {
     mockClient.get.mockResolvedValue({

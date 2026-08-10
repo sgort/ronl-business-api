@@ -108,6 +108,27 @@ export class OperatonService {
   }
 
   /**
+   * Given a list of process-definition keys, return the subset that is
+   * actually deployed on this environment's Operaton instance. One query
+   * regardless of how many keys are asked about.
+   */
+  async getDeployedProcessKeys(keys: string[]): Promise<string[]> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { keysIn: keys.join(','), latestVersion: true },
+      });
+      const found = new Set((response.data as Array<{ key: string }>).map((d) => d.key));
+      return keys.filter((k) => found.has(k));
+    } catch (error) {
+      logger.error('Failed to query deployed process keys', {
+        keys,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Start a process instance
    */
   async startProcess(
