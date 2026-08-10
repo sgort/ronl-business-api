@@ -13,6 +13,7 @@ import {
   getMockPhaseInstanceDetail,
   getMockWipRows,
   getMockGereedRows,
+  getMockGeparkeerdRows,
 } from '../../pages/infra-board/infra-board.data';
 import {
   combinePhaseCounts,
@@ -179,13 +180,34 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   );
 
   if (phase.beyond) {
+    const geparkeerd = getMockGeparkeerdRows(phase);
     return (
       <div className="pb-view">
         {header}
         <div className="pb-banner">
-          Niet gemodelleerd — {phase.name} is alleen benoemd als vervolgstap. Er is nog geen
-          overzichtsplaat en dus geen procesmodel.
+          Niet gemodelleerd — voor {phase.code} is geen overzichtsplaat aangeleverd en dus geen
+          procesmodel opgesteld. Dit deelproces kent daarom geen start, WIP of gereed: projecten die
+          hier staan worden niet bewaakt tot het deelproces is uitgewerkt en gedeployed.
         </div>
+        <h2>
+          Geparkeerde projecten <span>{geparkeerd.length}</span>
+        </h2>
+        <ul className="pb-parked-list">
+          {geparkeerd.map((p) => (
+            <li key={p.id}>
+              <span className="pb-proj-nr">{p.nr}</span> {p.naam}
+              <div className="sub">
+                Buiten de gemodelleerde workflow — voortgang wordt hier niet bewaakt
+              </div>
+              <span
+                className="pb-health-dot"
+                style={{ background: HEALTH[p.health].color }}
+                title={HEALTH[p.health].label}
+              />
+            </li>
+          ))}
+        </ul>
+        <p className="pb-bron">{phase.bron}</p>
       </div>
     );
   }

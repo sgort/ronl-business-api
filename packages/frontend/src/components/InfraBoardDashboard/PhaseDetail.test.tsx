@@ -8,7 +8,9 @@ import {
   getReadyProjects,
   getOutOfSequenceProjects,
   getMockPortfolio,
+  getMockGeparkeerdRows,
 } from '../../pages/infra-board/infra-board.data';
+import { HEALTH } from '../../pages/infra-board/rip-model';
 
 const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
 const mockUseLivePhaseCounts = vi.hoisted(() => vi.fn());
@@ -113,6 +115,31 @@ describe('PhaseDetail — R5.3 (beyond)', () => {
     expect(screen.queryByText('Starten')).not.toBeInTheDocument();
     expect(screen.queryByText('WIP')).not.toBeInTheDocument();
     expect(screen.getByText('Niet gemodelleerd', { exact: false })).toBeInTheDocument();
+  });
+
+  it('lists every geparkeerd project with its number, name, and health', () => {
+    render(<PhaseDetail phaseCode="R5.3" onBack={vi.fn()} />);
+    const parked = getMockGeparkeerdRows(ripPhaseByCode('R5.3')!);
+    expect(parked.length).toBeGreaterThan(0);
+
+    // Scoped to the heading itself: an unscoped count lookup could collide
+    // with the meta strip's "Betrokken rollen" number elsewhere on the
+    // page if the two ever happen to match.
+    const heading = screen.getByText('Geparkeerde projecten', { exact: false }).closest('h2');
+    expect(heading).not.toBeNull();
+    expect(within(heading!).getByText(String(parked.length))).toBeInTheDocument();
+
+    const first = parked[0];
+    const row = screen.getByText(first.naam, { exact: false }).closest('li');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText(first.nr, { exact: false })).toBeInTheDocument();
+    expect(within(row!).getByTitle(HEALTH[first.health].label)).toBeInTheDocument();
+  });
+
+  it('shows the phase source below the parked list', () => {
+    render(<PhaseDetail phaseCode="R5.3" onBack={vi.fn()} />);
+    const phase = ripPhaseByCode('R5.3')!;
+    expect(screen.getByText(phase.bron, { exact: false })).toBeInTheDocument();
   });
 });
 
