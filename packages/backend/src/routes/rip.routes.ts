@@ -3,6 +3,7 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { RIP_PHASE_KEYS } from '@ronl/shared';
 
 const router = express.Router();
 const logger = createLogger('rip-routes');
@@ -34,6 +35,37 @@ router.get('/phase1/active', async (req, res) => {
       error: {
         code: 'RIP_LIST_FAILED',
         message: 'Failed to retrieve active RIP Phase 1 instances',
+      },
+    });
+  }
+});
+
+/**
+ * GET /v1/rip/phases/deployment-status
+ * Which RIP phase process-definition keys are actually deployed on this
+ * environment's Operaton instance.
+ */
+router.get('/phases/deployment-status', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+  try {
+    const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(keys);
+    res.json({ success: true, data: { deployedKeys } });
+  } catch (error) {
+    logger.error('Failed to fetch RIP phase deployment status', {
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DEPLOYMENT_STATUS_FAILED',
+        message: 'Failed to retrieve phase deployment status',
       },
     });
   }

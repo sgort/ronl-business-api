@@ -21,6 +21,7 @@ jest.mock('@services/operaton.service', () => ({
     getRipPhase1ActiveList: jest.fn(),
     getRipPhase1CompletedList: jest.fn(),
     getRipPhase1Documents: jest.fn(),
+    getDeployedProcessKeys: jest.fn(),
   },
 }));
 jest.mock('@utils/logger', () => ({
@@ -36,6 +37,7 @@ const svc = operatonService as unknown as {
   getRipPhase1ActiveList: jest.Mock;
   getRipPhase1CompletedList: jest.Mock;
   getRipPhase1Documents: jest.Mock;
+  getDeployedProcessKeys: jest.Mock;
 };
 
 const app = express();
@@ -77,6 +79,28 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/rip/phase1/completed'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
+  });
+});
+
+describe('GET /phases/deployment-status', () => {
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/deployment-status');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns the deployed keys from the service', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipPhase1Process']);
+    const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ deployedKeys: ['RipPhase1Process'] });
+    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(['RipPhase1Process']);
+  });
+
+  it('500 with DEPLOYMENT_STATUS_FAILED on service failure', async () => {
+    svc.getDeployedProcessKeys.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
   });
 });
 
