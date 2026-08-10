@@ -51,7 +51,6 @@ vi.mock('../CaseworkerDashboard/HrOnboardingSection', () => ({
 vi.mock('../CaseworkerDashboard/OnboardingArchiefSection', () => ({
   default: () => <div>onboarding-archief</div>,
 }));
-vi.mock('../CaseworkerDashboard/RipFase1Section', () => ({ default: () => <div>rip-fase1</div> }));
 vi.mock('../CaseworkerDashboard/RipFase1WipSection', () => ({
   default: () => <div>rip-fase1-wip</div>,
 }));

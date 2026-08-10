@@ -31,7 +31,6 @@ import ProfielSection from '../CaseworkerDashboard/ProfielSection';
 import RollenSection from '../CaseworkerDashboard/RollenSection';
 import HrOnboardingSection from '../CaseworkerDashboard/HrOnboardingSection';
 import OnboardingArchiefSection from '../CaseworkerDashboard/OnboardingArchiefSection';
-import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
 import RipFase1WipSection from '../CaseworkerDashboard/RipFase1WipSection';
 import RipFase1GereedSection from '../CaseworkerDashboard/RipFase1GereedSection';
 import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenarioSection';
@@ -121,7 +120,6 @@ export default function SectionRouter({
   if (sectionId === 'rollen') return <RollenSection user={user} />;
   if (sectionId === 'hr-onboarding') return <HrOnboardingSection user={user} />;
   if (sectionId === 'onboarding-archief') return <OnboardingArchiefSection user={user} />;
-  if (sectionId === 'rip-fase1') return <RipFase1Section user={user} />;
   if (sectionId === 'rip-fase1-wip') return <RipFase1WipSection user={user} />;
   if (sectionId === 'rip-fase1-gereed') return <RipFase1GereedSection user={user} />;
 

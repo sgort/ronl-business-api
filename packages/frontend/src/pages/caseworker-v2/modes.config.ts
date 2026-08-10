@@ -194,12 +194,6 @@ export const MODES: ModeConfig[] = [
         label: 'Projecten',
         items: [
           {
-            id: 'rip-fase1',
-            label: 'RIP Fase 1 starten',
-            authRequired: true,
-            requiredRoles: ['infra-projectteam'],
-          },
-          {
             id: 'rip-fase1-wip',
             label: 'RIP Fase 1 WIP',
             authRequired: true,
