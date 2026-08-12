@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import HerkomstExplorer, { nextTrail } from './HerkomstExplorer';
+import HerkomstExplorer from './HerkomstExplorer';
 import { HERKOMST_STRINGS } from './herkomstData';
 
 describe('HerkomstExplorer', () => {
@@ -65,18 +65,5 @@ describe('HerkomstExplorer', () => {
     await user.click(screen.getByRole('button', { name: 'Begin opnieuw' }));
     expect(screen.getByRole('heading', { name: /^Leeftijd/ })).toBeInTheDocument();
     expect(screen.queryByText('Begin opnieuw')).not.toBeInTheDocument();
-  });
-});
-
-describe('nextTrail', () => {
-  it('pushes a new id onto the end of the trail', () => {
-    expect(nextTrail(['leeftijd'], 'geboortedatum')).toEqual(['leeftijd', 'geboortedatum']);
-  });
-
-  it('is a no-op when the id is already at the end of the trail', () => {
-    expect(nextTrail(['leeftijd', 'geboortedatum'], 'geboortedatum')).toEqual([
-      'leeftijd',
-      'geboortedatum',
-    ]);
   });
 });

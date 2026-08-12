@@ -4,10 +4,7 @@ import type { Lang } from '../../i18n';
 import { KT_CONCEPTS, KT_GROUPS, htx } from './herkomstConcepts';
 import type { HerkomstStrings } from './herkomstData';
 import HerkomstTrace from './HerkomstTrace';
-
-export function nextTrail(trail: string[], id: string): string[] {
-  return trail[trail.length - 1] === id ? trail : [...trail, id];
-}
+import { nextTrail } from './herkomstTrail';
 
 export default function HerkomstExplorer({ t, lang }: { t: HerkomstStrings; lang: Lang }) {
   const [trail, setTrail] = useState<string[]>(['leeftijd']);
