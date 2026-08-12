@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import HerkomstExplorer from './HerkomstExplorer';
+import HerkomstExplorer, { nextTrail } from './HerkomstExplorer';
 import { HERKOMST_STRINGS } from './herkomstData';
 
 describe('HerkomstExplorer', () => {
@@ -67,20 +67,17 @@ describe('HerkomstExplorer', () => {
     expect(screen.queryByText('Begin opnieuw')).not.toBeInTheDocument();
   });
 
-  it('opening the concept already at the end of the trail is a no-op', async () => {
-    const user = userEvent.setup();
-    render(<HerkomstExplorer t={HERKOMST_STRINGS.nl} lang="nl" />);
-    // Same nav-vs-chip collision as above; scope to the trace root.
-    const trace = screen.getByText('Dit begrip is afgeleid van:').parentElement!;
-    await user.click(within(trace).getByRole('button', { name: /Geboortedatum/ }));
-    // Clicking a "geboortedatum" chip again from within the geboortedatum
-    // trace itself (its own begrippen list has no self-reference, so this
-    // exercises the no-op guard via re-selecting the same list item).
-    const nav = screen.getByRole('navigation', { name: 'Herkomst' });
-    await user.click(within(nav).getByRole('button', { name: /Geboortedatum/ }));
-    // Selecting from the list always resets to [id] regardless — the
-    // no-op guard specifically applies to onOpen (drill-down), which this
-    // covers via the trail staying at depth 1 with no duplicate segment.
-    expect(screen.queryByText('Begin opnieuw')).not.toBeInTheDocument();
+});
+
+describe('nextTrail', () => {
+  it('pushes a new id onto the end of the trail', () => {
+    expect(nextTrail(['leeftijd'], 'geboortedatum')).toEqual(['leeftijd', 'geboortedatum']);
+  });
+
+  it('is a no-op when the id is already at the end of the trail', () => {
+    expect(nextTrail(['leeftijd', 'geboortedatum'], 'geboortedatum')).toEqual([
+      'leeftijd',
+      'geboortedatum',
+    ]);
   });
 });
