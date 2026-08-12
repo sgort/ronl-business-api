@@ -930,16 +930,10 @@ html {
 /* IOU-keten toegelicht — bouwt op de tokens van publiek/pub.css (.pub scope). */
 .pub-herkomst-wrap{max-width:82rem;margin:0 auto;padding:0 28px;width:100%}
 .pub-herkomst-narrow{max-width:60rem}
-h1,h2,h3,h4{font-weight:700;line-height:1.2;margin:0;text-wrap:balance}
-p{margin:0;text-wrap:pretty}
+.pub-herkomst-k h1,.pub-herkomst-k h2,.pub-herkomst-k h3,.pub-herkomst-k h4{font-weight:700;line-height:1.2;margin:0;text-wrap:balance}
+.pub-herkomst-k p{margin:0;text-wrap:pretty}
 .pub-herkomst-mono{font-family:var(--pub-mono)}
 .pub-herkomst-en{color:var(--ro-ink-3);font-weight:400}
-
-/* ── site nav (links, styled as pub-nav buttons) ─────────── */
-.pub-nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap}
-.pub-nav a{display:block;border-bottom:4px solid transparent;padding:14px 16px;font:500 14.5px/1.2 var(--pub-font);color:var(--ro-ink);text-decoration:none}
-.pub-nav a:hover{color:var(--ro-link-hover);border-bottom-color:var(--ro-rule)}
-.pub-nav a[aria-current=page]{font-weight:700;border-bottom-color:var(--ro-link);color:var(--ro-ink)}
 
 /* ── page head ──────────────────────────────────────────── */
 .pub-herkomst-main{padding:26px 0 56px}
