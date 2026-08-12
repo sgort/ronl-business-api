@@ -9,6 +9,33 @@
     />
     <title>Open Regels Nederland — publieke kennisbank</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      Open Graph / Twitter card. Source of the image: docs/herkomst-handoff/reference/social/social-card.html
+      (edit the copy there and re-capture the #card element at 1x to regenerate
+      public/og-open-regels.png). Sitewide — one card for the whole site, not
+      per-page; prerender.ts only swaps <title>/<meta name="description">, it
+      never touches these. og:url and og:image are absolute per the OG spec
+      (scrapers do not resolve relative paths) — publiek.open-regels.nl per
+      docs/PUBLIC-SITE-GO-LIVE.md.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Open Regels Nederland" />
+    <meta property="og:locale" content="nl_NL" />
+    <meta property="og:title" content="Waar komt deze regel vandaan?" />
+    <meta
+      property="og:description"
+      content="Zoek in de regels, producten, processen en begrippen van de overheid — en volg elk begrip terug naar de wettekst."
+    />
+    <meta property="og:url" content="https://publiek.open-regels.nl/" />
+    <meta property="og:image" content="https://publiek.open-regels.nl/og-open-regels.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Open Regels Nederland — publieke kennisbank van Provincie Flevoland"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="root"></div>
