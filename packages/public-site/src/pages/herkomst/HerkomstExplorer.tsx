@@ -45,7 +45,10 @@ export default function HerkomstExplorer({ t, lang }: { t: HerkomstStrings; lang
         </div>
       </nav>
       <div className="pub-herkomst-panel">
-        <div className="pub-herkomst-trail">
+        <nav
+          className="pub-herkomst-trail"
+          aria-label={lang === 'nl' ? 'Kruimelpad herkomst' : 'Herkomst breadcrumb'}
+        >
           <span>{t.crumbHome}:</span>
           {trail.map((id, i) => (
             <Fragment key={id + i}>
@@ -68,7 +71,7 @@ export default function HerkomstExplorer({ t, lang }: { t: HerkomstStrings; lang
               {t.reset}
             </button>
           ) : null}
-        </div>
+        </nav>
         <HerkomstTrace id={cur} t={t} lang={lang} onOpen={open} />
       </div>
     </div>

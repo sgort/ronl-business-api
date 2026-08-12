@@ -177,7 +177,14 @@ async function main() {
   process.env.PUBLIC_API_BASE_URL = apiUrlMatch[1].trim();
 
   const shell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
-  const urls: string[] = ['/', '/woordenboek', '/toegankelijkheid', '/open-data', '/zoeken'];
+  const urls: string[] = [
+    '/',
+    '/woordenboek',
+    '/herkomst',
+    '/toegankelijkheid',
+    '/open-data',
+    '/zoeken',
+  ];
 
   // Home
   await writeRoute(shell, origin, '/', {

@@ -55,7 +55,7 @@ export default function HerkomstTrace({
         </div>
 
         <div className="pub-herkomst-row">
-          <div className="pub-herkomst-cell" aria-labelledby={wetTrackId}>
+          <div className="pub-herkomst-cell" role="group" aria-labelledby={wetTrackId}>
             <div className="pub-herkomst-step">
               <i>1</i>
               <div>
@@ -73,7 +73,7 @@ export default function HerkomstTrace({
               {htx(c.wet.annotatie, lang)}
             </div>
           </div>
-          <div className="pub-herkomst-cell pub-herkomst-r" aria-labelledby={gebruikersTrackId}>
+          <div className="pub-herkomst-cell pub-herkomst-r" role="group" aria-labelledby={gebruikersTrackId}>
             <div className="pub-herkomst-step">
               <i>1</i>
               <div>
@@ -94,7 +94,7 @@ export default function HerkomstTrace({
         </div>
 
         <div className="pub-herkomst-row">
-          <div className="pub-herkomst-cell" aria-labelledby={wetTrackId}>
+          <div className="pub-herkomst-cell" role="group" aria-labelledby={wetTrackId}>
             <div className="pub-herkomst-step">
               <i>2</i>
               <div>
@@ -103,7 +103,7 @@ export default function HerkomstTrace({
             </div>
             <p className="pub-herkomst-body">{htx(c.regel, lang)}</p>
           </div>
-          <div className="pub-herkomst-cell pub-herkomst-r" aria-labelledby={gebruikersTrackId}>
+          <div className="pub-herkomst-cell pub-herkomst-r" role="group" aria-labelledby={gebruikersTrackId}>
             <div className="pub-herkomst-step">
               <i>2</i>
               <div>
@@ -130,7 +130,7 @@ export default function HerkomstTrace({
         </div>
 
         <div className="pub-herkomst-row">
-          <div className="pub-herkomst-cell" aria-labelledby={wetTrackId}>
+          <div className="pub-herkomst-cell" role="group" aria-labelledby={wetTrackId}>
             <div className="pub-herkomst-step">
               <i>3</i>
               <div>
@@ -182,7 +182,7 @@ export default function HerkomstTrace({
               <div className="pub-herkomst-none">{t.geenDmn}</div>
             )}
           </div>
-          <div className="pub-herkomst-cell pub-herkomst-r" aria-labelledby={gebruikersTrackId}>
+          <div className="pub-herkomst-cell pub-herkomst-r" role="group" aria-labelledby={gebruikersTrackId}>
             <div className="pub-herkomst-step">
               <i>3</i>
               <div>
@@ -198,7 +198,7 @@ export default function HerkomstTrace({
         </div>
 
         <div className="pub-herkomst-row">
-          <div className="pub-herkomst-cell" aria-labelledby={wetTrackId}>
+          <div className="pub-herkomst-cell" role="group" aria-labelledby={wetTrackId}>
             <div className="pub-herkomst-step">
               <i>4</i>
               <div>
@@ -226,7 +226,7 @@ export default function HerkomstTrace({
               <div className="pub-herkomst-none">{t.leaf}</div>
             )}
           </div>
-          <div className="pub-herkomst-cell pub-herkomst-r" aria-labelledby={gebruikersTrackId}>
+          <div className="pub-herkomst-cell pub-herkomst-r" role="group" aria-labelledby={gebruikersTrackId}>
             <div className="pub-herkomst-step">
               <i>4</i>
               <div>

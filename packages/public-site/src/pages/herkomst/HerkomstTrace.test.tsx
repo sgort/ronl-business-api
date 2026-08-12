@@ -96,5 +96,7 @@ describe('HerkomstTrace', () => {
     rightCells.forEach((cell) =>
       expect(cell.getAttribute('aria-labelledby')).toBe(gebruikersHeaderId)
     );
+    leftCells.forEach((cell) => expect(cell.getAttribute('role')).toBe('group'));
+    rightCells.forEach((cell) => expect(cell.getAttribute('role')).toBe('group'));
   });
 });
