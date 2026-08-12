@@ -93,6 +93,143 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.15',
+      status: 'Released',
+      date: '12 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '5b86857',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Open Graph / Twitter social card',
+          details: [
+            "Sitewide og:*/twitter: meta tags in index.html plus the 1200×630 og-open-regels.png asset, per the design handoff's social card addition. Resolves both deploy caveats the handoff flagged up front rather than leaving them as placeholders: og:url and og:image are absolute, using the real production domain (publiek.open-regels.nl) instead of the prototype's placeholder.",
+            'Confirmed sitewide, not per-page, is correct: the prerender script only ever swaps <title>/<meta name="description">, never touches og:*/twitter: tags, so every prerendered route already carries the same card.',
+          ],
+        },
+        {
+          sha: '9d920d3',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Apply final-review fixes: ARIA roles, sitemap registration, breadcrumb nav',
+          details: [
+            'The final whole-branch review of the Herkomst feature found three real gaps a task-scoped review could not have caught: the deliberate accessibility improvement (associating track headers with their cells) was implemented via aria-labelledby on plain divs, which ARIA prohibits on the role=generic a bare div computes to — so it likely never reached assistive tech; fixed by adding role="group" to all eight cells. /herkomst was never registered in the sitemap/prerender pipeline, since no task had that file in scope. And the drill-down trail was a bare div where the spec required a real breadcrumb nav landmark.',
+          ],
+        },
+        {
+          sha: '17e4295',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Herkomst page, route and nav item',
+          details: [
+            'Wires the six previously built components into an actual page at /herkomst: the page shell (breadcrumb, page head, jump links to the background sections), the route in App.tsx, the nav item after Gegevenswoordenboek, and a HERKOMST_PATH constant mirroring the existing WOORDENBOEK_PATH pattern.',
+          ],
+        },
+        {
+          sha: 'e15c9c0',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Test the trail's no-op guard directly, not via the UI",
+          details: [
+            'Test 7 clicked the nav list button as its second action (setTrail([id])), not a chip drill-down (open(id)), so it exercised the wrong code path and would still pass with the no-op guard deleted. No concept in herkomstConcepts.ts self-references, so the guard is unreachable via any real UI click sequence. Extracted the trail-update logic as an exported pure function (nextTrail) and unit-tested it directly instead.',
+          ],
+        },
+        {
+          sha: '950d00c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstExplorer',
+          details: [
+            "The concept list, drill-down trail and trace panel, tying the feature's pieces into one interactive view. Owns the trail state: selecting a concept in the list resets it, drilling into a chip pushes onto it (a no-op if you're already on that concept), trail segments truncate to that depth, and Begin opnieuw resets to the first concept.",
+          ],
+        },
+        {
+          sha: 'd965ce1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstBackground',
+          details: [
+            'The grey background band below the trace: the four-stage pipeline, the (a)/(b)/(c) concept chain with its catalogue band and connector strip, and the open/gesloten standards list.',
+          ],
+        },
+        {
+          sha: 'c3f8d7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstTrace',
+          details: [
+            'The feature\'s core component — the eight-step, two-track provenance grid tracing a concept from quoted legal text (Wet- & Regelgeving) to the question a citizen sees on screen (Gebruikers), row-aligned step for step. Handles both chain-end cases: concepts with no DMN render an explanatory fallback line, and concepts with nothing left to derive from render "einde van de keten" instead of chips.',
+          ],
+        },
+        {
+          sha: '52bdb76',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstChip',
+          details: [
+            'The clickable concept chip used throughout the trace and explorer — either a button that drills into another concept, or a plain, non-interactive leaf chip carrying its own inline definition.',
+          ],
+        },
+        {
+          sha: 'fc95b60',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix a CSS scoping gap in the ported Herkomst styles',
+          details: [
+            "The task brief covered renaming the reference stylesheet's .k- hyphenated component classes but not its .k -scoped (space, descendant-combinator) rules. Two of those slipped through unscoped: bare global h1-h4/p selectors duplicating the site's existing .pub h1/.pub p rules, and a global .pub-nav a override that collided with the real site's actual navigation styling — the source rules were the reference prototype's own internal preview-shell nav, unrelated to anything this feature builds. Fixed by scoping the heading/paragraph rules under a new .pub-herkomst-k page-root class and deleting the four unused nav rules entirely.",
+          ],
+        },
+        {
+          sha: '0348d5c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Port the Herkomst styling into pub.css',
+          details: [
+            "Ported the reference design's dedicated stylesheet into the site's single shared pub.css, renaming every .k- class prefix to .pub-herkomst- to match this codebase's naming convention — no rule dropped, no value changed.",
+          ],
+        },
+        {
+          sha: 'a08b4fa',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Herkomst content data modules',
+          details: [
+            "The provenance graph (four concepts — Leeftijd, Geboortedatum, Datumberekening, BSN — each with its quoted legal text, annotation, rule, DMN expression and citizen-facing copy) and the page's chrome strings, ported byte-identical from the design handoff's hand-authored reference content. Fidelity independently verified via a field-by-field deep-equal check against the source files, not just visual proofreading.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.14',
+      status: 'Released',
+      date: '12 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '7931ba5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix Rollup's CJS interop so production builds actually process @ronl/shared",
+          details: [
+            "optimizeDeps.include (added earlier for the dev-server case) only affects vite dev's esbuild pre-bundler. vite build goes through Rollup directly, which by default only runs CommonJS→ESM interop on node_modules/**. @ronl/shared resolves to a relative workspace path (../shared/dist), so Rollup parsed it as plain ESM, found no literal 'export' keyword, and reported every named value import (RIP_PHASE_KEYS) as not exported — this only ever surfaced once vite build --mode acceptance actually ran in CI, since local dev used the already-fixed dev-server path.",
+            'Verified: both build:acc and build:prod now succeed, and the emitted bundle actually contains the RIP phase data.',
+          ],
+        },
+        {
+          sha: 'c846d02',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix ChangelogPanel's version-button matcher for double-digit CalVer patches",
+          details: [
+            "A bare .includes() version match became ambiguous once double-digit CalVer patches existed — v2026.08.1 is a string-prefix of v2026.08.10 through v2026.08.13, so clicking one version's button could resolve to the wrong entry. Fixed with a versionButtonName() helper using a negative-lookahead regex to require an exact patch-number boundary.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.13',
       status: 'Released',
       date: '10 aug 2026',
