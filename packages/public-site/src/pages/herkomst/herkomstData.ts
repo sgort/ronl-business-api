@@ -65,19 +65,27 @@ export const HERKOMST_STRINGS: Record<Lang, HerkomstStrings> = {
     navConcept: 'Conceptketen',
     navStandaarden: 'Standaarden',
     ctxH: 'Achtergrond — hoe deze herkomst tot stand komt',
-    ctxLede: 'De trace hierboven is geen handwerk: hij valt uit de keten waarmee Provincie Flevoland regelgeving naar uitvoering brengt. Drie stukken achtergrond, kort.',
+    ctxLede:
+      'De trace hierboven is geen handwerk: hij valt uit de keten waarmee Provincie Flevoland regelgeving naar uitvoering brengt. Drie stukken achtergrond, kort.',
     pijplijnH: 'De pijplijn — vier stadia',
     pijplijnEn: 'The pipeline — four stages',
-    pijplijnLede: 'Elk stadium levert een artefact op dat het volgende stadium als invoer gebruikt. Er wordt niets opnieuw geïnterpreteerd of overgetypt: de overdracht gebeurt in een open formaat, zodat een besluit terug te volgen is naar de wettekst waar het uit voortkomt.',
+    pijplijnLede:
+      'Elk stadium levert een artefact op dat het volgende stadium als invoer gebruikt. Er wordt niets opnieuw geïnterpreteerd of overgetypt: de overdracht gebeurt in een open formaat, zodat een besluit terug te volgen is naar de wettekst waar het uit voortkomt.',
     conceptH: 'De conceptketen',
     conceptEn: 'The concept chain',
-    conceptLede: 'Wetgeving en standaarden geven de kaders. Concepten verschijnen op drie plaatsen — uitgelijnd onder de pijplijn-stadia 1, 2 en 3. Dat onderscheid is de kern van de architectuur: een begrip in de wet, hetzelfde begrip geïnterpreteerd in een regelmodel, en het datapunt in een registratie dat als bewijs dient.',
+    conceptLede:
+      'Wetgeving en standaarden geven de kaders. Concepten verschijnen op drie plaatsen — uitgelijnd onder de pijplijn-stadia 1, 2 en 3. Dat onderscheid is de kern van de architectuur: een begrip in de wet, hetzelfde begrip geïnterpreteerd in een regelmodel, en het datapunt in een registratie dat als bewijs dient.',
     trackL: 'Wet- & Regelgeving',
     trackLen: 'Legislation & rules',
     trackR: 'Gebruikers',
     trackRen: 'Users — what the citizen sees',
     steps: [
-      { l: 'Juridische analyse', len: 'Legal analysis', r: 'Uitleg begrippen', ren: 'Explaining the terms' },
+      {
+        l: 'Juridische analyse',
+        len: 'Legal analysis',
+        r: 'Uitleg begrippen',
+        ren: 'Explaining the terms',
+      },
       { l: 'Regel', len: 'Rule', r: 'Uitvraag gegevens', ren: 'Asking for evidence' },
       { l: 'DMN', len: 'Decision model', r: 'Controle gegevens', ren: 'Checking the evidence' },
       { l: 'Begrippen', len: 'Concepts', r: 'Conclusie', ren: 'Conclusion' },
@@ -86,7 +94,8 @@ export const HERKOMST_STRINGS: Record<Lang, HerkomstStrings> = {
     annotatie: 'Annotatie',
     input: 'Input',
     output: 'Output',
-    geenDmn: 'Niet van toepassing — dit begrip komt rechtstreeks uit een registratie, er wordt niets berekend.',
+    geenDmn:
+      'Niet van toepassing — dit begrip komt rechtstreeks uit een registratie, er wordt niets berekend.',
     afgeleid: 'Dit begrip is afgeleid van',
     leaf: 'registratiegegeven — einde van de keten',
     reset: 'Begin opnieuw',
@@ -95,7 +104,8 @@ export const HERKOMST_STRINGS: Record<Lang, HerkomstStrings> = {
     conclNee: 'Anders',
     stdH: 'Standaarden',
     stdEn: 'Standards',
-    stdLede: 'De open standaarden dragen de overdracht tussen de stadia. Wat gesloten blijft, blijft binnen de organisatie — en is daarmee vervangbaar zonder de keten te breken.',
+    stdLede:
+      'De open standaarden dragen de overdracht tussen de stadia. Wat gesloten blijft, blijft binnen de organisatie — en is daarmee vervangbaar zonder de keten te breken.',
     stdOpen: 'Open',
     stdOpenSub: 'draagt de keten',
     stdClosed: 'Gesloten',
@@ -113,21 +123,34 @@ export const HERKOMST_STRINGS: Record<Lang, HerkomstStrings> = {
     navConcept: 'Concept chain',
     navStandaarden: 'Standards',
     ctxH: 'Background — how this provenance is produced',
-    ctxLede: 'The trace above is not handwork: it falls out of the chain by which the Province of Flevoland moves regulation into execution. Three pieces of background, briefly.',
+    ctxLede:
+      'The trace above is not handwork: it falls out of the chain by which the Province of Flevoland moves regulation into execution. Three pieces of background, briefly.',
     pijplijnH: 'The pipeline — four stages',
     pijplijnEn: 'De pijplijn — vier stadia',
-    pijplijnLede: 'Each stage produces an artefact the next stage consumes. Nothing is re-interpreted or re-typed: the handover happens in an open format, so a decision can be traced back to the legal text it derives from.',
+    pijplijnLede:
+      'Each stage produces an artefact the next stage consumes. Nothing is re-interpreted or re-typed: the handover happens in an open format, so a decision can be traced back to the legal text it derives from.',
     conceptH: 'The concept chain',
     conceptEn: 'De conceptketen',
-    conceptLede: 'Legislation and standards set the frame. Concepts appear in three places — aligned under pipeline stages 1, 2 and 3. That distinction is the heart of the architecture: a concept in law, the same concept interpreted in a rule model, and the data point in a register that serves as evidence.',
+    conceptLede:
+      'Legislation and standards set the frame. Concepts appear in three places — aligned under pipeline stages 1, 2 and 3. That distinction is the heart of the architecture: a concept in law, the same concept interpreted in a rule model, and the data point in a register that serves as evidence.',
     trackL: 'Legislation & rules',
     trackLen: 'Wet- & Regelgeving',
     trackR: 'Users — what the citizen sees',
     trackRen: 'Gebruikers',
     steps: [
-      { l: 'Legal analysis', len: 'Juridische analyse', r: 'Explaining the terms', ren: 'Uitleg begrippen' },
+      {
+        l: 'Legal analysis',
+        len: 'Juridische analyse',
+        r: 'Explaining the terms',
+        ren: 'Uitleg begrippen',
+      },
       { l: 'Rule', len: 'Regel', r: 'Asking for evidence', ren: 'Uitvraag gegevens' },
-      { l: 'Decision model (DMN)', len: 'DMN', r: 'Checking the evidence', ren: 'Controle gegevens' },
+      {
+        l: 'Decision model (DMN)',
+        len: 'DMN',
+        r: 'Checking the evidence',
+        ren: 'Controle gegevens',
+      },
       { l: 'Concepts', len: 'Begrippen', r: 'Conclusion', ren: 'Conclusie' },
     ],
     bron: 'Source',
@@ -143,7 +166,8 @@ export const HERKOMST_STRINGS: Record<Lang, HerkomstStrings> = {
     conclNee: 'Otherwise',
     stdH: 'Standards',
     stdEn: 'Standaarden',
-    stdLede: 'The open standards carry the handover between stages. What stays closed stays inside the organisation — and is therefore replaceable without breaking the chain.',
+    stdLede:
+      'The open standards carry the handover between stages. What stays closed stays inside the organisation — and is therefore replaceable without breaking the chain.',
     stdOpen: 'Open',
     stdOpenSub: 'carries the chain',
     stdClosed: 'Closed',
@@ -205,7 +229,10 @@ export const KT_STAGES: KtStage[] = [
     naam: { nl: 'Verifiëren & live', en: 'Verify & go live' },
     en: 'Verify & go live',
     tool: 'MijnOmgeving',
-    toolSub: { nl: 'acceptatie › productie · tenant: Flevoland', en: 'acceptance › production · tenant: Flevoland' },
+    toolSub: {
+      nl: 'acceptatie › productie · tenant: Flevoland',
+      en: 'acceptance › production · tenant: Flevoland',
+    },
     note: {
       nl: 'De aanvraag draait eerst op acceptatie met echte testgevallen, daarna in productie binnen de tenant van de provincie. De burger ziet één omgeving; achter de schermen zijn het twee regelsets van twee bevoegde gezagen.',
       en: 'The application first runs in acceptance with real test cases, then in production within the province tenant. The citizen sees one environment; behind it are two rule sets from two competent authorities.',
@@ -252,7 +279,18 @@ export const KT_ABC: KtAbc[] = [
 ];
 
 export const KT_STANDARDS: { open: string[]; closed: { nl: string[]; en: string[] } } = {
-  open: ['CPSV-AP', 'CPRMV', 'FLINT', 'RDF / Turtle', 'BPMN', 'DMN', 'NL-SBB', 'Juriconnect', 'SKOS', 'OIDC'],
+  open: [
+    'CPSV-AP',
+    'CPRMV',
+    'FLINT',
+    'RDF / Turtle',
+    'BPMN',
+    'DMN',
+    'NL-SBB',
+    'Juriconnect',
+    'SKOS',
+    'OIDC',
+  ],
   closed: {
     nl: ['organisatie-eigen regels', 'vendor-systemen', 'interne registers', 'eDOCS'],
     en: ['organisation-specific rules', 'vendor systems', 'internal registers', 'eDOCS'],

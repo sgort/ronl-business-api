@@ -66,7 +66,6 @@ describe('HerkomstExplorer', () => {
     expect(screen.getByRole('heading', { name: /^Leeftijd/ })).toBeInTheDocument();
     expect(screen.queryByText('Begin opnieuw')).not.toBeInTheDocument();
   });
-
 });
 
 describe('nextTrail', () => {

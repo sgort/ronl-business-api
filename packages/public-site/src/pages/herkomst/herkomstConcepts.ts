@@ -53,7 +53,11 @@ export interface KtConcept {
 }
 
 export const KT_GROUPS: KtGroup[] = [
-  { id: 'zorgtoeslag', nl: 'Zorgtoeslag — het gewerkte voorbeeld', en: 'Healthcare allowance — the worked example' },
+  {
+    id: 'zorgtoeslag',
+    nl: 'Zorgtoeslag — het gewerkte voorbeeld',
+    en: 'Healthcare allowance — the worked example',
+  },
   { id: 'basis', nl: 'Onderliggende gegevens', en: 'Underlying data' },
 ];
 
@@ -89,13 +93,32 @@ export const KT_CONCEPTS: Record<string, KtConcept> = {
     dmn: {
       expr: '(leeftijd >= MEERDERJARIGHEIDSLEEFTIJD) and (meerderjarigDezeMaand = false)',
       input: [
-        ['datumBerekening', { nl: 'datum van berekening', en: 'calculation date' }, 'datumberekening'],
+        [
+          'datumBerekening',
+          { nl: 'datum van berekening', en: 'calculation date' },
+          'datumberekening',
+        ],
         ['geboortedatum', { nl: 'geboortedatum', en: 'date of birth' }, 'geboortedatum'],
       ],
       output: [
-        ['leeftijdOpDatumBerekening', { nl: 'leeftijd op datum berekening', en: 'age on the calculation date' }],
-        ['leeftijdOpLaatsteDagVorigeMaand', { nl: 'leeftijd op laatste dag vorige maand', en: 'age on the last day of the previous month' }],
-        ['leeftijdOpLaatsteDagHuidigeMaand', { nl: 'leeftijd op laatste dag huidige maand', en: 'age on the last day of the current month' }],
+        [
+          'leeftijdOpDatumBerekening',
+          { nl: 'leeftijd op datum berekening', en: 'age on the calculation date' },
+        ],
+        [
+          'leeftijdOpLaatsteDagVorigeMaand',
+          {
+            nl: 'leeftijd op laatste dag vorige maand',
+            en: 'age on the last day of the previous month',
+          },
+        ],
+        [
+          'leeftijdOpLaatsteDagHuidigeMaand',
+          {
+            nl: 'leeftijd op laatste dag huidige maand',
+            en: 'age on the last day of the current month',
+          },
+        ],
       ],
     },
     begrippen: [
@@ -120,7 +143,10 @@ export const KT_CONCEPTS: Record<string, KtConcept> = {
     ],
     uitvraag: [
       {
-        vraag: { nl: 'Wat is uw burgerservicenummer (BSN)?', en: 'What is your citizen service number (BSN)?' },
+        vraag: {
+          nl: 'Wat is uw burgerservicenummer (BSN)?',
+          en: 'What is your citizen service number (BSN)?',
+        },
         veld: 'BSN-invoer',
       },
       {
