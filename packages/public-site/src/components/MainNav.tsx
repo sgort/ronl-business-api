@@ -1,7 +1,7 @@
 // packages/public-site/src/components/MainNav.tsx
 import { NavLink } from 'react-router-dom';
 import type { Lang } from '../i18n';
-import { PUB_SECTIONS, WOORDENBOEK_PATH, sectionLabel } from '../lib/sections';
+import { PUB_SECTIONS, WOORDENBOEK_PATH, HERKOMST_PATH, sectionLabel } from '../lib/sections';
 
 export default function MainNav({ lang }: { lang: Lang }) {
   return (
@@ -22,6 +22,9 @@ export default function MainNav({ lang }: { lang: Lang }) {
             <NavLink to={WOORDENBOEK_PATH}>
               {lang === 'nl' ? 'Gegevenswoordenboek' : 'Data dictionary'}
             </NavLink>
+          </li>
+          <li>
+            <NavLink to={HERKOMST_PATH}>{lang === 'nl' ? 'Herkomst' : 'Provenance'}</NavLink>
           </li>
         </ul>
       </div>
