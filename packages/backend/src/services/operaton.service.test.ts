@@ -90,15 +90,43 @@ describe('passthrough queries', () => {
 describe('startProcess', () => {
   const req = () => ({ businessKey: 'bk', variables: {} }) as unknown as ProcessStartRequest;
 
-  it('injects municipality from tenantId when absent and posts to the start endpoint', async () => {
+  it('injects municipality from tenantId when absent and posts to the tenant-scoped start endpoint', async () => {
     mockClient.post.mockResolvedValue({ data: { id: 'pi-1' } });
     const request = req();
 
     const res = await svc.startProcess('MyProc', request, 'flevoland');
 
     expect(res).toEqual({ id: 'pi-1' });
-    expect(mockClient.post).toHaveBeenCalledWith('/process-definition/key/MyProc/start', request);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/MyProc/tenant-id/flevoland/start',
+      request
+    );
     expect(request.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('falls back to the untenanted start endpoint when no tenant-scoped definition exists', async () => {
+    mockClient.post
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { data: { message: 'No matching process definition with key: MyProc' } },
+      })
+      .mockResolvedValueOnce({ data: { id: 'pi-3' } });
+
+    const res = await svc.startProcess('MyProc', req(), 'flevoland');
+
+    expect(res).toEqual({ id: 'pi-3' });
+    expect(mockClient.post).toHaveBeenCalledTimes(2);
+    expect(mockClient.post).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/MyProc/tenant-id/flevoland/start',
+      expect.anything()
+    );
+    expect(mockClient.post).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/MyProc/start',
+      expect.anything()
+    );
   });
 
   it('keeps an explicitly provided municipality variable', async () => {
