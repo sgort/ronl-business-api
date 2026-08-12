@@ -923,3 +923,187 @@ html {
     width: 100%;
   }
 }
+
+/* ── Herkomst (provenance tab) ──────────────────────────────
+   Ported from docs/herkomst-handoff/reference/keten/keten.css,
+   .k-* renamed to .pub-herkomst-* throughout. */
+/* IOU-keten toegelicht — bouwt op de tokens van publiek/pub.css (.pub scope). */
+.pub-herkomst-wrap{max-width:82rem;margin:0 auto;padding:0 28px;width:100%}
+.pub-herkomst-narrow{max-width:60rem}
+h1,h2,h3,h4{font-weight:700;line-height:1.2;margin:0;text-wrap:balance}
+p{margin:0;text-wrap:pretty}
+.pub-herkomst-mono{font-family:var(--pub-mono)}
+.pub-herkomst-en{color:var(--ro-ink-3);font-weight:400}
+
+/* ── site nav (links, styled as pub-nav buttons) ─────────── */
+.pub-nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap}
+.pub-nav a{display:block;border-bottom:4px solid transparent;padding:14px 16px;font:500 14.5px/1.2 var(--pub-font);color:var(--ro-ink);text-decoration:none}
+.pub-nav a:hover{color:var(--ro-link-hover);border-bottom-color:var(--ro-rule)}
+.pub-nav a[aria-current=page]{font-weight:700;border-bottom-color:var(--ro-link);color:var(--ro-ink)}
+
+/* ── page head ──────────────────────────────────────────── */
+.pub-herkomst-main{padding:26px 0 56px}
+.pub-herkomst-crumbs{display:flex;gap:8px;flex-wrap:wrap;font-size:13.5px;color:var(--ro-ink-2);margin-bottom:22px}
+.pub-herkomst-crumbs .pub-herkomst-here{color:var(--ro-ink);font-weight:600}
+.pub-herkomst-kicker{font:700 12px/1 var(--pub-font);letter-spacing:.13em;text-transform:uppercase;color:var(--ro-link);margin-bottom:12px}
+.pub-herkomst-pagehead{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:40px;align-items:start;padding-bottom:30px;border-bottom:3px solid var(--ro-blue);margin-bottom:30px}
+.pub-herkomst-pagehead h1{font-size:40px;letter-spacing:-.02em;max-width:20ch}
+.pub-herkomst-pagehead .pub-herkomst-sub{margin-top:12px;font-size:19px;color:var(--ro-ink);max-width:60ch}
+.pub-herkomst-pagehead .pub-herkomst-lede{margin-top:14px;font-size:15.5px;color:var(--ro-ink-2);max-width:72ch}
+.pub-herkomst-jump{border-left:4px solid var(--ro-mustard);padding-left:14px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:6px}
+.pub-herkomst-jump b{font:700 11.5px/1.4 var(--pub-font);letter-spacing:.08em;text-transform:uppercase;color:var(--ro-ink-3);margin-bottom:6px}
+.pub-herkomst-jump button{background:none;border:none;padding:4px 0;font:500 14.5px/1.4 var(--pub-font);color:var(--ro-link);cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-align:left}
+.pub-herkomst-jump button:hover{color:var(--ro-link-hover)}
+
+/* ── background band ────────────────────────────────────── */
+.pub-herkomst-ctx{background:var(--ro-bg);border-top:1px solid var(--ro-rule-2);padding:52px 0 64px}
+.pub-herkomst-ctx-h{max-width:74ch;margin-bottom:38px}
+.pub-herkomst-ctx-h h2{font-size:26px}
+.pub-herkomst-ctx-h p{margin-top:10px;font-size:16px;color:var(--ro-ink-2)}
+.pub-herkomst-block{margin-bottom:52px}
+.pub-herkomst-block:last-child{margin-bottom:0}
+.pub-herkomst-sec-h{font-size:30px;letter-spacing:-.01em}
+.pub-herkomst-sec-h.pub-herkomst-sm{font-size:21px}
+.pub-herkomst-sec-en{font-size:14.5px;color:var(--ro-ink-3);margin-top:2px}
+.pub-herkomst-sec-lede{margin-top:12px;font-size:15px;color:var(--ro-ink-2);max-width:78ch}
+
+/* ── pipeline ───────────────────────────────────────────── */
+.pub-herkomst-pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2);margin-top:32px}
+.pub-herkomst-stage{background:var(--ro-paper);padding:0;display:flex;flex-direction:column}
+.pub-herkomst-stage-top{background:var(--ro-blue);color:#fff;padding:16px 20px;display:flex;gap:12px;align-items:baseline}
+.pub-herkomst-stage-no{font:700 26px/1 var(--pub-mono);color:var(--ro-mustard)}
+.pub-herkomst-stage-top b{font-size:17px;display:block}
+.pub-herkomst-stage-top span{font-size:12.5px;color:#cfdcea;display:block}
+.pub-herkomst-stage-body{padding:20px;display:flex;flex-direction:column;gap:14px;flex:1}
+.pub-herkomst-tool{border-left:4px solid var(--ro-link);padding-left:12px}
+.pub-herkomst-tool b{font-size:15px;display:block}
+.pub-herkomst-tool span{font-size:13px;color:var(--ro-ink-2);display:block;margin-top:2px}
+.pub-herkomst-badge{display:inline-block;font:700 10.5px/1 var(--pub-font);letter-spacing:.1em;text-transform:uppercase;background:var(--ro-mustard);color:#000;padding:5px 8px;margin-top:8px}
+.pub-herkomst-out{margin-top:auto;padding-top:14px;border-top:1px dashed var(--ro-rule);font-size:13px;color:var(--ro-ink-2)}
+.pub-herkomst-out b{display:block;font:700 11px/1 var(--pub-font);letter-spacing:.09em;text-transform:uppercase;color:var(--ro-ink-3);margin-bottom:5px}
+.pub-herkomst-stage-note{font-size:13.5px;color:var(--ro-ink-2);line-height:1.5}
+
+/* ── concept chain a/b/c ────────────────────────────────── */
+.pub-herkomst-abc{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2);margin-top:30px}
+.pub-herkomst-abc-cell{background:var(--ro-paper);padding:22px}
+.pub-herkomst-abc-cell.pub-herkomst-void{background:var(--ro-bg)}
+.pub-herkomst-abc-tag{font:700 12px/1 var(--pub-mono);color:var(--ro-link);letter-spacing:.06em}
+.pub-herkomst-abc-cell h4{font-size:19px;margin-top:8px}
+.pub-herkomst-abc-cell .pub-herkomst-en{font-size:13.5px;display:block;margin-top:1px}
+.pub-herkomst-abc-cell p{font-size:14px;color:var(--ro-ink-2);margin-top:10px}
+.pub-herkomst-catband{display:grid;grid-template-columns:2fr 1fr;gap:2px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2);border-top:none}
+.pub-herkomst-cat{background:#e9eff5;padding:16px 22px;font-size:14px}
+.pub-herkomst-cat b{display:block;font-size:15px}
+.pub-herkomst-cat span{color:var(--ro-ink-2)}
+.pub-herkomst-connector{background:var(--ro-blue);color:#fff;padding:16px 22px;font-size:14px;grid-column:1/-1}
+.pub-herkomst-connector b{color:var(--ro-mustard)}
+
+/* ── explorer ───────────────────────────────────────────── */
+.pub-herkomst-exp{display:grid;grid-template-columns:270px 1fr;gap:2px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2);margin-top:28px}
+.pub-herkomst-list{background:var(--ro-paper);padding:0;display:flex;flex-direction:column}
+.pub-herkomst-list-h{font:700 11.5px/1 var(--pub-font);letter-spacing:.1em;text-transform:uppercase;color:var(--ro-ink-3);padding:16px 18px 10px}
+.pub-herkomst-list button{background:none;border:none;border-left:4px solid transparent;text-align:left;padding:11px 18px;font:400 14.5px/1.3 var(--pub-font);color:var(--ro-ink);cursor:pointer;display:block;width:100%}
+.pub-herkomst-list button:hover{background:#f6f9fc}
+.pub-herkomst-list button[aria-current=true]{background:#eaf1f7;border-left-color:var(--ro-link);font-weight:700}
+.pub-herkomst-list button small{display:block;font-size:12px;color:var(--ro-ink-3);font-weight:400;margin-top:2px}
+.pub-herkomst-list-group{font:700 11px/1 var(--pub-font);letter-spacing:.08em;text-transform:uppercase;color:var(--ro-ink-3);padding:16px 18px 6px;border-top:1px solid var(--ro-rule-2);margin-top:8px}
+.pub-herkomst-panel{background:var(--ro-paper);padding:0;min-width:0}
+.pub-herkomst-trail{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:12px 26px;border-bottom:1px solid var(--ro-rule-2);font-size:13px;background:var(--ro-bg)}
+.pub-herkomst-trail button{background:none;border:none;color:var(--ro-link);font:400 13px/1.3 var(--pub-font);cursor:pointer;text-decoration:underline;padding:2px 0}
+.pub-herkomst-trail span{color:var(--ro-ink-3)}
+.pub-herkomst-trail .pub-herkomst-here{color:var(--ro-ink);font-weight:700}
+.pub-herkomst-phead{padding:24px 26px 20px;border-bottom:1px solid var(--ro-rule-2)}
+.pub-herkomst-phead h3{font-size:26px}
+.pub-herkomst-phead .pub-herkomst-en{font-size:15px;display:block;margin-top:2px}
+.pub-herkomst-phead p{margin-top:10px;font-size:15px;color:var(--ro-ink-2);max-width:70ch}
+.pub-herkomst-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.pub-herkomst-pill{font:500 12px/1 var(--pub-font);background:var(--ro-bg);border:1px solid var(--ro-rule-2);padding:6px 9px;color:var(--ro-ink-2)}
+.pub-herkomst-pill b{font-weight:700;color:var(--ro-ink)}
+
+/* two tracks */
+.pub-herkomst-tracks{display:grid;grid-template-columns:1fr 1fr}
+.pub-herkomst-track-h{position:sticky;top:49px;z-index:20;padding:13px 26px;font:700 13px/1.2 var(--pub-font);letter-spacing:.05em;text-transform:uppercase;color:#fff;background:var(--ro-blue)}
+.pub-herkomst-track-h.pub-herkomst-right{background:#42145f}
+.pub-herkomst-track-h span{display:block;font:400 11.5px/1.2 var(--pub-font);letter-spacing:.02em;text-transform:none;color:rgba(255,255,255,.72);margin-top:3px}
+.pub-herkomst-row{display:contents}
+.pub-herkomst-cell{padding:22px 26px;border-top:1px solid var(--ro-rule-2);min-width:0}
+.pub-herkomst-cell.pub-herkomst-r{border-left:1px solid var(--ro-rule-2);background:#fcfbfd}
+.pub-herkomst-step{display:flex;gap:10px;align-items:baseline;margin-bottom:12px}
+.pub-herkomst-step i{font:700 12px/18px var(--pub-mono);font-style:normal;width:18px;height:18px;flex:none;text-align:center;background:var(--ro-blue);color:#fff}
+.pub-herkomst-cell.pub-herkomst-r .pub-herkomst-step i{background:#42145f}
+.pub-herkomst-step b{font-size:15.5px}
+.pub-herkomst-step em{font-style:normal;font-size:12.5px;color:var(--ro-ink-3);margin-left:2px}
+.pub-herkomst-quote{border-left:4px solid var(--ro-mustard);padding:10px 0 10px 14px;font-size:14px;color:var(--ro-ink-2);line-height:1.55;background:#fffdf5}
+.pub-herkomst-src{font:500 12px/1.4 var(--pub-mono);color:var(--ro-ink-3);margin-top:8px}
+.pub-herkomst-anno{margin-top:12px;font-size:14.5px}
+.pub-herkomst-anno b{font:700 11px/1 var(--pub-font);letter-spacing:.09em;text-transform:uppercase;color:var(--ro-ink-3);display:block;margin-bottom:5px}
+.pub-herkomst-body{font-size:14.5px;color:var(--ro-ink);line-height:1.55}
+.pub-herkomst-code{font:400 13px/1.6 var(--pub-mono);background:#0f2233;color:#e8eef5;padding:13px 15px;margin-top:10px;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+.pub-herkomst-code .pub-herkomst-op{color:var(--ro-mustard)}
+.pub-herkomst-io{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2);margin-top:12px}
+.pub-herkomst-io li,.pub-herkomst-io code{overflow-wrap:anywhere}
+.pub-herkomst-io>div{background:var(--ro-paper);padding:12px 14px}
+.pub-herkomst-io b{font:700 10.5px/1 var(--pub-font);letter-spacing:.09em;text-transform:uppercase;color:var(--ro-ink-3);display:block;margin-bottom:7px}
+.pub-herkomst-io ul{margin:0;padding-left:16px;font-size:13.5px;line-height:1.55}
+.pub-herkomst-io code{font-family:var(--pub-mono);font-size:12.5px;color:var(--ro-link)}
+.pub-herkomst-qa{border:1px solid var(--ro-rule-2);margin-top:10px}
+.pub-herkomst-qa div{display:flex;gap:12px;align-items:baseline;padding:11px 14px;border-bottom:1px solid var(--ro-rule-2);font-size:14px}
+.pub-herkomst-qa div:last-child{border-bottom:none}
+.pub-herkomst-qa .pub-herkomst-q{flex:1}
+.pub-herkomst-qa .pub-herkomst-f{font-family:var(--pub-mono);font-size:12.5px;color:var(--ro-link);white-space:nowrap}
+.pub-herkomst-check{list-style:none;margin:10px 0 0;padding:0;font-size:14px}
+.pub-herkomst-check li{padding:10px 0 10px 26px;position:relative;border-bottom:1px dashed var(--ro-rule-2);line-height:1.5}
+.pub-herkomst-check li:last-child{border-bottom:none}
+.pub-herkomst-check li::before{content:"?";position:absolute;left:0;top:10px;width:18px;height:18px;background:#42145f;color:#fff;font:700 12px/18px var(--pub-mono);text-align:center}
+.pub-herkomst-concl{background:#eef4ea;border-left:4px solid var(--ro-green);padding:14px 16px;margin-top:10px;font-size:14.5px;line-height:1.55}
+.pub-herkomst-concl.pub-herkomst-neg{background:#fdeef0;border-left-color:var(--ro-lint)}
+.pub-herkomst-none{font-size:14px;color:var(--ro-ink-3);font-style:italic;padding:6px 0}
+
+/* concept chips → recursie */
+.pub-herkomst-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.pub-herkomst-chip{font:500 13.5px/1 var(--pub-font);background:var(--ro-paper);border:1px solid var(--ro-link);color:var(--ro-link);padding:8px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.pub-herkomst-chip:hover{background:var(--ro-link);color:#fff}
+.pub-herkomst-chip.pub-herkomst-leaf{border-color:var(--ro-rule);color:var(--ro-ink-2);cursor:default}
+.pub-herkomst-chip.pub-herkomst-leaf:hover{background:var(--ro-paper);color:var(--ro-ink-2)}
+.pub-herkomst-chip svg{flex:none}
+.pub-herkomst-recursion{background:var(--ro-blue);color:#fff;padding:18px 26px;font-size:14.5px;line-height:1.55;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.pub-herkomst-recursion b{color:var(--ro-mustard)}
+.pub-herkomst-recursion button{background:var(--ro-mustard);border:none;color:#000;font:700 14px/1 var(--pub-font);padding:11px 14px;cursor:pointer;margin-left:auto}
+.pub-herkomst-recursion button:hover{background:#ffc94a}
+
+/* ── standards ──────────────────────────────────────────── */
+.pub-herkomst-std{display:grid;grid-template-columns:180px 1fr;gap:2px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2);margin-top:26px}
+.pub-herkomst-std-lab{background:var(--ro-blue);color:#fff;padding:18px 20px;font:700 13px/1.3 var(--pub-font);letter-spacing:.09em;text-transform:uppercase}
+.pub-herkomst-std-lab.pub-herkomst-closed{background:#535353}
+.pub-herkomst-std-lab span{display:block;font:400 12px/1.3 var(--pub-font);letter-spacing:0;text-transform:none;color:rgba(255,255,255,.7);margin-top:4px}
+.pub-herkomst-std-body{background:var(--ro-paper);padding:16px 20px;display:flex;flex-wrap:wrap;gap:8px}
+.pub-herkomst-std-item{font:500 13.5px/1 var(--pub-mono);border:1px solid var(--ro-rule);padding:8px 10px}
+.pub-herkomst-std-body.pub-herkomst-muted .pub-herkomst-std-item{color:var(--ro-ink-3);border-style:dashed;font-family:var(--pub-font)}
+
+/* ── outcome ────────────────────────────────────────────── */
+.pub-herkomst-outcome{display:flex;gap:2px;flex-wrap:wrap;margin-top:26px;background:var(--ro-rule-2);border:1px solid var(--ro-rule-2)}
+.pub-herkomst-grant{background:var(--ro-paper);padding:22px 26px;flex:1;min-width:240px;border-top:6px solid var(--ro-green)}
+.pub-herkomst-grant b{font-size:18px;display:block}
+.pub-herkomst-grant span{font-size:13.5px;color:var(--ro-ink-2);display:block;margin-top:4px}
+.pub-herkomst-foot{background:var(--ro-blue);color:#cfdcea;padding:34px 0;font-size:13.5px}
+.pub-herkomst-foot .pub-herkomst-wrap{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}
+.pub-herkomst-foot b{color:#fff;display:block;margin-bottom:4px}
+
+@media(max-width:1100px){.pub-herkomst-exp{grid-template-columns:1fr}.pub-herkomst-pipe{grid-template-columns:repeat(2,1fr)}.pub-herkomst-abc{grid-template-columns:1fr}}
+@media(max-width:820px){.pub-herkomst-tracks{grid-template-columns:1fr}.pub-herkomst-cell.pub-herkomst-r{border-left:none}.pub-herkomst-casus{grid-template-columns:1fr}.pub-herkomst-pipe{grid-template-columns:1fr}.pub-herkomst-track-h{position:static}.pub-herkomst-io{grid-template-columns:1fr}}
+
+.pub-herkomst-list-note{font-size:12.5px;line-height:1.5;color:var(--ro-ink-3);padding:16px 18px;border-top:1px solid var(--ro-rule-2);margin-top:10px}
+.pub-herkomst-exp{margin-top:0}
+.pub-herkomst-track-h{position:sticky;top:0}
+@media(max-width:900px){.pub-herkomst-pagehead{grid-template-columns:1fr;gap:22px}.pub-herkomst-pagehead h1{font-size:32px}}
+
+.pub-herkomst-crumb-btn{background:none;border:none;padding:0;font:400 13.5px/1.4 var(--pub-font);color:var(--ro-link);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.pub-herkomst-crumb-btn:hover{color:var(--ro-link-hover)}
+.pub-mobile .pub-herkomst-tracks{grid-template-columns:1fr}
+.pub-mobile .pub-herkomst-cell.pub-herkomst-r{border-left:none}
+.pub-mobile .pub-herkomst-track-h{position:static}
+.pub-mobile .pub-herkomst-io,.pub-mobile .pub-herkomst-pipe,.pub-mobile .pub-herkomst-abc,.pub-mobile .pub-herkomst-exp,.pub-mobile .pub-herkomst-std,.pub-mobile .pub-herkomst-catband{grid-template-columns:1fr}
+.pub-mobile .pub-herkomst-pagehead{grid-template-columns:1fr;gap:20px}
+.pub-mobile .pub-herkomst-pagehead h1{font-size:28px}
+.pub-mobile .pub-herkomst-wrap{padding:0 16px}
+.pub-mobile .pub-herkomst-cell{padding:18px 16px}
