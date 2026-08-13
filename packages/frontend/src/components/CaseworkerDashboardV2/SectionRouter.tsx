@@ -16,6 +16,7 @@ import type { KeycloakUser } from '@ronl/shared';
 import type { TenantConfig } from '../../services/tenant';
 import TakenInbox from './TakenInbox';
 import NoAccessPanel from './NoAccessPanel';
+import RegelSimulatie from './RegelSimulatie';
 import { MODES } from '../../pages/caseworker-v2/modes.config';
 
 // ── Existing section components (re-used as-is) ─────────────────────
@@ -92,6 +93,14 @@ export default function SectionRouter({
   if (sectionId === 'filter-waiting') return <TakenInbox user={user} initialFilter="unassigned" />;
   if (sectionId === 'filter-today') return <TakenInbox user={user} initialFilter="today" />;
   if (sectionId === 'filter-week') return <TakenInbox user={user} initialFilter="week" />;
+
+  // ── Simulatie ──────────────────────────────────────────────────────
+  // Auth-required (unlike the "Public / shared library" block below it in
+  // this file) but takes no props (unlike "Beheer / projects (require
+  // user)"'s members, which all consume `user`) — neither existing block is
+  // a categorical fit, so this gets its own line rather than being forced
+  // into one.
+  if (sectionId === 'regelsimulatie') return <RegelSimulatie />;
 
   // ── Public / shared library (no props) ────────────────────────────
   if (sectionId === 'regelcatalogus') return <RegelCatalogus />;

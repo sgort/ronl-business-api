@@ -53,6 +53,7 @@ import ChangelogPanel from './ChangelogPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
 
 import './caseworker-v2/dashboard-v2.css';
+import './caseworker-v2/regelsimulatie.css';
 
 const STORAGE_KEY_DOCK = 'cwdV2.dock.open';
 
