@@ -794,6 +794,8 @@ git commit -m "feat(frontend): port Regelsimulatie styling (regelsimulatie.css)"
 - Test: `packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.test.tsx`
 - Test: `packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.test.tsx`
 - Test: `packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.test.tsx`
+- Create: `packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/simFormat.ts`
+- Test: `packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/simFormat.test.ts`
 
 **Interfaces:**
 
@@ -801,9 +803,17 @@ git commit -m "feat(frontend): port Regelsimulatie styling (regelsimulatie.css)"
 number; reserved?: number; hold?: number }): JSX.Element`; `SimOutcomeRow({ dot:
 string; name: string; val: number; amount?: number; total: number }): JSX.Element`;
   `SimTweak({ label: string; value: number; display: string; min: number; max: number;
-step: number; onChange: (v: number) => void }): JSX.Element`.
-- Consumes: no engine types directly — all three take primitive props only, matching the
-  reference exactly.
+step: number; onChange: (v: number) => void }): JSX.Element`; `simEur(n: number):
+string`, `simEurK(n: number): string` from `./simFormat` (used by Tasks 4, 5, 6).
+- Consumes: no engine types directly — all three components take primitive props only,
+  matching the reference exactly.
+
+`simEur`/`simEurK` live in their own module, `simFormat.ts`, rather than in `SimPot.tsx`
+— a component file that also exports plain functions breaks Vite's react-refresh
+assumption that a component file exports only components (the exact
+`react-refresh/only-export-components` issue this session already hit once with
+Herkomst's `nextTrail`). Every later task that needs these formatters imports from
+`./simFormat`, never from `./SimPot`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -922,15 +932,13 @@ Port from `docs/regelsimulatie-handoff/reference/preview/mock-simulatie.jsx`:
 `SimPot` (reference lines 163–196), `SimOutcomeRow` (reference lines 199–211), `SimTweak`
 (reference lines 214–222). These are short and mostly-JSX; port each 1:1, typed:
 
-```tsx
-// packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.tsx
-// hatched amber for provisional (reserved) money — distinct from solid = paid
-const RESERVED_FILL = 'repeating-linear-gradient(135deg, var(--v2-amber) 0 6px, #f0d34d 6px 12px)';
-
-function simEur(n: number): string {
+```ts
+// packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/simFormat.ts
+export function simEur(n: number): string {
   return '€' + Math.round(n).toLocaleString('nl-NL');
 }
-function simEurK(n: number): string {
+
+export function simEurK(n: number): string {
   const a = Math.abs(n);
   if (a >= 1000000) {
     return '€' + (n / 1000000).toFixed(1).replace('.0', '').replace('.', ',') + 'M';
@@ -943,6 +951,14 @@ function simEurK(n: number): string {
   }
   return '€' + Math.round(n);
 }
+```
+
+```tsx
+// packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.tsx
+import { simEur, simEurK } from './simFormat';
+
+// hatched amber for provisional (reserved) money — distinct from solid = paid
+const RESERVED_FILL = 'repeating-linear-gradient(135deg, var(--v2-amber) 0 6px, #f0d34d 6px 12px)';
 
 export default function SimPot({
   name,
@@ -1029,13 +1045,11 @@ export default function SimPot({
     </div>
   );
 }
-
-export { simEur, simEurK };
 ```
 
 ```tsx
 // packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.tsx
-import { simEurK } from './SimPot';
+import { simEurK } from './simFormat';
 
 export default function SimOutcomeRow({
   dot,
@@ -1110,26 +1124,25 @@ export default function SimTweak({
 }
 ```
 
-Note: `simEur`/`simEurK` are defined once in `SimPot.tsx` and re-exported for
-`SimOutcomeRow.tsx` to import, rather than duplicated — the reference defines them at
-module scope shared by the whole `mock-simulatie.jsx` file; Task 6 (`RegelSimulatie.tsx`)
-will need them too and should import from `SimPot.tsx` the same way, not redefine them a
-third time.
+Add `simFormat.test.ts` alongside, covering both functions with a few cases each (e.g.
+`simEur(1250)` → `'€1.250'`; `simEurK(1900000)` → `'€1,9M'`; `simEurK(4200)` → `'€4,2k'`;
+`simEurK(313)` → `'€313'`).
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `npx vitest run src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.test.tsx src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.test.tsx src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.test.tsx`
+Run: `npx vitest run src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.test.tsx src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.test.tsx src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.test.tsx src/components/CaseworkerDashboardV2/regelsimulatie/simFormat.test.ts`
 Expected: PASS, all tests green.
 
 - [ ] **Step 5: Typecheck and lint**
 
 Run: `npx tsc --noEmit && npx eslint .`
-Expected: no errors.
+Expected: no errors — in particular, no `react-refresh/only-export-components` warning
+on `SimPot.tsx` (it now exports only the component).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.test.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.test.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.test.tsx
+git add packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/simFormat.ts packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimPot.test.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimOutcomeRow.test.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimTweak.test.tsx packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/simFormat.test.ts
 git commit -m "feat(frontend): add Regelsimulatie presentational primitives"
 ```
 
@@ -1222,7 +1235,7 @@ exhaustion-mark logic, same legend. Add types:
 
 ```tsx
 // packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimChart.tsx
-import { simEurK } from './SimPot';
+import { simEurK } from './simFormat';
 import type { SimResult } from './types';
 
 export default function SimChart({ result, day }: { result: SimResult; day: number }) {
@@ -1263,7 +1276,7 @@ git commit -m "feat(frontend): add Regelsimulatie SimChart"
 
 **Interfaces:**
 
-- Consumes: `SimResult`, `SimApp` from `./types` (Task 1); `simEur` from `./SimPot`
+- Consumes: `SimResult`, `SimApp` from `./types` (Task 1); `simEur` from `./simFormat`
   (Task 3).
 - Produces (used by Task 6): `SimMissedPanel({ result: SimResult; day: number }):
 JSX.Element`. Owns its own local state (`selId: number | null`, `mode: 'rfi' |
@@ -1362,12 +1375,12 @@ are otherwise unchanged). Port 1:1: same three-button filter bar, same timeline
 lane/segment rendering (`MtSeg`, the RFI "aanvullende info" hatched sub-row, the "budget
 naar succesvol beroep" purple sub-row, the "Net misgelopen" amber badge), same ◀▶
 navigation and id-strip. Type every prop and local variable using `SimApp`/`SimResult`
-from `types.ts`; import `simEur` from `./SimPot` rather than redefining it.
+from `types.ts`; import `simEur` from `./simFormat` rather than redefining it.
 
 ```tsx
 // packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/SimMissedPanel.tsx
 import { useState } from 'react';
-import { simEur } from './SimPot';
+import { simEur } from './simFormat';
 import type { SimResult, SimApp } from './types';
 
 function MtSeg({
@@ -1432,8 +1445,9 @@ git commit -m "feat(frontend): add Regelsimulatie SimMissedPanel"
 **Interfaces:**
 
 - Consumes: `run` from `./regelsimulatie/simEngine` (Task 1); `SimChart` (Task 4);
-  `SimMissedPanel` (Task 5); `SimPot`, `SimOutcomeRow`, `SimTweak`, `simEur`, `simEurK`
-  from `./regelsimulatie/SimPot` etc. (Task 3).
+  `SimMissedPanel` (Task 5); `SimPot`, `SimOutcomeRow`, `SimTweak` from
+  `./regelsimulatie/SimPot` etc., and `simEur`/`simEurK` from `./regelsimulatie/simFormat`
+  (Task 3).
 - Produces (used by Task 7): `RegelSimulatie(): JSX.Element` — no props, matching the
   brief and the "Public / shared library (no props)" dispatch pattern's prop shape (even
   though, per this plan's Task 7, it's dispatched from its own line, not that literal
@@ -1520,15 +1534,17 @@ reference lines 428–743 (renamed `RegelSimulatie` per this plan's file name), 
   call-out, then the chart card wrapping `SimChart`, then `SimMissedPanel`; right:
   Uitkomsten card with the `SimOutcomeRow`s + the two indented RFI/beroep collateral
   lines + rejection-ground breakdown + summary line, then the Aanvragen feed card).
-- Import `simEur`/`simEurK` from `./regelsimulatie/SimPot` rather than redefining them a
-  third time (see Task 3's note).
+- Import `simEur`/`simEurK` from `./regelsimulatie/simFormat` rather than redefining them
+  a third time (see Task 3's note) — never from `./regelsimulatie/SimPot`, which exports
+  only the component.
 
 ```tsx
 // packages/frontend/src/components/CaseworkerDashboardV2/RegelSimulatie.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { run } from './regelsimulatie/simEngine';
 import type { SimConfig } from './regelsimulatie/types';
-import SimPot, { simEur, simEurK } from './regelsimulatie/SimPot';
+import { simEur, simEurK } from './regelsimulatie/simFormat';
+import SimPot from './regelsimulatie/SimPot';
 import SimOutcomeRow from './regelsimulatie/SimOutcomeRow';
 import SimTweak from './regelsimulatie/SimTweak';
 import SimChart from './regelsimulatie/SimChart';
