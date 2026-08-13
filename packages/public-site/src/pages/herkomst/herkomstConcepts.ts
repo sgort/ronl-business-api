@@ -80,7 +80,7 @@ export const KT_CONCEPTS: Record<string, KtConcept> = {
         nl: 'verzekerde: de persoon, bedoeld in artikel 1, onder f, van de Zorgverzekeringswet, de persoon die een bijdrage als bedoeld in artikel 68b, vijfde lid, van de Zorgverzekeringswet verschuldigd is, of de persoon, bedoeld in artikel 69 van de Zorgverzekeringswet, steeds vanaf de eerste dag van de kalendermaand volgende op de maand waarin hij achttien jaar wordt, met uitzondering van de verzekerde, bedoeld in artikel 24, eerste of derde lid, van die wet;',
         en: 'insured person: the person referred to in article 1(f) of the Health Insurance Act, the person owing a contribution as referred to in article 68b(5) of the Health Insurance Act, or the person referred to in article 69 of the Health Insurance Act, in each case from the first day of the calendar month following the month in which they turn eighteen, with the exception of the insured person referred to in article 24(1) or (3) of that act;',
       },
-      bron: 'Wet op de zorgtoeslag, art. 1 lid 1 onder b',
+      bron: 'Wet op de zorgtoeslag, art. 1 lid 1 onder c',
       annotatie: {
         nl: 'Leeftijd = 18 jaar. De wet noemt geen kale leeftijdsgrens maar een moment: niet de achttiende verjaardag zelf, maar de eerste dag van de maand daarna. Die ene zin bepaalt dat het model twee leeftijden moet kennen — op de berekeningsdatum, en op de laatste dag van de vorige maand.',
         en: 'Age = 18 years. The law names not a bare age limit but a moment: not the eighteenth birthday itself, but the first day of the month after it. That single sentence forces the model to know two ages — on the calculation date, and on the last day of the previous month.',
@@ -266,10 +266,10 @@ export const KT_CONCEPTS: Record<string, KtConcept> = {
     ],
     wet: {
       tekst: {
-        nl: 'De aanspraak op een tegemoetkoming ontstaat met ingang van de eerste dag van het berekeningsjaar waarin de belanghebbende voldoet aan de voorwaarden.',
-        en: 'Entitlement to an allowance arises on the first day of the calculation year in which the interested party meets the conditions.',
+        nl: 'berekeningsjaar: het kalenderjaar waarop de tegemoetkoming betrekking heeft;',
+        en: 'calculation year: the calendar year to which the allowance relates;',
       },
-      bron: 'Algemene wet inkomensafhankelijke regelingen, art. 5 lid 1 — parafrase',
+      bron: 'Algemene wet inkomensafhankelijke regelingen, art. 2 Definities, lid 1 onderdeel b',
       annotatie: {
         nl: 'De wet noemt het berekeningsjaar, niet de indiendatum. De regelmodellering kiest de indiendatum als peilmoment binnen dat jaar. Dat is een interpretatiebeslissing — daarom staat hij hier, zichtbaar, en niet verstopt in code.',
         en: 'The law names the calculation year, not the submission date. The rule model picks the submission date as the reference moment within that year. That is an interpretation decision — which is why it is recorded here, visible, and not buried in code.',
@@ -323,10 +323,10 @@ export const KT_CONCEPTS: Record<string, KtConcept> = {
     ],
     wet: {
       tekst: {
-        nl: 'Het burgerservicenummer is het uniek identificerend nummer van een natuurlijke persoon, dat aan hem wordt toegekend bij de inschrijving in de basisregistratie personen.',
-        en: 'The citizen service number is the uniquely identifying number of a natural person, assigned to them upon registration in the Personal Records Database.',
+        nl: 'Het college van burgemeester en wethouders, onderscheidenlijk Onze Minister, kent onmiddellijk na de inschrijving van een persoon als ingezetene, onderscheidenlijk niet-ingezetene, in de basisregistratie personen, aan de ingeschrevene een burgerservicenummer toe, tenzij aan hem reeds een burgerservicenummer is toegekend.',
+        en: 'The board of mayor and aldermen, or Our Minister, respectively, immediately after the registration of a person as a resident or non-resident, respectively, in the basic registration of persons, assigns a citizen service number to the registered person, unless a citizen service number has already been assigned to them.',
       },
-      bron: 'Wet algemene bepalingen burgerservicenummer, art. 1 — parafrase',
+      bron: 'Wet algemene bepalingen burgerservicenummer, art. 8 lid 1',
       annotatie: {
         nl: 'Het BSN is de enige sleutel die de registers verbindt. Daarom is het ook de plaats waar de keten stopt: er is geen onderliggend begrip dat het BSN afleidt.',
         en: 'The BSN is the only key linking the registers. That is also why the chain stops here: no underlying concept derives the BSN.',
