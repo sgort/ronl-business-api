@@ -93,6 +93,66 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.16',
+      status: 'Released',
+      date: '13 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '4bebd24',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Scroll the trail bar into view when the displayed concept changes',
+          details: [
+            "Selecting a concept in the list, drilling into a chip, clicking a trail segment, or Begin opnieuw can all change which concept's trace is shown without the page scrolling — if the user was scrolled down into a long trace, the new concept's own trail bar and header could land off-screen with nothing visible telling them what changed.",
+            "Extracted the jump buttons' existing scroll-to-id helper into a shared herkomstScroll.ts, and HerkomstExplorer now calls it on every concept change (skipping the initial mount, since there's nothing to scroll to yet).",
+          ],
+        },
+        {
+          sha: '53f2cdb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Correct three legal citations in the Herkomst content',
+          details: [
+            'Leeftijd: the Wet op de zorgtoeslag citation was art. 1 lid 1 onder b, corrected to onder c.',
+            "BSN: wet.tekst was a paraphrase; replaced with the exact statutory text of Wet algemene bepalingen burgerservicenummer art. 8 lid 1 (who assigns a BSN, and when), with the bron citation corrected from art. 1 to art. 8 lid 1 and the '— parafrase' suffix dropped since it's now an exact quote.",
+            "Datum berekening: wet.tekst was likewise a paraphrase; replaced with the exact 'berekeningsjaar' definition from Algemene wet inkomensafhankelijke regelingen art. 2 Definities, lid 1 onderdeel b, with bron corrected accordingly. All three citations provided by the content owner.",
+          ],
+        },
+        {
+          sha: 'e3edffe',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Prerender /herkomst its own static HTML file',
+          details: [
+            "/herkomst was in the sitemap urls array but had no writeRoute() call, unlike every other route with real content (berichten, nieuws, producten, regels, processen) — so a crawler or link-preview scraper that doesn't execute JS got the homepage's title/description via Azure's SPA navigationFallback instead of Herkomst's own.",
+            "Title, description and a crawlable summary are sourced directly from the page's own content module (herkomstData.ts, herkomstConcepts.ts) so the prerendered summary stays in sync with Herkomst.tsx automatically. Verified against a real build:acc output.",
+          ],
+        },
+        {
+          sha: '24b535a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Scope the social card's og:url/og:image to the actual deploy origin",
+          details: [
+            "index.html hardcodes og:url and og:image to the production domain (publiek.open-regels.nl), since a static file can't know its own deploy target. On ACC that pointed the image at a domain that isn't deployed yet, so link-preview scrapers (WhatsApp confirmed) fetched a dead URL and silently dropped the image.",
+            'Root-caused with direct evidence: publiek.open-regels.nl/og-open-regels.png returns nothing (domain not live), while acc.publiek.open-regels.nl/og-open-regels.png returns 200. Fixed by reusing the SITE_ORIGIN map prerender.ts already has for the canonical link, rewriting both meta tags to the correct origin once per build so every prerendered route inherits the fix.',
+          ],
+        },
+        {
+          sha: '27e34b8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Move nextTrail to its own module, fix react-refresh warning',
+          details: [
+            "HerkomstExplorer.tsx exported both a component (default) and a plain function (nextTrail), which breaks Vite's react-refresh assumption that a component file only exports components — surfaced as an eslint react-refresh/only-export-components warning that npm run format doesn't catch.",
+            'Moved nextTrail to its own herkomstTrail.ts module with its own test, matching the pattern herkomstConcepts.ts/herkomstData.ts already established for non-component logic in this feature.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.15',
       status: 'Released',
       date: '12 aug 2026',
