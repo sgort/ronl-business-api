@@ -1,10 +1,13 @@
 // packages/public-site/src/pages/herkomst/HerkomstExplorer.tsx
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Lang } from '../../i18n';
 import { KT_CONCEPTS, KT_GROUPS, htx } from './herkomstConcepts';
 import type { HerkomstStrings } from './herkomstData';
 import HerkomstTrace from './HerkomstTrace';
 import { nextTrail } from './herkomstTrail';
+import { scrollToId } from './herkomstScroll';
+
+const TRAIL_ID = 'herkomst-trail';
 
 export default function HerkomstExplorer({ t, lang }: { t: HerkomstStrings; lang: Lang }) {
   const [trail, setTrail] = useState<string[]>(['leeftijd']);
@@ -12,6 +15,22 @@ export default function HerkomstExplorer({ t, lang }: { t: HerkomstStrings; lang
   const open = (id: string) => setTrail((tr) => nextTrail(tr, id));
   const ids = Object.keys(KT_CONCEPTS);
   const otherLang: Lang = lang === 'nl' ? 'en' : 'nl';
+
+  // Whichever concept is displayed can change without the page scrolling
+  // (list select, chip drill-down, trail-segment click, Begin opnieuw) — if
+  // the user was scrolled down into a long trace, the new concept's own
+  // trail/header can land off-screen with nothing visible telling them
+  // what changed. Bring the trail bar back into view whenever the
+  // displayed concept changes, but not on first mount (no navigation has
+  // happened yet, so nothing to scroll to).
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    scrollToId(TRAIL_ID);
+  }, [cur]);
 
   return (
     <div className="pub-herkomst-exp" id="herkomst">
@@ -43,6 +62,7 @@ export default function HerkomstExplorer({ t, lang }: { t: HerkomstStrings; lang
       </nav>
       <div className="pub-herkomst-panel">
         <nav
+          id={TRAIL_ID}
           className="pub-herkomst-trail"
           aria-label={lang === 'nl' ? 'Kruimelpad herkomst' : 'Herkomst breadcrumb'}
         >

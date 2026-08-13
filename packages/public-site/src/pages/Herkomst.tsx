@@ -4,13 +4,7 @@ import Crumbs from '../components/Crumbs';
 import { HERKOMST_STRINGS } from './herkomst/herkomstData';
 import HerkomstExplorer from './herkomst/HerkomstExplorer';
 import HerkomstBackground from './herkomst/HerkomstBackground';
-
-function scrollToHerkomstSection(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const top = window.scrollY + el.getBoundingClientRect().top - 20;
-  window.scrollTo({ top, behavior: 'smooth' });
-}
+import { scrollToId } from './herkomst/herkomstScroll';
 
 export default function Herkomst({ lang }: { t: Translations; lang: Lang }) {
   const t = HERKOMST_STRINGS[lang];
@@ -35,13 +29,13 @@ export default function Herkomst({ lang }: { t: Translations; lang: Lang }) {
           </div>
           <aside className="pub-herkomst-jump">
             <b>{t.jump}</b>
-            <button type="button" onClick={() => scrollToHerkomstSection('pijplijn')}>
+            <button type="button" onClick={() => scrollToId('pijplijn')}>
               {t.navPijplijn}
             </button>
-            <button type="button" onClick={() => scrollToHerkomstSection('conceptketen')}>
+            <button type="button" onClick={() => scrollToId('conceptketen')}>
               {t.navConcept}
             </button>
-            <button type="button" onClick={() => scrollToHerkomstSection('standaarden')}>
+            <button type="button" onClick={() => scrollToId('standaarden')}>
               {t.navStandaarden}
             </button>
           </aside>

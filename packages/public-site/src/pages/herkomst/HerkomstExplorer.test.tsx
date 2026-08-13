@@ -1,11 +1,26 @@
 // packages/public-site/src/pages/herkomst/HerkomstExplorer.test.tsx
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import HerkomstExplorer from './HerkomstExplorer';
 import { HERKOMST_STRINGS } from './herkomstData';
 
 describe('HerkomstExplorer', () => {
+  // Every trail-changing interaction below now triggers a scrollTo (see the
+  // "scrolls the trail bar into view" test) — jsdom doesn't implement
+  // scrollTo and logs a noisy "Not implemented" warning on every call, so
+  // mock it for the whole suite rather than just the one test that asserts
+  // on it.
+  let scrollToSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    scrollToSpy.mockRestore();
+  });
+
   it('starts on Leeftijd, and the trail shows just that one concept', () => {
     render(<HerkomstExplorer t={HERKOMST_STRINGS.nl} lang="nl" />);
     expect(screen.getByRole('heading', { name: /Leeftijd/ })).toBeInTheDocument();
@@ -65,5 +80,16 @@ describe('HerkomstExplorer', () => {
     await user.click(screen.getByRole('button', { name: 'Begin opnieuw' }));
     expect(screen.getByRole('heading', { name: /^Leeftijd/ })).toBeInTheDocument();
     expect(screen.queryByText('Begin opnieuw')).not.toBeInTheDocument();
+  });
+
+  it('scrolls the trail bar into view when the displayed concept changes, but not on initial mount', async () => {
+    const user = userEvent.setup();
+    render(<HerkomstExplorer t={HERKOMST_STRINGS.nl} lang="nl" />);
+    expect(scrollToSpy).not.toHaveBeenCalled();
+
+    const trace = screen.getByText('Dit begrip is afgeleid van:').parentElement!;
+    await user.click(within(trace).getByRole('button', { name: /Geboortedatum/ }));
+    expect(scrollToSpy).toHaveBeenCalledTimes(1);
+    expect(scrollToSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
   });
 });
