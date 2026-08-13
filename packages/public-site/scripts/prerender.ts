@@ -50,6 +50,23 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => map[c]);
 }
 
+// index.html hardcodes the social card's og:url/og:image to the production
+// origin (see the comment there) because a static HTML file can't know its
+// own deploy target. This rewrites both to whichever origin this prerender
+// run is actually for, so acceptance builds point at
+// acc.publiek.open-regels.nl instead of a production domain that may not
+// even be live yet — exactly the bug that shipped in v2026.08.15 (ACC's
+// og:image pointed at the still-undeployed prod domain, so link previews
+// on ACC silently failed to load the image).
+export function rewriteSocialCardOrigin(shell: string, origin: string): string {
+  return shell
+    .replace('content="https://publiek.open-regels.nl/"', `content="${origin}/"`)
+    .replace(
+      'content="https://publiek.open-regels.nl/og-open-regels.png"',
+      `content="${origin}/og-open-regels.png"`
+    );
+}
+
 export function injectIntoShell(
   shell: string,
   opts: {
@@ -176,7 +193,8 @@ async function main() {
   if (!apiUrlMatch) throw new Error(`VITE_API_URL not found in ${ENV_FILE[mode]}`);
   process.env.PUBLIC_API_BASE_URL = apiUrlMatch[1].trim();
 
-  const shell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
+  const rawShell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
+  const shell = rewriteSocialCardOrigin(rawShell, origin);
   const urls: string[] = [
     '/',
     '/woordenboek',
