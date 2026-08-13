@@ -291,6 +291,112 @@ describe('counterfactuals', () => {
   });
 });
 
+describe('beroepDisplacerId — nearer-winner disambiguation (disclosed deviation)', () => {
+  // Reference (mock-sim-engine.jsx:372) compares w.key <= a.key, but `a` there
+  // is a SimApp, which never has a `.key` field — only claimants do. That
+  // comparison is always `w.key <= undefined` (always false) in the
+  // reference's JS, so that branch is permanently dead code there; it always
+  // falls through to "the pool's overall minimum-key winner" fallback. This
+  // port's simEngine.ts deliberately uses `a.effDay` (a real field) instead,
+  // so the branch can select the nearest-preceding appeal winner rather than
+  // always the global minimum. Confirmed intended behavior with the project
+  // owner; this test proves the two strategies actually diverge for a real,
+  // run()-level scenario (not just a synthetic makeResolver fixture), since
+  // that's where this logic lives.
+  //
+  // seed 10 with this config reliably produces an accepted application
+  // (id 133) whose merits-payment was displaced by upheld appeals, where the
+  // relevant appeal-winner pool has 2+ winners with different priority keys
+  // straddling app 133's effDay — letting us assert the nearer one (not the
+  // pool's global minimum) is picked.
+  const CFG: SimConfig = {
+    seed: 10,
+    populatie: 150,
+    eigenaarRatio: 0.68,
+    kostenGem: 4200,
+    kostenSd: 1500,
+    pFailliet: 0,
+    pBuitenprovincie: 0,
+    pGeenRelatie: 0,
+    pGeenToestemming: 0,
+    pNaamMismatch: 0,
+    budgetScale: 0.15,
+    aandeel2026: 1.0,
+    arrivalPow: 1.0,
+    doorlooptijdGem: 8,
+    pAanvullendeInfo: 0,
+    infoWachtGem: 30,
+    bezwaarKans: 0.7,
+    bezwaarToewijzing: 0.7,
+  };
+
+  // Independently derive which pool an *appeal claim* resolves into. This is
+  // safe to compute outside the engine (i.e. it is not a reimplementation of
+  // the logic under test) because, per makeResolver's isAppeal branch, an
+  // appeal claim's compDay is exactly its own competeDay (appealResolveDay) —
+  // it never depends on any other claim, unlike normal claims. Note this is
+  // deliberately NOT the winner app's own `.pid` field: that field records
+  // where the winner's *original merits claim* resolved (typically the
+  // split pool, since it's evaluated at its earlier decisionDay), which can
+  // differ from where its *appeal* claim resolves (typically later, and
+  // often across the 1-October split→merged boundary).
+  function appealClaimPid(
+    result: ReturnType<typeof run>,
+    year: number,
+    type: 'eigenaar' | 'huurder',
+    appealResolveDay: number
+  ): string {
+    const oct1 = Math.round(
+      (Date.UTC(year, 9, 1) - result.meta.START) / (result.meta.dayToTs(1) - result.meta.dayToTs(0))
+    );
+    const merged = appealResolveDay >= oct1;
+    const bucket = type === 'eigenaar' ? 'eig' : 'huur';
+    return `${year}:${merged ? 'merged' : bucket}`;
+  }
+
+  it('picks the nearest-preceding appeal winner, not always the pool-wide minimum key', () => {
+    const result = run(CFG);
+    const target = result.apps.find((a) => a.id === 133);
+    expect(target).toBeDefined();
+    expect(target!.klasse).toBe('accepted');
+    expect(target!.missedDueToBeroep).toBe(true);
+    expect(target!.beroepDisplacerId).not.toBeNull();
+
+    // Recover every upheld, paid appeal winner that landed in the same pool
+    // as the displaced application.
+    const winnersInPool = result.apps.filter(
+      (w) =>
+        w.beroepFiled &&
+        w.beroepUpheld &&
+        w.appealPaid &&
+        appealClaimPid(result, w.year, w.type, w.appealResolveDay as number) === target!.pid
+    );
+
+    // The scenario requires at least two winners in this pool with distinct
+    // priority keys (effDay) — otherwise there'd be nothing to disambiguate.
+    const distinctKeys = new Set(winnersInPool.map((w) => w.effDay));
+    expect(winnersInPool.length).toBeGreaterThanOrEqual(2);
+    expect(distinctKeys.size).toBeGreaterThanOrEqual(2);
+
+    const globalMinWinner = winnersInPool.reduce((m, w) => (w.effDay < m.effDay ? w : m));
+    const nearestWinner = winnersInPool
+      .filter((w) => w.effDay <= target!.effDay)
+      .reduce((m, w) => (w.effDay > m.effDay ? w : m));
+
+    // The pool's global minimum-key winner is a *different* app than the
+    // nearest-preceding one — proving this scenario actually distinguishes
+    // the two strategies (this port's vs. the reference's dead-branch
+    // fallback).
+    expect(nearestWinner.id).not.toBe(globalMinWinner.id);
+
+    // This port picks the nearer winner...
+    expect(target!.beroepDisplacerId).toBe(nearestWinner.id);
+    // ...not the pool-wide minimum the reference's dead branch would always
+    // have fallen back to.
+    expect(target!.beroepDisplacerId).not.toBe(globalMinWinner.id);
+  });
+});
+
 describe('performance', () => {
   it('run(cfg) with the default 3,150-application population completes in under 250ms', () => {
     const t0 = performance.now();

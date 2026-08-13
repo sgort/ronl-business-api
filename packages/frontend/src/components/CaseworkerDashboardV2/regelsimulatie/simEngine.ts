@@ -632,6 +632,17 @@ export function run(cfg: SimConfig): SimResult {
       const pool = appealWinnersByPool[a.pid as string] || [];
       let best: { id: number; key: number } | null = null;
       for (const w of pool) {
+        // Deviation from reference (mock-sim-engine.jsx:372): the reference compares
+        // w.key <= a.key, but `a` here is a SimApp, which never has a `.key` field —
+        // only claimants do. That comparison is always `w.key <= undefined` (always
+        // false) in the reference's JS, making this branch permanently dead code
+        // there; it always falls through to "the pool's overall minimum-key winner"
+        // below. This port uses `a.effDay` (a real field) instead, so this branch
+        // can actually select the appeal-winner whose key most specifically
+        // precedes this application — a deliberate improvement over the reference's
+        // latent bug, confirmed with the project owner. Only affects which #id is
+        // displayed in the "budget naar succesvol beroep #id" caption; no totals,
+        // counts, or payment outcomes depend on this.
         if (w.key <= a.effDay && (!best || w.key > best.key)) best = w;
       }
       if (!best)
