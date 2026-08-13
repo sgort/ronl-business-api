@@ -1,22 +1,7 @@
 // hatched amber for provisional (reserved) money — distinct from solid = paid
 const RESERVED_FILL = 'repeating-linear-gradient(135deg, var(--v2-amber) 0 6px, #f0d34d 6px 12px)';
 
-function simEur(n: number): string {
-  return '€' + Math.round(n).toLocaleString('nl-NL');
-}
-function simEurK(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 1000000) {
-    return '€' + (n / 1000000).toFixed(1).replace('.0', '').replace('.', ',') + 'M';
-  }
-  if (a >= 1000) {
-    const v = n / 1000;
-    return (
-      '€' + (Number.isInteger(v) ? v : Number(v.toFixed(1))).toString().replace('.', ',') + 'k'
-    );
-  }
-  return '€' + Math.round(n);
-}
+import { simEur, simEurK } from './simFormat';
 
 export default function SimPot({
   name,
@@ -103,5 +88,3 @@ export default function SimPot({
     </div>
   );
 }
-
-export { simEur, simEurK };

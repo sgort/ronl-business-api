@@ -1,4 +1,4 @@
-import { simEurK } from './SimPot';
+import { simEurK } from './simFormat';
 
 export default function SimOutcomeRow({
   dot,
