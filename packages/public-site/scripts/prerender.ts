@@ -19,6 +19,8 @@ import {
 import { PUB_SECTIONS } from '../src/lib/sections';
 import { mapToHits } from '../src/lib/sectionHits';
 import { slugify } from '../src/lib/slug';
+import { HERKOMST_STRINGS } from '../src/pages/herkomst/herkomstData';
+import { KT_CONCEPTS } from '../src/pages/herkomst/herkomstConcepts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -333,6 +335,23 @@ async function main() {
       ]),
     });
   }
+  // Herkomst — static content, no API data. Title/description/summary come
+  // straight from the page's own content module (herkomstData.ts /
+  // herkomstConcepts.ts) so a crawler that doesn't execute JS (and a
+  // link-preview scraper that only fetches the raw HTML) sees real,
+  // honest content instead of falling back to the homepage's — the same
+  // fallback that would otherwise happen via Azure's SPA navigationFallback
+  // for any route with no prerendered file of its own.
+  await writeRoute(shell, origin, '/herkomst', {
+    title: `${HERKOMST_STRINGS.nl.title} — Open Regels Nederland`,
+    description: HERKOMST_STRINGS.nl.sub,
+    bodyFragment: listFragment(
+      HERKOMST_STRINGS.nl.title,
+      HERKOMST_STRINGS.nl.sub,
+      Object.values(KT_CONCEPTS).map((c) => ({ title: c.naam.nl, summary: c.kort.nl }))
+    ),
+  });
+
   urls.push('/berichten', '/nieuws', '/producten', '/regels', '/processen');
 
   await writeFile(path.join(distDir, 'sitemap.xml'), buildSitemap(origin, urls), 'utf-8');
