@@ -163,6 +163,38 @@ export class OperatonService {
   }
 
   /**
+   * Discover the Operaton-native tenant-id a process-definition key is
+   * actually deployed under, via the untenanted list endpoint — unlike the
+   * /process-definition/key/{key}/... shorthand, this resolves regardless of
+   * tenant-id and returns each matching definition's own tenantId. Used to
+   * correctly scope processes that are deployed under a fixed tenant
+   * different from the calling citizen's own (e.g. AwbZorgtoeslagProcess,
+   * always handled under toeslagen regardless of which tenant's citizen is
+   * calling) instead of assuming the citizen's tenant is the process's
+   * tenant. If the same key has coexisting rows under multiple tenants (a
+   * legacy untenanted deployment alongside a newer tenant-scoped one), the
+   * tenant-scoped row wins. Returns null if the key isn't deployed, is
+   * deployed untenanted, or the lookup itself fails — callers should fall
+   * back to their own best guess.
+   */
+  private async resolveDeployedTenant(processKey: string): Promise<string | null> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { key: processKey, latestVersion: true },
+      });
+      const defs = response.data as Array<{ tenantId: string | null }>;
+      const tenantScoped = defs.find((d) => d.tenantId !== null);
+      return tenantScoped?.tenantId ?? defs[0]?.tenantId ?? null;
+    } catch (error) {
+      logger.warn('Failed to resolve deployed tenant; falling back to caller-provided tenant', {
+        processKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
+    }
+  }
+
+  /**
    * Start a process instance
    */
   async startProcess(
@@ -185,18 +217,23 @@ export class OperatonService {
         };
       }
 
-      // Try the tenant-scoped start first. Deployments made via LDE's
-      // mandatory-organization deploy flow carry Operaton's own native
-      // tenant-id and are invisible to the untenanted /start shorthand
-      // below — Operaton only resolves /process-definition/key/{key}/start
-      // against definitions deployed with *no* tenant-id. Most processes
-      // still aren't tenant-scoped (only new LDE deployments are, as of
-      // 2026-08-12), so fall back to the untenanted lookup when the
-      // scoped one reports no matching definition.
+      // Try the tenant-scoped start first, scoped to the process's own
+      // *actual* deployed tenant (not necessarily the calling citizen's own
+      // tenant — e.g. AwbZorgtoeslagProcess is always handled under
+      // toeslagen regardless of which tenant's citizen is calling).
+      // Deployments made via LDE's mandatory-organization deploy flow carry
+      // Operaton's own native tenant-id and are invisible to the untenanted
+      // /start shorthand below — Operaton only resolves
+      // /process-definition/key/{key}/start against definitions deployed
+      // with *no* tenant-id. Not every process is tenant-scoped yet, so
+      // fall back to the untenanted lookup when the scoped one reports no
+      // matching definition.
+      const deployedTenant = await this.resolveDeployedTenant(processKey);
+      const scopeTenant = deployedTenant ?? tenantId;
       let response;
       try {
         response = await this.client.post(
-          `/process-definition/key/${processKey}/tenant-id/${tenantId}/start`,
+          `/process-definition/key/${processKey}/tenant-id/${scopeTenant}/start`,
           request
         );
       } catch (scopedError) {
@@ -946,9 +983,10 @@ export class OperatonService {
     tenantId?: string
   ): Promise<{ data: string; contentType: string }> {
     try {
+      const deployedTenant = await this.resolveDeployedTenant(processKey);
       const response = await this.getByKeyWithTenantFallback<string>(
         processKey,
-        tenantId,
+        deployedTenant ?? tenantId,
         '/deployed-start-form',
         { responseType: 'text' }
       );

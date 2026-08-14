@@ -87,6 +87,37 @@ describe('passthrough queries', () => {
   });
 });
 
+describe('resolveDeployedTenant', () => {
+  it('returns the tenantId of the deployed definition', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
+    // @ts-expect-error -- private method, exercised directly for this unit test
+    await expect(svc.resolveDeployedTenant('AwbZorgtoeslagProcess')).resolves.toBe('toeslagen');
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { key: 'AwbZorgtoeslagProcess', latestVersion: true },
+    });
+  });
+
+  it('prefers a tenant-scoped row over a coexisting untenanted legacy row for the same key', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: null }, { tenantId: 'flevoland' }],
+    });
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBe('flevoland');
+  });
+
+  it('returns null when the key is not deployed at all', async () => {
+    mockClient.get.mockResolvedValue({ data: [] });
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('NotDeployed')).resolves.toBeNull();
+  });
+
+  it('returns null on lookup failure rather than throwing', async () => {
+    mockClient.get.mockRejectedValue(new Error('network down'));
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBeNull();
+  });
+});
+
 describe('startProcess', () => {
   const req = () => ({ businessKey: 'bk', variables: {} }) as unknown as ProcessStartRequest;
 
@@ -157,6 +188,30 @@ describe('startProcess', () => {
     });
     await expect(svc.startProcess('RipR21Process', req(), 'flevoland')).rejects.toThrow(
       /RipR21Process' is niet gevonden op deze Operaton-omgeving/
+    );
+  });
+
+  it("scopes the start call to the process's actual deployed tenant, not the citizen's own", async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
+    mockClient.post.mockResolvedValue({ data: { id: 'pi1' } });
+
+    await svc.startProcess('AwbZorgtoeslagProcess', req(), 'unive');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/AwbZorgtoeslagProcess/tenant-id/toeslagen/start',
+      expect.anything()
+    );
+  });
+
+  it("falls back to the citizen's own tenant when the deployed tenant cannot be resolved", async () => {
+    mockClient.get.mockRejectedValue(new Error('lookup failed'));
+    mockClient.post.mockResolvedValue({ data: { id: 'pi1' } });
+
+    await svc.startProcess('SomeProcess', req(), 'flevoland');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/SomeProcess/tenant-id/flevoland/start',
+      expect.anything()
     );
   });
 });
@@ -705,8 +760,23 @@ describe('deployed forms', () => {
     );
   });
 
+  it('getDeployedStartForm scopes to the resolved deployed tenant, not the passed-in citizen tenant', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: [{ tenantId: 'toeslagen' }] }) // resolveDeployedTenant
+      .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } }); // the form itself
+
+    await svc.getDeployedStartForm('AwbZorgtoeslagProcess', 'unive');
+
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/AwbZorgtoeslagProcess/tenant-id/toeslagen/deployed-start-form',
+      { responseType: 'text' }
+    );
+  });
+
   it('getDeployedStartForm falls back to the untenanted lookup on a no-matching-definition error', async () => {
     mockClient.get
+      .mockResolvedValueOnce({ data: [] }) // resolveDeployedTenant — key not deployed, returns null
       .mockRejectedValueOnce({
         isAxiosError: true,
         response: {
@@ -716,12 +786,12 @@ describe('deployed forms', () => {
       .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } });
     await svc.getDeployedStartForm('K', 'flevoland');
     expect(mockClient.get).toHaveBeenNthCalledWith(
-      1,
+      2,
       '/process-definition/key/K/tenant-id/flevoland/deployed-start-form',
       { responseType: 'text' }
     );
     expect(mockClient.get).toHaveBeenNthCalledWith(
-      2,
+      3,
       '/process-definition/key/K/deployed-start-form',
       {
         responseType: 'text',
