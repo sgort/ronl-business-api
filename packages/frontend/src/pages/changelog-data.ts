@@ -93,6 +93,104 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.19',
+      status: 'Upcoming',
+      date: '14 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '4685069',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'E2E test reporting and cleanup UX improvements',
+          details: [
+            'The Operaton-history cleanup prompt asked once per business key created during a run, with no summary of how many were pending — an E2E run creating a dozen instances meant a dozen individual [y/N] prompts. Consolidated to one prompt listing every pending key and its count; the answer applies to all of them (clean all, or leave all pending for next time), never a partial state.',
+            "Playwright's HTML report now opens in the browser automatically after every run instead of needing a follow-up command — its own printed 'npx playwright show-report' hint is computed relative to the test process's internal working directory (packages/frontend, set by npm workspace machinery), not the shell the command was actually typed in, so a copy-pasted hint could resolve to the wrong path entirely. Auto-opening sidesteps that whole class of confusion; a `test:e2e:report` script remains as a fallback for re-opening a past run without re-testing.",
+          ],
+        },
+        {
+          sha: '34c8ab4',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: "Sync the E2E test bundle's sub-process rename from linked-data-explorer",
+          details: [
+            "linked-data-explorer's e2e-fixtures bundle renamed its two sub-processes (TreeFellingPermitSubProcess -> TreeFellingPermitSubProcessE2E, ZorgtoeslagProvisionalSubProcess -> ZorgtoeslagProvisionalSubProcessE2E) to give the E2E fixtures their own Operaton process-definition keys, distinct from the general-purpose seeded examples that share the same underlying BPMN process id -- LDE's own process catalog otherwise conflates the two and can silently redeploy stale content. required-processes.ts and two E2E spec comments updated to match; the shell processes and RipR21Process are unaffected.",
+          ],
+        },
+        {
+          sha: '9813dd1',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            "Scope process start and start-form lookups to the process's real deployed tenant",
+          details: [
+            "startProcess and getDeployedStartForm scoped their tenant-scoped Operaton lookup to the requesting citizen's own tenant, which broke any process deployed under a fixed processing-authority tenant regardless of caller (AwbZorgtoeslagProcess is always handled under toeslagen by design, callable by citizens of any tenant) -- the citizen's scoped lookup 404s, and the untenanted fallback also 404s now that Operaton deployments are tenant-mandatory.",
+            "Fixed by discovering the process's actual deployed tenant first, via Operaton's unscoped list endpoint, and using that instead of assuming it matches the caller's own tenant -- falls back to the old behavior when the key can't be resolved (e.g. legacy untenanted processes), and correctly prefers a tenant-scoped deployment row over a coexisting legacy untenanted one for the same key.",
+          ],
+        },
+        {
+          sha: '7b50be7',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Verify the required tenant-scoped process bundle before running E2E tests',
+          details: [
+            "global-setup.ts only checked that the frontend/backend/LDE-backend dev servers were reachable, with no idea whether the right Operaton processes were actually deployed under the right tenant-ids -- a mismatch surfaced as a confusing failure deep inside an unrelated spec. Extended to query Operaton directly for the five processes this suite requires and fail fast with a clear, specific message (which key, which tenant, what to do about it) before any test runs, mirroring the existing 'start the dev stack yourself first' style. Verification only -- never deploys anything.",
+          ],
+        },
+        {
+          sha: 'c660957',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Rename the RIP R2.1 process key from RipPhase1Process to RipR21Process',
+          details: [
+            "RipPhase1Process was a generic name that didn't self-describe which Faseladder stage it belongs to; RipR21Process matches the Faseladder's own R2.1 stage code directly, the same way every other RIP phase key is expected to. Renamed end to end: the shared RIP_PHASE_KEYS catalog, both backend query filters, the frontend's start action and display-name lookup, and every test asserting on the literal key -- historical changelog entries describing what actually shipped at the time are deliberately left untouched.",
+          ],
+        },
+        {
+          sha: '6837f09',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Fix a cross-tenant data leak in RIP phase deployment-status and instance counts',
+          details: [
+            "GET /v1/rip/phases/deployment-status and /v1/rip/phases/counts sit behind tenant middleware with the caseworker's tenant available, but queried Operaton with no tenant filter at all -- getPhaseInstanceCounts in particular counted every running instance of a process-definition key globally, across every tenant, which is almost certainly the exact mechanism behind an earlier-observed Portfolio/Faseladder discrepancy (a Cockpit-started instance with no attributing variable, counted in one view's total but invisible to the other's). Fixed by threading the caseworker's tenant through to Operaton's native tenantIdIn filter on both the definition-listing and the two count queries.",
+          ],
+        },
+        {
+          sha: '21fdb14',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix two more untenanted-key lookups: getBoardOwner and getDeployedStartForm',
+          details: [
+            'Two more OperatonService call sites assumed every process definition stays reachable via Operaton\'s untenanted /process-definition/key/{key}/... shorthand -- an assumption that breaks the moment a key is deployed with a tenant-id. getBoardOwner degraded silently (wrapped in a try/catch that treats any failure as "untagged"), quietly breaking the Beheer archive\'s board split; getDeployedStartForm threw outright, breaking the citizen-facing "start a new case" flow for any newly tenant-scoped process. Both now share the same tenant-scoped-then-fallback helper startProcess already established.',
+          ],
+        },
+        {
+          sha: '0d63fc7',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'Design and implementation plan: adopt tenant-mandatory deployment across the stack',
+          details: [
+            "Full spec and implementation plan for closing the two remaining tenant-scoping gaps in OperatonService (all 53 Operaton calls read and categorized), redeploying the five active process bundles under their correct tenants, and standing up a stable, single-source-of-truth E2E test bundle at linked-data-explorer/e2e-fixtures/<tenant>/ -- replacing two pre-existing, already-diverged 'examples' locations that carried real, proven drift. Includes a manifest-integrity test on the LDE side and a matching required-processes check in this repo's own E2E global-setup.",
+            "Executed end to end against a real, live, two-tenant Operaton instance rather than unit mocks alone: two further genuine regressions were found and fixed only once real cross-tenant traffic and real tenant-scoped DMN resolution were exercised for the first time (a cross-tenant process-start lookup bug, and Operaton's DMN business-rule-task tenant resolution requiring an explicit camunda:decisionRefTenantId override for shared decision tables once the calling process itself becomes tenant-scoped) -- both confirmed via a live, throwaway empirical spike against Operaton before being applied for real, not documentation guesswork.",
+          ],
+        },
+        {
+          sha: '8176f04',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            "startProcess tries Operaton's tenant-scoped start endpoint before the untenanted one",
+          details: [
+            "The original fix motivating this whole release: RipPhase1Process (now RipR21Process) is deployed with Operaton's native tenant-id, which made it invisible to the untenanted /process-definition/key/{key}/start shorthand this method exclusively used before -- Operaton only resolves that endpoint against definitions deployed with no tenant-id at all. Starting the process from the app's own Beheer -> R2.1 -> Starten flow failed with \"is niet gevonden\", even though the Faseladder's separate, unaffected deploy-status check correctly showed it as deployed.",
+            "Fix: try the tenant-scoped start endpoint first, and fall back to the untenanted one only on Operaton's specific 'no matching process definition' response -- every process deployed before this point (and anything outside LDE's mandatory-tenant-id deploy flow) still has no tenant-id at all, so the fallback keeps those working unchanged.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.18',
       status: 'Released',
       date: '14 aug 2026',
