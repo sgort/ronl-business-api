@@ -1306,7 +1306,7 @@ Report to the user: all 5 processes deployed and verified via `global-setup.ts`;
 - **Bug A:** `startProcess`/`getDeployedStartForm` (Task 1's Gap 1 fix) scope the Operaton lookup to `req.user.tenantId` — the _citizen's own_ tenant — not the process's actual deployed tenant. Breaks `AwbZorgtoeslagProcess`, which is by-design cross-tenant (deployed only under `toeslagen`, callable by citizens of any tenant).
 - **Bug B:** the DMN tables `AwbShellProcess`/`TreeFellingPermitSubProcess`/`AwbZorgtoeslagProcess`/`ZorgtoeslagProvisionalSubProcess` depend on are deployed untenanted, but Operaton requires an _exact_ tenant match by default to resolve a business-rule-task's decision reference — confirmed empirically (see Task 10) via a live spike against this repo's own Operaton instance. This doesn't invalidate the "DMN stays tenant-agnostic" architecture decision from brainstorming; it means the BPMN side needs one explicit attribute per business-rule-task to make Operaton honor it once the _calling process_ is tenant-scoped.
 
-Tasks 9-12 below fix both and re-run this task's own verification to completion. Step 6 above is superseded by Task 12's completion report.
+Tasks 9-13 below fix both and re-run this task's own verification to completion. Step 6 above is superseded by Task 13's completion report.
 
 ---
 
@@ -1554,7 +1554,7 @@ git commit -m "fix: scope process start/start-form lookups to the process's real
 **Interfaces:**
 
 - Consumes: nothing code-level from earlier tasks — this is a BPMN-content-only fix.
-- Produces: 4 modified BPMN files that Task 11 redeploys.
+- Produces: 4 modified BPMN files that Task 12 redeploys.
 
 Confirmed by a live spike against this repo's own Operaton instance (2026-08-14): by default, a business-rule-task's `camunda:decisionRef` resolves against a decision definition under the _same_ tenant-id as the calling process instance — with no fallback to an untenanted/shared decision, even when one exists. Camunda's `camunda:decisionRefTenantId` attribute can override this, but only when set to an **EL expression that evaluates to null** (`${null}`) — a literal empty string (`""`) does **not** work; it's silently ignored and Operaton still inherits the calling process's tenant. This was proven empirically: a spike DMN deployed untenanted, called from a spike BPMN deployed under a test tenant, failed with `camunda:decisionRefTenantId` absent or `=""`, and succeeded (confirmed via a real evaluated output value) with `camunda:decisionRefTenantId="${null}"`.
 
@@ -1670,13 +1670,159 @@ git commit -m "fix: explicitly resolve shared DMN decisions as untenanted from t
 
 ---
 
-## Task 11: Manual redeploy checkpoint #2 (STOP — human action required)
+## Task 11: Mark every e2e-fixture BPMN as a fixture, visibly, on its own canvas
+
+**Files (LDE repo, `linked-data-explorer`):**
+
+- Modify: `e2e-fixtures/flevoland/AwbShellProcess.bpmn`, `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`, `e2e-fixtures/flevoland/RipR21Process.bpmn`, `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`, `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn`
+
+**Interfaces:** none — pure BPMN content addition, no code, no manifest change (file list/names/`bpmn:process id=` are untouched).
+
+The repo owner flagged that `e2e-fixtures/` files, once opened in LDE's BPMN Modeler, look identical to the general-purpose, user-editable examples in `public/examples/` — nothing on the canvas signals "this one is the frozen E2E test bundle, editing it here diverges from `ronl-business-api`'s test suite." Fix: add a visible `bpmn:textAnnotation`, connected via a `bpmn:association`, to every one of the 5 fixture files — it renders immediately on the canvas the moment the file is opened, before any deploy action. This is a pure content addition (a new flow element + its diagram-interchange shape/edge) — it does not touch any existing element, `bpmn:process id=`, or the manifest, so Task 6's `e2e-fixtures.test.ts` needs no change.
+
+`RipR21Process.bpmn` is included even though Task 10 didn't touch it (no DMN) — this concern is orthogonal to Bug B, and the annotation should mark every fixture uniformly. Its live Operaton deployment won't show the annotation until it's naturally redeployed again in the future (the annotation's purpose — distinguishing the file while browsing/importing in the Modeler, before any deploy decision is made — is already achieved by the fixture file itself carrying it); Task 12's redeploy table below stays at 2 actions, unchanged, since nothing about `RipR21Process`'s actual deployed behavior changes here.
+
+- [ ] **Step 1: Add the annotation to `e2e-fixtures/flevoland/AwbShellProcess.bpmn`**
+
+Add this as a new child of `<bpmn:process>`, placed directly after the existing `<bpmn:startEvent id="StartEvent_AWB" ...>` element's closing tag (or after its self-closing tag, whichever the file has):
+
+```xml
+    <bpmn:textAnnotation id="Annotation_E2EFixture">
+      <bpmn:text>⚠️ E2E FIXTURE — source of truth: linked-data-explorer/e2e-fixtures/. Edits here diverge from ronl-business-api's E2E test suite. See e2e-fixtures/manifest.json.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_E2EFixture" sourceRef="Annotation_E2EFixture" targetRef="StartEvent_AWB" />
+```
+
+Add the matching diagram-interchange entries as new children of the file's `<bpmndi:BPMNPlane>`, placed directly after the existing `<bpmndi:BPMNShape id="StartEvent_AWB_di" ...>` block (which has `<dc:Bounds x="160" y="299" width="36" height="36" />`):
+
+```xml
+      <bpmndi:BPMNShape id="Annotation_E2EFixture_di" bpmnElement="Annotation_E2EFixture">
+        <dc:Bounds x="100" y="120" width="320" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_E2EFixture_di" bpmnElement="Association_E2EFixture">
+        <di:waypoint x="260" y="220" />
+        <di:waypoint x="178" y="299" />
+      </bpmndi:BPMNEdge>
+```
+
+- [ ] **Step 2: Add the annotation to `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`**
+
+Same pattern, anchored to `SubStart` (DI bounds `x="152" y="182" width="36" height="36"`):
+
+```xml
+    <bpmn:textAnnotation id="Annotation_E2EFixture">
+      <bpmn:text>⚠️ E2E FIXTURE — source of truth: linked-data-explorer/e2e-fixtures/. Edits here diverge from ronl-business-api's E2E test suite. See e2e-fixtures/manifest.json.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_E2EFixture" sourceRef="Annotation_E2EFixture" targetRef="SubStart" />
+```
+
+```xml
+      <bpmndi:BPMNShape id="Annotation_E2EFixture_di" bpmnElement="Annotation_E2EFixture">
+        <dc:Bounds x="90" y="10" width="320" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_E2EFixture_di" bpmnElement="Association_E2EFixture">
+        <di:waypoint x="250" y="110" />
+        <di:waypoint x="170" y="182" />
+      </bpmndi:BPMNEdge>
+```
+
+- [ ] **Step 3: Add the annotation to `e2e-fixtures/flevoland/RipR21Process.bpmn`**
+
+Same pattern, anchored to `StartEvent_RipPhase1` (DI bounds `x="287" y="1102" width="36" height="36"`):
+
+```xml
+    <bpmn:textAnnotation id="Annotation_E2EFixture">
+      <bpmn:text>⚠️ E2E FIXTURE — source of truth: linked-data-explorer/e2e-fixtures/. Edits here diverge from ronl-business-api's E2E test suite. See e2e-fixtures/manifest.json.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_E2EFixture" sourceRef="Annotation_E2EFixture" targetRef="StartEvent_RipPhase1" />
+```
+
+```xml
+      <bpmndi:BPMNShape id="Annotation_E2EFixture_di" bpmnElement="Annotation_E2EFixture">
+        <dc:Bounds x="230" y="920" width="320" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_E2EFixture_di" bpmnElement="Association_E2EFixture">
+        <di:waypoint x="390" y="1020" />
+        <di:waypoint x="305" y="1102" />
+      </bpmndi:BPMNEdge>
+```
+
+- [ ] **Step 4: Add the annotation to `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`**
+
+Same pattern as Step 1 (this file's `StartEvent_AWB` has the identical DI bounds `x="160" y="299" width="36" height="36"`):
+
+```xml
+    <bpmn:textAnnotation id="Annotation_E2EFixture">
+      <bpmn:text>⚠️ E2E FIXTURE — source of truth: linked-data-explorer/e2e-fixtures/. Edits here diverge from ronl-business-api's E2E test suite. See e2e-fixtures/manifest.json.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_E2EFixture" sourceRef="Annotation_E2EFixture" targetRef="StartEvent_AWB" />
+```
+
+```xml
+      <bpmndi:BPMNShape id="Annotation_E2EFixture_di" bpmnElement="Annotation_E2EFixture">
+        <dc:Bounds x="100" y="120" width="320" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_E2EFixture_di" bpmnElement="Association_E2EFixture">
+        <di:waypoint x="260" y="220" />
+        <di:waypoint x="178" y="299" />
+      </bpmndi:BPMNEdge>
+```
+
+- [ ] **Step 5: Add the annotation to `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn`**
+
+Same pattern as Step 2 (this file's `SubStart` has the identical DI bounds `x="152" y="182" width="36" height="36"`):
+
+```xml
+    <bpmn:textAnnotation id="Annotation_E2EFixture">
+      <bpmn:text>⚠️ E2E FIXTURE — source of truth: linked-data-explorer/e2e-fixtures/. Edits here diverge from ronl-business-api's E2E test suite. See e2e-fixtures/manifest.json.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_E2EFixture" sourceRef="Annotation_E2EFixture" targetRef="SubStart" />
+```
+
+```xml
+      <bpmndi:BPMNShape id="Annotation_E2EFixture_di" bpmnElement="Annotation_E2EFixture">
+        <dc:Bounds x="90" y="10" width="320" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_E2EFixture_di" bpmnElement="Association_E2EFixture">
+        <di:waypoint x="250" y="110" />
+        <di:waypoint x="170" y="182" />
+      </bpmndi:BPMNEdge>
+```
+
+- [ ] **Step 6: Verify each file is still well-formed XML and unchanged everywhere else**
+
+```bash
+for f in e2e-fixtures/flevoland/AwbShellProcess.bpmn e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn e2e-fixtures/flevoland/RipR21Process.bpmn e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn; do
+  python -c "import xml.etree.ElementTree as ET; ET.parse('$f')" && echo "$f: well-formed" || echo "$f: BROKEN"
+done
+git diff --stat   # expect exactly these 5 files, small diffs each (roughly +10 lines per file)
+```
+
+- [ ] **Step 7: Run the LDE manifest-integrity test to confirm nothing else broke**
+
+Run: `cd packages/backend && npx jest src/e2e-fixtures.test.ts`
+Expected: PASS (4/4) — the annotation doesn't touch any `bpmn:process id=` attribute or file name/location, and doesn't add/remove any `camunda:formRef`/`ronl:documentRef` the manifest declares.
+
+- [ ] **Step 8: Manually open at least one file in LDE's BPMN Modeler to visually confirm the annotation renders**
+
+Import `e2e-fixtures/flevoland/AwbShellProcess.bpmn` into LDE's Modeler and confirm the warning note appears on the canvas, connected to the start event, without any XML-parse error banner. If it renders but overlaps other content or looks positioned oddly, that's a cosmetic nicety to nudge in the Modeler — not a blocker for this task, since the annotation still functions and is visible either way.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add e2e-fixtures/flevoland/AwbShellProcess.bpmn e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn e2e-fixtures/flevoland/RipR21Process.bpmn e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn
+git commit -m "docs: mark every e2e-fixtures BPMN with a visible on-canvas fixture warning"
+```
+
+---
+
+## Task 12: Manual redeploy checkpoint #2 (STOP — human action required)
 
 Like Task 7, this has no code changes and cannot be executed by an implementer subagent. `RipR21Process` needs no redeploy (no DMN reference, untouched by Task 10) — only the two grouped actions whose BPMN content actually changed.
 
 - [ ] **Step 1: Stop and hand off to the user**
 
-Report: "Tasks 9-10 are complete, committed, and green. Two of the three process bundles need a fresh redeploy to pick up Task 10's `decisionRefTenantId` fix — `RipR21Process` is unaffected. Please redeploy the two below via LDE's BPMN Modeler, then confirm."
+Report: "Tasks 9-11 are complete, committed, and green. Two of the three process bundles need a fresh redeploy to pick up Task 10's `decisionRefTenantId` fix (and Task 11's fixture-warning annotation, for the two that changed) — `RipR21Process` is unaffected functionally, though its fixture file also now carries the annotation for whenever it's next redeployed. Please redeploy the two below via LDE's BPMN Modeler, then confirm."
 
 - [ ] **Step 2 (user, manual): Redeploy the two affected bundles**
 
@@ -1689,11 +1835,11 @@ Same procedure as Task 7: import both files of each action into the same Modeler
 
 - [ ] **Step 3 (user, manual): Confirm back to proceed**
 
-Once both are redeployed, tell the implementer/agent to proceed to Task 12.
+Once both are redeployed, tell the implementer/agent to proceed to Task 13.
 
 ---
 
-## Task 12: Final E2E re-verification
+## Task 13: Final E2E re-verification
 
 Re-run exactly what Task 8 ran, now that Tasks 9-11 have landed.
 
