@@ -188,6 +188,16 @@ describe('getDeployedProcessKeys', () => {
 
     await expect(svc.getDeployedProcessKeys(['RipPhase1Process'])).rejects.toThrow('boom');
   });
+
+  it('adds tenantIdIn to the query when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ key: 'RipPhase1Process' }] });
+
+    await svc.getDeployedProcessKeys(['RipPhase1Process'], 'flevoland');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { keysIn: 'RipPhase1Process', latestVersion: true, tenantIdIn: 'flevoland' },
+    });
+  });
 });
 
 describe('getPhaseInstanceCounts', () => {
@@ -233,6 +243,19 @@ describe('getPhaseInstanceCounts', () => {
     mockClient.get.mockRejectedValue(new Error('boom'));
 
     await expect(svc.getPhaseInstanceCounts(['RipPhase1Process'])).rejects.toThrow('boom');
+  });
+
+  it('adds tenantIdIn to both count queries when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: { count: 1 } });
+
+    await svc.getPhaseInstanceCounts(['RipPhase1Process'], 'flevoland');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance/count', {
+      params: { processDefinitionKey: 'RipPhase1Process', tenantIdIn: 'flevoland' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/count', {
+      params: { processDefinitionKey: 'RipPhase1Process', finished: true, tenantIdIn: 'flevoland' },
+    });
   });
 });
 

@@ -54,7 +54,7 @@ router.get('/phases/deployment-status', async (req, res) => {
   }
   try {
     const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
-    const deployedKeys = await operatonService.getDeployedProcessKeys(keys);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(keys, req.user.tenantId);
     res.json({ success: true, data: { deployedKeys } });
   } catch (error) {
     logger.error('Failed to fetch RIP phase deployment status', {
@@ -84,8 +84,8 @@ router.get('/phases/counts', async (req, res) => {
   }
   try {
     const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
-    const deployedKeys = await operatonService.getDeployedProcessKeys(keys);
-    const counts = await operatonService.getPhaseInstanceCounts(deployedKeys);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(keys, req.user.tenantId);
+    const counts = await operatonService.getPhaseInstanceCounts(deployedKeys, req.user.tenantId);
     res.json({ success: true, data: { counts } });
   } catch (error) {
     logger.error('Failed to fetch RIP phase instance counts', {

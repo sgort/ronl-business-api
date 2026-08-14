@@ -112,16 +112,21 @@ export class OperatonService {
    * actually deployed on this environment's Operaton instance. One query
    * regardless of how many keys are asked about.
    */
-  async getDeployedProcessKeys(keys: string[]): Promise<string[]> {
+  async getDeployedProcessKeys(keys: string[], tenantId?: string): Promise<string[]> {
     try {
       const response = await this.client.get('/process-definition', {
-        params: { keysIn: keys.join(','), latestVersion: true },
+        params: {
+          keysIn: keys.join(','),
+          latestVersion: true,
+          ...(tenantId ? { tenantIdIn: tenantId } : {}),
+        },
       });
       const found = new Set((response.data as Array<{ key: string }>).map((d) => d.key));
       return keys.filter((k) => found.has(k));
     } catch (error) {
       logger.error('Failed to query deployed process keys', {
         keys,
+        tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
@@ -134,16 +139,21 @@ export class OperatonService {
    * Count-only queries — no instance payloads.
    */
   async getPhaseInstanceCounts(
-    keys: string[]
+    keys: string[],
+    tenantId?: string
   ): Promise<Record<string, { wip: number; gereed: number }>> {
     const entries = await Promise.all(
       keys.map(async (key) => {
         const [wipRes, gereedRes] = await Promise.all([
           this.client.get('/process-instance/count', {
-            params: { processDefinitionKey: key },
+            params: { processDefinitionKey: key, ...(tenantId ? { tenantIdIn: tenantId } : {}) },
           }),
           this.client.get('/history/process-instance/count', {
-            params: { processDefinitionKey: key, finished: true },
+            params: {
+              processDefinitionKey: key,
+              finished: true,
+              ...(tenantId ? { tenantIdIn: tenantId } : {}),
+            },
           }),
         ]);
         return [key, { wip: wipRes.data.count, gereed: gereedRes.data.count }] as const;

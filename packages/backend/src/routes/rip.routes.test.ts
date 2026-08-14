@@ -95,7 +95,7 @@ describe('GET /phases/deployment-status', () => {
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ deployedKeys: ['RipPhase1Process'] });
-    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(['RipPhase1Process']);
+    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(['RipPhase1Process'], 'flevoland');
   });
 
   it('500 with DEPLOYMENT_STATUS_FAILED on service failure', async () => {
@@ -120,7 +120,7 @@ describe('GET /phases/counts', () => {
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ counts: { RipPhase1Process: { wip: 3, gereed: 7 } } });
-    expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipPhase1Process']);
+    expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipPhase1Process'], 'flevoland');
   });
 
   it('500 with PHASE_COUNTS_FAILED on service failure', async () => {
