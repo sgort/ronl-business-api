@@ -3,6 +3,7 @@ import {
   allSearchableSections,
   findModeForSection,
   isRailItemVisible,
+  MODES,
   tenantSectionIdsFrom,
   type GateContext,
   type RailItem,
@@ -112,5 +113,55 @@ describe('allSearchableSections', () => {
     expect(ids).toContain('taken');
     expect(ids).toContain('berichten');
     expect(ids).toContain('profiel');
+  });
+});
+
+describe('simulatie mode', () => {
+  it('exists between zoeken and beheer', () => {
+    const ids = MODES.map((m) => m.id);
+    const zoekenIdx = ids.indexOf('zoeken');
+    const beheerIdx = ids.indexOf('beheer');
+    const simIdx = ids.indexOf('simulatie');
+    expect(simIdx).toBeGreaterThan(zoekenIdx);
+    expect(simIdx).toBeLessThan(beheerIdx);
+  });
+
+  it('has a single regelsimulatie rail item as its default section', () => {
+    const mode = MODES.find((m) => m.id === 'simulatie')!;
+    expect(mode.defaultSectionId).toBe('regelsimulatie');
+    const allIds = mode.groups.flatMap((g) => g.items.map((i) => i.id));
+    expect(allIds).toEqual(['regelsimulatie']);
+  });
+
+  it('regelsimulatie requires authentication', () => {
+    const item = MODES.find((m) => m.id === 'simulatie')!.groups[0].items[0];
+    expect(item.authRequired).toBe(true);
+  });
+
+  it('regelsimulatie is visible to a signed-in user regardless of tenant config, and hidden when signed out', () => {
+    const item = MODES.find((m) => m.id === 'simulatie')!.groups[0].items[0];
+    // tenantSectionIds loaded, but doesn't list 'regelsimulatie' (as no real
+    // tenants.json does yet) — must still be visible because it's shell-global.
+    const tenantSectionIds = new Set(['berichten', 'nieuws']);
+    expect(
+      isRailItemVisible(item, {
+        isAuthenticated: true,
+        userRoles: [],
+        userOrgType: null,
+        tenantSectionIds,
+      })
+    ).toBe(true);
+    expect(
+      isRailItemVisible(item, {
+        isAuthenticated: false,
+        userRoles: [],
+        userOrgType: null,
+        tenantSectionIds,
+      })
+    ).toBe(false);
+  });
+
+  it('findModeForSection resolves regelsimulatie to simulatie', () => {
+    expect(findModeForSection('regelsimulatie')).toBe('simulatie');
   });
 });

@@ -1,0 +1,151 @@
+/* Regelsimulatie styling — ported unchanged from docs/regelsimulatie-handoff/reference/shared/sim.css. Scoped under .cwd-v2; all colors/spacing/type reference that file's existing tokens. Do not add new colors here — see docs/superpowers/specs/2026-08-13-regelsimulatie-design.md. */
+/* ============================================================
+   Regelsimulatie — scoped styles (.cwd-v2 .sim-*)
+   Reuses the V2 token set already declared on .cwd-v2.
+   ============================================================ */
+
+.cwd-v2 .sim {
+  --sim-hold: #7c3aed;               /* bezwaar-hold violet, distinct from chrome/accent */
+  font-family: var(--v2-sans);
+  color: var(--v2-ink);
+}
+
+/* ---- head ---------------------------------------------- */
+.cwd-v2 .sim-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 18px; flex-wrap: wrap; }
+.cwd-v2 .sim-head .sim-lede { max-width: 64ch; color: var(--v2-ink-2); font-size: 14px; line-height: 1.55; margin: 10px 0 0; }
+.cwd-v2 .sim-badges { display: flex; flex-direction: column; gap: 7px; align-items: flex-end; flex-shrink: 0; }
+.cwd-v2 .sim-badge {
+  font-family: var(--v2-mono); font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase;
+  border: 1px solid #bcd0f5; background: #eef4fe; color: var(--v2-chrome); padding: 4px 10px; white-space: nowrap;
+}
+.cwd-v2 .sim-badge.dmn { border-color: #c3e6cd; background: #f1f9f3; color: var(--v2-green); }
+.cwd-v2 .sim-badge.mock { border-color: #f3dca0; background: #fff8e8; color: #9a7b00; }
+
+/* ---- control bar --------------------------------------- */
+.cwd-v2 .sim-controlbar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--v2-paper); border: 1px solid var(--v2-rule-2); padding: 12px 16px; margin-bottom: 16px;
+}
+.cwd-v2 .sim-btn {
+  font-family: var(--v2-sans); font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--v2-chrome); color: #fff; border: none; padding: 9px 18px; display: inline-flex; align-items: center; gap: 8px;
+}
+.cwd-v2 .sim-btn:hover { background: var(--v2-chrome-d); }
+.cwd-v2 .sim-btn.ghost { background: transparent; color: var(--v2-ink-2); border: 1px solid var(--v2-rule); }
+.cwd-v2 .sim-btn.ghost:hover { border-color: var(--v2-chrome); color: var(--v2-chrome); }
+.cwd-v2 .sim-datepill {
+  font-family: var(--v2-mono); font-size: 12px; font-weight: 600; color: var(--v2-ink);
+  background: var(--v2-bg); border: 1px solid var(--v2-rule-2); padding: 7px 12px; white-space: nowrap;
+}
+.cwd-v2 .sim-datepill .yr { color: var(--v2-accent); }
+.cwd-v2 .sim-modepill {
+  font-family: var(--v2-mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 3px 8px; border: 1px solid var(--v2-rule); color: var(--v2-ink-3);
+}
+.cwd-v2 .sim-modepill.split { border-color: #bcd0f5; background: #eef4fe; color: var(--v2-chrome); }
+.cwd-v2 .sim-modepill.bundled { border-color: #c3e6cd; background: #f1f9f3; color: var(--v2-green); }
+.cwd-v2 .sim-scrub { flex: 1; min-width: 220px; display: flex; align-items: center; gap: 10px; }
+.cwd-v2 .sim-scrub input[type="range"] { flex: 1; accent-color: var(--v2-chrome); min-width: 120px; }
+.cwd-v2 .sim-speed { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--v2-ink-3); }
+.cwd-v2 .sim-speed input[type="range"] { width: 90px; accent-color: var(--v2-accent); }
+
+/* ---- layout grid --------------------------------------- */
+.cwd-v2 .sim-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1120px) { .cwd-v2 .sim-grid { grid-template-columns: 1fr; } }
+
+.cwd-v2 .sim-card { background: var(--v2-paper); border: 1px solid var(--v2-rule-2); padding: 18px 20px; }
+.cwd-v2 .sim-card + .sim-card { margin-top: 16px; }
+.cwd-v2 .sim-card h2 {
+  font-family: var(--v2-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--v2-ink-3); margin: 0 0 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+}
+.cwd-v2 .sim-card h2 .h2-note { font-family: var(--v2-mono); font-size: 10.5px; letter-spacing: 0; text-transform: none; color: var(--v2-ink-4, #9ca3af); font-weight: 500; }
+
+/* ---- metric strip -------------------------------------- */
+.cwd-v2 .sim-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--v2-rule-2); border: 1px solid var(--v2-rule-2); margin-bottom: 16px; }
+.cwd-v2 .sim-metric { background: var(--v2-paper); padding: 12px 14px; }
+.cwd-v2 .sim-metric .m-label { font-family: var(--v2-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--v2-ink-3); margin-bottom: 6px; }
+.cwd-v2 .sim-metric .m-value { font-family: var(--v2-serif); font-size: 22px; font-weight: 700; color: var(--v2-ink); letter-spacing: -0.02em; line-height: 1; }
+.cwd-v2 .sim-metric.accent .m-value { color: var(--v2-accent); }
+.cwd-v2 .sim-metric.green .m-value { color: var(--v2-green); }
+.cwd-v2 .sim-metric.hold .m-value { color: var(--sim-hold); }
+.cwd-v2 .sim-metric .m-sub { font-family: var(--v2-mono); font-size: 10px; color: var(--v2-ink-3); margin-top: 4px; }
+
+/* ---- budget bars --------------------------------------- */
+.cwd-v2 .sim-pot { margin-bottom: 16px; }
+.cwd-v2 .sim-pot:last-child { margin-bottom: 0; }
+.cwd-v2 .sim-pot-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 12px; }
+.cwd-v2 .sim-pot-name { font-size: 13px; font-weight: 600; color: var(--v2-ink); }
+.cwd-v2 .sim-pot-name .tag { font-family: var(--v2-mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--v2-ink-3); margin-left: 8px; }
+.cwd-v2 .sim-pot-fig { font-family: var(--v2-mono); font-size: 11.5px; color: var(--v2-ink-2); }
+.cwd-v2 .sim-pot-fig b { color: var(--v2-ink); }
+.cwd-v2 .sim-bar { height: 30px; width: 100%; background: var(--v2-bg); border: 1px solid var(--v2-rule-2); display: flex; overflow: hidden; }
+.cwd-v2 .sim-seg { height: 100%; flex-shrink: 0; transition: width 200ms ease; display: flex; align-items: center; justify-content: center; font-family: var(--v2-mono); font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.cwd-v2 .sim-seg.used { background: var(--v2-chrome); color: #fff; }
+.cwd-v2 .sim-seg.over { background: repeating-linear-gradient(135deg, var(--v2-overdue) 0 6px, #c93258 6px 12px); color: #fff; }
+.cwd-v2 .sim-seg.hold { background: repeating-linear-gradient(135deg, var(--sim-hold) 0 6px, #9166f0 6px 12px); color: #fff; }
+.cwd-v2 .sim-seg.free { background: transparent; color: var(--v2-ink-3); }
+.cwd-v2 .sim-ceilmark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--v2-ink); }
+.cwd-v2 .sim-ceilmark::after { content: 'plafond'; position: absolute; top: -14px; left: 3px; font-family: var(--v2-mono); font-size: 8.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--v2-ink); }
+.cwd-v2 .sim-bar.exhausted { border-color: var(--v2-overdue); box-shadow: inset 0 0 0 1px var(--v2-overdue); }
+
+/* exhaustion callout */
+.cwd-v2 .sim-exhaust {
+  display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 16px;
+  border-left: 3px solid var(--v2-overdue); background: color-mix(in srgb, var(--v2-overdue) 7%, white);
+}
+.cwd-v2 .sim-exhaust.safe { border-left-color: var(--v2-green); background: #f1f9f3; }
+.cwd-v2 .sim-exhaust .x-mark { font-family: var(--v2-mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--v2-overdue); flex-shrink: 0; }
+.cwd-v2 .sim-exhaust.safe .x-mark { color: var(--v2-green); }
+.cwd-v2 .sim-exhaust .x-body { font-size: 13px; color: var(--v2-ink-2); line-height: 1.5; }
+.cwd-v2 .sim-exhaust .x-body b { color: var(--v2-ink); }
+
+/* ---- depletion chart ----------------------------------- */
+.cwd-v2 .sim-chart { width: 100%; display: block; }
+.cwd-v2 .sim-chart .axis-line { stroke: var(--v2-rule-2); stroke-width: 1; }
+.cwd-v2 .sim-chart .axis-lbl { font-family: var(--v2-mono); font-size: 10px; fill: var(--v2-ink-3); }
+.cwd-v2 .sim-chart .yr-div { stroke: var(--v2-rule); stroke-width: 1; stroke-dasharray: 3 3; }
+.cwd-v2 .sim-chart .period-div { stroke: var(--v2-rule-2); stroke-width: 1; stroke-dasharray: 2 4; }
+.cwd-v2 .sim-chart .today { stroke: var(--v2-accent); stroke-width: 1.5; }
+.cwd-v2 .sim-chart .exhaust-mark { stroke: var(--v2-overdue); stroke-width: 1.5; }
+.cwd-v2 .sim-chartlegend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--v2-ink-2); }
+.cwd-v2 .sim-chartlegend span { display: inline-flex; align-items: center; gap: 6px; }
+.cwd-v2 .sim-chartlegend i { width: 14px; height: 3px; display: inline-block; }
+
+/* ---- outcome bars -------------------------------------- */
+.cwd-v2 .sim-outcome { display: flex; flex-direction: column; gap: 9px; }
+.cwd-v2 .sim-orow { display: grid; grid-template-columns: 168px 1fr 52px; gap: 12px; align-items: center; }
+.cwd-v2 .sim-orow .o-name { font-size: 12.5px; color: var(--v2-ink-2); display: flex; align-items: center; gap: 8px; }
+.cwd-v2 .sim-orow .o-dot { width: 9px; height: 9px; flex-shrink: 0; display: inline-block; }
+.cwd-v2 .sim-orow .o-track { height: 12px; background: var(--v2-bg); border: 1px solid var(--v2-rule-2); overflow: hidden; }
+.cwd-v2 .sim-orow .o-fill { height: 100%; transition: width 200ms ease; }
+.cwd-v2 .sim-orow .o-val { font-family: var(--v2-mono); font-size: 12px; color: var(--v2-ink); text-align: right; }
+
+/* ---- feed ---------------------------------------------- */
+.cwd-v2 .sim-feed { display: flex; flex-direction: column; gap: 0; max-height: 420px; overflow: auto; border: 1px solid var(--v2-rule-2); }
+.cwd-v2 .sim-fitem { display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--v2-rule-2); background: var(--v2-paper); }
+.cwd-v2 .sim-fitem:last-child { border-bottom: none; }
+.cwd-v2 .sim-fitem .f-badge { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-family: var(--v2-mono); font-size: 11px; font-weight: 700; color: #fff; }
+.cwd-v2 .sim-fitem .f-title { font-size: 13px; font-weight: 600; color: var(--v2-ink); }
+.cwd-v2 .sim-fitem .f-sub { font-family: var(--v2-mono); font-size: 10.5px; color: var(--v2-ink-3); margin-top: 2px; line-height: 1.45; }
+.cwd-v2 .sim-fitem .f-amt { font-family: var(--v2-mono); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }
+.cwd-v2 .sim-fitem .f-type { font-family: var(--v2-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 5px; border: 1px solid var(--v2-rule); color: var(--v2-ink-3); margin-left: 6px; }
+.cwd-v2 .sim-feed-empty { padding: 28px; text-align: center; color: var(--v2-ink-3); font-size: 13px; }
+
+/* status accent colours reused */
+.cwd-v2 .c-chrome { color: var(--v2-chrome); } .cwd-v2 .bg-chrome { background: var(--v2-chrome); }
+.cwd-v2 .c-green { color: var(--v2-green); } .cwd-v2 .bg-green { background: var(--v2-green); }
+.cwd-v2 .c-amber { color: #9a7b00; } .cwd-v2 .bg-amber { background: var(--v2-amber); }
+.cwd-v2 .c-over { color: var(--v2-overdue); } .cwd-v2 .bg-over { background: var(--v2-overdue); }
+.cwd-v2 .c-hold { color: var(--sim-hold); } .cwd-v2 .bg-hold { background: var(--sim-hold); }
+.cwd-v2 .bg-ink3 { background: var(--v2-ink-3); }
+
+/* ---- tweak drawer -------------------------------------- */
+.cwd-v2 .sim-tweaks { background: var(--v2-bg); border: 1px solid var(--v2-rule-2); padding: 16px 18px; margin-bottom: 16px; }
+.cwd-v2 .sim-tweaks h3 { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--v2-ink-3); margin: 0 0 14px; }
+.cwd-v2 .sim-tweakgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 22px; }
+.cwd-v2 .sim-tweak label { display: block; font-size: 12px; color: var(--v2-ink-2); margin-bottom: 6px; }
+.cwd-v2 .sim-tweak .tk-val { font-family: var(--v2-mono); font-size: 12px; color: var(--v2-ink); font-weight: 600; }
+.cwd-v2 .sim-tweak input[type="range"] { width: 100%; accent-color: var(--v2-chrome); }
+.cwd-v2 .sim-tweak-foot { margin-top: 12px; font-family: var(--v2-mono); font-size: 10.5px; color: var(--v2-ink-3); }
+.cwd-v2 .sim-collapse { background: none; border: none; color: var(--v2-chrome); font-family: var(--v2-mono); font-size: 11px; cursor: pointer; padding: 0; }

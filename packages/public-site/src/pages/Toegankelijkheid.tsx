@@ -31,8 +31,8 @@ export default function Toegankelijkheid({ lang }: { lang: Lang }) {
           </li>
           <li>
             {nl
-              ? 'Zichtbare focusindicator (2px zwart + geel) op elk interactief element.'
-              : 'A visible focus indicator (2px black + yellow) on every interactive element.'}
+              ? 'Zichtbare focusindicator (2px zwart + geel; formuliervelden 2px zwart + blauw) op elk interactief element.'
+              : 'A visible focus indicator (2px black + yellow; 2px black + blue on form fields) on every interactive element.'}
           </li>
           <li>
             {nl

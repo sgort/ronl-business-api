@@ -1,11 +1,45 @@
 // packages/public-site/scripts/prerender.test.ts
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, buildSitemap, injectIntoShell } from './prerender';
+import { escapeHtml, buildSitemap, injectIntoShell, rewriteSocialCardOrigin } from './prerender';
 
 describe('escapeHtml', () => {
   it('escapes the five XML/HTML-sensitive characters', () => {
     expect(escapeHtml(`<a href="x">B & "C" 'D'</a>`)).toBe(
       '&lt;a href=&quot;x&quot;&gt;B &amp; &quot;C&quot; &#39;D&#39;&lt;/a&gt;'
+    );
+  });
+});
+
+describe('rewriteSocialCardOrigin', () => {
+  const shell = `<!doctype html><html lang="nl"><head>
+      <meta property="og:url" content="https://publiek.open-regels.nl/" />
+      <meta property="og:image" content="https://publiek.open-regels.nl/og-open-regels.png" />
+      <meta property="og:image:width" content="1200" />
+    </head><body></body></html>`;
+
+  it('rewrites og:url and og:image to the given origin, on production input', () => {
+    const html = rewriteSocialCardOrigin(shell, 'https://acc.publiek.open-regels.nl');
+    expect(html).toContain('property="og:url" content="https://acc.publiek.open-regels.nl/"');
+    expect(html).toContain(
+      'property="og:image" content="https://acc.publiek.open-regels.nl/og-open-regels.png"'
+    );
+  });
+
+  it('leaves unrelated tags (e.g. og:image:width) untouched', () => {
+    const html = rewriteSocialCardOrigin(shell, 'https://acc.publiek.open-regels.nl');
+    expect(html).toContain('property="og:image:width" content="1200"');
+  });
+
+  it('is a no-op when the origin already is the production one', () => {
+    const html = rewriteSocialCardOrigin(shell, 'https://publiek.open-regels.nl');
+    expect(html).toBe(shell);
+  });
+
+  it('rewrites to the local dev origin too', () => {
+    const html = rewriteSocialCardOrigin(shell, 'http://localhost:5175');
+    expect(html).toContain('property="og:url" content="http://localhost:5175/"');
+    expect(html).toContain(
+      'property="og:image" content="http://localhost:5175/og-open-regels.png"'
     );
   });
 });

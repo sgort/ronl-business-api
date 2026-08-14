@@ -93,6 +93,343 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.18',
+      status: 'Released',
+      date: '14 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '38534c4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Scope the persisted playback day per caseworker',
+          details: [
+            'The simulation restored both scenario parameters and the current playback day from one shared localStorage key on every reload — so a caseworker opening the page for what felt like the first time could land on a fully-played-through simulation (day 719/719) left behind by an earlier visit, in that browser or by someone else.',
+            "Split persistence: scenario parameters stay under the existing shared key — there's no per-user meaning to a set of sliders. The playback day now lives under a key scoped by the caseworker's stable Keycloak sub. A different caseworker — or the same one signed in for the first time — always starts at day 0; each caseworker keeps their own position across their own reloads. True per-login-session reset would need a session identifier this codebase doesn't currently expose anywhere; out of scope here.",
+          ],
+        },
+        {
+          sha: '8f72497',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Rename the Regelsimulatie rail item to Subsidie thuisbatterij',
+          details: [
+            "The rail label 'Regelsimulatie' named the section type, not the specific scheme it shows. Since the Simulatie mode is deliberately built to hold more than one simulation later, the rail item needs the specific scheme's name so a second simulation doesn't collide with an equally generic sibling label.",
+            "Renamed the rail item and the in-page breadcrumb (previously a separate hardcoded string) to 'Subsidie thuisbatterij' for consistency. The page's own h1 and the internal section id are unchanged.",
+          ],
+        },
+        {
+          sha: 'a73c14a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Apply final review fixes: slider freeze, accessible labels, format/clamp corrections',
+          details: [
+            "The final whole-branch review found a genuine multi-second main-thread freeze while dragging a parameter slider at settings the UI itself exposes (population near its max, RFI chance near its max) — each drag step fired a full engine run synchronously. Fixed by decoupling a slider's visual position from when its value actually commits (on release, not on every step).",
+            'Also added the type="button" attribute and accessible slider labels the design spec required but two tasks had each partially missed, corrected a silent trailing-zero formatting divergence from the reference, clamped a restored-from-storage scenario value to its slider\'s declared range, and corrected the SDD ledger\'s own reasoning about a performance-test flake it had wrongly called pre-existing.',
+          ],
+        },
+        {
+          sha: 'f841591',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Wire Regelsimulatie into the V2 shell',
+          details: [
+            'Added the Simulatie mode (between Zoeken and Beheer), a Regelsimulatie rail item gated behind two independent access-control checks (a per-item auth requirement and a separate tenant-visibility gate), the SectionRouter dispatch line, and the CSS import.',
+          ],
+        },
+        {
+          sha: '451dc7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the RegelSimulatie section component',
+          details: [
+            'The section shell tying the engine and every sub-component together: the header, the collapsible scenario-parameter panel (15 sliders), the playback control bar, and the two-column card layout. Recomputes the simulation only when a parameter actually changes, never while scrubbing the timeline.',
+          ],
+        },
+        {
+          sha: 'de8879b',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add SimMissedPanel',
+          details: [
+            "The 'Geldige aanvragen die misliepen' panel: three filters (RFI priority-shift, successful appeal, all unpaid) over a per-application timeline showing submission, processing, the optional information-request pause, and the decision.",
+          ],
+        },
+        {
+          sha: 'b2a6f3e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add SimChart',
+          details: [
+            'The saw-tooth budget-over-time chart, hand-rolled SVG with no charting library: free vs. reserved budget, split and merged pot phases, exhaustion markers, and the current-day indicator.',
+          ],
+        },
+        {
+          sha: '4bc3402',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Move Regelsimulatie's formatters into their own module",
+          details: [
+            "simEur()/simEurK() lived in SimPot.tsx alongside its component export, which breaks Vite's react-refresh assumption that a component file exports only components. Extracted both into a dedicated simFormat.ts.",
+          ],
+        },
+        {
+          sha: '304be78',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Add Regelsimulatie's presentational primitives",
+          details: [
+            'SimPot (one budget pot bar), SimOutcomeRow (one outcome bar row), and SimTweak (one parameter slider) — the small, reusable pieces the section component assembles.',
+          ],
+        },
+        {
+          sha: 'b4ce84e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Port Regelsimulatie's styling",
+          details: [
+            'The dedicated stylesheet ported unchanged, scoped under the existing .cwd-v2 design tokens — no new colors.',
+          ],
+        },
+        {
+          sha: 'ed13bae',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Disclose and test the beroepDisplacerId effDay deviation',
+          details: [
+            "Review found the port's appeal-displacement attribution logic (which appeal \"displaced\" a given application) uses a real field where the reference compares against a field that's never actually set on the object type involved, making that branch permanently dead code there. The port's version is more correct — it can pick the nearest-preceding appeal winner instead of always the pool's overall minimum — and was confirmed with the project owner as the intended behavior, not a bug to revert. It only affects which application id is shown in one caption; no totals or payment outcomes depend on it. Added a disclosure comment and a test that proves the two strategies actually diverge.",
+          ],
+        },
+        {
+          sha: '9c3d7ea',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Regelsimulatie engine',
+          details: [
+            "A deterministic, pure TypeScript port of the Flevoland home-battery subsidy's budget-exhaustion simulation: entitlement rules, amount calculation, split/merged budget pools with a 1 October boundary and year-to-year carry-over, first-come-first-served allocation with no back-fill once a pool seals, and two counterfactual re-runs isolating how much of the unpaid total is attributable to an information-request delay versus a successful appeal.",
+            '22 tests cover determinism, amount boundaries, entitlement precedence, resolver sealing and priority ordering, full-run bookkeeping invariants, the budget-year-is-submission-year rule, both counterfactuals, and a performance budget (under 250ms for the default 3,150-application population).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.17',
+      status: 'Released',
+      date: '14 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: 'ad46260',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Correct the RIP pipeline stage note about rule sets per competent authority',
+          details: [
+            "The 'Verifiëren & live' pipeline stage's note said the citizen sees one environment behind which are always two rule sets from two competent authorities. Corrected to 'one or more rule sets from corresponding competent authorities' — not every deployment involves exactly two authorities.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.16',
+      status: 'Released',
+      date: '13 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '4bebd24',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Scroll the trail bar into view when the displayed concept changes',
+          details: [
+            "Selecting a concept in the list, drilling into a chip, clicking a trail segment, or Begin opnieuw can all change which concept's trace is shown without the page scrolling — if the user was scrolled down into a long trace, the new concept's own trail bar and header could land off-screen with nothing visible telling them what changed.",
+            "Extracted the jump buttons' existing scroll-to-id helper into a shared herkomstScroll.ts, and HerkomstExplorer now calls it on every concept change (skipping the initial mount, since there's nothing to scroll to yet).",
+          ],
+        },
+        {
+          sha: '53f2cdb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Correct three legal citations in the Herkomst content',
+          details: [
+            'Leeftijd: the Wet op de zorgtoeslag citation was art. 1 lid 1 onder b, corrected to onder c.',
+            "BSN: wet.tekst was a paraphrase; replaced with the exact statutory text of Wet algemene bepalingen burgerservicenummer art. 8 lid 1 (who assigns a BSN, and when), with the bron citation corrected from art. 1 to art. 8 lid 1 and the '— parafrase' suffix dropped since it's now an exact quote.",
+            "Datum berekening: wet.tekst was likewise a paraphrase; replaced with the exact 'berekeningsjaar' definition from Algemene wet inkomensafhankelijke regelingen art. 2 Definities, lid 1 onderdeel b, with bron corrected accordingly. All three citations provided by the content owner.",
+          ],
+        },
+        {
+          sha: 'e3edffe',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Prerender /herkomst its own static HTML file',
+          details: [
+            "/herkomst was in the sitemap urls array but had no writeRoute() call, unlike every other route with real content (berichten, nieuws, producten, regels, processen) — so a crawler or link-preview scraper that doesn't execute JS got the homepage's title/description via Azure's SPA navigationFallback instead of Herkomst's own.",
+            "Title, description and a crawlable summary are sourced directly from the page's own content module (herkomstData.ts, herkomstConcepts.ts) so the prerendered summary stays in sync with Herkomst.tsx automatically. Verified against a real build:acc output.",
+          ],
+        },
+        {
+          sha: '24b535a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Scope the social card's og:url/og:image to the actual deploy origin",
+          details: [
+            "index.html hardcodes og:url and og:image to the production domain (publiek.open-regels.nl), since a static file can't know its own deploy target. On ACC that pointed the image at a domain that isn't deployed yet, so link-preview scrapers (WhatsApp confirmed) fetched a dead URL and silently dropped the image.",
+            'Root-caused with direct evidence: publiek.open-regels.nl/og-open-regels.png returns nothing (domain not live), while acc.publiek.open-regels.nl/og-open-regels.png returns 200. Fixed by reusing the SITE_ORIGIN map prerender.ts already has for the canonical link, rewriting both meta tags to the correct origin once per build so every prerendered route inherits the fix.',
+          ],
+        },
+        {
+          sha: '27e34b8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Move nextTrail to its own module, fix react-refresh warning',
+          details: [
+            "HerkomstExplorer.tsx exported both a component (default) and a plain function (nextTrail), which breaks Vite's react-refresh assumption that a component file only exports components — surfaced as an eslint react-refresh/only-export-components warning that npm run format doesn't catch.",
+            'Moved nextTrail to its own herkomstTrail.ts module with its own test, matching the pattern herkomstConcepts.ts/herkomstData.ts already established for non-component logic in this feature.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.15',
+      status: 'Released',
+      date: '12 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '5b86857',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Open Graph / Twitter social card',
+          details: [
+            "Sitewide og:*/twitter: meta tags in index.html plus the 1200×630 og-open-regels.png asset, per the design handoff's social card addition. Resolves both deploy caveats the handoff flagged up front rather than leaving them as placeholders: og:url and og:image are absolute, using the real production domain (publiek.open-regels.nl) instead of the prototype's placeholder.",
+            'Confirmed sitewide, not per-page, is correct: the prerender script only ever swaps <title>/<meta name="description">, never touches og:*/twitter: tags, so every prerendered route already carries the same card.',
+          ],
+        },
+        {
+          sha: '9d920d3',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Apply final-review fixes: ARIA roles, sitemap registration, breadcrumb nav',
+          details: [
+            'The final whole-branch review of the Herkomst feature found three real gaps a task-scoped review could not have caught: the deliberate accessibility improvement (associating track headers with their cells) was implemented via aria-labelledby on plain divs, which ARIA prohibits on the role=generic a bare div computes to — so it likely never reached assistive tech; fixed by adding role="group" to all eight cells. /herkomst was never registered in the sitemap/prerender pipeline, since no task had that file in scope. And the drill-down trail was a bare div where the spec required a real breadcrumb nav landmark.',
+          ],
+        },
+        {
+          sha: '17e4295',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Herkomst page, route and nav item',
+          details: [
+            'Wires the six previously built components into an actual page at /herkomst: the page shell (breadcrumb, page head, jump links to the background sections), the route in App.tsx, the nav item after Gegevenswoordenboek, and a HERKOMST_PATH constant mirroring the existing WOORDENBOEK_PATH pattern.',
+          ],
+        },
+        {
+          sha: 'e15c9c0',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Test the trail's no-op guard directly, not via the UI",
+          details: [
+            'Test 7 clicked the nav list button as its second action (setTrail([id])), not a chip drill-down (open(id)), so it exercised the wrong code path and would still pass with the no-op guard deleted. No concept in herkomstConcepts.ts self-references, so the guard is unreachable via any real UI click sequence. Extracted the trail-update logic as an exported pure function (nextTrail) and unit-tested it directly instead.',
+          ],
+        },
+        {
+          sha: '950d00c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstExplorer',
+          details: [
+            "The concept list, drill-down trail and trace panel, tying the feature's pieces into one interactive view. Owns the trail state: selecting a concept in the list resets it, drilling into a chip pushes onto it (a no-op if you're already on that concept), trail segments truncate to that depth, and Begin opnieuw resets to the first concept.",
+          ],
+        },
+        {
+          sha: 'd965ce1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstBackground',
+          details: [
+            'The grey background band below the trace: the four-stage pipeline, the (a)/(b)/(c) concept chain with its catalogue band and connector strip, and the open/gesloten standards list.',
+          ],
+        },
+        {
+          sha: 'c3f8d7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstTrace',
+          details: [
+            'The feature\'s core component — the eight-step, two-track provenance grid tracing a concept from quoted legal text (Wet- & Regelgeving) to the question a citizen sees on screen (Gebruikers), row-aligned step for step. Handles both chain-end cases: concepts with no DMN render an explanatory fallback line, and concepts with nothing left to derive from render "einde van de keten" instead of chips.',
+          ],
+        },
+        {
+          sha: '52bdb76',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstChip',
+          details: [
+            'The clickable concept chip used throughout the trace and explorer — either a button that drills into another concept, or a plain, non-interactive leaf chip carrying its own inline definition.',
+          ],
+        },
+        {
+          sha: 'fc95b60',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix a CSS scoping gap in the ported Herkomst styles',
+          details: [
+            "The task brief covered renaming the reference stylesheet's .k- hyphenated component classes but not its .k -scoped (space, descendant-combinator) rules. Two of those slipped through unscoped: bare global h1-h4/p selectors duplicating the site's existing .pub h1/.pub p rules, and a global .pub-nav a override that collided with the real site's actual navigation styling — the source rules were the reference prototype's own internal preview-shell nav, unrelated to anything this feature builds. Fixed by scoping the heading/paragraph rules under a new .pub-herkomst-k page-root class and deleting the four unused nav rules entirely.",
+          ],
+        },
+        {
+          sha: '0348d5c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Port the Herkomst styling into pub.css',
+          details: [
+            "Ported the reference design's dedicated stylesheet into the site's single shared pub.css, renaming every .k- class prefix to .pub-herkomst- to match this codebase's naming convention — no rule dropped, no value changed.",
+          ],
+        },
+        {
+          sha: 'a08b4fa',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Herkomst content data modules',
+          details: [
+            "The provenance graph (four concepts — Leeftijd, Geboortedatum, Datumberekening, BSN — each with its quoted legal text, annotation, rule, DMN expression and citizen-facing copy) and the page's chrome strings, ported byte-identical from the design handoff's hand-authored reference content. Fidelity independently verified via a field-by-field deep-equal check against the source files, not just visual proofreading.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.14',
+      status: 'Released',
+      date: '12 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '7931ba5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix Rollup's CJS interop so production builds actually process @ronl/shared",
+          details: [
+            "optimizeDeps.include (added earlier for the dev-server case) only affects vite dev's esbuild pre-bundler. vite build goes through Rollup directly, which by default only runs CommonJS→ESM interop on node_modules/**. @ronl/shared resolves to a relative workspace path (../shared/dist), so Rollup parsed it as plain ESM, found no literal 'export' keyword, and reported every named value import (RIP_PHASE_KEYS) as not exported — this only ever surfaced once vite build --mode acceptance actually ran in CI, since local dev used the already-fixed dev-server path.",
+            'Verified: both build:acc and build:prod now succeed, and the emitted bundle actually contains the RIP phase data.',
+          ],
+        },
+        {
+          sha: 'c846d02',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix ChangelogPanel's version-button matcher for double-digit CalVer patches",
+          details: [
+            "A bare .includes() version match became ambiguous once double-digit CalVer patches existed — v2026.08.1 is a string-prefix of v2026.08.10 through v2026.08.13, so clicking one version's button could resolve to the wrong entry. Fixed with a versionButtonName() helper using a negative-lookahead regex to require an exact patch-number boundary.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.13',
       status: 'Released',
       date: '10 aug 2026',

@@ -1,6 +1,6 @@
 {
   "name": "@ronl/public-site",
-  "version": "2026.08.3",
+  "version": "2026.08.17",
   "description": "Public, unauthenticated search site for Open Regels Nederland — publiek.open-regels.nl",
   "type": "module",
   "scripts": {

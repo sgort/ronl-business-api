@@ -218,7 +218,7 @@ not "whichever ran last."
 - Skip this step if scope does **not** include `'backend'` (no backend routes
   could have changed)
 
-### 6. Normalize formatting before committing
+### 6. Normalize formatting, then lint, before committing
 
 Windows checkouts drift package.json/changelog-data.ts line endings (LF vs
 CRLF) enough to fail the pre-push hook's `npm run check-format` even though
@@ -233,7 +233,29 @@ git add .
 
 `npm run format` is `prettier --write` across the repo; `git add .` stages
 whatever it touched (and everything else from the steps above) so the
-commit is push-clean. Skip this only if `npm run format` reports no changes.
+commit is push-clean. Skip the `git add .` only if `npm run format` reports
+no changes.
+
+**Then run lint — formatting a file clean does not mean it's lint-clean.**
+`npm run format` only fixes whitespace/style (Prettier); it does not run
+ESLint, so a real lint warning (e.g. `react-refresh/only-export-components`
+on a file that exports both a component and a plain function) can ship
+silently in a release even after `npm run format` reports no changes. This
+was a real gap in practice: HerkomstExplorer.tsx exported both its default
+component and a helper function, `npm run format` found nothing to fix, and
+the warning only surfaced when someone ran lint manually after the release
+was already cut.
+
+```bash
+npm run lint
+```
+
+If it reports anything, fix it (or, for a mechanical one-file-exports-more-
+than-a-component case like `react-refresh/only-export-components`, extract
+the non-component export into its own module — matching how this repo's
+other pages already split pure logic/data out of component files) and
+re-run `npm run format && npm run lint` until both are clean before
+proceeding to commit. Do not release with an outstanding lint warning.
 
 ### 7. Report and ask to commit
 
