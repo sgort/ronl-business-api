@@ -96,11 +96,11 @@ export default function SectionRouter({
 
   // ── Simulatie ──────────────────────────────────────────────────────
   // Auth-required (unlike the "Public / shared library" block below it in
-  // this file) but takes no props (unlike "Beheer / projects (require
-  // user)"'s members, which all consume `user`) — neither existing block is
-  // a categorical fit, so this gets its own line rather than being forced
-  // into one.
-  if (sectionId === 'regelsimulatie') return <RegelSimulatie />;
+  // this file), and takes `user` — to key the persisted playback day
+  // per-caseworker (scenario parameters stay shared/global; only the
+  // current timeline position is per-user, so one caseworker never lands
+  // on another's leftover position).
+  if (sectionId === 'regelsimulatie') return <RegelSimulatie user={user} />;
 
   // ── Public / shared library (no props) ────────────────────────────
   if (sectionId === 'regelcatalogus') return <RegelCatalogus />;

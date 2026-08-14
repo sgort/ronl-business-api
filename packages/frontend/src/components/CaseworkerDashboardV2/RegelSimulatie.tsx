@@ -6,6 +6,7 @@
  * (Task 1) and the five sub-components (Tasks 3-5) into the actual page.
  */
 import { useEffect, useMemo, useState } from 'react';
+import type { KeycloakUser } from '@ronl/shared';
 import { run } from './regelsimulatie/simEngine';
 import type { ExhaustionEvent, FeedUitkomst, SimConfig } from './regelsimulatie/types';
 import { simEur, simEurK } from './regelsimulatie/simFormat';
@@ -37,7 +38,21 @@ const SIM_DEFAULTS: SimConfig = {
   bezwaarToewijzing: 0.25,
 };
 
+// Scenario parameters are shared, global state — "the last scenario someone
+// configured" is reasonable to persist regardless of who's signed in, and
+// there's no per-user meaning to a set of sliders. The current playback day
+// is different: restoring a caseworker straight to wherever *they* last left
+// the timeline (rather than wherever anyone last left it) is the point of
+// persisting it at all, so it's keyed per-user by the stable Keycloak `sub`
+// claim. Only `cfg` lives under SIM_LS_KEY now; `day` lives under a
+// per-user key (dayStorageKey). If no user is known (shouldn't happen in
+// practice — this section is auth-required — but handled defensively),
+// day-persistence is simply skipped and playback always starts at 0.
 const SIM_LS_KEY = 'sim-thuisbatterij-v2';
+
+function dayStorageKey(userSub: string): string {
+  return `${SIM_LS_KEY}:day:${userSub}`;
+}
 
 function simPct(n: number): string {
   return Math.round(n * 100) + '%';
@@ -45,14 +60,25 @@ function simPct(n: number): string {
 
 interface StoredSimState {
   cfg?: Partial<SimConfig>;
-  day?: number;
 }
 
-function readStored(): StoredSimState {
+function readStoredCfg(): StoredSimState {
   try {
     return JSON.parse(localStorage.getItem(SIM_LS_KEY) || '{}') as StoredSimState;
   } catch {
     return {};
+  }
+}
+
+function readStoredDay(userSub: string | undefined): number {
+  if (!userSub) return 0;
+  try {
+    const raw = localStorage.getItem(dayStorageKey(userSub));
+    if (raw == null) return 0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -112,12 +138,14 @@ const feedLabel: Record<FeedUitkomst, string> = {
   'beroep-afgewezen': 'Beroep afgewezen',
 };
 
-export default function RegelSimulatie() {
+export default function RegelSimulatie({ user }: { user: KeycloakUser | null }) {
+  const userSub = user?.sub;
+
   const [cfg, setCfg] = useState<SimConfig>(() => ({
     ...SIM_DEFAULTS,
-    ...clampCfg(readStored().cfg || {}),
+    ...clampCfg(readStoredCfg().cfg || {}),
   }));
-  const [day, setDay] = useState<number>(() => readStored().day || 0);
+  const [day, setDay] = useState<number>(() => readStoredDay(userSub));
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(3);
   const [tweaksOpen, setTweaksOpen] = useState(true);
@@ -130,13 +158,16 @@ export default function RegelSimulatie() {
   useEffect(() => {
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(SIM_LS_KEY, JSON.stringify({ cfg, day: curDay }));
+        localStorage.setItem(SIM_LS_KEY, JSON.stringify({ cfg }));
+        if (userSub) {
+          localStorage.setItem(dayStorageKey(userSub), String(curDay));
+        }
       } catch {
         // ignore write failures (e.g. storage disabled)
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [cfg, curDay]);
+  }, [cfg, curDay, userSub]);
 
   useEffect(() => {
     if (!running) return;
