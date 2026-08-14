@@ -234,8 +234,8 @@ export const KT_STAGES: KtStage[] = [
       en: 'acceptance › production · tenant: Flevoland',
     },
     note: {
-      nl: 'De aanvraag draait eerst op acceptatie met echte testgevallen, daarna in productie binnen de tenant van de provincie. De burger ziet één omgeving; achter de schermen zijn het twee regelsets van twee bevoegde gezagen.',
-      en: 'The application first runs in acceptance with real test cases, then in production within the province tenant. The citizen sees one environment; behind it are two rule sets from two competent authorities.',
+      nl: 'De aanvraag draait eerst op acceptatie met echte testgevallen, daarna in productie binnen de tenant van de provincie. De burger ziet één omgeving; achter de schermen zijn het één of meerdere regelsets van corresponderende bevoegde gezagen.',
+      en: 'The application first runs in acceptance with real test cases, then in production within the province tenant. The citizen sees one environment; behind it are one or two rule sets from corresponding competent authorities.',
     },
     out: { nl: 'subsidie toegekend', en: 'grant awarded' },
   },
