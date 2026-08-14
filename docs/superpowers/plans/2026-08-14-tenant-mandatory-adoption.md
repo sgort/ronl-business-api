@@ -979,7 +979,7 @@ export default async function globalSetup() {
 
 - [ ] **Step 3: Manually verify the fail-fast path**
 
-With the dev stack running but the new bundle not yet deployed (its current state — Task 7 hasn't run yet), run: `cd packages/frontend && npx playwright test tenant-isolation.spec.ts`
+With the dev stack running but the new bundle not yet deployed (its current state — Task 7 hasn't run yet), run: `cd packages/frontend && npx playwright test --config=e2e/playwright.config.ts tenant-isolation.spec.ts` (the `--config` flag is required — `playwright.config.ts` lives under `e2e/`, not the package root, and without it Playwright silently skips `globalSetup` entirely and fails later for an unrelated reason instead of exercising the new verification step; matches this repo's own `npm run test:e2e` script, confirmed in `packages/frontend/package.json`)
 Expected: fails immediately in `globalSetup` with the new "required tenant-scoped process bundle is not deployed correctly" message, listing `RipR21Process` (not yet deployed under that new key) and any other mismatches — not a confusing failure deep inside the spec.
 
 - [ ] **Step 4: Commit**
@@ -1245,12 +1245,12 @@ Once all five are deployed, tell the implementer/agent to proceed to Task 8.
 
 - [ ] **Step 1: Confirm `global-setup.ts` now passes**
 
-Run: `cd packages/frontend && npx playwright test tenant-isolation.spec.ts`
+Run: `cd packages/frontend && npx playwright test --config=e2e/playwright.config.ts tenant-isolation.spec.ts` (the `--config` flag is required — without it Playwright skips `globalSetup` entirely; see Task 5's note)
 Expected: `globalSetup` no longer throws — the suite proceeds past setup into the actual spec.
 
 - [ ] **Step 2: Run the full E2E suite**
 
-Run: `cd packages/frontend && npx playwright test`
+Run: `cd packages/frontend && npm run test:e2e`
 Expected: `caseworker-journey.spec.ts`, `zorgtoeslag-journey.spec.ts`, and `tenant-isolation.spec.ts` all pass against the real tenant-scoped bundle — the whole start → task → complete path exercised through Operaton's real tenant-scoped endpoints, not unit-level mocks.
 
 - [ ] **Step 3: Review `tenant-isolation.spec.ts`'s existing assertions**
@@ -1259,7 +1259,7 @@ Per the spec's explicit deferral: read `tenant-isolation.spec.ts` now that real 
 
 - [ ] **Step 4: If Step 3 produced a change, run the affected spec again**
 
-Run: `cd packages/frontend && npx playwright test tenant-isolation.spec.ts`
+Run: `cd packages/frontend && npx playwright test --config=e2e/playwright.config.ts tenant-isolation.spec.ts`
 Expected: PASS.
 
 - [ ] **Step 5: If Step 3 produced a change, commit**
