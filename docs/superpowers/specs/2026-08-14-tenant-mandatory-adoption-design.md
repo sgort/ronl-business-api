@@ -5,8 +5,13 @@
 LDE's `feat/tenant-mandatory-deploy` branch made `organization` (Operaton's native
 `tenant-id`) mandatory at BPMN deploy time. `RipPhase1Process` has already been
 redeployed under `tenantId=flevoland`, and a narrow fix
-(`fix/tenant-scoped-process-start`, released) made `OperatonService.startProcess`
-try the tenant-scoped Operaton endpoint before falling back to the untenanted one.
+(`fix/tenant-scoped-process-start`) made `OperatonService.startProcess` try the
+tenant-scoped Operaton endpoint before falling back to the untenanted one — that
+fix was implemented and tested, but the branch carrying it was deliberately left
+unmerged ("leave this for now"), never actually shipped. This work's branch,
+`feat/tenant-mandatory-adoption`, merges `fix/tenant-scoped-process-start` in as
+its starting point, so `startProcess`'s fix is genuinely in place before anything
+else here builds on it.
 
 That fix covered `startProcess` only. `operaton.service.ts` (1225 lines, 53
 Operaton REST calls) has several other call sites that assume every process
@@ -41,7 +46,8 @@ unaffected by this work. Also fine: every call that operates on an opaque
 process-instance-ID or process-definition-ID rather than a human key (Operaton
 resolves those regardless of tenant).
 
-**Already fixed:** `startProcess` (released).
+**Already fixed:** `startProcess` (merged into this branch from
+`fix/tenant-scoped-process-start`, not yet shipped to `acc`).
 
 **Deliberately out of scope, confirmed not a gap:**
 
