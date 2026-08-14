@@ -31,8 +31,8 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     name: 'Beoordeel projectplan',
     created: '2026-01-01T00:00:00',
     executionId: 'exec-1',
-    processDefinitionId: 'RipPhase1Process:1:def',
-    processDefinitionKey: 'RipPhase1Process',
+    processDefinitionId: 'RipR21Process:1:def',
+    processDefinitionKey: 'RipR21Process',
     processInstanceId: 'proc-1',
     taskDefinitionKey: 'task-def-1',
     suspended: false,
@@ -167,7 +167,7 @@ describe('useDeployedProcessKeys', () => {
   it('loads the deployed keys and exposes them once resolved', async () => {
     mockBusinessApi.rip.deploymentStatus.mockResolvedValue({
       success: true,
-      data: { deployedKeys: ['RipPhase1Process'] },
+      data: { deployedKeys: ['RipR21Process'] },
     });
 
     const { result } = renderHook(() => useDeployedProcessKeys());
@@ -175,7 +175,7 @@ describe('useDeployedProcessKeys', () => {
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.data).toEqual({ deployedKeys: ['RipPhase1Process'] });
+    expect(result.current.data).toEqual({ deployedKeys: ['RipR21Process'] });
     expect(result.current.error).toBe(false);
   });
 
@@ -198,7 +198,7 @@ describe('useLivePhaseCounts', () => {
   it('loads the phase counts and exposes them once resolved', async () => {
     mockBusinessApi.rip.phasesCounts.mockResolvedValue({
       success: true,
-      data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+      data: { counts: { RipR21Process: { wip: 3, gereed: 7 } } },
     });
 
     const { result } = renderHook(() => useLivePhaseCounts());
@@ -207,7 +207,7 @@ describe('useLivePhaseCounts', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.data).toEqual({
-      counts: { RipPhase1Process: { wip: 3, gereed: 7 } },
+      counts: { RipR21Process: { wip: 3, gereed: 7 } },
     });
   });
 

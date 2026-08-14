@@ -4,7 +4,7 @@
  * Thin React hooks over the EXISTING `businessApi` (services/api.ts). Nothing
  * new on the backend — these are the same endpoints the caseworker dashboard
  * and RipFase1WipViewer already call, so test-infra-flevoland's running
- * RipPhase1Process tasks/instances flow straight in.
+ * RipR21Process tasks/instances flow straight in.
  */
 
 import { useEffect, useState } from 'react';
@@ -133,7 +133,7 @@ function startOfDay(d: Date) {
 }
 
 const PROCESS_DISPLAY_NAMES: Record<string, string> = {
-  RipPhase1Process: 'RIP Fase 1 — R2.1 Projectplan Planvoorbereiding',
+  RipR21Process: 'RIP Fase 1 — R2.1 Projectplan Planvoorbereiding',
 };
 
 /**

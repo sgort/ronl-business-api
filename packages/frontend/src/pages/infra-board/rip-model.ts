@@ -2,7 +2,7 @@
  * RIP domain model for the Infra-board dashboard.
  *
  * The Fase-1 swimlane (lanes, tasks, gateways, sequence flows) mirrors the
- * deployed BPMN `RipPhase1Process` ("RIP Fase 1 — R2.1 Projectplan
+ * deployed BPMN `RipR21Process` ("RIP Fase 1 — R2.1 Projectplan
  * Planvoorbereiding"). `bpmnId` on each node is the BPMN flowNode id, so the
  * engine's activity-history can drive node status live.
  *
