@@ -986,7 +986,7 @@ export class OperatonService {
   }
 
   /**
-   * List active (unfinished) RipPhase1Process instances for a municipality,
+   * List active (unfinished) RipR21Process instances for a municipality,
    * enriched with projectNumber, projectName, edocsWorkspaceId.
    */
   async getRipPhase1ActiveList(tenantId: string): Promise<
@@ -1000,7 +1000,7 @@ export class OperatonService {
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
-      processDefinitionKey: 'RipPhase1Process',
+      processDefinitionKey: 'RipR21Process',
       unfinished: true,
       variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
       sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
@@ -1098,7 +1098,7 @@ export class OperatonService {
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
-      processDefinitionKey: 'RipPhase1Process',
+      processDefinitionKey: 'RipR21Process',
       finished: true,
       variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
       sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],

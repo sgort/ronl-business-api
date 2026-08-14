@@ -151,12 +151,32 @@ describe('startProcess', () => {
       response: {
         data: {
           type: 'RestException',
-          message: 'No matching process definition with key: RipPhase1Process and no tenant-id',
+          message: 'No matching process definition with key: RipR21Process and no tenant-id',
         },
       },
     });
-    await expect(svc.startProcess('RipPhase1Process', req(), 'flevoland')).rejects.toThrow(
-      /RipPhase1Process' is niet gevonden op deze Operaton-omgeving/
+    await expect(svc.startProcess('RipR21Process', req(), 'flevoland')).rejects.toThrow(
+      /RipR21Process' is niet gevonden op deze Operaton-omgeving/
+    );
+  });
+});
+
+describe('getRipPhase1ActiveList / getRipPhase1CompletedList', () => {
+  it('getRipPhase1ActiveList filters by the RipR21Process key', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.getRipPhase1ActiveList('flevoland');
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ processDefinitionKey: 'RipR21Process' })
+    );
+  });
+
+  it('getRipPhase1CompletedList filters by the RipR21Process key', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.getRipPhase1CompletedList('flevoland');
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ processDefinitionKey: 'RipR21Process' })
     );
   });
 });
@@ -517,11 +537,11 @@ describe('getVariableHints', () => {
 
 describe('getUserTasks', () => {
   it('builds tenant + candidateGroup params and derives the key from a versioned defId', async () => {
-    routeGet([['/task', { data: [{ id: 't1', processDefinitionId: 'RipPhase1Process:3:abc' }] }]]);
+    routeGet([['/task', { data: [{ id: 't1', processDefinitionId: 'RipR21Process:3:abc' }] }]]);
 
     const res = await svc.getUserTasks('u', 'flevoland', ['role-a', 'role-b']);
 
-    expect(res[0]).toMatchObject({ id: 't1', processDefinitionKey: 'RipPhase1Process' });
+    expect(res[0]).toMatchObject({ id: 't1', processDefinitionKey: 'RipR21Process' });
     expect(mockClient.get).toHaveBeenCalledWith('/task', {
       params: {
         processVariables: 'municipality_eq_flevoland',
@@ -813,7 +833,7 @@ describe('archive list builders', () => {
     });
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
-      expect.objectContaining({ processDefinitionKey: 'RipPhase1Process', unfinished: true })
+      expect.objectContaining({ processDefinitionKey: 'RipR21Process', unfinished: true })
     );
   });
 

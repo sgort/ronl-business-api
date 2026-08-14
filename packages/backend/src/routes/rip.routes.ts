@@ -13,7 +13,7 @@ router.use(tenantMiddleware);
 
 /**
  * GET /v1/rip/phase1/active
- * List active RipPhase1Process instances for the caseworker's municipality.
+ * List active RipR21Process instances for the caseworker's municipality.
  */
 router.get('/phase1/active', async (req, res) => {
   if (!req.user) {
@@ -143,7 +143,7 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
 
 /**
  * GET /v1/rip/phase1/completed
- * List completed RipPhase1Process instances for the caseworker's municipality.
+ * List completed RipR21Process instances for the caseworker's municipality.
  */
 router.get('/phase1/completed', async (req, res) => {
   if (!req.user) {

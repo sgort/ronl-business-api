@@ -91,11 +91,11 @@ describe('GET /phases/deployment-status', () => {
   });
 
   it('returns the deployed keys from the service', async () => {
-    svc.getDeployedProcessKeys.mockResolvedValue(['RipPhase1Process']);
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ deployedKeys: ['RipPhase1Process'] });
-    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(['RipPhase1Process'], 'flevoland');
+    expect(res.body.data).toEqual({ deployedKeys: ['RipR21Process'] });
+    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(['RipR21Process'], 'flevoland');
   });
 
   it('500 with DEPLOYMENT_STATUS_FAILED on service failure', async () => {
@@ -113,18 +113,18 @@ describe('GET /phases/counts', () => {
   });
 
   it('returns counts for the deployed keys only', async () => {
-    svc.getDeployedProcessKeys.mockResolvedValue(['RipPhase1Process']);
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
     svc.getPhaseInstanceCounts.mockResolvedValue({
-      RipPhase1Process: { wip: 3, gereed: 7 },
+      RipR21Process: { wip: 3, gereed: 7 },
     });
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ counts: { RipPhase1Process: { wip: 3, gereed: 7 } } });
-    expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipPhase1Process'], 'flevoland');
+    expect(res.body.data).toEqual({ counts: { RipR21Process: { wip: 3, gereed: 7 } } });
+    expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipR21Process'], 'flevoland');
   });
 
   it('500 with PHASE_COUNTS_FAILED on service failure', async () => {
-    svc.getDeployedProcessKeys.mockResolvedValue(['RipPhase1Process']);
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
     svc.getPhaseInstanceCounts.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(500);
