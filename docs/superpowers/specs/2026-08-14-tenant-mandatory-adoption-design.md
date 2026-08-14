@@ -12,9 +12,12 @@ That fix covered `startProcess` only. `operaton.service.ts` (1225 lines, 53
 Operaton REST calls) has several other call sites that assume every process
 definition is reachable via Operaton's untenanted `/process-definition/key/{key}/...`
 shorthand — an assumption that stops holding the moment a key is deployed with a
-tenant-id. This design closes those gaps, and puts a stable, reproducible, tenant-
+tenant-id. This design closes those gaps, puts a stable, reproducible, tenant-
 correct test bundle in place (deployed manually via LDE, verified automatically by
-ronl-business-api's E2E suite) so the fix can actually be proven rather than assumed.
+ronl-business-api's E2E suite) so the fix can actually be proven rather than assumed,
+and — folded in on request — renames `RipPhase1Process` to `RipR21Process` so the
+Operaton key matches the Faseladder's own R2.1 stage code, the original motivation
+for starting this work.
 
 Per [[handoff-specs-are-source-of-truth]] this doesn't apply here (no handoff
 package involved) — the source of truth for this design is the two codebases
@@ -99,13 +102,17 @@ untenanted-legacy" union logic is needed.
 
 ### B. Redeploy scope (operational, not code — performed manually via LDE)
 
-| Process                            | Tenant                   |
-| ---------------------------------- | ------------------------ |
-| `AwbShellProcess`                  | flevoland                |
-| `TreeFellingPermitSubProcess`      | flevoland                |
-| `RipPhase1Process`                 | flevoland (already done) |
-| `AwbZorgtoeslagProcess`            | toeslagen                |
-| `ZorgtoeslagProvisionalSubProcess` | toeslagen                |
+| Process                            | Tenant    |
+| ---------------------------------- | --------- |
+| `AwbShellProcess`                  | flevoland |
+| `TreeFellingPermitSubProcess`      | flevoland |
+| `RipR21Process` (renamed, see D)   | flevoland |
+| `AwbZorgtoeslagProcess`            | toeslagen |
+| `ZorgtoeslagProvisionalSubProcess` | toeslagen |
+
+`RipPhase1Process`'s existing tenant-scoped deployment (flevoland) is superseded
+by this round's work rather than reused — see D for why the key itself changes,
+not just its tenant.
 
 `ZorgtoeslagFinalSubProcess` is deliberately excluded: confirmed via
 `zorgtoeslag-journey.spec.ts`'s own comments that the E2E suite only exercises
@@ -134,10 +141,13 @@ E2E assertions.
 seeded once from the current `public/examples/` copies (proven freshest) plus
 `RipPhase1Process.bpmn` from `examples/organizations/flevoland/rip-phase1-
 swimlanes/` (the variant this session's tenantId-mandatory work was built and
-verified against) and its linked forms/documents. Contains, per tenant:
+verified against) and its linked forms/documents — renamed to `RipR21Process`
+(both the filename and the BPMN's own `id`/`name` attributes) as part of
+assembling the bundle, per D, so the fixture set never carries the superseded
+key at all. Contains, per tenant:
 
 - `flevoland/`: `AwbShellProcess.bpmn`, `TreeFellingPermitSubProcess.bpmn`,
-  `RipPhase1Process.bpmn`, and every form/document each one's
+  `RipR21Process.bpmn` (renamed per D), and every form/document each one's
   `camunda:formRef`/`ronl:documentRef` attributes actually reference (read from
   the BPMN source directly when building the bundle — don't guess the linkage).
 - `toeslagen/`: `AwbZorgtoeslagProcess.bpmn`, `ZorgtoeslagProvisionalSubProcess.bpmn`,
@@ -183,13 +193,61 @@ stronger guarantee for free, or may want a new assertion; decide during
 implementation once the real tenant-scoped data is in front of it, not
 speculatively here.
 
+### D. Renaming `RipPhase1Process` → `RipR21Process`
+
+Previously deferred as a separate piece of work; folded back into this spec on
+request. The original motivation still holds: `RipPhase1Process` is a generic
+name that doesn't self-describe which Faseladder stage it belongs to; `RipR21Process`
+matches the Faseladder's own R2.1 stage code directly, the same way every other
+RIP phase's key is expected to.
+
+Full blast radius, confirmed by reading every non-test source reference to the
+literal string `'RipPhase1Process'` in both repos — narrow, three call sites plus
+the BPMN source itself:
+
+- `ronl-business-api`, backend: `operaton.service.ts`'s two hardcoded
+  `processDefinitionKey: 'RipPhase1Process'` filters (inside
+  `getRipPhase1ActiveList`/`getRipPhase1CompletedList`); `packages/shared/src/
+rip-phases.ts`'s `RIP_PHASE_KEYS` R2.1 entry (`{ code: 'R2.1', stage: 'R2',
+processDefinitionKey: 'RipPhase1Process' }`).
+- `ronl-business-api`, frontend: `PhaseDetail.tsx`'s hardcoded
+  `businessApi.process.start('RipPhase1Process', {})` call (the actual "start
+  new project" action); `infra.api.ts`'s key→display-name lookup map entry
+  (`RipPhase1Process: 'RIP Fase 1 — R2.1 Projectplan Planvoorbereiding'`);
+  `rip-phases.catalog.ts`'s displayed "source" attribution string
+  (`'RipPhase1Process.bpmn · 11 taken · 8 formulieren · 3 documenten'`); two
+  doc comments (`rip-model.ts`, `infra.api.ts`) mentioning the name for
+  context, updated for accuracy.
+- **Not renamed:** ronl-business-api's own internal method/route names
+  (`getRipPhase1ActiveList`, `/v1/rip/phase1/active`, etc.) — these are
+  ronl-business-api's own identifiers, unrelated to Operaton's process-
+  definition key, and renaming them would ripple far beyond this spec's actual
+  goal (matching the _Operaton key_ to the Faseladder code) for no benefit.
+- `changelog-data.ts`'s historical release-note mentions of the old name are
+  **not** touched — that's a record of what actually shipped at the time, not
+  something to retroactively rewrite.
+
+Operationally: the new key means a genuinely new process-definition, not an
+in-place rename of the existing tenant-scoped deployment — deploy
+`RipR21Process` fresh (same clean-slate treatment as B's other four processes);
+the old `RipPhase1Process` deployment goes unused, no migration needed.
+
 ## Out of scope
 
-- Renaming `RipPhase1Process` → `RipR21Process` (explicitly deferred earlier
-  this session as a separate, later piece of work — unrelated to this design).
 - Making DMN/DRD deployment tenant-scoped (explicitly confirmed as a permanent
   architectural choice, not a gap).
 - Any change to `m2m.routes.ts`'s deliberately cross-tenant behavior.
+- **`OPERATON_M2M_BASE_URL`** pointing at a remote Operaton instance
+  (`operaton-doc.open-regels.nl`) even in local dev, unlike the main
+  `OPERATON_BASE_URL` (which was deliberately switched to the local Docker
+  instance for exactly this kind of testing, per its own `.env.development`
+  comment). Confirmed real and very likely an oversight from that same
+  migration — several Gap-1-affected methods are called through
+  `m2mOperatonService` too, so this path can't currently be locally verified
+  against the new fixture bundle. Explicitly parked as a separate, later task
+  once this spec ships — fixing it involves Docker-networking configuration
+  (the M2M client's own reachability to `localhost:8081` from wherever it
+  actually runs) beyond this spec's scope.
 - Migrating any currently-running process instance across the tenant-id cutover
   (confirmed clean slate, nothing to migrate).
 - Wiring the new `e2e-fixtures/` set into LDE's pre-loaded "load example"
@@ -216,3 +274,10 @@ speculatively here.
   bundle once it's live — this is the actual proof this design set out to get:
   the whole start → task → complete path exercised through Operaton's real
   tenant-scoped endpoints, not just unit-level mocks.
+- **Rename (D)**: `rip-phases.ts`'s existing test (or a new one) asserts
+  `RIP_PHASE_KEYS`'s R2.1 entry carries `processDefinitionKey: 'RipR21Process'`;
+  `operaton.service.test.ts`'s existing `getRipPhase1ActiveList`/
+  `CompletedList` tests updated to assert the new key in their query filters;
+  a frontend test (existing or new) confirms `PhaseDetail.tsx`'s start action
+  calls `businessApi.process.start('RipR21Process', {})`. No behavior to test
+  beyond the literal string change — this is a rename, not new logic.
