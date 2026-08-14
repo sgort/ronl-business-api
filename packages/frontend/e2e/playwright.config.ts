@@ -24,7 +24,10 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: 'list',
+  // 'list' for live terminal feedback; 'html' for a full, readable report
+  // afterward (open: 'never' — run `npx playwright show-report` to view it,
+  // rather than auto-opening a browser tab on every run).
+  reporter: [['list'], ['html', { open: 'never' }]],
   globalSetup: './global-setup.ts',
   globalTeardown: './global-teardown.ts',
 

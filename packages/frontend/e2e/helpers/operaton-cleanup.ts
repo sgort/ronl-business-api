@@ -70,11 +70,14 @@ export function recordPendingCleanup(businessKey: string): void {
 }
 
 /**
- * Runs from global-teardown.ts, once, after all tests finish. Prompts once
- * per businessKey recorded via recordPendingCleanup() this run. Leaves the
- * pending file untouched (for next time) when not run interactively —
- * local Operaton keeps full history by default, which isn't always wanted
- * across repeated local runs, but this must never hang an unattended run.
+ * Runs from global-teardown.ts, once, after all tests finish. Asks a single
+ * yes/no for every businessKey recorded via recordPendingCleanup() this run,
+ * rather than prompting per key — either all of them get cleaned, or none
+ * do. Leaves the pending file untouched (for next time) when not run
+ * interactively, or when declined — local Operaton keeps full history by
+ * default, which isn't always wanted across repeated local runs, but this
+ * must never hang an unattended run, and a decline must not silently lose
+ * track of history that was never actually deleted.
  */
 export async function runPendingCleanupPrompts(): Promise<void> {
   if (!fs.existsSync(PENDING_FILE)) return;
@@ -82,29 +85,19 @@ export async function runPendingCleanupPrompts(): Promise<void> {
   if (businessKeys.length === 0) return;
   if (!process.stdin.isTTY) return;
 
-  // Only entries actually confirmed+deleted get dropped from the file —
-  // a declined (or, e.g. under a sandboxed/non-interactive stdin that
-  // still reports isTTY true, silently-EOF'd) entry must stay tracked for
-  // a future run rather than being silently forgotten. An earlier version
-  // unconditionally unlinked the file after the loop regardless of each
-  // answer, which lost track of real, never-actually-deleted Operaton
-  // history this way.
-  const remaining: string[] = [];
-  for (const businessKey of businessKeys) {
-    const shouldClean = await askYesNo(
-      `\nClean up Operaton history for business key "${businessKey}"? [y/N] `
-    );
-    if (shouldClean) {
-      const deleted = await deleteHistory(businessKey);
-      console.log(`Deleted ${deleted} historic process-instance record(s) for "${businessKey}".`);
-    } else {
-      remaining.push(businessKey);
-    }
-  }
+  const label =
+    businessKeys.length === 1 ? '1 business key' : `${businessKeys.length} business keys`;
+  const shouldCleanAll = await askYesNo(
+    `\nClean up Operaton history for ${label} (${businessKeys.join(', ')})? [y/N] `
+  );
+  if (!shouldCleanAll) return;
 
-  if (remaining.length > 0) {
-    fs.writeFileSync(PENDING_FILE, JSON.stringify(remaining));
-  } else {
-    fs.unlinkSync(PENDING_FILE);
+  let totalDeleted = 0;
+  for (const businessKey of businessKeys) {
+    totalDeleted += await deleteHistory(businessKey);
   }
+  console.log(
+    `Deleted ${totalDeleted} historic process-instance record(s) across ${businessKeys.length} business key(s).`
+  );
+  fs.unlinkSync(PENDING_FILE);
 }
