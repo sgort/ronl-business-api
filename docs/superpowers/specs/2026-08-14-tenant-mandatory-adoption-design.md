@@ -180,11 +180,19 @@ test time):
 
 LDE's `manifest.json` gets a matching integrity test in LDE's own suite: asserts
 every file it declares actually exists under `e2e-fixtures/`, and that each
-BPMN's own `id` and `organization` extension property match what the manifest
-claims for it — so an edit to a fixture that forgets to update the manifest (or
-vice versa) fails LDE's own test suite immediately, rather than surfacing as a
-confusing mismatch only when ronl-business-api's `global-setup.ts` runs against
-a stale deploy.
+BPMN's own `id` (its `bpmn:process id=` attribute) matches the manifest's
+declared `processDefinitionKey` for it — so an edit to a fixture that forgets to
+update the manifest (or vice versa) fails LDE's own test suite immediately,
+rather than surfacing as a confusing mismatch only when ronl-business-api's
+`global-setup.ts` runs against a stale deploy. (Not checked here: an
+`organization` extension property in the BPMN itself — confirmed by reading the
+current fixture source directly that no such property exists anywhere in these
+files. Organization/tenant-id is a value the deployer types into LDE's Deploy
+dialog at deploy time, per B's redeploy table; it isn't static file content, so
+it can't be asserted against the file. `global-setup.ts`'s own Operaton query,
+described next, is what actually verifies each key ended up deployed under the
+right tenant-id — the two tests cover different things and neither substitutes
+for the other.)
 
 **Verification, not auto-deploy, in `global-setup.ts`.** The existing
 `global-setup.ts` only checks that frontend/backend/LDE-backend are reachable —
@@ -284,8 +292,8 @@ the old `RipPhase1Process` deployment goes unused, no migration needed.
   missing/mismatched required process produces the clear fail-fast message,
   not a downstream test failure.
 - **LDE — manifest-integrity test**: asserts `e2e-fixtures/manifest.json`'s
-  declared files exist and each BPMN's `id`/`organization` match what the
-  manifest claims for it (see C).
+  declared files exist and each BPMN's `id` matches what the manifest claims
+  for it (see C — `organization` isn't file content, so it isn't checked here).
 - **Full E2E suite** (`caseworker-journey.spec.ts`, `zorgtoeslag-journey.spec.ts`,
   `tenant-isolation.spec.ts`) re-run against the real redeployed, tenant-scoped
   bundle once it's live — this is the actual proof this design set out to get:
