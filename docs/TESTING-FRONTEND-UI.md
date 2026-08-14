@@ -202,7 +202,7 @@ idpHint})` call to `initializeKeycloak()` + `keycloak.login({idpHint})`
    real Kapvergunning (tree felling permit) request via `AwbShellProcess`
    on the local Operaton container; DMN evaluates it (`Permit
 Decision: Permit`, `Replacement Decision: true` for a 35cm tree);
-   `TreeFellingPermitSubProcess` creates a "Case review: tree felling
+   `TreeFellingPermitSubProcessE2E` creates a "Case review: tree felling
    permit decision" task for the `caseworker` candidate group;
    `test-caseworker-flevoland` claims and completes it via `TakenInbox` /
    `TaskFormViewer`, which advances `AwbShellProcess` itself to its own
@@ -261,7 +261,7 @@ voltooid.' })` and `setSelectedId(null)` in the same synchronous
    **Optional Operaton history cleanup**: local Operaton keeps full
    history of every process/task by default (confirmed — running this
    test repeatedly during development left over a dozen completed
-   `AwbShellProcess`/`TreeFellingPermitSubProcess` history entries behind),
+   `AwbShellProcess`/`TreeFellingPermitSubProcessE2E` history entries behind),
    which isn't always wanted across repeated local runs. Rather than
    deleting it unconditionally (some runs you _do_ want to inspect
    afterward via Operaton's Cockpit), the test asks first — but **not**
@@ -279,7 +279,7 @@ voltooid.' })` and `setSelectedId(null)` in the same synchronous
    `playwright.config.ts`'s `globalTeardown`) reads that file once, after
    all tests finish, and prompts per key there. Confirming deletes both
    the top-level `AwbShellProcess` instance and its
-   `TreeFellingPermitSubProcess` call-activity instance — Operaton tracks
+   `TreeFellingPermitSubProcessE2E` call-activity instance — Operaton tracks
    call-activity subprocesses as separate history entries with their own
    ids, linked via `superProcessInstanceId`; deleting the parent's history
    does not cascade to them. No-ops silently (leaving the state file for
@@ -293,7 +293,7 @@ voltooid.' })` and `setSelectedId(null)` in the same synchronous
    `isTTY: true` but has no real input, silently resolving each prompt as
    EOF/"no") lost its tracking entirely, with the underlying Operaton
    history never actually deleted. Concretely: 3 real
-   `AwbZorgtoeslagProcess`/`ZorgtoeslagProvisionalSubProcess` history
+   `AwbZorgtoeslagProcess`/`ZorgtoeslagProvisionalSubProcessE2E` history
    entries survived a full pending-file wipe this way and had to be found
    and purged manually via direct REST calls. Fixed: only entries actually
    confirmed-and-deleted are dropped from the file now; anything declined

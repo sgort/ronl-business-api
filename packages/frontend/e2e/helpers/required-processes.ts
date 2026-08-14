@@ -12,10 +12,10 @@ export interface RequiredProcess {
  */
 export const REQUIRED_PROCESSES: RequiredProcess[] = [
   { processDefinitionKey: 'AwbShellProcess', tenantId: 'flevoland' },
-  { processDefinitionKey: 'TreeFellingPermitSubProcess', tenantId: 'flevoland' },
+  { processDefinitionKey: 'TreeFellingPermitSubProcessE2E', tenantId: 'flevoland' },
   { processDefinitionKey: 'RipR21Process', tenantId: 'flevoland' },
   { processDefinitionKey: 'AwbZorgtoeslagProcess', tenantId: 'toeslagen' },
-  { processDefinitionKey: 'ZorgtoeslagProvisionalSubProcess', tenantId: 'toeslagen' },
+  { processDefinitionKey: 'ZorgtoeslagProvisionalSubProcessE2E', tenantId: 'toeslagen' },
 ];
 
 const OPERATON_BASE_URL = 'http://localhost:8081/engine-rest';
