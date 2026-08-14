@@ -1026,6 +1026,9 @@ interface FixtureEntry {
   forms: string[];
   documents: string[];
   source: string;
+  /** Sub-processes this shell calls via a BPMN callActivity — deployed together
+   * with the shell in one LDE Modeler action, not as separate deploys. */
+  subProcesses?: FixtureEntry[];
 }
 
 type Manifest = Record<string, FixtureEntry[]>;
@@ -1035,15 +1038,20 @@ function readManifest(): Manifest {
   return JSON.parse(raw) as Manifest;
 }
 
+/** Flattens each tenant's shell entries and their nested subProcesses into one list. */
+function allEntries(entries: FixtureEntry[]): FixtureEntry[] {
+  return entries.flatMap((entry) => [entry, ...(entry.subProcesses ?? [])]);
+}
+
 describe('e2e-fixtures/manifest.json', () => {
   it('exists and parses as JSON', () => {
     expect(() => readManifest()).not.toThrow();
   });
 
-  it('every declared file exists under its tenant directory', () => {
+  it('every declared file exists under its tenant directory, including nested subProcesses', () => {
     const manifest = readManifest();
     for (const [tenant, entries] of Object.entries(manifest)) {
-      for (const entry of entries) {
+      for (const entry of allEntries(entries)) {
         for (const file of [entry.bpmn, ...entry.forms, ...entry.documents]) {
           const filePath = path.join(FIXTURES_ROOT, tenant, file);
           expect(fs.existsSync(filePath)).toBe(true);
@@ -1052,13 +1060,27 @@ describe('e2e-fixtures/manifest.json', () => {
     }
   });
 
-  it("every entry's BPMN id matches its declared processDefinitionKey", () => {
+  it("every entry's BPMN id matches its declared processDefinitionKey, including nested subProcesses", () => {
     const manifest = readManifest();
     for (const [tenant, entries] of Object.entries(manifest)) {
-      for (const entry of entries) {
+      for (const entry of allEntries(entries)) {
         const bpmnPath = path.join(FIXTURES_ROOT, tenant, entry.bpmn);
         const xml = fs.readFileSync(bpmnPath, 'utf8');
         expect(xml).toMatch(new RegExp(`<bpmn:process\\s+id="${entry.processDefinitionKey}"`));
+      }
+    }
+  });
+
+  it("a shell's calledElement references match its nested subProcess keys", () => {
+    const manifest = readManifest();
+    for (const [tenant, entries] of Object.entries(manifest)) {
+      for (const shell of entries) {
+        if (!shell.subProcesses?.length) continue;
+        const bpmnPath = path.join(FIXTURES_ROOT, tenant, shell.bpmn);
+        const xml = fs.readFileSync(bpmnPath, 'utf8');
+        for (const sub of shell.subProcesses) {
+          expect(xml).toMatch(new RegExp(`calledElement="${sub.processDefinitionKey}"`));
+        }
       }
     }
   });
@@ -1138,15 +1160,17 @@ Create `e2e-fixtures/manifest.json`:
       "processDefinitionKey": "AwbShellProcess",
       "bpmn": "AwbShellProcess.bpmn",
       "forms": ["kapvergunning-start.form", "awb-notify-applicant.form"],
-      "documents": [],
-      "source": "packages/frontend/public/examples/flevoland/AwbShellProcess.bpmn (seeded, unchanged)"
-    },
-    {
-      "processDefinitionKey": "TreeFellingPermitSubProcess",
-      "bpmn": "TreeFellingPermitSubProcess.bpmn",
-      "forms": ["tree-felling-review.form"],
-      "documents": [],
-      "source": "packages/frontend/public/examples/flevoland/TreeFellingPermitSubProcess.bpmn (seeded, unchanged)"
+      "documents": ["example_treefelling_beschikking.document"],
+      "source": "packages/frontend/public/examples/flevoland/AwbShellProcess.bpmn (seeded, unchanged); example_treefelling_beschikking.document serialized from TREE_FELLING_BESCHIKKING in packages/frontend/src/components/DocumentComposer/defaultTemplates.ts — the BPMN's ronl:documentRef had no matching .document file anywhere in the repo until this fix",
+      "subProcesses": [
+        {
+          "processDefinitionKey": "TreeFellingPermitSubProcess",
+          "bpmn": "TreeFellingPermitSubProcess.bpmn",
+          "forms": ["tree-felling-review.form"],
+          "documents": [],
+          "source": "packages/frontend/public/examples/flevoland/TreeFellingPermitSubProcess.bpmn (seeded, unchanged); called via AwbShellProcess's callActivity calledElement=\"TreeFellingPermitSubProcess\" — deployed together with the shell in one LDE Modeler action, not separately"
+        }
+      ]
     },
     {
       "processDefinitionKey": "RipR21Process",
@@ -1174,15 +1198,17 @@ Create `e2e-fixtures/manifest.json`:
       "processDefinitionKey": "AwbZorgtoeslagProcess",
       "bpmn": "AwbZorgtoeslagProcess.bpmn",
       "forms": ["zorgtoeslag-provisional-start.form", "zorgtoeslag-notify-applicant.form"],
-      "documents": [],
-      "source": "packages/frontend/public/examples/toeslagen/AwbZorgtoeslagProcess.bpmn (seeded, unchanged)"
-    },
-    {
-      "processDefinitionKey": "ZorgtoeslagProvisionalSubProcess",
-      "bpmn": "ZorgtoeslagProvisionalSubProcess.bpmn",
-      "forms": ["zorgtoeslag-provisional-review.form"],
-      "documents": [],
-      "source": "packages/frontend/public/examples/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn (seeded, unchanged)"
+      "documents": ["example_zorgtoeslag_provisional_beschikking.document"],
+      "source": "packages/frontend/public/examples/toeslagen/AwbZorgtoeslagProcess.bpmn (seeded, unchanged); example_zorgtoeslag_provisional_beschikking.document serialized from ZORGTOESLAG_PROVISIONAL_BESCHIKKING in packages/frontend/src/components/DocumentComposer/defaultTemplates.ts — the BPMN's ronl:documentRef had no matching .document file anywhere in the repo until this fix",
+      "subProcesses": [
+        {
+          "processDefinitionKey": "ZorgtoeslagProvisionalSubProcess",
+          "bpmn": "ZorgtoeslagProvisionalSubProcess.bpmn",
+          "forms": ["zorgtoeslag-provisional-review.form"],
+          "documents": [],
+          "source": "packages/frontend/public/examples/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn (seeded, unchanged); called via AwbZorgtoeslagProcess's callActivity calledElement=\"ZorgtoeslagProvisionalSubProcess\" — deployed together with the shell in one LDE Modeler action, not separately"
+        }
+      ]
     }
   ]
 }
@@ -1215,19 +1241,19 @@ This task has no code changes and cannot be executed by an implementer subagent.
 
 Report to the user: "Tasks 1-6 are complete, committed, and green. `ronl-business-api`'s E2E suite will fail at `global-setup.ts` until the bundle below is deployed. Please deploy manually via LDE's BPMN Modeler, then confirm, so Task 8 (final E2E verification) can proceed."
 
-- [ ] **Step 2 (user, manual, outside this plan): Deploy the five processes via LDE's BPMN Modeler**
+- [ ] **Step 2 (user, manual, outside this plan): Deploy the processes via LDE's BPMN Modeler, in three grouped actions**
 
-For each row, open LDE's BPMN Modeler (`npm run dev:backend` + `npm run dev` in the LDE repo), import the file from `linked-data-explorer/e2e-fixtures/<tenant>/`, set the Organization field, click Deploy:
+`AwbShellProcess` calls `TreeFellingPermitSubProcess` via a BPMN callActivity (`calledElement="TreeFellingPermitSubProcess"`), and `AwbZorgtoeslagProcess` calls `ZorgtoeslagProvisionalSubProcess` the same way (`calledElement="ZorgtoeslagProvisionalSubProcess"`) — confirmed by reading both shells' BPMN directly. LDE's BPMN Modeler auto-detects this shell/sub-process relationship from `calledElement` when both files are imported into the same Modeler session (`BpmnModeler.tsx`'s `calledElement` scan), and `deployProcess` bundles the shell with its detected sub-process(es) into **one** `/deployment/create` call — so each pair below is **one** deploy action, not two, and both members of a pair always land under the same tenant-id:
 
-| Process                            | Tenant    | Source file                                                    |
-| ---------------------------------- | --------- | -------------------------------------------------------------- |
-| `AwbShellProcess`                  | flevoland | `e2e-fixtures/flevoland/AwbShellProcess.bpmn`                  |
-| `TreeFellingPermitSubProcess`      | flevoland | `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`      |
-| `RipR21Process`                    | flevoland | `e2e-fixtures/flevoland/RipR21Process.bpmn`                    |
-| `AwbZorgtoeslagProcess`            | toeslagen | `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`            |
-| `ZorgtoeslagProvisionalSubProcess` | toeslagen | `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn` |
+Open LDE's BPMN Modeler (`npm run dev:backend` + `npm run dev` in the LDE repo). For each action: import every listed file into the same Modeler session (so the shell/sub-process relationship is detected), set the Organization field once, click Deploy once.
 
-(LDE's `deployProcess` bundles each main BPMN with its own referenced sub-process BPMNs, forms, and document templates in one `/deployment/create` call — confirm each deploy picks up its fixture's forms/documents from the same `e2e-fixtures/<tenant>/` folder alongside the BPMN.)
+| #   | Action                                                              | Tenant    | Files to import together                                                                                            |
+| --- | ------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| 1   | Deploy `AwbShellProcess` + `TreeFellingPermitSubProcess`            | flevoland | `e2e-fixtures/flevoland/AwbShellProcess.bpmn`, `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`            |
+| 2   | Deploy `RipR21Process`                                              | flevoland | `e2e-fixtures/flevoland/RipR21Process.bpmn` (no callActivity — standalone, confirmed by grep)                       |
+| 3   | Deploy `AwbZorgtoeslagProcess` + `ZorgtoeslagProvisionalSubProcess` | toeslagen | `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`, `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn` |
+
+Each action's forms and documents (see `e2e-fixtures/manifest.json`'s per-entry `forms`/`documents` arrays, including each shell's nested `subProcesses` entry) live alongside their BPMN in the same `e2e-fixtures/<tenant>/` folder — confirm the Modeler picks them up automatically as part of the same deploy.
 
 - [ ] **Step 3 (user, manual): Confirm back to proceed**
 
