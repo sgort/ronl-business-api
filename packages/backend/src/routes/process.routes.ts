@@ -542,7 +542,10 @@ router.get('/:key/start-form', async (req, res) => {
   const { key } = req.params;
 
   try {
-    const { data, contentType } = await operatonService.getDeployedStartForm(key);
+    const { data, contentType } = await operatonService.getDeployedStartForm(
+      key,
+      req.user.tenantId
+    );
 
     if (!contentType.includes('application/json')) {
       return res.status(415).json({

@@ -554,6 +554,46 @@ describe('getBoardOwner', () => {
     await expect(svc.getBoardOwner('')).resolves.toBeNull();
     expect(mockClient.get).not.toHaveBeenCalled();
   });
+
+  it('tries the tenant-scoped XML lookup first when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({
+      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
+    });
+    await expect(svc.getBoardOwner('K10', 'flevoland')).resolves.toBe('rvo');
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/process-definition/key/K10/tenant-id/flevoland/xml'
+    );
+  });
+
+  it('falls back to the untenanted XML lookup when the tenant-scoped one reports no matching definition', async () => {
+    mockClient.get
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          data: {
+            message: 'No matching process definition with key: K11 and tenant-id: flevoland',
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { bpmn20Xml: '<camunda:property name="boardOwner" value="waterschap" />' },
+      });
+    await expect(svc.getBoardOwner('K11', 'flevoland')).resolves.toBe('waterschap');
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/K11/tenant-id/flevoland/xml'
+    );
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/K11/xml');
+  });
+
+  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
+    mockClient.get.mockResolvedValue({
+      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
+    });
+    await svc.getBoardOwner('K12'); // untenanted, caches under '::K12'
+    await svc.getBoardOwner('K12', 'flevoland'); // tenant-scoped, caches under 'flevoland::K12'
+    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('getCompletedTasks', () => {
@@ -578,7 +618,7 @@ describe('getCompletedTasks', () => {
         },
       ],
       [
-        '/process-definition/key/K1/xml',
+        '/process-definition/key/K1/tenant-id/flevoland/xml',
         { data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo"/>' } },
       ],
     ]);
@@ -611,6 +651,39 @@ describe('deployed forms', () => {
     await expect(svc.getDeployedStartForm('K')).resolves.toMatchObject({
       contentType: 'application/octet-stream',
     });
+  });
+
+  it('getDeployedStartForm tries the tenant-scoped lookup first when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: '<form/>', headers: { 'content-type': 'text/html' } });
+    await svc.getDeployedStartForm('K', 'flevoland');
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/process-definition/key/K/tenant-id/flevoland/deployed-start-form',
+      { responseType: 'text' }
+    );
+  });
+
+  it('getDeployedStartForm falls back to the untenanted lookup on a no-matching-definition error', async () => {
+    mockClient.get
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          data: { message: 'No matching process definition with key: K and tenant-id: flevoland' },
+        },
+      })
+      .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } });
+    await svc.getDeployedStartForm('K', 'flevoland');
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/K/tenant-id/flevoland/deployed-start-form',
+      { responseType: 'text' }
+    );
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/K/deployed-start-form',
+      {
+        responseType: 'text',
+      }
+    );
   });
 
   it('getDeployedTaskForm fetches the task deployed-form', async () => {

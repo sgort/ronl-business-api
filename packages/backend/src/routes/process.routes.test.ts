@@ -277,6 +277,7 @@ describe('GET /:key/start-form', () => {
     const res = await auth(request(app).get('/v1/process/P/start-form'));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ x: 1 });
+    expect(svc.getDeployedStartForm).toHaveBeenCalledWith('P', 'flevoland');
   });
 
   it('415 for an HTML form', async () => {

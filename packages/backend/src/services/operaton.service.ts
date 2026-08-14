@@ -686,7 +686,7 @@ export class OperatonService {
       const boardOwnerByKey = new Map<string, string | null>();
       await Promise.all(
         distinctKeys.map(async (key) => {
-          boardOwnerByKey.set(key, await this.getBoardOwner(key));
+          boardOwnerByKey.set(key, await this.getBoardOwner(key, tenantId));
         })
       );
 
@@ -708,20 +708,57 @@ export class OperatonService {
   }
 
   /**
+   * Try a tenant-scoped Operaton lookup by process-definition key, falling
+   * back to the untenanted shorthand when Operaton reports no matching
+   * definition — the same pattern startProcess already uses. `suffix` is the
+   * URL path segment following `/process-definition/key/{key}` (and, when
+   * tenant-scoped, `/tenant-id/{tenantId}`), e.g. '/xml' or
+   * '/deployed-start-form'.
+   */
+  private async getByKeyWithTenantFallback<T>(
+    processKey: string,
+    tenantId: string | undefined,
+    suffix: string,
+    options?: { responseType?: 'text' }
+  ): Promise<{ data: T; headers: Record<string, string> }> {
+    if (tenantId) {
+      try {
+        const url = `/process-definition/key/${encodeURIComponent(processKey)}/tenant-id/${encodeURIComponent(tenantId)}${suffix}`;
+        const result = options
+          ? await this.client.get<T>(url, options)
+          : await this.client.get<T>(url);
+        return result as { data: T; headers: Record<string, string> };
+      } catch (scopedError) {
+        const scopedBody = axios.isAxiosError(scopedError) ? scopedError.response?.data : null;
+        const scopedMessage: string = scopedBody?.message ?? '';
+        if (!scopedMessage.includes('No matching process definition with key')) {
+          throw scopedError;
+        }
+      }
+    }
+    const url = `/process-definition/key/${encodeURIComponent(processKey)}${suffix}`;
+    const result = options ? await this.client.get<T>(url, options) : await this.client.get<T>(url);
+    return result as { data: T; headers: Record<string, string> };
+  }
+
+  /**
    * Resolve the owning board of a process by reading the `boardOwner` extension
    * property from its deployed BPMN (tagged at deploy time by LDE). Cached per key.
    * Returns null for untagged/legacy processes or on any lookup failure, so callers
    * can fall back to their static split without the archive ever breaking.
    */
-  async getBoardOwner(processDefinitionKey: string): Promise<string | null> {
+  async getBoardOwner(processDefinitionKey: string, tenantId?: string): Promise<string | null> {
     if (!processDefinitionKey) return null;
-    const cached = this.boardOwnerCache.get(processDefinitionKey);
+    const cacheKey = `${tenantId ?? ''}::${processDefinitionKey}`;
+    const cached = this.boardOwnerCache.get(cacheKey);
     if (cached !== undefined) return cached;
 
     let owner: string | null = null;
     try {
-      const res = await this.client.get(
-        `/process-definition/key/${encodeURIComponent(processDefinitionKey)}/xml`
+      const res = await this.getByKeyWithTenantFallback<{ bpmn20Xml?: string }>(
+        processDefinitionKey,
+        tenantId,
+        '/xml'
       );
       const xml: string = res.data?.bpmn20Xml ?? '';
       // Match the property regardless of name/value attribute order.
@@ -732,12 +769,13 @@ export class OperatonService {
     } catch (error) {
       logger.warn('Failed to resolve boardOwner; treating as untagged', {
         processDefinitionKey,
+        tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       owner = null;
     }
 
-    this.boardOwnerCache.set(processDefinitionKey, owner);
+    this.boardOwnerCache.set(cacheKey, owner);
     return owner;
   }
 
@@ -893,17 +931,23 @@ export class OperatonService {
    * Returns the raw form content as a string; callers must detect content type.
    * Camunda Forms (.form) will be valid JSON. Embedded HTML forms will be HTML.
    */
-  async getDeployedStartForm(processKey: string): Promise<{ data: string; contentType: string }> {
+  async getDeployedStartForm(
+    processKey: string,
+    tenantId?: string
+  ): Promise<{ data: string; contentType: string }> {
     try {
-      const response = await this.client.get(
-        `/process-definition/key/${processKey}/deployed-start-form`,
+      const response = await this.getByKeyWithTenantFallback<string>(
+        processKey,
+        tenantId,
+        '/deployed-start-form',
         { responseType: 'text' }
       );
       const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
-      return { data: response.data as string, contentType };
+      return { data: response.data, contentType };
     } catch (error) {
       logger.error('Failed to fetch deployed start form', {
         processKey,
+        tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
