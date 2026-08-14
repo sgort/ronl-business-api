@@ -175,10 +175,28 @@ export class OperatonService {
         };
       }
 
-      const response = await this.client.post(
-        `/process-definition/key/${processKey}/start`,
-        request
-      );
+      // Try the tenant-scoped start first. Deployments made via LDE's
+      // mandatory-organization deploy flow carry Operaton's own native
+      // tenant-id and are invisible to the untenanted /start shorthand
+      // below — Operaton only resolves /process-definition/key/{key}/start
+      // against definitions deployed with *no* tenant-id. Most processes
+      // still aren't tenant-scoped (only new LDE deployments are, as of
+      // 2026-08-12), so fall back to the untenanted lookup when the
+      // scoped one reports no matching definition.
+      let response;
+      try {
+        response = await this.client.post(
+          `/process-definition/key/${processKey}/tenant-id/${tenantId}/start`,
+          request
+        );
+      } catch (scopedError) {
+        const scopedBody = axios.isAxiosError(scopedError) ? scopedError.response?.data : null;
+        const scopedMessage: string = scopedBody?.message ?? '';
+        if (!scopedMessage.includes('No matching process definition with key')) {
+          throw scopedError;
+        }
+        response = await this.client.post(`/process-definition/key/${processKey}/start`, request);
+      }
 
       logger.info('Process started successfully', {
         processKey,
