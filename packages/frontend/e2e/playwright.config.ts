@@ -25,9 +25,14 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   // 'list' for live terminal feedback; 'html' for a full, readable report
-  // afterward (open: 'never' — run `npx playwright show-report` to view it,
-  // rather than auto-opening a browser tab on every run).
-  reporter: [['list'], ['html', { open: 'never' }]],
+  // afterward (open: 'never' — the html reporter's own "To open last HTML
+  // report run: npx playwright show-report" hint always suggests the bare
+  // command with no workspace awareness, and `npm run test:e2e
+  // --workspace=@ronl/frontend` runs with cwd=packages/frontend regardless
+  // of where it's invoked from — so outputFolder is pinned to the repo
+  // root explicitly, matching where that bare command actually looks when
+  // run from the repo root, which is where this is normally invoked from).
+  reporter: [['list'], ['html', { open: 'never', outputFolder: '../../../playwright-report' }]],
   globalSetup: './global-setup.ts',
   globalTeardown: './global-teardown.ts',
 

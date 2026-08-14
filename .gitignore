@@ -38,6 +38,7 @@ packages/frontend/test-results/
 packages/frontend/e2e/test-results/
 packages/frontend/playwright-report/
 packages/frontend/e2e/playwright-report/
+/playwright-report/
 packages/frontend/e2e/.auth/
 packages/public-site/test-results/
 packages/public-site/e2e/test-results/
