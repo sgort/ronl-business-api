@@ -172,6 +172,14 @@ test time):
   `(processDefinitionKey, tenantId)` pairs the E2E suite actually requires — the
   thing `global-setup.ts` checks against.
 
+LDE's `manifest.json` gets a matching integrity test in LDE's own suite: asserts
+every file it declares actually exists under `e2e-fixtures/`, and that each
+BPMN's own `id` and `organization` extension property match what the manifest
+claims for it — so an edit to a fixture that forgets to update the manifest (or
+vice versa) fails LDE's own test suite immediately, rather than surfacing as a
+confusing mismatch only when ronl-business-api's `global-setup.ts` runs against
+a stale deploy.
+
 **Verification, not auto-deploy, in `global-setup.ts`.** The existing
 `global-setup.ts` only checks that frontend/backend/LDE-backend are reachable —
 it has no idea whether the right processes are deployed with the right tenant-
@@ -269,11 +277,26 @@ the old `RipPhase1Process` deployment goes unused, no migration needed.
 - **E2E (`global-setup.ts`)**: a focused test or manual verification that a
   missing/mismatched required process produces the clear fail-fast message,
   not a downstream test failure.
+- **LDE — manifest-integrity test**: asserts `e2e-fixtures/manifest.json`'s
+  declared files exist and each BPMN's `id`/`organization` match what the
+  manifest claims for it (see C).
 - **Full E2E suite** (`caseworker-journey.spec.ts`, `zorgtoeslag-journey.spec.ts`,
   `tenant-isolation.spec.ts`) re-run against the real redeployed, tenant-scoped
   bundle once it's live — this is the actual proof this design set out to get:
   the whole start → task → complete path exercised through Operaton's real
   tenant-scoped endpoints, not just unit-level mocks.
+
+**Expected implementation sequence** (carries directly into the plan's task
+order): (1) red/green TDD for every code-level change in both repos — Section
+A/D's `ronl-business-api` fixes and their unit tests, LDE's manifest-integrity
+test — all provable without any live Operaton redeploy. (2) At this point
+`ronl-business-api`'s E2E suite is expected to **fail** at `global-setup.ts`'s
+new verification step, correctly, because the real bundle isn't deployed yet.
+(3) Manually redeploy the five processes via LDE (per B), using the
+`e2e-fixtures/` set. (4) Re-run the E2E suite — `global-setup.ts` passes, and
+`caseworker-journey.spec.ts`/`zorgtoeslag-journey.spec.ts`/
+`tenant-isolation.spec.ts` exercise the real tenant-scoped path end to end.
+
 - **Rename (D)**: `rip-phases.ts`'s existing test (or a new one) asserts
   `RIP_PHASE_KEYS`'s R2.1 entry carries `processDefinitionKey: 'RipR21Process'`;
   `operaton.service.test.ts`'s existing `getRipPhase1ActiveList`/
