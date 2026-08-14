@@ -1301,6 +1301,421 @@ git commit -m "test: strengthen tenant-isolation assertions against the real ten
 
 Report to the user: all 5 processes deployed and verified via `global-setup.ts`; full E2E suite green; Gap 1/Gap 2 fixes proven against a real tenant-scoped Operaton instance, not just unit mocks; rename complete end-to-end. Proceed to `superpowers:finishing-a-development-branch` for both repos' branches (`feat/tenant-mandatory-adoption` in `ronl-business-api`, `feat/tenant-mandatory-deploy` in `linked-data-explorer`).
 
+**Actual outcome (2026-08-14):** Task 8 ran exactly as written and correctly stopped at BLOCKED rather than reporting false success — the E2E suite failed 3/12 (`caseworker-journey.spec.ts`, `tenant-isolation.spec.ts`, `zorgtoeslag-journey.spec.ts`), revealing two genuine regressions this plan's earlier tasks didn't anticipate because they only become visible against a real, live, two-tenant Operaton bundle:
+
+- **Bug A:** `startProcess`/`getDeployedStartForm` (Task 1's Gap 1 fix) scope the Operaton lookup to `req.user.tenantId` — the _citizen's own_ tenant — not the process's actual deployed tenant. Breaks `AwbZorgtoeslagProcess`, which is by-design cross-tenant (deployed only under `toeslagen`, callable by citizens of any tenant).
+- **Bug B:** the DMN tables `AwbShellProcess`/`TreeFellingPermitSubProcess`/`AwbZorgtoeslagProcess`/`ZorgtoeslagProvisionalSubProcess` depend on are deployed untenanted, but Operaton requires an _exact_ tenant match by default to resolve a business-rule-task's decision reference — confirmed empirically (see Task 10) via a live spike against this repo's own Operaton instance. This doesn't invalidate the "DMN stays tenant-agnostic" architecture decision from brainstorming; it means the BPMN side needs one explicit attribute per business-rule-task to make Operaton honor it once the _calling process_ is tenant-scoped.
+
+Tasks 9-12 below fix both and re-run this task's own verification to completion. Step 6 above is superseded by Task 12's completion report.
+
+---
+
+## Task 9: Fix Bug A — discover the process's real deployed tenant instead of assuming the citizen's
+
+**Files:**
+
+- Modify: `packages/backend/src/services/operaton.service.ts` (`startProcess`, `getDeployedStartForm`; add a new private `resolveDeployedTenant` helper)
+- Test: `packages/backend/src/services/operaton.service.test.ts`
+
+**Interfaces:**
+
+- Produces: `private resolveDeployedTenant(processKey: string): Promise<string | null>` on `OperatonService`.
+- Consumes: nothing from Tasks 1-8 beyond their already-landed state; this task revises `startProcess`/`getDeployedStartForm`'s internals, not their public signatures (both keep the exact same parameter list as Task 1 left them).
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `operaton.service.test.ts`, a new `describe('resolveDeployedTenant', ...)` block (place it directly before `describe('startProcess', ...)`):
+
+```typescript
+describe('resolveDeployedTenant', () => {
+  it('returns the tenantId of the deployed definition', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
+    // @ts-expect-error -- private method, exercised directly for this unit test
+    await expect(svc.resolveDeployedTenant('AwbZorgtoeslagProcess')).resolves.toBe('toeslagen');
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { key: 'AwbZorgtoeslagProcess', latestVersion: true },
+    });
+  });
+
+  it('prefers a tenant-scoped row over a coexisting untenanted legacy row for the same key', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: null }, { tenantId: 'flevoland' }],
+    });
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBe('flevoland');
+  });
+
+  it('returns null when the key is not deployed at all', async () => {
+    mockClient.get.mockResolvedValue({ data: [] });
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('NotDeployed')).resolves.toBeNull();
+  });
+
+  it('returns null on lookup failure rather than throwing', async () => {
+    mockClient.get.mockRejectedValue(new Error('network down'));
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBeNull();
+  });
+});
+```
+
+Add a new test inside `describe('startProcess', ...)`, after the existing `'translates a missing-deployment 404 into a friendly Dutch message'` test:
+
+```typescript
+it("scopes the start call to the process's actual deployed tenant, not the citizen's own", async () => {
+  mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
+  mockClient.post.mockResolvedValue({ data: { id: 'pi1' } });
+
+  await svc.startProcess('AwbZorgtoeslagProcess', req(), 'unive');
+
+  expect(mockClient.post).toHaveBeenCalledWith(
+    '/process-definition/key/AwbZorgtoeslagProcess/tenant-id/toeslagen/start',
+    expect.anything()
+  );
+});
+
+it("falls back to the citizen's own tenant when the deployed tenant cannot be resolved", async () => {
+  mockClient.get.mockRejectedValue(new Error('lookup failed'));
+  mockClient.post.mockResolvedValue({ data: { id: 'pi1' } });
+
+  await svc.startProcess('SomeProcess', req(), 'flevoland');
+
+  expect(mockClient.post).toHaveBeenCalledWith(
+    '/process-definition/key/SomeProcess/tenant-id/flevoland/start',
+    expect.anything()
+  );
+});
+```
+
+Add a new test inside `describe('deployed forms', ...)`, after the existing `'getDeployedStartForm tries the tenant-scoped lookup first when a tenantId is given'` test:
+
+```typescript
+it('getDeployedStartForm scopes to the resolved deployed tenant, not the passed-in citizen tenant', async () => {
+  mockClient.get
+    .mockResolvedValueOnce({ data: [{ tenantId: 'toeslagen' }] }) // resolveDeployedTenant
+    .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } }); // the form itself
+
+  await svc.getDeployedStartForm('AwbZorgtoeslagProcess', 'unive');
+
+  expect(mockClient.get).toHaveBeenNthCalledWith(
+    2,
+    '/process-definition/key/AwbZorgtoeslagProcess/tenant-id/toeslagen/deployed-start-form',
+    { responseType: 'text' }
+  );
+});
+```
+
+- [ ] **Step 2: Run the tests to verify the new ones fail**
+
+Run: `cd packages/backend && npx jest src/services/operaton.service.test.ts -t "resolveDeployedTenant|actual deployed tenant|resolved deployed tenant"`
+Expected: FAIL — `resolveDeployedTenant` doesn't exist yet, and `startProcess`/`getDeployedStartForm` still scope to the passed-in tenant directly.
+
+- [ ] **Step 3: Add the `resolveDeployedTenant` helper**
+
+In `operaton.service.ts`, add this private method directly above `startProcess` (before its current doc comment):
+
+```typescript
+  /**
+   * Discover the Operaton-native tenant-id a process-definition key is
+   * actually deployed under, via the untenanted list endpoint — unlike the
+   * /process-definition/key/{key}/... shorthand, this resolves regardless of
+   * tenant-id and returns each matching definition's own tenantId. Used to
+   * correctly scope processes that are deployed under a fixed tenant
+   * different from the calling citizen's own (e.g. AwbZorgtoeslagProcess,
+   * always handled under toeslagen regardless of which tenant's citizen is
+   * calling) instead of assuming the citizen's tenant is the process's
+   * tenant. If the same key has coexisting rows under multiple tenants (a
+   * legacy untenanted deployment alongside a newer tenant-scoped one), the
+   * tenant-scoped row wins. Returns null if the key isn't deployed, is
+   * deployed untenanted, or the lookup itself fails — callers should fall
+   * back to their own best guess.
+   */
+  private async resolveDeployedTenant(processKey: string): Promise<string | null> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { key: processKey, latestVersion: true },
+      });
+      const defs = response.data as Array<{ tenantId: string | null }>;
+      const tenantScoped = defs.find((d) => d.tenantId !== null);
+      return tenantScoped?.tenantId ?? defs[0]?.tenantId ?? null;
+    } catch {
+      return null;
+    }
+  }
+```
+
+- [ ] **Step 4: Use it in `startProcess`**
+
+In `startProcess`, replace:
+
+```typescript
+      // Try the tenant-scoped start first. Deployments made via LDE's
+      // mandatory-organization deploy flow carry Operaton's own native
+      // tenant-id and are invisible to the untenanted /start shorthand
+      // below — Operaton only resolves /process-definition/key/{key}/start
+      // against definitions deployed with *no* tenant-id. Most processes
+      // still aren't tenant-scoped (only new LDE deployments are, as of
+      // 2026-08-12), so fall back to the untenanted lookup when the
+      // scoped one reports no matching definition.
+      let response;
+      try {
+        response = await this.client.post(
+          `/process-definition/key/${processKey}/tenant-id/${tenantId}/start`,
+          request
+        );
+```
+
+with:
+
+```typescript
+      // Try the tenant-scoped start first, scoped to the process's own
+      // *actual* deployed tenant (not necessarily the calling citizen's own
+      // tenant — e.g. AwbZorgtoeslagProcess is always handled under
+      // toeslagen regardless of which tenant's citizen is calling).
+      // Deployments made via LDE's mandatory-organization deploy flow carry
+      // Operaton's own native tenant-id and are invisible to the untenanted
+      // /start shorthand below — Operaton only resolves
+      // /process-definition/key/{key}/start against definitions deployed
+      // with *no* tenant-id. Not every process is tenant-scoped yet, so
+      // fall back to the untenanted lookup when the scoped one reports no
+      // matching definition.
+      const deployedTenant = await this.resolveDeployedTenant(processKey);
+      const scopeTenant = deployedTenant ?? tenantId;
+      let response;
+      try {
+        response = await this.client.post(
+          `/process-definition/key/${processKey}/tenant-id/${scopeTenant}/start`,
+          request
+        );
+```
+
+- [ ] **Step 5: Use it in `getDeployedStartForm`**
+
+In `getDeployedStartForm` (the version Task 1 left, which delegates to `getByKeyWithTenantFallback`), change:
+
+```typescript
+  async getDeployedStartForm(
+    processKey: string,
+    tenantId?: string
+  ): Promise<{ data: string; contentType: string }> {
+    try {
+      const response = await this.getByKeyWithTenantFallback<string>(
+        processKey,
+        tenantId,
+        '/deployed-start-form',
+        { responseType: 'text' }
+      );
+```
+
+to:
+
+```typescript
+  async getDeployedStartForm(
+    processKey: string,
+    tenantId?: string
+  ): Promise<{ data: string; contentType: string }> {
+    try {
+      const deployedTenant = await this.resolveDeployedTenant(processKey);
+      const response = await this.getByKeyWithTenantFallback<string>(
+        processKey,
+        deployedTenant ?? tenantId,
+        '/deployed-start-form',
+        { responseType: 'text' }
+      );
+```
+
+(The rest of both methods — error handling, logging, the untenanted fallback inside `getByKeyWithTenantFallback` — is unchanged. `process.routes.ts:545-548` needs no change: it already just passes `req.user.tenantId` through as the fallback value, which is exactly what this task's `deployedTenant ?? tenantId` expects.)
+
+- [ ] **Step 6: Run the tests to verify they pass**
+
+Run: `cd packages/backend && npx jest src/services/operaton.service.test.ts`
+Expected: PASS (full file — confirms Task 1/2/3's existing tests still pass unchanged, since a failed/empty `resolveDeployedTenant` lookup transparently falls back to the old citizen-tenant behavior those tests already exercise).
+
+- [ ] **Step 7: Run the full backend test suite**
+
+Run: `cd packages/backend && npx jest`
+Expected: PASS, no regressions.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/backend/src/services/operaton.service.ts packages/backend/src/services/operaton.service.test.ts
+git commit -m "fix: scope process start/start-form lookups to the process's real deployed tenant"
+```
+
+---
+
+## Task 10: Fix Bug B — make DMN business-rule-tasks resolve their shared/untenanted decision explicitly
+
+**Files:**
+
+- Modify (LDE repo, `linked-data-explorer`): `e2e-fixtures/flevoland/AwbShellProcess.bpmn`, `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`, `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`, `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn`
+
+**Interfaces:**
+
+- Consumes: nothing code-level from earlier tasks — this is a BPMN-content-only fix.
+- Produces: 4 modified BPMN files that Task 11 redeploys.
+
+Confirmed by a live spike against this repo's own Operaton instance (2026-08-14): by default, a business-rule-task's `camunda:decisionRef` resolves against a decision definition under the _same_ tenant-id as the calling process instance — with no fallback to an untenanted/shared decision, even when one exists. Camunda's `camunda:decisionRefTenantId` attribute can override this, but only when set to an **EL expression that evaluates to null** (`${null}`) — a literal empty string (`""`) does **not** work; it's silently ignored and Operaton still inherits the calling process's tenant. This was proven empirically: a spike DMN deployed untenanted, called from a spike BPMN deployed under a test tenant, failed with `camunda:decisionRefTenantId` absent or `=""`, and succeeded (confirmed via a real evaluated output value) with `camunda:decisionRefTenantId="${null}"`.
+
+Every fixture BPMN's business-rule-task currently has NO `camunda:decisionRefTenantId` attribute at all (confirmed by reading each file directly), meaning every one of them inherits its calling process's tenant and would fail exactly like Bug B once the shell processes are tenant-scoped — which, after Task 7, they are. `RipR21Process` has no business-rule-task at all (confirmed, no DMN reference) — not touched by this task.
+
+- [ ] **Step 1: Add `camunda:decisionRefTenantId="${null}"` to all 7 business-rule-tasks**
+
+In `e2e-fixtures/flevoland/AwbShellProcess.bpmn`, change:
+
+```xml
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Phase 3: Admissibility check (Awb 2:3)" camunda:resultVariable="completenessResult" camunda:decisionRef="AwbCompletenessCheck" camunda:mapDecisionResult="singleResult">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Phase 3: Admissibility check (Awb 2:3)" camunda:resultVariable="completenessResult" camunda:decisionRef="AwbCompletenessCheck" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+```
+
+and change:
+
+```xml
+    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Archiving: retention and destruction period (Archives Act)" camunda:resultVariable="archivingResult" camunda:decisionRef="ArchivesActRetention" camunda:mapDecisionResult="singleResult">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Archiving: retention and destruction period (Archives Act)" camunda:resultVariable="archivingResult" camunda:decisionRef="ArchivesActRetention" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+```
+
+In `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`, change:
+
+```xml
+    <bpmn:businessRuleTask id="Sub_AssessPermit" name="Assess tree felling permit (APV)" camunda:resultVariable="permitDecision" camunda:decisionRef="TreeFellingDecision" camunda:mapDecisionResult="singleEntry">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Sub_AssessPermit" name="Assess tree felling permit (APV)" camunda:resultVariable="permitDecision" camunda:decisionRef="TreeFellingDecision" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleEntry">
+```
+
+and change:
+
+```xml
+    <bpmn:businessRuleTask id="Sub_AssessReplacement" name="Assess replacement tree requirement" camunda:resultVariable="replacementDecision" camunda:decisionRef="ReplacementTreeDecision" camunda:mapDecisionResult="singleEntry">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Sub_AssessReplacement" name="Assess replacement tree requirement" camunda:resultVariable="replacementDecision" camunda:decisionRef="ReplacementTreeDecision" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleEntry">
+```
+
+In `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`, change:
+
+```xml
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Phase 3: Admissibility check (Awb 2:3)" camunda:resultVariable="completenessResult" camunda:decisionRef="AwbCompletenessCheck" camunda:mapDecisionResult="singleResult">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Phase 3: Admissibility check (Awb 2:3)" camunda:resultVariable="completenessResult" camunda:decisionRef="AwbCompletenessCheck" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+```
+
+and change:
+
+```xml
+    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Determine retention period (Archives Act)" camunda:resultVariable="archivesResult" camunda:decisionRef="ArchivesActRetention" camunda:mapDecisionResult="singleResult">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Determine retention period (Archives Act)" camunda:resultVariable="archivesResult" camunda:decisionRef="ArchivesActRetention" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+```
+
+In `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn`, change:
+
+```xml
+    <bpmn:businessRuleTask id="Sub_CalcProvisional" name="Calculate provisional entitlement (Wzt)" camunda:resultVariable="provisionalResult" camunda:decisionRef="zorgtoeslag_resultaat" camunda:mapDecisionResult="singleResult">
+```
+
+to:
+
+```xml
+    <bpmn:businessRuleTask id="Sub_CalcProvisional" name="Calculate provisional entitlement (Wzt)" camunda:resultVariable="provisionalResult" camunda:decisionRef="zorgtoeslag_resultaat" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult">
+```
+
+- [ ] **Step 2: Verify each edit landed exactly once per task, with no other change**
+
+```bash
+grep -c 'decisionRefTenantId="\${null}"' e2e-fixtures/flevoland/AwbShellProcess.bpmn                  # expect 2
+grep -c 'decisionRefTenantId="\${null}"' e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn        # expect 2
+grep -c 'decisionRefTenantId="\${null}"' e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn               # expect 2
+grep -c 'decisionRefTenantId="\${null}"' e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn    # expect 1
+git diff --stat  # expect only these 4 files, small diffs
+```
+
+- [ ] **Step 3: Run the LDE manifest-integrity test to confirm nothing else broke**
+
+Run: `cd packages/backend && npx jest src/e2e-fixtures.test.ts`
+Expected: PASS (4/4) — this edit doesn't touch any `bpmn:process id=` attribute or file name/location the manifest test checks, only an unrelated attribute on an inner task element.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add e2e-fixtures/flevoland/AwbShellProcess.bpmn e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn
+git commit -m "fix: explicitly resolve shared DMN decisions as untenanted from tenant-scoped business-rule-tasks"
+```
+
+---
+
+## Task 11: Manual redeploy checkpoint #2 (STOP — human action required)
+
+Like Task 7, this has no code changes and cannot be executed by an implementer subagent. `RipR21Process` needs no redeploy (no DMN reference, untouched by Task 10) — only the two grouped actions whose BPMN content actually changed.
+
+- [ ] **Step 1: Stop and hand off to the user**
+
+Report: "Tasks 9-10 are complete, committed, and green. Two of the three process bundles need a fresh redeploy to pick up Task 10's `decisionRefTenantId` fix — `RipR21Process` is unaffected. Please redeploy the two below via LDE's BPMN Modeler, then confirm."
+
+- [ ] **Step 2 (user, manual): Redeploy the two affected bundles**
+
+| #   | Action                                                                | Tenant    | Files to import together                                                                                            |
+| --- | --------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| 1   | Redeploy `AwbShellProcess` + `TreeFellingPermitSubProcess`            | flevoland | `e2e-fixtures/flevoland/AwbShellProcess.bpmn`, `e2e-fixtures/flevoland/TreeFellingPermitSubProcess.bpmn`            |
+| 2   | Redeploy `AwbZorgtoeslagProcess` + `ZorgtoeslagProvisionalSubProcess` | toeslagen | `e2e-fixtures/toeslagen/AwbZorgtoeslagProcess.bpmn`, `e2e-fixtures/toeslagen/ZorgtoeslagProvisionalSubProcess.bpmn` |
+
+Same procedure as Task 7: import both files of each action into the same Modeler session, set Organization to the tenant shown, click Deploy once. This creates a new version of each process definition (Operaton keeps the old version too — `latestVersion=true` queries, used throughout this plan's code, always resolve to the newest one, so no cleanup of the old version is required).
+
+- [ ] **Step 3 (user, manual): Confirm back to proceed**
+
+Once both are redeployed, tell the implementer/agent to proceed to Task 12.
+
+---
+
+## Task 12: Final E2E re-verification
+
+Re-run exactly what Task 8 ran, now that Tasks 9-11 have landed.
+
+**Files:** none modified — verification only, unless Step 3 below (inherited from Task 8's original Step 3, already answered "no change warranted" once — re-confirm it still holds now that the suite can actually reach that assertion) concludes otherwise.
+
+- [ ] **Step 1: Run the full E2E suite**
+
+Run: `cd packages/frontend && npm run test:e2e`
+Expected: all 12 tests pass, including `caseworker-journey.spec.ts`, `tenant-isolation.spec.ts`, and `zorgtoeslag-journey.spec.ts` — the three that failed in Task 8.
+
+- [ ] **Step 2: If any test still fails, stop and report — do not attempt a third fix blind**
+
+If a failure remains, capture the full error output and Operaton engine log context (same method Task 8 used to diagnose Bug A/B) and report BLOCKED rather than guessing at a third fix. Two rounds of real, confirmed regressions is expected given how much this plan changes; a third would warrant re-examining the approach with the user rather than another unilateral patch.
+
+- [ ] **Step 3: Re-confirm Task 8's Step 3 conclusion now that the suite reaches the assertion**
+
+Task 8 already read `tenant-isolation.spec.ts` and concluded its existing assertions are sufficient, but couldn't demonstrate the spec passing (Bug A blocked it upstream). Now that Step 1 above should let the suite actually reach and pass that assertion, confirm the PASS is for the reason expected (the `flevoland` caseworker's task list genuinely never shows the `toeslagen` review task) rather than some other coincidental reason (e.g., the task not existing yet due to an unrelated failure earlier in the same spec).
+
+- [ ] **Step 4: Report completion**
+
+Report to the user: all 5 processes deployed and verified via `global-setup.ts`; full E2E suite green (12/12); Gap 1/Gap 2 fixes AND the two regressions found by Task 8 (Bug A's cross-tenant lookup, Bug B's DMN tenant resolution) all proven fixed against a real tenant-scoped Operaton instance. Proceed to `superpowers:finishing-a-development-branch` for both repos' branches (`feat/tenant-mandatory-adoption` in `ronl-business-api`, `feat/tenant-mandatory-deploy` in `linked-data-explorer`).
+
 ---
 
 ## Self-Review Notes
@@ -1309,3 +1724,4 @@ Report to the user: all 5 processes deployed and verified via `global-setup.ts`;
 - **Placeholder scan:** every step carries real file paths, real line numbers (verified by direct reading, not reconstructed from memory), and complete code — no "TBD"/"similar to Task N"/"add appropriate handling" anywhere in this plan.
 - **Type consistency:** `getByKeyWithTenantFallback<T>` (Task 1) is used identically by both its callers; `getBoardOwner`/`getDeployedStartForm`'s new `tenantId?: string` parameter and `getDeployedProcessKeys`/`getPhaseInstanceCounts`'s match across their Task 1/2 definitions and Task 1/2 call-site updates; `RipR21Process` is spelled identically across Tasks 3, 4, 5, 6, 7 (cross-checked against Task 3's `rip-phases.ts` source of truth).
 - **Corrected during plan-writing (documented in the spec itself, commit `91a8fd3`):** the spec originally claimed the LDE manifest-integrity test would check an "organization extension property" in each BPMN. Direct inspection of the actual fixture source files (`grep organization` across all five BPMNs, plus `git log -S"organization"`) found no such property anywhere and no commit ever added one — `organization`/tenant-id is a value typed into LDE's Deploy dialog at deploy time, not static file content. Task 6's test asserts BPMN `id` only; `global-setup.ts` (Task 5/8) is what actually verifies the deployed tenant-id, against the real Operaton API.
+- **Added after Task 8 ran against the real redeployed bundle (2026-08-14):** Task 8, run for real, found two genuine regressions no earlier task's review could have caught — neither is testable without live, two-tenant Operaton data, which didn't exist until Task 7's redeploy. Tasks 9-12 fix both (Bug A: cross-tenant start/start-form lookups scoped to the wrong tenant; Bug B: shared DMNs unresolvable from tenant-scoped calling processes, confirmed and fixed via a live empirical spike against Operaton, not guesswork) and re-run Task 8's own verification to completion. This is the plan working as intended under the "spec is the binding authority, plan is its argument, judgment settles what neither answers" principle — a genuinely new fact (Operaton's real multi-tenancy DMN-resolution behavior) surfaced only once the real system was exercised, and the plan was extended rather than the finding being forced into an existing task's scope.
