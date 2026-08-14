@@ -31,4 +31,8 @@ describe('simEurK', () => {
   it('formats 1000 as €1k', () => {
     expect(simEurK(1000)).toBe('€1k');
   });
+
+  it('formats 12025 as €12,0k (keeps the trailing zero the reference keeps)', () => {
+    expect(simEurK(12025)).toBe('€12,0k');
+  });
 });

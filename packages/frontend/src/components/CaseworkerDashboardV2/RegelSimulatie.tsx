@@ -56,6 +56,45 @@ function readStored(): StoredSimState {
   }
 }
 
+// Numeric fields that have a declared min/max range on their SimTweak slider
+// (matching the ranges passed at each SimTweak call site below). `seed`,
+// `arrivalPow`, and `aandeel2026` have no slider and are intentionally
+// excluded. A hand-edited or corrupted localStorage value (e.g. `populatie`
+// far outside 0-5000) isn't otherwise validated on restore, which — combined
+// with how expensive a single run() can get at extreme settings — risks a
+// self-inflicted freeze on load. Clamp restored values into their declared
+// range before merging them over SIM_DEFAULTS.
+const CFG_RANGES: Partial<Record<keyof SimConfig, [number, number]>> = {
+  populatie: [400, 5000],
+  eigenaarRatio: [0.2, 0.9],
+  kostenGem: [1500, 7000],
+  kostenSd: [500, 3000],
+  budgetScale: [0.4, 2],
+  doorlooptijdGem: [2, 40],
+  pAanvullendeInfo: [0, 0.6],
+  infoWachtGem: [3, 90],
+  bezwaarKans: [0, 0.6],
+  bezwaarToewijzing: [0, 0.6],
+  pFailliet: [0, 0.2],
+  pBuitenprovincie: [0, 0.3],
+  pGeenRelatie: [0, 0.2],
+  pGeenToestemming: [0, 0.4],
+  pNaamMismatch: [0, 0.2],
+};
+
+function clampCfg(partial: Partial<SimConfig>): Partial<SimConfig> {
+  const clamped: Partial<SimConfig> = { ...partial };
+  for (const key of Object.keys(clamped) as (keyof SimConfig)[]) {
+    const range = CFG_RANGES[key];
+    const v = clamped[key];
+    if (range && typeof v === 'number' && Number.isFinite(v)) {
+      const [min, max] = range;
+      (clamped[key] as number) = Math.min(max, Math.max(min, v));
+    }
+  }
+  return clamped;
+}
+
 const feedBadge: Record<FeedUitkomst, { bg: string; ch: string }> = {
   volledig: { bg: 'bg-green', ch: '✓' },
   'niet-uitbetaald': { bg: 'bg-over', ch: '€' },
@@ -76,7 +115,7 @@ const feedLabel: Record<FeedUitkomst, string> = {
 export default function RegelSimulatie() {
   const [cfg, setCfg] = useState<SimConfig>(() => ({
     ...SIM_DEFAULTS,
-    ...(readStored().cfg || {}),
+    ...clampCfg(readStored().cfg || {}),
   }));
   const [day, setDay] = useState<number>(() => readStored().day || 0);
   const [running, setRunning] = useState(false);
@@ -176,7 +215,7 @@ export default function RegelSimulatie() {
       <div className="sim-tweaks">
         <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Scenario-parameters</span>
-          <button className="sim-collapse" onClick={() => setTweaksOpen((o) => !o)}>
+          <button type="button" className="sim-collapse" onClick={() => setTweaksOpen((o) => !o)}>
             {tweaksOpen ? 'verbergen ▲' : 'tonen ▼'}
           </button>
         </h3>
@@ -345,10 +384,10 @@ export default function RegelSimulatie() {
       </div>
 
       <div className="sim-controlbar">
-        <button className="sim-btn" onClick={toggle}>
+        <button type="button" className="sim-btn" onClick={toggle}>
           {running ? '❚❚ Pauze' : curDay >= N - 1 ? '↻ Opnieuw' : '▶ Speel af'}
         </button>
-        <button className="sim-btn ghost" onClick={reset}>
+        <button type="button" className="sim-btn ghost" onClick={reset}>
           Reset
         </button>
         <span className="sim-datepill">
@@ -367,6 +406,7 @@ export default function RegelSimulatie() {
         <div className="sim-scrub">
           <input
             type="range"
+            aria-label="Tijdlijn"
             min={0}
             max={N - 1}
             step={1}
@@ -381,6 +421,7 @@ export default function RegelSimulatie() {
           <span>Snelheid</span>
           <input
             type="range"
+            aria-label="Snelheid"
             min={1}
             max={12}
             step={1}

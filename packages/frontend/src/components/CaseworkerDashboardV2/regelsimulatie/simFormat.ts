@@ -9,9 +9,7 @@ export function simEurK(n: number): string {
   }
   if (a >= 1000) {
     const v = n / 1000;
-    return (
-      '€' + (Number.isInteger(v) ? v : Number(v.toFixed(1))).toString().replace('.', ',') + 'k'
-    );
+    return '€' + (Number.isInteger(v) ? v : v.toFixed(1)).toString().replace('.', ',') + 'k';
   }
   return '€' + Math.round(n);
 }

@@ -27,9 +27,15 @@ const DEFAULT_CFG: SimConfig = {
   bezwaarToewijzing: 0.25,
 };
 
+// Computed once and shared across all tests in this file — each run() call
+// simulates the full 3,150-application population, and 5 fresh calls (one
+// per test) was adding real, avoidable CPU load to the suite (a contributing
+// factor to simEngine.test.ts's <250ms performance-test flakiness). All 5
+// tests below only read `result`, never mutate it, so sharing is safe.
+const result = run(DEFAULT_CFG);
+
 describe('SimMissedPanel', () => {
   it('renders the three filter buttons with their counts', () => {
-    const result = run(DEFAULT_CFG);
     render(<SimMissedPanel result={result} day={result.days.length - 1} />);
     expect(screen.getByRole('button', { name: /Door RFI-verschuiving/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Door succesvol beroep/ })).toBeInTheDocument();
@@ -37,13 +43,11 @@ describe('SimMissedPanel', () => {
   });
 
   it('defaults to the RFI filter and shows a matching application', () => {
-    const result = run(DEFAULT_CFG);
     render(<SimMissedPanel result={result} day={result.days.length - 1} />);
     expect(screen.getByText(/aanvraag 1 \//)).toBeInTheDocument();
   });
 
   it('switching to "Alle onbetaalde" changes the displayed count', () => {
-    const result = run(DEFAULT_CFG);
     render(<SimMissedPanel result={result} day={result.days.length - 1} />);
     const before = screen.getByText(/aanvraag 1 \//).textContent;
     // Deviation from the brief: its listing called `.click()` directly on
@@ -66,7 +70,6 @@ describe('SimMissedPanel', () => {
 
   it('◀ / ▶ navigate between applications in the current filter', async () => {
     const user = userEvent.setup();
-    const result = run(DEFAULT_CFG);
     render(<SimMissedPanel result={result} day={result.days.length - 1} />);
     const next = screen.getByRole('button', { name: '▶' });
     await user.click(next);
@@ -74,7 +77,6 @@ describe('SimMissedPanel', () => {
   });
 
   it('shows the empty state when a filter has zero matches at an early day', () => {
-    const result = run(DEFAULT_CFG);
     render(<SimMissedPanel result={result} day={0} />);
     // At day 0 nothing has been decided yet, so nothing has "missed out".
     expect(screen.getByText(/Nog niets misgelopen|In dit scenario/)).toBeInTheDocument();

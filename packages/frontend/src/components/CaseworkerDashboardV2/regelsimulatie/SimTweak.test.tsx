@@ -19,15 +19,18 @@ describe('SimTweak', () => {
     );
     expect(screen.getByText('Omvang doelgroep')).toBeInTheDocument();
     expect(screen.getByText('3.150 aanvragen')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Omvang doelgroep/)).toBeInTheDocument();
   });
 
-  it('calls onChange with a parsed number when the slider moves', async () => {
+  it('calls onChange with a parsed number when the slider is released after moving', async () => {
     const onChange = vi.fn();
     render(
       <SimTweak label="X" value={5} display="5" min={0} max={10} step={1} onChange={onChange} />
     );
     const slider = screen.getByRole('slider');
     fireEventChange(slider, '7');
+    expect(onChange).not.toHaveBeenCalled(); // not committed yet — still dragging
+    fireEvent.pointerUp(slider);
     expect(onChange).toHaveBeenCalledWith(7);
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RegelSimulatie from './RegelSimulatie';
 
@@ -38,8 +38,7 @@ describe('RegelSimulatie', () => {
 
   it('dragging the timeline changes the displayed date without throwing', async () => {
     render(<RegelSimulatie />);
-    const scrub = document.querySelector('.sim-scrub');
-    const slider = scrub ? within(scrub as HTMLElement).getByRole('slider') : null;
+    const slider = screen.getByRole('slider', { name: 'Tijdlijn' });
     expect(slider).toBeInTheDocument();
   });
 

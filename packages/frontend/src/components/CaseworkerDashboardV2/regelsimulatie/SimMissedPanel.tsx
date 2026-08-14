@@ -317,6 +317,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
 
   const btn = (key: 'rfi' | 'beroep' | 'all', label: string, count: number, col: string) => (
     <button
+      type="button"
       key={key}
       onClick={() => {
         setMode(key);
@@ -435,6 +436,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
               {n > 1 && (
                 <>
                   <button
+                    type="button"
                     className="sim-btn ghost"
                     style={{ padding: '4px 11px', opacity: idx === 0 ? 0.4 : 1 }}
                     onClick={() => go(-1)}
@@ -443,6 +445,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                     ◀
                   </button>
                   <button
+                    type="button"
                     className="sim-btn ghost"
                     style={{ padding: '4px 11px', opacity: idx === n - 1 ? 0.4 : 1 }}
                     onClick={() => go(1)}
@@ -513,6 +516,7 @@ export default function SimMissedPanel({ result, day }: { result: SimResult; day
                     : 'var(--v2-rule-2)';
                 return (
                   <button
+                    type="button"
                     key={x.id}
                     onClick={() => setSelId(x.id)}
                     title={`${x.persoon.voornaam} ${x.persoon.achternaam} · ${simEur(x.basis)} misgelopen`}
