@@ -7,7 +7,7 @@ import RegelSimulatie from './RegelSimulatie';
 describe('RegelSimulatie', () => {
   it('renders with no API calls and shows the breadcrumb and title', () => {
     render(<RegelSimulatie />);
-    expect(screen.getByText('Simulatie · Regelsimulatie')).toBeInTheDocument();
+    expect(screen.getByText('Simulatie · Subsidie thuisbatterij')).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { level: 1, name: 'Regelsimulatie — Subsidie thuisbatterij' })
     ).toBeInTheDocument();

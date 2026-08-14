@@ -135,7 +135,7 @@ export const MODES: ModeConfig[] = [
     defaultSectionId: 'regelsimulatie',
     groups: [
       {
-        items: [{ id: 'regelsimulatie', label: 'Regelsimulatie', authRequired: true }],
+        items: [{ id: 'regelsimulatie', label: 'Subsidie thuisbatterij', authRequired: true }],
       },
     ],
   },

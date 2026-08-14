@@ -192,7 +192,7 @@ export default function RegelSimulatie() {
     <div className="sim">
       <header className="sim-head">
         <div>
-          <p className="v2-crumb">Simulatie · Regelsimulatie</p>
+          <p className="v2-crumb">Simulatie · Subsidie thuisbatterij</p>
           <h1 className="v2-page-title">Regelsimulatie — Subsidie thuisbatterij</h1>
           <p className="sim-lede">
             De volledige aanvraagperiode <b>2026–2027</b> uitgespeeld tegen een synthetische
