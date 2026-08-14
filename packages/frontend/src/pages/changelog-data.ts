@@ -93,6 +93,146 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.18',
+      status: 'Released',
+      date: '14 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '38534c4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Scope the persisted playback day per caseworker',
+          details: [
+            'The simulation restored both scenario parameters and the current playback day from one shared localStorage key on every reload — so a caseworker opening the page for what felt like the first time could land on a fully-played-through simulation (day 719/719) left behind by an earlier visit, in that browser or by someone else.',
+            "Split persistence: scenario parameters stay under the existing shared key — there's no per-user meaning to a set of sliders. The playback day now lives under a key scoped by the caseworker's stable Keycloak sub. A different caseworker — or the same one signed in for the first time — always starts at day 0; each caseworker keeps their own position across their own reloads. True per-login-session reset would need a session identifier this codebase doesn't currently expose anywhere; out of scope here.",
+          ],
+        },
+        {
+          sha: '8f72497',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Rename the Regelsimulatie rail item to Subsidie thuisbatterij',
+          details: [
+            "The rail label 'Regelsimulatie' named the section type, not the specific scheme it shows. Since the Simulatie mode is deliberately built to hold more than one simulation later, the rail item needs the specific scheme's name so a second simulation doesn't collide with an equally generic sibling label.",
+            "Renamed the rail item and the in-page breadcrumb (previously a separate hardcoded string) to 'Subsidie thuisbatterij' for consistency. The page's own h1 and the internal section id are unchanged.",
+          ],
+        },
+        {
+          sha: 'a73c14a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Apply final review fixes: slider freeze, accessible labels, format/clamp corrections',
+          details: [
+            "The final whole-branch review found a genuine multi-second main-thread freeze while dragging a parameter slider at settings the UI itself exposes (population near its max, RFI chance near its max) — each drag step fired a full engine run synchronously. Fixed by decoupling a slider's visual position from when its value actually commits (on release, not on every step).",
+            'Also added the type="button" attribute and accessible slider labels the design spec required but two tasks had each partially missed, corrected a silent trailing-zero formatting divergence from the reference, clamped a restored-from-storage scenario value to its slider\'s declared range, and corrected the SDD ledger\'s own reasoning about a performance-test flake it had wrongly called pre-existing.',
+          ],
+        },
+        {
+          sha: 'f841591',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Wire Regelsimulatie into the V2 shell',
+          details: [
+            'Added the Simulatie mode (between Zoeken and Beheer), a Regelsimulatie rail item gated behind two independent access-control checks (a per-item auth requirement and a separate tenant-visibility gate), the SectionRouter dispatch line, and the CSS import.',
+          ],
+        },
+        {
+          sha: '451dc7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the RegelSimulatie section component',
+          details: [
+            'The section shell tying the engine and every sub-component together: the header, the collapsible scenario-parameter panel (15 sliders), the playback control bar, and the two-column card layout. Recomputes the simulation only when a parameter actually changes, never while scrubbing the timeline.',
+          ],
+        },
+        {
+          sha: 'de8879b',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add SimMissedPanel',
+          details: [
+            "The 'Geldige aanvragen die misliepen' panel: three filters (RFI priority-shift, successful appeal, all unpaid) over a per-application timeline showing submission, processing, the optional information-request pause, and the decision.",
+          ],
+        },
+        {
+          sha: 'b2a6f3e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add SimChart',
+          details: [
+            'The saw-tooth budget-over-time chart, hand-rolled SVG with no charting library: free vs. reserved budget, split and merged pot phases, exhaustion markers, and the current-day indicator.',
+          ],
+        },
+        {
+          sha: '4bc3402',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Move Regelsimulatie's formatters into their own module",
+          details: [
+            "simEur()/simEurK() lived in SimPot.tsx alongside its component export, which breaks Vite's react-refresh assumption that a component file exports only components. Extracted both into a dedicated simFormat.ts.",
+          ],
+        },
+        {
+          sha: '304be78',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Add Regelsimulatie's presentational primitives",
+          details: [
+            'SimPot (one budget pot bar), SimOutcomeRow (one outcome bar row), and SimTweak (one parameter slider) — the small, reusable pieces the section component assembles.',
+          ],
+        },
+        {
+          sha: 'b4ce84e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Port Regelsimulatie's styling",
+          details: [
+            'The dedicated stylesheet ported unchanged, scoped under the existing .cwd-v2 design tokens — no new colors.',
+          ],
+        },
+        {
+          sha: 'ed13bae',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Disclose and test the beroepDisplacerId effDay deviation',
+          details: [
+            "Review found the port's appeal-displacement attribution logic (which appeal \"displaced\" a given application) uses a real field where the reference compares against a field that's never actually set on the object type involved, making that branch permanently dead code there. The port's version is more correct — it can pick the nearest-preceding appeal winner instead of always the pool's overall minimum — and was confirmed with the project owner as the intended behavior, not a bug to revert. It only affects which application id is shown in one caption; no totals or payment outcomes depend on it. Added a disclosure comment and a test that proves the two strategies actually diverge.",
+          ],
+        },
+        {
+          sha: '9c3d7ea',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Regelsimulatie engine',
+          details: [
+            "A deterministic, pure TypeScript port of the Flevoland home-battery subsidy's budget-exhaustion simulation: entitlement rules, amount calculation, split/merged budget pools with a 1 October boundary and year-to-year carry-over, first-come-first-served allocation with no back-fill once a pool seals, and two counterfactual re-runs isolating how much of the unpaid total is attributable to an information-request delay versus a successful appeal.",
+            '22 tests cover determinism, amount boundaries, entitlement precedence, resolver sealing and priority ordering, full-run bookkeeping invariants, the budget-year-is-submission-year rule, both counterfactuals, and a performance budget (under 250ms for the default 3,150-application population).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.17',
+      status: 'Released',
+      date: '14 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: 'ad46260',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Correct the RIP pipeline stage note about rule sets per competent authority',
+          details: [
+            "The 'Verifiëren & live' pipeline stage's note said the citizen sees one environment behind which are always two rule sets from two competent authorities. Corrected to 'one or more rule sets from corresponding competent authorities' — not every deployment involves exactly two authorities.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.16',
       status: 'Released',
       date: '13 aug 2026',
