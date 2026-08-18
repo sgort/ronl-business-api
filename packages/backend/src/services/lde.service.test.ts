@@ -1,8 +1,8 @@
 /**
- * Unit tests for lde.service — proxies LDE's public process-bundle list,
- * filters to publicly-visible bundles, maps to the PublicProcess shape,
- * and caches for 5 minutes. axios is mocked; the module is re-required per
- * test to reset its module-level cache.
+ * Unit tests for lde.service — proxies LDE's public process-bundle list and
+ * its published-DMN list, filters to publicly-visible bundles, maps to the
+ * PublicProcess shape, and caches for 5 minutes. axios is mocked; the module
+ * is re-required per test to reset its module-level cache.
  */
 
 const mockAxios = { get: jest.fn() };
@@ -15,6 +15,9 @@ const mockConfig = {
   public: { showWipProcesses: false },
 };
 jest.mock('@utils/config', () => ({ config: mockConfig }));
+jest.mock('@services/regelcatalogus.service', () => ({
+  SPARQL_ENDPOINT: 'https://graph.test/sparql',
+}));
 
 type Mod = typeof import('./lde.service');
 
@@ -75,12 +78,30 @@ const wipInfraBundle = {
   boardOwner: 'infra-board',
 };
 
+const digitalTwinDmn = {
+  id: 'https://regels.overheid.nl/services/digital-twin/dmn',
+  identifier: '_bad36e9e-ac9d-4d78-b0be-2f1c58cbf3c5',
+  title: 'HvA_full_dmn_export-patched.dmn',
+  service: 'https://regels.overheid.nl/services/digital-twin',
+  serviceTitle: 'Digital Twin Inkomensregelingen',
+  xmlUrl: '/v1/dmns/_bad36e9e-ac9d-4d78-b0be-2f1c58cbf3c5/xml',
+};
+const zorgtoeslagDmn = {
+  id: 'https://regels.overheid.nl/services/zorgtoeslag-lvnsgb/dmn',
+  identifier: 'zorgtoeslag_resultaat',
+  title: 'resultaat_zorgtoeslag_operaton_compat.dmn',
+  service: 'https://regels.overheid.nl/services/zorgtoeslag-lvnsgb',
+  serviceTitle: 'Zorgtoeslag',
+  xmlUrl: '/v1/dmns/zorgtoeslag_resultaat/xml',
+};
+
 let getPublicProcesses: Mod['getPublicProcesses'];
 let getPublicProcessByKey: Mod['getPublicProcessByKey'];
+let getPublicDmnsByService: Mod['getPublicDmnsByService'];
 beforeEach(() => {
   jest.clearAllMocks();
   mockConfig.public.showWipProcesses = false;
-  ({ getPublicProcesses, getPublicProcessByKey } = freshModule());
+  ({ getPublicProcesses, getPublicProcessByKey, getPublicDmnsByService } = freshModule());
 });
 
 describe('getPublicProcesses', () => {
@@ -166,5 +187,71 @@ describe('getPublicProcessByKey', () => {
     mockAxios.get.mockResolvedValue({ data: { success: true, data: [activeInfraBundle] } });
     expect(await getPublicProcessByKey('infra-x')).toBeNull();
     expect(await getPublicProcessByKey('nope')).toBeNull();
+  });
+});
+
+describe('getPublicDmnsByService', () => {
+  function mockDmns(dmns: unknown[]) {
+    mockAxios.get.mockResolvedValue({
+      data: { success: true, data: { total: dmns.length, dmns } },
+    });
+  }
+
+  it('queries LDE with the RONL SPARQL endpoint', async () => {
+    mockDmns([]);
+    await getPublicDmnsByService();
+    expect(mockAxios.get).toHaveBeenCalledWith(
+      'https://lde.test/v1/dmns',
+      expect.objectContaining({ params: { endpoint: 'https://graph.test/sparql' } })
+    );
+  });
+
+  it('groups DMNs by their service URI', async () => {
+    mockDmns([digitalTwinDmn, zorgtoeslagDmn]);
+    const byService = await getPublicDmnsByService();
+    expect([...byService.keys()].sort()).toEqual([
+      'https://regels.overheid.nl/services/digital-twin',
+      'https://regels.overheid.nl/services/zorgtoeslag-lvnsgb',
+    ]);
+    expect(byService.get('https://regels.overheid.nl/services/digital-twin')).toEqual([
+      {
+        title: 'HvA_full_dmn_export-patched.dmn',
+        xmlUrl: 'https://lde.test/v1/dmns/_bad36e9e-ac9d-4d78-b0be-2f1c58cbf3c5/xml',
+      },
+    ]);
+  });
+
+  it('keeps every DMN when one service publishes more than one', async () => {
+    mockDmns([digitalTwinDmn, { ...digitalTwinDmn, identifier: 'second', title: 'second.dmn' }]);
+    const byService = await getPublicDmnsByService();
+    expect(byService.get('https://regels.overheid.nl/services/digital-twin')).toHaveLength(2);
+  });
+
+  it('resolves the relative xmlUrl against the LDE origin without doubling /v1', async () => {
+    mockDmns([digitalTwinDmn]);
+    const byService = await getPublicDmnsByService();
+    expect(byService.get(digitalTwinDmn.service)?.[0].xmlUrl).toBe(
+      'https://lde.test/v1/dmns/_bad36e9e-ac9d-4d78-b0be-2f1c58cbf3c5/xml'
+    );
+  });
+
+  it('skips DMNs without a service URI or without an xmlUrl', async () => {
+    mockDmns([
+      { ...digitalTwinDmn, service: undefined },
+      { ...zorgtoeslagDmn, xmlUrl: undefined },
+    ]);
+    expect((await getPublicDmnsByService()).size).toBe(0);
+  });
+
+  it('caches for 5 minutes', async () => {
+    mockDmns([digitalTwinDmn]);
+    await getPublicDmnsByService();
+    await getPublicDmnsByService();
+    expect(mockAxios.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns an empty map on fetch failure so the catalogue still renders', async () => {
+    mockAxios.get.mockRejectedValueOnce(new Error('down'));
+    expect((await getPublicDmnsByService()).size).toBe(0);
   });
 });

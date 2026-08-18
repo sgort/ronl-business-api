@@ -80,6 +80,9 @@ export interface PublicHit {
   forms?: { id: string; name: string }[];
   documents?: { id: string; name: string }[];
   subprocesses?: { id: string; name: string; bpmnProcessId: string; status: string }[];
+  /** Regel items only: DMN source files LDE publishes for this service, with
+   * an absolute URL the browser can follow straight to the XML. */
+  dmns?: { title: string; xmlUrl: string }[];
 }
 
 export interface SearchResponse {

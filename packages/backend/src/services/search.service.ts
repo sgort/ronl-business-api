@@ -2,7 +2,7 @@ import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems } from '@services/berichten.service';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
 import { getRegelcatalogusData, CatalogService } from '@services/regelcatalogus.service';
-import { getPublicProcesses } from '@services/lde.service';
+import { getPublicProcesses, getPublicDmnsByService, PublicDmn } from '@services/lde.service';
 import { slugify } from '@utils/slug';
 import { createLogger } from '@utils/logger';
 
@@ -46,6 +46,8 @@ export interface PublicIndexItem {
   forms?: PublicFormRow[];
   documents?: PublicFormRow[];
   subprocesses?: PublicSubprocessRow[];
+  /** Regel items only: the DMN source files LDE publishes for this service. */
+  dmns?: PublicDmn[];
 }
 
 export interface PublicSearchFilters {
@@ -59,7 +61,8 @@ export interface PublicSearchFilters {
 
 function mapRegelService(
   service: CatalogService,
-  data: Awaited<ReturnType<typeof getRegelcatalogusData>>
+  data: Awaited<ReturnType<typeof getRegelcatalogusData>>,
+  dmnsByService: Map<string, PublicDmn[]>
 ): PublicIndexItem {
   const slug = slugify(service.title);
   const org = data.organizations.find((o) => o.services.some((s) => s.uri === service.uri));
@@ -69,6 +72,7 @@ function mapRegelService(
   const begrippen = data.concepts
     .filter((c) => c.serviceTitle === service.title)
     .map((c) => c.prefLabel);
+  const dmns = dmnsByService.get(service.uri);
 
   return {
     id: `regel-${slug}`,
@@ -83,6 +87,7 @@ function mapRegelService(
     rules,
     ruleCount: rules.length,
     begrippen,
+    ...(dmns?.length ? { dmns } : {}),
     facts: [
       ['Uitvoeringsorganisatie', org?.name ?? '—'],
       ['Aantal regels', String(rules.length)],
@@ -100,12 +105,13 @@ function mapRegelService(
 // ── Index builder ──────────────────────────────────────────────────────────
 
 async function buildIndex(): Promise<PublicIndexItem[]> {
-  const [berichten, nieuws, producten, catalogus, processen] = await Promise.all([
+  const [berichten, nieuws, producten, catalogus, processen, dmnsByService] = await Promise.all([
     getBerichtenItems(1000, 0),
     getNieuwsItems(1000, 0),
     getProductenDienstenItems(1000, 0),
     getRegelcatalogusData(),
     getPublicProcesses(),
+    getPublicDmnsByService(),
   ]);
 
   const items: PublicIndexItem[] = [];
@@ -181,7 +187,7 @@ async function buildIndex(): Promise<PublicIndexItem[]> {
   }
 
   for (const service of catalogus.services) {
-    items.push(mapRegelService(service, catalogus));
+    items.push(mapRegelService(service, catalogus, dmnsByService));
   }
 
   for (const proces of processen) {

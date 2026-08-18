@@ -31,6 +31,7 @@ export const en: Translations = {
   back: 'Back to results',
   tech: 'Technical details',
   techLede: 'For developers and information analysts.',
+  techDmnDownload: 'download DMN (xml)',
   aside: 'About this item',
   readMore: 'Read more at the source',
   updated: 'Updated',

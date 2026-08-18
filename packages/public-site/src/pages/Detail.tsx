@@ -13,7 +13,7 @@ import {
 import TypeTag from '../components/TypeTag';
 import Crumbs from '../components/Crumbs';
 import Callout from '../components/Callout';
-import TechDetails from '../components/TechDetails';
+import TechDetails, { type TechDownload } from '../components/TechDetails';
 
 interface DetailItem {
   title: string;
@@ -29,6 +29,7 @@ interface DetailItem {
   forms?: { id: string; name: string }[];
   documents?: { id: string; name: string }[];
   subprocesses?: { id: string; name: string; bpmnProcessId: string; status: string }[];
+  dmns?: TechDownload[];
   apiPath: string;
 }
 
@@ -90,6 +91,7 @@ async function loadDetail(type: PubType, slug: string): Promise<DetailItem | nul
     rules: item.rules,
     ruleCount: item.ruleCount,
     begrippen: item.begrippen,
+    dmns: item.dmns,
     apiPath: item.tech.find(([k]) => k === 'api')?.[1] ?? '',
   };
 }
@@ -278,7 +280,7 @@ export default function Detail({ t, lang, type }: { t: Translations; lang: Lang;
               </p>
             </Callout>
 
-            {item.tech.length > 0 && <TechDetails t={t} rows={item.tech} />}
+            {item.tech.length > 0 && <TechDetails t={t} rows={item.tech} downloads={item.dmns} />}
           </div>
           <aside className="pub-aside" aria-label={t.aside}>
             <h2>{t.aside}</h2>

@@ -617,6 +617,16 @@ html {
   font-family: var(--pub-mono);
   font-size: 13px;
 }
+/* Source-file download in the key/value table (rule catalogue: the DMN the
+   service is implemented by, served by LDE). Block so a service publishing
+   more than one DMN stacks them under the same key. */
+.pub-tech-dl {
+  display: block;
+  word-break: break-all;
+}
+.pub-tech-dl + .pub-tech-dl {
+  margin-top: 6px;
+}
 /* Per-rule drill-down (Regelcatalogus Rules tab): a rule row with a
    description becomes a toggle button; expanding it reveals the decision
    text in an extra row, same "▸/▾" affordance as .pub-acc/.pub-tech. */
