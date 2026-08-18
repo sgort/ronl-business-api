@@ -94,10 +94,20 @@ export const changelog: Changelog = {
     {
       format: 'commits',
       version: '2026.08.19',
-      status: 'Upcoming',
-      date: '14 aug 2026',
-      scope: ['frontend', 'backend'],
+      status: 'Released',
+      date: '18 aug 2026',
+      scope: ['frontend', 'backend', 'public-site'],
       commits: [
+        {
+          sha: '5445c7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'DMN source files are downloadable from the public rule catalogue',
+          details: [
+            "The public site now joins LDE's published-DMN list onto the Regelcatalogus services and offers the DMN 1.3 XML as a download row in Technical details. A new getPublicDmnsByService() in lde.service fetches /v1/dmns for the RONL graph, groups by service URI, caches for five minutes and returns an empty map on failure so the catalogue still renders when LDE is unreachable -- the relative xmlUrl is resolved against the configured API URL rather than concatenated, which is what keeps /v1 from doubling. SPARQL_ENDPOINT is exported from regelcatalogus.service so LDE is queried against the same graph instead of a second copy of the URL.",
+            'Regel items carry dmns only when LDE knows the service, so unmatched services render no download row at all. TechDetails takes an optional downloads prop and renders a "download DMN (xml)" row inside the key/value table, aligning the link with the other values; several DMNs for one service stack under one key. The link points straight at LDE, so the saved filename comes from its Content-Disposition, which uses the Operaton decision key -- where that key is a generated GUID (the HvA export) the download name differs from the title shown, accepted rather than worked around since the fix belongs at the source deployment.',
+          ],
+        },
         {
           sha: '4685069',
           author: 'Steven Gort',
@@ -174,6 +184,15 @@ export const changelog: Changelog = {
           details: [
             "Full spec and implementation plan for closing the two remaining tenant-scoping gaps in OperatonService (all 53 Operaton calls read and categorized), redeploying the five active process bundles under their correct tenants, and standing up a stable, single-source-of-truth E2E test bundle at linked-data-explorer/e2e-fixtures/<tenant>/ -- replacing two pre-existing, already-diverged 'examples' locations that carried real, proven drift. Includes a manifest-integrity test on the LDE side and a matching required-processes check in this repo's own E2E global-setup.",
             "Executed end to end against a real, live, two-tenant Operaton instance rather than unit mocks alone: two further genuine regressions were found and fixed only once real cross-tenant traffic and real tenant-scoped DMN resolution were exercised for the first time (a cross-tenant process-start lookup bug, and Operaton's DMN business-rule-task tenant resolution requiring an explicit camunda:decisionRefTenantId override for shared decision tables once the calling process itself becomes tenant-scoped) -- both confirmed via a live, throwaway empirical spike against Operaton before being applied for real, not documentation guesswork.",
+          ],
+        },
+        {
+          sha: '5042255',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Accessibility statement's focus-indicator claim corrected for form fields",
+          details: [
+            'The statement said every interactive element gets a 2px black + yellow focus indicator. That stopped being true for <input>/<select> the day after it was written: 2d44aee changed form-field focus to black + blue on request, but the statement was never updated -- confirmed against pub.css:82-89 (form fields, black+blue) versus pub.css:71-76 (links/buttons, still black+yellow, unaffected). Reworded to state both cases accurately rather than reverting the CSS, since the blue was a deliberate, requested change.',
           ],
         },
         {
