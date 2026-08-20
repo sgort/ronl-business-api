@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
@@ -33,13 +34,19 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    setupFiles: ['./src/test/setup.ts'],
+    // Resolved against this file, not the process cwd, so the documented
+    // single-file command (`npx vitest run --config packages/<pkg>/vite.config.ts
+    // <pattern>`) works from the repo root as well as from the package.
+    setupFiles: [fileURLToPath(new URL('./src/test/setup.ts', import.meta.url))],
     // e2e/ holds Playwright specs (see e2e/playwright.config.ts) — Vitest's
     // default testMatch would otherwise also pick up its *.spec.ts files
     // and fail trying to import them as Vitest tests.
     exclude: [...configDefaults.exclude, 'e2e/**'],
     coverage: {
       provider: 'v8',
+      // Vitest's default is to skip writing the report when any test fails,
+      // which loses the coverage figures exactly when a run goes red. Keep it.
+      reportOnFailure: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx', 'src/vite-env.d.ts', 'src/test/**'],
     },
