@@ -183,10 +183,10 @@ released:
   borderColor: '#c3e6cd',
   ```
 
-### 4. Bump the in-scope package.json files
+### 4. Bump the in-scope package.json files and the lockfile
 
-Read each file before editing (required by the Edit tool). Set `"version"` to
-the released version in:
+Set `"version"` by hand in each in-scope `package.json` **and** in the matching
+entries of the root `package-lock.json`:
 
 - `package.json` (repo root) — **always** (canonical product version; triggers no CI)
 - one package.json per `scope` array member:
@@ -195,10 +195,33 @@ the released version in:
   - `packages/public-site/package.json` — if scope includes `'public-site'`
   - `packages/shared/package.json` — only if a `packages/shared/**` change was
     part of the release (there is no `'shared'` scope tag; such a release carries
-    `['frontend','backend']`)
+    `['frontend','backend']`). `shared` is otherwise pinned at `1.0.0`.
+- `package-lock.json` — the top-level `version`, `packages[""].version`, and
+  `packages["packages/<ws>"].version` for each workspace bumped above
 
 Leave an out-of-scope package.json untouched — its version legitimately lags at
-the last release that changed it. Run the in-scope edits in parallel.
+the last release that changed it, and that is true of its lockfile entry too.
+
+**Do not use `npm version`.** It coerces its argument to strict SemVer, and a
+zero-padded CalVer month is not a valid SemVer numeric identifier — so
+`npm version 2026.08.3` silently writes **`2026.8.3`**, to every file it
+touches. That was tried during the Linked Data Explorer's v2026.08.3 release and
+reverted. There is no flag to disable the coercion. `npm pkg set version=...`
+preserves the string but does not touch the lockfile, so it solves only half the
+problem. Note this repo's own scheme (`2026.08.19`) has the same zero-padded
+month and is affected identically.
+
+**Why the lockfile is called out.** This step used to name only the
+`package.json` files, so no release ever updated the lockfile. Through
+v2026.08.19 it still recorded the root at `2026.08.3`, `packages/backend` at
+`2026.08.1` and `packages/frontend` at `2026.07.0`.
+
+The drift is not fatal: `npm ci` validates dependency satisfiability, and the
+root depends on its workspaces by path rather than by version range, so those
+`version` fields are never checked — it exits 0 either way (verified against the
+drifted state). But the lockfile is what CI installs from and what SBOM, audit
+and provenance tooling reads, so all of it reported the wrong versions. Re-run
+`npm ci --dry-run` after editing, to confirm the lockfile still resolves.
 
 **Releasing more than one entry in the same pass** (see the split-entry case in
 step 2): process each entry's scope independently against root + its package,
