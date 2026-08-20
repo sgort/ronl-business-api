@@ -41,7 +41,10 @@ export default defineConfig({
     // e2e/ holds Playwright specs (see e2e/playwright.config.ts) — Vitest's
     // default testMatch would otherwise also pick up its *.spec.ts files
     // and fail trying to import them as Vitest tests.
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    // *.perf.test.ts asserts wall-clock budgets, which measure the machine as
+    // much as the code when 130 test files run in parallel. They are run
+    // separately by `npm run test:perf`, with file parallelism disabled.
+    exclude: [...configDefaults.exclude, 'e2e/**', 'src/**/*.perf.test.ts'],
     coverage: {
       provider: 'v8',
       // Vitest's default is to skip writing the report when any test fails,

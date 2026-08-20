@@ -1,28 +1,8 @@
 // packages/frontend/src/components/CaseworkerDashboardV2/regelsimulatie/simEngine.test.ts
 import { describe, it, expect } from 'vitest';
 import { run, beslisRecht, basisHoogte, makeResolver } from './simEngine';
-import type { SimConfig, Claimant } from './types';
-
-const DEFAULT_CFG: SimConfig = {
-  seed: 20260112,
-  populatie: 3150,
-  eigenaarRatio: 0.68,
-  kostenGem: 4200,
-  kostenSd: 1800,
-  pFailliet: 0.02,
-  pBuitenprovincie: 0.07,
-  pGeenRelatie: 0.03,
-  pGeenToestemming: 0.14,
-  pNaamMismatch: 0.05,
-  budgetScale: 1,
-  aandeel2026: 0.46,
-  arrivalPow: 1.3,
-  doorlooptijdGem: 8,
-  pAanvullendeInfo: 0.32,
-  infoWachtGem: 60,
-  bezwaarKans: 0.22,
-  bezwaarToewijzing: 0.25,
-};
+import type { Claimant, SimConfig } from './types';
+import { DEFAULT_CFG } from './__helpers__/defaultCfg';
 
 describe('determinism', () => {
   it('two runs with the same config produce identical aggregate results', () => {
@@ -394,18 +374,5 @@ describe('beroepDisplacerId — nearer-winner disambiguation (disclosed deviatio
     // ...not the pool-wide minimum the reference's dead branch would always
     // have fallen back to.
     expect(target!.beroepDisplacerId).not.toBe(globalMinWinner.id);
-  });
-});
-
-describe('performance', () => {
-  it('run(cfg) with the default 3,150-application population completes in under 250ms', () => {
-    const t0 = performance.now();
-    run(DEFAULT_CFG);
-    const t1 = performance.now();
-    // The plain-JS reference takes ~130ms for this population on ordinary
-    // hardware; the typed port should be comparable. If this ever fails,
-    // do not loosen the threshold — investigate and, per the source brief,
-    // propose a web worker rather than shipping a silent miss.
-    expect(t1 - t0).toBeLessThan(250);
   });
 });
