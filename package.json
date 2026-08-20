@@ -62,6 +62,10 @@
       "npm run lint:fix --workspace=@ronl/frontend",
       "prettier --write"
     ],
+    "packages/public-site/**/*.{ts,tsx}": [
+      "npm run lint:fix --workspace=@ronl/public-site",
+      "prettier --write"
+    ],
     "packages/backend/**/*.ts": [
       "npm run lint:fix --workspace=@ronl/backend",
       "prettier --write"
