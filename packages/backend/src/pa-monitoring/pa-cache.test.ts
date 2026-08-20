@@ -5,6 +5,13 @@
  * connect falling through to live-fetch, client memoization, and cacheSet.
  */
 
+// This file has no top-level import, so TypeScript would otherwise treat it as
+// a global script and hoist every top-level declaration below into the global
+// scope — where `mockAxios`, `Mod`, `freshModule` and friends collide with the
+// identically-named declarations in sibling test files. `export {}` makes it a
+// module and scopes them to this file.
+export {};
+
 const mockRedisClient = {
   on: jest.fn(),
   connect: jest.fn(),
