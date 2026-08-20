@@ -93,6 +93,69 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.20',
+      status: 'Released',
+      date: '20 aug 2026',
+      scope: ['frontend', 'public-site'],
+      commits: [
+        {
+          sha: '391ccba',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'bump-release now versions the lockfile, and never uses npm version',
+          details: [
+            'The release step said "set version in each in-scope package.json" and nothing more, so no release ever touched package-lock.json. Through v2026.08.19 it still recorded the root at 2026.08.3, packages/backend at 2026.08.1 and packages/frontend at 2026.07.0, while the package.json files had all reached 2026.08.19.',
+            'The drift was never fatal — npm ci validates dependency satisfiability, and the root depends on its workspaces by path rather than by version range, so those version fields are never checked — but the lockfile is what CI installs from and what SBOM, audit and provenance tooling reads, so all of it reported the wrong versions.',
+            "The step now names the exact lockfile keys to edit alongside each package.json, and warns explicitly against npm version: it coerces its argument to strict SemVer, and a zero-padded CalVer month is not a valid numeric identifier, so npm version 2026.08.20 would silently write 2026.8.20 to every file it touches. Caught by running it during the Linked Data Explorer's v2026.08.3 release and reverted there.",
+          ],
+        },
+        {
+          sha: '28ab6ca',
+          author: 'Steven Gort',
+          type: 'other',
+          subject:
+            'Backend and frontend deploys now gated on lint, tests and the performance budget',
+          details: [
+            'Public-site was the only package whose pipeline could block a deploy. Backend CI linted and built but never ran its 1145 Jest tests; frontend CI ran neither lint nor test, going straight from npm ci to vite build to deploy. For those two, npm test was a manual discipline enforced by review rather than an automated gate.',
+            'The backend workflows gain a Jest step beside their existing linter. The frontend workflows gain a linter, the Vitest suite, and the performance budget as its own step — the budget runs separately because it asserts wall-clock time, which is meaningless while 130 test files compete for cores.',
+            'Measured before wiring, all passing: backend 71 files / 1145 tests, frontend 130 files / 1064 tests plus 1 perf, public-site 28 files / 134 tests.',
+          ],
+        },
+        {
+          sha: '6be440e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'lint-staged skipped public-site sources at pre-commit',
+          details: [
+            'The config had globs for packages/frontend, packages/backend and packages/shared, but none for packages/public-site — so a staged public-site .ts/.tsx file got neither ESLint nor Prettier at commit time. Only the generic *.{json,md} rule applied, and that does not match .ts or .tsx.',
+            "It was never uncaught for long: pre-push's npm run lint and npm run check-format both cover public-site in full, and neither is scoped by the lint-staged globs. But a local commit alone could carry an unformatted or unlinted public-site change. No fallout — the package already passed both checks.",
+          ],
+        },
+        {
+          sha: '3aac5ee',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Frontend suite now survives a contended full run',
+          details: [
+            'Two tests failed inside a full npm test while passing in isolation. Both would have made the new CI test gate permanently red, and neither said anything about the code under test.',
+            'simEngine asserted run(cfg) completes under a 250ms wall-clock budget, and its source comment is emphatic that the threshold must not be loosened — the intended remedy is a web worker, not a bigger number. That stands; the problem is what the assertion measures. On a contended host it was observed at 302ms, then 837ms, then 1297ms across three consecutive runs, and inside a full run — where Vitest saturates every core with 130 parallel files — even the fastest of three CPU-time samples came out at 468ms, against ~100ms in isolation.',
+            'So the budget moved rather than moved up. It now lives in simEngine.perf.test.ts, still under 250ms, with a warm-up run and the fastest of three samples so a JIT pause or stray GC cannot decide it; vitest.perf.config.ts runs those specs alone with file parallelism off, via npm run test:perf. ChangelogPanel was the other casualty of the same contention — its 15s timeout sufficed in isolation but not in a full run, where it was seen taking 22s. Raised to 60s: changelog-data.ts renders 60+ real version entries, so the test is genuinely slow rather than unreliable, and a timeout catches a hang rather than asserting a speed.',
+          ],
+        },
+        {
+          sha: '70d4ff8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Two Vitest config defects in frontend and public-site',
+          details: [
+            'setupFiles was resolved against the process cwd rather than the config file, so the single-file command documented on the testing page — npx vitest run --config packages/<pkg>/vite.config.ts <pattern> — failed from the repo root with "Cannot find module \'/@id/.../src/test/setup.ts\'", and worked only from inside the package. Resolving it through fileURLToPath(new URL(..., import.meta.url)) makes both invocations work.',
+            "coverage.reportOnFailure is now set in both packages. Vitest's default is to skip writing the coverage report when any test fails, which loses the figures exactly when a run goes red — the frontend numbers on the testing page had to be captured with --coverage.reportOnFailure=true as a manual precaution.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.19',
       status: 'Released',
       date: '18 aug 2026',

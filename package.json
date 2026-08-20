@@ -1,6 +1,6 @@
 {
   "name": "ronl-business-api",
-  "version": "2026.08.19",
+  "version": "2026.08.20",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
