@@ -35,6 +35,18 @@ jobs:
       - name: Build shared package
         run: npm run build --workspace=@ronl/shared
 
+      - name: Run linter
+        working-directory: packages/frontend
+        run: npm run lint
+
+      - name: Unit tests
+        working-directory: packages/frontend
+        run: npm test
+
+      - name: Performance budget
+        working-directory: packages/frontend
+        run: npm run test:perf
+
       - name: Build frontend for production
         working-directory: packages/frontend
         run: |

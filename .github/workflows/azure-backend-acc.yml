@@ -36,6 +36,10 @@ jobs:
         working-directory: packages/backend
         run: npm run lint
 
+      - name: Unit tests
+        working-directory: packages/backend
+        run: npm test
+
       - name: Build TypeScript
         working-directory: packages/backend
         run: npm run build
