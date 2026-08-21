@@ -21,6 +21,7 @@ import {
   DOSSIER_TEMPLATES,
   DOSSIER_SNIPPETS,
 } from './pa-dossiers.db';
+import { SEED_DOSSIER_IDS } from '@ronl/shared';
 import { db } from '@services/audit.service';
 
 const mockNone = (db as unknown as { none: jest.Mock }).none;
@@ -275,5 +276,34 @@ describe('initDossiersDb — failures that are not Error instances', () => {
     await expect(initDossiersDb()).resolves.toBeUndefined();
 
     expect(dossierSeedCalls().length).toBeGreaterThan(1);
+  });
+});
+
+describe('seed dossier ownership', () => {
+  it('seeds every dossier with a real owner, and attributes its history to the same person', async () => {
+    // SEED_OWNERS is keyed by SeedDossierId, so a dossier added without an owner
+    // fails to compile rather than seeding as a plausible-looking 'Kernteam PA'.
+    // This pins the behaviour that typing protects.
+    mockNone.mockResolvedValue(undefined);
+    await initDossiersDb();
+
+    const seeded = dossierSeedCalls().filter((c) =>
+      SEED_DOSSIER_IDS.includes(c[1][0] as (typeof SEED_DOSSIER_IDS)[number])
+    );
+    expect(seeded).toHaveLength(SEED_DOSSIER_IDS.length);
+
+    for (const call of seeded) {
+      const id = call[1][0] as string;
+      // pa_dossiers params are [id, tenant_id, naam, onderwerp, status, momentum, eigenaar, ...].
+      const eigenaar = call[1][6] as string;
+      expect(eigenaar).toBeTruthy();
+      expect(eigenaar).not.toBe('Kernteam PA');
+
+      // Every version row for that dossier is credited to its owner.
+      // pa_dossier_versions params are [dossier_id, v, by, note].
+      const versions = versionSeedCalls().filter((v) => v[1][0] === id);
+      expect(versions.length).toBeGreaterThan(0);
+      for (const v of versions) expect(v[1][2]).toBe(eigenaar);
+    }
   });
 });

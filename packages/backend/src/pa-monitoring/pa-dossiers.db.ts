@@ -16,7 +16,7 @@
 
 import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
-import { SEED_DOSSIERS } from '@ronl/shared';
+import { SEED_DOSSIERS, type SeedDossierId } from '@ronl/shared';
 import type {
   Dossier,
   AdminDossier,
@@ -59,7 +59,13 @@ export function completeKompas(partial: PartialKompasScores | undefined | null):
 
 // ── Seed helpers ────────────────────────────────────────────────────
 
-const SEED_OWNERS: Record<string, string> = {
+/**
+ * Owning kernteam member per seed dossier. Keyed by SeedDossierId rather than by
+ * string, so adding a dossier to SEED_DOSSIERS without naming an owner here is a
+ * compile error instead of a row that silently seeds as 'Kernteam PA' — the sort
+ * of wrong-but-plausible value nobody notices in ACC.
+ */
+const SEED_OWNERS: Record<SeedDossierId, string> = {
   stikstof: 'Sanne Bakker',
   lelystad: 'Joost Veenstra',
   energie: 'Mara de Wit',
@@ -287,43 +293,47 @@ export async function initDossiersDb(): Promise<void> {
 
 async function seedDossiers(): Promise<void> {
   const rows = [
-    ...SEED_DOSSIERS.map((d, idx) => ({
-      id: d.id,
-      naam: d.naam,
-      onderwerp: d.onderwerp,
-      status: d.status as AdminDossierStatus,
-      momentum: d.momentum,
-      eigenaar: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-      kompas: d.kompas as PartialKompasScores,
-      md: toMarkdown(d),
-      body: d,
-      versie: 3,
-      gepubliceerd: true,
-      sjabloon: 'standaard',
-      archief: null as DossierArchief | null,
-      versies: [
-        {
-          v: 1,
-          at: '12 mei 2026',
-          by: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-          note: 'Dossier aangemaakt vanuit sjabloon Standaard PA-dossier.',
-        },
-        {
-          v: 2,
-          at: '24 mei 2026',
-          by: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-          note: 'Kompas-startscores gezet; verhaal uitgewerkt.',
-        },
-        {
-          v: 3,
-          at: '1 jun 2026',
-          by: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-          note: 'Verhaal bijgewerkt na laatste ontwikkeling.',
-        },
-      ] as DossierVersion[],
-      // Stagger updated_at so the overview shows varied "bewerkt N geleden" labels.
-      ageDays: [2, 5, 1, 21, 7][idx] ?? 7,
-    })),
+    ...SEED_DOSSIERS.map((d, idx) => {
+      // SEED_OWNERS is keyed by SeedDossierId, so this is a string, never undefined.
+      const eigenaar = SEED_OWNERS[d.id];
+      return {
+        id: d.id,
+        naam: d.naam,
+        onderwerp: d.onderwerp,
+        status: d.status as AdminDossierStatus,
+        momentum: d.momentum,
+        eigenaar,
+        kompas: d.kompas as PartialKompasScores,
+        md: toMarkdown(d),
+        body: d,
+        versie: 3,
+        gepubliceerd: true,
+        sjabloon: 'standaard',
+        archief: null as DossierArchief | null,
+        versies: [
+          {
+            v: 1,
+            at: '12 mei 2026',
+            by: eigenaar,
+            note: 'Dossier aangemaakt vanuit sjabloon Standaard PA-dossier.',
+          },
+          {
+            v: 2,
+            at: '24 mei 2026',
+            by: eigenaar,
+            note: 'Kompas-startscores gezet; verhaal uitgewerkt.',
+          },
+          {
+            v: 3,
+            at: '1 jun 2026',
+            by: eigenaar,
+            note: 'Verhaal bijgewerkt na laatste ontwikkeling.',
+          },
+        ] as DossierVersion[],
+        // Stagger updated_at so the overview shows varied "bewerkt N geleden" labels.
+        ageDays: [2, 5, 1, 21, 7][idx] ?? 7,
+      };
+    }),
     {
       ...ARCHIVED_EXAMPLE,
       body: buildBodyFromAuthoring(ARCHIVED_EXAMPLE),
