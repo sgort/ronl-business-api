@@ -45,6 +45,7 @@ interface PaDataContextValue {
   /** Per-tab inbox counts — always accurate; updated by Monitoring on each load. */
   inboxCounts: Record<string, number>;
   updateInboxCount: (tab: string, count: number) => void;
+  refreshInboxCounts: () => Promise<void>;
   confirmSignal: (
     id: string,
     patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
@@ -111,6 +112,33 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     setInboxCounts((prev) => ({ ...prev, [tab]: count }));
   }, []);
 
+  const applyCounts = useCallback((counts: Record<string, number>) => {
+    // Zeroed base first: a tab whose inbox has emptied is absent from the
+    // response, so merging onto the previous state would keep a stale count.
+    const base = Object.fromEntries(INBOX_TABS.map((t) => [t, 0]));
+    setInboxCounts({ ...base, ...counts });
+  }, []);
+
+  /**
+   * Re-read every badge in one request.
+   *
+   * Needed because the counts are a snapshot: seeding them once at mount left
+   * every badge frozen at its startup value, so a curation run that arrived
+   * afterwards stayed invisible until the user opened each source in turn — at
+   * which point that one badge jumped and the others stayed stale. Anything that
+   * can change the inbox calls this.
+   *
+   * Failure keeps the previous numbers rather than zeroing them: a transient
+   * error is not evidence that a source emptied.
+   */
+  const refreshInboxCounts = useCallback(async () => {
+    try {
+      applyCounts(await fetchInboxCounts());
+    } catch {
+      /* keep the badges we have */
+    }
+  }, [applyCounts]);
+
   // Seed per-tab counts at startup so badges are populated before Monitoring is
   // visited. One counts request rather than four capped inbox fetches.
   //
@@ -126,10 +154,7 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
       void fetchInboxCounts()
         .then((counts) => {
           if (cancelled) return;
-          // Zeroed base first: a tab whose inbox has emptied is absent from the
-          // response, so merging onto the previous state would keep a stale count.
-          const base = Object.fromEntries(INBOX_TABS.map((t) => [t, 0]));
-          setInboxCounts({ ...base, ...counts });
+          applyCounts(counts);
         })
         .catch(() => {
           if (cancelled || attempt >= MAX_COUNT_RETRIES) return;
@@ -142,7 +167,7 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyCounts]);
 
   const confirmSignal = useCallback(
     async (
@@ -234,6 +259,7 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
         agenda: agendaResource,
         notifications: notificationsResource,
         inboxCounts,
+        refreshInboxCounts,
         updateInboxCount,
         confirmSignal,
         linkSignalDossier,

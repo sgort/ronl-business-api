@@ -558,7 +558,8 @@ function RawHitCard({
 }
 
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
-  const { confirmSignal, linkSignalDossier, dossiers, updateInboxCount } = usePaData();
+  const { confirmSignal, linkSignalDossier, dossiers, updateInboxCount, refreshInboxCounts } =
+    usePaData();
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
 
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
@@ -599,7 +600,11 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     inboxCountRef.current = inb.meta.total;
     setLoading(false);
     updateInboxCount(tab.id, inb.meta.total);
-  }, [tab.id, updateInboxCount]);
+    // The line above fixes this tab immediately; this re-reads the other three.
+    // Without it only the source you open is current, and the rest keep whatever
+    // they showed at mount — which is how a curation run stays invisible.
+    void refreshInboxCounts();
+  }, [tab.id, updateInboxCount, refreshInboxCounts]);
 
   useEffect(() => {
     void load();

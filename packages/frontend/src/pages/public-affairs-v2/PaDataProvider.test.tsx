@@ -120,6 +120,44 @@ describe('inboxCounts seeding', () => {
     expect(mocks.fetchInboxCounts).toHaveBeenCalledTimes(1);
   });
 
+  it('refreshInboxCounts re-reads every badge, not just the open one', async () => {
+    // A curation run that lands after mount used to stay invisible: the badges
+    // were a startup snapshot, so only the source you opened caught up.
+    mocks.fetchInboxCounts
+      .mockResolvedValueOnce({ politiek: 3, europa: 4, regionaal: 0, media: 0 })
+      .mockResolvedValue({ politiek: 20, europa: 4, regionaal: 6, media: 0 });
+
+    const { result } = renderHook(() => usePaData(), { wrapper });
+    await waitFor(() => expect(result.current.inboxCounts.politiek).toBe(3));
+
+    await act(async () => {
+      await result.current.refreshInboxCounts();
+    });
+
+    expect(result.current.inboxCounts).toEqual({
+      politiek: 20,
+      europa: 4,
+      regionaal: 6,
+      media: 0,
+    });
+  });
+
+  it('refreshInboxCounts keeps the previous badges when the request fails', async () => {
+    // A transient error is not evidence that every source emptied.
+    mocks.fetchInboxCounts
+      .mockResolvedValueOnce({ politiek: 9, europa: 1, regionaal: 0, media: 0 })
+      .mockRejectedValue(new Error('backend blipped'));
+
+    const { result } = renderHook(() => usePaData(), { wrapper });
+    await waitFor(() => expect(result.current.inboxCounts.politiek).toBe(9));
+
+    await act(async () => {
+      await result.current.refreshInboxCounts();
+    });
+
+    expect(result.current.inboxCounts.politiek).toBe(9);
+  });
+
   it('reports a tab that is absent from the response as zero', async () => {
     // A tab whose inbox has emptied is omitted by the endpoint; merging onto the
     // previous state would leave its old count standing.
