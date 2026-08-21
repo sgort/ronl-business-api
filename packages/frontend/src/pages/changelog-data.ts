@@ -93,6 +93,81 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.21',
+      status: 'Released',
+      date: '21 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '4fb1b8e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Local M2M now targets the Docker Operaton, and its route script runs locally',
+          details: [
+            'The tenant-adoption design parked OPERATON_M2M_BASE_URL as out of scope, on the grounds that fixing it needed Docker-networking work — "the M2M client\'s own reachability to localhost:8081 from wherever it actually runs". That did not apply: m2mOperatonService is an OperatonService instance inside the backend process, and the backend runs on the host in local dev, so it reaches localhost:8081 exactly the way OPERATON_BASE_URL already does.',
+            "The same env block also declared plain OPERATON_TIMEOUT/USERNAME/PASSWORD instead of the _M2M_ names, so config.operaton.m2mUsername and m2mPassword were never set and fell through OperatonService's `username ?? config.operaton.username` default. That silent fallback is what kept the remote engine working locally, and therefore unnoticed. ACC and production are untouched — both still point at the dedicated operaton-doc engine.",
+            "scripts/test-m2m-routes.sh gains TARGET=local|acc matching test-smoke-live.sh's convention, reads the client secret from the seeded realm file on local, and adds four assertions that can actually fail: AwbShellProcess and AwbZorgtoeslagProcess start-forms must resolve through the untenanted M2M surface (proving the tenant fallback and the cross-tenant design), RipR21Process's start-form must be absent, and its variable-hints must resolve. The previous check passed on 200 or 404 against whichever process happened to be first — locally that is RipR21Process, which has no start-event form, so it could not have failed even if the fallback were broken.",
+          ],
+        },
+        {
+          sha: 'ee9e9c0',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'inferType extracted from four routers into one tested helper',
+          details: [
+            'The process, task, decision and m2m routes each carried a private inferType tagging plain JSON values with Operaton variable types. All four were semantically identical — two byte-identical pairs differing only in brace style — so this is de-duplication with no behaviour change.',
+            'Testing it as a pure function reaches what four HTTP surfaces could not: the `default` arm is unreachable through a request body, since JSON.parse only yields boolean, number, string, object or null, but bigint, symbol and function all land there for a direct caller. That branch was uncovered in all four routers and is now covered once. Decision, process and task routes reach 100% on every metric as a result.',
+            "m2m's toOperatonVariables is deliberately left in place — it also passes through values already shaped as { value, type } envelopes, which the other three do not. Adopting it everywhere would change what those endpoints return, so unifying it is a behaviour decision rather than part of this extraction.",
+          ],
+        },
+        {
+          sha: '2a77717',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A seed dossier without an owner is now a compile error',
+          details: [
+            "SEED_OWNERS mapped the five seed dossiers to their kernteam owner with a `?? 'Kernteam PA'` fallback repeated at four call sites. The fallback was unreachable — until someone added a sixth dossier to @ronl/shared and forgot an owner, at which point it would seed a plausible-looking value nobody would question in ACC.",
+            'Now a two-link chain: SEED_DOSSIER_IDS is a literal tuple and SEED_DOSSIERS is typed (Dossier & { id: SeedDossierId })[], so an unregistered id fails to compile in shared; SEED_OWNERS is Record<SeedDossierId, string>, so a registered id with no owner fails to compile in the backend. Both verified by breaking them deliberately.',
+            "Worth recording why the obvious form does not work: Dossier.id is string and SEED_DOSSIERS was annotated Dossier[], so Record<(typeof SEED_DOSSIERS)[number]['id'], string> widens to Record<string, string> and constrains nothing. `satisfies` does not help either — string-literal properties in a mutable object literal widen regardless — and `as const` would make the seed deeply readonly, breaking toMarkdown(d: Dossier). Hence the separate id registry.",
+          ],
+        },
+        {
+          sha: 'e28dc19',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Required-env checks now actually fire, and /v1/health reports the deployment tier',
+          details: [
+            "validateConfig checked `!config.database.url` and `!config.operaton.baseUrl`, but both settings fall back to a non-empty default, so the resolved value was never empty and neither guard could fire. The message 'DATABASE_URL is required' could not be printed: a production deployment with no DATABASE_URL started happily and pointed its audit log at localhost. Both now test process.env and gate on production, matching the KEYCLOAK_CLIENT_SECRET guard above them. Verified beforehand that ACC and production both already define the two settings, so neither deployment starts failing.",
+            "ACC runs with NODE_ENV=production deliberately — that is what makes it an acceptance environment — so /v1/health reported 'production' for ACC. NODE_ENV cannot carry the tier: Node, Express and this codebase branch on the literal 'production'. Setting NODE_ENV=acceptance would return raw internal error messages on 500s, spawn the eDOCS/LDE/TriplyDB MCP servers via `npx tsx src/…` when the deploy bundle ships dist/ only, switch console logging to the dev format, disable the production startup guards, and quarter the external-task long-poll window.",
+            "The tier moves to its own DEPLOYMENT_ENV variable, following the pattern already used in linked-data-explorer, surfaced as config.deploymentEnv on /v1/health, the root endpoint, the startup log and the logger's defaultMeta — the last of which changes what `environment` means in every log record, from runtime mode to tier. Every behavioural branch stays on config.nodeEnv.",
+          ],
+        },
+        {
+          sha: '9882a17',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Backend branch and function coverage lifted above 80% for every file',
+          details: [
+            'Branch coverage went 73.5% to 91.5% and function coverage 94.1% to 96.7%, with no file left below 80% on either metric. 1145 to 1480 tests.',
+            "Most of the gap came from three recurring shapes rather than untested features: each handler's defensive `if (!req.user)` 401, unreachable because the mocked jwtMiddleware always attached a user; the `error instanceof Error ? … : 'Unknown error'` fallback in every catch, which is a real path since Operaton, eDOCS and pg all reject with bare strings on socket failures; and `?? ''` defaults for fields an upstream can legitimately omit. Function coverage was entirely callbacks handed to a mocked library, so nothing ever invoked them — axios validateStatus, multer's fileFilter, express-rate-limit's keyGenerator, the /zoeken facet selectors, and the ExternalTaskWorker poll loop, whose lifecycle test spied poll out so the loop had never run.",
+            'New suites for the two modules that had none: utils/config.ts went 0% to 97.8% branch — every other suite mocks it, so the real defaults and the import-time validation were never executed — and utils/tls-bootstrap.ts 0% to 100%. One production change for testability: M2M_ALLOWED_OPERATIONS is now exported, since the curation gate lists every operation the router asks about and its 18 OPERATION_NOT_PERMITTED branches could otherwise only be reached by editing the file.',
+          ],
+        },
+        {
+          sha: '9d3cc29',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Backend test files made modules so their globals stop colliding',
+          details: [
+            "The CI test gate added in v2026.08.20 failed on its first run: three backend suites failed to compile with TS2451 'Cannot redeclare block-scoped variable' and TS2300 'Duplicate identifier'. Nine test files have no top-level import or export — they use jest.mock() and require() inside functions — so TypeScript treats each as a global script and every top-level declaration lands in the global scope. Ten names collided across them. Adding `export {};` scopes each file's declarations to itself.",
+            'Not a Linux-versus-Windows difference: it reproduces locally after jest --clearCache, because ts-jest caches diagnostics per file and a warm cache skips re-checking the collision. That is why the run passed repeatedly here while failing in CI on a cold runner, and why which files fail varies with whichever the type program reaches first. All nine were latent regardless.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.20',
       status: 'Released',
       date: '20 aug 2026',
