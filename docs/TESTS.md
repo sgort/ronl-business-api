@@ -460,7 +460,9 @@ deliberately kept out of the Jest run: `test-smoke-live.sh` (cross-app health:
 Operaton, Keycloak, LDE, TriplyDB, CPRMV, media store, eDOCS status, MCP
 layer — never mutates), `test-edocs-live.sh` (eDOCS workspace/document
 lifecycle — mutates), `test-doccle-live.sh` (Doccle sender API — mutates, not
-yet live-tested), `test-m2m-routes.sh` (M2M decision routes against ACC).
+yet live-tested), `test-m2m-routes.sh` (all 18 M2M route operations, the curation gate and
+tenant isolation — never mutates; `TARGET=local` also asserts the tenant
+fallback and cross-tenant behaviour against the known local fixture bundle).
 
 > **Full tier breakdown, the "what it checks" table, and eDOCS live-tested
 > results now live on the architecture documentation site** — see
@@ -485,8 +487,11 @@ cd packages/backend && npm run edocs:health
 # Doccle:
 CLIENT_SECRET=<secret> bash scripts/test-doccle-live.sh
 
-# M2M decision routes against ACC:
-CLIENT_SECRET=<secret> bash scripts/test-m2m-routes.sh
+# M2M routes — local dev backend (client secret read from the seeded realm file):
+bash scripts/test-m2m-routes.sh
+
+# M2M routes against acc (no credentials for that realm live in the repo):
+CLIENT_SECRET=<secret> TARGET=acc bash scripts/test-m2m-routes.sh
 ```
 
 `TARGET` (`local` — default — or `acc`) selects the `BASE_URL` + `KEYCLOAK_URL`
@@ -495,6 +500,17 @@ Requires `curl` + `jq` (and, for the eDOCS probe, `npx`/`tsx` on a repo
 checkout). Exit `0` when nothing failed, `1` on any failure — a dependency
 that's intentionally off (stub mode, no `CLIENT_SECRET`) skips with a `~`
 note, never a red fail.
+
+**If a local run fails at "Obtaining token" with `unauthorized_client`**, the
+Keycloak realm has drifted from `config/keycloak/ronl-realm.json`. Keycloak only
+imports that file on a _first_ start, so a `keycloak-data` volume created before
+a client secret was pinned keeps its own generated one — and the scripts read the
+secret from the file. `test-m2m-routes.sh` detects this case and prints the
+admin-API commands to read the running value. Either re-run with
+`CLIENT_SECRET=<that value>`, re-import the realm through the Keycloak admin UI
+(Realm settings → Action → Partial import), or reset the volume entirely with
+`npm run docker:down:volumes && npm run docker:up`. The partial import is the
+least destructive — it restores the secret without touching seeded users.
 
 ---
 

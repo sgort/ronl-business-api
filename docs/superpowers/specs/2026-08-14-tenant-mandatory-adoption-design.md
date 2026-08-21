@@ -270,6 +270,17 @@ the old `RipPhase1Process` deployment goes unused, no migration needed.
   once this spec ships — fixing it involves Docker-networking configuration
   (the M2M client's own reachability to `localhost:8081` from wherever it
   actually runs) beyond this spec's scope.
+  **Resolved 2026-08-21.** The parked concern did not apply: `m2mOperatonService`
+  is an `OperatonService` instance inside the backend process, and the backend
+  runs on the host in local dev (docker-compose only provides keycloak, postgres,
+  operaton and redis), so it reaches `localhost:8081` exactly the way
+  `OPERATON_BASE_URL` already does — no Docker networking to configure. Fixed in
+  `.env.development`/`.env.example` only; ACC and production keep pointing at the
+  dedicated `operaton-doc` engine. The same block also declared plain
+  `OPERATON_TIMEOUT`/`USERNAME`/`PASSWORD` instead of the `_M2M_` names, so the
+  M2M credentials were never set and fell through `OperatonService`'s
+  `username ?? config.operaton.username` default — which is what kept the remote
+  base URL working locally, and therefore unnoticed.
 - Migrating any currently-running process instance across the tenant-id cutover
   (confirmed clean slate, nothing to migrate).
 - Wiring the new `e2e-fixtures/` set into LDE's pre-loaded "load example"
