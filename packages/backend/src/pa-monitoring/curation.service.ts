@@ -3,6 +3,7 @@
  * AI duiding is stubbed (returns null) — off by default per spec.
  */
 
+import { createHash } from 'node:crypto';
 import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
 import { fetchTkFeed } from './sources/tk.client';
@@ -52,6 +53,62 @@ async function loadSearches(tenantId: string): Promise<SavedSearch[]> {
   }
 }
 
+/**
+ * Collapse the near-identical EP motions that arrive as one item per political
+ * group.
+ *
+ * EP practice is that each group tables its own B-document for the same motion,
+ * so one topic reaches the inbox as up to six rows differing only in ref — and
+ * in title casing, which is why the key is case-insensitive. They carry nothing
+ * separately reviewable: same committee, same score, same dossier match, same
+ * date. Measured on a live inbox, 12 of 54 EU candidates were such siblings.
+ *
+ * The surviving item takes an identity derived from its normalised title rather
+ * than from a ref. Which siblings a given cycle sees varies — a later cycle can
+ * turn up a lower ref than the one already stored — so a ref-derived winner
+ * would change between cycles and persist a second row instead of updating the
+ * first. A title-derived key is stable however many siblings show up.
+ *
+ * The refs are not thrown away: the survivor's number becomes "<lowest> +N", the
+ * same shape used for co-responsible committees, so the reviewer can still see
+ * that several groups tabled it.
+ */
+function collapseEpMotions(items: FeedItem[]): FeedItem[] {
+  const normalise = (t: string) => t.replace(/\s+/g, ' ').trim().toLowerCase();
+  const groups = new Map<string, FeedItem[]>();
+  const out: FeedItem[] = [];
+
+  for (const item of items) {
+    // Only EU documents with a ref — press releases and anything untitled keep
+    // their own identity.
+    if (item.source !== 'eu' || !item.title || item.subbron === 'ep-persbericht') {
+      out.push(item);
+      continue;
+    }
+    const key = normalise(item.title);
+    const existing = groups.get(key);
+    if (existing) existing.push(item);
+    else groups.set(key, [item]);
+  }
+
+  for (const group of groups.values()) {
+    const [first] = group;
+    if (group.length === 1) {
+      out.push(first);
+      continue;
+    }
+    const refs = group.map((i) => i.id).sort();
+    const lowest = refs[0];
+    out.push({
+      ...first,
+      id: `eu-motion-${createHash('sha1').update(normalise(first.title)).digest('hex').slice(0, 16)}`,
+      number: `${lowest} +${refs.length - 1}`,
+    });
+  }
+
+  return out;
+}
+
 function displayNr(item: FeedItem): string {
   // For TK, DocumentNummer is encoded in the URL (?id=2026D12345); use that.
   // For OB, item.id is already the meaningful publication identifier (stb-2026-123).
@@ -59,7 +116,9 @@ function displayNr(item: FeedItem): string {
     const m = item.url.match(/[?&]id=([^&]+)/);
     if (m) return decodeURIComponent(m[1]);
   }
-  return item.id;
+  // A collapsed EP motion carries a title-derived id, so its human-facing ref
+  // lives in number ("B-10-2026-0346 +5").
+  return item.number ?? item.id;
 }
 
 async function persistCandidate(
@@ -253,9 +312,10 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
     if (result) allItems.push(...result.items);
   }
 
-  // Deduplicate by source:id
+  // Deduplicate by source:id, after folding the per-group EP motion siblings
+  // into one signal each.
   const seen = new Set<string>();
-  const unique = allItems.filter((item) => {
+  const unique = collapseEpMotions(allItems).filter((item) => {
     const key = `${item.source}:${item.id}`;
     if (seen.has(key)) return false;
     seen.add(key);

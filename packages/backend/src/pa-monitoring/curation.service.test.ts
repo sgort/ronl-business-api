@@ -665,3 +665,102 @@ describe('runCurationCycle — press-release labelling', () => {
     expect(persistedInsert()![1][4]).toBe('Europees Parlement · Persbericht · onbekend');
   });
 });
+
+describe('runCurationCycle — EP motion collapse', () => {
+  const persistedInserts = () =>
+    mockDb.none.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  const motion = (id: string, title: string) =>
+    feedItem({
+      id,
+      source: 'eu',
+      subbron: 'ep-teksten',
+      type: 'Ontwerpresolutie',
+      title,
+      date: null,
+      // persistCandidate only builds the ref JSON for an item that has a url.
+      url: `https://www.europarl.europa.eu/doceo/document/${id}_NL.html`,
+    });
+
+  const TITLE = 'MOTION FOR A RESOLUTION on the threat of war crimes in El-Obeid, Sudan';
+
+  beforeEach(() => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+  });
+
+  it('persists one signal for a motion tabled by several groups', async () => {
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        motion('B-10-2026-0360', TITLE),
+        motion('B-10-2026-0359', TITLE),
+        // EP is inconsistent about casing between siblings; they are one motion.
+        motion('B-10-2026-0358', TITLE.replace('threat of war crimes', 'Threat of War Crimes')),
+      ],
+      total: 3,
+    });
+
+    await runCurationCycle();
+
+    expect(persistedInserts()).toHaveLength(1);
+  });
+
+  it('keys the survivor on the title, not a ref, so later siblings update it', async () => {
+    // A ref-derived winner would change when a lower ref turns up in a later
+    // cycle, persisting a second row instead of updating the first.
+    mockFetchEuFeed.mockResolvedValue({
+      items: [motion('B-10-2026-0360', TITLE), motion('B-10-2026-0359', TITLE)],
+      total: 2,
+    });
+    await runCurationCycle();
+    const firstKey = persistedInserts()[0][1][13];
+
+    jest.clearAllMocks();
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+    mockDb.none.mockResolvedValue(undefined);
+    mockFetchEuFeed.mockResolvedValue({
+      items: [motion('B-10-2026-0346', TITLE), motion('B-10-2026-0360', TITLE)],
+      total: 2,
+    });
+    await runCurationCycle();
+
+    expect(persistedInserts()[0][1][13]).toBe(firstKey);
+  });
+
+  it('shows the lowest ref and how many others tabled it', async () => {
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        motion('B-10-2026-0360', TITLE),
+        motion('B-10-2026-0346', TITLE),
+        motion('B-10-2026-0359', TITLE),
+      ],
+      total: 3,
+    });
+
+    await runCurationCycle();
+
+    const ref = JSON.parse(persistedInserts()[0][1][10] as string);
+    expect(ref.nr).toBe('B-10-2026-0346 +2');
+  });
+
+  it('leaves distinct motions and press releases alone', async () => {
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        motion('B-10-2026-0360', TITLE),
+        motion('B-10-2026-0301', 'MOTION FOR A RESOLUTION on something else entirely'),
+        feedItem({
+          id: '20260716IPR46531',
+          source: 'eu',
+          subbron: 'ep-persbericht',
+          type: 'Persbericht',
+          title: 'Press release - EU-China relations',
+          date: null,
+        }),
+      ],
+      total: 3,
+    });
+
+    await runCurationCycle();
+
+    expect(persistedInserts()).toHaveLength(3);
+  });
+});
