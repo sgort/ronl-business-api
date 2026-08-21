@@ -5,6 +5,7 @@ import { operatonService, OperatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
+import { inferType } from '@utils/operaton-variables';
 
 const router = express.Router();
 const logger = createLogger('m2m-routes');
@@ -73,22 +74,6 @@ function notAllowed(res: Response): void {
 router.use(jwtMiddleware);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function inferType(value: unknown): OperatonVariable['type'] {
-  if (value === null || value === undefined) return 'Null';
-  switch (typeof value) {
-    case 'boolean':
-      return 'Boolean';
-    case 'number':
-      return Number.isInteger(value) ? 'Integer' : 'Double';
-    case 'string':
-      return 'String';
-    case 'object':
-      return 'Json';
-    default:
-      return 'String';
-  }
-}
 
 function toOperatonVariables(input: Record<string, unknown>): Record<string, OperatonVariable> {
   const result: Record<string, OperatonVariable> = {};

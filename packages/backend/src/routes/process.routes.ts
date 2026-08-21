@@ -7,6 +7,7 @@ import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
 import { config } from '@utils/config';
 import { OperatonVariable } from '@ronl/shared';
+import { inferType } from '@utils/operaton-variables';
 
 const router = express.Router();
 const logger = createLogger('process-routes');
@@ -695,27 +696,5 @@ router.delete('/:id', async (req, res) => {
     });
   }
 });
-
-/**
- * Infer Operaton type from JavaScript value
- */
-function inferType(value: unknown): OperatonVariable['type'] {
-  if (value === null || value === undefined) {
-    return 'Null';
-  }
-
-  switch (typeof value) {
-    case 'boolean':
-      return 'Boolean';
-    case 'number':
-      return Number.isInteger(value) ? 'Integer' : 'Double';
-    case 'string':
-      return 'String';
-    case 'object':
-      return 'Json';
-    default:
-      return 'String';
-  }
-}
 
 export default router;
