@@ -56,7 +56,7 @@ describe('fetchTkFeed', () => {
     expect(res.items).toHaveLength(1);
   });
 
-  it('builds an OR filter, normalises items, and caches the result', async () => {
+  it('normalises items and caches the result', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -76,7 +76,7 @@ describe('fetchTkFeed', () => {
       }),
     });
 
-    const res = await fetchTkFeed('"green deal" OR stikstof', ['Motie'], 0, 20);
+    const res = await fetchTkFeed('stikstof', ['Motie'], 0, 20);
 
     expect(res.total).toBe(3);
     expect(res.items[0]).toMatchObject({
@@ -93,11 +93,77 @@ describe('fetchTkFeed', () => {
     // OData filter is built by hand and only partly encoded
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain('Verwijderd eq false');
-    expect(url).toContain("contains(Onderwerp,'green deal')");
     expect(url).toContain("contains(Onderwerp,'stikstof')");
     expect(url).toContain("Soort eq 'Motie'");
 
     expect(mockCacheSet).toHaveBeenCalledWith(expect.stringMatching(/^tk:/), res, 900);
+  });
+
+  describe('multi-term OR', () => {
+    const page = (items: Record<string, unknown>[]) => ({
+      ok: true,
+      json: async () => ({ value: items }),
+    });
+
+    it('issues one request per term instead of one OR filter', async () => {
+      // A single contains(A) or contains(B) or ... filter is what blew the 15s
+      // timeout against the live API; per-term requests scale flat.
+      mockFetch.mockResolvedValue(page([]));
+
+      await fetchTkFeed('"green deal" OR stikstof', ['Motie'], 0, 20);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const urls = mockFetch.mock.calls.map((c) => c[0] as string);
+      expect(urls.some((u) => u.includes("contains(Onderwerp,'green deal')"))).toBe(true);
+      expect(urls.some((u) => u.includes("contains(Onderwerp,'stikstof')"))).toBe(true);
+      // Each request carries one clause only — no OR in any filter.
+      for (const u of urls) {
+        expect(u).not.toContain(' or contains(');
+        expect(u).toContain("Soort eq 'Motie'");
+      }
+    });
+
+    it('omits $count, which is the expensive half of the query', async () => {
+      mockFetch.mockResolvedValue(page([]));
+
+      const res = await fetchTkFeed('a OR b');
+
+      for (const c of mockFetch.mock.calls) expect(c[0] as string).not.toContain('$count');
+      // No union count is available, and TkFeedResult already allows null; the
+      // search band falls back to the number of items returned.
+      expect(res.total).toBeNull();
+    });
+
+    it('merges the pages, dropping a document that matched more than one term', async () => {
+      mockFetch
+        .mockResolvedValueOnce(page([{ Id: 'dup', Onderwerp: 'Both', GewijzigdOp: '2026-07-02' }]))
+        .mockResolvedValueOnce(
+          page([
+            { Id: 'dup', Onderwerp: 'Both', GewijzigdOp: '2026-07-02' },
+            { Id: 'other', Onderwerp: 'Only b', GewijzigdOp: '2026-07-01' },
+          ])
+        );
+
+      const res = await fetchTkFeed('a OR b');
+
+      expect(res.items.map((i) => i.id)).toEqual(['dup', 'other']); // newest first, deduped
+    });
+
+    it('keeps going when one term fails, rather than losing the whole query', async () => {
+      mockFetch
+        .mockRejectedValueOnce(new Error('aborted'))
+        .mockResolvedValueOnce(page([{ Id: 'ok', Onderwerp: 'Survivor' }]));
+
+      const res = await fetchTkFeed('a OR b');
+
+      expect(res.items.map((i) => i.id)).toEqual(['ok']);
+    });
+
+    it('throws when every term fails', async () => {
+      mockFetch.mockRejectedValue(new Error('aborted'));
+
+      await expect(fetchTkFeed('a OR b')).rejects.toThrow('aborted');
+    });
   });
 
   it('builds a single-term filter (no OR wrapping)', async () => {
