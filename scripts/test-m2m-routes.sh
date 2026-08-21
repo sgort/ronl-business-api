@@ -14,7 +14,7 @@
 #   TARGET=local|acc          picks a preset pair of URLs (default: local)
 #   BASE_URL / KEYCLOAK_URL   set either explicitly to override the TARGET preset
 #   CLIENT_ID=operaton-mcp-client
-#   DECISION_KEY=TreeFellingDecision
+#   DECISION_KEY / DECISION_VARS   override the per-TARGET decision preset
 
 set -u
 
@@ -28,10 +28,19 @@ case "$TARGET_LC" in
   local)
     DEFAULT_BASE_URL="http://localhost:3002"
     DEFAULT_KEYCLOAK_URL="http://localhost:8080"
+    # From the local fixture bundle (docker-compose Operaton).
+    DEFAULT_DECISION_KEY="TreeFellingDecision"
+    DEFAULT_DECISION_VARS='{"variables": {"treeDiameter": 45, "protectedArea": false}}'
     ;;
   acc)
     DEFAULT_BASE_URL="https://acc.api.open-regels.nl"
     DEFAULT_KEYCLOAK_URL="https://acc.keycloak.open-regels.nl"
+    # ACC's M2M client talks to operaton-doc, a different engine from ACC's main
+    # one, and TreeFellingDecision is not deployed there. AwbCompletenessCheck is:
+    # one input, and a catch-all rule under FIRST hit policy, so any value
+    # evaluates cleanly rather than erroring.
+    DEFAULT_DECISION_KEY="AwbCompletenessCheck"
+    DEFAULT_DECISION_VARS='{"variables": {"productType": "TreeFellingPermit"}}'
     ;;
   *)
     echo "ERROR: unknown TARGET='$TARGET' (expected 'local' or 'acc')."
@@ -42,7 +51,8 @@ esac
 BASE_URL="${BASE_URL:-$DEFAULT_BASE_URL}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-$DEFAULT_KEYCLOAK_URL}"
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
-DECISION_KEY="${DECISION_KEY:-TreeFellingDecision}"
+DECISION_KEY="${DECISION_KEY:-$DEFAULT_DECISION_KEY}"
+DECISION_VARS="${DECISION_VARS:-$DEFAULT_DECISION_VARS}"
 
 # On localhost, fall back to the seeded realm's own client secret so the script
 # runs with no arguments. An exported CLIENT_SECRET always wins, and the realm
@@ -283,24 +293,35 @@ PROC_HIST_STATUS=$(curl -s -o /tmp/m2m_proc_hist.json -w "%{http_code}" \
   -H "Authorization: Bearer $TOKEN")
 check_status "GET /v1/m2m/process/history" "$PROC_HIST_STATUS" "200"
 
-# decision.evaluate
-DECISION_STATUS=$(curl -s -o /tmp/m2m_decision.json -w "%{http_code}" \
-  -X POST "${BASE_URL}/v1/m2m/decision/${DECISION_KEY}/evaluate" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"variables": {"treeDiameter": 45, "protectedArea": false}}')
-check_status "POST /v1/m2m/decision/:key/evaluate" "$DECISION_STATUS" "200"
-if [[ "$DECISION_STATUS" == "200" ]]; then
-  check_field "POST /v1/m2m/decision/:key/evaluate body" "$(cat /tmp/m2m_decision.json)" '.success' 'true'
-fi
-
-# decision.get
+# decision.get — run first, because it doubles as the existence probe. Which
+# decisions are deployed is engine data, not route behaviour: local and ACC talk
+# to different engines, so a key missing from one is not a regression in the
+# other. A 404 here skips both decision checks with a ~ rather than reporting a
+# phantom failure, matching how the rest of the live scripts treat an absent
+# dependency.
 DECISION_GET_STATUS=$(curl -s -o /tmp/m2m_decision_get.json -w "%{http_code}" \
   "${BASE_URL}/v1/m2m/decision/${DECISION_KEY}" \
   -H "Authorization: Bearer $TOKEN")
-check_status "GET /v1/m2m/decision/:key" "$DECISION_GET_STATUS" "200"
-if [[ "$DECISION_GET_STATUS" == "200" ]]; then
-  check_field "GET /v1/m2m/decision/:key body" "$(cat /tmp/m2m_decision_get.json)" '.success' 'true'
+
+if [[ "$DECISION_GET_STATUS" == "404" ]]; then
+  echo "  ~ decision routes skipped — '$DECISION_KEY' is not deployed on this engine"
+  echo "    (override with DECISION_KEY=<key> and DECISION_VARS='{\"variables\":{...}}')"
+else
+  check_status "GET /v1/m2m/decision/:key" "$DECISION_GET_STATUS" "200"
+  if [[ "$DECISION_GET_STATUS" == "200" ]]; then
+    check_field "GET /v1/m2m/decision/:key body" "$(cat /tmp/m2m_decision_get.json)" '.success' 'true'
+  fi
+
+  # decision.evaluate
+  DECISION_STATUS=$(curl -s -o /tmp/m2m_decision.json -w "%{http_code}" \
+    -X POST "${BASE_URL}/v1/m2m/decision/${DECISION_KEY}/evaluate" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$DECISION_VARS")
+  check_status "POST /v1/m2m/decision/:key/evaluate" "$DECISION_STATUS" "200"
+  if [[ "$DECISION_STATUS" == "200" ]]; then
+    check_field "POST /v1/m2m/decision/:key/evaluate body" "$(cat /tmp/m2m_decision.json)" '.success' 'true'
+  fi
 fi
 
 # ─── Known-fixture assertions (local only) ───────────────────────────────────
