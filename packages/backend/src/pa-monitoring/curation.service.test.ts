@@ -640,3 +640,28 @@ describe('runCurationCycle — failures that are not Error instances', () => {
     await expect(runCurationCycle()).resolves.toBeUndefined();
   });
 });
+
+describe('runCurationCycle — press-release labelling', () => {
+  const persistedInsert = () =>
+    mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  it('labels an EP press release distinctly from a plenary document', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: '20260716IPR46531',
+          source: 'eu',
+          subbron: 'ep-persbericht',
+          type: 'Persbericht',
+          date: null,
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    // The type already reads 'Persbericht', so the sub-source label is suppressed
+    // rather than repeating the word.
+    expect(persistedInsert()![1][4]).toBe('Europees Parlement · Persbericht · onbekend');
+  });
+});

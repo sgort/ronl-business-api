@@ -152,6 +152,18 @@ function extractRef(guid: string, title: string): string | null {
   return null;
 }
 
+// Press releases carry no EP document ref. Their identity is the IPR code EP
+// puts in the public URL — .../press-room/20260716IPR46537/ — which is present
+// on every item in the feed and unique across it. Taken from the link rather
+// than the guid (which spells the same thing as IPR-2026-07-16-46537) because
+// the link form is the one that appears publicly and is recognisable to a human.
+const PRESS_RELEASE_ID = /\/(\d{8}IPR\d+)\//;
+
+function extractPressReleaseId(link: string): string | null {
+  const m = link.match(PRESS_RELEASE_ID);
+  return m ? m[1] : null;
+}
+
 function normaliseRssItem(item: RssItem): FeedItem | null {
   const title = typeof item.title === 'string' ? item.title.trim() : null;
   if (!title) return null;
@@ -161,15 +173,34 @@ function normaliseRssItem(item: RssItem): FeedItem | null {
   const typeCat = categories.find((c) => c['@_domain'] === 'type');
   const rssType = typeCat ? (typeCat['#text']?.trim() ?? null) : null;
 
+  // Committee codes come as one category per committee with domain="body". The
+  // first is the responsible one — which is what commissie means elsewhere
+  // (agenda.client reads VoortouwCommissieNaam, ep-texts reads doc.committee) and
+  // what the cockpit's "Bevoegde commissie" chip claims. Co-responsible ones are
+  // appended rather than dropped, so a cross-committee item still shows them:
+  // "AGRI +1". Items like the Irish-Presidency press release carry seventeen.
+  const bodies = categories
+    .filter((c) => c['@_domain'] === 'body')
+    .map((c) => c['#text']?.trim())
+    .filter((c): c is string => !!c);
+  const commissie =
+    bodies.length === 0
+      ? null
+      : bodies.length === 1
+        ? bodies[0]
+        : `${bodies[0]} +${bodies.length - 1}`;
+
   // Ref from guid (plain string or object with #text)
   const guidRaw = item.guid;
   const guidStr = typeof guidRaw === 'object' ? (guidRaw['#text'] ?? '') : String(guidRaw ?? '');
   const ref = extractRef(guidStr, title);
 
-  // Only surface items with a recognisable EP document ref (not agendas, etc.)
-  if (!ref) return null;
+  const link = typeof item.link === 'string' ? item.link.trim() : '';
+  const pressReleaseId = ref ? null : extractPressReleaseId(link);
 
-  const type = rssType || inferType(ref);
+  // Everything else — agendas and the like — carries no identity we can key on.
+  const identity = ref ?? pressReleaseId;
+  if (!identity) return null;
 
   let date: string | null = null;
   if (item.pubDate) {
@@ -184,14 +215,19 @@ function normaliseRssItem(item: RssItem): FeedItem | null {
   const description = addDutchContext(`${title} ${rawDesc}`.trim());
 
   return {
-    id: ref,
+    id: identity,
     title,
-    type,
-    number: ref,
+    // A press release has no doc-ref prefix to infer a type from, so its
+    // category ("Persbericht") is the only source; fall back to it explicitly.
+    type: rssType || (ref ? inferType(ref) : 'Persbericht'),
+    number: identity,
     date,
-    url: doceoUrl(ref),
+    // doceoUrl builds a document URL, which a press release does not have — its
+    // own <link> is the canonical page.
+    url: ref ? doceoUrl(ref) : link,
     source: 'eu' as const,
-    subbron: 'ep-rss',
+    subbron: ref ? 'ep-rss' : 'ep-persbericht',
+    commissie,
     description,
   };
 }

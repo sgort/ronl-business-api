@@ -71,7 +71,16 @@ async function persistCandidate(
   if (item.source === 'tk') {
     srcLabel = `Tweede Kamer · ${item.type ?? 'Document'} · ${formatAge(item.date)}`;
   } else if (item.source === 'eu') {
-    const subbronLabel = item.subbron === 'ep-teksten' ? ' · Ingediende teksten' : '';
+    // Name the sub-source, but only when it adds something the type does not
+    // already say. A press release arrives with type 'Persbericht' from its RSS
+    // category, so labelling it again would render "· Persbericht · Persbericht".
+    const subbronName =
+      item.subbron === 'ep-teksten'
+        ? 'Ingediende teksten'
+        : item.subbron === 'ep-persbericht'
+          ? 'Persbericht'
+          : null;
+    const subbronLabel = subbronName && subbronName !== item.type ? ` · ${subbronName}` : '';
     srcLabel = `Europees Parlement · ${item.type ?? 'Document'}${subbronLabel} · ${formatAge(item.date)}`;
   } else if (item.source === 'media') {
     const subbronLabel =

@@ -50,6 +50,7 @@ function BronBadge({ bron }: { bron: string | null }) {
 const EP_SUBBRON_LABEL: Record<string, string> = {
   'ep-teksten': 'Ingediende teksten',
   'ep-rss': 'Plenaire RSS',
+  'ep-persbericht': 'Persbericht',
 };
 
 function EpMeta({ s }: { s: Signal }) {

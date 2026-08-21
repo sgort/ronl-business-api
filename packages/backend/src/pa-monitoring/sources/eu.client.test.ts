@@ -284,3 +284,123 @@ describe('fetchEuFeed — degraded upstreams', () => {
     expect(res.items.map((i) => i.id).sort()).toEqual(['A-10-2026-0191', 'A-10-2026-0192']);
   });
 });
+
+describe('parseRssFeed — press releases', () => {
+  const rss = (items: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>${items}</channel></rss>`;
+
+  // Verbatim from the live press-releases feed.
+  const pressItem = (over: { title?: string; link?: string; guid?: string } = {}) => `<item>
+      <title>${over.title ?? 'Press release - EU-China relations: Foreign Affairs Committee to visit Beijing'}</title>
+      <link>${over.link ?? 'https://www.europarl.europa.eu/news/en/press-room/20260716IPR46531/'}</link>
+      <guid isPermaLink="false">${over.guid ?? 'IPR-COM_IPR-2026-07-16-46531_EN'}</guid>
+      <category domain="type">Persbericht</category>
+      <category domain="body">AFET</category>
+      <pubDate>Fri, 17 Jul 2026 07:53:00 GMT</pubDate>
+    </item>`;
+
+  it('keeps a press release, identified by the IPR code in its public URL', () => {
+    // A press release carries no EP document ref, so before this it was dropped
+    // outright — the whole feed contributed nothing.
+    const [item] = parseRssFeed(rss(pressItem()));
+    expect(item).toMatchObject({
+      id: '20260716IPR46531',
+      number: '20260716IPR46531',
+      source: 'eu',
+      subbron: 'ep-persbericht',
+      type: 'Persbericht',
+      url: 'https://www.europarl.europa.eu/news/en/press-room/20260716IPR46531/',
+      date: '2026-07-17',
+    });
+  });
+
+  it('links to the press-room page, not a doceo document URL', () => {
+    // doceoUrl builds .../doceo/document/<ref>_NL.html, which does not exist for
+    // a press release; its own <link> is the canonical page.
+    const [item] = parseRssFeed(rss(pressItem()));
+    expect(item.url).not.toContain('/doceo/');
+    expect(item.url).toContain('/press-room/');
+  });
+
+  it('takes the id from the link, not the guid, when both carry an IPR code', () => {
+    // The guid spells the same identity as IPR-2026-07-16-46531; the link form
+    // is the one EP publishes and a human would recognise.
+    const [item] = parseRssFeed(rss(pressItem()));
+    expect(item.id).toBe('20260716IPR46531');
+    expect(item.id).not.toContain('IPR-2026');
+  });
+
+  it('keeps a press release whose title is still untranslated', () => {
+    // The NL feed serves a mix — recent items arrive in English and are replaced
+    // by the Dutch title on a later cycle, since fetchEuFeed re-reads the whole
+    // feed and the upsert refreshes the title of a still-candidate signal.
+    const [en] = parseRssFeed(rss(pressItem()));
+    const [nl] = parseRssFeed(rss(pressItem({ title: 'Persbericht - EU-China-betrekkingen' })));
+    expect(en.title).toMatch(/^Press release/);
+    expect(nl.title).toMatch(/^Persbericht/);
+    expect(en.id).toBe(nl.id);
+  });
+
+  it('still drops an item with neither a document ref nor an IPR link', () => {
+    const items = parseRssFeed(
+      rss(`<item>
+        <title>Agenda van de plenaire vergadering</title>
+        <link>https://www.europarl.europa.eu/plenary/nl/agendas.html</link>
+        <guid isPermaLink="false">AGENDA_2026-07-16_NL</guid>
+      </item>`)
+    );
+    expect(items).toHaveLength(0);
+  });
+
+  it('leaves document items on the doceo URL and the ep-rss subbron', () => {
+    // Regression guard: adding the press-release path must not reroute documents.
+    const [item] = parseRssFeed(
+      rss(`<item>
+        <title>VERSLAG over een voorstel</title>
+        <link>https://www.europarl.europa.eu/news/en/press-room/20260716IPR99999/</link>
+        <guid isPermaLink="false">RR_A-10-2026-0209_v01-00_NL</guid>
+      </item>`)
+    );
+    expect(item).toMatchObject({ id: 'A-10-2026-0209', subbron: 'ep-rss' });
+    expect(item.url).toContain('/doceo/document/A-10-2026-0209');
+  });
+});
+
+describe('parseRssFeed — committee codes', () => {
+  const rss = (items: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>${items}</channel></rss>`;
+  const withBodies = (bodies: string[]) =>
+    rss(`<item>
+      <title>Press release - Iets</title>
+      <link>https://www.europarl.europa.eu/news/en/press-room/20260716IPR46531/</link>
+      <guid isPermaLink="false">IPR-COM_IPR-2026-07-16-46531_EN</guid>
+      <category domain="type">Persbericht</category>
+      ${bodies.map((b) => `<category domain="body">${b}</category>`).join('')}
+    </item>`);
+
+  it('reports the single responsible committee as-is', () => {
+    expect(parseRssFeed(withBodies(['AFET']))[0].commissie).toBe('AFET');
+  });
+
+  it('names the responsible committee and counts the co-responsible ones', () => {
+    // The cockpit chip reads "Bevoegde commissie", so the lead one leads; the
+    // rest are counted rather than dropped or run together.
+    expect(parseRssFeed(withBodies(['ITRE', 'SEDE']))[0].commissie).toBe('ITRE +1');
+    expect(parseRssFeed(withBodies(['AGRI', 'ECON', 'ENVI']))[0].commissie).toBe('AGRI +2');
+  });
+
+  it('reports no committee when the item names none', () => {
+    expect(parseRssFeed(withBodies([]))[0].commissie).toBeNull();
+  });
+
+  it('populates it for plenary documents too, not just press releases', () => {
+    const [item] = parseRssFeed(
+      rss(`<item>
+        <title>VERSLAG over een voorstel</title>
+        <guid isPermaLink="false">RR_A-10-2026-0209_v01-00_NL</guid>
+        <category domain="body">ENVI</category>
+      </item>`)
+    );
+    expect(item).toMatchObject({ id: 'A-10-2026-0209', subbron: 'ep-rss', commissie: 'ENVI' });
+  });
+});
