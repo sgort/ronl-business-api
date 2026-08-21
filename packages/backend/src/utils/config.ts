@@ -14,8 +14,49 @@ dotenv.config();
 // otherwise ignored. Apply it now, before any TLS connection is made.
 applyExtraCaCerts();
 
+/**
+ * Deployment tier this instance represents — the answer to "which environment
+ * am I looking at?".
+ *
+ * Deliberately separate from NODE_ENV. NODE_ENV is a runtime-mode contract that
+ * Node, Express and several libraries branch on, and this codebase branches on
+ * it too: error-message disclosure (index.ts), console log format (logger.ts),
+ * whether the MCP servers are spawned from dist/ or via tsx from src/, the
+ * external-task long-poll window, and the required-settings check below. ACC
+ * therefore runs with NODE_ENV=production so it behaves exactly like production
+ * — which is the point of an acceptance environment — and cannot use NODE_ENV
+ * to say which tier it is.
+ *
+ * DEPLOYMENT_ENV carries the tier label instead, set per Azure App Service:
+ *   az webapp config appsettings set -g rg-ronl-acc  -n ronl-business-api-acc  --settings DEPLOYMENT_ENV=acceptance
+ *   az webapp config appsettings set -g rg-ronl-prod -n ronl-business-api-prod --settings DEPLOYMENT_ENV=production
+ * Falls back to NODE_ENV when unset, so local development stays zero-config and
+ * nothing changes for an environment that has not set it yet.
+ */
+const DEPLOYMENT_ENV_ALIASES: Record<string, string> = {
+  dev: 'development',
+  development: 'development',
+  acc: 'acceptance',
+  acceptance: 'acceptance',
+  staging: 'acceptance',
+  prod: 'production',
+  production: 'production',
+  test: 'test',
+};
+
+function resolveDeploymentEnv(): string {
+  const raw = (process.env.DEPLOYMENT_ENV || process.env.NODE_ENV || 'development')
+    .toLowerCase()
+    .trim();
+  // An unrecognised label is passed through rather than swallowed, so a typo in
+  // App Settings shows up in /v1/health instead of silently reading as 'development'.
+  return DEPLOYMENT_ENV_ALIASES[raw] ?? raw;
+}
+
 interface Config {
   nodeEnv: string;
+  /** Deployment tier for display/reporting only — never branch on this. */
+  deploymentEnv: string;
   port: number;
   host: string;
   corsOrigin: string[];
@@ -155,6 +196,7 @@ interface Config {
 
 export const config: Config = {
   nodeEnv: process.env.NODE_ENV || 'development',
+  deploymentEnv: resolveDeploymentEnv(),
   port: parseEnvInt(process.env.PORT, 3002),
   host: process.env.HOST || '0.0.0.0',
   corsOrigin: parseEnvArray(process.env.CORS_ORIGIN, [
@@ -330,12 +372,18 @@ function validateConfig() {
     errors.push('KEYCLOAK_CLIENT_SECRET is required in production');
   }
 
-  if (!config.database.url) {
-    errors.push('DATABASE_URL is required');
+  // These two check process.env rather than the resolved config on purpose.
+  // Both settings fall back to a local/shared default above, so the resolved
+  // value is never empty and `!config.database.url` could never be true — the
+  // check read like a safety net while catching nothing, and a production
+  // deployment with no DATABASE_URL would silently write its audit log to
+  // localhost. The defaults stay, so development still needs no .env.
+  if (!process.env.DATABASE_URL && config.nodeEnv === 'production') {
+    errors.push('DATABASE_URL is required in production');
   }
 
-  if (!config.operaton.baseUrl) {
-    errors.push('OPERATON_BASE_URL is required');
+  if (!process.env.OPERATON_BASE_URL && config.nodeEnv === 'production') {
+    errors.push('OPERATON_BASE_URL is required in production');
   }
 
   if (!config.anthropic.apiKey) {

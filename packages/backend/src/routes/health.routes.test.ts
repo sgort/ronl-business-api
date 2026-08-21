@@ -7,7 +7,11 @@ jest.mock('@services/operaton.service', () => ({
   operatonService: { healthCheck: jest.fn() },
 }));
 jest.mock('@utils/config', () => ({
-  config: { keycloak: { url: 'http://kc', realm: 'ronl' }, nodeEnv: 'test' },
+  config: {
+    keycloak: { url: 'http://kc', realm: 'ronl' },
+    nodeEnv: 'test',
+    deploymentEnv: 'acceptance',
+  },
 }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
@@ -128,5 +132,19 @@ describe('GET /v1/health/external', () => {
     expect(res.body.data.cprmv.status).toBe('up');
     expect(res.body.data.triplydb.status).toBe('down');
     expect(res.body.data.lde.status).toBe('down');
+  });
+});
+
+describe('reported environment', () => {
+  it('reports the deployment tier rather than the Node runtime mode', async () => {
+    // ACC runs with NODE_ENV=production so it behaves like production; the tier
+    // is what a reader of /v1/health actually needs to know. The mocked config
+    // deliberately has the two disagreeing.
+    opHealth.mockResolvedValue({ status: 'up' });
+    mockFetch.mockResolvedValue({ ok: true });
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.body.data.environment).toBe('acceptance');
   });
 });

@@ -42,6 +42,7 @@ function loadInvalidConfig(env: Record<string, string> = {}): void {
 /** Every variable config.ts reads, set to a value distinguishable from its default. */
 const ALL_OVERRIDES: Record<string, string> = {
   NODE_ENV: 'acceptance',
+  DEPLOYMENT_ENV: 'acc',
   PORT: '4000',
   HOST: '127.0.0.1',
   CORS_ORIGIN: 'https://a.test, https://b.test',
@@ -144,6 +145,7 @@ describe('config defaults (empty environment)', () => {
 
   it('falls back to the development runtime defaults', () => {
     expect(config.nodeEnv).toBe('development');
+    expect(config.deploymentEnv).toBe('development');
     expect(config.port).toBe(3002);
     expect(config.host).toBe('0.0.0.0');
     expect(config.corsOrigin).toEqual([
@@ -275,6 +277,7 @@ describe('config overrides (every variable set)', () => {
 
   it('takes the runtime, identity and engine values from the environment', () => {
     expect(config.nodeEnv).toBe('acceptance');
+    expect(config.deploymentEnv).toBe('acceptance');
     expect(config.port).toBe(4000);
     expect(config.host).toBe('127.0.0.1');
     // A comma-separated list is split and each entry trimmed.
@@ -418,25 +421,102 @@ describe('import-time side effects', () => {
   });
 });
 
+/** The settings a production start must supply for validateConfig to pass. */
+const PRODUCTION_ENV = {
+  NODE_ENV: 'production',
+  KEYCLOAK_CLIENT_SECRET: 'shh',
+  DATABASE_URL: 'postgresql://u:p@db.test:5432/audit',
+  OPERATON_BASE_URL: 'https://op.test/engine-rest',
+};
+
 describe('validateConfig', () => {
-  it('rejects a production start without a Keycloak client secret', () => {
-    expect(() => loadConfig({ NODE_ENV: 'production' })).toThrow(
-      /KEYCLOAK_CLIENT_SECRET is required in production/
-    );
+  it('accepts a production start once every required setting is present', () => {
+    const config = loadConfig(PRODUCTION_ENV);
+    expect(config.nodeEnv).toBe('production');
   });
 
-  it('accepts a production start once the client secret is present', () => {
-    const config = loadConfig({ NODE_ENV: 'production', KEYCLOAK_CLIENT_SECRET: 'shh' });
-    expect(config.nodeEnv).toBe('production');
+  it('rejects a production start without a Keycloak client secret', () => {
+    const { KEYCLOAK_CLIENT_SECRET: _omitted, ...rest } = PRODUCTION_ENV;
+    expect(() => loadConfig(rest)).toThrow(/KEYCLOAK_CLIENT_SECRET is required in production/);
+  });
+
+  it('rejects a production start without a database URL', () => {
+    // The resolved config always has a URL — the localhost default sees to that
+    // — so the check has to look at the environment, or production silently
+    // writes its audit log to localhost.
+    const { DATABASE_URL: _omitted, ...rest } = PRODUCTION_ENV;
+    expect(() => loadConfig(rest)).toThrow(/DATABASE_URL is required in production/);
+  });
+
+  it('rejects a production start without an Operaton base URL', () => {
+    const { OPERATON_BASE_URL: _omitted, ...rest } = PRODUCTION_ENV;
+    expect(() => loadConfig(rest)).toThrow(/OPERATON_BASE_URL is required in production/);
   });
 
   it('rejects any environment without an Anthropic API key', () => {
     expect(() => loadInvalidConfig()).toThrow(/ANTHROPIC_API_KEY is required/);
   });
 
+  it('lets development start on the built-in defaults, with no .env at all', () => {
+    // Only the API key is genuinely mandatory outside production; requiring the
+    // rest would mean a checkout could not be run without provisioning first.
+    const config = loadConfig();
+    expect(config.nodeEnv).toBe('development');
+    expect(config.database.url).toContain('localhost');
+    expect(config.operaton.baseUrl).toBe('https://operaton.open-regels.nl/engine-rest');
+  });
+
   it('reports every problem at once rather than the first', () => {
-    expect(() => loadInvalidConfig({ NODE_ENV: 'production' })).toThrow(
-      /KEYCLOAK_CLIENT_SECRET[\s\S]*ANTHROPIC_API_KEY/
-    );
+    const message = (() => {
+      try {
+        loadInvalidConfig({ NODE_ENV: 'production' });
+        return '';
+      } catch (err) {
+        return (err as Error).message;
+      }
+    })();
+
+    expect(message).toContain('KEYCLOAK_CLIENT_SECRET is required in production');
+    expect(message).toContain('DATABASE_URL is required in production');
+    expect(message).toContain('OPERATON_BASE_URL is required in production');
+    expect(message).toContain('ANTHROPIC_API_KEY is required');
+  });
+});
+
+describe('deploymentEnv', () => {
+  it('names the tier from DEPLOYMENT_ENV, independently of the runtime mode', () => {
+    // This is the whole point: ACC runs NODE_ENV=production so it behaves like
+    // production, and still has to be able to say it is ACC.
+    const config = loadConfig({ ...PRODUCTION_ENV, DEPLOYMENT_ENV: 'acceptance' });
+    expect(config.nodeEnv).toBe('production');
+    expect(config.deploymentEnv).toBe('acceptance');
+  });
+
+  it.each([
+    ['acc', 'acceptance'],
+    ['ACC', 'acceptance'],
+    ['  Acceptance  ', 'acceptance'],
+    ['staging', 'acceptance'],
+    ['prod', 'production'],
+    ['production', 'production'],
+    ['dev', 'development'],
+    ['development', 'development'],
+    ['test', 'test'],
+  ])('normalises %s to %s', (raw, expected) => {
+    expect(loadConfig({ DEPLOYMENT_ENV: raw }).deploymentEnv).toBe(expected);
+  });
+
+  it('passes an unrecognised label through rather than swallowing it', () => {
+    // A typo in App Settings should be visible in /v1/health, not silently
+    // reported as development.
+    expect(loadConfig({ DEPLOYMENT_ENV: 'acceptence' }).deploymentEnv).toBe('acceptence');
+  });
+
+  it('falls back to NODE_ENV when DEPLOYMENT_ENV is unset', () => {
+    expect(loadConfig(PRODUCTION_ENV).deploymentEnv).toBe('production');
+  });
+
+  it('falls back to development when neither is set', () => {
+    expect(loadConfig().deploymentEnv).toBe('development');
   });
 });

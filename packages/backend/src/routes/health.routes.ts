@@ -48,7 +48,7 @@ router.get('/', async (req, res) => {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: config.nodeEnv,
+      environment: config.deploymentEnv,
       duration: Date.now() - startTime,
       dependencies: {
         keycloak: keycloakHealth,

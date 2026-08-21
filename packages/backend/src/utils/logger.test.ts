@@ -63,6 +63,7 @@ jest.mock('winston-daily-rotate-file', () => ({
 
 const mockConfig = {
   nodeEnv: 'development',
+  deploymentEnv: 'acceptance',
   logging: {
     level: 'info',
     format: 'json',
@@ -101,7 +102,7 @@ describe('transport wiring', () => {
       expect.objectContaining({
         level: 'info',
         exitOnError: false,
-        defaultMeta: { service: 'ronl-business-api', environment: 'development' },
+        defaultMeta: { service: 'ronl-business-api', environment: 'acceptance' },
         transports: expect.any(Array),
       })
     );
