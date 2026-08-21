@@ -46,11 +46,11 @@ function AgendaItem({
     <div className={cls}>
       <div className="pac-ag-time">
         <span className="pac-ag-clock">{item.tijd ?? '–'}</span>
-        <span className={`pac-ag-soort ${item.soort}`}>{item.soortLabel}</span>
       </div>
       <div className="pac-ag-body">
         <div className="pac-ag-title">{item.titel}</div>
         <div className="pac-ag-meta">
+          <span className={`pac-ag-soort ${item.soort}`}>{item.soortLabel}</span>
           {item.commissie && <span>{item.commissie}</span>}
           {item.commissie && <span className="pac-ag-dot">·</span>}
           <span className="pac-ag-nr">Activiteit {item.nummer}</span>
