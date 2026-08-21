@@ -9,6 +9,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware never produces.
+    if (req.headers['x-test-no-user']) return next();
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
@@ -27,6 +30,9 @@ jest.mock('@auth/jwt.middleware', () => ({
   requireRoles:
     (...required: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
+      // Let the no-user probe through to the handler, whose own guard is the
+      // subject of the test; the real requireRoles would stop it here.
+      if (req.headers['x-test-no-user']) return next();
       const user = req.user;
       if (!user) {
         return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
@@ -866,5 +872,56 @@ describe('templates + snippets', () => {
       .send({ naam: 'Blok', md: '- item' });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('SNIPPET_CREATE_ERROR');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const NO_USER = { 'x-test-no-user': '1' };
+
+  it.each([
+    ['get', '/v1/pa/dossiers'],
+    ['get', '/v1/pa/dossiers/d-1'],
+    ['post', '/v1/pa/dossiers/d-1/watch'],
+    ['delete', '/v1/pa/dossiers/d-1/watch'],
+    ['post', '/v1/pa/dossiers'],
+    ['patch', '/v1/pa/dossiers/d-1'],
+    ['post', '/v1/pa/dossiers/d-1/archive'],
+    ['post', '/v1/pa/dossiers/d-1/unarchive'],
+    ['delete', '/v1/pa/dossiers/d-1'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await request(app)[method](path).set(NO_USER).send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('failures that are not Error instances', () => {
+  // pg can reject with a bare string on a connection-level failure; each catch
+  // has a String(err) fallback so the log line still says something.
+  const VALID_DOSSIER = { naam: 'Nieuw dossier', onderwerp: 'Onderwerp' };
+
+  it.each([
+    ['get', '/v1/pa/dossiers', PA, {}],
+    ['get', '/v1/pa/dossiers/d-1', PA, {}],
+    ['post', '/v1/pa/dossiers/d-1/watch', PA, {}],
+    ['delete', '/v1/pa/dossiers/d-1/watch', PA, {}],
+    ['post', '/v1/pa/dossiers', AUTHOR, VALID_DOSSIER],
+    ['patch', '/v1/pa/dossiers/d-1', AUTHOR, { naam: 'Gewijzigd' }],
+    ['post', '/v1/pa/dossiers/d-1/archive', ADMIN, { reden: 'afgerond' }],
+    ['post', '/v1/pa/dossiers/d-1/unarchive', ADMIN, {}],
+    ['delete', '/v1/pa/dossiers/d-1', ADMIN, {}],
+    ['get', '/v1/pa/templates', PA, {}],
+    ['post', '/v1/pa/templates', EDITOR, { naam: 'Sjabloon' }],
+    ['get', '/v1/pa/snippets', PA, {}],
+    ['post', '/v1/pa/snippets', EDITOR, { naam: 'Snippet', md: '# md' }],
+  ] as const)('%s %s answers 5xx rather than hanging', async (method, path, roles, body) => {
+    for (const fn of ['any', 'one', 'oneOrNone', 'none', 'result', 'tx'] as const) {
+      mockDb[fn].mockRejectedValue('connection terminated');
+    }
+    const res = await request(app)[method](path).set(roles).send(body);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(mockLogger.error).toHaveBeenCalled();
   });
 });

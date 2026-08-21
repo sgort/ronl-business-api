@@ -14,6 +14,10 @@ jest.mock('@utils/logger', () => ({
 import {
   initDossiersDb,
   relativeLabel,
+  completeKompas,
+  rowToDossier,
+  dossierDateLabel,
+  rowToAdminDossier,
   DOSSIER_TEMPLATES,
   DOSSIER_SNIPPETS,
 } from './pa-dossiers.db';
@@ -149,5 +153,127 @@ describe('relativeLabel', () => {
 
   it('formats months once weeks reach nine', () => {
     expect(relativeLabel(new Date(Date.now() - 70 * 86_400_000).toISOString())).toBe('2 mnd');
+  });
+});
+
+describe('completeKompas', () => {
+  it('fills every axis with a zero score when nothing is stored yet', () => {
+    // A dossier authored before the Kompas existed has no scores at all.
+    for (const partial of [undefined, null]) {
+      const full = completeKompas(partial);
+      expect(Object.values(full).every((v) => v.score === 0 && v.duiding === '')).toBe(true);
+    }
+  });
+
+  it('keeps the axes that are stored and fills in only the rest', () => {
+    const full = completeKompas({ risico: { score: 2, duiding: 'hoog' } });
+    expect(full.risico).toEqual({ score: 2, duiding: 'hoog' });
+    expect(Object.values(full).filter((v) => v.score === 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe('rowToDossier', () => {
+  it('rebuilds the dossier from the stored body plus the indexed columns', () => {
+    const d = rowToDossier({
+      id: 'd-1',
+      naam: 'Naam',
+      onderwerp: 'Onderwerp',
+      status: 'actief',
+      momentum: 'hoog',
+      kompas: { risico: { score: 2, duiding: 'x' } },
+      body: { waaromNu: 'nu', waarover: 'wat' },
+    });
+    expect(d).toMatchObject({ id: 'd-1', naam: 'Naam', waaromNu: 'nu', waarover: 'wat' });
+    expect(d.kompas.risico).toEqual({ score: 2, duiding: 'x' });
+  });
+
+  it('tolerates a row with neither a body nor a kompas column', () => {
+    // Rows written by an older schema version have no body blob at all.
+    const d = rowToDossier({ id: 'd-2', naam: 'Naam', onderwerp: 'O', status: 'actief' });
+    expect(d.id).toBe('d-2');
+    expect(Object.values(d.kompas).every((v) => v.score === 0)).toBe(true);
+  });
+});
+
+describe('dossierDateLabel', () => {
+  it('formats a timestamp as a short Dutch date', () => {
+    expect(dossierDateLabel('2026-05-12T10:00:00Z')).toBe('12 mei 2026');
+  });
+
+  it('echoes an unparseable string back rather than inventing a date', () => {
+    expect(dossierDateLabel('12 mei 2026')).toBe('12 mei 2026');
+  });
+
+  it('falls back to a dash when there is no timestamp at all', () => {
+    expect(dossierDateLabel(null)).toBe('—');
+    expect(dossierDateLabel(undefined)).toBe('—');
+    // A number is a parseable timestamp; an object is neither parseable nor a string.
+    expect(dossierDateLabel({})).toBe('—');
+  });
+});
+
+describe('rowToAdminDossier', () => {
+  it('maps a fully populated governance row', () => {
+    const admin = rowToAdminDossier(
+      {
+        id: 'd-1',
+        naam: 'Naam',
+        onderwerp: 'O',
+        status: 'concept',
+        momentum: 'hoog',
+        eigenaar: 'Kernteam PA',
+        kompas: { risico: { score: 1, duiding: '' } },
+        md: { waaromNu: '# nu', waarover: '# wat', onsVerhaal: '# verhaal' },
+        versie: 4,
+        gepubliceerd: true,
+        sjabloon: 'standaard',
+        archief: { reden: 'afgerond' },
+        updated_at: new Date().toISOString(),
+      },
+      [{ v: 1, at: '1 jan 2026', by: 'PA', note: 'aangemaakt' }]
+    );
+    expect(admin).toMatchObject({
+      versie: 4,
+      gepubliceerd: true,
+      sjabloon: 'standaard',
+      bewerkt: 'nu',
+    });
+    expect(admin.versies).toHaveLength(1);
+  });
+
+  it('defaults every optional governance column on a freshly created row', () => {
+    const admin = rowToAdminDossier(
+      { id: 'd-2', naam: 'Naam', onderwerp: 'O', status: 'concept', momentum: 'laag' },
+      []
+    );
+    expect(admin).toMatchObject({
+      kompas: {},
+      md: { waaromNu: '', waarover: '', onsVerhaal: '' },
+      versie: 1,
+      gepubliceerd: false,
+      sjabloon: 'blanco',
+      archief: null,
+      bewerkt: '—',
+    });
+  });
+});
+
+describe('initDossiersDb — failures that are not Error instances', () => {
+  // node-postgres can reject with a bare string on a connection-level failure;
+  // both catches have a String(err) fallback so the log line still says something.
+  it('is fail-soft when table creation rejects with a string', async () => {
+    mockNone.mockRejectedValue('connection terminated');
+    await expect(initDossiersDb()).resolves.toBeUndefined();
+    expect(mockNone).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues seeding when one dossier insert rejects with a string', async () => {
+    mockNone.mockResolvedValueOnce(undefined); // CREATE tables
+    mockNone.mockRejectedValueOnce('connection terminated'); // first dossier INSERT
+    mockNone.mockResolvedValue(undefined);
+
+    await expect(initDossiersDb()).resolves.toBeUndefined();
+
+    expect(dossierSeedCalls().length).toBeGreaterThan(1);
   });
 });

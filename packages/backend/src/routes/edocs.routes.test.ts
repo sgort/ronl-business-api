@@ -368,3 +368,37 @@ describe('DELETE /workspaces/:workspaceId', () => {
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
+
+describe('non-Error rejections', () => {
+  // eDOCS failures arrive over SOAP and surface as bare strings often enough
+  // that the String(error) fallback in each catch is a real path, not a formality.
+  const VALID_UPLOAD = {
+    workspaceId: 'ws-1',
+    filename: 'a.pdf',
+    contentBase64: 'AAAA',
+    metadata: { docName: 'A', department: 'IV' },
+  };
+
+  it.each([
+    ['listWorkspaces', 'get', '/v1/edocs/workspaces', undefined],
+    [
+      'ensureWorkspace',
+      'post',
+      '/v1/edocs/workspaces/ensure',
+      { projectNumber: 'p-1', projectName: 'Project 1' },
+    ],
+    ['uploadDocument', 'post', '/v1/edocs/documents', VALID_UPLOAD],
+    ['getWorkspaceDocuments', 'get', '/v1/edocs/workspaces/ws-1/documents', undefined],
+    ['getDocumentProfile', 'get', '/v1/edocs/documents/d-1/profile', undefined],
+    ['getDocumentVersions', 'get', '/v1/edocs/documents/d-1/versions', undefined],
+    ['downloadDocumentVersion', 'get', '/v1/edocs/documents/d-1/versions/2', undefined],
+    ['deleteDocument', 'delete', '/v1/edocs/documents/d-1', undefined],
+    ['deleteWorkspace', 'delete', '/v1/edocs/workspaces/ws-1', undefined],
+  ] as const)('%s rejecting with a string still answers 502', async (fn, method, path, body) => {
+    (svc[fn] as jest.Mock).mockRejectedValue('SOAP fault');
+    const req = auth(request(app)[method](path));
+    const res = await (body ? req.send(body) : req);
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});

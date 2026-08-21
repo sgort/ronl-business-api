@@ -31,9 +31,8 @@ jest.mock('@utils/config', () => ({
     },
   },
 }));
-jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
-}));
+const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
 import { OperatonService } from './operaton.service';
 import type { OperatonVariable, ProcessStartRequest } from '@ronl/shared';
@@ -1082,4 +1081,104 @@ describe('getCompletedTasks — branch gaps', () => {
     routeGet([['/history/task', Promise.reject(new Error('tasks-err'))]]);
     await expect(svc.getCompletedTasks('t')).rejects.toThrow('tasks-err');
   });
+});
+
+describe('failures that are not Error instances', () => {
+  // Operaton is reached over HTTP; a socket-level failure can surface as a bare
+  // string rather than an Error. Every catch has an 'Unknown error' fallback for
+  // exactly that, and a log line that says nothing is worse than none.
+  const CALLS: Array<[string, () => Promise<unknown>]> = [
+    ['getDeployedProcessKeys', () => svc.getDeployedProcessKeys(['K'], 'flevoland')],
+    ['getProcessInstance', () => svc.getProcessInstance('pi-1')],
+    ['getProcessVariables', () => svc.getProcessVariables('pi-1')],
+    ['getActivityHistory', () => svc.getActivityHistory('pi-1')],
+    ['deleteProcessInstance', () => svc.deleteProcessInstance('pi-1', 'reason')],
+    ['getProcessHistory', () => svc.getProcessHistory('applicant-1', 'flevoland')],
+    ['getHistoricVariables', () => svc.getHistoricVariables('pi-1')],
+    ['getHrOnboardingProfile', () => svc.getHrOnboardingProfile('e-1', 'flevoland')],
+    ['getVariableHints', () => svc.getVariableHints('K')],
+    ['getUserTasks', () => svc.getUserTasks('u-1', 'flevoland')],
+    ['getCompletedTasks', () => svc.getCompletedTasks('flevoland')],
+    ['getBoardOwner', () => svc.getBoardOwner('K', 'flevoland')],
+    ['getTask', () => svc.getTask('t-1')],
+    ['completeTask', () => svc.completeTask('t-1', { variables: {} })],
+    ['claimTask', () => svc.claimTask('t-1', 'u-1')],
+    ['getDeployedStartForm', () => svc.getDeployedStartForm('K', 'flevoland')],
+    ['getDeployedTaskForm', () => svc.getDeployedTaskForm('t-1')],
+  ];
+
+  it.each(CALLS)('%s logs Unknown error rather than undefined', async (_name, call) => {
+    mockClient.get.mockRejectedValue('socket hang up');
+    mockClient.post.mockRejectedValue('socket hang up');
+    mockClient.delete.mockRejectedValue('socket hang up');
+
+    await call().catch(() => undefined);
+
+    // Some of these degrade with a warn and a fallback value rather than an
+    // error and a rethrow; either channel proves the fallback was reached.
+    const logged = [...mockLogger.error.mock.calls, ...mockLogger.warn.mock.calls];
+    expect(logged).toContainEqual([
+      expect.any(String),
+      expect.objectContaining({ error: 'Unknown error' }),
+    ]);
+  });
+
+  it('healthCheck reports itself down with Unknown error', async () => {
+    mockClient.get.mockRejectedValue('socket hang up');
+    await expect(svc.healthCheck()).resolves.toMatchObject({
+      status: 'down',
+      error: 'Unknown error',
+    });
+  });
+});
+
+describe('list mappers when the history variables are sparse', () => {
+  // History returns every variable of every instance in one flat list, so the
+  // mappers have to skip variables they do not care about, tolerate a null
+  // value, and fall back for an instance that contributed no variables at all.
+  const LISTS: Array<[string, () => Promise<Array<Record<string, unknown>>>, string, string]> = [
+    ['getRipPhase1ActiveList', () => svc.getRipPhase1ActiveList('flevoland'), 'projectNumber', '—'],
+    [
+      'getRipPhase1CompletedList',
+      () => svc.getRipPhase1CompletedList('flevoland'),
+      'projectNumber',
+      '—',
+    ],
+    [
+      'getCapacityClaimActiveList',
+      () => svc.getCapacityClaimActiveList('flevoland'),
+      'jobTitle',
+      '—',
+    ],
+    [
+      'getCapacityClaimCompletedList',
+      () => svc.getCapacityClaimCompletedList('flevoland'),
+      'jobTitle',
+      '—',
+    ],
+  ];
+
+  it.each(LISTS)(
+    '%s maps a null value to "" and a variable-less instance to the default',
+    async (_name, call, field, fallback) => {
+      mockClient.post.mockResolvedValue({
+        data: [
+          { id: 'pi-1', startTime: '2026-01-01', endTime: '2026-01-02' },
+          { id: 'pi-2', startTime: '2026-01-03', endTime: '2026-01-04' },
+        ],
+      });
+      mockClient.get.mockResolvedValue({
+        data: [
+          // Not one of the fields any mapper collects — must be skipped outright.
+          { processInstanceId: 'pi-1', name: 'municipality', value: 'flevoland' },
+          { processInstanceId: 'pi-1', name: field, value: null },
+        ],
+      });
+
+      const list = await call();
+
+      expect(list[0][field]).toBe('');
+      expect(list[1][field]).toBe(fallback);
+    }
+  );
 });

@@ -559,3 +559,84 @@ describe('promoteToInbox — human override', () => {
     expect(mockScoreItem).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('runCurationCycle — source label variants', () => {
+  const persistedInsert = () =>
+    mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  it('tags an EP submitted-texts item with its sub-source', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        feedItem({ id: 'eu-1', source: 'eu', subbron: 'ep-teksten', type: 'Verslag', date: null }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    expect(persistedInsert()![1][4]).toBe(
+      'Europees Parlement · Verslag · Ingediende teksten · onbekend'
+    );
+  });
+
+  it('distinguishes regional from national news items', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
+    mockFetchFlevolandNews.mockResolvedValue([
+      feedItem({
+        id: 'md-1',
+        source: 'media',
+        subbron: 'nieuws-regionaal',
+        number: 'Omroep Flevoland',
+        date: null,
+      }),
+    ]);
+    await runCurationCycle();
+    expect(persistedInsert()![1][4]).toBe('Omroep Flevoland · Regionaal nieuws · onbekend');
+  });
+
+  it('falls back to the raw date string when it is not parseable', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [feedItem({ source: 'tk', type: 'Motie', date: 'binnenkort' })],
+      total: 1,
+    });
+    await runCurationCycle();
+    expect(persistedInsert()![1][4]).toBe('Tweede Kamer · Motie · binnenkort');
+  });
+});
+
+describe('runCurationCycle — saved searches without a query term', () => {
+  it('skips a search that has no q, fetching nothing for it', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: '', sources: ['tk', 'ob'] })]);
+    await runCurationCycle();
+    expect(mockFetchTkFeed).not.toHaveBeenCalled();
+    expect(mockFetchObFeed).not.toHaveBeenCalled();
+  });
+});
+
+describe('runCurationCycle — failures that are not Error instances', () => {
+  // Every step logs err instanceof Error ? err.message : String(err) and carries
+  // on; a bare-string rejection must not take the cycle down.
+  it('survives a persist that rejects with a string', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({ items: [feedItem({ source: 'tk' })], total: 1 });
+    mockDb.none.mockRejectedValue('connection terminated');
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+
+  it('survives a saved-search load that rejects with a string', async () => {
+    mockDb.any.mockRejectedValue('connection terminated');
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+
+  it('survives every feed source rejecting with a string', async () => {
+    mockDb.any.mockResolvedValue([
+      savedSearch({ q: 'stikstof', sources: ['tk', 'ob', 'eu', 'media'] }),
+    ]);
+    mockFetchTkFeed.mockRejectedValue('socket hang up');
+    mockFetchObFeed.mockRejectedValue('socket hang up');
+    mockFetchEuFeed.mockRejectedValue('socket hang up');
+    mockFetchAllNewSubmittedTexts.mockRejectedValue('socket hang up');
+    mockFetchFlevolandNews.mockRejectedValue('socket hang up');
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+});

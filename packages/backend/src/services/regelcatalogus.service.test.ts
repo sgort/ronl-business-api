@@ -232,3 +232,129 @@ describe('getRegelcatalogusData', () => {
     nowSpy.mockRestore();
   });
 });
+
+describe('SPARQL responses that carry no bindings', () => {
+  it('treats a body without results.bindings as an empty result set', async () => {
+    // TriplyDB answers 200 with an empty body on some error paths; the caller
+    // must see an empty slice rather than a crash on undefined.
+    mockAxios.post.mockResolvedValue({ data: {} });
+    mockAxios.get.mockResolvedValue({ data: [] });
+
+    const data = await getRegelcatalogusData();
+
+    expect(data.services).toEqual([]);
+    expect(data.organizations).toEqual([]);
+    expect(data.concepts).toEqual([]);
+    expect(data.rules).toEqual([]);
+  });
+});
+
+describe('optional bindings that the existing fixtures always supply', () => {
+  it('maps a missing organization identifier/name and a missing link serviceTitle', async () => {
+    mockAxios.post.mockImplementation((_url, query: string) => {
+      if (query.includes('cv:PublicOrganisation'))
+        return Promise.resolve(results([{ organization: { value: 'org-3' } }]));
+      if (query.includes('cv:hasCompetentAuthority'))
+        return Promise.resolve(
+          results([{ organization: { value: 'org-3' }, service: { value: 'svc-3' } }])
+        );
+      if (query.includes('skos:exactMatch')) return Promise.resolve(results([]));
+      if (query.includes('cpsv:Rule')) return Promise.resolve(results([]));
+      return Promise.resolve(results([{ service: { value: 'svc-3' }, title: { value: 'S3' } }]));
+    });
+    mockAxios.get.mockResolvedValue({ data: [] });
+
+    const data = await getRegelcatalogusData();
+
+    expect(data.organizations[0]).toMatchObject({ identifier: '', name: '' });
+    expect(data.organizations[0].services[0]).toMatchObject({ uri: 'svc-3', title: '' });
+  });
+
+  it('leaves the logo null when the assets list has no matching filename', async () => {
+    mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
+    // The org fixture points at mylogo.png; the assets list offers something else.
+    mockAxios.get.mockResolvedValue({
+      data: [{ assetName: 'other.png', versions: [{ url: 'https://cdn/other.png' }] }],
+    });
+
+    const { organizations } = await getRegelcatalogusData();
+
+    expect(organizations[0].logo).toBeNull();
+  });
+});
+
+describe('the TriplyDB assets lookup', () => {
+  it('re-fetches the asset list on a forced refresh, not just the SPARQL queries', async () => {
+    // getRegelcatalogusData(true) clears the asset cache alongside the data cache,
+    // so a forced refresh picks up a logo that was re-uploaded to TriplyDB.
+    mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
+    mockAxios.get.mockResolvedValue(assetsResponse);
+
+    await getRegelcatalogusData();
+    await getRegelcatalogusData(true);
+
+    expect(mockAxios.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up on logo resolution when the endpoint is not a TriplyDB dataset URL', async () => {
+    const original = process.env.RONL_SPARQL_ENDPOINT;
+    process.env.RONL_SPARQL_ENDPOINT = 'https://sparql.example/query';
+    try {
+      const mod = freshModule();
+      mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
+      mockAxios.get.mockResolvedValue(assetsResponse);
+
+      const { organizations } = await mod.getRegelcatalogusData();
+
+      expect(mockAxios.get).not.toHaveBeenCalled();
+      expect(organizations[0].logo).toBeNull();
+    } finally {
+      if (original === undefined) delete process.env.RONL_SPARQL_ENDPOINT;
+      else process.env.RONL_SPARQL_ENDPOINT = original;
+    }
+  });
+
+  it('still returns data when the assets lookup rejects with a non-Error', async () => {
+    mockAxios.post.mockImplementation((_url, query: string) => routePost(query));
+    mockAxios.get.mockRejectedValue('socket hang up');
+
+    const { organizations } = await getRegelcatalogusData();
+
+    expect(organizations[0].logo).toBeNull();
+  });
+});
+
+describe('a SPARQL failure that is not an Error', () => {
+  it('returns empty slices rather than propagating the rejection', async () => {
+    mockAxios.post.mockRejectedValue('socket hang up');
+    mockAxios.get.mockResolvedValue({ data: [] });
+
+    const data = await getRegelcatalogusData();
+
+    expect(data.services).toEqual([]);
+  });
+});
+
+describe('the TriplyDB asset cache across a partially-failed refresh', () => {
+  it('is reused rather than re-fetched when the catalogue refresh failed around it', async () => {
+    // First call: the assets lookup succeeds but a SPARQL query fails, so the
+    // catalogue cache is never written while the asset cache is.
+    let failRules = true;
+    mockAxios.post.mockImplementation((_url, query: string) => {
+      if (failRules && query.includes('cpsv:Rule')) return Promise.reject(new Error('boom'));
+      return routePost(query);
+    });
+    mockAxios.get.mockResolvedValue(assetsResponse);
+
+    await getRegelcatalogusData();
+    expect(mockAxios.get).toHaveBeenCalledTimes(1);
+
+    // Second call: catalogue cache is still empty, so it refetches — but the
+    // asset cache is fresh, so no second assets request goes out.
+    failRules = false;
+    const { organizations } = await getRegelcatalogusData();
+
+    expect(mockAxios.get).toHaveBeenCalledTimes(1);
+    expect(organizations[0].logo).toBe('https://cdn/mylogo.png');
+  });
+});

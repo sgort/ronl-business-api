@@ -10,6 +10,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware never produces.
+    if (req.headers['x-test-no-user']) return next();
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
@@ -28,6 +31,9 @@ jest.mock('@auth/jwt.middleware', () => ({
   requireRoles:
     (...required: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
+      // Let the no-user probe through to the handler, whose own guard is the
+      // subject of the test; the real requireRoles would stop it here.
+      if (req.headers['x-test-no-user']) return next();
       const user = req.user;
       if (!user) {
         return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
@@ -1283,5 +1289,58 @@ describe('PA routes — mutation error branches (500s)', () => {
     const res = await request(app).patch('/v1/pa/signals/sig-1').set(PA).send({ dossierId: 'd1' });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('LINK_DOSSIER_ERROR');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const NO_USER = { 'x-test-no-user': '1' };
+
+  it.each([
+    ['get', '/v1/pa/feed'],
+    ['get', '/v1/pa/agenda'],
+    ['get', '/v1/pa/signals'],
+    ['post', '/v1/pa/signals'],
+    ['post', '/v1/pa/signals/s-1/confirm'],
+    ['get', '/v1/pa/searches'],
+    ['post', '/v1/pa/searches'],
+    ['delete', '/v1/pa/searches/s-1'],
+    ['patch', '/v1/pa/searches/s-1'],
+    ['patch', '/v1/pa/signals/s-1'],
+    ['get', '/v1/pa/notifications'],
+    ['post', '/v1/pa/notifications/ack'],
+    ['get', '/v1/pa/feed-token'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await request(app)[method](path).set(NO_USER).send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('failures that are not Error instances', () => {
+  // pg can reject with a bare string on a connection-level failure; each catch
+  // has a String(err) fallback so the log line still says something.
+  const PA_HDR = { 'x-test-roles': 'public-affairs' };
+
+  it.each([
+    ['get', '/v1/pa/signals', {}],
+    ['post', '/v1/pa/signals', { tab: 'politiek', title: 'T', src: 'S', bron: 'tk' }],
+    ['post', '/v1/pa/signals/s-1/confirm', {}],
+    ['get', '/v1/pa/searches', {}],
+    ['post', '/v1/pa/searches', { naam: 'N', query: { q: 'x' } }],
+    ['delete', '/v1/pa/searches/s-1', {}],
+    ['patch', '/v1/pa/searches/s-1', { naam: 'N' }],
+    ['patch', '/v1/pa/signals/s-1', { status: 'confirmed' }],
+    ['get', '/v1/pa/notifications', {}],
+    ['post', '/v1/pa/notifications/ack', { ids: ['n-1'] }],
+    ['get', '/v1/pa/feed-token', {}],
+  ] as const)('%s %s answers 5xx rather than hanging', async (method, path, body) => {
+    for (const fn of ['any', 'one', 'oneOrNone', 'none', 'result'] as const) {
+      mockDb[fn].mockRejectedValue('connection terminated');
+    }
+    const res = await request(app)[method](path).set(PA_HDR).send(body);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(mockLogger.error).toHaveBeenCalled();
   });
 });

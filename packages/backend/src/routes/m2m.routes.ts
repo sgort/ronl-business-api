@@ -25,7 +25,9 @@ const m2mOperatonService = config.operaton.m2mBaseUrl
 // A disabled operation returns 403 OPERATION_NOT_PERMITTED.
 // No other code changes required.
 //
-const M2M_ALLOWED_OPERATIONS: readonly string[] = [
+// Exported so the gate itself can be exercised: with every operation listed, the
+// 403 path below is otherwise only reachable by editing this file.
+export const M2M_ALLOWED_OPERATIONS: string[] = [
   // Process
   'process.list',
   'process.start',

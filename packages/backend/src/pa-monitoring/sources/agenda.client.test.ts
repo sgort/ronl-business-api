@@ -97,3 +97,49 @@ describe('fetchAgenda', () => {
     await expect(fetchAgenda('2026-06-01', '2026-06-30')).rejects.toThrow(/TK Agenda API 400/);
   });
 });
+
+describe('fetchAgenda — raw items with fields missing or unlabelled', () => {
+  it('keeps the raw Soort as the label when there is no override for it', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [{ Id: 'a1', Soort: 'Stemmingen', Nummer: '2026S01' }],
+      }),
+    });
+    const [item] = await fetchAgenda('2026-06-01', '2026-06-30');
+    expect(item).toMatchObject({ soort: 'plenair', soortLabel: 'Stemmingen' });
+  });
+
+  it('defaults id, nummer, status and date when the raw item omits them', async () => {
+    // TK's OData returns partial rows for provisional agenda entries.
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: [{ Soort: 'Commissiedebat' }] }),
+    });
+    const [item] = await fetchAgenda('2026-06-01', '2026-06-30');
+    expect(item).toMatchObject({ id: '', nummer: '', status: 'gepland', iso: '' });
+    expect(item.tijd).toBeNull();
+  });
+
+  it('reports no time when the timestamp is too short to carry one', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [{ Id: 'a1', Soort: 'Commissiedebat', Nummer: 'N', Datum: '2026-06-22' }],
+      }),
+    });
+    const [item] = await fetchAgenda('2026-06-01', '2026-06-30');
+    expect(item.tijd).toBeNull();
+  });
+
+  it('treats a page without a value array as the last, empty page', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    await expect(fetchAgenda('2026-06-01', '2026-06-30')).resolves.toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows and logs when the fetch rejects with a non-Error', async () => {
+    mockFetch.mockRejectedValue('socket hang up');
+    await expect(fetchAgenda('2026-06-01', '2026-06-30')).rejects.toBe('socket hang up');
+  });
+});

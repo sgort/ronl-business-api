@@ -75,3 +75,23 @@ describe('initPaDb', () => {
     expect(seedCalls().length).toBeGreaterThan(15);
   });
 });
+
+describe('initPaDb — failures that are not Error instances', () => {
+  // node-postgres can reject with a bare string on a connection-level failure;
+  // both catches have a String(err) fallback so the log line still says something.
+  it('is fail-soft when table creation rejects with a string', async () => {
+    mockNone.mockRejectedValue('connection terminated');
+    await expect(initPaDb()).resolves.toBeUndefined();
+    expect(seedCalls()).toHaveLength(0);
+  });
+
+  it('continues seeding when an individual upsert rejects with a string', async () => {
+    mockNone
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValue('connection terminated');
+
+    await expect(initPaDb()).resolves.toBeUndefined();
+    expect(seedCalls().length).toBeGreaterThan(15);
+  });
+});

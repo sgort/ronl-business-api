@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import axios from 'axios';
 import type { AggregatorArticle } from '@ronl/shared';
-import { articleToFeedItem, fetchFlevolandNews } from './media.client';
+import { articleToFeedItem, fetchFlevolandNews, searchFlevolandNews } from './media.client';
 
 const mockGet = (axios as unknown as { get: jest.Mock }).get;
 
@@ -167,5 +167,76 @@ describe('fetchFlevolandNews', () => {
     expect(items).toEqual([]);
     expect(mockGet).toHaveBeenCalledTimes(2);
     jest.useRealTimers();
+  });
+});
+
+describe('articleToFeedItem — articles that omit the optional fields', () => {
+  const bare = (over: Partial<AggregatorArticle> = {}): AggregatorArticle =>
+    ({
+      id: 'a-1',
+      title: 'Kop',
+      published_at: '2026-08-01',
+      canonical_url: 'https://news.test/a-1',
+      summary_short: 'Samenvatting',
+      source: { homepage: 'https://news.test', type: 'national' },
+      ...over,
+    }) as AggregatorArticle;
+
+  it('falls back to the article id when it belongs to no duplicate group', () => {
+    expect(articleToFeedItem(bare()).id).toBe('a-1');
+  });
+
+  it('reports no regio when neither province nor municipality is set', () => {
+    expect(articleToFeedItem(bare()).regio).toBeNull();
+  });
+
+  it('reports no sentiment when the aggregator did not score the article', () => {
+    expect(articleToFeedItem(bare()).sentiment).toBeNull();
+  });
+
+  it('labels a non-regional source as national news', () => {
+    expect(articleToFeedItem(bare()).subbron).toBe('nieuws-nationaal');
+  });
+});
+
+describe('fetchArticles — degraded responses', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('treats a body without an articles array as an empty result', async () => {
+    mockGet.mockResolvedValue({ data: {} });
+    await expect(fetchFlevolandNews({ terms: ['stikstof'] })).resolves.toEqual([]);
+  });
+});
+
+describe('searchFlevolandNews', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('pins the region to Flevoland and reports no total', async () => {
+    mockGet.mockResolvedValue({ data: { articles: [] } });
+
+    const res = await searchFlevolandNews('stikstof');
+
+    expect(res).toEqual({ items: [], total: null });
+    const url = mockGet.mock.calls[0][0] as string;
+    expect(url).toContain('region=Flevoland');
+    expect(url).toContain('q=stikstof');
+    // The default top of 20 applies when the caller does not ask for a page size.
+    expect(url).toContain('top=20');
+  });
+
+  it('searches with an empty term when no query is given, and clamps top to 100', async () => {
+    mockGet.mockResolvedValue({ data: { articles: [] } });
+
+    await searchFlevolandNews(null, 500);
+
+    const url = mockGet.mock.calls[0][0] as string;
+    expect(url).toContain('q=&');
+    expect(url).toContain('top=100');
+  });
+
+  it('clamps a non-positive page size up to one article', async () => {
+    mockGet.mockResolvedValue({ data: { articles: [] } });
+    await searchFlevolandNews('stikstof', 0);
+    expect(mockGet.mock.calls[0][0] as string).toContain('top=1');
   });
 });

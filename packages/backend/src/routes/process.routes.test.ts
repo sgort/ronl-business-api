@@ -9,13 +9,17 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     const roles = ((req.headers['x-test-roles'] as string) ?? 'caseworker').split(',');
     req.user = {
       userId: 'u-1',
       tenantId: 'flevoland',
-      roles,
+      // A token whose realm_access is absent leaves the claim off entirely.
+      ...(req.headers['x-test-no-roles'] ? {} : { roles }),
       organisationType: 'province',
       assuranceLevel: 'substantieel',
     } as unknown as Request['user'];
@@ -329,5 +333,165 @@ describe('DELETE /:id', () => {
     svc.getProcessVariables.mockResolvedValue(ownedVars);
     svc.deleteProcessInstance.mockRejectedValue(new Error('boom'));
     expect((await auth(request(app).delete('/v1/process/pi')).send({})).status).toBe(500);
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const noUser = (r: request.Test) => r.set('x-test-no-user', '1');
+
+  it.each([
+    ['post', '/v1/process/SomeProcess/start'],
+    ['get', '/v1/process/history'],
+    ['get', '/v1/process/pi-1/status'],
+    ['get', '/v1/process/pi-1/variables'],
+    ['get', '/v1/process/pi-1/historic-variables'],
+    ['get', '/v1/process/pi-1/activity-history'],
+    ['get', '/v1/process/pi-1/decision-document'],
+    ['get', '/v1/process/SomeProcess/start-form'],
+    ['get', '/v1/process/SomeProcess/variable-hints'],
+    ['delete', '/v1/process/pi-1'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await noUser(request(app)[method](path));
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('inferType, via the variables submitted on process start', () => {
+  it('tags each JSON value with the Operaton type Operaton expects', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-1' });
+
+    await auth(
+      request(app)
+        .post('/v1/process/SomeProcess/start')
+        .send({
+          variables: {
+            akkoord: true,
+            aantal: 3,
+            bedrag: 12.5,
+            toelichting: 'ok',
+            bijlage: { naam: 'a.pdf' },
+            reden: null,
+          },
+        })
+    );
+
+    expect(svc.startProcess).toHaveBeenCalledWith(
+      'SomeProcess',
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          akkoord: { value: true, type: 'Boolean' },
+          aantal: { value: 3, type: 'Integer' },
+          bedrag: { value: 12.5, type: 'Double' },
+          toelichting: { value: 'ok', type: 'String' },
+          bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
+          reden: { value: null, type: 'Null' },
+        }),
+      }),
+      'flevoland'
+    );
+  });
+});
+
+describe('instance status mapping', () => {
+  it.each([
+    [{ ended: true, suspended: false }, 'ended'],
+    [{ ended: false, suspended: true }, 'suspended'],
+    [{ ended: false, suspended: false }, 'active'],
+  ])('POST /:key/start reports %j as %s', async (flags, expected) => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-1', businessKey: 'bk', ...flags });
+    const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe(expected);
+  });
+
+  it.each([
+    [{ ended: true, suspended: false }, 'ended'],
+    [{ ended: false, suspended: true }, 'suspended'],
+    [{ ended: false, suspended: false }, 'active'],
+  ])('GET /:id/status reports %j as %s', async (flags, expected) => {
+    svc.getProcessInstance.mockResolvedValue({
+      id: 'pi-1',
+      definitionId: 'd-1',
+      businessKey: 'bk',
+      tenantId: 'flevoland',
+      ...flags,
+    });
+    const res = await auth(request(app).get('/v1/process/pi-1/status'));
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe(expected);
+  });
+});
+
+describe('POST /:key/start failure causes', () => {
+  // The handler prefers Operaton's own message, then the Error message, then a
+  // constant — one rung per kind of failure the engine can hand back.
+  it('falls back to the Error message when the axios error carries no body message', async () => {
+    svc.startProcess.mockRejectedValue(
+      Object.assign(new Error('connect ECONNREFUSED'), { isAxiosError: true, response: {} })
+    );
+    const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('falls back to Unknown error when the rejection is not an Error at all', async () => {
+    svc.startProcess.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe('GET /history for a token without a roles claim', () => {
+  it('treats the caller as role-less rather than crashing', async () => {
+    svc.getProcessHistory.mockResolvedValue([]);
+    const res = await request(app)
+      // A role-less caller is treated as a citizen, so may only ask for their own.
+      .get('/v1/process/history?applicantId=u-1')
+      .set('x-test-auth', '1')
+      .set('x-test-no-roles', '1');
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as bare strings often enough that the
+  // 'Unknown error' fallback in each catch is a real path, not a formality.
+  it.each([
+    ['getProcessHistory', 'get', '/v1/process/history?applicantId=u-1', 500],
+    ['getProcessInstance', 'get', '/v1/process/pi-1/status', 404],
+    ['getProcessVariables', 'get', '/v1/process/pi-1/variables', 404],
+    ['getHistoricVariables', 'get', '/v1/process/pi-1/historic-variables', 500],
+    ['getActivityHistory', 'get', '/v1/process/pi-1/activity-history', 500],
+    ['getDecisionDocument', 'get', '/v1/process/pi-1/decision-document', 500],
+    ['getDeployedStartForm', 'get', '/v1/process/SomeProcess/start-form', 500],
+    ['getVariableHints', 'get', '/v1/process/SomeProcess/variable-hints', 500],
+    ['deleteProcessInstance', 'delete', '/v1/process/pi-1', 500],
+  ] as const)('%s rejecting with a string still answers %s', async (fn, method, path, status) => {
+    svc.getProcessInstance.mockResolvedValue({
+      id: 'pi-1',
+      definitionId: 'd-1',
+      tenantId: 'flevoland',
+      ended: false,
+      suspended: false,
+    });
+    svc[fn].mockRejectedValue('socket hang up');
+    const res = await auth(request(app)[method](path));
+    expect(res.status).toBe(status);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe('GET /:key/start-form error mapping', () => {
+  it('maps an Operaton 400 to 404, the same as a 404', async () => {
+    // Operaton answers 400 — not 404 — when the definition exists but carries no
+    // start form, which for the caller means the same thing: there is no form.
+    svc.getDeployedStartForm.mockRejectedValue({ isAxiosError: true, response: { status: 400 } });
+    const res = await auth(request(app).get('/v1/process/SomeProcess/start-form'));
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('FORM_NOT_FOUND');
   });
 });

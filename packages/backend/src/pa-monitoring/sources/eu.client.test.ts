@@ -180,3 +180,76 @@ describe('fetchEuFeed', () => {
     expect(res.items).toEqual([]);
   });
 });
+
+describe('parseRssFeed — item shapes the plenary fixture does not contain', () => {
+  const rss = (items: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>${items}</channel></rss>`;
+
+  it('takes the ref straight from the guid when the guid carries a word-bounded one', () => {
+    // The fixture's guids read "RR_A-10-…", where the underscore blocks the \\b,
+    // so only the title fallback ever fires there.
+    const items = parseRssFeed(
+      rss(`<item>
+        <title>Verslag zonder ref in de titel</title>
+        <guid isPermaLink="false">RR A-10-2026-0181 v02-00 EN</guid>
+      </item>`)
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe('A-10-2026-0181');
+  });
+
+  it('drops an item that has no title at all', () => {
+    expect(parseRssFeed(rss('<item><guid>RR A-10-2026-0181 v02</guid></item>'))).toHaveLength(0);
+  });
+
+  it('reads a single non-repeated category element', () => {
+    const [item] = parseRssFeed(
+      rss(`<item>
+        <title>Verslag A10-0181/2026</title>
+        <category domain="type">Verslag</category>
+      </item>`)
+    );
+    expect(item.type).toBe('Verslag');
+  });
+
+  it('infers the type from the ref prefix when no type category is present', () => {
+    const [item] = parseRssFeed(
+      rss(`<item>
+        <title>Iets A10-0182/2026</title>
+        <category domain="body">ENVI</category>
+      </item>`)
+    );
+    expect(item.type).not.toBe('');
+  });
+
+  it('tolerates an item with neither a description nor a pubDate', () => {
+    const [item] = parseRssFeed(rss('<item><title>Iets A10-0183/2026</title></item>'));
+    expect(item.date).toBeNull();
+    expect(typeof item.title).toBe('string');
+  });
+});
+
+describe('fetchEuFeed — degraded upstreams', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCacheGet.mockResolvedValue(null);
+  });
+
+  it('returns an empty feed when the fetch rejects with a non-Error', async () => {
+    mockFetch.mockRejectedValue('socket hang up');
+    const res = await fetchEuFeed(null, [], 0, 20);
+    expect(res.items).toEqual([]);
+    expect(res.total).toBe(0);
+  });
+
+  it('sorts date-less items without crashing on the comparison', async () => {
+    const undated =
+      '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>' +
+      '<item><title>Eerste A10-0191/2026</title></item>' +
+      '<item><title>Tweede A10-0192/2026</title></item>' +
+      '</channel></rss>';
+    mockFetch.mockResolvedValue({ ok: true, status: 200, text: async () => undated });
+    const res = await fetchEuFeed(null, [], 0, 20);
+    expect(res.items.map((i) => i.id).sort()).toEqual(['A-10-2026-0191', 'A-10-2026-0192']);
+  });
+});

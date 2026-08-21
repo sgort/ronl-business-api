@@ -7,6 +7,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
@@ -162,5 +165,77 @@ describe('GET /phase1/:instanceId/documents', () => {
     const res = await auth(request(app).get('/v1/rip/phase1/pi-1/documents'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const noUser = (r: request.Test) => r.set('x-test-no-user', '1');
+
+  it.each([
+    ['/v1/rip/phase1/active'],
+    ['/v1/rip/phases/deployment-status'],
+    ['/v1/rip/phases/counts'],
+    ['/v1/rip/phase1/pi-1/documents'],
+    ['/v1/rip/phase1/completed'],
+  ])('%s → 401 UNAUTHORIZED', async (path) => {
+    const res = await noUser(request(app).get(path));
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as strings often enough that the ternary's
+  // 'Unknown error' fallback is a real path, not a formality.
+  it('GET /phase1/active still answers 500', async () => {
+    svc.getRipPhase1ActiveList.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phase1/active'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_LIST_FAILED');
+  });
+
+  it('GET /phases/deployment-status still answers 500', async () => {
+    svc.getDeployedProcessKeys.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
+  });
+
+  it('GET /phases/counts still answers 500', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
+    svc.getPhaseInstanceCounts.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/counts'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
+  });
+
+  it('GET /phase1/:instanceId/documents still answers 500', async () => {
+    svc.getRipPhase1Documents.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phase1/pi-1/documents'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
+  });
+
+  it('GET /phase1/completed still answers 500', async () => {
+    svc.getRipPhase1CompletedList.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phase1/completed'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
+  });
+});
+
+describe('tenant isolation when the instance has no municipality', () => {
+  it('serves the documents rather than 403, since there is nothing to mismatch', async () => {
+    svc.getRipPhase1Documents.mockResolvedValue({
+      variables: {},
+      intakeReport: { t: 'intake' },
+      psuReport: null,
+      pdp: null,
+    });
+    const res = await auth(request(app).get('/v1/rip/phase1/pi-1/documents'));
+    expect(res.status).toBe(200);
+    expect(res.body.data.intakeReport).toEqual({ t: 'intake' });
   });
 });
