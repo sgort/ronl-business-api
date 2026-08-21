@@ -50,6 +50,7 @@ function defaultPaData(overrides: Record<string, unknown> = {}) {
     confirmSignal: vi.fn(),
     linkSignalDossier: vi.fn(),
     updateInboxCount: vi.fn(),
+    refreshInboxCounts: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -81,6 +82,20 @@ describe('Monitoring', () => {
     expect(paApi.fetchSignals).toHaveBeenCalledWith({ tab: 'politiek' });
     expect(paApi.fetchInbox).toHaveBeenCalledWith({ tab: 'politiek' });
     expect(updateInboxCount).toHaveBeenCalledWith('politiek', 2);
+  });
+
+  it('re-reads every badge on tab load, not just the open one', async () => {
+    // updateInboxCount above fixes the open tab; this covers the other three,
+    // which otherwise keep whatever they showed at mount. Asserted rather than
+    // left implicit because the context is hand-mocked here: a field added to
+    // the provider and missed in defaultPaData surfaces as an unhandled
+    // rejection that still lets every test pass.
+    const refreshInboxCounts = vi.fn().mockResolvedValue(undefined);
+    mockUsePaData.mockReturnValue(defaultPaData({ refreshInboxCounts }));
+
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+
+    await waitFor(() => expect(refreshInboxCounts).toHaveBeenCalled());
   });
 
   it('switching to the Inbox view shows inbox items instead of curated signals', async () => {
