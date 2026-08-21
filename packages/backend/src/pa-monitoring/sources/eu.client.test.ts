@@ -185,17 +185,48 @@ describe('parseRssFeed — item shapes the plenary fixture does not contain', ()
   const rss = (items: string) =>
     `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>${items}</channel></rss>`;
 
-  it('takes the ref straight from the guid when the guid carries a word-bounded one', () => {
-    // The fixture's guids read "RR_A-10-…", where the underscore blocks the \\b,
-    // so only the title fallback ever fires there.
+  it('takes the ref straight from the guid, underscores and all', () => {
+    // The real feed's guids wrap the ref in underscores. This used to fail: the
+    // pattern was \b-anchored and _ is a word character, so no boundary existed
+    // between "RR_" and "A-10-…", leaving every ref to the title fallback.
     const items = parseRssFeed(
       rss(`<item>
         <title>Verslag zonder ref in de titel</title>
-        <guid isPermaLink="false">RR A-10-2026-0181 v02-00 EN</guid>
+        <guid isPermaLink="false">RR_A-10-2026-0181_v02-00_EN</guid>
       </item>`)
     );
     expect(items).toHaveLength(1);
     expect(items[0].id).toBe('A-10-2026-0181');
+  });
+
+  it.each([
+    ['RC_RC-10-2026-0345_REV1_NL', 'RC-10-2026-0345'],
+    ['RE_B-10-2026-0338_REV1_NL', 'B-10-2026-0338'],
+    ['TA_TA-10-2026-0270_FINAL_NL', 'TA-10-2026-0270'],
+    ['RR_A-10-2026-0099_v01-00_EN', 'A-10-2026-0099'],
+  ])('recovers the ref from the real guid shape %s', (guid, expected) => {
+    // Guid shapes taken verbatim from the live plenary feed. All four carry
+    // Dutch prose titles with no "A10-0099/2026" suffix, so before this fix the
+    // title fallback could not help and the items were dropped — half the feed.
+    const [item] = parseRssFeed(
+      rss(`<item>
+        <title>Gezamenlijke ontwerpresolutie over een onderwerp</title>
+        <guid isPermaLink="false">${guid}</guid>
+      </item>`)
+    );
+    expect(item.id).toBe(expected);
+  });
+
+  it('does not truncate a longer digit run into a false ref', () => {
+    // What the trailing (?!\d) guards: without it "…-04567" matches as "…-0456".
+    expect(
+      parseRssFeed(
+        rss(`<item>
+          <title>Iets zonder ref in de titel</title>
+          <guid isPermaLink="false">RR_A-10-2026-04567_v01_EN</guid>
+        </item>`)
+      )
+    ).toHaveLength(0);
   });
 
   it('drops an item that has no title at all', () => {

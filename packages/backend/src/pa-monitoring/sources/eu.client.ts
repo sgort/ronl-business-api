@@ -136,8 +136,16 @@ interface RssItem {
 
 // Extract the normalised EP ref (e.g. "A-10-2026-0181") from a guid string
 // like "RR_A-10-2026-0181_v02-00_EN", or fall back to parsing the title suffix.
+//
+// No \b around the guid pattern: EP guids wrap the ref in underscores, and _ is
+// a word character, so \b never fires between "RR_" and "A-10-...". That left the
+// guid branch dead and every ref to the title fallback, which only works for
+// titles ending in the "A10-0099/2026" suffix. Half the live plenary feed — joint
+// resolutions, draft decisions, adopted texts — has Dutch prose titles with no
+// such suffix, so those items were dropped outright. The trailing (?!\d) stops a
+// longer digit run being truncated into a false 4-digit match.
 function extractRef(guid: string, title: string): string | null {
-  const m = guid.match(/\b([A-Z]{1,3}-10-\d{4}-\d{4})\b/);
+  const m = guid.match(/([A-Z]{1,3}-10-\d{4}-\d{4})(?!\d)/);
   if (m) return m[1];
   const t = title.match(/\b([A-Z]{1,3})10-(\d{4})\/(\d{4})\s*$/);
   if (t) return `${t[1]}-10-${t[3]}-${t[2]}`;
