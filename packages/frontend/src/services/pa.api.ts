@@ -1,7 +1,8 @@
 /**
  * PA Monitoring API service.
  * Per-resource mock flags (all default false):
- *   VITE_PA_SIGNALS_MOCK=true  → signal/inbox/search fixtures
+ *   the runtime PA mock switch → dossier, signal, inbox and search fixtures
+ *   (see isPaMock; VITE_PA_DOSSIERS_MOCK / VITE_PA_SIGNALS_MOCK seed its default)
  *   VITE_PA_DOSSIERS_MOCK=true → dossier fixtures (backend endpoint not yet live)
  *   VITE_PA_AGENDA_MOCK=true   → agenda fixtures
  */
@@ -82,30 +83,40 @@ async function paDelete(path: string): Promise<void> {
   });
 }
 
-export const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
 const AGENDA_MOCK = import.meta.env.VITE_PA_AGENDA_MOCK === 'true';
 
-// Dossiers mock/live is a *runtime* decision, persisted in localStorage and
-// defaulting to the env flag. The Beheer → Dossierbeheer flag banner flips it
-// so the cockpit can switch between MOCK_DOSSIERS and the live backend without a
-// rebuild — and remembers the choice across navigation and reloads.
-const DOSSIERS_MOCK_DEFAULT = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
-const DOSSIERS_MOCK_KEY = 'paV2.dossiers.mock';
+// Mock/live is ONE runtime decision for the whole PA cockpit, persisted in
+// localStorage and defaulting to the env flags. The Beheer → Dossierbeheer flag
+// banner flips it, so the cockpit switches between fixtures and the live backend
+// without a rebuild — and remembers the choice across navigation and reloads.
+//
+// It governs dossiers, signals, inbox and saved searches together on purpose.
+// These used to be two independent flags (VITE_PA_DOSSIERS_MOCK for dossiers,
+// VITE_PA_SIGNALS_MOCK for the rest), which meant "mock mode" was not one thing:
+// flipping the banner gave you fixture dossiers next to live-but-empty signals
+// and criteria, so the two modes could not be compared. One switch, one meaning.
+//
+// The default ORs the two legacy vars so neither .env file changes meaning; both
+// are false in development and acceptance today, i.e. live unless you toggle.
+const PA_MOCK_DEFAULT =
+  import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true' ||
+  import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
+const PA_MOCK_KEY = 'paV2.mock';
 
-export function isDossiersMock(): boolean {
+export function isPaMock(): boolean {
   try {
-    const v = localStorage.getItem(DOSSIERS_MOCK_KEY);
+    const v = localStorage.getItem(PA_MOCK_KEY);
     if (v === '1') return true;
     if (v === '0') return false;
   } catch {
     /* storage unavailable — fall back to the build-time flag */
   }
-  return DOSSIERS_MOCK_DEFAULT;
+  return PA_MOCK_DEFAULT;
 }
 
-export function setDossiersMock(on: boolean): void {
+export function setPaMock(on: boolean): void {
   try {
-    localStorage.setItem(DOSSIERS_MOCK_KEY, on ? '1' : '0');
+    localStorage.setItem(PA_MOCK_KEY, on ? '1' : '0');
   } catch {
     /* storage unavailable — non-fatal */
   }
@@ -696,7 +707,7 @@ export async function fetchSignals(params?: {
   tab?: string;
   dossierId?: string;
 }): Promise<Signal[]> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     let rows = MOCK_CONFIRMED.filter(
       (s) => s.bron === 'tk' || s.bron === 'ob' || s.bron === 'eu' || s.bron === 'media'
     );
@@ -728,7 +739,7 @@ export interface InboxResult {
  * result rather than reported as 0 — callers fall back.
  */
 export async function fetchInboxCounts(): Promise<Record<string, number>> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     const counts: Record<string, number> = {};
     for (const s of MOCK_INBOX) counts[s.tab] = (counts[s.tab] ?? 0) + 1;
     return counts;
@@ -743,7 +754,7 @@ export async function fetchInbox(params?: {
   tab?: string;
   dossierId?: string;
 }): Promise<InboxResult> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     let rows = MOCK_INBOX.slice();
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
@@ -807,7 +818,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
 ];
 
 export async function fetchSearches(): Promise<SavedSearch[]> {
-  if (SIGNALS_MOCK) return MOCK_SEARCHES;
+  if (isPaMock()) return MOCK_SEARCHES;
   const rows = await paGet<
     {
       id: string;
@@ -845,7 +856,7 @@ export async function fetchFeed(params: {
   skip?: number;
   top?: number;
 }): Promise<{ items: FeedItem[]; total: number | null }> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     const q = params.q.toLowerCase();
     const src = params.source ?? 'both';
     const items: FeedItem[] = [...MOCK_INBOX, ...MOCK_CONFIRMED]
@@ -879,7 +890,7 @@ export async function createSavedSearch(input: {
   types?: string[];
   dossierId?: string | null;
 }): Promise<{ id: string }> {
-  if (SIGNALS_MOCK) return { id: `srch-mock-${Date.now()}` };
+  if (isPaMock()) return { id: `srch-mock-${Date.now()}` };
   return paPost<{ id: string }>('/pa/searches', {
     scope: 'user',
     dossierId: input.dossierId ?? null,
@@ -890,7 +901,7 @@ export async function createSavedSearch(input: {
 
 /** "Naar inbox" → promote one raw hit into the curation inbox as a candidate. */
 export async function promoteToInbox(item: FeedItem): Promise<Signal> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     return {
       id: `sig-${item.source}-${item.id}`,
       tab: item.source === 'ob' ? 'regionaal' : item.source === 'eu' ? 'europa' : 'politiek',
@@ -916,7 +927,7 @@ export async function promoteToInbox(item: FeedItem): Promise<Signal> {
  * no dead/hardcoded chip. Falls back to tk+ob if the call fails.
  */
 export async function fetchFeedSources(): Promise<string[]> {
-  if (SIGNALS_MOCK) return ['tk', 'ob', 'media'];
+  if (isPaMock()) return ['tk', 'ob', 'media'];
   try {
     const types = await paGet<Record<string, unknown>>('/pa/types');
     const keys = Object.keys(types);
@@ -934,7 +945,7 @@ export async function createSearch(input: {
   dossierId: string | null;
   scope: 'tenant' | 'user';
 }): Promise<{ id: string }> {
-  if (SIGNALS_MOCK) return { id: `srch-mock-${Date.now()}` };
+  if (isPaMock()) return { id: `srch-mock-${Date.now()}` };
   return paPost<{ id: string }>('/pa/searches', {
     scope: input.scope,
     dossierId: input.dossierId,
@@ -954,7 +965,7 @@ export async function updateSearch(
     scope?: 'tenant' | 'user';
   }
 ): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paPatch(`/pa/searches/${id}`, {
     ...(patch.scope !== undefined && { scope: patch.scope }),
     ...(patch.dossierId !== undefined && { dossierId: patch.dossierId }),
@@ -965,13 +976,13 @@ export async function updateSearch(
 
 /** Mijn zoekopdrachten: remove a personal saved search. */
 export async function deleteSavedSearch(id: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paDelete(`/pa/searches/${id}`);
 }
 
 /** "↗ team": flip a personal search to tenant scope — only then does it feed the cron. */
 export async function promoteSearchToTenant(id: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paPatch(`/pa/searches/${id}`, { scope: 'tenant' });
 }
 
@@ -979,19 +990,19 @@ export async function promoteSearchToTenant(id: string): Promise<void> {
 
 /** Toggle notify on a saved search — drives the WatchBell in ZoekcriteriaSection. */
 export async function toggleSearchNotify(id: string, notify: boolean): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paPatch(`/pa/searches/${id}`, { notify });
 }
 
 /** "Watch this dossier" bell in the dossier detail header — creates/re-enables a
  *  personal watch-everything-for-this-dossier saved search (empty query). */
 export async function watchDossier(dossierId: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paPost(`/pa/dossiers/${dossierId}/watch`, {});
 }
 
 export async function unwatchDossier(dossierId: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paDelete(`/pa/dossiers/${dossierId}/watch`);
 }
 
@@ -1014,7 +1025,7 @@ export interface PaNotification {
 export async function fetchNotifications(
   unseenOnly = false
 ): Promise<{ items: PaNotification[]; unseenCount: number }> {
-  if (SIGNALS_MOCK) return { items: [], unseenCount: 0 };
+  if (isPaMock()) return { items: [], unseenCount: 0 };
   const res = await paGetRaw<{
     success: boolean;
     data: PaNotification[];
@@ -1025,23 +1036,23 @@ export async function fetchNotifications(
 
 /** Marks notifications seen. Omitted ids = every unseen notification for the caller. */
 export async function ackNotifications(ids?: string[]): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) return;
   await paPost('/pa/notifications/ack', ids?.length ? { ids } : {});
 }
 
 /** Find-or-create the caller's personal RSS feed URL. */
 export async function fetchFeedToken(): Promise<{ token: string; url: string }> {
-  if (SIGNALS_MOCK) return { token: 'mock', url: '' };
+  if (isPaMock()) return { token: 'mock', url: '' };
   return paGet<{ token: string; url: string }>('/pa/feed-token');
 }
 
 export async function fetchDossiers(): Promise<Dossier[]> {
-  if (isDossiersMock()) return MOCK_DOSSIERS;
+  if (isPaMock()) return MOCK_DOSSIERS;
   return paGet<Dossier[]>('/pa/dossiers');
 }
 
 export async function fetchDossier(id: string): Promise<Dossier | undefined> {
-  if (isDossiersMock()) return MOCK_DOSSIERS.find((d) => d.id === id);
+  if (isPaMock()) return MOCK_DOSSIERS.find((d) => d.id === id);
   try {
     return await paGet<Dossier>(`/pa/dossiers/${id}`);
   } catch {
@@ -1274,7 +1285,7 @@ export interface SourcesStatus {
   feeds: SourcesStatusFeed[];
 }
 
-// Static offline fixture for SIGNALS_MOCK demo mode — not synced with feeds.ts by
+// Static offline fixture for PA mock mode — not synced with feeds.ts by
 // design (mock mode never calls the backend), kept illustrative only.
 const MOCK_SOURCE_FEEDS: SourcesStatusFeed[] = [
   {
@@ -1334,7 +1345,7 @@ const MOCK_SOURCE_FEEDS: SourcesStatusFeed[] = [
 ];
 
 export async function fetchSourcesStatus(): Promise<SourcesStatus> {
-  if (SIGNALS_MOCK)
+  if (isPaMock())
     return { tk: true, ob: true, eu: true, epTeksten: true, media: true, feeds: MOCK_SOURCE_FEEDS };
   return paGet<SourcesStatus>('/pa/sources/status');
 }
@@ -1347,7 +1358,7 @@ export async function confirmSignal(
   id: string,
   patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
 ): Promise<Signal> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     const mock = MOCK_INBOX.find((s) => s.id === id);
     if (!mock) throw new Error(`Mock signal ${id} not found`);
     const confirmed: Signal = { ...mock, status: 'confirmed' as const, ...patch };
@@ -1358,7 +1369,7 @@ export async function confirmSignal(
 }
 
 export async function linkSignalDossier(id: string, dossierId: string): Promise<Signal> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     const mock = [...MOCK_CONFIRMED, ...MOCK_INBOX].find((s) => s.id === id);
     if (!mock) throw new Error(`Mock signal ${id} not found`);
     return { ...mock, dossierId, routing: null };

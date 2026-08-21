@@ -32,7 +32,7 @@ import {
   deleteDossier,
   type DossierWriteInput,
 } from '../../../services/dossierbeheer.api';
-import { isDossiersMock, setDossiersMock } from '../../../services/pa.api';
+import { isPaMock, setPaMock } from '../../../services/pa.api';
 import type { PaModeId } from '../../../pages/public-affairs-v2/modes.config';
 import DossierRow from './DossierRow';
 import DossierEditor from './DossierEditor';
@@ -70,7 +70,7 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
   const [deleteTarget, setDeleteTarget] = useState<AdminDossier | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [mockDisplay, setMockDisplay] = useState(isDossiersMock());
+  const [mockDisplay, setMockDisplay] = useState(isPaMock());
 
   const refetch = useCallback(() => {
     setStatus('loading');
@@ -114,7 +114,7 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
   // the cockpit so the choice takes effect and survives navigation + reloads.
   const toggleMock = () => {
     const next = !mockDisplay;
-    setDossiersMock(next);
+    setPaMock(next);
     setMockDisplay(next);
     refetch();
     syncCockpit();
@@ -371,16 +371,16 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
         <span>
           {mockDisplay ? (
             <>
-              Dossiers resolven nu naar <code>MOCK_DOSSIERS</code> omdat{' '}
-              <code>VITE_PA_DOSSIERS_MOCK=true</code>. Zodra deze bron gevuld is en de GET-routes
-              onder het auth-blok staan, kan de vlag om — de cockpit leest dan deze dossiers via{' '}
-              <code>usePaData().dossiers</code>.
+              <strong>Mock</strong> — de hele cockpit draait op fixtures: dossiers uit{' '}
+              <code>MOCK_DOSSIERS</code>, plus de zoekcriteria, signalen en inbox. De database wordt
+              niet gelezen. Eén schakelaar voor alledrie, zodat mock en live vergelijkbaar zijn.
             </>
           ) : (
             <>
-              Vlag om: <code>VITE_PA_DOSSIERS_MOCK=false</code>. De cockpit leest deze dossiers live
-              via <code>GET /pa/dossiers</code> — geen frontendwijziging nodig, exact de seam die de
-              rework kocht.
+              <strong>Live</strong> — de cockpit leest alles uit de database: dossiers via{' '}
+              <code>GET /pa/dossiers</code>, zoekcriteria via <code>/pa/searches</code> en signalen
+              via <code>/pa/signals</code>. Leeg is hier een geldige uitkomst: er staat alleen wat
+              iemand zelf heeft aangemaakt.
             </>
           )}
         </span>

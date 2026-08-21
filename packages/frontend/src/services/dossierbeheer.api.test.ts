@@ -4,7 +4,7 @@ import { setupServer } from 'msw/node';
 import type { DossierWriteInput } from './dossierbeheer.api';
 
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
-vi.mock('./pa.api', () => ({ isDossiersMock: mockIsDossiersMock }));
+vi.mock('./pa.api', () => ({ isPaMock: mockIsDossiersMock }));
 
 const mockKeycloak = vi.hoisted(() => ({
   authenticated: false,

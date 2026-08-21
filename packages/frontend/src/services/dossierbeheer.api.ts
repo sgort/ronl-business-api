@@ -2,7 +2,7 @@
  * Dossierbeheer API — the authoring writes for /pa/dossiers, plus the
  * template + snippet libraries.
  *
- * Honours the runtime mock/live flag (isDossiersMock): in mock mode the whole
+ * Honours the runtime mock/live flag (isPaMock): in mock mode the whole
  * surface runs on a local in-memory store seeded from MOCK_DOSSIERS — no backend
  * needed — so every page can be validated first. In live mode it hits the
  * backend; after any mutation the caller also refetches usePaData().dossiers so
@@ -11,7 +11,7 @@
 
 import axios from 'axios';
 import keycloak from './keycloak';
-import { isDossiersMock } from './pa.api';
+import { isPaMock } from './pa.api';
 import type {
   AdminDossier,
   AdminDossierStatus,
@@ -32,7 +32,7 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL as string;
 
-export { isDossiersMock };
+export { isPaMock };
 
 async function authHeaders(): Promise<Record<string, string>> {
   if (keycloak.authenticated) {
@@ -102,24 +102,24 @@ function mockVersion(v: number, by: string, note: string): DossierVersion {
 // ── Reads ───────────────────────────────────────────────────────────
 
 export function fetchAdminDossiers(): Promise<AdminDossier[]> {
-  if (isDossiersMock()) return Promise.resolve(store().map(clone));
+  if (isPaMock()) return Promise.resolve(store().map(clone));
   return get<AdminDossier[]>('/pa/dossiers?admin=1');
 }
 
 export function fetchTemplates(): Promise<DossierTemplate[]> {
-  if (isDossiersMock()) return Promise.resolve(DB_TEMPLATES);
+  if (isPaMock()) return Promise.resolve(DB_TEMPLATES);
   return get<DossierTemplate[]>('/pa/templates');
 }
 
 export function fetchSnippets(): Promise<DossierSnippet[]> {
-  if (isDossiersMock()) return Promise.resolve(DB_SNIPPETS);
+  if (isPaMock()) return Promise.resolve(DB_SNIPPETS);
   return get<DossierSnippet[]>('/pa/snippets');
 }
 
 // ── Writes ──────────────────────────────────────────────────────────
 
 export function createDossier(input: DossierWriteInput): Promise<AdminDossier> {
-  if (isDossiersMock()) {
+  if (isPaMock()) {
     const id = slugify(input.naam) || `dossier-${Date.now()}`;
     const created: AdminDossier = {
       id,
@@ -153,7 +153,7 @@ export function updateDossier(
   id: string,
   patchBody: Partial<DossierWriteInput>
 ): Promise<AdminDossier> {
-  if (isDossiersMock()) {
+  if (isPaMock()) {
     const items = store();
     const idx = items.findIndex((i) => i.id === id);
     if (idx === -1) return Promise.reject(new Error('not found'));
@@ -187,7 +187,7 @@ export function archiveDossier(
   id: string,
   meta: Pick<DossierArchief, 'classificatie' | 'bewaartermijn' | 'reden'>
 ): Promise<AdminDossier> {
-  if (isDossiersMock()) {
+  if (isPaMock()) {
     const items = store();
     const idx = items.findIndex((i) => i.id === id);
     if (idx === -1) return Promise.reject(new Error('not found'));
@@ -219,7 +219,7 @@ export function unarchiveDossier(
   id: string,
   status: 'actief' | 'sluimerend' = 'actief'
 ): Promise<AdminDossier> {
-  if (isDossiersMock()) {
+  if (isPaMock()) {
     const items = store();
     const idx = items.findIndex((i) => i.id === id);
     if (idx === -1) return Promise.reject(new Error('not found'));
@@ -249,7 +249,7 @@ export function unarchiveDossier(
 }
 
 export function deleteDossier(id: string): Promise<void> {
-  if (isDossiersMock()) {
+  if (isPaMock()) {
     mockStore = store().filter((i) => i.id !== id);
     return Promise.resolve();
   }

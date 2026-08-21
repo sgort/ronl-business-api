@@ -25,8 +25,8 @@ vi.mock('../../../services/dossierbeheer.api', () => mockApi);
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 const mockSetDossiersMock = vi.hoisted(() => vi.fn());
 vi.mock('../../../services/pa.api', () => ({
-  isDossiersMock: mockIsDossiersMock,
-  setDossiersMock: mockSetDossiersMock,
+  isPaMock: mockIsDossiersMock,
+  setPaMock: mockSetDossiersMock,
 }));
 
 vi.mock('./DossierRow', () => ({

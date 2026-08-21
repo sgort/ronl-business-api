@@ -51,18 +51,34 @@ describe('paTabBronnen / signalTag / signalTagLabel', () => {
   });
 });
 
-describe('isDossiersMock / setDossiersMock', () => {
-  it('falls back to the build-time flag when nothing is stored', async () => {
-    const api = await freshApi({ dossiersMock: true });
-    expect(api.isDossiersMock()).toBe(true);
+describe('isPaMock / setPaMock', () => {
+  it('is one switch: the signals fixtures follow the same override as dossiers', async () => {
+    // The whole point of unifying the flags — a single toggle has to move
+    // dossiers, signals and searches together, or "mock mode" means two things.
+    const api = await freshApi({ dossiersMock: false, signalsMock: false });
+    api.setPaMock(true);
+    expect(api.isPaMock()).toBe(true);
+    await expect(api.fetchSearches()).resolves.not.toHaveLength(0);
   });
 
-  it('setDossiersMock persists an override that isDossiersMock then reflects', async () => {
+  it('defaults to mock when either legacy env flag is set', async () => {
+    // Transitional: neither .env file changes meaning while both vars exist.
+    expect((await freshApi({ signalsMock: true })).isPaMock()).toBe(true);
+    expect((await freshApi({ dossiersMock: true })).isPaMock()).toBe(true);
+    expect((await freshApi()).isPaMock()).toBe(false);
+  });
+
+  it('falls back to the build-time flag when nothing is stored', async () => {
+    const api = await freshApi({ dossiersMock: true });
+    expect(api.isPaMock()).toBe(true);
+  });
+
+  it('setPaMock persists an override that isPaMock then reflects', async () => {
     const api = await freshApi({ dossiersMock: false });
-    api.setDossiersMock(true);
-    expect(api.isDossiersMock()).toBe(true);
-    api.setDossiersMock(false);
-    expect(api.isDossiersMock()).toBe(false);
+    api.setPaMock(true);
+    expect(api.isPaMock()).toBe(true);
+    api.setPaMock(false);
+    expect(api.isPaMock()).toBe(false);
   });
 
   it('falls back to the build-time flag when localStorage throws', async () => {
@@ -71,7 +87,7 @@ describe('isDossiersMock / setDossiersMock', () => {
       throw new Error('storage disabled');
     });
 
-    expect(api.isDossiersMock()).toBe(true);
+    expect(api.isPaMock()).toBe(true);
 
     spy.mockRestore();
   });
