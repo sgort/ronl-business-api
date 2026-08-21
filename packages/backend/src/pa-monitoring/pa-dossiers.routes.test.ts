@@ -66,6 +66,9 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
+// pa-dossiers.db reads config.pa.seedDemoDossiers; the real module validates
+// the whole environment on import, which these route tests do not provide.
+jest.mock('@utils/config', () => ({ config: { pa: { seedDemoDossiers: false } } }));
 
 import express from 'express';
 import request from 'supertest';

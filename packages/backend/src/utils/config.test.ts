@@ -127,6 +127,7 @@ const ALL_OVERRIDES: Record<string, string> = {
   CACHE_TTL_AGENDA: '120',
   CACHE_TTL_STATIC: '180',
   PA_USE_MOCK: 'true',
+  PA_SEED_DEMO_DOSSIERS: 'true',
 };
 
 beforeEach(() => jest.clearAllMocks());
@@ -262,6 +263,7 @@ describe('config defaults (empty environment)', () => {
       cacheTtlAgenda: 1800,
       cacheTtlStatic: 3600,
       useMock: false,
+      seedDemoDossiers: false,
     });
   });
 });
@@ -384,6 +386,7 @@ describe('config overrides (every variable set)', () => {
       cacheTtlAgenda: 120,
       cacheTtlStatic: 180,
       useMock: true,
+      seedDemoDossiers: true,
     });
   });
 });

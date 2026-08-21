@@ -6,6 +6,8 @@
  * Also covers relativeLabel — the "bewerkt N geleden" formatter — directly.
  */
 
+const mockConfig = { pa: { seedDemoDossiers: true } };
+jest.mock('@utils/config', () => ({ config: mockConfig }));
 jest.mock('@services/audit.service', () => ({ db: { none: jest.fn() } }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
@@ -20,6 +22,7 @@ import {
   rowToAdminDossier,
   DOSSIER_TEMPLATES,
   DOSSIER_SNIPPETS,
+  DEMO_DOSSIER_IDS,
 } from './pa-dossiers.db';
 import { SEED_DOSSIER_IDS } from '@ronl/shared';
 import { db } from '@services/audit.service';
@@ -35,7 +38,11 @@ const templateSeedCalls = () =>
 const snippetSeedCalls = () =>
   mockNone.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO pa_snippets'));
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Most of this file exercises the seed itself, so it runs with the opt-in on.
+  mockConfig.pa.seedDemoDossiers = true;
+});
 
 describe('initDossiersDb', () => {
   it('creates the tables, then seeds dossiers, templates, and snippets', async () => {
@@ -122,6 +129,60 @@ describe('initDossiersDb', () => {
     // A later dossier still got its version rows appended.
     expect(versionSeedCalls().some((c) => c[1][0] === 'oostvaarders')).toBe(true);
     expect(templateSeedCalls().length).toBe(DOSSIER_TEMPLATES.length);
+  });
+});
+
+describe('DEMO_DOSSIER_IDS', () => {
+  it('lists exactly the ids the seed writes', async () => {
+    mockConfig.pa.seedDemoDossiers = true;
+    mockNone.mockResolvedValue(undefined);
+    await initDossiersDb();
+
+    // Tooling deletes demo rows by this list, so a dossier added to the seed
+    // without being registered here would survive a --drop-demo and quietly
+    // keep polluting a live database.
+    const seeded = dossierSeedCalls().map((c) => c[1][0] as string);
+    expect([...DEMO_DOSSIER_IDS].sort()).toEqual(seeded.sort());
+  });
+
+  it('covers every SEED_DOSSIER_IDS entry', () => {
+    for (const id of SEED_DOSSIER_IDS) expect(DEMO_DOSSIER_IDS).toContain(id);
+  });
+});
+
+describe('initDossiersDb — demo dossiers are opt-in', () => {
+  it('seeds no dossiers by default, so a live database holds only authored ones', async () => {
+    mockConfig.pa.seedDemoDossiers = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initDossiersDb();
+
+    // The whole point of the separation: the SEED_DOSSIERS examples are the
+    // frontend's mock fixture, so putting them in the database made live mode
+    // indistinguishable from mock plus extras.
+    expect(dossierSeedCalls()).toHaveLength(0);
+    expect(versionSeedCalls()).toHaveLength(0);
+  });
+
+  it('still creates the tables when demo seeding is off', async () => {
+    mockConfig.pa.seedDemoDossiers = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initDossiersDb();
+
+    expect(String(mockNone.mock.calls[0][0])).toContain('CREATE TABLE IF NOT EXISTS pa_dossiers');
+  });
+
+  it('still seeds templates and snippets when demo seeding is off', async () => {
+    // These are not sample content — you cannot author a dossier without a
+    // sjabloon to start from, so they are part of a working empty install.
+    mockConfig.pa.seedDemoDossiers = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initDossiersDb();
+
+    expect(templateSeedCalls().length).toBe(DOSSIER_TEMPLATES.length);
+    expect(snippetSeedCalls().length).toBe(DOSSIER_SNIPPETS.length);
   });
 });
 
