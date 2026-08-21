@@ -93,6 +93,154 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.22',
+      status: 'Released',
+      date: '21 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: 'b7756a2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Inbox badges stay current instead of freezing at page load',
+          details: [
+            'The per-source counts were seeded once, in an effect with an empty dependency array, and thereafter only patched a single tab at a time from whichever inbox the user opened. Anything that changed the inbox after page load — a curation run, most obviously — stayed invisible: every badge kept its startup value until that source was opened, at which point it jumped while the other three stayed stale. Reading the badges meant clicking through all four, and a reload was the only way to make them agree.',
+            'refreshInboxCounts re-reads all of them in one request and is exposed on the context. Monitoring’s tab-load effect calls it, so opening any source — or simply arriving at Monitoring — brings every badge up to date. The existing single-tab update stays for the immediate case: it is authoritative for the tab just fetched and avoids a round trip after confirm or dismiss. A failed refresh keeps the previous numbers rather than zeroing them, since a transient error is not evidence that every source emptied.',
+            'Deliberately not wired to the "Curatie nu uitvoeren" button: triggerCurationCycle resolves as soon as the backend accepts the job and runs the cycle in the background, so a refresh there would re-read pre-curation numbers. Any refresh at that point would be a guessed delay.',
+          ],
+        },
+        {
+          sha: '4b4b320',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The mock/live toggle is now one switch for the whole cockpit',
+          details: [
+            'Mock and live were two independent flags. VITE_PA_DOSSIERS_MOCK governed dossiers through a runtime localStorage override that the Dossierbeheer banner flipped; VITE_PA_SIGNALS_MOCK governed signals, inbox and saved searches as a build-time constant, false in both development and acceptance. So "mock mode" was never one thing: flipping the banner gave fixture dossiers alongside signals and zoekcriteria read from the database, and once that database was emptied the cockpit showed four fixture dossiers next to an empty Monitoring and an empty Zoekcriteria, with no way to reach the fixtures for either.',
+            'isPaMock/setPaMock replace both, on one localStorage key, driving all 24 branches. The default ORs the two legacy env vars so neither .env file changes meaning; both are false today, i.e. live unless toggled. The key changes from paV2.dossiers.mock to paV2.mock, so an existing override resets to that default once.',
+            'The banner copy claimed the flag governed dossiers and described a seam that had already been bought. It now says what the switch does, and names empty-in-live as a valid outcome rather than a fault — that is what a live database with nothing authored in it looks like. VITE_PA_AGENDA_MOCK is left alone: the agenda is served from TK OData rather than the database, so "live means the database" does not apply to it.',
+          ],
+        },
+        {
+          sha: '60bea12',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The demo taxonomy is no longer seeded into the live database',
+          details: [
+            'Companion to the demo-dossier gating: seedTaxonomy() ran unconditionally inside initPaDb(), writing PA_TAXONOMY_SEED into pa_saved_searches on every startup. Curation retrieves against whatever criteria are there, so those fixture zoekvragen produced 825 signals and 66 notifications in a database where nobody had authored a single search. Switching the cockpit to live still showed a fully populated Monitoring built entirely from fixture configuration — the same defect as the dossiers, one table over.',
+            'Both seeds now sit behind one flag, PA_SEED_DEMO_DATA, renamed from PA_SEED_DEMO_DOSSIERS now that it governs more than dossiers. Off by default: live means dossiers, criteria and signals someone actually produced, and an empty cockpit is a valid answer rather than a fault. DEMO_SEARCH_IDS mirrors DEMO_DOSSIER_IDS — derived from the seed and asserted against what the seed inserts, so a criterion added later cannot survive a --drop-demo unnoticed.',
+            'reset-pa-dossiers.ts becomes reset-pa-data.ts (npm run pa:reset-data) since it now owns all six PA tables rather than the two dossier ones: --yes clears everything, --drop-demo removes only seeded rows and keeps authored work, --seed-only restores demo content additively. Signals and notifications are treated as derivations — curation regenerates them from the live sources once real criteria exist.',
+          ],
+        },
+        {
+          sha: '9b1773d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Demo dossiers are no longer seeded into the live database',
+          details: [
+            'Dossierbeheer seeded pa_dossiers from the same @ronl/shared SEED_DOSSIERS the frontend serves as MOCK_DOSSIERS. That was deliberate — it made the VITE_PA_DOSSIERS_MOCK flip a visual no-op while the seam was being proven — but it also meant the live store could only ever be mock plus whatever had been authored on top, so the two modes were not separable by construction. Live showed 6 dossiers where 2 had been created.',
+            'Seeding is now opt-in and off by default, so live means dossiers someone actually authored. Templates and snippets still seed unconditionally: you cannot create a dossier without a sjabloon to start from, so they are part of a working empty install rather than sample content. Mock mode is unaffected — the frontend’s MOCK_DOSSIERS is its own copy and never went through this path.',
+            'Dropping the seed only stops new databases picking the rows up, so a reset script is how an existing one is cleaned. DEMO_DOSSIER_IDS is derived from the seed and asserted against what the seed actually inserts, so a dossier added later cannot survive a --drop-demo unnoticed.',
+          ],
+        },
+        {
+          sha: 'e59fd7f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Agenda soort badge no longer overlaps the item meta',
+          details: [
+            'The badge sat in the agenda row’s fixed 92px time column with white-space: nowrap. Labels wider than that — REGELING VAN WERKZAAMHEDEN, PROCEDUREVERGADERING, TECHNISCHE BRIEFING — overflowed the column and rendered on top of the body column’s meta line. Short labels happened to fit, so the layout looked correct on most rows while being wrong on all of them.',
+            'The badge moves into the meta row, where it is a type label among the other facts and the existing flex-wrap sizes it at any length. The time column then only holds a clock, so it drops to 62px, and the badge loses align-self: flex-start, which was positioning it in the old vertical column and would push it off the text centre line in a horizontal one.',
+          ],
+        },
+        {
+          sha: '7bcf94e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'EP motions that arrive once per political group are collapsed into one signal',
+          details: [
+            'EP practice is that each political group tables its own B-document for the same motion before they merge into a joint RC resolution, so one topic reaches the inbox as up to six rows. Measured on a live inbox: 12 of 54 EU candidates were such siblings — 22% of the source. Compared field by field, a group differs only in ref and in title casing; committee, score, dossier match, date and source label are identical, so the siblings carry nothing separately reviewable.',
+            'The survivor is keyed on its normalised title, not on a ref. Which siblings a cycle happens to see varies, and a later cycle can turn up a lower ref than the one already stored — so a ref-derived winner would change between cycles and persist a second row instead of updating the first. A title-derived key is stable however many siblings show up. The refs are not discarded: the survivor’s number becomes "B-10-2026-0346 +2", the same "+N" shape already used for co-responsible committees.',
+            'Not yet demonstrated end to end: fetchAllNewSubmittedTexts returned nothing at the time, the cycle having already ingested everything available, so no real group has been watched through a real cycle. Existing duplicate rows are left alone by design — they keep their ref-derived ids and will age out of the inbox as they are dismissed.',
+          ],
+        },
+        {
+          sha: 'cb1613f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Europarl now receives a User-Agent, and an empty 202 is no longer read as a feed',
+          details: [
+            'The EU RSS source had been returning nothing — not for a query, but for every request, including an empty one. europarl.europa.eu gates its RSS feeds on a recognised User-Agent family. Node’s fetch sends none, and the CDN answers 202, text/html, zero bytes. 202 passes res.ok, so the client parsed an empty string, got zero items, logged "EU RSS fetched, count: 0" as a success and cached that for the TTL. Silent, and it looked healthy throughout.',
+            'Three changes: an explicit User-Agent, in the conventional Mozilla/5.0 (compatible; ...) crawler form because a bare product token is refused exactly as a missing one is; a 2xx whose body is not XML now throws instead of parsing to an empty list; and an empty cache hit no longer short-circuits, since a truthy check treated the empty array as a valid answer and served it for the rest of the TTL — precisely what a failed fetch leaves behind.',
+            'Consequence: the other EU fixes in this release had never run against real data in the app, only against fixtures and hand-downloaded files. With the feed arriving, fetchEuFeed returns 45 items (25 ep-rss, 20 ep-persbericht), and a curation cycle took the EU inbox from 42 to 54. A silent success costs more than a loud failure — three real bugs sat behind this one.',
+          ],
+        },
+        {
+          sha: 'd3afa64',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The raw EU feed can now be searched from the cockpit',
+          details: [
+            'The blanco search band advertises that it "doorzoekt de rauwe bronfeeds, los van de curatie", and GET /v1/pa/feed?source=eu is implemented — but the EU feed could never be reached. fetchFeedSources derives the bron chips straight from the keys of GET /pa/types, which returned only tk, ob and media. With no eu key there is no Europa chip, so source=eu was never requested: the capability existed and was unreachable.',
+            'It is now listed, gated on config.pa.euSourceEnabled exactly as media is on mediaSourceEnabled. No frontend change was needed — FeedSource already includes eu, and both SOURCE_CHIP_LABEL and SCOPE_LABEL already map it to Europa. Unlike media’s empty-array placeholder, EU has a real taxonomy, so EU_DOCUMENT_TYPES gives the type filter something to work with.',
+          ],
+        },
+        {
+          sha: '9daf160',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Every inbox badge is populated on mount, from one counts request',
+          details: [
+            'The source badges in Monitoring read 0 for every tab until the tab was opened, which is indistinguishable from "this source has no signals". Mount-time seeding existed but was unguarded: four fetchInbox calls with no .catch, in an effect that runs once. When the cockpit mounts while the backend is down or still starting, all four promises reject silently and nothing retries — the badges stay at 0 for the rest of the session. That is how it was found.',
+            'Adds GET /v1/pa/signals/counts — every tab’s total from one GROUP BY tab query, defaulting to the inbox statuses and accepting an explicit status. It sits above any /signals/:id-shaped GET so counts is not read as an id. The provider now makes one request instead of four capped result sets pulled solely to read four numbers off their meta, and retries with linear backoff. Counts are written over a zeroed base rather than merged, since a tab whose inbox has emptied is absent from the response.',
+          ],
+        },
+        {
+          sha: 'bdcbe15',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'EP press releases are surfaced, and commissie is populated for EU items',
+          details: [
+            'The press-releases feed was fetched every cycle and contributed nothing: all 20 items were discarded, because extractRef only recognises the EP document shape and normaliseRssItem returns null without a ref. They do have a stable identity — the IPR code EP puts in the public URL — present on every item and unique across the feed. The link form is used because it is what EP publishes and what a human would recognise.',
+            'Three things follow from an item having no document ref: url is the item’s own link rather than doceoUrl(); subbron is ep-persbericht, kept distinct from ep-rss so the two are filterable apart; and type falls back to Persbericht from the RSS category, since there is no ref prefix for inferType to work from.',
+            'Also populates commissie from the body-domain categories, which applies to plenary documents as much as press releases — neither had it before. Co-responsible committees are counted rather than dropped or run together: "ITRE +1", "AGRI +15". Verified against both live feeds through the parser: plenary 30 kept (13 with a commissie), press releases 20 kept (16 with one).',
+          ],
+        },
+        {
+          sha: '4aaca24',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'EU refs are recovered from the guid, restoring half the plenary feed',
+          details: [
+            'extractRef matched the guid against a word-boundary-anchored pattern. EP guids wrap the ref in underscores — RR_A-10-2026-0099_v01-00_EN — and the underscore is itself a word character, so the boundary never fires on either side of the ref. The guid branch was dead code and every ref came from the title fallback, which only matches titles ending in an "A10-0099/2026" suffix. Items whose titles are plain Dutch prose had no recoverable ref and were dropped outright.',
+            'Measured against the live plenary feed through the parser itself: 15 of 50 items kept before, 30 after. Half the feed was being discarded — joint resolutions, draft decisions and adopted texts, precisely the material the cockpit’s EU signals exist to surface. Dropping the boundary assertions is enough; the pattern’s own shape already anchors it, and an added negative lookahead stops a longer digit run being truncated into a false 4-digit match.',
+            'One existing test had to be corrected rather than extended: it asserted the ref was recovered "when the guid carries a word-bounded one" and used a guid with spaces instead of underscores, quietly encoding the bug as intended behaviour.',
+          ],
+        },
+        {
+          sha: '8ec82b8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The local client secret is read from the realm export rather than .env',
+          details: [
+            'The same operaton-mcp-client secret lived in three places — the seeded realm export, the running Keycloak, and packages/backend/.env.development — and they drifted apart. A partial import through the Keycloak admin UI reset the client secret to the realm value and in doing so orphaned the copy in .env.development, breaking test-smoke-live.sh’s Tier 2a instead. One source repaired, another silently invalidated, with nothing to connect the two symptoms.',
+            'test-smoke-live.sh now resolves the local secret from the realm export, matching what test-m2m-routes.sh already did. The realm file is the right source because it is what Keycloak imports, so it stays true across a re-import; .env holds a derived copy that nothing keeps in sync, and remains the fallback. Also closes a gitignore gap: the env rules are exact paths, so an editor’s backup carrying the same secret was untracked but not ignored.',
+          ],
+        },
+        {
+          sha: 'a530ac2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'M2M decision checks are environment-aware',
+          details: [
+            'test-m2m-routes.sh hard-coded a decision key and evaluate payload specific to the local fixture bundle, so the two decision checks failed every time the script ran against ACC. That was never a route defect: ACC’s M2M client talks to operaton-doc, a different engine, where that decision is not deployed. The 404 was the route correctly reporting a decision that does not exist.',
+            'DECISION_KEY and DECISION_VARS are now per-TARGET presets alongside the URL presets the script already had, both still overridable from the environment. decision.get runs before decision.evaluate and doubles as an existence probe: on 404 both checks skip and name the missing key. Which decisions an engine has is deployment data, not route behaviour, so a key missing from one environment should not read as a regression in another. ACC now reports 27 passed / 0 failed, up from 23/2.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.21',
       status: 'Released',
       date: '21 aug 2026',
