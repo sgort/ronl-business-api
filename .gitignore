@@ -21,6 +21,11 @@ packages/backend/*.zip
 packages/backend/.env.development
 .env.production
 .env.acceptance
+# Backups of the above — an editor's or a script's .bak/.orig copy carries the
+# same secrets as the file it shadows, and the exact-path rules above miss it.
+.env*.bak*
+.env*.orig
+.env*.save
 
 # Logs
 logs/

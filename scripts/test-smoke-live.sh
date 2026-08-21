@@ -78,18 +78,49 @@ read_env_var() {
     | sed -E 's/[[:space:]]+$//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
 }
 
-# On localhost, fall back to the backend's own Keycloak client credentials from
-# packages/backend/.env.<NODE_ENV> so Tier 2 runs without exporting a secret.
-# An explicit CLIENT_SECRET from the environment always wins; the .env fallback is
-# never used for TARGET=acc (those creds belong to the local realm).
+# Read one client's secret out of the seeded realm export.
+read_realm_secret() {
+  python -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding='utf-8'))
+    print(next(c.get('secret', '') for c in d.get('clients', []) if c.get('clientId') == sys.argv[2]))
+except Exception:
+    print('')
+" "$1" "$2" 2>/dev/null
+}
+
+# On localhost, resolve the Tier 2 client secret so the script runs without
+# exporting one. An explicit CLIENT_SECRET from the environment always wins, and
+# neither file is consulted for TARGET=acc — those creds belong to the ACC realm.
+#
+# The realm export is preferred over packages/backend/.env.<NODE_ENV> because it
+# is what Keycloak actually imports, so it is the copy that stays true after a
+# realm re-import. .env holds a third copy of the same secret and drifts silently:
+# a partial import resets the running client and orphans the .env value, which
+# then fails here while test-m2m-routes.sh (which already reads the realm file)
+# keeps working. .env remains the fallback for a checkout with no realm export.
 ENV_FILE="$BACKEND_DIR/.env.${NODE_ENV:-development}"
+REALM_FILE="$REPO_ROOT/config/keycloak/ronl-realm.json"
 CREDS_SOURCE="environment"
-if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -f "$ENV_FILE" && -z "${CLIENT_SECRET:-}" ]]; then
-  _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
-  if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
-    CLIENT_SECRET="$_env_secret"
-    CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
-    CREDS_SOURCE="$ENV_FILE"
+if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -z "${CLIENT_SECRET:-}" ]]; then
+  CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
+  CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
+
+  if [[ -f "$REALM_FILE" ]]; then
+    _realm_secret="$(read_realm_secret "$REALM_FILE" "$CLIENT_ID")"
+    if [[ -n "$_realm_secret" ]]; then
+      CLIENT_SECRET="$_realm_secret"
+      CREDS_SOURCE="$REALM_FILE"
+    fi
+  fi
+
+  if [[ -z "${CLIENT_SECRET:-}" && -f "$ENV_FILE" ]]; then
+    _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
+    if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
+      CLIENT_SECRET="$_env_secret"
+      CREDS_SOURCE="$ENV_FILE"
+    fi
   fi
 fi
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
