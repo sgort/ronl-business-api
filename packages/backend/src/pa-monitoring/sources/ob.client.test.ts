@@ -54,6 +54,18 @@ describe('fetchObFeed', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('does not serve an empty cached result for the rest of the TTL', async () => {
+    // Same guard as tk.client: { items: [] } is truthy, so an entry left behind
+    // by a failed fetch used to be served as a real answer until the TTL ran out.
+    mockCacheGet.mockResolvedValue({ items: [], total: 0, skip: 0, top: 20 });
+    mockFetch.mockResolvedValue({ ok: true, text: async () => SRU_XML });
+
+    const res = await fetchObFeed('q');
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.items.length).toBeGreaterThan(0);
+  });
+
   it('parses the SRU XML, sorts newest-first, and caches', async () => {
     mockFetch.mockResolvedValue({ ok: true, text: async () => SRU_XML });
 

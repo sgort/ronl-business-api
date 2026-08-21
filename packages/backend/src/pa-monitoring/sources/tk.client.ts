@@ -127,7 +127,13 @@ export async function fetchTkFeed(
 ): Promise<TkFeedResult> {
   const key = cacheKey(q, types, skip, top);
   const cached = await cacheGet<TkFeedResult>(key);
-  if (cached) return cached;
+  // Guard on the items, not the entry. A failed or empty fetch caches
+  // { items: [], total: 0 }, which is truthy, so a transient upstream blip
+  // used to be served as a real answer for the rest of the TTL — and the
+  // blanco search band shares this cache key with the curation cycle, so
+  // both reported the same zero and looked like independent confirmation.
+  // Re-fetching a genuinely empty result costs one upstream call.
+  if (cached?.items.length) return cached;
 
   const url = buildUrl(q, types, skip, top);
   logger.info('TK fetch', { url });

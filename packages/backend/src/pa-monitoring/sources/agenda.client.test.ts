@@ -35,6 +35,31 @@ describe('fetchAgenda', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('does not serve an empty cached result for the rest of the TTL', async () => {
+    // An empty array left by a failed fetch is not a valid answer — see
+    // tk.client for the failure this guard prevents.
+    mockCacheGet.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [
+          {
+            Id: 'a1',
+            Soort: 'Commissiedebat',
+            Onderwerp: 'Energie',
+            Datum: '2026-06-10T10:00:00Z',
+            Status: 'Gepland',
+          },
+        ],
+      }),
+    });
+
+    const res = await fetchAgenda('2026-06-01', '2026-06-30');
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.length).toBeGreaterThan(0);
+  });
+
   it('classifies soorten, normalises fields, and caches (single page)', async () => {
     mockFetch.mockResolvedValue({
       ok: true,

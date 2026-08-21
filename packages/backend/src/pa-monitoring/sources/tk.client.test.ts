@@ -36,6 +36,26 @@ describe('fetchTkFeed', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('does not serve an empty cached result for the rest of the TTL', async () => {
+    // A failed or momentarily-empty fetch caches { items: [], total: 0 }, which
+    // is truthy. Serving it hid a transient upstream blip behind a 15-minute
+    // zero — and because the blanco search band shares this cache key with the
+    // curation cycle, both reported it and looked like independent evidence.
+    mockCacheGet.mockResolvedValue({ items: [], total: 0, skip: 0, top: 20 });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [{ Id: '1', Onderwerp: 'Motie energie', Soort: 'Motie', Ondernummer: 1 }],
+        '@odata.count': 1,
+      }),
+    });
+
+    const res = await fetchTkFeed('energie');
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.items).toHaveLength(1);
+  });
+
   it('builds an OR filter, normalises items, and caches the result', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
