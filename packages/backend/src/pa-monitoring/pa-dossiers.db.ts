@@ -286,8 +286,8 @@ export async function initDossiersDb(): Promise<void> {
 
     logger.info('PA dossiers tables ready');
     // Demo dossiers are opt-in — see seedDossiers.
-    if (config.pa.seedDemoDossiers) await seedDossiers();
-    else logger.info('PA demo dossiers not seeded (PA_SEED_DEMO_DOSSIERS is off)');
+    if (config.pa.seedDemoData) await seedDossiers();
+    else logger.info('PA demo dossiers not seeded (PA_SEED_DEMO_DATA is off)');
     // Templates and snippets are not sample content: the authoring surface
     // needs a sjabloon to create a dossier from, so they seed either way.
     await seedTemplatesAndSnippets();
@@ -310,7 +310,7 @@ export const DEMO_DOSSIER_IDS: readonly string[] = [...SEED_DOSSIER_IDS, ARCHIVE
 /**
  * Populate the tables with the SEED_DOSSIERS examples plus one archived case.
  *
- * Opt-in via PA_SEED_DEMO_DOSSIERS, and off by default, because these are the
+ * Opt-in via PA_SEED_DEMO_DATA, and off by default, because these are the
  * same dossiers the frontend serves as MOCK_DOSSIERS. Seeding them into the
  * database made the mock/live flag flip a visual no-op, which was the point
  * while the seam was being proven — but it also meant live could only ever be

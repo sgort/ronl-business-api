@@ -191,7 +191,7 @@ interface Config {
     cacheTtlAgenda: number;
     cacheTtlStatic: number;
     useMock: boolean;
-    seedDemoDossiers: boolean;
+    seedDemoData: boolean;
   };
 }
 
@@ -365,7 +365,7 @@ export const config: Config = {
     // Off by default: a live database holds only dossiers someone actually
     // authored. Turn on to populate a fresh demo/ACC environment with the
     // SEED_DOSSIERS examples. See pa-dossiers.db.ts.
-    seedDemoDossiers: parseEnvBool(process.env.PA_SEED_DEMO_DOSSIERS, false),
+    seedDemoData: parseEnvBool(process.env.PA_SEED_DEMO_DATA, false),
   },
 };
 

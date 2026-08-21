@@ -6,7 +6,7 @@
  * Also covers relativeLabel — the "bewerkt N geleden" formatter — directly.
  */
 
-const mockConfig = { pa: { seedDemoDossiers: true } };
+const mockConfig = { pa: { seedDemoData: true } };
 jest.mock('@utils/config', () => ({ config: mockConfig }));
 jest.mock('@services/audit.service', () => ({ db: { none: jest.fn() } }));
 jest.mock('@utils/logger', () => ({
@@ -41,7 +41,7 @@ const snippetSeedCalls = () =>
 beforeEach(() => {
   jest.clearAllMocks();
   // Most of this file exercises the seed itself, so it runs with the opt-in on.
-  mockConfig.pa.seedDemoDossiers = true;
+  mockConfig.pa.seedDemoData = true;
 });
 
 describe('initDossiersDb', () => {
@@ -134,7 +134,7 @@ describe('initDossiersDb', () => {
 
 describe('DEMO_DOSSIER_IDS', () => {
   it('lists exactly the ids the seed writes', async () => {
-    mockConfig.pa.seedDemoDossiers = true;
+    mockConfig.pa.seedDemoData = true;
     mockNone.mockResolvedValue(undefined);
     await initDossiersDb();
 
@@ -152,7 +152,7 @@ describe('DEMO_DOSSIER_IDS', () => {
 
 describe('initDossiersDb — demo dossiers are opt-in', () => {
   it('seeds no dossiers by default, so a live database holds only authored ones', async () => {
-    mockConfig.pa.seedDemoDossiers = false;
+    mockConfig.pa.seedDemoData = false;
     mockNone.mockResolvedValue(undefined);
 
     await initDossiersDb();
@@ -165,7 +165,7 @@ describe('initDossiersDb — demo dossiers are opt-in', () => {
   });
 
   it('still creates the tables when demo seeding is off', async () => {
-    mockConfig.pa.seedDemoDossiers = false;
+    mockConfig.pa.seedDemoData = false;
     mockNone.mockResolvedValue(undefined);
 
     await initDossiersDb();
@@ -176,7 +176,7 @@ describe('initDossiersDb — demo dossiers are opt-in', () => {
   it('still seeds templates and snippets when demo seeding is off', async () => {
     // These are not sample content — you cannot author a dossier without a
     // sjabloon to start from, so they are part of a working empty install.
-    mockConfig.pa.seedDemoDossiers = false;
+    mockConfig.pa.seedDemoData = false;
     mockNone.mockResolvedValue(undefined);
 
     await initDossiersDb();

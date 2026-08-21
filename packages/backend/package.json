@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "edocs:health": "tsx scripts/edocs-healthcheck.ts",
     "doccle:health": "tsx scripts/doccle-healthcheck.ts",
-    "pa:reset-dossiers": "tsx scripts/reset-pa-dossiers.ts",
+    "pa:reset-data": "tsx scripts/reset-pa-data.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/index.js",
     "lint": "eslint .",
