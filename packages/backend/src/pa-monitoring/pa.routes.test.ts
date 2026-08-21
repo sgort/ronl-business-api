@@ -1344,3 +1344,62 @@ describe('failures that are not Error instances', () => {
     expect(mockLogger.error).toHaveBeenCalled();
   });
 });
+
+describe('GET /v1/pa/signals/counts', () => {
+  // The file's other clearAllMocks hooks are scoped to their own describes.
+  beforeEach(() => jest.clearAllMocks());
+
+  const PA_HDR = { 'x-test-roles': 'public-affairs' };
+
+  // Other queries run in the same request path, so locate the counts query by
+  // its SQL rather than by call position.
+  const countsCall = () => mockDb.any.mock.calls.find((c) => String(c[0]).includes('GROUP BY tab'));
+
+  it('returns the inbox size per tab from a single grouped query', async () => {
+    mockDb.any.mockResolvedValue([
+      { tab: 'politiek', count: '165' },
+      { tab: 'europa', count: '44' },
+      { tab: 'regionaal', count: '62' },
+      { tab: 'media', count: '484' },
+    ]);
+
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ politiek: 165, europa: 44, regionaal: 62, media: 484 });
+    // One grouped query, not one per tab — the whole point of the endpoint.
+    const calls = mockDb.any.mock.calls.filter((c) => String(c[0]).includes('GROUP BY tab'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('counts the inbox statuses by default', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(countsCall()![1]).toEqual([['candidate', 'ai_drafted']]);
+  });
+
+  it('accepts an explicit status list', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals/counts?status=confirmed').set(PA_HDR);
+    expect(countsCall()![1]).toEqual([['confirmed']]);
+  });
+
+  it('omits a tab with no signals rather than inventing a zero', async () => {
+    // The badge falls back to 0 client-side; the endpoint reports only what exists.
+    mockDb.any.mockResolvedValue([{ tab: 'politiek', count: '3' }]);
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(res.body.data).toEqual({ politiek: 3 });
+  });
+
+  it('401s without a user', async () => {
+    const res = await request(app).get('/v1/pa/signals/counts').set('x-test-no-user', '1');
+    expect(res.status).toBe(401);
+  });
+
+  it('500s when the query fails', async () => {
+    mockDb.any.mockRejectedValue(new Error('db down'));
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNAL_COUNTS_ERROR');
+  });
+});

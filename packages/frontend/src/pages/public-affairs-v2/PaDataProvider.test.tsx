@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   fetchAgenda: vi.fn(),
   fetchDossiers: vi.fn(),
   fetchInbox: vi.fn(),
+  fetchInboxCounts: vi.fn(),
   fetchSignals: vi.fn(),
   fetchNotifications: vi.fn(),
   ackNotifications: vi.fn(),
@@ -28,6 +29,7 @@ beforeEach(() => {
   Object.values(mocks).forEach((m) => m.mockReset());
   mocks.fetchSignals.mockResolvedValue([]);
   mocks.fetchInbox.mockResolvedValue({ data: [], meta: { total: 0, cap: 100, capped: false } });
+  mocks.fetchInboxCounts.mockResolvedValue({});
   mocks.fetchDossiers.mockResolvedValue([]);
   mocks.fetchAgenda.mockResolvedValue([]);
   mocks.fetchNotifications.mockResolvedValue({ items: [], unseenCount: 0 });
@@ -95,19 +97,66 @@ describe('resource loading', () => {
 });
 
 describe('inboxCounts seeding', () => {
-  it('fetches per-tab inbox counts for every inbox tab on mount', async () => {
-    mocks.fetchInbox.mockResolvedValue({ data: [], meta: { total: 3, cap: 100, capped: false } });
+  it('populates every inbox badge from a single counts request on mount', async () => {
+    mocks.fetchInboxCounts.mockResolvedValue({
+      politiek: 165,
+      europa: 44,
+      regionaal: 62,
+      media: 484,
+    });
 
     const { result } = renderHook(() => usePaData(), { wrapper });
 
     await waitFor(() =>
       expect(result.current.inboxCounts).toEqual({
-        politiek: 3,
-        europa: 3,
-        regionaal: 3,
-        media: 3,
+        politiek: 165,
+        europa: 44,
+        regionaal: 62,
+        media: 484,
       })
     );
+    // One request, not one per tab — four capped result sets used to be pulled
+    // just to read four numbers off their meta.
+    expect(mocks.fetchInboxCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a tab that is absent from the response as zero', async () => {
+    // A tab whose inbox has emptied is omitted by the endpoint; merging onto the
+    // previous state would leave its old count standing.
+    mocks.fetchInboxCounts.mockResolvedValue({ politiek: 7 });
+
+    const { result } = renderHook(() => usePaData(), { wrapper });
+
+    await waitFor(() =>
+      expect(result.current.inboxCounts).toEqual({
+        politiek: 7,
+        europa: 0,
+        regionaal: 0,
+        media: 0,
+      })
+    );
+  });
+
+  it('retries when the counts request fails, so a slow backend still fills the badges', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.fetchInboxCounts
+        .mockRejectedValueOnce(new Error('backend still starting'))
+        .mockResolvedValue({ politiek: 5, europa: 1, regionaal: 0, media: 0 });
+
+      const { result } = renderHook(() => usePaData(), { wrapper });
+
+      // The first attempt rejects; without a retry the badges would sit at their
+      // 0 fallback until the user happened to open each tab.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+
+      expect(mocks.fetchInboxCounts).toHaveBeenCalledTimes(2);
+      expect(result.current.inboxCounts.politiek).toBe(5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('updateInboxCount sets a single tab count directly', async () => {

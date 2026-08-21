@@ -308,6 +308,40 @@ router.get('/signals', async (req, res) => {
   }
 });
 
+// ── GET /v1/pa/signals/counts ────────────────────────────────────────────────
+// Inbox size per tab, in one grouped query. The cockpit's source badges need
+// four totals on mount; asking /signals four times pulls four capped result sets
+// (up to 100 rows each) to read four numbers off their meta. Must stay above any
+// /signals/:id-shaped GET so 'counts' is not swallowed as an id.
+router.get('/signals/counts', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const status =
+    typeof req.query['status'] === 'string' ? req.query['status'] : 'candidate,ai_drafted';
+
+  try {
+    const statuses = status
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const rows = await db.any<{ tab: string; count: string }>(
+      `SELECT tab, COUNT(*) AS count FROM pa_signals WHERE status = ANY($1) GROUP BY tab`,
+      [statuses]
+    );
+
+    const counts: Record<string, number> = {};
+    for (const row of rows) counts[row.tab] = parseInt(row.count, 10);
+
+    res.json({ success: true, data: counts });
+  } catch (err) {
+    logger.error('Signal counts fetch error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'SIGNAL_COUNTS_ERROR' } });
+  }
+});
+
 // ── POST /v1/pa/signals ──────────────────────────────────────────────────────
 // Promote one raw feed item (body = FeedItem) into the inbox as a candidate.
 // Scoring/persist stays in curation.service; this route stays thin.

@@ -8,6 +8,7 @@ import {
   fetchAgenda,
   fetchDossiers,
   fetchInbox,
+  fetchInboxCounts,
   fetchSignals,
   fetchNotifications,
   ackNotifications,
@@ -25,6 +26,10 @@ export interface Resource<T> {
 
 // Tabs that carry an inbox badge (agenda uses a separate agendaCount badge).
 const INBOX_TABS = ['politiek', 'europa', 'regionaal', 'media'] as const;
+
+/** Startup count retries — linear backoff, so a slow-starting backend still fills the badges. */
+const MAX_COUNT_RETRIES = 4;
+const COUNT_RETRY_BASE_MS = 2000;
 
 interface NotificationsState {
   items: PaNotification[];
@@ -106,12 +111,38 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     setInboxCounts((prev) => ({ ...prev, [tab]: count }));
   }, []);
 
-  // Seed per-tab counts at startup so badges are populated before Monitoring is visited.
+  // Seed per-tab counts at startup so badges are populated before Monitoring is
+  // visited. One counts request rather than four capped inbox fetches.
+  //
+  // Retried on failure: the cockpit can mount while the backend is still starting
+  // (or down), and a badge left at its 0 fallback reads as "this source has no
+  // signals" rather than "not loaded yet" — indistinguishable to the user, and it
+  // stays wrong until they happen to open that tab.
   useEffect(() => {
-    INBOX_TABS.forEach((tabId) => {
-      void fetchInbox({ tab: tabId }).then((inb) => updateInboxCount(tabId, inb.meta.total));
-    });
-  }, [updateInboxCount]);
+    let cancelled = false;
+    let attempt = 0;
+
+    const load = () => {
+      void fetchInboxCounts()
+        .then((counts) => {
+          if (cancelled) return;
+          // Zeroed base first: a tab whose inbox has emptied is absent from the
+          // response, so merging onto the previous state would keep a stale count.
+          const base = Object.fromEntries(INBOX_TABS.map((t) => [t, 0]));
+          setInboxCounts({ ...base, ...counts });
+        })
+        .catch(() => {
+          if (cancelled || attempt >= MAX_COUNT_RETRIES) return;
+          attempt += 1;
+          setTimeout(load, attempt * COUNT_RETRY_BASE_MS);
+        });
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const confirmSignal = useCallback(
     async (

@@ -721,6 +721,24 @@ export interface InboxResult {
   meta: InboxMeta;
 }
 
+/**
+ * Inbox size per tab, in one request. The source badges need all four on mount;
+ * calling fetchInbox once per tab pulls four capped result sets to read four
+ * numbers off their meta. A tab with nothing in its inbox is absent from the
+ * result rather than reported as 0 — callers fall back.
+ */
+export async function fetchInboxCounts(): Promise<Record<string, number>> {
+  if (SIGNALS_MOCK) {
+    const counts: Record<string, number> = {};
+    for (const s of MOCK_INBOX) counts[s.tab] = (counts[s.tab] ?? 0) + 1;
+    return counts;
+  }
+  const env = await paGetRaw<{ success: boolean; data: Record<string, number> }>(
+    '/pa/signals/counts'
+  );
+  return env.data;
+}
+
 export async function fetchInbox(params?: {
   tab?: string;
   dossierId?: string;
