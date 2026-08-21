@@ -67,7 +67,10 @@ jest.mock('./sources/ob.client', () => ({
   fetchObFeed: jest.fn(),
   OB_PUBLICATION_TYPES: ['Vergunning'],
 }));
-jest.mock('./sources/eu.client', () => ({ fetchEuFeed: jest.fn() }));
+jest.mock('./sources/eu.client', () => ({
+  fetchEuFeed: jest.fn(),
+  EU_DOCUMENT_TYPES: ['Verslag', 'Motie', 'Aangenomen tekst', 'Persbericht'],
+}));
 const mockPromoteToInbox = jest.fn();
 jest.mock('./curation.service', () => ({
   runCurationCycle: jest.fn(),
@@ -608,6 +611,23 @@ describe('PA routes — feed & agenda', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveProperty('tk');
       expect(res.body.data).toHaveProperty('ob');
+    });
+
+    it('lists eu, so the blanco search can reach the EU feed', async () => {
+      // fetchFeedSources derives the cockpit's bron chips from these keys. Without
+      // 'eu' there is no chip, so GET /feed?source=eu — which is implemented — can
+      // never be requested from the UI.
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(Object.keys(res.body.data)).toContain('eu');
+      expect(res.body.data.eu).toEqual(
+        expect.arrayContaining(['Verslag', 'Motie', 'Aangenomen tekst', 'Persbericht'])
+      );
+    });
+
+    it('omits a source that is switched off', async () => {
+      // media is disabled in this suite's config mock; eu is enabled.
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(Object.keys(res.body.data)).not.toContain('media');
     });
   });
 

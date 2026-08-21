@@ -44,6 +44,22 @@ const EP_PRESSREL_FEED = 'https://www.europarl.europa.eu/rss/doc/press-releases/
 // ── Helpers (kept from original per handoff) ──────────────────────────────────
 
 // Document reference prefix → Dutch document type label
+/**
+ * Document types the EU source can yield, for the blanco search's type filter —
+ * the values TYPE_BY_PREFIX maps refs onto, plus 'Persbericht', which comes from
+ * the RSS category rather than a ref prefix because press releases have no ref.
+ * Mirrors TK_DOCUMENT_TYPES / OB_PUBLICATION_TYPES.
+ */
+export const EU_DOCUMENT_TYPES = [
+  'Verslag',
+  'Motie',
+  'Gezamenlijke motie',
+  'Aangenomen tekst',
+  'Schriftelijke vraag',
+  'Mondelinge vraag',
+  'Persbericht',
+] as const;
+
 const TYPE_BY_PREFIX: Record<string, string> = {
   'A-': 'Verslag',
   'B-': 'Motie',

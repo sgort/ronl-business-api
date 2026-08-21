@@ -15,7 +15,7 @@ import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
 import { searchFlevolandNews } from './sources/media.client';
-import { fetchEuFeed } from './sources/eu.client';
+import { fetchEuFeed, EU_DOCUMENT_TYPES } from './sources/eu.client';
 import { FEEDS as MEDIA_FEEDS } from '../media-aggregator/feeds';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
@@ -204,6 +204,12 @@ router.get('/types', (_req, res) => {
       // Media has no fixed document-type taxonomy (RSS feeds, not a typed API) —
       // an empty array is enough to make 'media' a searchable bron key.
       ...(config.pa.mediaSourceEnabled ? { media: [] } : {}),
+      // The keys here are what the cockpit offers as searchable bronnen —
+      // fetchFeedSources reads them straight off this response. Omitting 'eu' left
+      // GET /feed?source=eu implemented but unreachable: no chip rendered, so the
+      // blanco search could never target the EU feed despite advertising that it
+      // searches the raw bronfeeds.
+      ...(config.pa.euSourceEnabled ? { eu: [...EU_DOCUMENT_TYPES] } : {}),
     },
   });
 });
