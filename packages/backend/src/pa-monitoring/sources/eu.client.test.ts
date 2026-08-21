@@ -18,7 +18,7 @@ jest.mock('../pa-cache', () => ({
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseRssFeed, fetchEuFeed, inferType, parseRssFile } from './eu.client';
-import { cacheGet } from '../pa-cache';
+import { cacheGet, cacheSet } from '../pa-cache';
 
 const FIXTURE_PATH = join(__dirname, '__fixtures__', 'ep-plenary.rss.xml');
 const FIXTURE = readFileSync(FIXTURE_PATH, 'utf-8');
@@ -26,6 +26,7 @@ const FIXTURE = readFileSync(FIXTURE_PATH, 'utf-8');
 const mockFetch = jest.fn();
 (global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
 const mockCacheGet = cacheGet as jest.Mock;
+const mockCacheSet = cacheSet as jest.Mock;
 
 describe('parseRssFeed (fixture: ep-plenary.rss.xml)', () => {
   let items: ReturnType<typeof parseRssFeed>;
@@ -402,5 +403,45 @@ describe('parseRssFeed — committee codes', () => {
       </item>`)
     );
     expect(item).toMatchObject({ id: 'A-10-2026-0209', subbron: 'ep-rss', commissie: 'ENVI' });
+  });
+});
+
+describe('fetchEuFeed — europarl CDN handling', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCacheGet.mockResolvedValue(null);
+  });
+
+  const ok = (xml: string) => ({ ok: true, status: 200, text: async () => xml });
+  const FEED =
+    '<?xml version="1.0"?><rss version="2.0"><channel>' +
+    '<item><title>Iets A10-0191/2026</title></item>' +
+    '</channel></rss>';
+
+  it('identifies itself with a User-Agent the CDN will serve', async () => {
+    // Without one — or with a bare product token — europarl answers an empty 202
+    // instead of the feed, which res.ok accepts and parses to nothing.
+    mockFetch.mockResolvedValue(ok(FEED));
+    await fetchEuFeed(null, [], 0, 20);
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.headers['User-Agent']).toMatch(/^Mozilla\/5\.0 \(compatible;/);
+  });
+
+  it('treats a 2xx that is not XML as a failure rather than an empty feed', async () => {
+    // The bot-protection 202: status is "ok", body is zero bytes of text/html.
+    mockFetch.mockResolvedValue({ ok: true, status: 202, text: async () => '' });
+    const res = await fetchEuFeed(null, [], 0, 20);
+    expect(res.items).toEqual([]);
+    // Nothing may be cached from a non-answer — the next cycle must retry.
+    expect(mockCacheSet).not.toHaveBeenCalled();
+  });
+
+  it('does not serve an empty cache hit for the rest of the TTL', async () => {
+    // An earlier failed fetch could leave [] behind; that is not a valid answer.
+    mockCacheGet.mockResolvedValue([]);
+    mockFetch.mockResolvedValue(ok(FEED));
+    const res = await fetchEuFeed(null, [], 0, 20);
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.items.length).toBeGreaterThan(0);
   });
 });

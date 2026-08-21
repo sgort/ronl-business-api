@@ -38,6 +38,13 @@ const logger = createLogger('eu-client');
 // Kept from original: matches the AbortController timeout on the config page
 const HTTP_TIMEOUT_MS = 30_000;
 
+// europarl's CDN gates the RSS feeds on a recognised User-Agent family: a bare
+// product token ("ronl-business-api/1.0") is answered with an empty 202 just as a
+// missing one is, while the conventional "Mozilla/5.0 (compatible; …)" crawler
+// form is served the feed. Identifies us honestly within that form.
+const EU_RSS_USER_AGENT =
+  'Mozilla/5.0 (compatible; ronl-business-api/1.0; +https://open-regels.nl)';
+
 const EP_PLENARY_FEED = 'https://www.europarl.europa.eu/rss/doc/plenary/nl.xml';
 const EP_PRESSREL_FEED = 'https://www.europarl.europa.eu/rss/doc/press-releases/nl.xml';
 
@@ -276,7 +283,9 @@ export function parseRssFeed(xml: string): FeedItem[] {
 async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
   const key = 'eu:feed:' + createHash('sha256').update(feedUrl).digest('hex').slice(0, 16);
   const cached = await cacheGet<FeedItem[]>(key);
-  if (cached) return cached;
+  // An empty hit is not a valid answer to serve for the rest of the TTL — it is
+  // what a failed fetch used to leave behind. Re-fetch instead.
+  if (cached?.length) return cached;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
@@ -284,11 +293,23 @@ async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
   try {
     const res = await fetch(feedUrl, {
       signal: controller.signal,
-      headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
+      headers: {
+        Accept: 'application/rss+xml, application/xml, text/xml',
+        // Required, not cosmetic. Without an explicit User-Agent, europarl.europa.eu
+        // answers node's fetch with an empty 202 text/html body instead of the feed.
+        // 202 passes res.ok, so the empty body parsed to zero items and the source
+        // reported success while contributing nothing.
+        'User-Agent': EU_RSS_USER_AGENT,
+      },
     });
     clearTimeout(timer);
     if (!res.ok) throw new Error(`EU RSS ${res.status}: ${feedUrl}`);
     xml = await res.text();
+    // A 2xx that is not the feed — the bot-protection 202 above, an error page,
+    // a redirect landing — must fail loudly rather than parse to an empty list.
+    if (!xml.trimStart().startsWith('<')) {
+      throw new Error(`EU RSS ${res.status} returned ${xml.length} bytes of non-XML: ${feedUrl}`);
+    }
   } catch (err) {
     clearTimeout(timer);
     logger.warn('EU RSS fetch failed', {
