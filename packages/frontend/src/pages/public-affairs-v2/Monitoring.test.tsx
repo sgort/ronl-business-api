@@ -51,6 +51,7 @@ function defaultPaData(overrides: Record<string, unknown> = {}) {
     linkSignalDossier: vi.fn(),
     updateInboxCount: vi.fn(),
     refreshInboxCounts: vi.fn().mockResolvedValue(undefined),
+    signals: { data: [] as Signal[], status: 'ok', refetch: vi.fn() },
     ...overrides,
   };
 }
@@ -82,6 +83,20 @@ describe('Monitoring', () => {
     expect(paApi.fetchSignals).toHaveBeenCalledWith({ tab: 'politiek' });
     expect(paApi.fetchInbox).toHaveBeenCalledWith({ tab: 'politiek' });
     expect(updateInboxCount).toHaveBeenCalledWith('politiek', 2);
+  });
+
+  it('refetches the cockpit-wide confirmed signals on tab load', async () => {
+    // The rail's confirmed counter comes from the provider resource, which
+    // useResource fetches only on mount. Without this it keeps showing a
+    // snapshot — it survived the ACC database being emptied underneath it.
+    const refetch = vi.fn();
+    mockUsePaData.mockReturnValue(
+      defaultPaData({ signals: { data: [] as Signal[], status: 'ok', refetch } })
+    );
+
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
   });
 
   it('re-reads every badge on tab load, not just the open one', async () => {

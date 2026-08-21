@@ -558,8 +558,17 @@ function RawHitCard({
 }
 
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
-  const { confirmSignal, linkSignalDossier, dossiers, updateInboxCount, refreshInboxCounts } =
-    usePaData();
+  const {
+    confirmSignal,
+    linkSignalDossier,
+    dossiers,
+    updateInboxCount,
+    refreshInboxCounts,
+    // Aliased: this component has its own tab-scoped `signals` state. This is
+    // the provider's cockpit-wide confirmed set, which feeds the rail counters.
+    signals: allSignals,
+  } = usePaData();
+  const refetchAllSignals = allSignals.refetch;
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
 
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
@@ -604,7 +613,12 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     // Without it only the source you open is current, and the rest keep whatever
     // they showed at mount — which is how a curation run stays invisible.
     void refreshInboxCounts();
-  }, [tab.id, updateInboxCount, refreshInboxCounts]);
+    // Same problem, other half of the rail: useResource only fetches on mount,
+    // so the confirmed counter beside each source is a snapshot from whenever
+    // the page last loaded. It survived a database that had been emptied
+    // underneath it, still showing signals that no longer existed.
+    refetchAllSignals();
+  }, [tab.id, updateInboxCount, refreshInboxCounts, refetchAllSignals]);
 
   useEffect(() => {
     void load();
@@ -765,6 +779,10 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
       setSignals((prev) => [...prev, confirmed].sort((a, b) => b.rel - a.rel));
       inboxCountRef.current = Math.max(0, inboxCountRef.current - 1);
       updateInboxCount(tab.id, inboxCountRef.current);
+      // Confirming is the only action that changes the confirmed count, and the
+      // tab-load effect will not re-run for it, so the rail would sit one behind
+      // until the next navigation.
+      refetchAllSignals();
     } catch {
       // keep item in inbox on error
     }
