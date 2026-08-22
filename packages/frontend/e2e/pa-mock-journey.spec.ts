@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
+import { watchForRateLimit } from './helpers/rate-limit';
 
 /**
  * The PA cockpit's mock mode, driven end to end against the real store.
@@ -87,6 +88,8 @@ async function reloadAndReauth(page: Page) {
   }
 }
 
+let rateLimit: ReturnType<typeof watchForRateLimit>;
+
 test.describe('PA cockpit — mock mode', () => {
   test.beforeEach(async ({ page }) => {
     // window.confirm guards Reset demodata; Playwright dismisses dialogs by
@@ -105,7 +108,16 @@ test.describe('PA cockpit — mock mode', () => {
       }
     });
 
+    rateLimit = watchForRateLimit(page);
     await loginAsMedewerker(page, 'test-pa-flevoland', 'test123');
+  });
+
+  // Mock mode barely touches the API — login and a couple of bootstrap calls —
+  // so a 429 here means the budget was already spent by something else, and
+  // every assertion below it is about a surface that never got its data.
+  test.afterEach(() => {
+    const throttled = rateLimit.hit();
+    if (throttled) throw new Error(throttled);
   });
 
   test('curating moves the rail badges, and the moves survive a reload', async ({ page }) => {

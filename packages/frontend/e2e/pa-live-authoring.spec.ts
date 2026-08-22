@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
+import { watchForRateLimit } from './helpers/rate-limit';
 
 /**
  * PA authoring against the live backend — the real routes and a real database.
@@ -39,14 +40,16 @@ async function openBeheer(page: Page, section: string) {
 /**
  * Recover from a failed first fetch after login.
  *
- * paGet refreshes the token only when keycloak.authenticated is already true.
- * Straight after a login the dashboard mounts and fetches immediately, so a
- * request can leave before the token exists, come back 401, and leave the
- * surface showing "Kon dossiers niet laden" with a retry button. It is
- * intermittent and it is a real race in the app, not in this test — the retry
- * button exists precisely because someone met it before. Clicking it here keeps
- * the journey about authoring rather than about that race; it does not make the
- * race go away.
+ * The surface answers a failed load with "Kon dossiers niet laden" and a retry
+ * button, and clicking it is enough to get the journey moving again. That
+ * message says nothing about why the fetch failed: the one cause actually
+ * observed here was the API rate limit — six 429s in a row after a previous run
+ * had spent the budget — which is now caught and named by watchForRateLimit
+ * instead of being retried past. An earlier version of this comment blamed a
+ * post-login token race; that was a guess, and the evidence went the other way.
+ *
+ * Kept because a one-off failed fetch should not decide whether an authoring
+ * assertion runs, and it costs nothing when there is no error to recover from.
  */
 async function retryLoadIfFailed(page: Page) {
   const retry = page.getByRole('button', { name: 'Opnieuw proberen' });
@@ -78,31 +81,9 @@ async function reloadAndReauth(page: Page) {
   }
 }
 
-// QUARANTINED pending an app fix, not because the assertions are wrong.
-//
-// Both tests create a dossier and then assert it appears in the overview, and
-// both fail on that step roughly one run in three. The dossier is created every
-// time — the POST succeeds and the row is in pa_dossiers — but the list does not
-// show it. handleSave in Dossierbeheer.tsx awaits createDossier and then fires
-// refetch() and syncCockpit() without awaiting either, navigating away in the
-// same tick, so the overview can render against a list that has not come back;
-// nothing re-fetches afterwards.
-//
-// A user meets this as "I just created it and it is not in the list". Awaiting
-// the refetch before navigating, or fetching on overview mount, should settle
-// both the product behaviour and these tests.
-//
-// Earlier I put this down to a tired local stack. A full restart changed
-// nothing, so that was wrong.
-test.describe.fixme('PA cockpit — live authoring', () => {
-  // Not because the journey is long — it runs in about seven seconds when the
-  // stack is responsive — but because it runs against a shared dev stack that
-  // occasionally stalls for tens of seconds. Measured in isolation the API
-  // answers every call without error, so the stall is environmental rather than
-  // a race in the app; the default 30s budget turns it into a failure that says
-  // nothing useful. This makes it a slow pass instead.
-  test.slow();
+let rateLimit: ReturnType<typeof watchForRateLimit>;
 
+test.describe('PA cockpit — live authoring', () => {
   test.beforeEach(async ({ page }) => {
     createdDossier = null;
     createdTerm = null;
@@ -110,10 +91,15 @@ test.describe.fixme('PA cockpit — live authoring', () => {
     // Force live before the app boots. Setting it afterwards would need a
     // reload to take effect, and that reload signs you out.
     await page.addInitScript(() => localStorage.setItem('paV2.mock', '0'));
+    rateLimit = watchForRateLimit(page);
     await loginAsMedewerker(page, 'test-pa-flevoland', 'test123');
   });
 
   test.afterEach(async ({ page }) => {
+    // Read now, thrown at the very end: cleanup still has to run, and a
+    // throttled run is exactly the one most likely to have left litter.
+    const throttled = rateLimit.hit();
+
     // Tolerant of a test that failed before creating something, but never
     // silent: a cleanup that quietly does nothing leaves litter in a shared
     // database and looks exactly like a cleanup that worked. An earlier
@@ -173,6 +159,8 @@ test.describe.fixme('PA cockpit — live authoring', () => {
         }
       );
     }
+
+    if (throttled) throw new Error(throttled);
   });
 
   test('an authored dossier and zoekcriterium persist across a reload', async ({ page }) => {
