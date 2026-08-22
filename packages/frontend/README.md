@@ -225,7 +225,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002/v1';
 ## 📝 Testing Checklist
 
 For automated tests (Vitest + React Testing Library conventions, tooling, and
-the coverage backlog), see [`docs/TESTING-FRONTEND.md`](../../docs/TESTING-FRONTEND.md).
+the coverage backlog), see the testing docs:
+https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/.
 The checklist below is for manual QA passes.
 
 - [ ] Can login with test-citizen-utrecht

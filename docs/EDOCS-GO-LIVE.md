@@ -83,4 +83,4 @@ stub data again.
 - The smoke test can delete its own artifacts (`deleteDocument` /
   `deleteWorkspace`), but only after an explicit `y/N` confirmation — it never
   deletes silently.
-- Related: [TESTS.md](./TESTS.md), [scripts/test-edocs-live.sh](../scripts/test-edocs-live.sh).
+- Related: [testing docs](https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/), [scripts/test-edocs-live.sh](../scripts/test-edocs-live.sh).

@@ -3,7 +3,7 @@ import { loginAsMedewerker } from './helpers/auth';
 
 // Phase 1 item 3 — ProtectedRoute cross-role redirect.
 //
-// Both gaps found here (see docs/TESTING-FRONTEND-UI.md's Phase 1 item 3
+// Both gaps found here (see the testing docs' Phase 1 item 3
 // note) are now fixed:
 //
 // 1. keycloak.init() used to only ever be called inside AuthCallback.tsx.

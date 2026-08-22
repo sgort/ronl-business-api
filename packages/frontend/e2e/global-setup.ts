@@ -23,7 +23,7 @@ async function checkReachable(url: string, timeoutMs = 3000): Promise<boolean> {
 
 // Fails fast with a clear message instead of a confusing mid-test connection
 // error. This project does not start the dev stack itself — see
-// docs/TESTING-FRONTEND-UI.md's Environment section: run `npm run dev`
+// Environment section of the testing docs: run `npm run dev`
 // (root) yourself, and start the sibling linked-data-explorer repo's
 // `npm run dev:backend` separately.
 export default async function globalSetup() {
@@ -50,7 +50,7 @@ export default async function globalSetup() {
         '  npm run dev                   (repo root — frontend :5173 + backend :3002)',
         '  npm run dev:backend           (linked-data-explorer repo root — LDE backend :3001)',
         '',
-        'See docs/TESTING-FRONTEND-UI.md for the full environment setup.',
+        'See https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/ for the full environment setup.',
         '',
       ].join('\n')
     );
