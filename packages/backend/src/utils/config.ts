@@ -244,7 +244,18 @@ export const config: Config = {
 
   rateLimit: {
     windowMs: parseEnvInt(process.env.RATE_LIMIT_WINDOW_MS, 60000),
-    maxRequests: parseEnvInt(process.env.RATE_LIMIT_MAX_REQUESTS, 100),
+    // 100/min was below what the PA cockpit costs to use: one short authoring
+    // journey measured 21 requests to /v1/pa/*, so a minute of ordinary
+    // clicking exhausted the budget and every fetch came back 429. The surface
+    // renders that as "Kon dossiers niet laden", which reads as a backend fault
+    // rather than a throttle, and it cost an afternoon of misdiagnosis once.
+    //
+    // This is the default that ships: tiers configured purely through App
+    // Settings inherit it, so it has to be a number a real user cannot reach by
+    // working normally. Note the budget is per key from keyGenerator below,
+    // which is IP-based — see TRUST_PROXY, without which every user behind the
+    // same proxy shares one bucket.
+    maxRequests: parseEnvInt(process.env.RATE_LIMIT_MAX_REQUESTS, 1000),
     perTenant: parseEnvBool(process.env.RATE_LIMIT_PER_TENANT, true),
   },
 

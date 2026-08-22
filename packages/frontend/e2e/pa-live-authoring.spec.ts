@@ -34,28 +34,6 @@ let createdTerm: string | null = null;
 async function openBeheer(page: Page, section: string) {
   await page.getByRole('button', { name: 'Beheer', exact: true }).click();
   await page.getByRole('button', { name: section, exact: true }).click();
-  await retryLoadIfFailed(page);
-}
-
-/**
- * Recover from a failed first fetch after login.
- *
- * The surface answers a failed load with "Kon dossiers niet laden" and a retry
- * button, and clicking it is enough to get the journey moving again. That
- * message says nothing about why the fetch failed: the one cause actually
- * observed here was the API rate limit — six 429s in a row after a previous run
- * had spent the budget — which is now caught and named by watchForRateLimit
- * instead of being retried past. An earlier version of this comment blamed a
- * post-login token race; that was a guess, and the evidence went the other way.
- *
- * Kept because a one-off failed fetch should not decide whether an authoring
- * assertion runs, and it costs nothing when there is no error to recover from.
- */
-async function retryLoadIfFailed(page: Page) {
-  const retry = page.getByRole('button', { name: 'Opnieuw proberen' });
-  if (await retry.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await retry.click();
-  }
 }
 
 /**

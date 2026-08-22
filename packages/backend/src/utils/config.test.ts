@@ -189,7 +189,7 @@ describe('config defaults (empty environment)', () => {
   });
 
   it('defaults the operational toggles to their safe values', () => {
-    expect(config.rateLimit).toEqual({ windowMs: 60000, maxRequests: 100, perTenant: true });
+    expect(config.rateLimit).toEqual({ windowMs: 60000, maxRequests: 1000, perTenant: true });
     expect(config.logging).toEqual({
       level: 'info',
       format: 'json',
