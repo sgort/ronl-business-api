@@ -66,27 +66,31 @@ jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 // an export added later is simply absent. That is not hypothetical — when
 // EU_DOCUMENT_TYPES was added below, this suite's mock did not have it and
 // GET /v1/pa/types answered 500 while every route test still passed.
+const mockTkOverrides = { fetchTkFeed: jest.fn() };
 jest.mock('./sources/tk.client', () => ({
   ...jest.requireActual('./sources/tk.client'),
-  fetchTkFeed: jest.fn(),
+  ...mockTkOverrides,
 }));
+const mockObOverrides = { fetchObFeed: jest.fn() };
 jest.mock('./sources/ob.client', () => ({
   ...jest.requireActual('./sources/ob.client'),
-  fetchObFeed: jest.fn(),
+  ...mockObOverrides,
 }));
+const mockEuOverrides = { fetchEuFeed: jest.fn() };
 jest.mock('./sources/eu.client', () => ({
   ...jest.requireActual('./sources/eu.client'),
-  fetchEuFeed: jest.fn(),
+  ...mockEuOverrides,
 }));
 const mockPromoteToInbox = jest.fn();
+const mockCurationOverrides = { runCurationCycle: jest.fn(), promoteToInbox: mockPromoteToInbox };
 jest.mock('./curation.service', () => ({
   ...jest.requireActual('./curation.service'),
-  runCurationCycle: jest.fn(),
-  promoteToInbox: mockPromoteToInbox,
+  ...mockCurationOverrides,
 }));
+const mockAgendaOverrides = { fetchAgenda: jest.fn() };
 jest.mock('./sources/agenda.client', () => ({
   ...jest.requireActual('./sources/agenda.client'),
-  fetchAgenda: jest.fn(),
+  ...mockAgendaOverrides,
 }));
 jest.mock('@utils/config', () => ({
   config: {
@@ -102,6 +106,7 @@ jest.mock('@utils/config', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { expectMockNamesRealExports } from '../test-utils/mockModule';
 import router from './pa.routes';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
@@ -122,6 +127,21 @@ app.use('/v1/pa', router);
 
 const PA = { 'x-test-roles': 'public-affairs' };
 const NON_PA = { 'x-test-roles': 'caseworker' };
+
+describe('the module mocks', () => {
+  // Spreading requireActual stops an export going missing; this stops one being
+  // renamed. A stale override name stubs nothing and the real implementation —
+  // a live network call, here — runs instead.
+  it.each([
+    ['./sources/tk.client', mockTkOverrides],
+    ['./sources/ob.client', mockObOverrides],
+    ['./sources/eu.client', mockEuOverrides],
+    ['./sources/agenda.client', mockAgendaOverrides],
+    ['./curation.service', mockCurationOverrides],
+  ])('%s mock only names real exports', (path, overrides) => {
+    expectMockNamesRealExports(jest.requireActual(path as string), overrides);
+  });
+});
 
 describe('PA routes — role gating', () => {
   beforeEach(() => jest.clearAllMocks());

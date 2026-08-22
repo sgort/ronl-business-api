@@ -4,10 +4,10 @@
  */
 
 // Spread the real module so a third export added later is not silently absent.
+const mockCacheOverrides = { cacheGet: jest.fn(), cacheSet: jest.fn() };
 jest.mock('../pa-cache', () => ({
   ...jest.requireActual('../pa-cache'),
-  cacheGet: jest.fn(),
-  cacheSet: jest.fn(),
+  ...mockCacheOverrides,
 }));
 jest.mock('@utils/config', () => ({
   config: { pa: { tkApiBase: 'https://tk', cacheTtlAgenda: 1800 } },
@@ -18,6 +18,7 @@ jest.mock('@utils/logger', () => ({
 
 import { fetchAgenda } from './agenda.client';
 import { cacheGet, cacheSet } from '../pa-cache';
+import { expectMockNamesRealExports } from '../../test-utils/mockModule';
 
 const mockCacheGet = cacheGet as jest.Mock;
 const mockCacheSet = cacheSet as jest.Mock;
@@ -30,6 +31,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockCacheGet.mockResolvedValue(null);
   mockCacheSet.mockResolvedValue(undefined);
+});
+
+describe('the pa-cache mock', () => {
+  it('only names real exports', () => {
+    expectMockNamesRealExports(jest.requireActual('../pa-cache'), mockCacheOverrides);
+  });
 });
 
 describe('fetchAgenda', () => {

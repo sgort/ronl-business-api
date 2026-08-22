@@ -8,6 +8,7 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.test.ts',
     '!src/**/__fixtures__/**',
+    '!src/test-utils/**',
     '!src/types/**',
     '!src/index.ts',
   ],
