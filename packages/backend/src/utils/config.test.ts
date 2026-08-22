@@ -126,7 +126,6 @@ const ALL_OVERRIDES: Record<string, string> = {
   CACHE_TTL_TK: '60',
   CACHE_TTL_AGENDA: '120',
   CACHE_TTL_STATIC: '180',
-  PA_USE_MOCK: 'true',
   PA_SEED_DEMO_DATA: 'true',
 };
 
@@ -262,7 +261,6 @@ describe('config defaults (empty environment)', () => {
       cacheTtlTk: 900,
       cacheTtlAgenda: 1800,
       cacheTtlStatic: 3600,
-      useMock: false,
       seedDemoData: false,
     });
   });
@@ -385,7 +383,6 @@ describe('config overrides (every variable set)', () => {
       cacheTtlTk: 60,
       cacheTtlAgenda: 120,
       cacheTtlStatic: 180,
-      useMock: true,
       seedDemoData: true,
     });
   });

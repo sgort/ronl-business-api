@@ -190,7 +190,6 @@ interface Config {
     cacheTtlTk: number;
     cacheTtlAgenda: number;
     cacheTtlStatic: number;
-    useMock: boolean;
     seedDemoData: boolean;
   };
 }
@@ -361,7 +360,6 @@ export const config: Config = {
     cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
     cacheTtlAgenda: parseEnvInt(process.env.CACHE_TTL_AGENDA, 1800),
     cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
-    useMock: parseEnvBool(process.env.PA_USE_MOCK, false),
     // Off by default: a live database holds only dossiers someone actually
     // authored. Turn on to populate a fresh demo/ACC environment with the
     // SEED_DOSSIERS examples. See pa-dossiers.db.ts.
