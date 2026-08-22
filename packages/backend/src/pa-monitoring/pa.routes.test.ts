@@ -253,6 +253,78 @@ describe('PA routes — role gating', () => {
     });
   });
 
+  describe('POST /v1/pa/signals/:id/dismiss', () => {
+    const row = (status: string) => ({
+      id: 'sig-1',
+      tab: 'politiek',
+      dossier_id: null,
+      title: 'Test signal',
+      src: 'Tweede Kamer · Document',
+      bron: 'tk',
+      ref: null,
+      rel: 7,
+      impact: null,
+      impact_label: null,
+      duiding: null,
+      status,
+      ai_draft: null,
+      confirmed_by: null,
+      confirmed_at: null,
+      routing: null,
+    });
+
+    it('anonymous → 401', async () => {
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').send({});
+      expect(res.status).toBe(401);
+    });
+
+    it('authenticated non-PA role → 403', async () => {
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(NON_PA).send({});
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('unknown signal → 404', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      const res = await request(app).post('/v1/pa/signals/unknown-sig/dismiss').set(PA).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it('known signal → 200 and the status sticks', async () => {
+      // "Negeren" was client-only state before this, so an ignored signal came
+      // back on the next reload — the button did not do what it said.
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue(row('dismissed'));
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('dismissed');
+      expect(String(mockDb.none.mock.calls[0][0])).toContain("status = 'dismissed'");
+    });
+
+    it('clears routing, so a dismissed signal does not linger on the watchlist', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue(row('dismissed'));
+
+      await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(String(mockDb.none.mock.calls[0][0])).toContain('routing = NULL');
+    });
+
+    it('500s when the update fails', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockRejectedValue(new Error('db down'));
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('DISMISS_ERROR');
+    });
+  });
+
   describe('POST /v1/pa/signals/:id/confirm', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/confirm').send({});

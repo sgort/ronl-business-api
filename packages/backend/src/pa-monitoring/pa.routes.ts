@@ -446,6 +446,46 @@ router.post('/signals/:id/confirm', async (req, res) => {
   }
 });
 
+// ── POST /v1/pa/signals/:id/dismiss ──────────────────────────────────────────
+// The counterpart to confirm. "Negeren" used to be client-only state, so an
+// ignored signal came back on the next reload — the button did not do what it
+// said. Dismissing sets a status the inbox query does not select, which is also
+// what keeps it dismissed: persistCandidate's upsert only writes back
+// `WHERE pa_signals.status = 'candidate'`, so a later curation cycle leaves it
+// alone exactly as it leaves a confirmed one alone.
+router.post('/signals/:id/dismiss', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { id } = req.params;
+
+  try {
+    const existing = await db.oneOrNone<{ id: string }>('SELECT id FROM pa_signals WHERE id = $1', [
+      id,
+    ]);
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+
+    await db.none(
+      `UPDATE pa_signals SET status = 'dismissed', routing = NULL, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    const updated = await db.one<Record<string, unknown>>(
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+       FROM pa_signals WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true, data: rowToSignal(updated) });
+  } catch (err) {
+    logger.error('Signal dismiss error', {
+      id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DISMISS_ERROR' } });
+  }
+});
+
 // ── GET /v1/pa/searches ───────────────────────────────────────────────────────
 router.get('/searches', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
