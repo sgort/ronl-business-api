@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import Issuekaart from './Issuekaart';
 import type { Dossier } from './pa.data';
 import { makePaDataStub } from '../../test/paData.stub';
+import { expectMockNamesRealExports } from '../../test/mockModule';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -29,7 +30,14 @@ const paApi = vi.hoisted(() => ({
   signalTag: vi.fn(() => 'nl'),
   signalTagLabel: vi.fn(() => 'Politiek NL'),
 }));
-vi.mock('../../services/pa.api', () => paApi);
+vi.mock('../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../services/pa.api')>()),
+  ...paApi,
+}));
 
 function makeDossier(overrides: Partial<Dossier> = {}): Dossier {
   return {
@@ -95,6 +103,12 @@ function makeSignal(over: Record<string, unknown> = {}) {
 async function openTab(user: ReturnType<typeof userEvent.setup>, label: string) {
   await user.click(screen.getByRole('button', { name: label }));
 }
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    await expectMockNamesRealExports(vi.importActual('../../services/pa.api'), paApi);
+  });
+});
 
 describe('Issuekaart', () => {
   it('renders the dossier name and Kompas visualisation on the default tab', () => {

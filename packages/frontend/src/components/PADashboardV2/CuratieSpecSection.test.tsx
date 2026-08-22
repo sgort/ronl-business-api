@@ -3,12 +3,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CuratieSpecSection from './CuratieSpecSection';
+import { expectMockNamesRealExports } from '../../test/mockModule';
 
 const mockTriggerCurationCycle = vi.hoisted(() => vi.fn());
-vi.mock('../../services/pa.api', () => ({ triggerCurationCycle: mockTriggerCurationCycle }));
+vi.mock('../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+const paApi = { triggerCurationCycle: mockTriggerCurationCycle };
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../services/pa.api')>()),
+  triggerCurationCycle: mockTriggerCurationCycle,
+}));
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    await expectMockNamesRealExports(vi.importActual('../../services/pa.api'), paApi);
+  });
 });
 
 describe('CuratieSpecSection', () => {

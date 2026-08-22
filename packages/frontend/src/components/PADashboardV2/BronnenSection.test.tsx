@@ -3,12 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import BronnenSection from './BronnenSection';
+import { expectMockNamesRealExports } from '../../test/mockModule';
 
-const mockFetchSourcesStatus = vi.hoisted(() => vi.fn());
-const mockFetchFeedToken = vi.hoisted(() => vi.fn());
-vi.mock('../../services/pa.api', () => ({
-  fetchSourcesStatus: mockFetchSourcesStatus,
-  fetchFeedToken: mockFetchFeedToken,
+const paApi = vi.hoisted(() => ({
+  fetchSourcesStatus: vi.fn(),
+  fetchFeedToken: vi.fn(),
+}));
+const mockFetchSourcesStatus = paApi.fetchSourcesStatus;
+const mockFetchFeedToken = paApi.fetchFeedToken;
+
+vi.mock('../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../services/pa.api')>()),
+  ...paApi,
 }));
 
 function makeStatus(overrides: Partial<Record<string, unknown>> = {}) {
@@ -46,6 +56,14 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    // Spreading the real module covers a missing member; this covers a renamed
+    // or mistyped one, which spreading cannot see.
+    await expectMockNamesRealExports(vi.importActual('../../services/pa.api'), paApi);
+  });
 });
 
 describe('BronnenSection', () => {

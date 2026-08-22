@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import Monitoring from './Monitoring';
 import type { FeedItem, Signal } from '@ronl/shared';
 import { makePaDataStub } from '../../test/paData.stub';
+import { expectMockNamesRealExports } from '../../test/mockModule';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -27,7 +28,14 @@ const paApi = vi.hoisted(() => ({
   signalTagLabel: vi.fn(() => 'Politiek NL'),
   BRON_LABEL: { tk: 'Tweede Kamer', ob: 'Officiële Bekendmakingen', eu: 'Europees Parlement' },
 }));
-vi.mock('../../services/pa.api', () => paApi);
+vi.mock('../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../services/pa.api')>()),
+  ...paApi,
+}));
 
 function makeSignal(overrides: Partial<Signal> = {}): Signal {
   return {
@@ -60,6 +68,14 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    // Spreading the real module covers a missing member; this covers a renamed
+    // or mistyped one, which spreading cannot see.
+    await expectMockNamesRealExports(vi.importActual('../../services/pa.api'), paApi);
+  });
 });
 
 describe('Monitoring', () => {

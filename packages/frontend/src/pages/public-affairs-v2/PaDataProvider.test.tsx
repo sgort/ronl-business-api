@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { PaDataProvider, usePaData } from './PaDataProvider';
+import { expectMockNamesRealExports } from '../../test/mockModule';
 
 const mocks = vi.hoisted(() => ({
   confirmSignal: vi.fn(),
@@ -20,7 +21,14 @@ const mocks = vi.hoisted(() => ({
   ackNotifications: vi.fn(),
 }));
 
-vi.mock('../../services/pa.api', () => mocks);
+vi.mock('../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../services/pa.api')>()),
+  ...mocks,
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   return <PaDataProvider>{children}</PaDataProvider>;
@@ -38,6 +46,12 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    await expectMockNamesRealExports(vi.importActual('../../services/pa.api'), mocks);
+  });
 });
 
 describe('usePaData', () => {

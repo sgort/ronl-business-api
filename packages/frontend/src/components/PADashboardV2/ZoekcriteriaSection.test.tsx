@@ -5,12 +5,24 @@ import userEvent from '@testing-library/user-event';
 import ZoekcriteriaSection from './ZoekcriteriaSection';
 import type { SavedSearch } from '../../services/pa.api';
 import { makePaDataStub } from '../../test/paData.stub';
+import { expectMockNamesRealExports } from '../../test/mockModule';
 
 const mockFetchSearches = vi.hoisted(() => vi.fn());
 const mockCreateSearch = vi.hoisted(() => vi.fn());
 const mockUpdateSearch = vi.hoisted(() => vi.fn());
 const mockDeleteSavedSearch = vi.hoisted(() => vi.fn());
-vi.mock('../../services/pa.api', () => ({
+vi.mock('../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+const paApi = {
+  fetchSearches: mockFetchSearches,
+  createSearch: mockCreateSearch,
+  updateSearch: mockUpdateSearch,
+  deleteSavedSearch: mockDeleteSavedSearch,
+};
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../services/pa.api')>()),
   fetchSearches: mockFetchSearches,
   createSearch: mockCreateSearch,
   updateSearch: mockUpdateSearch,
@@ -52,6 +64,12 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    await expectMockNamesRealExports(vi.importActual('../../services/pa.api'), paApi);
+  });
 });
 
 describe('ZoekcriteriaSection', () => {

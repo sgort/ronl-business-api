@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import Dossierbeheer from './Dossierbeheer';
 import type { AdminDossier, DossierTemplate } from '@ronl/shared';
 import { makePaDataStub } from '../../../test/paData.stub';
+import { expectMockNamesRealExports } from '../../../test/mockModule';
 
 const mockDossiersRefetch = vi.hoisted(() => vi.fn());
 const mockSignalsRefetch = vi.hoisted(() => vi.fn());
@@ -42,7 +43,13 @@ vi.mock('../../../services/mock-demo.store', () => ({ resetMockDemoData: mockRes
 
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 const mockSetDossiersMock = vi.hoisted(() => vi.fn());
-vi.mock('../../../services/pa.api', () => ({
+vi.mock('../../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+const paApi = { isPaMock: mockIsDossiersMock, setPaMock: mockSetDossiersMock };
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../../services/pa.api')>()),
   isPaMock: mockIsDossiersMock,
   setPaMock: mockSetDossiersMock,
 }));
@@ -172,6 +179,12 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    await expectMockNamesRealExports(vi.importActual('../../../services/pa.api'), paApi);
+  });
 });
 
 describe('Dossierbeheer', () => {
