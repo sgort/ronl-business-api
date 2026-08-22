@@ -2,6 +2,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { rateLimitKey } from '@utils/client-ip';
 import { config } from '@utils/config';
 import logger, { createLogger } from '@utils/logger';
 import healthRoutes from '@routes/health.routes';
@@ -91,12 +92,12 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => {
-    if (config.rateLimit.perTenant && req.user) {
-      return `${req.user.tenantId}:${req.ip}`;
-    }
-    return req.ip || 'unknown';
-  },
+  // req.ip is not a client identity on its own: with TRUST_PROXY on, Express
+  // reads it from X-Forwarded-For, and Azure writes that as address:port. The
+  // port is per connection, so keying on it raw handed every new connection a
+  // fresh budget. See utils/client-ip.ts.
+  keyGenerator: (req: Request) =>
+    rateLimitKey(req.ip, config.rateLimit.perTenant ? req.user?.tenantId : undefined),
 });
 
 app.use(limiter);
