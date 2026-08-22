@@ -20,14 +20,32 @@ import { watchForRateLimit } from './helpers/rate-limit';
  * suite follows that convention rather than inventing a second mode, so login
  * is the real Keycloak flow like every other spec here.
  *
- * The fixture baseline is 4 confirmed and 6 inbox per signaalbron. Assertions
- * are relative to it wherever a count moves, so extending the fixtures does not
- * break the journey — only changing the per-source balance would.
+ * Counts come from BASELINE below rather than from a single flat number, so
+ * extending the fixtures means editing one row there and nothing else.
  */
 
-const SOURCES = ['Politiek (NL)', 'Europa (EU)', 'Regionaal', 'Media & omgeving'];
-const BASE_CONFIRMED = 4;
-const BASE_INBOX = 6;
+/**
+ * The fixture baseline, per signaalbron.
+ *
+ * Deliberately uneven. It used to be a flat 4 confirmed / 6 inbox for all four,
+ * which read as placeholder data in a demo and invited questions about what the
+ * numbers meant rather than about what the cockpit does. The counts are still
+ * hard-coded rather than generated, so Reset demodata has something exact to
+ * return to and these assertions stay deterministic.
+ *
+ * Asserted absolutely once per run, then everything else is relative to it, so
+ * adding a fixture means updating one row here and nothing else.
+ */
+const BASELINE = {
+  'Politiek (NL)': { confirmed: 6, inbox: 9 },
+  'Europa (EU)': { confirmed: 4, inbox: 7 },
+  Regionaal: { confirmed: 4, inbox: 5 },
+  'Media & omgeving': { confirmed: 5, inbox: 7 },
+} as const;
+
+type Source = keyof typeof BASELINE;
+
+const SOURCES = Object.keys(BASELINE) as Source[];
 
 /** The rail button for one signaalbron. */
 function rail(page: Page, label: string) {
@@ -126,8 +144,10 @@ test.describe('PA cockpit — mock mode', () => {
 
     // Every source starts at the fixture baseline.
     for (const source of SOURCES) {
-      expect(await confirmedCount(page, source), `${source} confirmed`).toBe(BASE_CONFIRMED);
-      expect(await inboxCount(page, source), `${source} inbox`).toBe(BASE_INBOX);
+      expect(await confirmedCount(page, source), `${source} confirmed`).toBe(
+        BASELINE[source].confirmed
+      );
+      expect(await inboxCount(page, source), `${source} inbox`).toBe(BASELINE[source].inbox);
     }
 
     await rail(page, 'Politiek (NL)').click();
@@ -137,23 +157,23 @@ test.describe('PA cockpit — mock mode', () => {
     // One out of the inbox, one into the curated set.
     await expect
       .poll(() => inboxCount(page, 'Politiek (NL)'), { message: 'inbox after confirm' })
-      .toBe(BASE_INBOX - 1);
+      .toBe(BASELINE['Politiek (NL)'].inbox - 1);
     await expect
       .poll(() => confirmedCount(page, 'Politiek (NL)'), { message: 'confirmed after confirm' })
-      .toBe(BASE_CONFIRMED + 1);
+      .toBe(BASELINE['Politiek (NL)'].confirmed + 1);
 
     // The whole point of the persisted store: this used to spring back.
     await reloadAndReauth(page);
     await openMonitoring(page);
     await expect
       .poll(() => inboxCount(page, 'Politiek (NL)'), { message: 'inbox after reload' })
-      .toBe(BASE_INBOX - 1);
+      .toBe(BASELINE['Politiek (NL)'].inbox - 1);
     await expect
       .poll(() => confirmedCount(page, 'Politiek (NL)'), { message: 'confirmed after reload' })
-      .toBe(BASE_CONFIRMED + 1);
+      .toBe(BASELINE['Politiek (NL)'].confirmed + 1);
 
     // Untouched sources must not have moved.
-    expect(await inboxCount(page, 'Regionaal')).toBe(BASE_INBOX);
+    expect(await inboxCount(page, 'Regionaal')).toBe(BASELINE.Regionaal.inbox);
   });
 
   test('ignoring a signal keeps it ignored across a reload', async ({ page }) => {
@@ -165,7 +185,7 @@ test.describe('PA cockpit — mock mode', () => {
 
     await expect
       .poll(() => inboxCount(page, 'Europa (EU)'), { message: 'inbox after ignore' })
-      .toBe(BASE_INBOX - 1);
+      .toBe(BASELINE['Europa (EU)'].inbox - 1);
 
     // "Negeren" was client-only state until it was given an endpoint; the
     // signal came back on the next load and the button did not do what it said.
@@ -173,10 +193,10 @@ test.describe('PA cockpit — mock mode', () => {
     await openMonitoring(page);
     await expect
       .poll(() => inboxCount(page, 'Europa (EU)'), { message: 'inbox after reload' })
-      .toBe(BASE_INBOX - 1);
+      .toBe(BASELINE['Europa (EU)'].inbox - 1);
 
     // An ignored signal is not quietly curated instead.
-    expect(await confirmedCount(page, 'Europa (EU)')).toBe(BASE_CONFIRMED);
+    expect(await confirmedCount(page, 'Europa (EU)')).toBe(BASELINE['Europa (EU)'].confirmed);
   });
 
   test('Reset demodata puts every source back to the fixture baseline', async ({ page }) => {
@@ -184,7 +204,9 @@ test.describe('PA cockpit — mock mode', () => {
     await rail(page, 'Media & omgeving').click();
     await page.getByRole('button', { name: /^Inbox/ }).click();
     await page.getByRole('button', { name: 'Bevestigen' }).first().click();
-    await expect.poll(() => inboxCount(page, 'Media & omgeving')).toBe(BASE_INBOX - 1);
+    await expect
+      .poll(() => inboxCount(page, 'Media & omgeving'))
+      .toBe(BASELINE['Media & omgeving'].inbox - 1);
 
     await page.getByRole('button', { name: 'Beheer', exact: true }).click();
     await page.getByRole('button', { name: 'Dossierbeheer' }).click();
@@ -194,11 +216,41 @@ test.describe('PA cockpit — mock mode', () => {
     for (const source of SOURCES) {
       await expect
         .poll(() => confirmedCount(page, source), { message: `${source} confirmed after reset` })
-        .toBe(BASE_CONFIRMED);
+        .toBe(BASELINE[source].confirmed);
       await expect
         .poll(() => inboxCount(page, source), { message: `${source} inbox after reset` })
-        .toBe(BASE_INBOX);
+        .toBe(BASELINE[source].inbox);
     }
+  });
+
+  test('every signaalbron carries a watchlist orphan, linkable to a dossier', async ({ page }) => {
+    // "Confirmed but belonging to no dossier" is its own state in the cockpit —
+    // orange card, a Watchlist chip, and a dossier picker to resolve it. The
+    // fixtures used to carry two of these, both in Europa and Media, so the
+    // feature was invisible from Politiek, which is where a demo starts. One per
+    // source now, and this fails if a fixture edit drops the last one from a tab.
+    await openMonitoring(page);
+
+    for (const source of SOURCES) {
+      await rail(page, source).click();
+      const filter = page.locator('button.pac-orphan-fbtn', { hasText: 'Watchlist' });
+      await expect(filter, `${source} has no watchlist filter`).toBeVisible();
+      await expect(filter.locator('.pac-orphan-fcount'), `${source} orphan count`).toHaveText('1');
+    }
+
+    // Resolve one: pick a dossier, link it, and the orphan state is gone.
+    await rail(page, 'Politiek (NL)').click();
+    await page.locator('button.pac-orphan-fbtn', { hasText: 'Watchlist' }).click();
+    await expect(page.locator('.pac-signal-orphan')).toHaveCount(1);
+
+    const before = await confirmedCount(page, 'Politiek (NL)');
+    await page.locator('select.pac-orphan-select').selectOption({ index: 1 });
+    await page.getByRole('button', { name: 'Koppelen' }).click();
+
+    // The filter disappears with the last orphan, and linking routes a signal
+    // rather than curating one — the confirmed tally must not move.
+    await expect(page.locator('button.pac-orphan-fbtn', { hasText: 'Watchlist' })).toHaveCount(0);
+    expect(await confirmedCount(page, 'Politiek (NL)')).toBe(before);
   });
 
   test('the reset control is offered in mock mode only', async ({ page }) => {
