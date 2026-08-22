@@ -4,7 +4,12 @@
  * cacheGet/cacheSet, fetch, and config are mocked.
  */
 
-jest.mock('../pa-cache', () => ({ cacheGet: jest.fn(), cacheSet: jest.fn() }));
+// Spread the real module so a third export added later is not silently absent.
+jest.mock('../pa-cache', () => ({
+  ...jest.requireActual('../pa-cache'),
+  cacheGet: jest.fn(),
+  cacheSet: jest.fn(),
+}));
 jest.mock('@utils/config', () => ({
   config: { pa: { tkApiBase: 'https://tk/api', cacheTtlTk: 900 } },
 }));

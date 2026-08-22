@@ -62,21 +62,32 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
-jest.mock('./sources/tk.client', () => ({ fetchTkFeed: jest.fn(), TK_DOCUMENT_TYPES: ['Motie'] }));
+// Spread the real module first: a jest.mock factory replaces it wholesale, so
+// an export added later is simply absent. That is not hypothetical — when
+// EU_DOCUMENT_TYPES was added below, this suite's mock did not have it and
+// GET /v1/pa/types answered 500 while every route test still passed.
+jest.mock('./sources/tk.client', () => ({
+  ...jest.requireActual('./sources/tk.client'),
+  fetchTkFeed: jest.fn(),
+}));
 jest.mock('./sources/ob.client', () => ({
+  ...jest.requireActual('./sources/ob.client'),
   fetchObFeed: jest.fn(),
-  OB_PUBLICATION_TYPES: ['Vergunning'],
 }));
 jest.mock('./sources/eu.client', () => ({
+  ...jest.requireActual('./sources/eu.client'),
   fetchEuFeed: jest.fn(),
-  EU_DOCUMENT_TYPES: ['Verslag', 'Motie', 'Aangenomen tekst', 'Persbericht'],
 }));
 const mockPromoteToInbox = jest.fn();
 jest.mock('./curation.service', () => ({
+  ...jest.requireActual('./curation.service'),
   runCurationCycle: jest.fn(),
   promoteToInbox: mockPromoteToInbox,
 }));
-jest.mock('./sources/agenda.client', () => ({ fetchAgenda: jest.fn() }));
+jest.mock('./sources/agenda.client', () => ({
+  ...jest.requireActual('./sources/agenda.client'),
+  fetchAgenda: jest.fn(),
+}));
 jest.mock('@utils/config', () => ({
   config: {
     pa: {

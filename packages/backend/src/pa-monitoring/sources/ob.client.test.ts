@@ -4,7 +4,12 @@
  * config are mocked; fast-xml-parser runs for real against a crafted fixture.
  */
 
-jest.mock('../pa-cache', () => ({ cacheGet: jest.fn(), cacheSet: jest.fn() }));
+// Spread the real module so a third export added later is not silently absent.
+jest.mock('../pa-cache', () => ({
+  ...jest.requireActual('../pa-cache'),
+  cacheGet: jest.fn(),
+  cacheSet: jest.fn(),
+}));
 jest.mock('@utils/config', () => ({
   config: { pa: { tkApiBase: 'https://tk', cacheTtlTk: 900 } },
 }));

@@ -20,20 +20,38 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 const mockFetchTkFeed = jest.fn();
 const mockFetchObFeed = jest.fn();
 const mockFetchEuFeed = jest.fn();
-jest.mock('./sources/tk.client', () => ({ fetchTkFeed: mockFetchTkFeed }));
-jest.mock('./sources/ob.client', () => ({ fetchObFeed: mockFetchObFeed }));
-jest.mock('./sources/eu.client', () => ({ fetchEuFeed: mockFetchEuFeed }));
+// Spread the real modules first: a factory replaces the module wholesale, so an
+// export added later is simply absent. That is how EU_DOCUMENT_TYPES went
+// missing from pa.routes.test's mock and made GET /v1/pa/types answer 500 while
+// every test still passed.
+jest.mock('./sources/tk.client', () => ({
+  ...jest.requireActual('./sources/tk.client'),
+  fetchTkFeed: mockFetchTkFeed,
+}));
+jest.mock('./sources/ob.client', () => ({
+  ...jest.requireActual('./sources/ob.client'),
+  fetchObFeed: mockFetchObFeed,
+}));
+jest.mock('./sources/eu.client', () => ({
+  ...jest.requireActual('./sources/eu.client'),
+  fetchEuFeed: mockFetchEuFeed,
+}));
 
 const mockScoreItem = jest.fn();
-jest.mock('./rules', () => ({ scoreItem: mockScoreItem }));
+jest.mock('./rules', () => ({
+  ...jest.requireActual('./rules'),
+  scoreItem: mockScoreItem,
+}));
 
 const mockFetchAllNewSubmittedTexts = jest.fn();
 jest.mock('./sources/ep-texts-submitted.client', () => ({
+  ...jest.requireActual('./sources/ep-texts-submitted.client'),
   fetchAllNewSubmittedTexts: mockFetchAllNewSubmittedTexts,
 }));
 
 const mockFetchFlevolandNews = jest.fn();
 jest.mock('./sources/media.client', () => ({
+  ...jest.requireActual('./sources/media.client'),
   fetchFlevolandNews: mockFetchFlevolandNews,
 }));
 
