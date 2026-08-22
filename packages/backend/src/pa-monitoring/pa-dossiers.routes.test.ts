@@ -740,6 +740,55 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     expect(versionDelete?.[1]).toEqual(['stikstof']);
   });
 
+  it('admin → 200, takes the curated signals and zoekcriteria with it', async () => {
+    // The whole point of the cascade. Nothing in the database enforces it:
+    // dossier_id is a plain TEXT column on both tables with no FK, so a signal
+    // or a saved search whose dossier is gone simply keeps pointing at an id
+    // that no longer resolves. Observed on a real database: deleting one
+    // dossier left 37 curated signals and its zoekcriterium behind, all still
+    // counted on the Monitoring rail.
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    mockDb.none.mockResolvedValue(undefined);
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+    expect(res.status).toBe(200);
+
+    const deletes = mockDb.result.mock.calls.map((c) => String(c[0]));
+    expect(deletes.some((q) => /DELETE FROM pa_signals WHERE dossier_id/.test(q))).toBe(true);
+    expect(deletes.some((q) => /DELETE FROM pa_saved_searches WHERE dossier_id/.test(q))).toBe(
+      true
+    );
+  });
+
+  it('scopes the zoekcriteria delete by tenant, and the signals delete by dossier alone', async () => {
+    // pa_signals has no tenant_id column, so the dossier row matched on tenant
+    // above is what makes the signals delete safe. pa_saved_searches does have
+    // one, and passing it costs nothing.
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    mockDb.none.mockResolvedValue(undefined);
+    await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+
+    const signals = mockDb.result.mock.calls.find((c) =>
+      /DELETE FROM pa_signals/.test(String(c[0]))
+    );
+    const searches = mockDb.result.mock.calls.find((c) =>
+      /DELETE FROM pa_saved_searches/.test(String(c[0]))
+    );
+    expect(signals?.[1]).toEqual(['stikstof']);
+    expect(searches?.[1]).toEqual(['stikstof', 'flevoland']);
+  });
+
+  it('a failing signals delete rolls the whole thing back → 500', async () => {
+    // Partial is worse than none: ids are slug-derived, so recreating the
+    // dossier under the same name would inherit whatever survived.
+    mockDb.none.mockResolvedValue(undefined);
+    mockDb.result
+      .mockResolvedValueOnce({ rowCount: 1 }) // the dossier row
+      .mockRejectedValueOnce(new Error('signals delete failed'));
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
+  });
+
   it('versions delete failing mid-transaction → 500 (not a partial delete leaving orphaned versions)', async () => {
     mockDb.result.mockResolvedValue({ rowCount: 1 });
     mockDb.none.mockRejectedValue(new Error('versions delete failed'));
