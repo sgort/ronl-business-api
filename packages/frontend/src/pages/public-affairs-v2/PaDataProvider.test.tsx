@@ -7,6 +7,7 @@ import { PaDataProvider, usePaData } from './PaDataProvider';
 const mocks = vi.hoisted(() => ({
   confirmSignal: vi.fn(),
   linkSignalDossier: vi.fn(),
+  dismissSignal: vi.fn(),
   watchDossier: vi.fn(),
   unwatchDossier: vi.fn(),
   toggleSearchNotify: vi.fn(),
@@ -262,5 +263,94 @@ describe('write actions refetch dependent resources', () => {
 
     expect(mocks.ackNotifications).toHaveBeenCalledWith(['n1']);
     expect(mocks.fetchNotifications.mock.calls.length).toBeGreaterThan(notificationsCallsBefore);
+  });
+});
+
+describe('mutations refetch what the backend recomputes', () => {
+  /** Every wrapper below exists to re-read notifications, which the backend
+   *  recomputes synchronously on these actions — otherwise a matching watch
+   *  only surfaces on the next unrelated action or a page reload. */
+  async function ready() {
+    mocks.fetchNotifications.mockResolvedValue({ items: [], unseenCount: 0 });
+    const { result } = renderHook(() => usePaData(), { wrapper });
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
+    mocks.fetchNotifications.mockClear();
+    return result;
+  }
+
+  it('watchDossier calls through and refetches notifications', async () => {
+    const result = await ready();
+    mocks.watchDossier.mockResolvedValue(undefined);
+
+    await act(async () => {
+      await result.current.watchDossier('stikstof');
+    });
+
+    expect(mocks.watchDossier).toHaveBeenCalledWith('stikstof');
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
+  });
+
+  it('unwatchDossier calls through and refetches notifications', async () => {
+    const result = await ready();
+    mocks.unwatchDossier.mockResolvedValue(undefined);
+
+    await act(async () => {
+      await result.current.unwatchDossier('stikstof');
+    });
+
+    expect(mocks.unwatchDossier).toHaveBeenCalledWith('stikstof');
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
+  });
+
+  it('toggleSearchNotify calls through and refetches notifications', async () => {
+    const result = await ready();
+    mocks.toggleSearchNotify.mockResolvedValue(undefined);
+
+    await act(async () => {
+      await result.current.toggleSearchNotify('srch-1', true);
+    });
+
+    expect(mocks.toggleSearchNotify).toHaveBeenCalledWith('srch-1', true);
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
+  });
+
+  it('ackNotifications calls through and refetches', async () => {
+    const result = await ready();
+    mocks.ackNotifications.mockResolvedValue(undefined);
+
+    await act(async () => {
+      await result.current.ackNotifications(['ntf-1']);
+    });
+
+    expect(mocks.ackNotifications).toHaveBeenCalledWith(['ntf-1']);
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
+  });
+
+  it('linkSignalDossier returns the updated signal and refetches', async () => {
+    const result = await ready();
+    mocks.linkSignalDossier.mockResolvedValue({ id: 'sig-1', dossierId: 'stikstof' });
+
+    let updated: unknown;
+    await act(async () => {
+      updated = await result.current.linkSignalDossier('sig-1', 'stikstof');
+    });
+
+    expect(updated).toMatchObject({ dossierId: 'stikstof' });
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
+  });
+
+  it('dismissSignal refetches the inbox and the bell', async () => {
+    // A dismissal can retire a watch's only unseen match.
+    const result = await ready();
+    mocks.dismissSignal.mockResolvedValue({ id: 'sig-1', status: 'dismissed' });
+    mocks.fetchInbox.mockClear();
+
+    await act(async () => {
+      await result.current.dismissSignal('sig-1');
+    });
+
+    expect(mocks.dismissSignal).toHaveBeenCalledWith('sig-1');
+    await waitFor(() => expect(mocks.fetchInbox).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.fetchNotifications).toHaveBeenCalled());
   });
 });

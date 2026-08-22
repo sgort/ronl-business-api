@@ -20,6 +20,7 @@ const paApi = vi.hoisted(() => ({
   deleteSavedSearch: vi.fn(),
   promoteSearchToTenant: vi.fn(),
   promoteToInbox: vi.fn(),
+  fetchFeedToken: vi.fn(),
   paTabBronnen: vi.fn(() => ['Tweede Kamer']),
   signalTag: vi.fn(() => 'nl'),
   signalTagLabel: vi.fn(() => 'Politiek NL'),
@@ -222,5 +223,105 @@ describe('Monitoring', () => {
       expect(paApi.fetchFeed).toHaveBeenCalledWith({ q: 'stikstof', source: 'both', top: 30 })
     );
     expect(screen.getByText('Found item')).toBeInTheDocument();
+  });
+});
+
+describe('raw search band', () => {
+  const feedItem = {
+    id: 'f1',
+    title: 'Rauwe treffer',
+    type: 'Motie',
+    number: '2026D1',
+    date: '2026-08-01',
+    url: 'https://example.test/doc',
+    source: 'tk' as const,
+  };
+
+  async function search(user: ReturnType<typeof userEvent.setup>, q = 'energie') {
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await waitFor(() => expect(paApi.fetchInbox).toHaveBeenCalled());
+    await user.type(screen.getByRole('textbox'), q);
+    await user.click(screen.getByRole('button', { name: 'Zoek' }));
+  }
+
+  it('saves the query as a zoekopdracht', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [feedItem], total: 1 });
+    paApi.createSavedSearch.mockResolvedValue({ id: 'srch-1' });
+    const user = userEvent.setup();
+    await search(user);
+
+    await user.click(await screen.findByRole('button', { name: /Bewaar als zoekopdracht/ }));
+
+    await waitFor(() =>
+      expect(paApi.createSavedSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'energie' })
+      )
+    );
+  });
+
+  it('promotes a raw hit into the inbox', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [feedItem], total: 1 });
+    paApi.promoteToInbox.mockResolvedValue({ id: 'sig-new', status: 'candidate' });
+    const user = userEvent.setup();
+    await search(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Naar inbox' }));
+
+    await waitFor(() =>
+      expect(paApi.promoteToInbox).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }))
+    );
+  });
+
+  it('reports a hit that was already curated instead of re-adding it', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [feedItem], total: 1 });
+    paApi.promoteToInbox.mockResolvedValue({ id: 'sig-new', status: 'confirmed' });
+    const user = userEvent.setup();
+    await search(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Naar inbox' }));
+
+    expect(await screen.findByText('Staat al in Gecureerd')).toBeInTheDocument();
+  });
+
+  it('shows the empty state when nothing matches', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [], total: 0 });
+    const user = userEvent.setup();
+    await search(user, 'nietsdat');
+
+    expect(await screen.findByText(/Geen treffers voor/)).toBeInTheDocument();
+  });
+});
+
+describe('watchlist signals', () => {
+  it('links an unrouted signal to a dossier', async () => {
+    const orphan = makeSignal({
+      id: 'sig-orphan',
+      title: 'Zwevend signaal',
+      routing: 'watchlist',
+      dossierId: null,
+    });
+    paApi.fetchSignals.mockResolvedValue([orphan]);
+    const linkSignalDossier = vi
+      .fn()
+      .mockResolvedValue({ ...orphan, dossierId: 'stikstof', routing: null });
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        linkSignalDossier,
+        dossiers: {
+          data: [{ id: 'stikstof', naam: 'Stikstofdossier' }] as never,
+          status: 'ok',
+          refetch: vi.fn(),
+        },
+      })
+    );
+    const user = userEvent.setup();
+
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await screen.findByText('Zwevend signaal');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'stikstof');
+    await user.click(screen.getByRole('button', { name: /Koppel/ }));
+
+    await waitFor(() => expect(linkSignalDossier).toHaveBeenCalledWith('sig-orphan', 'stikstof'));
   });
 });
