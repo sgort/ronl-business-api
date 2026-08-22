@@ -560,6 +560,7 @@ function RawHitCard({
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
   const {
     confirmSignal,
+    dismissSignal,
     linkSignalDossier,
     dossiers,
     updateInboxCount,
@@ -788,10 +789,26 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     }
   };
 
-  const handleDismiss = (id: string) => {
+  const handleDismiss = async (id: string) => {
+    // Hide it first — the row should go the moment it is clicked — then persist.
+    // Without the persist this was client-only state and the signal came back on
+    // the next reload, which is not what "Negeren" promises.
     setDismissedIds((prev) => new Set([...prev, id]));
     inboxCountRef.current = Math.max(0, inboxCountRef.current - 1);
     updateInboxCount(tab.id, inboxCountRef.current);
+    try {
+      await dismissSignal(id);
+      void refreshInboxCounts();
+    } catch {
+      // Put it back rather than leave the user believing it was ignored.
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      inboxCountRef.current += 1;
+      updateInboxCount(tab.id, inboxCountRef.current);
+    }
   };
 
   const handleLinkDossier = async (id: string, dossierId: string) => {

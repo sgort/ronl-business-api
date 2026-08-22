@@ -93,6 +93,244 @@ describe('isPaMock / setPaMock', () => {
   });
 });
 
+describe('mock mode curation', () => {
+  /** Mock mode plus the store module from the same fresh graph pa.api is using. */
+  async function mockApi() {
+    const api = await freshApi();
+    api.setPaMock(true);
+    const store = await import('./mock-demo.store');
+    return { api, store };
+  }
+
+  it('confirming moves a signal out of the inbox and into the curated set', async () => {
+    const { api } = await mockApi();
+    const before = await api.fetchInbox({ tab: 'politiek' });
+    const target = before.data[0];
+
+    await api.confirmSignal(target.id);
+
+    const after = await api.fetchInbox({ tab: 'politiek' });
+    expect(after.meta.total).toBe(before.meta.total - 1);
+    expect((await api.fetchSignals({ tab: 'politiek' })).map((s) => s.id)).toContain(target.id);
+  });
+
+  it('the inbox count follows a confirm instead of springing back', async () => {
+    // The whole point: counts used to be recomputed from the unchanged fixture,
+    // so the rail badge decremented optimistically and then reverted.
+    const { api } = await mockApi();
+    const before = await api.fetchInboxCounts();
+    const target = (await api.fetchInbox({ tab: 'politiek' })).data[0];
+
+    await api.confirmSignal(target.id);
+
+    expect((await api.fetchInboxCounts()).politiek).toBe(before.politiek - 1);
+  });
+
+  it('keeps a confirm across a reload', async () => {
+    const first = await mockApi();
+    const target = (await first.api.fetchInbox({ tab: 'politiek' })).data[0];
+    await first.api.confirmSignal(target.id);
+
+    // A fresh module graph with localStorage intact is what a reload amounts to.
+    const { api } = await mockApi();
+
+    expect((await api.fetchSignals({ tab: 'politiek' })).map((s) => s.id)).toContain(target.id);
+  });
+
+  it('linking a dossier sticks too', async () => {
+    const { api } = await mockApi();
+    const target = (await api.fetchInbox({ tab: 'politiek' })).data[0];
+
+    await api.linkSignalDossier(target.id, 'stikstof');
+
+    const again = (await api.fetchInbox({ tab: 'politiek' })).data.find((s) => s.id === target.id);
+    expect(again?.dossierId).toBe('stikstof');
+  });
+
+  it('ignoring a signal keeps it out of the inbox, including after a reload', async () => {
+    // "Negeren" was client-only state in both modes, so an ignored signal came
+    // back on the next load — the button did not do what it said.
+    const first = await mockApi();
+    const before = await first.api.fetchInboxCounts();
+    const target = (await first.api.fetchInbox({ tab: 'politiek' })).data[0];
+
+    await first.api.dismissSignal(target.id);
+
+    expect((await first.api.fetchInboxCounts()).politiek).toBe(before.politiek - 1);
+    const { api } = await mockApi();
+    expect((await api.fetchInbox({ tab: 'politiek' })).data.map((s) => s.id)).not.toContain(
+      target.id
+    );
+  });
+
+  it('does not resurrect an ignored signal as curated', async () => {
+    const { api } = await mockApi();
+    const target = (await api.fetchInbox({ tab: 'politiek' })).data[0];
+
+    await api.dismissSignal(target.id);
+
+    expect((await api.fetchSignals({ tab: 'politiek' })).map((s) => s.id)).not.toContain(target.id);
+  });
+
+  it('creating a zoekcriterium makes it appear in the list', async () => {
+    // The mock branch used to return an id without storing the row, so the new
+    // criterium was invisible. Invisible because the branch was unreachable
+    // while VITE_PA_SIGNALS_MOCK was false — these calls really hit the backend.
+    const { api } = await mockApi();
+    const before = (await api.fetchSearches()).length;
+
+    const { id } = await api.createSearch({
+      q: 'netcongestie',
+      source: ['tk'],
+      tags: ['energie'],
+      dossierId: 'energie',
+      scope: 'tenant',
+    });
+
+    const after = await api.fetchSearches();
+    expect(after).toHaveLength(before + 1);
+    expect(after.find((x) => x.id === id)?.query.q).toBe('netcongestie');
+  });
+
+  it('editing a zoekcriterium keeps the untouched fields', async () => {
+    const { api } = await mockApi();
+    const target = (await api.fetchSearches())[0];
+
+    await api.updateSearch(target.id, { q: 'gewijzigde term' });
+
+    const updated = (await api.fetchSearches()).find((x) => x.id === target.id);
+    expect(updated?.query.q).toBe('gewijzigde term');
+    expect(updated?.query.source).toEqual(target.query.source);
+    expect(updated?.tags).toEqual(target.tags);
+  });
+
+  it('the notify bell sticks, including after a reload', async () => {
+    const first = await mockApi();
+    const target = (await first.api.fetchSearches())[0];
+
+    await first.api.toggleSearchNotify(target.id, true);
+
+    const { api } = await mockApi();
+    expect((await api.fetchSearches()).find((x) => x.id === target.id)?.notify).toBe(true);
+  });
+
+  it('promoting a criterium to team sticks', async () => {
+    const { api } = await mockApi();
+    const personal = (await api.fetchSearches()).find((x) => x.scope === 'user');
+    if (!personal) return; // fixture has none scoped to a user
+
+    await api.promoteSearchToTenant(personal.id);
+
+    expect((await api.fetchSearches()).find((x) => x.id === personal.id)?.scope).toBe('tenant');
+  });
+
+  it('deleting a criterium removes it', async () => {
+    const { api } = await mockApi();
+    const target = (await api.fetchSearches())[0];
+
+    await api.deleteSavedSearch(target.id);
+
+    expect((await api.fetchSearches()).map((x) => x.id)).not.toContain(target.id);
+  });
+
+  it('watching a dossier adds a watch row, and unwatching removes it', async () => {
+    // Live models a watch as a saved-search row with an empty query; mock has to
+    // match or the bell reads its state from somewhere the toggle never writes.
+    const { api } = await mockApi();
+
+    await api.watchDossier('stikstof');
+    const watched = (await api.fetchSearches()).filter(
+      (x) => x.dossierId === 'stikstof' && x.query.q === ''
+    );
+    expect(watched).toHaveLength(1);
+    expect(watched[0].notify).toBe(true);
+
+    await api.unwatchDossier('stikstof');
+    expect(
+      (await api.fetchSearches()).filter((x) => x.dossierId === 'stikstof' && x.query.q === '')
+    ).toHaveLength(0);
+  });
+
+  it('watching twice does not add a second row', async () => {
+    const { api } = await mockApi();
+
+    await api.watchDossier('stikstof');
+    await api.watchDossier('stikstof');
+
+    expect(
+      (await api.fetchSearches()).filter((x) => x.dossierId === 'stikstof' && x.query.q === '')
+    ).toHaveLength(1);
+  });
+
+  it('a confirmed signal notifies a dossier watch', async () => {
+    // The exact case reported: bell on for a dossier, confirm one of its
+    // signals, expect a notification. fetchNotifications used to be hardcoded
+    // to empty in mock mode, so nothing ever arrived however much you curated.
+    const { api } = await mockApi();
+    await api.watchDossier('stikstof');
+    const target = (await api.fetchInbox()).data.find((s) => s.dossierId === 'stikstof');
+    expect(target).toBeTruthy();
+
+    await api.confirmSignal(target!.id);
+
+    const { items, unseenCount } = await api.fetchNotifications();
+    expect(items.map((n) => n.signalId)).toContain(target!.id);
+    expect(unseenCount).toBeGreaterThan(0);
+    expect(items[0].matchedSearches[0].label).toContain('dossier:');
+  });
+
+  it('does not notify for a dossier that is not watched', async () => {
+    const { api } = await mockApi();
+    const target = (await api.fetchInbox()).data.find((s) => s.dossierId === 'stikstof');
+
+    await api.confirmSignal(target!.id);
+
+    expect((await api.fetchNotifications()).items.map((n) => n.signalId)).not.toContain(target!.id);
+  });
+
+  it('a topic criterium with the bell on notifies on a term hit', async () => {
+    const { api } = await mockApi();
+    const target = (await api.fetchInbox()).data[0];
+    const { id } = await api.createSearch({
+      q: target.title.split(' ')[0],
+      source: ['tk'],
+      tags: [],
+      dossierId: null,
+      scope: 'user',
+    });
+    await api.toggleSearchNotify(id, true);
+
+    await api.confirmSignal(target.id);
+
+    expect((await api.fetchNotifications()).items.map((n) => n.signalId)).toContain(target.id);
+  });
+
+  it('acknowledging clears the unseen count and stays cleared after a reload', async () => {
+    const first = await mockApi();
+    await first.api.watchDossier('stikstof');
+    const target = (await first.api.fetchInbox()).data.find((s) => s.dossierId === 'stikstof');
+    await first.api.confirmSignal(target!.id);
+    expect((await first.api.fetchNotifications()).unseenCount).toBeGreaterThan(0);
+
+    await first.api.ackNotifications();
+
+    const { api } = await mockApi();
+    expect((await api.fetchNotifications()).unseenCount).toBe(0);
+  });
+
+  it('resetting puts the fixtures back', async () => {
+    const { api, store } = await mockApi();
+    const before = await api.fetchInboxCounts();
+    const target = (await api.fetchInbox({ tab: 'politiek' })).data[0];
+    await api.confirmSignal(target.id);
+    expect((await api.fetchInboxCounts()).politiek).toBe(before.politiek - 1);
+
+    store.resetMockDemoData();
+
+    expect(await api.fetchInboxCounts()).toEqual(before);
+  });
+});
+
 describe('fetchSignals', () => {
   it('mock mode: filters confirmed signals by tab and dossierId, sorted by relevance', async () => {
     const api = await freshApi({ signalsMock: true });

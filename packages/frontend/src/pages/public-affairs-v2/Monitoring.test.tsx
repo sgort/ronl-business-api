@@ -50,6 +50,7 @@ function defaultPaData(overrides: Record<string, unknown> = {}) {
     confirmSignal: vi.fn(),
     linkSignalDossier: vi.fn(),
     updateInboxCount: vi.fn(),
+    dismissSignal: vi.fn().mockResolvedValue(undefined),
     refreshInboxCounts: vi.fn().mockResolvedValue(undefined),
     signals: { data: [] as Signal[], status: 'ok', refetch: vi.fn() },
     ...overrides,
@@ -150,14 +151,17 @@ describe('Monitoring', () => {
     await waitFor(() => expect(screen.queryByText('Inbox signal')).not.toBeInTheDocument());
   });
 
-  it('dismissing an inbox item removes it locally without calling confirmSignal', async () => {
+  it('dismissing an inbox item hides it and persists the dismissal', async () => {
+    // It used to be client-only state, so an ignored signal came back on the
+    // next reload — the button did not do what it said.
     const inboxSignal = makeSignal({ id: 'in-1', title: 'Inbox signal', status: 'candidate' });
     paApi.fetchInbox.mockResolvedValue({
       data: [inboxSignal],
       meta: { total: 1, cap: 100, capped: false },
     });
     const confirmSignal = vi.fn();
-    mockUsePaData.mockReturnValue(defaultPaData({ confirmSignal }));
+    const dismissSignal = vi.fn().mockResolvedValue(undefined);
+    mockUsePaData.mockReturnValue(defaultPaData({ confirmSignal, dismissSignal }));
     const user = userEvent.setup();
 
     render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
@@ -167,7 +171,28 @@ describe('Monitoring', () => {
     await user.click(screen.getByRole('button', { name: 'Negeren' }));
 
     expect(screen.queryByText('Inbox signal')).not.toBeInTheDocument();
+    await waitFor(() => expect(dismissSignal).toHaveBeenCalledWith('in-1'));
     expect(confirmSignal).not.toHaveBeenCalled();
+  });
+
+  it('puts a dismissed item back when persisting it fails', async () => {
+    // Leaving it hidden would tell the user it was ignored when it was not.
+    const inboxSignal = makeSignal({ id: 'in-1', title: 'Inbox signal', status: 'candidate' });
+    paApi.fetchInbox.mockResolvedValue({
+      data: [inboxSignal],
+      meta: { total: 1, cap: 100, capped: false },
+    });
+    const dismissSignal = vi.fn().mockRejectedValue(new Error('offline'));
+    mockUsePaData.mockReturnValue(defaultPaData({ dismissSignal }));
+    const user = userEvent.setup();
+
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await waitFor(() => expect(paApi.fetchInbox).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /Inbox/ }));
+
+    await user.click(screen.getByRole('button', { name: 'Negeren' }));
+
+    await waitFor(() => expect(screen.getByText('Inbox signal')).toBeInTheDocument());
   });
 
   it('free-text search calls fetchFeed with the query and shows the result count', async () => {

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   confirmSignal as apiConfirmSignal,
+  dismissSignal as apiDismissSignal,
   linkSignalDossier as apiLinkSignalDossier,
   watchDossier as apiWatchDossier,
   unwatchDossier as apiUnwatchDossier,
@@ -51,6 +52,7 @@ interface PaDataContextValue {
     patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
   ) => Promise<Signal>;
   /** Links a watchlist signal to a dossier — can newly match a dossier watch. */
+  dismissSignal: (id: string) => Promise<Signal>;
   linkSignalDossier: (id: string, dossierId: string) => Promise<Signal>;
   /** "Watch this dossier" bell — creates/re-enables a personal dossier watch. */
   watchDossier: (dossierId: string) => Promise<void>;
@@ -188,6 +190,20 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     [signalsResource.refetch, inboxResource.refetch, notificationsResource.refetch]
   );
 
+  const dismissSignal = useCallback(
+    async (id: string): Promise<Signal> => {
+      const result = await apiDismissSignal(id);
+      inboxResource.refetch();
+      // A dismissal can retire a watch's only unseen match, so the bell has to
+      // be re-read for the same reason a confirm does it.
+      notificationsResource.refetch();
+      return result;
+    },
+    // refetch is stable (created with useCallback(fn, []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inboxResource.refetch, notificationsResource.refetch]
+  );
+
   const linkSignalDossier = useCallback(
     async (id: string, dossierId: string): Promise<Signal> => {
       const result = await apiLinkSignalDossier(id, dossierId);
@@ -262,6 +278,7 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
         refreshInboxCounts,
         updateInboxCount,
         confirmSignal,
+        dismissSignal,
         linkSignalDossier,
         watchDossier,
         unwatchDossier,

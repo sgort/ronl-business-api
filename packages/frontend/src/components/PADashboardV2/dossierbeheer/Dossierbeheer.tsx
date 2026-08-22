@@ -30,9 +30,11 @@ import {
   archiveDossier,
   unarchiveDossier,
   deleteDossier,
+  resetMockDossiers,
   type DossierWriteInput,
 } from '../../../services/dossierbeheer.api';
 import { isPaMock, setPaMock } from '../../../services/pa.api';
+import { resetMockDemoData } from '../../../services/mock-demo.store';
 import type { PaModeId } from '../../../pages/public-affairs-v2/modes.config';
 import DossierRow from './DossierRow';
 import DossierEditor from './DossierEditor';
@@ -55,7 +57,7 @@ interface Props {
 }
 
 export default function Dossierbeheer({ user, startCreate = false, onNavigate }: Props) {
-  const { dossiers } = usePaData();
+  const { dossiers, signals, notifications, refreshInboxCounts } = usePaData();
 
   const role = deriveDossierRole(user?.roles ?? []);
   const can = role.can;
@@ -92,7 +94,21 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
       .catch(() => setSnippets([]));
   }, [refetch]);
 
-  const syncCockpit = () => dossiers.refetch();
+  // Everything the mock/live switch governs, not just dossiers. Since that flag
+  // became one switch for the whole cockpit, flipping it — or resetting the demo
+  // — also changes which signals, counts and notifications are correct.
+  //
+  // Notifications matter here for a reason that is easy to miss: switching to
+  // mock used to leave the live bell count standing, because nothing re-read it.
+  // It then cleared itself later, when confirming a signal happened to trigger a
+  // refetch and the mock branch returned nothing — so the bell looked like it
+  // was reacting to the curation rather than to the mode switch minutes earlier.
+  const syncCockpit = () => {
+    dossiers.refetch();
+    signals.refetch();
+    notifications.refetch();
+    void refreshInboxCounts();
+  };
 
   // Enter the create flow via the rail section (db-nieuw) so the rail highlight
   // and the content stay in sync; falls back to the internal view when the shell
@@ -116,6 +132,18 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
     const next = !mockDisplay;
     setPaMock(next);
     setMockDisplay(next);
+    refetch();
+    syncCockpit();
+  };
+
+  // Put the demo back to the fixtures of the running build: both halves of the
+  // mock state, so a demo can be restarted without a reload and without one
+  // half surviving the other. Live is unreachable from here — mock data is
+  // entirely frontend-side — which is what makes offering this safe.
+  const resetDemo = () => {
+    if (!window.confirm('Demodata terugzetten naar de standaard van deze versie?')) return;
+    resetMockDemoData();
+    resetMockDossiers();
     refetch();
     syncCockpit();
   };
@@ -384,9 +412,23 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
             </>
           )}
         </span>
-        <button type="button" className="pac-db-abtn pac-db-flag-toggle" onClick={toggleMock}>
-          {mockDisplay ? 'Zet vlag om naar live →' : '↩ Terug naar mock'}
-        </button>
+        <div className="pac-db-flag-actions">
+          <button type="button" className="pac-db-abtn" onClick={toggleMock}>
+            {mockDisplay ? 'Zet vlag om naar live →' : '↩ Terug naar mock'}
+          </button>
+          {/* Mock only: in live there is no demo state to reset, and the button
+              would imply this page can rewrite the database. */}
+          {mockDisplay && (
+            <button
+              type="button"
+              className="pac-db-abtn pac-db-flag-reset"
+              onClick={resetDemo}
+              title="Zet dossiers, signalen en inbox terug naar de fixtures van deze versie"
+            >
+              ↺ Reset demodata
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

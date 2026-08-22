@@ -484,7 +484,7 @@ function DossierMonitoring({ d }: { d: Dossier }) {
   // Context method, not the raw pa.api.ts call — it also refetches the shared
   // signals/inbox/notifications resources, so a confirm made here (rather than
   // on Monitoring.tsx) still updates the Meldingen badge without a page reload.
-  const { confirmSignal } = usePaData();
+  const { confirmSignal, dismissSignal } = usePaData();
   const [gecureerd, setGecureerd] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
   const [savedSearch, setSavedSearch] = useState<SavedSearch | null>(null);
@@ -507,6 +507,21 @@ function DossierMonitoring({ d }: { d: Dossier }) {
   }, [load]);
 
   const visibleInbox = inbox.filter((s) => !confirmedIds.has(s.id) && !dismissedIds.has(s.id));
+
+  // Hide first, then persist. Ignoring used to be client-only state here too, so
+  // the signal reappeared on the next load of this tab.
+  const handleDismiss = async (s: Signal) => {
+    setDismissedIds((prev) => new Set([...prev, s.id]));
+    try {
+      await dismissSignal(s.id);
+    } catch {
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(s.id);
+        return next;
+      });
+    }
+  };
 
   const handleConfirm = async (s: Signal) => {
     try {
@@ -619,7 +634,7 @@ function DossierMonitoring({ d }: { d: Dossier }) {
                     <button
                       type="button"
                       className="pac-btn pac-btn-sm pac-btn-ghost"
-                      onClick={() => setDismissedIds((prev) => new Set([...prev, s.id]))}
+                      onClick={() => void handleDismiss(s)}
                     >
                       Negeren
                     </button>

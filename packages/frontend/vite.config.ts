@@ -1,10 +1,21 @@
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+// The released version of this build. bump-release writes it to package.json,
+// so it changes exactly when a release ships — which is what the mock demo
+// store stamps its persisted state with, so a new deployment serves the new
+// fixtures instead of a browser's copy of the previous ones.
+const pkgVersion = (createRequire(import.meta.url)('./package.json') as { version: string })
+  .version;
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+  },
   server: {
     port: 5173,
     host: '0.0.0.0',

@@ -88,6 +88,18 @@ function store(): AdminDossier[] {
   if (!mockStore) mockStore = buildSeedAdminDossiers();
   return mockStore;
 }
+
+/**
+ * Drop the mock dossiers back to the fixtures of the running build.
+ *
+ * Half of "reset demo data" — the signals half lives in mock-demo.store. This
+ * store is in-memory rather than persisted, so it already resets on reload; the
+ * button exists so a demo can be restarted without one, and so both halves go
+ * back together rather than one surviving the other.
+ */
+export function resetMockDossiers(): void {
+  mockStore = null;
+}
 const clone = (d: AdminDossier): AdminDossier => JSON.parse(JSON.stringify(d));
 const slugify = (naam: string): string =>
   naam

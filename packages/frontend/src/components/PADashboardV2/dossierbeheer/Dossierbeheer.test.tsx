@@ -6,8 +6,16 @@ import Dossierbeheer from './Dossierbeheer';
 import type { AdminDossier, DossierTemplate } from '@ronl/shared';
 
 const mockDossiersRefetch = vi.hoisted(() => vi.fn());
+const mockSignalsRefetch = vi.hoisted(() => vi.fn());
+const mockRefreshInboxCounts = vi.hoisted(() => vi.fn());
+const mockNotificationsRefetch = vi.hoisted(() => vi.fn());
 vi.mock('../../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () => ({ dossiers: { refetch: mockDossiersRefetch } }),
+  usePaData: () => ({
+    dossiers: { refetch: mockDossiersRefetch },
+    signals: { refetch: mockSignalsRefetch },
+    notifications: { refetch: mockNotificationsRefetch },
+    refreshInboxCounts: mockRefreshInboxCounts,
+  }),
 }));
 
 const mockApi = vi.hoisted(() => ({
@@ -19,8 +27,12 @@ const mockApi = vi.hoisted(() => ({
   archiveDossier: vi.fn(),
   unarchiveDossier: vi.fn(),
   deleteDossier: vi.fn(),
+  resetMockDossiers: vi.fn(),
 }));
 vi.mock('../../../services/dossierbeheer.api', () => mockApi);
+
+const mockResetDemoData = vi.hoisted(() => vi.fn());
+vi.mock('../../../services/mock-demo.store', () => ({ resetMockDemoData: mockResetDemoData }));
 
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 const mockSetDossiersMock = vi.hoisted(() => vi.fn());
@@ -198,7 +210,64 @@ describe('Dossierbeheer', () => {
     await user.click(screen.getByRole('button', { name: /Zet vlag om naar live/ }));
 
     expect(mockSetDossiersMock).toHaveBeenCalledWith(false);
+    // All three, not just dossiers: the flag governs signals and searches too,
+    // so the rail would otherwise keep the previous mode's numbers until
+    // Monitoring was visited.
     expect(mockDossiersRefetch).toHaveBeenCalled();
+    expect(mockSignalsRefetch).toHaveBeenCalled();
+    expect(mockRefreshInboxCounts).toHaveBeenCalled();
+    // Notifications too: the mock branch returns none, so a stale live bell
+    // count would otherwise stand until something else happened to refetch it.
+    expect(mockNotificationsRefetch).toHaveBeenCalled();
+  });
+
+  it('offers "Reset demodata" in mock mode but not in live', async () => {
+    // Live has no demo state to reset, and the button would imply this page can
+    // rewrite the database — which is exactly the confusion the mock/live
+    // separation exists to remove.
+    const { unmount } = render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+    expect(screen.getByRole('button', { name: /Reset demodata/ })).toBeInTheDocument();
+    unmount();
+
+    mockIsDossiersMock.mockReturnValue(false);
+    render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+
+    expect(screen.queryByRole('button', { name: /Reset demodata/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Terug naar mock/ })).toBeInTheDocument();
+  });
+
+  it('resetting clears both halves of the demo state and reloads the surface', async () => {
+    // Signals live in the persisted store, dossiers in dossierbeheer's own
+    // store; one surviving the other would leave a half-reset demo.
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+
+    await user.click(screen.getByRole('button', { name: /Reset demodata/ }));
+
+    expect(mockResetDemoData).toHaveBeenCalled();
+    expect(mockApi.resetMockDossiers).toHaveBeenCalled();
+    expect(mockDossiersRefetch).toHaveBeenCalled();
+    expect(mockSignalsRefetch).toHaveBeenCalled();
+    expect(mockRefreshInboxCounts).toHaveBeenCalled();
+    // Notifications too: the mock branch returns none, so a stale live bell
+    // count would otherwise stand until something else happened to refetch it.
+    expect(mockNotificationsRefetch).toHaveBeenCalled();
+  });
+
+  it('cancelling the confirmation resets nothing', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+
+    await user.click(screen.getByRole('button', { name: /Reset demodata/ }));
+
+    expect(mockResetDemoData).not.toHaveBeenCalled();
+    expect(mockApi.resetMockDossiers).not.toHaveBeenCalled();
   });
 
   it('"+ Nieuw dossier" without onNavigate opens the template gallery, and picking one opens a new-dossier editor', async () => {
