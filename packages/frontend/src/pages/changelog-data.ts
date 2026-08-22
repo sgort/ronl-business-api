@@ -93,6 +93,211 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.23',
+      status: 'Released',
+      date: '22 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '48356fb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The shipped rate limit was below what the cockpit costs to use',
+          details: [
+            'One short authoring journey measures 21 requests to /v1/pa/*, so a minute of ordinary clicking exhausted a 100/min budget and every fetch came back 429. The surface renders that as “Kon dossiers niet laden”, indistinguishable from a backend that is down — which is why it was misdiagnosed twice, first as a slow stack and then as a post-login token race. Neither had evidence behind it; instrumenting the failing run with a response listener showed six consecutive 429s.',
+            'Raised in config.ts, not only in .env.example. That distinction is the point: ACC and prod are configured through App Settings, and any key they do not set falls through to the code default, so editing the example file alone would have changed nothing where it matters. The existing config test asserted the old default and now pins the new one, and .env.development is set to the same 1000 so a ceiling that turns out to be too tight shows up locally first.',
+            'Worth knowing and not fixed here: the limiter keys on the caller’s IP and TRUST_PROXY defaults to false. With trust proxy off, Express reads req.ip from the socket peer, which behind a front-end proxy is one internal address for everybody — so the budget is per deployment, not per user. Whether ACC runs that way is visible in the request log, which records ip on every call.',
+          ],
+        },
+        {
+          sha: '15c303d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Deleting a dossier takes its signals and zoekcriteria with it',
+          details: [
+            'DELETE /v1/pa/dossiers/:id removed the dossier row and its versions, and nothing else. Observed on a real database: deleting one dossier left 37 curated signals and its zoekcriterium behind, all still counted on the Monitoring rail and all still shown as cards carrying the dead dossier’s id, while Dossierbeheer correctly reported zero dossiers.',
+            'None of this can happen by cascade today. dossier_id is a plain TEXT column on pa_signals, pa_saved_searches and pa_dossier_versions with no FK back to pa_dossiers, so every delete has to be spelled out in the route. The four statements run in one transaction because a partial delete is worse than none: ids are slug-derived, so recreating a dossier under the same name lands on the same id and silently inherits whatever survived.',
+            'Deleting the zoekcriteria is what actually stops the bleeding. Curation selects saved searches by tenant and scope alone and never checks the dossier still exists, so a surviving criterion keeps running its query and filing fresh signals against a dossier that is gone. pa_notifications does cascade from pa_signals, so those go without being named — verified against a live database rather than assumed. The delete dialog said “inclusief alle versies”, which was true but narrower than what happens; it now names the signals and zoekcriteria and says monitoring on the topic stops.',
+          ],
+        },
+        {
+          sha: '26c0298',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Every signaalbron carries a watchlist orphan, and the demo counts stop being identical',
+          details: [
+            'The cockpit models “confirmed but belonging to no dossier” as its own state: orange card, a Watchlist chip, a filter, and a dossier picker to resolve it. The fixtures carried two of those, both in Europa and Media, so from Politiek — where a demo starts — the feature was invisible. Every source now has one: an initiatiefnota straddling netcapaciteit and ruimtelijke ordening, and a geluidszone that may or may not sit under Lelystad Airport, converted from a linked signal.',
+            'Every source also showed exactly 4 confirmed and 6 inbox, which reads as placeholder data and draws questions about what the numbers mean rather than what the cockpit does. Now 6/9, 5/7, 4/7 and 4/5. Still hard-coded rather than generated: Reset demodata needs an exact baseline to return to, and the end-to-end assertions need to stay deterministic. Seven fixtures added, one converted, one dropped — 19 confirmed, 28 inbox.',
+            'pa-mock-journey drops its two flat constants for a per-source BASELINE table, asserted absolutely once per run with everything else relative, so extending the fixtures means editing one row. A new test asserts each source has exactly one orphan, then links one and checks the filter disappears while the confirmed tally does not move — linking routes a signal, it does not curate one.',
+          ],
+        },
+        {
+          sha: '0d78873',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Live authoring leaves quarantine, and API throttling names itself',
+          details: [
+            'The live authoring spec was quarantined on what looked like a race in the app. It was not: the failing runs were being rate-limited, and the backend’s 429 reaches the user as a generic load error. A new helper records the first 429 of a run and fails the test with a message that names the throttle and points at the setting. It deliberately does not retry or wait it out — a throttled run is not a valid run. In the live spec it throws only after afterEach cleanup has finished, because a throttled run is the one most likely to have left rows behind.',
+            'Also removes test.slow() and corrects a helper comment; both documented the diagnoses that turned out to be wrong. With the throttle gone the two tests run in about 4s and 2.7s, well inside the default budget. Verified across six consecutive runs.',
+          ],
+        },
+        {
+          sha: '61110cf',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A created dossier is on the overview by the time you arrive there',
+          details: [
+            'handleSave fired refetch() and changed section in the same tick. refetch returned void, so awaiting it was not even possible — the overview could render against a list that had not come back yet. The dossier was created, the POST succeeded, and the user did not see it.',
+            'refetch now returns its promise and handleSave awaits it before navigating. syncCockpit stays fire-and-forget: the cockpit catches up on its own and nothing renders against it in this flow. Pinned by a test that resolves fetchAdminDossiers from a deferred promise and asserts onNavigate has not been called until it settles, verified to fail when the await is reverted to a bare call.',
+          ],
+        },
+        {
+          sha: 'b862a79',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'An end-to-end journey for live authoring',
+          details: [
+            'Mock and live are two implementations of the same operations, and the mock half broke twice this week without a test noticing. The live half had no end-to-end cover at all. This adds it: create a dossier through the real flow, add a zoekcriterium, assert both survive a cold reload, and assert that live shows authored work where mock shows fixtures.',
+            'Limited to authoring on purpose. Curation depends on TK OData, the EU feed and the media aggregator — TK alone measured 10s and 48s for the same query minutes apart — so asserting that signals arrive would be flaky by construction. Cleanup creates uniquely-named items and removes only those, in afterEach, reporting rather than swallowing failures. It does not use pa:reset-data: that is a feature of the product, and a test has no business clearing someone’s authored work.',
+            'Two things worth knowing for the next spec here. A plain page.reload() signs you out, because keycloak.authenticated lives in memory and the app does not re-init on a direct load — which makes the reload worth doing, since every module cache goes with it. And locator.count() and locator.isVisible() do not auto-wait: an earlier version of the cleanup guarded with count() straight after navigating, read 0 before the list had rendered, and silently deleted nothing, leaving ten test dossiers in the dev database.',
+          ],
+        },
+        {
+          sha: 'fb144cc',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'PA_USE_MOCK dropped — nothing read it',
+          details: [
+            'config.pa.useMock was parsed from PA_USE_MOCK and read nowhere. Dead config is worth removing on its own, and this one more than most: the frontend has just consolidated on a single isPaMock(), so a backend flag literally named useMock is the first thing someone reading for “how does mock/live work here” would find, and it would tell them nothing true.',
+            'Removes the type member, the parseEnvBool line and the three test references. No behaviour changes. The VITE_PA_USE_MOCK mentions in the changelog stay: they are historical release text about the frontend variable, which was split long ago.',
+          ],
+        },
+        {
+          sha: 'ac49af8',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Mock mode driven end to end in Playwright',
+          details: [
+            'Every mock-mode defect found by hand over the last two days was invisible to the unit suites by construction. None was a logic error: a saved-search write that was a bare return, a confirm that built a new object and discarded it, notifications hardcoded to empty, a resource fetched once at mount and never again. Component tests mock the very seam that was broken, so they cannot see any of it — and every one of them passed throughout.',
+            'This drives the real store with no mocking at all: confirm a signal and watch the badges move, reload and find them still moved, ignore one and find it still gone, reset and find everything back at the fixture baseline. Plus that the reset control is mock-only, since offering it in live would imply the page can rewrite the database. Verified to catch what it exists for by disabling the persist call in the demo store.',
+            'Mock is enabled with addInitScript rather than a write after login, because the reload needed to pick up a post-login write is the same reload that signs you out. The demo store is cleared once per test behind a sessionStorage sentinel — otherwise the init script would wipe the very state each reload is meant to prove.',
+          ],
+        },
+        {
+          sha: 'a852e55',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Jest mocks asserted to name only real exports',
+          details: [
+            'Spreading jest.requireActual stops an export going missing from a mock. It quietly creates the opposite hazard: if an export is renamed, the override still declares the old name, the spread supplies the real function under the new one, and the suite calls the real implementation — a live network request from a unit test, no longer stubbed by anything, and nothing fails.',
+            'expectMockNamesRealExports closes that. Every override object is now named so both the factory and the assertion can see it, and each suite drives its mocks through it.each, so a stale name fails as its own case: fourteen mocks across pa.routes, curation.service and the three source-client suites. Verified by adding a renamed export and watching it fail with the reason, not just a diff.',
+            'The helper’s doc comment carries the trap hit while writing the frontend equivalent: pass jest.requireActual(path), never require(path). The path is mocked, so a plain require hands back the mock and the assertion compares the mock with itself — passing unconditionally, proving nothing, and looking entirely correct in review.',
+          ],
+        },
+        {
+          sha: '7cb90c5',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The PA jest mocks are built on the real modules',
+          details: [
+            'A jest.mock factory returning a hand-written object replaces the module wholesale, so an export added later is simply absent. That is where this started: EU_DOCUMENT_TYPES was added to eu.client, this suite’s mock did not have it, the spread produced undefined and GET /v1/pa/types answered 500 — while all 126 route tests passed.',
+            'Fourteen mocks of internal PA modules now spread jest.requireActual before their overrides: the four source clients, curation.service, rules, and pa-cache across five suites. Verified against the original defect by deleting EU_DOCUMENT_TYPES from the mock again — every test still passes, because the real constant is inherited. That bug can no longer be written. Which also lets the hand-maintained copies of TK_DOCUMENT_TYPES, OB_PUBLICATION_TYPES and EU_DOCUMENT_TYPES go.',
+            'Deliberately not converted, out of 234 mock sites: the config util, because spreading it runs validateConfig at import and throws without a full environment; the logger, a narrow stub whose omissions fail loudly rather than silently; and third-party SDK mocks, which are not ours to inherit from.',
+          ],
+        },
+        {
+          sha: 'c373c3f',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'pa.api mocks built on the real module instead of replacing it',
+          details: [
+            'A vi.mock factory returning a hand-written object replaces the module wholesale, so anything the module gains later is simply absent. A function becomes undefined at the call site; a constant spreads to nothing. All seven pa.api mocks now spread the real module before their overrides, so a member nobody thought to stub keeps its real implementation.',
+            'The other direction needs its own check, since spreading cannot see a rename or a typo: expectMockNamesRealExports asserts every key the mock declares exists on the real module. It lives in an ordinary test rather than the factory because the factory is hoisted above the imports and cannot call anything imported.',
+            'Worth recording, because it was nearly shipped: the first version passed a plain dynamic import rather than vi.importActual. That path is mocked, so the import returned the mock and the assertion compared the mock with itself — passing unconditionally, proving nothing. It surfaced only because injecting a deliberately bogus key failed to fail.',
+          ],
+        },
+        {
+          sha: '16e17ca',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'One parity-checked stub for the usePaData context',
+          details: [
+            'Twelve test files mocked PaDataProvider by hand, each with its own partial stub. A member added to the context and missed in a stub is undefined at the call site, which surfaces as an unhandled rejection that still lets every test in the file pass. That happened five times in three days, and one of them went green locally and then failed the ACC frontend deploy at the Unit tests step, so the frontend was never published.',
+            'makePaDataStub is now the single stub, and its parity test renders the real provider and asserts the provider’s keys equal the stub’s. Equality in both directions on purpose: a missing key is the bug this exists for, and a leftover key means the stub is teaching tests to rely on something the context no longer provides. Verified by deleting dismissSignal from the stub and watching it fail — an assertion that cannot fail is worse than none.',
+            'The trade, deliberately taken: a stub carrying every member also hides over-mocking, since a test can now reach something it never declared it needed. That is worth less than the silent-undefined class costs.',
+          ],
+        },
+        {
+          sha: 'd304960',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The monitoring surfaces that had little or no cover',
+          details: [
+            'NotificationsPanel had no tests at all, which mattered little while notifications could not arrive in mock mode. Mock mode now derives them, so it is a surface people will demo — 0% to 100% on every metric. Issuekaart had nothing for the Monitoring sub-tab, the one carrying confirm, ignore and dossier-linking: 34% to 86%. Monitoring gains the raw search band, 57% to 77%.',
+            'PaDataProvider’s six mutation wrappers were uncovered. Each exists solely to refetch what the backend recomputes, so an untested wrapper is a silent “the bell does not update” waiting to happen. 83% to 98% statements.',
+            'Three of these files’ hand-written usePaData mocks were missing dismissSignal, found while writing the tests — the fifth time in three days a hand-written mock had diverged from the module it stands in for. No production code changed.',
+          ],
+        },
+        {
+          sha: '09d2ac5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Mock mode is a working demo, not a read-only snapshot',
+          details: [
+            'Mock mode read the fixtures directly, so nothing done in it stuck. Confirming a signal built a new object and discarded it; every saved-search write was a plain return; fetchNotifications was hardcoded to empty. Most of that was invisible until the flag was unified: VITE_PA_SIGNALS_MOCK was false in every environment, so those branches were unreachable and the calls really hit the backend. Making them live exposed them all at once as stubs.',
+            'A persisted demo store is the missing piece: signals and saved searches seeded from the fixtures, mutated by the same actions live uses, and kept so a demo survives navigation and reloads. Notifications are derived from those two rather than stored, mirroring the backend’s own watch matching. Persisted state is stamped with the build version, so a deployment carrying new fixtures beats a browser holding a copy of the previous ones.',
+            'The Reset demodata button sits in the Dossierbeheer banner under the live toggle, in mock mode only — live has no demo state to reset and the button would imply this page can rewrite the database. syncCockpit now also re-reads signals, inbox counts and notifications: switching modes left the previous mode’s numbers standing until Monitoring was visited.',
+          ],
+        },
+        {
+          sha: 'eab623f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Ignoring a signal now keeps it ignored',
+          details: [
+            '“Negeren” was client-only state in both modes — it set a local dismissedIds set and nothing else — so the signal came back on the next reload. The button did not do what it said.',
+            'POST /v1/pa/signals/:id/dismiss sets status to dismissed and clears routing. Three things made this cheap: status is plain TEXT with no CHECK constraint, so no migration; the inbox query already selects only candidate and ai_drafted, so a dismissed signal drops out of both the list and the counts with no query changes; and the candidate upsert already carried a guard that leaves it alone on the next curation cycle.',
+            'Clearing routing matters separately: a signal confirmed without a dossier carries routing = watchlist, and dismissing it should take it off the watchlist rather than leave it listed there.',
+          ],
+        },
+        {
+          sha: 'ab1d156',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'TK fetched one term at a time, so multi-term criteria stop aborting',
+          details: [
+            'TK OData slows sharply per contains() clause, and asking it for a total over the union is the larger half of that cost. Measured against the live API, a five-term OR query took 23s and 48s minutes apart — both past the 15s AbortController — and a three-term query took 28-38s. Every criterion in the seeded taxonomy uses three to five terms, so TK retrieval was aborting for all of them, silently. Politiek’s signals had been coming from OB alone.',
+            'fetchTkFeed now issues one request per term, in parallel, and merges them: dedup by id so a document matching two terms is one hit, newest first, then sliced for skip/top. Measured after: three terms 10.3s, five terms 10.1s, against aborts before. The shape scales flat with term count rather than exponentially. A failing term no longer costs the whole query.',
+            'The total count is omitted for multi-term queries — it is the expensive half, a full count over ~14k matches to render “N treffers”. The search band falls back to the item count, so nothing downstream changes; single-term queries keep their exact total. The fan-out gets 30s rather than 15s, because every timer starts when the request is created and a queued request spends its budget waiting.',
+          ],
+        },
+        {
+          sha: '699b84c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'An empty cached feed is no longer served for the rest of the TTL',
+          details: [
+            'eu.client was fixed for this earlier; its three siblings were not, because only the client being debugged was looked at. tk, ob and agenda all short-circuited on the presence of a cache entry, and for tk and ob that value is an object — an empty result is truthy — so a fetch that came back empty was served as a real answer until the TTL expired.',
+            'The guards now test the payload rather than its presence. Re-fetching a genuinely empty result costs one upstream call, which is the right trade against serving a failure as data. The tk and ob tests assert fetch IS called with an empty entry cached, so they fail against the old guard rather than passing vacuously.',
+            'Worth recording that this was not the cause of the zero-result TK searches it was found while investigating. Those turn out to be timeouts, fixed separately — an abort throws before the cache is written, so nothing was ever cached and the zero was reproducible rather than sticky.',
+          ],
+        },
+        {
+          sha: '8e1972b',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The rail’s confirmed counter stops freezing at mount',
+          details: [
+            'The Signaalbronnen rail shows two numbers per source. Refreshing the inbox half left the other still frozen — useResource fetches once, on mount, so the confirmed number is a snapshot from whenever the page last loaded. It showed on ACC immediately after the database was emptied: the rail kept reporting confirmed signals for sources whose rows had all been deleted, while the tab beside it correctly read 0.',
+            'Monitoring now calls the provider’s refetch alongside refreshInboxCounts on tab load, so arriving at Monitoring or opening any source re-reads both halves. It also refetches after a confirm, which is the only action that changes the confirmed count and does not re-run the tab-load effect.',
+            'The hand-mocked context in the Monitoring tests gains the resource, and a test asserts the refetch happens. That assertion matters more than the fix: this was the third member added to that stub in a day, and the previous omission surfaced only as an unhandled rejection that still let every test pass.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.22',
       status: 'Released',
       date: '21 aug 2026',
