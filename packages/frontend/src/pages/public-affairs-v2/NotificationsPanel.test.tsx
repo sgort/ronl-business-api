@@ -15,6 +15,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import NotificationsPanel from './NotificationsPanel';
 import type { PaNotification } from '../../services/pa.api';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -38,10 +39,12 @@ function makeNotification(over: Partial<PaNotification> = {}): PaNotification {
 const ackNotifications = vi.fn();
 
 function setData(items: PaNotification[], unseenCount = items.filter((n) => !n.seenAt).length) {
-  mockUsePaData.mockReturnValue({
-    notifications: { data: { items, unseenCount }, status: 'ok', refetch: vi.fn() },
-    ackNotifications,
-  });
+  mockUsePaData.mockReturnValue(
+    makePaDataStub({
+      notifications: { data: { items, unseenCount }, status: 'ok', refetch: vi.fn() },
+      ackNotifications,
+    })
+  );
 }
 
 beforeEach(() => {

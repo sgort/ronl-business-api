@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ZoekcriteriaSection from './ZoekcriteriaSection';
 import type { SavedSearch } from '../../services/pa.api';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockFetchSearches = vi.hoisted(() => vi.fn());
 const mockCreateSearch = vi.hoisted(() => vi.fn());
@@ -18,10 +19,15 @@ vi.mock('../../services/pa.api', () => ({
 
 const mockToggleSearchNotify = vi.hoisted(() => vi.fn());
 vi.mock('../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () => ({
-    dossiers: { data: [{ id: 'jeugdzorg', naam: 'Jeugdzorg' }] },
-    toggleSearchNotify: mockToggleSearchNotify,
-  }),
+  usePaData: () =>
+    makePaDataStub({
+      dossiers: {
+        data: [{ id: 'jeugdzorg', naam: 'Jeugdzorg' }],
+        status: 'ok',
+        refetch: vi.fn(),
+      },
+      toggleSearchNotify: mockToggleSearchNotify,
+    }),
 }));
 
 function makeSearch(overrides: Partial<SavedSearch> = {}): SavedSearch {

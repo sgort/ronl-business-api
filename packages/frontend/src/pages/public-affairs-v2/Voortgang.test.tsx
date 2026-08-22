@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Voortgang from './Voortgang';
 import type { Dossier } from '@ronl/shared';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -35,7 +36,7 @@ function makeDossier(overrides: Partial<Dossier> = {}): Dossier {
 }
 
 beforeEach(() => {
-  mockUsePaData.mockReturnValue({ dossiers: { data: [], status: 'ok' } });
+  mockUsePaData.mockReturnValue(makePaDataStub());
 });
 
 afterEach(() => {

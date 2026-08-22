@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AgendaView from './AgendaView';
 import type { Dossier, PlenaryItem } from '@ronl/shared';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -38,13 +39,8 @@ function makeItem(overrides: Partial<PlenaryItem> = {}): PlenaryItem {
   };
 }
 
-function defaultPaData(overrides: Record<string, unknown> = {}) {
-  return {
-    agenda: { data: [], status: 'ok', refetch: vi.fn() },
-    dossiers: { data: [] as Dossier[], status: 'ok', refetch: vi.fn() },
-    ...overrides,
-  };
-}
+/** The shared stub, so a new context member cannot be missed here. */
+const defaultPaData = makePaDataStub;
 
 describe('AgendaView', () => {
   beforeEach(() => {

@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Monitoring from './Monitoring';
-import type { Dossier, FeedItem, Signal } from '@ronl/shared';
+import type { FeedItem, Signal } from '@ronl/shared';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -45,18 +46,8 @@ function makeSignal(overrides: Partial<Signal> = {}): Signal {
   };
 }
 
-function defaultPaData(overrides: Record<string, unknown> = {}) {
-  return {
-    dossiers: { data: [] as Dossier[], status: 'ok', refetch: vi.fn() },
-    confirmSignal: vi.fn(),
-    linkSignalDossier: vi.fn(),
-    updateInboxCount: vi.fn(),
-    dismissSignal: vi.fn().mockResolvedValue(undefined),
-    refreshInboxCounts: vi.fn().mockResolvedValue(undefined),
-    signals: { data: [] as Signal[], status: 'ok', refetch: vi.fn() },
-    ...overrides,
-  };
-}
+/** The shared stub, so a new context member cannot be missed here. */
+const defaultPaData = makePaDataStub;
 
 beforeEach(() => {
   mockUsePaData.mockReturnValue(defaultPaData());

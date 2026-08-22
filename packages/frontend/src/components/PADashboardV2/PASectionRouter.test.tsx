@@ -3,13 +3,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PASectionRouter from './PASectionRouter';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockDossiers = vi.hoisted(() => [
   { id: 'jeugdzorg', naam: 'Jeugdzorg', status: 'sluimerend' },
   { id: 'stikstof', naam: 'Stikstof & landbouw', status: 'actief' },
 ]);
 vi.mock('../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () => ({ dossiers: { data: mockDossiers } }),
+  usePaData: () =>
+    makePaDataStub({ dossiers: { data: mockDossiers, status: 'ok', refetch: vi.fn() } }),
 }));
 
 vi.mock('../../pages/public-affairs-v2/Vandaag', () => ({ default: () => <div>vandaag</div> }));

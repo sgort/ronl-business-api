@@ -4,18 +4,24 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Dossierbeheer from './Dossierbeheer';
 import type { AdminDossier, DossierTemplate } from '@ronl/shared';
+import { makePaDataStub } from '../../../test/paData.stub';
 
 const mockDossiersRefetch = vi.hoisted(() => vi.fn());
 const mockSignalsRefetch = vi.hoisted(() => vi.fn());
 const mockRefreshInboxCounts = vi.hoisted(() => vi.fn());
 const mockNotificationsRefetch = vi.hoisted(() => vi.fn());
 vi.mock('../../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () => ({
-    dossiers: { refetch: mockDossiersRefetch },
-    signals: { refetch: mockSignalsRefetch },
-    notifications: { refetch: mockNotificationsRefetch },
-    refreshInboxCounts: mockRefreshInboxCounts,
-  }),
+  usePaData: () =>
+    makePaDataStub({
+      dossiers: { data: [], status: 'ok', refetch: mockDossiersRefetch },
+      signals: { data: [], status: 'ok', refetch: mockSignalsRefetch },
+      notifications: {
+        data: { items: [], unseenCount: 0 },
+        status: 'ok',
+        refetch: mockNotificationsRefetch,
+      },
+      refreshInboxCounts: mockRefreshInboxCounts,
+    }),
 }));
 
 const mockApi = vi.hoisted(() => ({

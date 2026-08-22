@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Issuekaart from './Issuekaart';
 import type { Dossier } from './pa.data';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -57,12 +58,14 @@ function makeDossier(overrides: Partial<Dossier> = {}): Dossier {
 }
 
 beforeEach(() => {
-  mockUsePaData.mockReturnValue({
-    watchDossier: vi.fn().mockResolvedValue(undefined),
-    unwatchDossier: vi.fn().mockResolvedValue(undefined),
-    confirmSignal: vi.fn(),
-    dismissSignal: vi.fn().mockResolvedValue(undefined),
-  });
+  mockUsePaData.mockReturnValue(
+    makePaDataStub({
+      watchDossier: vi.fn().mockResolvedValue(undefined),
+      unwatchDossier: vi.fn().mockResolvedValue(undefined),
+      confirmSignal: vi.fn(),
+      dismissSignal: vi.fn().mockResolvedValue(undefined),
+    })
+  );
   paApi.fetchSearches.mockResolvedValue([]);
 });
 
@@ -102,11 +105,13 @@ describe('Issuekaart', () => {
 
   it('starts unwatched when no matching watch search exists, then toggles to watching', async () => {
     const watchDossier = vi.fn().mockResolvedValue(undefined);
-    mockUsePaData.mockReturnValue({
-      watchDossier,
-      unwatchDossier: vi.fn(),
-      confirmSignal: vi.fn(),
-    });
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        watchDossier,
+        unwatchDossier: vi.fn(),
+        confirmSignal: vi.fn(),
+      })
+    );
     const user = userEvent.setup();
 
     render(<Issuekaart dossier={makeDossier()} />);
@@ -187,12 +192,14 @@ describe('Monitoring sub-tab', () => {
     const confirmSignal = vi
       .fn()
       .mockResolvedValue(makeSignal({ id: 'in-1', title: 'Kandidaat signaal' }));
-    mockUsePaData.mockReturnValue({
-      watchDossier: vi.fn(),
-      unwatchDossier: vi.fn(),
-      confirmSignal,
-      dismissSignal: vi.fn().mockResolvedValue(undefined),
-    });
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        watchDossier: vi.fn(),
+        unwatchDossier: vi.fn(),
+        confirmSignal,
+        dismissSignal: vi.fn().mockResolvedValue(undefined),
+      })
+    );
     const user = userEvent.setup();
     render(<Issuekaart dossier={makeDossier()} />);
     await openTab(user, 'Monitoring');
@@ -211,12 +218,14 @@ describe('Monitoring sub-tab', () => {
       meta: { total: 1, cap: 100, capped: false },
     });
     const dismissSignal = vi.fn().mockResolvedValue(undefined);
-    mockUsePaData.mockReturnValue({
-      watchDossier: vi.fn(),
-      unwatchDossier: vi.fn(),
-      confirmSignal: vi.fn(),
-      dismissSignal,
-    });
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        watchDossier: vi.fn(),
+        unwatchDossier: vi.fn(),
+        confirmSignal: vi.fn(),
+        dismissSignal,
+      })
+    );
     const user = userEvent.setup();
     render(<Issuekaart dossier={makeDossier()} />);
     await openTab(user, 'Monitoring');
@@ -233,12 +242,14 @@ describe('Monitoring sub-tab', () => {
       data: [makeSignal({ id: 'in-1', title: 'Kandidaat signaal', status: 'candidate' })],
       meta: { total: 1, cap: 100, capped: false },
     });
-    mockUsePaData.mockReturnValue({
-      watchDossier: vi.fn(),
-      unwatchDossier: vi.fn(),
-      confirmSignal: vi.fn(),
-      dismissSignal: vi.fn().mockRejectedValue(new Error('offline')),
-    });
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        watchDossier: vi.fn(),
+        unwatchDossier: vi.fn(),
+        confirmSignal: vi.fn(),
+        dismissSignal: vi.fn().mockRejectedValue(new Error('offline')),
+      })
+    );
     const user = userEvent.setup();
     render(<Issuekaart dossier={makeDossier()} />);
     await openTab(user, 'Monitoring');

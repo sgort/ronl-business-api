@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Vandaag from './Vandaag';
 import type { Dossier, KompasScores, Momentum, Signal } from '@ronl/shared';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
@@ -49,15 +50,8 @@ function makeDossier(overrides: Partial<Dossier> = {}): Dossier {
   };
 }
 
-function defaultPaData(overrides: Record<string, unknown> = {}) {
-  return {
-    dossiers: { data: [], status: 'ok', refetch: vi.fn() },
-    signals: { data: [], status: 'ok', refetch: vi.fn() },
-    inbox: { data: [], status: 'ok', refetch: vi.fn() },
-    inboxCounts: {},
-    ...overrides,
-  };
-}
+/** The shared stub, so a new context member cannot be missed here. */
+const defaultPaData = makePaDataStub;
 
 describe('Vandaag', () => {
   beforeEach(() => {
