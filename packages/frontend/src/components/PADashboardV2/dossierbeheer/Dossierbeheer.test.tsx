@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Dossierbeheer from './Dossierbeheer';
 import type { AdminDossier, DossierTemplate } from '@ronl/shared';
@@ -299,6 +299,39 @@ describe('Dossierbeheer', () => {
 
     await user.click(screen.getByRole('button', { name: 'pick-template' }));
     expect(screen.getByText('editor:new')).toBeInTheDocument();
+  });
+
+  it('waits for the refreshed list before returning to the overview after a create', async () => {
+    // The bug this pins: handleSave used to fire refetch() and navigate in the
+    // same tick, so the overview could render against a list that had not come
+    // back. The dossier was created — the POST succeeded — and the user did not
+    // see it. Found by an end-to-end journey failing one run in three.
+    const onNavigate = vi.fn();
+    let releaseList!: (rows: AdminDossier[]) => void;
+    mockApi.createDossier.mockResolvedValue({});
+    mockApi.fetchAdminDossiers
+      .mockResolvedValueOnce([]) // initial mount
+      .mockImplementationOnce(
+        () =>
+          new Promise<AdminDossier[]>((resolve) => {
+            releaseList = resolve;
+          })
+      );
+
+    const user = userEvent.setup();
+    render(<Dossierbeheer user={author} startCreate onNavigate={onNavigate} />);
+    await user.click(screen.getByRole('button', { name: 'pick-template' }));
+    await user.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => expect(mockApi.createDossier).toHaveBeenCalled());
+    // Still in the editor: the list has not answered yet.
+    expect(onNavigate).not.toHaveBeenCalledWith('beheer', 'db-overzicht');
+
+    await act(async () => {
+      releaseList([]);
+    });
+
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('beheer', 'db-overzicht'));
   });
 
   it('"+ Nieuw dossier" with onNavigate delegates to the shell navigator instead', async () => {

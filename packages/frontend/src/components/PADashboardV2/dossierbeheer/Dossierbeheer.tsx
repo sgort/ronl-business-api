@@ -74,9 +74,14 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
   const [actionError, setActionError] = useState<string | null>(null);
   const [mockDisplay, setMockDisplay] = useState(isPaMock());
 
+  // Returns the promise so callers can wait for the list to be current before
+  // they navigate or clear their busy state. It used to return void, which made
+  // that impossible: handleSave fired it and changed section in the same tick,
+  // so the overview could render against a list that had not come back — the
+  // dossier was created, and the user did not see it.
   const refetch = useCallback(() => {
     setStatus('loading');
-    fetchAdminDossiers()
+    return fetchAdminDossiers()
       .then((rows) => {
         setItems(rows);
         setStatus('ok');
@@ -199,7 +204,10 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
       } else {
         await createDossier(toWriteInput(draft, publish));
       }
-      refetch();
+      // Awaited: a create navigates back to the overview, and that must not
+      // happen until the list it renders includes what was just created.
+      // syncCockpit stays fire-and-forget — the cockpit catches up on its own.
+      await refetch();
       syncCockpit();
       // Edit stays in the overview (same section); create returns from db-nieuw.
       if (isEdit) setView({ mode: 'list' });
