@@ -350,16 +350,38 @@ async function nextStep(instanceId: string, timeoutMs = 90_000): Promise<'task' 
  * so every piped or CI run left its record behind — which is exactly how the
  * counters drifted in the first place.
  *
- * A completed instance is gone from runtime already, so that DELETE answering
- * 404 is the normal case and is ignored; the history DELETE is the one that
- * does the work.
+ * A completed instance is gone from runtime already, so a 404 on the runtime
+ * DELETE is the normal case and stays quiet; the history DELETE is the one
+ * that does the work.
+ *
+ * Everything else is reported. Cleanup failures are how strays accumulate, and
+ * a silent catch makes a failed delete indistinguishable from a successful
+ * one — the run goes green either way and the leftover only surfaces later, as
+ * a skipped run blocked by an instance nobody remembers creating. Reported
+ * rather than thrown: this runs in afterEach, and a cleanup problem should not
+ * overwrite the result of the journey that just ran.
  */
 async function deleteInstance(id: string): Promise<void> {
-  await fetch(`${OPERATON}/process-instance/${id}?skipCustomListeners=true`, {
-    method: 'DELETE',
-  }).catch(() => undefined);
-  await fetch(`${OPERATON}/history/process-instance/${id}`, { method: 'DELETE' }).catch(
-    () => undefined
+  await del(`${OPERATON}/process-instance/${id}?skipCustomListeners=true`, 'runtime', [404]);
+  await del(`${OPERATON}/history/process-instance/${id}`, 'history', []);
+}
+
+/** One DELETE, quiet on the statuses it expects, loud on anything else. */
+async function del(url: string, what: string, expected: number[]): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'DELETE' });
+  } catch (err) {
+    console.warn(
+      `[rip-r21-journey] ${what} cleanup could not reach the engine: ${(err as Error).message}. ` +
+        `The instance is still there and will block the next run.`
+    );
+    return;
+  }
+  if (res.ok || expected.includes(res.status)) return;
+  console.warn(
+    `[rip-r21-journey] ${what} cleanup failed with HTTP ${res.status} for ${url}. ` +
+      `The instance is still there and will block the next run.`
   );
 }
 
@@ -396,14 +418,24 @@ test.describe('RIP fase 1 (R2.1)', () => {
   test('starts, works every task, and completes the phase', async ({ page }) => {
     test.slow(); // a dozen form submissions against a real engine
 
+    // Skipped, not failed. A foreign instance means this spec cannot run — it
+    // does not mean the journey is broken, and reporting the two the same way
+    // teaches people to read red as noise. The run below never starts, so
+    // there is nothing to assert about it either way.
     const inFlight = await activeR21Instances();
-    expect(
-      inFlight,
-      `${inFlight.length} R2.1 instance(s) already running (${inFlight
-        .map((i) => i.businessKey ?? i.id)
-        .join(', ')}). This spec cannot tell them apart from its own — finish or ` +
-        `delete them first, e.g. DELETE ${OPERATON}/process-instance/<id>.`
-    ).toEqual([]);
+    if (inFlight.length > 0) {
+      const blocking = inFlight.map((i) => `${i.businessKey ?? i.id} (${i.id})`).join(', ');
+      const reason =
+        `${inFlight.length} R2.1 instance(s) already running: ${blocking}. This spec cannot ` +
+        `tell a foreign instance from its own — a fallback-started R2.1 carries no project ` +
+        `number, so every one looks identical — and picking the wrong one would work someone ` +
+        `else's process to completion and report a pass. Finish or delete them first: ` +
+        `curl -X DELETE "${OPERATON}/process-instance/<id>?skipCustomListeners=true"`;
+      // Printed as well as annotated: the list reporter shows the skip but not
+      // always the reason, and the reason is the whole point.
+      console.warn(`[rip-r21-journey] SKIPPED — ${reason}`);
+      test.skip(true, reason);
+    }
 
     // ── baseline ────────────────────────────────────────────────────────
     // Taken from the response the table is built from rather than from the
