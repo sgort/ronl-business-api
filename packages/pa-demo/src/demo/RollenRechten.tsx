@@ -37,6 +37,11 @@ export default function RollenRechten() {
             type="button"
             className={`pac-db-roleseg-btn ${roleId === opt.id ? 'active' : ''}`}
             onClick={() => setRoleId(opt.id)}
+            // dossierbeheer.css sets cursor: default on this class for the
+            // vendored (deliberately disabled) role bar. Here the buttons
+            // are the demo's actual clickable switcher, so this overrides
+            // it locally rather than editing the vendored stylesheet.
+            style={{ cursor: 'pointer' }}
           >
             {opt.label}
           </button>

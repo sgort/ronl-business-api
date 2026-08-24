@@ -15,6 +15,25 @@ import '../vendor/pages/public-affairs-v2/dossierbeheer.css';
 import { getUser } from './shims/keycloak';
 import { getTenantConfig } from './shims/tenant';
 
+/**
+ * The tenant row's label follows organisationType rather than being
+ * hardcoded "Gemeente": the shim's tenant is a province
+ * (organisationType: 'province', displayName: 'Provincie Flevoland'), and a
+ * "Gemeente" (municipality) label next to a provincial name is exactly the
+ * kind of mismatch a Dutch government audience notices immediately. This
+ * also means the label stays correct if the shim's tenant ever changes.
+ */
+function tenantLabel(organisationType: string): string {
+  switch (organisationType) {
+    case 'province':
+      return 'Provincie';
+    case 'municipality':
+      return 'Gemeente';
+    default:
+      return 'Organisatie';
+  }
+}
+
 export default function Profiel() {
   const user = getUser();
   const tenant = getTenantConfig();
@@ -23,9 +42,13 @@ export default function Profiel() {
     <div>
       <div className="pac-spec-eyebrow">Beheer · Profiel</div>
       <h1 className="pac-beheer-title">Profiel</h1>
-      <p className="pac-spec-intro">
-        Dit is fictieve demonstratiedata voor plato — geen echt account en geen echte medewerker.
-      </p>
+      <div className="pac-db-flag mock" style={{ marginBottom: 18 }}>
+        <span className="pac-db-flag-icon">⚑</span>
+        <span>
+          <strong>Fictieve data</strong> — dit is demonstratiedata voor plato: geen echt account en
+          geen echte medewerker.
+        </span>
+      </div>
 
       <h2 className="pac-section-title" style={{ marginTop: 20 }}>
         Account
@@ -45,7 +68,7 @@ export default function Profiel() {
             <td>{user.employeeId}</td>
           </tr>
           <tr>
-            <td>Gemeente</td>
+            <td>{tenantLabel(tenant.organisationType)}</td>
             <td>{tenant.displayName}</td>
           </tr>
           <tr>
