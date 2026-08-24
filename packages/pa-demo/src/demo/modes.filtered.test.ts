@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { PA_MODES, allStaticSections, findPaModeForSection } from './modes.filtered';
+import {
+  PA_MODES,
+  allStaticSections,
+  findPaModeForSection,
+  SORT_SECTION_IDS,
+} from './modes.filtered';
 import { ALLOWED_SECTION_IDS, DROPPED_SECTION_IDS } from './sections.allow';
 
 describe('filtered modes', () => {
@@ -44,6 +49,18 @@ describe('filtered modes', () => {
     }
   });
 
+  it('hides sort sentinels from the command palette', () => {
+    // sort-kompas/sort-momentum are allow-listed so they stay in the
+    // Vandaag rail's sort-order group, but they set a sort, not a section —
+    // the real PASectionRouter has no case for them, so a ⌘K hit on either
+    // would fall through to the "not available" panel. The origin's
+    // allStaticSections() excludes SORT_SECTION_IDS for exactly this reason;
+    // this guards that exclusion from silently regressing.
+    const ids = allStaticSections().map((s) => s.id);
+    expect(ids).not.toContain('sort-kompas');
+    expect(ids).not.toContain('sort-momentum');
+  });
+
   it('resolves an allowed section to its mode', () => {
     expect(findPaModeForSection('db-overzicht')).toBe('beheer');
     expect(findPaModeForSection('vandaag')).toBe('vandaag');
@@ -70,6 +87,11 @@ describe('filtered modes', () => {
     const real = new Set(allStaticSections().map((s) => s.id));
     for (const id of ALLOWED_SECTION_IDS) {
       if (id === 'dossiers') continue; // data-driven, not a static section
+      // sort-kompas/sort-momentum are legitimately allow-listed for the
+      // rail's sort-order group but are deliberately excluded from
+      // allStaticSections() — they set a sort, not a navigable section — so
+      // they're not palette hits. See the sentinel test above.
+      if (SORT_SECTION_IDS.has(id)) continue;
       expect(real.has(id)).toBe(true);
     }
   });

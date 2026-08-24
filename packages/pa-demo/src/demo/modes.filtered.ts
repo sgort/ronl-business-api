@@ -41,11 +41,14 @@ export const PA_MODES: PaModeConfig[] = ALL_MODES.map((mode) => ({
     .filter((group) => group.items.length > 0),
 }));
 
+/** Static searchable sections (excludes sort sentinels; dossiers added separately). */
 export function allStaticSections(): PaRailItem[] {
   const out: PaRailItem[] = [];
   for (const mode of PA_MODES) {
     for (const group of mode.groups) {
-      for (const item of group.items) out.push(item);
+      for (const item of group.items) {
+        if (!SORT_SECTION_IDS.has(item.id)) out.push(item);
+      }
     }
   }
   return out;
