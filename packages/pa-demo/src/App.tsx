@@ -9,10 +9,16 @@
  * become a context consumer (see its file header for why that's what makes
  * the role switch actually re-render anything), and DemoBar itself reads and
  * writes the same context to drive the role buttons.
+ *
+ * demo-overrides.css is imported here (rather than in some deeper vendored
+ * consumer, which would mean editing a vendored file) so it loads once for
+ * the whole app and applies globally — see its own header for what it hides
+ * and why.
  */
 import DemoBar from './demo/DemoBar';
 import { DemoRoleProvider } from './demo/DemoRoleContext';
 import PADashboardV2 from './vendor/pages/PADashboardV2';
+import './demo/demo-overrides.css';
 
 export default function App() {
   return (

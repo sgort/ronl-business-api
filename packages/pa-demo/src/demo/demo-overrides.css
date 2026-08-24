@@ -1,0 +1,34 @@
+/**
+ * Demo-owned overrides of vendored PA-Cockpit chrome.
+ *
+ * Not demo furniture (see demo-bar.css for that) — this file exists purely
+ * to suppress one specific piece of vendored UI that must not be reachable
+ * on a public, mock-only demo: Dossierbeheer's own "Zet vlag om naar live →"
+ * / "↩ Terug naar mock" button (src/vendor/components/PADashboardV2/
+ * dossierbeheer/Dossierbeheer.tsx). That button calls the vendored
+ * component's own toggleMock(), which writes '0' to the same paV2.mock key
+ * main-helpers.ts's forceMockMode() writes '1' to at boot — a visitor
+ * clicking it mid-demo would flip the cockpit to live and it would try (and
+ * fail, loudly, against a backend that doesn't exist) to fetch from a real
+ * API. It cannot be removed by editing dossierbeheer.css or the component:
+ * both are vendored, and vendored files are never edited (see
+ * src/vendor/README.md). A CSS override loaded after the vendored
+ * stylesheet is the only lever available.
+ *
+ * The reset button ("↺ Reset demodata") is a sibling in the same
+ * .pac-db-flag-actions container and must stay visible and clickable — it
+ * is how a visitor restarts the demo, and is explicitly not the button this
+ * rule targets. The two are distinguished by the pac-db-flag-reset class,
+ * which only the reset button carries.
+ *
+ * No !important: verified in the running app that the vendored stylesheet
+ * never sets `display` on .pac-db-abtn (only white-space, font, color,
+ * border, cursor — see dossierbeheer.css lines ~43-90), so there is no
+ * competing declaration to lose a specificity fight against. If a future
+ * vendor sync introduces one, vendor:check's byte-diff will flag the sync
+ * itself for review, at which point this rule's win should be re-checked in
+ * the browser rather than assumed.
+ */
+.pac-db-flag-actions .pac-db-abtn:not(.pac-db-flag-reset) {
+  display: none;
+}
