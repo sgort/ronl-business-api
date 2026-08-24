@@ -61,6 +61,21 @@ export default defineConfig({
         find: /^(\.\.?\/)+(pages\/)?(public-affairs-v2\/)?modes\.config$/,
         replacement: fileURLToPath(new URL('./src/demo/modes.filtered.ts', import.meta.url)),
       },
+      // Same trick, same reason: ChangelogPanel.tsx's './changelog-data' collides
+      // with the real vendored data file, so it can't be replaced by an overlay
+      // at that path either. The real file is this project's actual commit
+      // history — including entries that quote real backend hostnames and
+      // auth-library names verbatim — so bundling it would both leak internal
+      // infrastructure detail and trip scripts/check-bundle.mjs. Only Vite is
+      // redirected; tsc still resolves to the real vendored file, which is sound
+      // because changelog-data.filtered.ts re-exports the same types and a
+      // same-shaped `changelog` value.
+      {
+        find: /^\.\/changelog-data$/,
+        replacement: fileURLToPath(
+          new URL('./src/demo/changelog-data.filtered.ts', import.meta.url)
+        ),
+      },
     ],
   },
   test: {
