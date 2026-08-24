@@ -15,7 +15,7 @@ import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
 import { searchFlevolandNews } from './sources/media.client';
-import { fetchEuFeed } from './sources/eu.client';
+import { fetchEuFeed, EU_DOCUMENT_TYPES } from './sources/eu.client';
 import { FEEDS as MEDIA_FEEDS } from '../media-aggregator/feeds';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
@@ -204,6 +204,12 @@ router.get('/types', (_req, res) => {
       // Media has no fixed document-type taxonomy (RSS feeds, not a typed API) —
       // an empty array is enough to make 'media' a searchable bron key.
       ...(config.pa.mediaSourceEnabled ? { media: [] } : {}),
+      // The keys here are what the cockpit offers as searchable bronnen —
+      // fetchFeedSources reads them straight off this response. Omitting 'eu' left
+      // GET /feed?source=eu implemented but unreachable: no chip rendered, so the
+      // blanco search could never target the EU feed despite advertising that it
+      // searches the raw bronfeeds.
+      ...(config.pa.euSourceEnabled ? { eu: [...EU_DOCUMENT_TYPES] } : {}),
     },
   });
 });
@@ -308,6 +314,40 @@ router.get('/signals', async (req, res) => {
   }
 });
 
+// ── GET /v1/pa/signals/counts ────────────────────────────────────────────────
+// Inbox size per tab, in one grouped query. The cockpit's source badges need
+// four totals on mount; asking /signals four times pulls four capped result sets
+// (up to 100 rows each) to read four numbers off their meta. Must stay above any
+// /signals/:id-shaped GET so 'counts' is not swallowed as an id.
+router.get('/signals/counts', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const status =
+    typeof req.query['status'] === 'string' ? req.query['status'] : 'candidate,ai_drafted';
+
+  try {
+    const statuses = status
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const rows = await db.any<{ tab: string; count: string }>(
+      `SELECT tab, COUNT(*) AS count FROM pa_signals WHERE status = ANY($1) GROUP BY tab`,
+      [statuses]
+    );
+
+    const counts: Record<string, number> = {};
+    for (const row of rows) counts[row.tab] = parseInt(row.count, 10);
+
+    res.json({ success: true, data: counts });
+  } catch (err) {
+    logger.error('Signal counts fetch error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'SIGNAL_COUNTS_ERROR' } });
+  }
+});
+
 // ── POST /v1/pa/signals ──────────────────────────────────────────────────────
 // Promote one raw feed item (body = FeedItem) into the inbox as a candidate.
 // Scoring/persist stays in curation.service; this route stays thin.
@@ -403,6 +443,46 @@ router.post('/signals/:id/confirm', async (req, res) => {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'CONFIRM_ERROR' } });
+  }
+});
+
+// ── POST /v1/pa/signals/:id/dismiss ──────────────────────────────────────────
+// The counterpart to confirm. "Negeren" used to be client-only state, so an
+// ignored signal came back on the next reload — the button did not do what it
+// said. Dismissing sets a status the inbox query does not select, which is also
+// what keeps it dismissed: persistCandidate's upsert only writes back
+// `WHERE pa_signals.status = 'candidate'`, so a later curation cycle leaves it
+// alone exactly as it leaves a confirmed one alone.
+router.post('/signals/:id/dismiss', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { id } = req.params;
+
+  try {
+    const existing = await db.oneOrNone<{ id: string }>('SELECT id FROM pa_signals WHERE id = $1', [
+      id,
+    ]);
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+
+    await db.none(
+      `UPDATE pa_signals SET status = 'dismissed', routing = NULL, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    const updated = await db.one<Record<string, unknown>>(
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+       FROM pa_signals WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true, data: rowToSignal(updated) });
+  } catch (err) {
+    logger.error('Signal dismiss error', {
+      id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DISMISS_ERROR' } });
   }
 });
 

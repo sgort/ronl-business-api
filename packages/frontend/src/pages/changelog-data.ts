@@ -93,6 +93,951 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.23',
+      status: 'Released',
+      date: '22 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '48356fb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The shipped rate limit was below what the cockpit costs to use',
+          details: [
+            'One short authoring journey measures 21 requests to /v1/pa/*, so a minute of ordinary clicking exhausted a 100/min budget and every fetch came back 429. The surface renders that as “Kon dossiers niet laden”, indistinguishable from a backend that is down — which is why it was misdiagnosed twice, first as a slow stack and then as a post-login token race. Neither had evidence behind it; instrumenting the failing run with a response listener showed six consecutive 429s.',
+            'Raised in config.ts, not only in .env.example. That distinction is the point: ACC and prod are configured through App Settings, and any key they do not set falls through to the code default, so editing the example file alone would have changed nothing where it matters. The existing config test asserted the old default and now pins the new one, and .env.development is set to the same 1000 so a ceiling that turns out to be too tight shows up locally first.',
+            'Worth knowing and not fixed here: the limiter keys on the caller’s IP and TRUST_PROXY defaults to false. With trust proxy off, Express reads req.ip from the socket peer, which behind a front-end proxy is one internal address for everybody — so the budget is per deployment, not per user. Whether ACC runs that way is visible in the request log, which records ip on every call.',
+          ],
+        },
+        {
+          sha: '15c303d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Deleting a dossier takes its signals and zoekcriteria with it',
+          details: [
+            'DELETE /v1/pa/dossiers/:id removed the dossier row and its versions, and nothing else. Observed on a real database: deleting one dossier left 37 curated signals and its zoekcriterium behind, all still counted on the Monitoring rail and all still shown as cards carrying the dead dossier’s id, while Dossierbeheer correctly reported zero dossiers.',
+            'None of this can happen by cascade today. dossier_id is a plain TEXT column on pa_signals, pa_saved_searches and pa_dossier_versions with no FK back to pa_dossiers, so every delete has to be spelled out in the route. The four statements run in one transaction because a partial delete is worse than none: ids are slug-derived, so recreating a dossier under the same name lands on the same id and silently inherits whatever survived.',
+            'Deleting the zoekcriteria is what actually stops the bleeding. Curation selects saved searches by tenant and scope alone and never checks the dossier still exists, so a surviving criterion keeps running its query and filing fresh signals against a dossier that is gone. pa_notifications does cascade from pa_signals, so those go without being named — verified against a live database rather than assumed. The delete dialog said “inclusief alle versies”, which was true but narrower than what happens; it now names the signals and zoekcriteria and says monitoring on the topic stops.',
+          ],
+        },
+        {
+          sha: '26c0298',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'Every signaalbron carries a watchlist orphan, and the demo counts stop being identical',
+          details: [
+            'The cockpit models “confirmed but belonging to no dossier” as its own state: orange card, a Watchlist chip, a filter, and a dossier picker to resolve it. The fixtures carried two of those, both in Europa and Media, so from Politiek — where a demo starts — the feature was invisible. Every source now has one: an initiatiefnota straddling netcapaciteit and ruimtelijke ordening, and a geluidszone that may or may not sit under Lelystad Airport, converted from a linked signal.',
+            'Every source also showed exactly 4 confirmed and 6 inbox, which reads as placeholder data and draws questions about what the numbers mean rather than what the cockpit does. Now 6/9, 5/7, 4/7 and 4/5. Still hard-coded rather than generated: Reset demodata needs an exact baseline to return to, and the end-to-end assertions need to stay deterministic. Seven fixtures added, one converted, one dropped — 19 confirmed, 28 inbox.',
+            'pa-mock-journey drops its two flat constants for a per-source BASELINE table, asserted absolutely once per run with everything else relative, so extending the fixtures means editing one row. A new test asserts each source has exactly one orphan, then links one and checks the filter disappears while the confirmed tally does not move — linking routes a signal, it does not curate one.',
+          ],
+        },
+        {
+          sha: '0d78873',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Live authoring leaves quarantine, and API throttling names itself',
+          details: [
+            'The live authoring spec was quarantined on what looked like a race in the app. It was not: the failing runs were being rate-limited, and the backend’s 429 reaches the user as a generic load error. A new helper records the first 429 of a run and fails the test with a message that names the throttle and points at the setting. It deliberately does not retry or wait it out — a throttled run is not a valid run. In the live spec it throws only after afterEach cleanup has finished, because a throttled run is the one most likely to have left rows behind.',
+            'Also removes test.slow() and corrects a helper comment; both documented the diagnoses that turned out to be wrong. With the throttle gone the two tests run in about 4s and 2.7s, well inside the default budget. Verified across six consecutive runs.',
+          ],
+        },
+        {
+          sha: '61110cf',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A created dossier is on the overview by the time you arrive there',
+          details: [
+            'handleSave fired refetch() and changed section in the same tick. refetch returned void, so awaiting it was not even possible — the overview could render against a list that had not come back yet. The dossier was created, the POST succeeded, and the user did not see it.',
+            'refetch now returns its promise and handleSave awaits it before navigating. syncCockpit stays fire-and-forget: the cockpit catches up on its own and nothing renders against it in this flow. Pinned by a test that resolves fetchAdminDossiers from a deferred promise and asserts onNavigate has not been called until it settles, verified to fail when the await is reverted to a bare call.',
+          ],
+        },
+        {
+          sha: 'b862a79',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'An end-to-end journey for live authoring',
+          details: [
+            'Mock and live are two implementations of the same operations, and the mock half broke twice this week without a test noticing. The live half had no end-to-end cover at all. This adds it: create a dossier through the real flow, add a zoekcriterium, assert both survive a cold reload, and assert that live shows authored work where mock shows fixtures.',
+            'Limited to authoring on purpose. Curation depends on TK OData, the EU feed and the media aggregator — TK alone measured 10s and 48s for the same query minutes apart — so asserting that signals arrive would be flaky by construction. Cleanup creates uniquely-named items and removes only those, in afterEach, reporting rather than swallowing failures. It does not use pa:reset-data: that is a feature of the product, and a test has no business clearing someone’s authored work.',
+            'Two things worth knowing for the next spec here. A plain page.reload() signs you out, because keycloak.authenticated lives in memory and the app does not re-init on a direct load — which makes the reload worth doing, since every module cache goes with it. And locator.count() and locator.isVisible() do not auto-wait: an earlier version of the cleanup guarded with count() straight after navigating, read 0 before the list had rendered, and silently deleted nothing, leaving ten test dossiers in the dev database.',
+          ],
+        },
+        {
+          sha: 'fb144cc',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'PA_USE_MOCK dropped — nothing read it',
+          details: [
+            'config.pa.useMock was parsed from PA_USE_MOCK and read nowhere. Dead config is worth removing on its own, and this one more than most: the frontend has just consolidated on a single isPaMock(), so a backend flag literally named useMock is the first thing someone reading for “how does mock/live work here” would find, and it would tell them nothing true.',
+            'Removes the type member, the parseEnvBool line and the three test references. No behaviour changes. The VITE_PA_USE_MOCK mentions in the changelog stay: they are historical release text about the frontend variable, which was split long ago.',
+          ],
+        },
+        {
+          sha: 'ac49af8',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Mock mode driven end to end in Playwright',
+          details: [
+            'Every mock-mode defect found by hand over the last two days was invisible to the unit suites by construction. None was a logic error: a saved-search write that was a bare return, a confirm that built a new object and discarded it, notifications hardcoded to empty, a resource fetched once at mount and never again. Component tests mock the very seam that was broken, so they cannot see any of it — and every one of them passed throughout.',
+            'This drives the real store with no mocking at all: confirm a signal and watch the badges move, reload and find them still moved, ignore one and find it still gone, reset and find everything back at the fixture baseline. Plus that the reset control is mock-only, since offering it in live would imply the page can rewrite the database. Verified to catch what it exists for by disabling the persist call in the demo store.',
+            'Mock is enabled with addInitScript rather than a write after login, because the reload needed to pick up a post-login write is the same reload that signs you out. The demo store is cleared once per test behind a sessionStorage sentinel — otherwise the init script would wipe the very state each reload is meant to prove.',
+          ],
+        },
+        {
+          sha: 'a852e55',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Jest mocks asserted to name only real exports',
+          details: [
+            'Spreading jest.requireActual stops an export going missing from a mock. It quietly creates the opposite hazard: if an export is renamed, the override still declares the old name, the spread supplies the real function under the new one, and the suite calls the real implementation — a live network request from a unit test, no longer stubbed by anything, and nothing fails.',
+            'expectMockNamesRealExports closes that. Every override object is now named so both the factory and the assertion can see it, and each suite drives its mocks through it.each, so a stale name fails as its own case: fourteen mocks across pa.routes, curation.service and the three source-client suites. Verified by adding a renamed export and watching it fail with the reason, not just a diff.',
+            'The helper’s doc comment carries the trap hit while writing the frontend equivalent: pass jest.requireActual(path), never require(path). The path is mocked, so a plain require hands back the mock and the assertion compares the mock with itself — passing unconditionally, proving nothing, and looking entirely correct in review.',
+          ],
+        },
+        {
+          sha: '7cb90c5',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The PA jest mocks are built on the real modules',
+          details: [
+            'A jest.mock factory returning a hand-written object replaces the module wholesale, so an export added later is simply absent. That is where this started: EU_DOCUMENT_TYPES was added to eu.client, this suite’s mock did not have it, the spread produced undefined and GET /v1/pa/types answered 500 — while all 126 route tests passed.',
+            'Fourteen mocks of internal PA modules now spread jest.requireActual before their overrides: the four source clients, curation.service, rules, and pa-cache across five suites. Verified against the original defect by deleting EU_DOCUMENT_TYPES from the mock again — every test still passes, because the real constant is inherited. That bug can no longer be written. Which also lets the hand-maintained copies of TK_DOCUMENT_TYPES, OB_PUBLICATION_TYPES and EU_DOCUMENT_TYPES go.',
+            'Deliberately not converted, out of 234 mock sites: the config util, because spreading it runs validateConfig at import and throws without a full environment; the logger, a narrow stub whose omissions fail loudly rather than silently; and third-party SDK mocks, which are not ours to inherit from.',
+          ],
+        },
+        {
+          sha: 'c373c3f',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'pa.api mocks built on the real module instead of replacing it',
+          details: [
+            'A vi.mock factory returning a hand-written object replaces the module wholesale, so anything the module gains later is simply absent. A function becomes undefined at the call site; a constant spreads to nothing. All seven pa.api mocks now spread the real module before their overrides, so a member nobody thought to stub keeps its real implementation.',
+            'The other direction needs its own check, since spreading cannot see a rename or a typo: expectMockNamesRealExports asserts every key the mock declares exists on the real module. It lives in an ordinary test rather than the factory because the factory is hoisted above the imports and cannot call anything imported.',
+            'Worth recording, because it was nearly shipped: the first version passed a plain dynamic import rather than vi.importActual. That path is mocked, so the import returned the mock and the assertion compared the mock with itself — passing unconditionally, proving nothing. It surfaced only because injecting a deliberately bogus key failed to fail.',
+          ],
+        },
+        {
+          sha: '16e17ca',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'One parity-checked stub for the usePaData context',
+          details: [
+            'Twelve test files mocked PaDataProvider by hand, each with its own partial stub. A member added to the context and missed in a stub is undefined at the call site, which surfaces as an unhandled rejection that still lets every test in the file pass. That happened five times in three days, and one of them went green locally and then failed the ACC frontend deploy at the Unit tests step, so the frontend was never published.',
+            'makePaDataStub is now the single stub, and its parity test renders the real provider and asserts the provider’s keys equal the stub’s. Equality in both directions on purpose: a missing key is the bug this exists for, and a leftover key means the stub is teaching tests to rely on something the context no longer provides. Verified by deleting dismissSignal from the stub and watching it fail — an assertion that cannot fail is worse than none.',
+            'The trade, deliberately taken: a stub carrying every member also hides over-mocking, since a test can now reach something it never declared it needed. That is worth less than the silent-undefined class costs.',
+          ],
+        },
+        {
+          sha: 'd304960',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The monitoring surfaces that had little or no cover',
+          details: [
+            'NotificationsPanel had no tests at all, which mattered little while notifications could not arrive in mock mode. Mock mode now derives them, so it is a surface people will demo — 0% to 100% on every metric. Issuekaart had nothing for the Monitoring sub-tab, the one carrying confirm, ignore and dossier-linking: 34% to 86%. Monitoring gains the raw search band, 57% to 77%.',
+            'PaDataProvider’s six mutation wrappers were uncovered. Each exists solely to refetch what the backend recomputes, so an untested wrapper is a silent “the bell does not update” waiting to happen. 83% to 98% statements.',
+            'Three of these files’ hand-written usePaData mocks were missing dismissSignal, found while writing the tests — the fifth time in three days a hand-written mock had diverged from the module it stands in for. No production code changed.',
+          ],
+        },
+        {
+          sha: '09d2ac5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Mock mode is a working demo, not a read-only snapshot',
+          details: [
+            'Mock mode read the fixtures directly, so nothing done in it stuck. Confirming a signal built a new object and discarded it; every saved-search write was a plain return; fetchNotifications was hardcoded to empty. Most of that was invisible until the flag was unified: VITE_PA_SIGNALS_MOCK was false in every environment, so those branches were unreachable and the calls really hit the backend. Making them live exposed them all at once as stubs.',
+            'A persisted demo store is the missing piece: signals and saved searches seeded from the fixtures, mutated by the same actions live uses, and kept so a demo survives navigation and reloads. Notifications are derived from those two rather than stored, mirroring the backend’s own watch matching. Persisted state is stamped with the build version, so a deployment carrying new fixtures beats a browser holding a copy of the previous ones.',
+            'The Reset demodata button sits in the Dossierbeheer banner under the live toggle, in mock mode only — live has no demo state to reset and the button would imply this page can rewrite the database. syncCockpit now also re-reads signals, inbox counts and notifications: switching modes left the previous mode’s numbers standing until Monitoring was visited.',
+          ],
+        },
+        {
+          sha: 'eab623f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Ignoring a signal now keeps it ignored',
+          details: [
+            '“Negeren” was client-only state in both modes — it set a local dismissedIds set and nothing else — so the signal came back on the next reload. The button did not do what it said.',
+            'POST /v1/pa/signals/:id/dismiss sets status to dismissed and clears routing. Three things made this cheap: status is plain TEXT with no CHECK constraint, so no migration; the inbox query already selects only candidate and ai_drafted, so a dismissed signal drops out of both the list and the counts with no query changes; and the candidate upsert already carried a guard that leaves it alone on the next curation cycle.',
+            'Clearing routing matters separately: a signal confirmed without a dossier carries routing = watchlist, and dismissing it should take it off the watchlist rather than leave it listed there.',
+          ],
+        },
+        {
+          sha: 'ab1d156',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'TK fetched one term at a time, so multi-term criteria stop aborting',
+          details: [
+            'TK OData slows sharply per contains() clause, and asking it for a total over the union is the larger half of that cost. Measured against the live API, a five-term OR query took 23s and 48s minutes apart — both past the 15s AbortController — and a three-term query took 28-38s. Every criterion in the seeded taxonomy uses three to five terms, so TK retrieval was aborting for all of them, silently. Politiek’s signals had been coming from OB alone.',
+            'fetchTkFeed now issues one request per term, in parallel, and merges them: dedup by id so a document matching two terms is one hit, newest first, then sliced for skip/top. Measured after: three terms 10.3s, five terms 10.1s, against aborts before. The shape scales flat with term count rather than exponentially. A failing term no longer costs the whole query.',
+            'The total count is omitted for multi-term queries — it is the expensive half, a full count over ~14k matches to render “N treffers”. The search band falls back to the item count, so nothing downstream changes; single-term queries keep their exact total. The fan-out gets 30s rather than 15s, because every timer starts when the request is created and a queued request spends its budget waiting.',
+          ],
+        },
+        {
+          sha: '699b84c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'An empty cached feed is no longer served for the rest of the TTL',
+          details: [
+            'eu.client was fixed for this earlier; its three siblings were not, because only the client being debugged was looked at. tk, ob and agenda all short-circuited on the presence of a cache entry, and for tk and ob that value is an object — an empty result is truthy — so a fetch that came back empty was served as a real answer until the TTL expired.',
+            'The guards now test the payload rather than its presence. Re-fetching a genuinely empty result costs one upstream call, which is the right trade against serving a failure as data. The tk and ob tests assert fetch IS called with an empty entry cached, so they fail against the old guard rather than passing vacuously.',
+            'Worth recording that this was not the cause of the zero-result TK searches it was found while investigating. Those turn out to be timeouts, fixed separately — an abort throws before the cache is written, so nothing was ever cached and the zero was reproducible rather than sticky.',
+          ],
+        },
+        {
+          sha: '8e1972b',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The rail’s confirmed counter stops freezing at mount',
+          details: [
+            'The Signaalbronnen rail shows two numbers per source. Refreshing the inbox half left the other still frozen — useResource fetches once, on mount, so the confirmed number is a snapshot from whenever the page last loaded. It showed on ACC immediately after the database was emptied: the rail kept reporting confirmed signals for sources whose rows had all been deleted, while the tab beside it correctly read 0.',
+            'Monitoring now calls the provider’s refetch alongside refreshInboxCounts on tab load, so arriving at Monitoring or opening any source re-reads both halves. It also refetches after a confirm, which is the only action that changes the confirmed count and does not re-run the tab-load effect.',
+            'The hand-mocked context in the Monitoring tests gains the resource, and a test asserts the refetch happens. That assertion matters more than the fix: this was the third member added to that stub in a day, and the previous omission surfaced only as an unhandled rejection that still let every test pass.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.22',
+      status: 'Released',
+      date: '21 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: 'b7756a2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Inbox badges stay current instead of freezing at page load',
+          details: [
+            'The per-source counts were seeded once, in an effect with an empty dependency array, and thereafter only patched a single tab at a time from whichever inbox the user opened. Anything that changed the inbox after page load — a curation run, most obviously — stayed invisible: every badge kept its startup value until that source was opened, at which point it jumped while the other three stayed stale. Reading the badges meant clicking through all four, and a reload was the only way to make them agree.',
+            'refreshInboxCounts re-reads all of them in one request and is exposed on the context. Monitoring’s tab-load effect calls it, so opening any source — or simply arriving at Monitoring — brings every badge up to date. The existing single-tab update stays for the immediate case: it is authoritative for the tab just fetched and avoids a round trip after confirm or dismiss. A failed refresh keeps the previous numbers rather than zeroing them, since a transient error is not evidence that every source emptied.',
+            'Deliberately not wired to the "Curatie nu uitvoeren" button: triggerCurationCycle resolves as soon as the backend accepts the job and runs the cycle in the background, so a refresh there would re-read pre-curation numbers. Any refresh at that point would be a guessed delay.',
+          ],
+        },
+        {
+          sha: '4b4b320',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The mock/live toggle is now one switch for the whole cockpit',
+          details: [
+            'Mock and live were two independent flags. VITE_PA_DOSSIERS_MOCK governed dossiers through a runtime localStorage override that the Dossierbeheer banner flipped; VITE_PA_SIGNALS_MOCK governed signals, inbox and saved searches as a build-time constant, false in both development and acceptance. So "mock mode" was never one thing: flipping the banner gave fixture dossiers alongside signals and zoekcriteria read from the database, and once that database was emptied the cockpit showed four fixture dossiers next to an empty Monitoring and an empty Zoekcriteria, with no way to reach the fixtures for either.',
+            'isPaMock/setPaMock replace both, on one localStorage key, driving all 24 branches. The default ORs the two legacy env vars so neither .env file changes meaning; both are false today, i.e. live unless toggled. The key changes from paV2.dossiers.mock to paV2.mock, so an existing override resets to that default once.',
+            'The banner copy claimed the flag governed dossiers and described a seam that had already been bought. It now says what the switch does, and names empty-in-live as a valid outcome rather than a fault — that is what a live database with nothing authored in it looks like. VITE_PA_AGENDA_MOCK is left alone: the agenda is served from TK OData rather than the database, so "live means the database" does not apply to it.',
+          ],
+        },
+        {
+          sha: '60bea12',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The demo taxonomy is no longer seeded into the live database',
+          details: [
+            'Companion to the demo-dossier gating: seedTaxonomy() ran unconditionally inside initPaDb(), writing PA_TAXONOMY_SEED into pa_saved_searches on every startup. Curation retrieves against whatever criteria are there, so those fixture zoekvragen produced 825 signals and 66 notifications in a database where nobody had authored a single search. Switching the cockpit to live still showed a fully populated Monitoring built entirely from fixture configuration — the same defect as the dossiers, one table over.',
+            'Both seeds now sit behind one flag, PA_SEED_DEMO_DATA, renamed from PA_SEED_DEMO_DOSSIERS now that it governs more than dossiers. Off by default: live means dossiers, criteria and signals someone actually produced, and an empty cockpit is a valid answer rather than a fault. DEMO_SEARCH_IDS mirrors DEMO_DOSSIER_IDS — derived from the seed and asserted against what the seed inserts, so a criterion added later cannot survive a --drop-demo unnoticed.',
+            'reset-pa-dossiers.ts becomes reset-pa-data.ts (npm run pa:reset-data) since it now owns all six PA tables rather than the two dossier ones: --yes clears everything, --drop-demo removes only seeded rows and keeps authored work, --seed-only restores demo content additively. Signals and notifications are treated as derivations — curation regenerates them from the live sources once real criteria exist.',
+          ],
+        },
+        {
+          sha: '9b1773d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Demo dossiers are no longer seeded into the live database',
+          details: [
+            'Dossierbeheer seeded pa_dossiers from the same @ronl/shared SEED_DOSSIERS the frontend serves as MOCK_DOSSIERS. That was deliberate — it made the VITE_PA_DOSSIERS_MOCK flip a visual no-op while the seam was being proven — but it also meant the live store could only ever be mock plus whatever had been authored on top, so the two modes were not separable by construction. Live showed 6 dossiers where 2 had been created.',
+            'Seeding is now opt-in and off by default, so live means dossiers someone actually authored. Templates and snippets still seed unconditionally: you cannot create a dossier without a sjabloon to start from, so they are part of a working empty install rather than sample content. Mock mode is unaffected — the frontend’s MOCK_DOSSIERS is its own copy and never went through this path.',
+            'Dropping the seed only stops new databases picking the rows up, so a reset script is how an existing one is cleaned. DEMO_DOSSIER_IDS is derived from the seed and asserted against what the seed actually inserts, so a dossier added later cannot survive a --drop-demo unnoticed.',
+          ],
+        },
+        {
+          sha: 'e59fd7f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Agenda soort badge no longer overlaps the item meta',
+          details: [
+            'The badge sat in the agenda row’s fixed 92px time column with white-space: nowrap. Labels wider than that — REGELING VAN WERKZAAMHEDEN, PROCEDUREVERGADERING, TECHNISCHE BRIEFING — overflowed the column and rendered on top of the body column’s meta line. Short labels happened to fit, so the layout looked correct on most rows while being wrong on all of them.',
+            'The badge moves into the meta row, where it is a type label among the other facts and the existing flex-wrap sizes it at any length. The time column then only holds a clock, so it drops to 62px, and the badge loses align-self: flex-start, which was positioning it in the old vertical column and would push it off the text centre line in a horizontal one.',
+          ],
+        },
+        {
+          sha: '7bcf94e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'EP motions that arrive once per political group are collapsed into one signal',
+          details: [
+            'EP practice is that each political group tables its own B-document for the same motion before they merge into a joint RC resolution, so one topic reaches the inbox as up to six rows. Measured on a live inbox: 12 of 54 EU candidates were such siblings — 22% of the source. Compared field by field, a group differs only in ref and in title casing; committee, score, dossier match, date and source label are identical, so the siblings carry nothing separately reviewable.',
+            'The survivor is keyed on its normalised title, not on a ref. Which siblings a cycle happens to see varies, and a later cycle can turn up a lower ref than the one already stored — so a ref-derived winner would change between cycles and persist a second row instead of updating the first. A title-derived key is stable however many siblings show up. The refs are not discarded: the survivor’s number becomes "B-10-2026-0346 +2", the same "+N" shape already used for co-responsible committees.',
+            'Not yet demonstrated end to end: fetchAllNewSubmittedTexts returned nothing at the time, the cycle having already ingested everything available, so no real group has been watched through a real cycle. Existing duplicate rows are left alone by design — they keep their ref-derived ids and will age out of the inbox as they are dismissed.',
+          ],
+        },
+        {
+          sha: 'cb1613f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Europarl now receives a User-Agent, and an empty 202 is no longer read as a feed',
+          details: [
+            'The EU RSS source had been returning nothing — not for a query, but for every request, including an empty one. europarl.europa.eu gates its RSS feeds on a recognised User-Agent family. Node’s fetch sends none, and the CDN answers 202, text/html, zero bytes. 202 passes res.ok, so the client parsed an empty string, got zero items, logged "EU RSS fetched, count: 0" as a success and cached that for the TTL. Silent, and it looked healthy throughout.',
+            'Three changes: an explicit User-Agent, in the conventional Mozilla/5.0 (compatible; ...) crawler form because a bare product token is refused exactly as a missing one is; a 2xx whose body is not XML now throws instead of parsing to an empty list; and an empty cache hit no longer short-circuits, since a truthy check treated the empty array as a valid answer and served it for the rest of the TTL — precisely what a failed fetch leaves behind.',
+            'Consequence: the other EU fixes in this release had never run against real data in the app, only against fixtures and hand-downloaded files. With the feed arriving, fetchEuFeed returns 45 items (25 ep-rss, 20 ep-persbericht), and a curation cycle took the EU inbox from 42 to 54. A silent success costs more than a loud failure — three real bugs sat behind this one.',
+          ],
+        },
+        {
+          sha: 'd3afa64',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The raw EU feed can now be searched from the cockpit',
+          details: [
+            'The blanco search band advertises that it "doorzoekt de rauwe bronfeeds, los van de curatie", and GET /v1/pa/feed?source=eu is implemented — but the EU feed could never be reached. fetchFeedSources derives the bron chips straight from the keys of GET /pa/types, which returned only tk, ob and media. With no eu key there is no Europa chip, so source=eu was never requested: the capability existed and was unreachable.',
+            'It is now listed, gated on config.pa.euSourceEnabled exactly as media is on mediaSourceEnabled. No frontend change was needed — FeedSource already includes eu, and both SOURCE_CHIP_LABEL and SCOPE_LABEL already map it to Europa. Unlike media’s empty-array placeholder, EU has a real taxonomy, so EU_DOCUMENT_TYPES gives the type filter something to work with.',
+          ],
+        },
+        {
+          sha: '9daf160',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Every inbox badge is populated on mount, from one counts request',
+          details: [
+            'The source badges in Monitoring read 0 for every tab until the tab was opened, which is indistinguishable from "this source has no signals". Mount-time seeding existed but was unguarded: four fetchInbox calls with no .catch, in an effect that runs once. When the cockpit mounts while the backend is down or still starting, all four promises reject silently and nothing retries — the badges stay at 0 for the rest of the session. That is how it was found.',
+            'Adds GET /v1/pa/signals/counts — every tab’s total from one GROUP BY tab query, defaulting to the inbox statuses and accepting an explicit status. It sits above any /signals/:id-shaped GET so counts is not read as an id. The provider now makes one request instead of four capped result sets pulled solely to read four numbers off their meta, and retries with linear backoff. Counts are written over a zeroed base rather than merged, since a tab whose inbox has emptied is absent from the response.',
+          ],
+        },
+        {
+          sha: 'bdcbe15',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'EP press releases are surfaced, and commissie is populated for EU items',
+          details: [
+            'The press-releases feed was fetched every cycle and contributed nothing: all 20 items were discarded, because extractRef only recognises the EP document shape and normaliseRssItem returns null without a ref. They do have a stable identity — the IPR code EP puts in the public URL — present on every item and unique across the feed. The link form is used because it is what EP publishes and what a human would recognise.',
+            'Three things follow from an item having no document ref: url is the item’s own link rather than doceoUrl(); subbron is ep-persbericht, kept distinct from ep-rss so the two are filterable apart; and type falls back to Persbericht from the RSS category, since there is no ref prefix for inferType to work from.',
+            'Also populates commissie from the body-domain categories, which applies to plenary documents as much as press releases — neither had it before. Co-responsible committees are counted rather than dropped or run together: "ITRE +1", "AGRI +15". Verified against both live feeds through the parser: plenary 30 kept (13 with a commissie), press releases 20 kept (16 with one).',
+          ],
+        },
+        {
+          sha: '4aaca24',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'EU refs are recovered from the guid, restoring half the plenary feed',
+          details: [
+            'extractRef matched the guid against a word-boundary-anchored pattern. EP guids wrap the ref in underscores — RR_A-10-2026-0099_v01-00_EN — and the underscore is itself a word character, so the boundary never fires on either side of the ref. The guid branch was dead code and every ref came from the title fallback, which only matches titles ending in an "A10-0099/2026" suffix. Items whose titles are plain Dutch prose had no recoverable ref and were dropped outright.',
+            'Measured against the live plenary feed through the parser itself: 15 of 50 items kept before, 30 after. Half the feed was being discarded — joint resolutions, draft decisions and adopted texts, precisely the material the cockpit’s EU signals exist to surface. Dropping the boundary assertions is enough; the pattern’s own shape already anchors it, and an added negative lookahead stops a longer digit run being truncated into a false 4-digit match.',
+            'One existing test had to be corrected rather than extended: it asserted the ref was recovered "when the guid carries a word-bounded one" and used a guid with spaces instead of underscores, quietly encoding the bug as intended behaviour.',
+          ],
+        },
+        {
+          sha: '8ec82b8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The local client secret is read from the realm export rather than .env',
+          details: [
+            'The same operaton-mcp-client secret lived in three places — the seeded realm export, the running Keycloak, and packages/backend/.env.development — and they drifted apart. A partial import through the Keycloak admin UI reset the client secret to the realm value and in doing so orphaned the copy in .env.development, breaking test-smoke-live.sh’s Tier 2a instead. One source repaired, another silently invalidated, with nothing to connect the two symptoms.',
+            'test-smoke-live.sh now resolves the local secret from the realm export, matching what test-m2m-routes.sh already did. The realm file is the right source because it is what Keycloak imports, so it stays true across a re-import; .env holds a derived copy that nothing keeps in sync, and remains the fallback. Also closes a gitignore gap: the env rules are exact paths, so an editor’s backup carrying the same secret was untracked but not ignored.',
+          ],
+        },
+        {
+          sha: 'a530ac2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'M2M decision checks are environment-aware',
+          details: [
+            'test-m2m-routes.sh hard-coded a decision key and evaluate payload specific to the local fixture bundle, so the two decision checks failed every time the script ran against ACC. That was never a route defect: ACC’s M2M client talks to operaton-doc, a different engine, where that decision is not deployed. The 404 was the route correctly reporting a decision that does not exist.',
+            'DECISION_KEY and DECISION_VARS are now per-TARGET presets alongside the URL presets the script already had, both still overridable from the environment. decision.get runs before decision.evaluate and doubles as an existence probe: on 404 both checks skip and name the missing key. Which decisions an engine has is deployment data, not route behaviour, so a key missing from one environment should not read as a regression in another. ACC now reports 27 passed / 0 failed, up from 23/2.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.21',
+      status: 'Released',
+      date: '21 aug 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: '4fb1b8e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Local M2M now targets the Docker Operaton, and its route script runs locally',
+          details: [
+            'The tenant-adoption design parked OPERATON_M2M_BASE_URL as out of scope, on the grounds that fixing it needed Docker-networking work — "the M2M client\'s own reachability to localhost:8081 from wherever it actually runs". That did not apply: m2mOperatonService is an OperatonService instance inside the backend process, and the backend runs on the host in local dev, so it reaches localhost:8081 exactly the way OPERATON_BASE_URL already does.',
+            "The same env block also declared plain OPERATON_TIMEOUT/USERNAME/PASSWORD instead of the _M2M_ names, so config.operaton.m2mUsername and m2mPassword were never set and fell through OperatonService's `username ?? config.operaton.username` default. That silent fallback is what kept the remote engine working locally, and therefore unnoticed. ACC and production are untouched — both still point at the dedicated operaton-doc engine.",
+            "scripts/test-m2m-routes.sh gains TARGET=local|acc matching test-smoke-live.sh's convention, reads the client secret from the seeded realm file on local, and adds four assertions that can actually fail: AwbShellProcess and AwbZorgtoeslagProcess start-forms must resolve through the untenanted M2M surface (proving the tenant fallback and the cross-tenant design), RipR21Process's start-form must be absent, and its variable-hints must resolve. The previous check passed on 200 or 404 against whichever process happened to be first — locally that is RipR21Process, which has no start-event form, so it could not have failed even if the fallback were broken.",
+          ],
+        },
+        {
+          sha: 'ee9e9c0',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'inferType extracted from four routers into one tested helper',
+          details: [
+            'The process, task, decision and m2m routes each carried a private inferType tagging plain JSON values with Operaton variable types. All four were semantically identical — two byte-identical pairs differing only in brace style — so this is de-duplication with no behaviour change.',
+            'Testing it as a pure function reaches what four HTTP surfaces could not: the `default` arm is unreachable through a request body, since JSON.parse only yields boolean, number, string, object or null, but bigint, symbol and function all land there for a direct caller. That branch was uncovered in all four routers and is now covered once. Decision, process and task routes reach 100% on every metric as a result.',
+            "m2m's toOperatonVariables is deliberately left in place — it also passes through values already shaped as { value, type } envelopes, which the other three do not. Adopting it everywhere would change what those endpoints return, so unifying it is a behaviour decision rather than part of this extraction.",
+          ],
+        },
+        {
+          sha: '2a77717',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A seed dossier without an owner is now a compile error',
+          details: [
+            "SEED_OWNERS mapped the five seed dossiers to their kernteam owner with a `?? 'Kernteam PA'` fallback repeated at four call sites. The fallback was unreachable — until someone added a sixth dossier to @ronl/shared and forgot an owner, at which point it would seed a plausible-looking value nobody would question in ACC.",
+            'Now a two-link chain: SEED_DOSSIER_IDS is a literal tuple and SEED_DOSSIERS is typed (Dossier & { id: SeedDossierId })[], so an unregistered id fails to compile in shared; SEED_OWNERS is Record<SeedDossierId, string>, so a registered id with no owner fails to compile in the backend. Both verified by breaking them deliberately.',
+            "Worth recording why the obvious form does not work: Dossier.id is string and SEED_DOSSIERS was annotated Dossier[], so Record<(typeof SEED_DOSSIERS)[number]['id'], string> widens to Record<string, string> and constrains nothing. `satisfies` does not help either — string-literal properties in a mutable object literal widen regardless — and `as const` would make the seed deeply readonly, breaking toMarkdown(d: Dossier). Hence the separate id registry.",
+          ],
+        },
+        {
+          sha: 'e28dc19',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Required-env checks now actually fire, and /v1/health reports the deployment tier',
+          details: [
+            "validateConfig checked `!config.database.url` and `!config.operaton.baseUrl`, but both settings fall back to a non-empty default, so the resolved value was never empty and neither guard could fire. The message 'DATABASE_URL is required' could not be printed: a production deployment with no DATABASE_URL started happily and pointed its audit log at localhost. Both now test process.env and gate on production, matching the KEYCLOAK_CLIENT_SECRET guard above them. Verified beforehand that ACC and production both already define the two settings, so neither deployment starts failing.",
+            "ACC runs with NODE_ENV=production deliberately — that is what makes it an acceptance environment — so /v1/health reported 'production' for ACC. NODE_ENV cannot carry the tier: Node, Express and this codebase branch on the literal 'production'. Setting NODE_ENV=acceptance would return raw internal error messages on 500s, spawn the eDOCS/LDE/TriplyDB MCP servers via `npx tsx src/…` when the deploy bundle ships dist/ only, switch console logging to the dev format, disable the production startup guards, and quarter the external-task long-poll window.",
+            "The tier moves to its own DEPLOYMENT_ENV variable, following the pattern already used in linked-data-explorer, surfaced as config.deploymentEnv on /v1/health, the root endpoint, the startup log and the logger's defaultMeta — the last of which changes what `environment` means in every log record, from runtime mode to tier. Every behavioural branch stays on config.nodeEnv.",
+          ],
+        },
+        {
+          sha: '9882a17',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Backend branch and function coverage lifted above 80% for every file',
+          details: [
+            'Branch coverage went 73.5% to 91.5% and function coverage 94.1% to 96.7%, with no file left below 80% on either metric. 1145 to 1480 tests.',
+            "Most of the gap came from three recurring shapes rather than untested features: each handler's defensive `if (!req.user)` 401, unreachable because the mocked jwtMiddleware always attached a user; the `error instanceof Error ? … : 'Unknown error'` fallback in every catch, which is a real path since Operaton, eDOCS and pg all reject with bare strings on socket failures; and `?? ''` defaults for fields an upstream can legitimately omit. Function coverage was entirely callbacks handed to a mocked library, so nothing ever invoked them — axios validateStatus, multer's fileFilter, express-rate-limit's keyGenerator, the /zoeken facet selectors, and the ExternalTaskWorker poll loop, whose lifecycle test spied poll out so the loop had never run.",
+            'New suites for the two modules that had none: utils/config.ts went 0% to 97.8% branch — every other suite mocks it, so the real defaults and the import-time validation were never executed — and utils/tls-bootstrap.ts 0% to 100%. One production change for testability: M2M_ALLOWED_OPERATIONS is now exported, since the curation gate lists every operation the router asks about and its 18 OPERATION_NOT_PERMITTED branches could otherwise only be reached by editing the file.',
+          ],
+        },
+        {
+          sha: '9d3cc29',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Backend test files made modules so their globals stop colliding',
+          details: [
+            "The CI test gate added in v2026.08.20 failed on its first run: three backend suites failed to compile with TS2451 'Cannot redeclare block-scoped variable' and TS2300 'Duplicate identifier'. Nine test files have no top-level import or export — they use jest.mock() and require() inside functions — so TypeScript treats each as a global script and every top-level declaration lands in the global scope. Ten names collided across them. Adding `export {};` scopes each file's declarations to itself.",
+            'Not a Linux-versus-Windows difference: it reproduces locally after jest --clearCache, because ts-jest caches diagnostics per file and a warm cache skips re-checking the collision. That is why the run passed repeatedly here while failing in CI on a cold runner, and why which files fail varies with whichever the type program reaches first. All nine were latent regardless.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.20',
+      status: 'Released',
+      date: '20 aug 2026',
+      scope: ['frontend', 'public-site'],
+      commits: [
+        {
+          sha: '391ccba',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'bump-release now versions the lockfile, and never uses npm version',
+          details: [
+            'The release step said "set version in each in-scope package.json" and nothing more, so no release ever touched package-lock.json. Through v2026.08.19 it still recorded the root at 2026.08.3, packages/backend at 2026.08.1 and packages/frontend at 2026.07.0, while the package.json files had all reached 2026.08.19.',
+            'The drift was never fatal — npm ci validates dependency satisfiability, and the root depends on its workspaces by path rather than by version range, so those version fields are never checked — but the lockfile is what CI installs from and what SBOM, audit and provenance tooling reads, so all of it reported the wrong versions.',
+            "The step now names the exact lockfile keys to edit alongside each package.json, and warns explicitly against npm version: it coerces its argument to strict SemVer, and a zero-padded CalVer month is not a valid numeric identifier, so npm version 2026.08.20 would silently write 2026.8.20 to every file it touches. Caught by running it during the Linked Data Explorer's v2026.08.3 release and reverted there.",
+          ],
+        },
+        {
+          sha: '28ab6ca',
+          author: 'Steven Gort',
+          type: 'other',
+          subject:
+            'Backend and frontend deploys now gated on lint, tests and the performance budget',
+          details: [
+            'Public-site was the only package whose pipeline could block a deploy. Backend CI linted and built but never ran its 1145 Jest tests; frontend CI ran neither lint nor test, going straight from npm ci to vite build to deploy. For those two, npm test was a manual discipline enforced by review rather than an automated gate.',
+            'The backend workflows gain a Jest step beside their existing linter. The frontend workflows gain a linter, the Vitest suite, and the performance budget as its own step — the budget runs separately because it asserts wall-clock time, which is meaningless while 130 test files compete for cores.',
+            'Measured before wiring, all passing: backend 71 files / 1145 tests, frontend 130 files / 1064 tests plus 1 perf, public-site 28 files / 134 tests.',
+          ],
+        },
+        {
+          sha: '6be440e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'lint-staged skipped public-site sources at pre-commit',
+          details: [
+            'The config had globs for packages/frontend, packages/backend and packages/shared, but none for packages/public-site — so a staged public-site .ts/.tsx file got neither ESLint nor Prettier at commit time. Only the generic *.{json,md} rule applied, and that does not match .ts or .tsx.',
+            "It was never uncaught for long: pre-push's npm run lint and npm run check-format both cover public-site in full, and neither is scoped by the lint-staged globs. But a local commit alone could carry an unformatted or unlinted public-site change. No fallout — the package already passed both checks.",
+          ],
+        },
+        {
+          sha: '3aac5ee',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Frontend suite now survives a contended full run',
+          details: [
+            'Two tests failed inside a full npm test while passing in isolation. Both would have made the new CI test gate permanently red, and neither said anything about the code under test.',
+            'simEngine asserted run(cfg) completes under a 250ms wall-clock budget, and its source comment is emphatic that the threshold must not be loosened — the intended remedy is a web worker, not a bigger number. That stands; the problem is what the assertion measures. On a contended host it was observed at 302ms, then 837ms, then 1297ms across three consecutive runs, and inside a full run — where Vitest saturates every core with 130 parallel files — even the fastest of three CPU-time samples came out at 468ms, against ~100ms in isolation.',
+            'So the budget moved rather than moved up. It now lives in simEngine.perf.test.ts, still under 250ms, with a warm-up run and the fastest of three samples so a JIT pause or stray GC cannot decide it; vitest.perf.config.ts runs those specs alone with file parallelism off, via npm run test:perf. ChangelogPanel was the other casualty of the same contention — its 15s timeout sufficed in isolation but not in a full run, where it was seen taking 22s. Raised to 60s: changelog-data.ts renders 60+ real version entries, so the test is genuinely slow rather than unreliable, and a timeout catches a hang rather than asserting a speed.',
+          ],
+        },
+        {
+          sha: '70d4ff8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Two Vitest config defects in frontend and public-site',
+          details: [
+            'setupFiles was resolved against the process cwd rather than the config file, so the single-file command documented on the testing page — npx vitest run --config packages/<pkg>/vite.config.ts <pattern> — failed from the repo root with "Cannot find module \'/@id/.../src/test/setup.ts\'", and worked only from inside the package. Resolving it through fileURLToPath(new URL(..., import.meta.url)) makes both invocations work.',
+            "coverage.reportOnFailure is now set in both packages. Vitest's default is to skip writing the coverage report when any test fails, which loses the figures exactly when a run goes red — the frontend numbers on the testing page had to be captured with --coverage.reportOnFailure=true as a manual precaution.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.19',
+      status: 'Released',
+      date: '18 aug 2026',
+      scope: ['frontend', 'backend', 'public-site'],
+      commits: [
+        {
+          sha: '5445c7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'DMN source files are downloadable from the public rule catalogue',
+          details: [
+            "The public site now joins LDE's published-DMN list onto the Regelcatalogus services and offers the DMN 1.3 XML as a download row in Technical details. A new getPublicDmnsByService() in lde.service fetches /v1/dmns for the RONL graph, groups by service URI, caches for five minutes and returns an empty map on failure so the catalogue still renders when LDE is unreachable -- the relative xmlUrl is resolved against the configured API URL rather than concatenated, which is what keeps /v1 from doubling. SPARQL_ENDPOINT is exported from regelcatalogus.service so LDE is queried against the same graph instead of a second copy of the URL.",
+            'Regel items carry dmns only when LDE knows the service, so unmatched services render no download row at all. TechDetails takes an optional downloads prop and renders a "download DMN (xml)" row inside the key/value table, aligning the link with the other values; several DMNs for one service stack under one key. The link points straight at LDE, so the saved filename comes from its Content-Disposition, which uses the Operaton decision key -- where that key is a generated GUID (the HvA export) the download name differs from the title shown, accepted rather than worked around since the fix belongs at the source deployment.',
+          ],
+        },
+        {
+          sha: '4685069',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'E2E test reporting and cleanup UX improvements',
+          details: [
+            'The Operaton-history cleanup prompt asked once per business key created during a run, with no summary of how many were pending — an E2E run creating a dozen instances meant a dozen individual [y/N] prompts. Consolidated to one prompt listing every pending key and its count; the answer applies to all of them (clean all, or leave all pending for next time), never a partial state.',
+            "Playwright's HTML report now opens in the browser automatically after every run instead of needing a follow-up command — its own printed 'npx playwright show-report' hint is computed relative to the test process's internal working directory (packages/frontend, set by npm workspace machinery), not the shell the command was actually typed in, so a copy-pasted hint could resolve to the wrong path entirely. Auto-opening sidesteps that whole class of confusion; a `test:e2e:report` script remains as a fallback for re-opening a past run without re-testing.",
+          ],
+        },
+        {
+          sha: '34c8ab4',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: "Sync the E2E test bundle's sub-process rename from linked-data-explorer",
+          details: [
+            "linked-data-explorer's e2e-fixtures bundle renamed its two sub-processes (TreeFellingPermitSubProcess -> TreeFellingPermitSubProcessE2E, ZorgtoeslagProvisionalSubProcess -> ZorgtoeslagProvisionalSubProcessE2E) to give the E2E fixtures their own Operaton process-definition keys, distinct from the general-purpose seeded examples that share the same underlying BPMN process id -- LDE's own process catalog otherwise conflates the two and can silently redeploy stale content. required-processes.ts and two E2E spec comments updated to match; the shell processes and RipR21Process are unaffected.",
+          ],
+        },
+        {
+          sha: '9813dd1',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            "Scope process start and start-form lookups to the process's real deployed tenant",
+          details: [
+            "startProcess and getDeployedStartForm scoped their tenant-scoped Operaton lookup to the requesting citizen's own tenant, which broke any process deployed under a fixed processing-authority tenant regardless of caller (AwbZorgtoeslagProcess is always handled under toeslagen by design, callable by citizens of any tenant) -- the citizen's scoped lookup 404s, and the untenanted fallback also 404s now that Operaton deployments are tenant-mandatory.",
+            "Fixed by discovering the process's actual deployed tenant first, via Operaton's unscoped list endpoint, and using that instead of assuming it matches the caller's own tenant -- falls back to the old behavior when the key can't be resolved (e.g. legacy untenanted processes), and correctly prefers a tenant-scoped deployment row over a coexisting legacy untenanted one for the same key.",
+          ],
+        },
+        {
+          sha: '7b50be7',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Verify the required tenant-scoped process bundle before running E2E tests',
+          details: [
+            "global-setup.ts only checked that the frontend/backend/LDE-backend dev servers were reachable, with no idea whether the right Operaton processes were actually deployed under the right tenant-ids -- a mismatch surfaced as a confusing failure deep inside an unrelated spec. Extended to query Operaton directly for the five processes this suite requires and fail fast with a clear, specific message (which key, which tenant, what to do about it) before any test runs, mirroring the existing 'start the dev stack yourself first' style. Verification only -- never deploys anything.",
+          ],
+        },
+        {
+          sha: 'c660957',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Rename the RIP R2.1 process key from RipPhase1Process to RipR21Process',
+          details: [
+            "RipPhase1Process was a generic name that didn't self-describe which Faseladder stage it belongs to; RipR21Process matches the Faseladder's own R2.1 stage code directly, the same way every other RIP phase key is expected to. Renamed end to end: the shared RIP_PHASE_KEYS catalog, both backend query filters, the frontend's start action and display-name lookup, and every test asserting on the literal key -- historical changelog entries describing what actually shipped at the time are deliberately left untouched.",
+          ],
+        },
+        {
+          sha: '6837f09',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Fix a cross-tenant data leak in RIP phase deployment-status and instance counts',
+          details: [
+            "GET /v1/rip/phases/deployment-status and /v1/rip/phases/counts sit behind tenant middleware with the caseworker's tenant available, but queried Operaton with no tenant filter at all -- getPhaseInstanceCounts in particular counted every running instance of a process-definition key globally, across every tenant, which is almost certainly the exact mechanism behind an earlier-observed Portfolio/Faseladder discrepancy (a Cockpit-started instance with no attributing variable, counted in one view's total but invisible to the other's). Fixed by threading the caseworker's tenant through to Operaton's native tenantIdIn filter on both the definition-listing and the two count queries.",
+          ],
+        },
+        {
+          sha: '21fdb14',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix two more untenanted-key lookups: getBoardOwner and getDeployedStartForm',
+          details: [
+            'Two more OperatonService call sites assumed every process definition stays reachable via Operaton\'s untenanted /process-definition/key/{key}/... shorthand -- an assumption that breaks the moment a key is deployed with a tenant-id. getBoardOwner degraded silently (wrapped in a try/catch that treats any failure as "untagged"), quietly breaking the Beheer archive\'s board split; getDeployedStartForm threw outright, breaking the citizen-facing "start a new case" flow for any newly tenant-scoped process. Both now share the same tenant-scoped-then-fallback helper startProcess already established.',
+          ],
+        },
+        {
+          sha: '0d63fc7',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'Design and implementation plan: adopt tenant-mandatory deployment across the stack',
+          details: [
+            "Full spec and implementation plan for closing the two remaining tenant-scoping gaps in OperatonService (all 53 Operaton calls read and categorized), redeploying the five active process bundles under their correct tenants, and standing up a stable, single-source-of-truth E2E test bundle at linked-data-explorer/e2e-fixtures/<tenant>/ -- replacing two pre-existing, already-diverged 'examples' locations that carried real, proven drift. Includes a manifest-integrity test on the LDE side and a matching required-processes check in this repo's own E2E global-setup.",
+            "Executed end to end against a real, live, two-tenant Operaton instance rather than unit mocks alone: two further genuine regressions were found and fixed only once real cross-tenant traffic and real tenant-scoped DMN resolution were exercised for the first time (a cross-tenant process-start lookup bug, and Operaton's DMN business-rule-task tenant resolution requiring an explicit camunda:decisionRefTenantId override for shared decision tables once the calling process itself becomes tenant-scoped) -- both confirmed via a live, throwaway empirical spike against Operaton before being applied for real, not documentation guesswork.",
+          ],
+        },
+        {
+          sha: '5042255',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Accessibility statement's focus-indicator claim corrected for form fields",
+          details: [
+            'The statement said every interactive element gets a 2px black + yellow focus indicator. That stopped being true for <input>/<select> the day after it was written: 2d44aee changed form-field focus to black + blue on request, but the statement was never updated -- confirmed against pub.css:82-89 (form fields, black+blue) versus pub.css:71-76 (links/buttons, still black+yellow, unaffected). Reworded to state both cases accurately rather than reverting the CSS, since the blue was a deliberate, requested change.',
+          ],
+        },
+        {
+          sha: '8176f04',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            "startProcess tries Operaton's tenant-scoped start endpoint before the untenanted one",
+          details: [
+            "The original fix motivating this whole release: RipPhase1Process (now RipR21Process) is deployed with Operaton's native tenant-id, which made it invisible to the untenanted /process-definition/key/{key}/start shorthand this method exclusively used before -- Operaton only resolves that endpoint against definitions deployed with no tenant-id at all. Starting the process from the app's own Beheer -> R2.1 -> Starten flow failed with \"is niet gevonden\", even though the Faseladder's separate, unaffected deploy-status check correctly showed it as deployed.",
+            "Fix: try the tenant-scoped start endpoint first, and fall back to the untenanted one only on Operaton's specific 'no matching process definition' response -- every process deployed before this point (and anything outside LDE's mandatory-tenant-id deploy flow) still has no tenant-id at all, so the fallback keeps those working unchanged.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.18',
+      status: 'Released',
+      date: '14 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '38534c4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Scope the persisted playback day per caseworker',
+          details: [
+            'The simulation restored both scenario parameters and the current playback day from one shared localStorage key on every reload — so a caseworker opening the page for what felt like the first time could land on a fully-played-through simulation (day 719/719) left behind by an earlier visit, in that browser or by someone else.',
+            "Split persistence: scenario parameters stay under the existing shared key — there's no per-user meaning to a set of sliders. The playback day now lives under a key scoped by the caseworker's stable Keycloak sub. A different caseworker — or the same one signed in for the first time — always starts at day 0; each caseworker keeps their own position across their own reloads. True per-login-session reset would need a session identifier this codebase doesn't currently expose anywhere; out of scope here.",
+          ],
+        },
+        {
+          sha: '8f72497',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Rename the Regelsimulatie rail item to Subsidie thuisbatterij',
+          details: [
+            "The rail label 'Regelsimulatie' named the section type, not the specific scheme it shows. Since the Simulatie mode is deliberately built to hold more than one simulation later, the rail item needs the specific scheme's name so a second simulation doesn't collide with an equally generic sibling label.",
+            "Renamed the rail item and the in-page breadcrumb (previously a separate hardcoded string) to 'Subsidie thuisbatterij' for consistency. The page's own h1 and the internal section id are unchanged.",
+          ],
+        },
+        {
+          sha: 'a73c14a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Apply final review fixes: slider freeze, accessible labels, format/clamp corrections',
+          details: [
+            "The final whole-branch review found a genuine multi-second main-thread freeze while dragging a parameter slider at settings the UI itself exposes (population near its max, RFI chance near its max) — each drag step fired a full engine run synchronously. Fixed by decoupling a slider's visual position from when its value actually commits (on release, not on every step).",
+            'Also added the type="button" attribute and accessible slider labels the design spec required but two tasks had each partially missed, corrected a silent trailing-zero formatting divergence from the reference, clamped a restored-from-storage scenario value to its slider\'s declared range, and corrected the SDD ledger\'s own reasoning about a performance-test flake it had wrongly called pre-existing.',
+          ],
+        },
+        {
+          sha: 'f841591',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Wire Regelsimulatie into the V2 shell',
+          details: [
+            'Added the Simulatie mode (between Zoeken and Beheer), a Regelsimulatie rail item gated behind two independent access-control checks (a per-item auth requirement and a separate tenant-visibility gate), the SectionRouter dispatch line, and the CSS import.',
+          ],
+        },
+        {
+          sha: '451dc7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the RegelSimulatie section component',
+          details: [
+            'The section shell tying the engine and every sub-component together: the header, the collapsible scenario-parameter panel (15 sliders), the playback control bar, and the two-column card layout. Recomputes the simulation only when a parameter actually changes, never while scrubbing the timeline.',
+          ],
+        },
+        {
+          sha: 'de8879b',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add SimMissedPanel',
+          details: [
+            "The 'Geldige aanvragen die misliepen' panel: three filters (RFI priority-shift, successful appeal, all unpaid) over a per-application timeline showing submission, processing, the optional information-request pause, and the decision.",
+          ],
+        },
+        {
+          sha: 'b2a6f3e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add SimChart',
+          details: [
+            'The saw-tooth budget-over-time chart, hand-rolled SVG with no charting library: free vs. reserved budget, split and merged pot phases, exhaustion markers, and the current-day indicator.',
+          ],
+        },
+        {
+          sha: '4bc3402',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Move Regelsimulatie's formatters into their own module",
+          details: [
+            "simEur()/simEurK() lived in SimPot.tsx alongside its component export, which breaks Vite's react-refresh assumption that a component file exports only components. Extracted both into a dedicated simFormat.ts.",
+          ],
+        },
+        {
+          sha: '304be78',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Add Regelsimulatie's presentational primitives",
+          details: [
+            'SimPot (one budget pot bar), SimOutcomeRow (one outcome bar row), and SimTweak (one parameter slider) — the small, reusable pieces the section component assembles.',
+          ],
+        },
+        {
+          sha: 'b4ce84e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "Port Regelsimulatie's styling",
+          details: [
+            'The dedicated stylesheet ported unchanged, scoped under the existing .cwd-v2 design tokens — no new colors.',
+          ],
+        },
+        {
+          sha: 'ed13bae',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Disclose and test the beroepDisplacerId effDay deviation',
+          details: [
+            "Review found the port's appeal-displacement attribution logic (which appeal \"displaced\" a given application) uses a real field where the reference compares against a field that's never actually set on the object type involved, making that branch permanently dead code there. The port's version is more correct — it can pick the nearest-preceding appeal winner instead of always the pool's overall minimum — and was confirmed with the project owner as the intended behavior, not a bug to revert. It only affects which application id is shown in one caption; no totals or payment outcomes depend on it. Added a disclosure comment and a test that proves the two strategies actually diverge.",
+          ],
+        },
+        {
+          sha: '9c3d7ea',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Regelsimulatie engine',
+          details: [
+            "A deterministic, pure TypeScript port of the Flevoland home-battery subsidy's budget-exhaustion simulation: entitlement rules, amount calculation, split/merged budget pools with a 1 October boundary and year-to-year carry-over, first-come-first-served allocation with no back-fill once a pool seals, and two counterfactual re-runs isolating how much of the unpaid total is attributable to an information-request delay versus a successful appeal.",
+            '22 tests cover determinism, amount boundaries, entitlement precedence, resolver sealing and priority ordering, full-run bookkeeping invariants, the budget-year-is-submission-year rule, both counterfactuals, and a performance budget (under 250ms for the default 3,150-application population).',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.17',
+      status: 'Released',
+      date: '14 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: 'ad46260',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Correct the RIP pipeline stage note about rule sets per competent authority',
+          details: [
+            "The 'Verifiëren & live' pipeline stage's note said the citizen sees one environment behind which are always two rule sets from two competent authorities. Corrected to 'one or more rule sets from corresponding competent authorities' — not every deployment involves exactly two authorities.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.16',
+      status: 'Released',
+      date: '13 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '4bebd24',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Scroll the trail bar into view when the displayed concept changes',
+          details: [
+            "Selecting a concept in the list, drilling into a chip, clicking a trail segment, or Begin opnieuw can all change which concept's trace is shown without the page scrolling — if the user was scrolled down into a long trace, the new concept's own trail bar and header could land off-screen with nothing visible telling them what changed.",
+            "Extracted the jump buttons' existing scroll-to-id helper into a shared herkomstScroll.ts, and HerkomstExplorer now calls it on every concept change (skipping the initial mount, since there's nothing to scroll to yet).",
+          ],
+        },
+        {
+          sha: '53f2cdb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Correct three legal citations in the Herkomst content',
+          details: [
+            'Leeftijd: the Wet op de zorgtoeslag citation was art. 1 lid 1 onder b, corrected to onder c.',
+            "BSN: wet.tekst was a paraphrase; replaced with the exact statutory text of Wet algemene bepalingen burgerservicenummer art. 8 lid 1 (who assigns a BSN, and when), with the bron citation corrected from art. 1 to art. 8 lid 1 and the '— parafrase' suffix dropped since it's now an exact quote.",
+            "Datum berekening: wet.tekst was likewise a paraphrase; replaced with the exact 'berekeningsjaar' definition from Algemene wet inkomensafhankelijke regelingen art. 2 Definities, lid 1 onderdeel b, with bron corrected accordingly. All three citations provided by the content owner.",
+          ],
+        },
+        {
+          sha: 'e3edffe',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Prerender /herkomst its own static HTML file',
+          details: [
+            "/herkomst was in the sitemap urls array but had no writeRoute() call, unlike every other route with real content (berichten, nieuws, producten, regels, processen) — so a crawler or link-preview scraper that doesn't execute JS got the homepage's title/description via Azure's SPA navigationFallback instead of Herkomst's own.",
+            "Title, description and a crawlable summary are sourced directly from the page's own content module (herkomstData.ts, herkomstConcepts.ts) so the prerendered summary stays in sync with Herkomst.tsx automatically. Verified against a real build:acc output.",
+          ],
+        },
+        {
+          sha: '24b535a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Scope the social card's og:url/og:image to the actual deploy origin",
+          details: [
+            "index.html hardcodes og:url and og:image to the production domain (publiek.open-regels.nl), since a static file can't know its own deploy target. On ACC that pointed the image at a domain that isn't deployed yet, so link-preview scrapers (WhatsApp confirmed) fetched a dead URL and silently dropped the image.",
+            'Root-caused with direct evidence: publiek.open-regels.nl/og-open-regels.png returns nothing (domain not live), while acc.publiek.open-regels.nl/og-open-regels.png returns 200. Fixed by reusing the SITE_ORIGIN map prerender.ts already has for the canonical link, rewriting both meta tags to the correct origin once per build so every prerendered route inherits the fix.',
+          ],
+        },
+        {
+          sha: '27e34b8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Move nextTrail to its own module, fix react-refresh warning',
+          details: [
+            "HerkomstExplorer.tsx exported both a component (default) and a plain function (nextTrail), which breaks Vite's react-refresh assumption that a component file only exports components — surfaced as an eslint react-refresh/only-export-components warning that npm run format doesn't catch.",
+            'Moved nextTrail to its own herkomstTrail.ts module with its own test, matching the pattern herkomstConcepts.ts/herkomstData.ts already established for non-component logic in this feature.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.15',
+      status: 'Released',
+      date: '12 aug 2026',
+      scope: ['public-site'],
+      commits: [
+        {
+          sha: '5b86857',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Open Graph / Twitter social card',
+          details: [
+            "Sitewide og:*/twitter: meta tags in index.html plus the 1200×630 og-open-regels.png asset, per the design handoff's social card addition. Resolves both deploy caveats the handoff flagged up front rather than leaving them as placeholders: og:url and og:image are absolute, using the real production domain (publiek.open-regels.nl) instead of the prototype's placeholder.",
+            'Confirmed sitewide, not per-page, is correct: the prerender script only ever swaps <title>/<meta name="description">, never touches og:*/twitter: tags, so every prerendered route already carries the same card.',
+          ],
+        },
+        {
+          sha: '9d920d3',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Apply final-review fixes: ARIA roles, sitemap registration, breadcrumb nav',
+          details: [
+            'The final whole-branch review of the Herkomst feature found three real gaps a task-scoped review could not have caught: the deliberate accessibility improvement (associating track headers with their cells) was implemented via aria-labelledby on plain divs, which ARIA prohibits on the role=generic a bare div computes to — so it likely never reached assistive tech; fixed by adding role="group" to all eight cells. /herkomst was never registered in the sitemap/prerender pipeline, since no task had that file in scope. And the drill-down trail was a bare div where the spec required a real breadcrumb nav landmark.',
+          ],
+        },
+        {
+          sha: '17e4295',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Herkomst page, route and nav item',
+          details: [
+            'Wires the six previously built components into an actual page at /herkomst: the page shell (breadcrumb, page head, jump links to the background sections), the route in App.tsx, the nav item after Gegevenswoordenboek, and a HERKOMST_PATH constant mirroring the existing WOORDENBOEK_PATH pattern.',
+          ],
+        },
+        {
+          sha: 'e15c9c0',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Test the trail's no-op guard directly, not via the UI",
+          details: [
+            'Test 7 clicked the nav list button as its second action (setTrail([id])), not a chip drill-down (open(id)), so it exercised the wrong code path and would still pass with the no-op guard deleted. No concept in herkomstConcepts.ts self-references, so the guard is unreachable via any real UI click sequence. Extracted the trail-update logic as an exported pure function (nextTrail) and unit-tested it directly instead.',
+          ],
+        },
+        {
+          sha: '950d00c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstExplorer',
+          details: [
+            "The concept list, drill-down trail and trace panel, tying the feature's pieces into one interactive view. Owns the trail state: selecting a concept in the list resets it, drilling into a chip pushes onto it (a no-op if you're already on that concept), trail segments truncate to that depth, and Begin opnieuw resets to the first concept.",
+          ],
+        },
+        {
+          sha: 'd965ce1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstBackground',
+          details: [
+            'The grey background band below the trace: the four-stage pipeline, the (a)/(b)/(c) concept chain with its catalogue band and connector strip, and the open/gesloten standards list.',
+          ],
+        },
+        {
+          sha: 'c3f8d7c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstTrace',
+          details: [
+            'The feature\'s core component — the eight-step, two-track provenance grid tracing a concept from quoted legal text (Wet- & Regelgeving) to the question a citizen sees on screen (Gebruikers), row-aligned step for step. Handles both chain-end cases: concepts with no DMN render an explanatory fallback line, and concepts with nothing left to derive from render "einde van de keten" instead of chips.',
+          ],
+        },
+        {
+          sha: '52bdb76',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add HerkomstChip',
+          details: [
+            'The clickable concept chip used throughout the trace and explorer — either a button that drills into another concept, or a plain, non-interactive leaf chip carrying its own inline definition.',
+          ],
+        },
+        {
+          sha: 'fc95b60',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Fix a CSS scoping gap in the ported Herkomst styles',
+          details: [
+            "The task brief covered renaming the reference stylesheet's .k- hyphenated component classes but not its .k -scoped (space, descendant-combinator) rules. Two of those slipped through unscoped: bare global h1-h4/p selectors duplicating the site's existing .pub h1/.pub p rules, and a global .pub-nav a override that collided with the real site's actual navigation styling — the source rules were the reference prototype's own internal preview-shell nav, unrelated to anything this feature builds. Fixed by scoping the heading/paragraph rules under a new .pub-herkomst-k page-root class and deleting the four unused nav rules entirely.",
+          ],
+        },
+        {
+          sha: '0348d5c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Port the Herkomst styling into pub.css',
+          details: [
+            "Ported the reference design's dedicated stylesheet into the site's single shared pub.css, renaming every .k- class prefix to .pub-herkomst- to match this codebase's naming convention — no rule dropped, no value changed.",
+          ],
+        },
+        {
+          sha: 'a08b4fa',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Add the Herkomst content data modules',
+          details: [
+            "The provenance graph (four concepts — Leeftijd, Geboortedatum, Datumberekening, BSN — each with its quoted legal text, annotation, rule, DMN expression and citizen-facing copy) and the page's chrome strings, ported byte-identical from the design handoff's hand-authored reference content. Fidelity independently verified via a field-by-field deep-equal check against the source files, not just visual proofreading.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.14',
+      status: 'Released',
+      date: '12 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '7931ba5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix Rollup's CJS interop so production builds actually process @ronl/shared",
+          details: [
+            "optimizeDeps.include (added earlier for the dev-server case) only affects vite dev's esbuild pre-bundler. vite build goes through Rollup directly, which by default only runs CommonJS→ESM interop on node_modules/**. @ronl/shared resolves to a relative workspace path (../shared/dist), so Rollup parsed it as plain ESM, found no literal 'export' keyword, and reported every named value import (RIP_PHASE_KEYS) as not exported — this only ever surfaced once vite build --mode acceptance actually ran in CI, since local dev used the already-fixed dev-server path.",
+            'Verified: both build:acc and build:prod now succeed, and the emitted bundle actually contains the RIP phase data.',
+          ],
+        },
+        {
+          sha: 'c846d02',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Fix ChangelogPanel's version-button matcher for double-digit CalVer patches",
+          details: [
+            "A bare .includes() version match became ambiguous once double-digit CalVer patches existed — v2026.08.1 is a string-prefix of v2026.08.10 through v2026.08.13, so clicking one version's button could resolve to the wrong entry. Fixed with a versionButtonName() helper using a negative-lookahead regex to require an exact patch-number boundary.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.13',
       status: 'Released',
       date: '10 aug 2026',

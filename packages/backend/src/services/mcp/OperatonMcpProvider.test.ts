@@ -144,3 +144,68 @@ describe('OperatonMcpProvider — command path and stderr handlers', () => {
     handlers['error'](Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }));
   });
 });
+
+describe('OperatonMcpProvider — environment and metadata fallbacks', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('passes empty strings when PATH and HOME are absent from the environment', async () => {
+    // The child process gets an explicit env, so anything missing here has to
+    // become '' rather than undefined — StdioClientTransport rejects undefined.
+    const { PATH, HOME } = process.env;
+    delete process.env.PATH;
+    delete process.env.HOME;
+    try {
+      const p = new OperatonMcpProvider();
+      mockTransportCtor.mockImplementation(() => ({ stderr: { on: jest.fn() } }));
+      mockClientCtor.mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+      }));
+
+      await p.connect();
+
+      const { env } = mockTransportCtor.mock.calls[0][0] as { env: Record<string, string> };
+      expect(env).toMatchObject({ PATH: '', HOME: '' });
+    } finally {
+      if (PATH !== undefined) process.env.PATH = PATH;
+      if (HOME !== undefined) process.env.HOME = HOME;
+    }
+  });
+
+  it('passes empty credentials when Operaton has no username or password', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { config } = require('@utils/config') as {
+      config: { operaton: Record<string, string | undefined> };
+    };
+    const { username, password } = config.operaton;
+    config.operaton.username = undefined;
+    config.operaton.password = undefined;
+    try {
+      const p = new OperatonMcpProvider();
+      mockTransportCtor.mockImplementation(() => ({ stderr: { on: jest.fn() } }));
+      mockClientCtor.mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+      }));
+
+      await p.connect();
+
+      const { env } = mockTransportCtor.mock.calls[0][0] as { env: Record<string, string> };
+      expect(env).toMatchObject({ OPERATON_USERNAME: '', OPERATON_PASSWORD: '' });
+    } finally {
+      config.operaton.username = username;
+      config.operaton.password = password;
+    }
+  });
+
+  it('describes a tool that ships without a description as an empty string', async () => {
+    const p = new OperatonMcpProvider();
+    inject(p, {
+      listTools: jest
+        .fn()
+        .mockResolvedValue({ tools: [{ name: 'task_list', inputSchema: { type: 'object' } }] }),
+    });
+    await expect(p.getToolDefinitions()).resolves.toEqual([
+      { name: 'task_list', description: '', input_schema: { type: 'object' } },
+    ]);
+  });
+});

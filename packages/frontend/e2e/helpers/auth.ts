@@ -7,7 +7,7 @@ import type { Page } from '@playwright/test';
  * and wait for the post-login redirect to land on a /dashboard/... route.
  *
  * Deliberately does NOT use Playwright storage-state caching yet (see
- * docs/TESTING-FRONTEND-UI.md's Tooling section) — every Phase 1 test still
+ * the testing docs' Tooling section) — every Phase 1 test still
  * exercises the real Keycloak redirect end-to-end.
  */
 export async function loginAsMedewerker(page: Page, username: string, password: string) {

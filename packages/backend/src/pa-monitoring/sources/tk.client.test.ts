@@ -4,7 +4,12 @@
  * cacheGet/cacheSet, fetch, and config are mocked.
  */
 
-jest.mock('../pa-cache', () => ({ cacheGet: jest.fn(), cacheSet: jest.fn() }));
+// Spread the real module so a third export added later is not silently absent.
+const mockCacheOverrides = { cacheGet: jest.fn(), cacheSet: jest.fn() };
+jest.mock('../pa-cache', () => ({
+  ...jest.requireActual('../pa-cache'),
+  ...mockCacheOverrides,
+}));
 jest.mock('@utils/config', () => ({
   config: { pa: { tkApiBase: 'https://tk/api', cacheTtlTk: 900 } },
 }));
@@ -14,6 +19,7 @@ jest.mock('@utils/logger', () => ({
 
 import { fetchTkFeed } from './tk.client';
 import { cacheGet, cacheSet } from '../pa-cache';
+import { expectMockNamesRealExports } from '../../test-utils/mockModule';
 
 const mockCacheGet = cacheGet as jest.Mock;
 const mockCacheSet = cacheSet as jest.Mock;
@@ -28,6 +34,12 @@ beforeEach(() => {
   mockCacheSet.mockResolvedValue(undefined);
 });
 
+describe('the pa-cache mock', () => {
+  it('only names real exports', () => {
+    expectMockNamesRealExports(jest.requireActual('../pa-cache'), mockCacheOverrides);
+  });
+});
+
 describe('fetchTkFeed', () => {
   it('returns the cached result without fetching', async () => {
     mockCacheGet.mockResolvedValue({ items: [{ id: 'c' }], total: 1, skip: 0, top: 20 });
@@ -36,7 +48,27 @@ describe('fetchTkFeed', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('builds an OR filter, normalises items, and caches the result', async () => {
+  it('does not serve an empty cached result for the rest of the TTL', async () => {
+    // A failed or momentarily-empty fetch caches { items: [], total: 0 }, which
+    // is truthy. Serving it hid a transient upstream blip behind a 15-minute
+    // zero — and because the blanco search band shares this cache key with the
+    // curation cycle, both reported it and looked like independent evidence.
+    mockCacheGet.mockResolvedValue({ items: [], total: 0, skip: 0, top: 20 });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [{ Id: '1', Onderwerp: 'Motie energie', Soort: 'Motie', Ondernummer: 1 }],
+        '@odata.count': 1,
+      }),
+    });
+
+    const res = await fetchTkFeed('energie');
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.items).toHaveLength(1);
+  });
+
+  it('normalises items and caches the result', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -56,7 +88,7 @@ describe('fetchTkFeed', () => {
       }),
     });
 
-    const res = await fetchTkFeed('"green deal" OR stikstof', ['Motie'], 0, 20);
+    const res = await fetchTkFeed('stikstof', ['Motie'], 0, 20);
 
     expect(res.total).toBe(3);
     expect(res.items[0]).toMatchObject({
@@ -73,11 +105,77 @@ describe('fetchTkFeed', () => {
     // OData filter is built by hand and only partly encoded
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain('Verwijderd eq false');
-    expect(url).toContain("contains(Onderwerp,'green deal')");
     expect(url).toContain("contains(Onderwerp,'stikstof')");
     expect(url).toContain("Soort eq 'Motie'");
 
     expect(mockCacheSet).toHaveBeenCalledWith(expect.stringMatching(/^tk:/), res, 900);
+  });
+
+  describe('multi-term OR', () => {
+    const page = (items: Record<string, unknown>[]) => ({
+      ok: true,
+      json: async () => ({ value: items }),
+    });
+
+    it('issues one request per term instead of one OR filter', async () => {
+      // A single contains(A) or contains(B) or ... filter is what blew the 15s
+      // timeout against the live API; per-term requests scale flat.
+      mockFetch.mockResolvedValue(page([]));
+
+      await fetchTkFeed('"green deal" OR stikstof', ['Motie'], 0, 20);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const urls = mockFetch.mock.calls.map((c) => c[0] as string);
+      expect(urls.some((u) => u.includes("contains(Onderwerp,'green deal')"))).toBe(true);
+      expect(urls.some((u) => u.includes("contains(Onderwerp,'stikstof')"))).toBe(true);
+      // Each request carries one clause only — no OR in any filter.
+      for (const u of urls) {
+        expect(u).not.toContain(' or contains(');
+        expect(u).toContain("Soort eq 'Motie'");
+      }
+    });
+
+    it('omits $count, which is the expensive half of the query', async () => {
+      mockFetch.mockResolvedValue(page([]));
+
+      const res = await fetchTkFeed('a OR b');
+
+      for (const c of mockFetch.mock.calls) expect(c[0] as string).not.toContain('$count');
+      // No union count is available, and TkFeedResult already allows null; the
+      // search band falls back to the number of items returned.
+      expect(res.total).toBeNull();
+    });
+
+    it('merges the pages, dropping a document that matched more than one term', async () => {
+      mockFetch
+        .mockResolvedValueOnce(page([{ Id: 'dup', Onderwerp: 'Both', GewijzigdOp: '2026-07-02' }]))
+        .mockResolvedValueOnce(
+          page([
+            { Id: 'dup', Onderwerp: 'Both', GewijzigdOp: '2026-07-02' },
+            { Id: 'other', Onderwerp: 'Only b', GewijzigdOp: '2026-07-01' },
+          ])
+        );
+
+      const res = await fetchTkFeed('a OR b');
+
+      expect(res.items.map((i) => i.id)).toEqual(['dup', 'other']); // newest first, deduped
+    });
+
+    it('keeps going when one term fails, rather than losing the whole query', async () => {
+      mockFetch
+        .mockRejectedValueOnce(new Error('aborted'))
+        .mockResolvedValueOnce(page([{ Id: 'ok', Onderwerp: 'Survivor' }]));
+
+      const res = await fetchTkFeed('a OR b');
+
+      expect(res.items.map((i) => i.id)).toEqual(['ok']);
+    });
+
+    it('throws when every term fails', async () => {
+      mockFetch.mockRejectedValue(new Error('aborted'));
+
+      await expect(fetchTkFeed('a OR b')).rejects.toThrow('aborted');
+    });
   });
 
   it('builds a single-term filter (no OR wrapping)', async () => {

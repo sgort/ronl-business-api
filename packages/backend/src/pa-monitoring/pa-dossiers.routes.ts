@@ -571,11 +571,28 @@ router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res
 });
 
 // ── DELETE /v1/pa/dossiers/:id ──────────────────────────────────────
-// Hard delete incl. all versions (requires pa-admin). Runs in a transaction —
-// pa_dossier_versions has no FK/cascade back to pa_dossiers (dossier_id is a
-// plain TEXT column), so a failure between the two DELETEs could otherwise
-// leave orphaned version rows that a later same-slug recreate would silently
-// inherit via appendVersion's ON CONFLICT DO NOTHING.
+// Hard delete incl. everything that belonged to the dossier (requires
+// pa-admin): its versions, its curated signals and its zoekcriteria.
+//
+// None of this happens by cascade. dossier_id is a plain TEXT column on all
+// three tables with no FK back to pa_dossiers, so every delete has to be
+// spelled out here. It runs in one transaction because a partial delete is
+// worse than none: ids are slug-derived, so recreating a dossier under the
+// same name lands on the same id and silently inherits whatever was left
+// behind — versions via appendVersion's ON CONFLICT DO NOTHING, and signals
+// and searches simply by matching dossier_id again.
+//
+// Deleting the zoekcriteria is what actually stops the bleeding. Curation
+// selects saved searches by tenant and scope alone (curation.service.ts) and
+// never checks that the dossier still exists, so a surviving criterion keeps
+// running its query and filing fresh signals against a dossier that is gone.
+//
+// pa_notifications DOES cascade from pa_signals, so notifications for these
+// signals go with them without being named here.
+//
+// Signals are scoped by dossier_id alone because pa_signals has no tenant_id
+// column; the dossier row was already matched on tenant above, so by the time
+// this runs the id is known to belong to the caller's tenant.
 router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
   const { id } = req.params;
@@ -588,12 +605,23 @@ router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
       ]);
       if (result.rowCount === 0) return false;
       await t.none(`DELETE FROM pa_dossier_versions WHERE dossier_id = $1`, [id]);
-      return true;
+      const signals = await t.result(`DELETE FROM pa_signals WHERE dossier_id = $1`, [id]);
+      const searches = await t.result(
+        `DELETE FROM pa_saved_searches WHERE dossier_id = $1 AND tenant_id = $2`,
+        [id, tenantId]
+      );
+      return { signals: signals.rowCount, searches: searches.rowCount };
     });
     if (!deleted) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
-    res.json({ success: true });
+    logger.info('Dossier deleted with its curation', {
+      id,
+      tenantId,
+      signalsDeleted: deleted.signals,
+      searchesDeleted: deleted.searches,
+    });
+    res.json({ success: true, data: deleted });
   } catch (err) {
     logger.error('Dossier delete error', {
       id,

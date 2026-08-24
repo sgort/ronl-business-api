@@ -13,7 +13,7 @@ router.use(tenantMiddleware);
 
 /**
  * GET /v1/rip/phase1/active
- * List active RipPhase1Process instances for the caseworker's municipality.
+ * List active RipR21Process instances for the caseworker's municipality.
  */
 router.get('/phase1/active', async (req, res) => {
   if (!req.user) {
@@ -54,7 +54,7 @@ router.get('/phases/deployment-status', async (req, res) => {
   }
   try {
     const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
-    const deployedKeys = await operatonService.getDeployedProcessKeys(keys);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(keys, req.user.tenantId);
     res.json({ success: true, data: { deployedKeys } });
   } catch (error) {
     logger.error('Failed to fetch RIP phase deployment status', {
@@ -84,8 +84,8 @@ router.get('/phases/counts', async (req, res) => {
   }
   try {
     const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
-    const deployedKeys = await operatonService.getDeployedProcessKeys(keys);
-    const counts = await operatonService.getPhaseInstanceCounts(deployedKeys);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(keys, req.user.tenantId);
+    const counts = await operatonService.getPhaseInstanceCounts(deployedKeys, req.user.tenantId);
     res.json({ success: true, data: { counts } });
   } catch (error) {
     logger.error('Failed to fetch RIP phase instance counts', {
@@ -143,7 +143,7 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
 
 /**
  * GET /v1/rip/phase1/completed
- * List completed RipPhase1Process instances for the caseworker's municipality.
+ * List completed RipR21Process instances for the caseworker's municipality.
  */
 router.get('/phase1/completed', async (req, res) => {
   if (!req.user) {

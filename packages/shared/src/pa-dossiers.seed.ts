@@ -7,7 +7,24 @@
 
 import type { Dossier } from './types/pa.types';
 
-export const SEED_DOSSIERS: Dossier[] = [
+/**
+ * The seed dossiers, by id. This is the registry the seed data is checked
+ * against: SEED_DOSSIERS below is typed `id: SeedDossierId`, so adding a dossier
+ * without listing its id here is a compile error, and consumers can key
+ * exhaustive per-dossier maps off SeedDossierId (see SEED_OWNERS in the
+ * backend's pa-dossiers.db.ts) instead of falling back at runtime.
+ */
+export const SEED_DOSSIER_IDS = [
+  'stikstof',
+  'lelystad',
+  'energie',
+  'jeugdzorg',
+  'oostvaarders',
+] as const;
+
+export type SeedDossierId = (typeof SEED_DOSSIER_IDS)[number];
+
+export const SEED_DOSSIERS: (Dossier & { id: SeedDossierId })[] = [
   {
     id: 'stikstof',
     naam: 'Stikstof & landbouwtransitie',

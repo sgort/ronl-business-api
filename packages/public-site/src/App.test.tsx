@@ -49,4 +49,16 @@ describe('App', () => {
     );
     expect(screen.getByRole('heading', { name: /niet gevonden|not found/i })).toBeInTheDocument();
   });
+
+  it('renders Herkomst at /herkomst, reachable from the nav', async () => {
+    render(
+      <MemoryRouter initialEntries={['/herkomst']}>
+        <App />
+      </MemoryRouter>
+    );
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Waar komt dit begrip vandaan?' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Herkomst' })).toHaveAttribute('aria-current', 'page');
+  });
 });

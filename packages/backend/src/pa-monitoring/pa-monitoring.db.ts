@@ -6,6 +6,7 @@
 
 import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
+import { config } from '@utils/config';
 
 const logger = createLogger('pa-monitoring-db');
 
@@ -241,13 +242,27 @@ export async function initPaDb(): Promise<void> {
     await db.none(`UPDATE pa_signals SET subbron = 'ep-rss' WHERE bron = 'eu' AND subbron IS NULL`);
 
     logger.info('PA monitoring tables ready');
-    await seedTaxonomy();
+    // Opt-in, for the same reason the demo dossiers are: these criteria are
+    // fixture configuration, and curation runs against whatever is here — so
+    // seeding them unconditionally filled a live database with signals that no
+    // real zoekvraag had asked for. See DEMO_SEARCH_IDS.
+    if (config.pa.seedDemoData) await seedTaxonomy();
+    else logger.info('PA demo taxonomy not seeded (PA_SEED_DEMO_DATA is off)');
   } catch (err) {
     logger.warn('PA monitoring DB init failed — will retry on next request', {
       error: err instanceof Error ? err.message : String(err),
     });
   }
 }
+
+/**
+ * Every saved-search id this module seeds.
+ *
+ * Mirrors DEMO_DOSSIER_IDS: tooling removes demo criteria by this list, so it is
+ * derived from the seed itself rather than hand-kept. The `seed-` prefix matches
+ * what seedTaxonomy writes below.
+ */
+export const DEMO_SEARCH_IDS: readonly string[] = PA_TAXONOMY_SEED.map((e) => `seed-${e.id}`);
 
 async function seedTaxonomy(): Promise<void> {
   for (const entry of PA_TAXONOMY_SEED) {

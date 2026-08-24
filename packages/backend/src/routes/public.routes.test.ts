@@ -5,9 +5,15 @@
  * passthrough; services, axios, altcha, and config are mocked.
  */
 
+// Passthrough middleware, but keep the options each limiter was built with so
+// the keyGenerator can be exercised — the real library is what would call it.
+const mockRateLimitOptions: Array<Record<string, unknown>> = [];
 jest.mock('express-rate-limit', () => ({
   __esModule: true,
-  default: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  default: (opts: Record<string, unknown>) => {
+    mockRateLimitOptions.push(opts);
+    return (_req: unknown, _res: unknown, next: () => void) => next();
+  },
 }));
 jest.mock('@utils/altcha', () => ({ createChallenge: jest.fn(), verifySolution: jest.fn() }));
 jest.mock('@services/nieuws.service', () => ({ getNieuwsItems: jest.fn() }));
@@ -440,5 +446,107 @@ describe('GET /nieuws/:slug, /producten/:slug, /regels/:slug', () => {
   it('500 on failure', async () => {
     m.index.mockRejectedValue(new Error('down'));
     expect((await request(app).get('/v1/public/producten/x')).status).toBe(500);
+  });
+});
+
+describe('the public write rate limiter', () => {
+  it('buckets submissions per client IP, with a shared bucket for unknown ones', () => {
+    // express-rate-limit is a passthrough here, so the keyGenerator is only ever
+    // reached through the captured options.
+    const keyGenerator = mockRateLimitOptions[0]?.['keyGenerator'] as (r: {
+      ip?: string;
+    }) => string;
+    expect(typeof keyGenerator).toBe('function');
+    expect(keyGenerator({ ip: '203.0.113.7' })).toBe('203.0.113.7');
+    expect(keyGenerator({})).toBe('unknown');
+  });
+});
+
+describe('GET /zoeken facet selectors', () => {
+  it('counts soort by type, bron by org and doelgroep by audience', async () => {
+    const indexed = [{ id: 'a', type: 'regel', org: 'SVB', audience: ['Inwoner'] }];
+    m.index.mockResolvedValue(indexed);
+    m.doSearch.mockReturnValue(indexed);
+    m.facets.mockReturnValue([]);
+
+    await request(app).get('/v1/public/zoeken?q=zorg');
+
+    // facetCounts is mocked, so the selectors it would apply are only reachable
+    // through the recorded calls — one per facet, in declaration order.
+    const [soort, bron, doelgroep] = m.facets.mock.calls.map(
+      (c: unknown[]) => c[1] as (i: (typeof indexed)[number]) => unknown
+    );
+    expect(soort(indexed[0])).toBe('regel');
+    expect(bron(indexed[0])).toBe('SVB');
+    expect(doelgroep(indexed[0])).toEqual(['Inwoner']);
+  });
+});
+
+describe('POST /use-case GitLab call options', () => {
+  it('treats a GitLab 4xx as a response to inspect, not an exception', async () => {
+    process.env.GITLAB_TOKEN = 'tok';
+    process.env.GITLAB_PROJECT_PATH = 'proj';
+    mockConfig.gitlab.token = 'tok';
+    mockAxios.post.mockResolvedValue({ status: 201, data: { iid: 1, web_url: 'http://x/1' } });
+
+    await request(app)
+      .post('/v1/public/use-case')
+      .send({ title: 'T', description: 'D', altcha: 'tok' });
+
+    const options = mockAxios.post.mock.calls[0][2] as {
+      validateStatus: (s: number) => boolean;
+    };
+    // The handler checks gitlabRes.status itself, so 4xx must resolve rather
+    // than throw; 5xx stays an exception for the catch to log.
+    expect(options.validateStatus(400)).toBe(true);
+    expect(options.validateStatus(404)).toBe(true);
+    expect(options.validateStatus(500)).toBe(false);
+  });
+});
+
+describe('POST /feedback screenshot filtering', () => {
+  beforeEach(() => {
+    process.env.GITLAB_TOKEN = 'tok';
+    process.env.GITLAB_PROJECT_PATH = 'proj';
+  });
+
+  it('uploads an attached image', async () => {
+    mockAxios.post
+      .mockResolvedValueOnce({ data: { markdown: '![shot](/uploads/a.png)' } })
+      .mockResolvedValueOnce({ data: { iid: 9, web_url: 'http://x/9' } });
+
+    const res = await request(app)
+      .post('/v1/public/feedback')
+      .field('name', 'Bob')
+      .field('contact', 'bob@x.nl')
+      .field('description', 'It broke')
+      .attach('screenshots', Buffer.from('img'), {
+        filename: 'shot.png',
+        contentType: 'image/png',
+      });
+
+    expect(res.status).toBe(200);
+    // One upload call for the screenshot, one create call for the issue.
+    expect(mockAxios.post).toHaveBeenCalledTimes(2);
+    expect(mockAxios.post.mock.calls[0][0]).toContain('/uploads');
+  });
+
+  it('drops a non-image attachment instead of uploading it', async () => {
+    mockAxios.post.mockResolvedValue({ data: { iid: 9, web_url: 'http://x/9' } });
+
+    const res = await request(app)
+      .post('/v1/public/feedback')
+      .field('name', 'Bob')
+      .field('contact', 'bob@x.nl')
+      .field('description', 'It broke')
+      .attach('screenshots', Buffer.from('not an image'), {
+        filename: 'notes.txt',
+        contentType: 'text/plain',
+      });
+
+    expect(res.status).toBe(200);
+    // Only the issue-creation call — the .txt never reached GitLab.
+    expect(mockAxios.post).toHaveBeenCalledTimes(1);
+    expect(mockAxios.post.mock.calls[0][0]).not.toContain('/uploads');
   });
 });

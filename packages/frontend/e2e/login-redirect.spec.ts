@@ -2,7 +2,9 @@ import { expect, test } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 
 // Phase 1 item 2 — one test per role, Flevoland tenant (widest role set).
-// See docs/TESTING-FRONTEND-UI.md's Phase 1 scope. Password for every
+// See the E2E section of the testing docs for Phase 1 scope:
+// https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/
+// Password for every
 // Flevoland test user is 'test123' (config/keycloak/ronl-realm.json).
 const CASES = [
   { username: 'test-citizen-flevoland', dashboard: '/dashboard/citizen' },

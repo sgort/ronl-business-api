@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PADashboardV2 from './PADashboardV2';
 import type { Dossier } from '@ronl/shared';
+import { makePaDataStub } from '../test/paData.stub';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
@@ -52,23 +53,9 @@ vi.mock('./public-affairs-v2/PaDataProvider', () => ({
   usePaData: mockUsePaData,
 }));
 
-function defaultPaData() {
-  return {
-    signals: { data: [], status: 'ok', refetch: vi.fn() },
-    inbox: { data: [], status: 'ok', refetch: vi.fn() },
-    dossiers: { data: dossiers, status: 'ok', refetch: vi.fn() },
-    agenda: { data: [], status: 'ok', refetch: vi.fn() },
-    notifications: { data: { items: [], unseenCount: 0 }, status: 'ok', refetch: vi.fn() },
-    inboxCounts: {},
-    updateInboxCount: vi.fn(),
-    confirmSignal: vi.fn(),
-    linkSignalDossier: vi.fn(),
-    watchDossier: vi.fn(),
-    unwatchDossier: vi.fn(),
-    toggleSearchNotify: vi.fn(),
-    ackNotifications: vi.fn(),
-  };
-}
+/** The shared stub, with this file's dossier fixture. */
+const defaultPaData = () =>
+  makePaDataStub({ dossiers: { data: dossiers, status: 'ok', refetch: vi.fn() } });
 
 vi.mock('../components/PADashboardV2/PASectionRouter', () => ({
   default: (props: {

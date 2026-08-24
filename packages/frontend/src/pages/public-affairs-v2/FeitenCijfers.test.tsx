@@ -4,12 +4,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DossierFeitenStrip, FeitenView } from './FeitenCijfers';
 import { FEITEN_MONITOREN } from './feiten.data';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockUsePaData = vi.hoisted(() => vi.fn());
 vi.mock('./PaDataProvider', () => ({ usePaData: mockUsePaData }));
 
 beforeEach(() => {
-  mockUsePaData.mockReturnValue({ dossiers: { data: [], status: 'ok' } });
+  mockUsePaData.mockReturnValue(makePaDataStub());
 });
 
 afterEach(() => {

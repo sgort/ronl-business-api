@@ -1258,12 +1258,12 @@
 .pac .pac-ag-day.today .pac-ag-daydate { color: var(--pac-accent-d); }
 .pac .pac-ag-todaymark { display: inline-block; margin-top: 8px; font-family: var(--pac-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; background: var(--pac-accent); padding: 2px 7px; }
 .pac .pac-ag-items { display: flex; flex-direction: column; gap: 8px; }
-.pac .pac-ag-item { display: grid; grid-template-columns: 92px 1fr auto; gap: 14px; align-items: start; background: var(--pac-paper); border: 1px solid var(--pac-rule-2); padding: 11px 14px; }
+.pac .pac-ag-item { display: grid; grid-template-columns: 62px 1fr auto; gap: 14px; align-items: start; background: var(--pac-paper); border: 1px solid var(--pac-rule-2); padding: 11px 14px; }
 .pac .pac-ag-item.live { border-color: var(--pac-accent); border-left-width: 3px; background: color-mix(in srgb, var(--pac-accent) 5%, white); }
 .pac .pac-ag-item.cancelled .pac-ag-title { text-decoration: line-through; color: var(--pac-ink-3); }
 .pac .pac-ag-time { display: flex; flex-direction: column; gap: 6px; }
 .pac .pac-ag-clock { font-family: var(--pac-mono); font-size: 14px; font-weight: 600; color: var(--pac-ink); }
-.pac .pac-ag-soort { font-family: var(--pac-mono); font-size: 9.5px; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 6px; border: 1px solid; white-space: nowrap; align-self: flex-start; }
+.pac .pac-ag-soort { font-family: var(--pac-mono); font-size: 9.5px; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 6px; border: 1px solid; white-space: nowrap; }
 .pac .pac-ag-soort.plenair { color: var(--pac-chrome); border-color: #bcd0f5; background: #eef4fe; }
 .pac .pac-ag-soort.vragenuur { color: var(--pac-amber); border-color: #f3dca0; background: #fff8e8; }
 .pac .pac-ag-soort.commissie { color: var(--pac-ink-2); border-color: var(--pac-rule); background: var(--pac-bg); }

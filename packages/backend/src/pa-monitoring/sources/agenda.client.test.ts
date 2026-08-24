@@ -3,7 +3,12 @@
  * time normalisation, item-URL building, and the single-page fetch + cache flow.
  */
 
-jest.mock('../pa-cache', () => ({ cacheGet: jest.fn(), cacheSet: jest.fn() }));
+// Spread the real module so a third export added later is not silently absent.
+const mockCacheOverrides = { cacheGet: jest.fn(), cacheSet: jest.fn() };
+jest.mock('../pa-cache', () => ({
+  ...jest.requireActual('../pa-cache'),
+  ...mockCacheOverrides,
+}));
 jest.mock('@utils/config', () => ({
   config: { pa: { tkApiBase: 'https://tk', cacheTtlAgenda: 1800 } },
 }));
@@ -13,6 +18,7 @@ jest.mock('@utils/logger', () => ({
 
 import { fetchAgenda } from './agenda.client';
 import { cacheGet, cacheSet } from '../pa-cache';
+import { expectMockNamesRealExports } from '../../test-utils/mockModule';
 
 const mockCacheGet = cacheGet as jest.Mock;
 const mockCacheSet = cacheSet as jest.Mock;
@@ -27,12 +33,43 @@ beforeEach(() => {
   mockCacheSet.mockResolvedValue(undefined);
 });
 
+describe('the pa-cache mock', () => {
+  it('only names real exports', () => {
+    expectMockNamesRealExports(jest.requireActual('../pa-cache'), mockCacheOverrides);
+  });
+});
+
 describe('fetchAgenda', () => {
   it('returns cached results without fetching', async () => {
     mockCacheGet.mockResolvedValue([{ id: 'x' }]);
     const res = await fetchAgenda('2026-06-01', '2026-06-30');
     expect(res).toEqual([{ id: 'x' }]);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not serve an empty cached result for the rest of the TTL', async () => {
+    // An empty array left by a failed fetch is not a valid answer — see
+    // tk.client for the failure this guard prevents.
+    mockCacheGet.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [
+          {
+            Id: 'a1',
+            Soort: 'Commissiedebat',
+            Onderwerp: 'Energie',
+            Datum: '2026-06-10T10:00:00Z',
+            Status: 'Gepland',
+          },
+        ],
+      }),
+    });
+
+    const res = await fetchAgenda('2026-06-01', '2026-06-30');
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.length).toBeGreaterThan(0);
   });
 
   it('classifies soorten, normalises fields, and caches (single page)', async () => {
@@ -95,5 +132,51 @@ describe('fetchAgenda', () => {
   it('throws when a page responds with a non-ok status', async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 400 });
     await expect(fetchAgenda('2026-06-01', '2026-06-30')).rejects.toThrow(/TK Agenda API 400/);
+  });
+});
+
+describe('fetchAgenda — raw items with fields missing or unlabelled', () => {
+  it('keeps the raw Soort as the label when there is no override for it', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [{ Id: 'a1', Soort: 'Stemmingen', Nummer: '2026S01' }],
+      }),
+    });
+    const [item] = await fetchAgenda('2026-06-01', '2026-06-30');
+    expect(item).toMatchObject({ soort: 'plenair', soortLabel: 'Stemmingen' });
+  });
+
+  it('defaults id, nummer, status and date when the raw item omits them', async () => {
+    // TK's OData returns partial rows for provisional agenda entries.
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: [{ Soort: 'Commissiedebat' }] }),
+    });
+    const [item] = await fetchAgenda('2026-06-01', '2026-06-30');
+    expect(item).toMatchObject({ id: '', nummer: '', status: 'gepland', iso: '' });
+    expect(item.tijd).toBeNull();
+  });
+
+  it('reports no time when the timestamp is too short to carry one', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        value: [{ Id: 'a1', Soort: 'Commissiedebat', Nummer: 'N', Datum: '2026-06-22' }],
+      }),
+    });
+    const [item] = await fetchAgenda('2026-06-01', '2026-06-30');
+    expect(item.tijd).toBeNull();
+  });
+
+  it('treats a page without a value array as the last, empty page', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    await expect(fetchAgenda('2026-06-01', '2026-06-30')).resolves.toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows and logs when the fetch rejects with a non-Error', async () => {
+    mockFetch.mockRejectedValue('socket hang up');
+    await expect(fetchAgenda('2026-06-01', '2026-06-30')).rejects.toBe('socket hang up');
   });
 });

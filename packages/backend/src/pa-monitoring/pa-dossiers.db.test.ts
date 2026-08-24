@@ -6,6 +6,8 @@
  * Also covers relativeLabel — the "bewerkt N geleden" formatter — directly.
  */
 
+const mockConfig = { pa: { seedDemoData: true } };
+jest.mock('@utils/config', () => ({ config: mockConfig }));
 jest.mock('@services/audit.service', () => ({ db: { none: jest.fn() } }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
@@ -14,9 +16,15 @@ jest.mock('@utils/logger', () => ({
 import {
   initDossiersDb,
   relativeLabel,
+  completeKompas,
+  rowToDossier,
+  dossierDateLabel,
+  rowToAdminDossier,
   DOSSIER_TEMPLATES,
   DOSSIER_SNIPPETS,
+  DEMO_DOSSIER_IDS,
 } from './pa-dossiers.db';
+import { SEED_DOSSIER_IDS } from '@ronl/shared';
 import { db } from '@services/audit.service';
 
 const mockNone = (db as unknown as { none: jest.Mock }).none;
@@ -30,7 +38,11 @@ const templateSeedCalls = () =>
 const snippetSeedCalls = () =>
   mockNone.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO pa_snippets'));
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Most of this file exercises the seed itself, so it runs with the opt-in on.
+  mockConfig.pa.seedDemoData = true;
+});
 
 describe('initDossiersDb', () => {
   it('creates the tables, then seeds dossiers, templates, and snippets', async () => {
@@ -120,6 +132,60 @@ describe('initDossiersDb', () => {
   });
 });
 
+describe('DEMO_DOSSIER_IDS', () => {
+  it('lists exactly the ids the seed writes', async () => {
+    mockConfig.pa.seedDemoData = true;
+    mockNone.mockResolvedValue(undefined);
+    await initDossiersDb();
+
+    // Tooling deletes demo rows by this list, so a dossier added to the seed
+    // without being registered here would survive a --drop-demo and quietly
+    // keep polluting a live database.
+    const seeded = dossierSeedCalls().map((c) => c[1][0] as string);
+    expect([...DEMO_DOSSIER_IDS].sort()).toEqual(seeded.sort());
+  });
+
+  it('covers every SEED_DOSSIER_IDS entry', () => {
+    for (const id of SEED_DOSSIER_IDS) expect(DEMO_DOSSIER_IDS).toContain(id);
+  });
+});
+
+describe('initDossiersDb — demo dossiers are opt-in', () => {
+  it('seeds no dossiers by default, so a live database holds only authored ones', async () => {
+    mockConfig.pa.seedDemoData = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initDossiersDb();
+
+    // The whole point of the separation: the SEED_DOSSIERS examples are the
+    // frontend's mock fixture, so putting them in the database made live mode
+    // indistinguishable from mock plus extras.
+    expect(dossierSeedCalls()).toHaveLength(0);
+    expect(versionSeedCalls()).toHaveLength(0);
+  });
+
+  it('still creates the tables when demo seeding is off', async () => {
+    mockConfig.pa.seedDemoData = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initDossiersDb();
+
+    expect(String(mockNone.mock.calls[0][0])).toContain('CREATE TABLE IF NOT EXISTS pa_dossiers');
+  });
+
+  it('still seeds templates and snippets when demo seeding is off', async () => {
+    // These are not sample content — you cannot author a dossier without a
+    // sjabloon to start from, so they are part of a working empty install.
+    mockConfig.pa.seedDemoData = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initDossiersDb();
+
+    expect(templateSeedCalls().length).toBe(DOSSIER_TEMPLATES.length);
+    expect(snippetSeedCalls().length).toBe(DOSSIER_SNIPPETS.length);
+  });
+});
+
 describe('relativeLabel', () => {
   it('returns "—" for a non-parseable timestamp', () => {
     expect(relativeLabel('not-a-date')).toBe('—');
@@ -149,5 +215,156 @@ describe('relativeLabel', () => {
 
   it('formats months once weeks reach nine', () => {
     expect(relativeLabel(new Date(Date.now() - 70 * 86_400_000).toISOString())).toBe('2 mnd');
+  });
+});
+
+describe('completeKompas', () => {
+  it('fills every axis with a zero score when nothing is stored yet', () => {
+    // A dossier authored before the Kompas existed has no scores at all.
+    for (const partial of [undefined, null]) {
+      const full = completeKompas(partial);
+      expect(Object.values(full).every((v) => v.score === 0 && v.duiding === '')).toBe(true);
+    }
+  });
+
+  it('keeps the axes that are stored and fills in only the rest', () => {
+    const full = completeKompas({ risico: { score: 2, duiding: 'hoog' } });
+    expect(full.risico).toEqual({ score: 2, duiding: 'hoog' });
+    expect(Object.values(full).filter((v) => v.score === 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe('rowToDossier', () => {
+  it('rebuilds the dossier from the stored body plus the indexed columns', () => {
+    const d = rowToDossier({
+      id: 'd-1',
+      naam: 'Naam',
+      onderwerp: 'Onderwerp',
+      status: 'actief',
+      momentum: 'hoog',
+      kompas: { risico: { score: 2, duiding: 'x' } },
+      body: { waaromNu: 'nu', waarover: 'wat' },
+    });
+    expect(d).toMatchObject({ id: 'd-1', naam: 'Naam', waaromNu: 'nu', waarover: 'wat' });
+    expect(d.kompas.risico).toEqual({ score: 2, duiding: 'x' });
+  });
+
+  it('tolerates a row with neither a body nor a kompas column', () => {
+    // Rows written by an older schema version have no body blob at all.
+    const d = rowToDossier({ id: 'd-2', naam: 'Naam', onderwerp: 'O', status: 'actief' });
+    expect(d.id).toBe('d-2');
+    expect(Object.values(d.kompas).every((v) => v.score === 0)).toBe(true);
+  });
+});
+
+describe('dossierDateLabel', () => {
+  it('formats a timestamp as a short Dutch date', () => {
+    expect(dossierDateLabel('2026-05-12T10:00:00Z')).toBe('12 mei 2026');
+  });
+
+  it('echoes an unparseable string back rather than inventing a date', () => {
+    expect(dossierDateLabel('12 mei 2026')).toBe('12 mei 2026');
+  });
+
+  it('falls back to a dash when there is no timestamp at all', () => {
+    expect(dossierDateLabel(null)).toBe('—');
+    expect(dossierDateLabel(undefined)).toBe('—');
+    // A number is a parseable timestamp; an object is neither parseable nor a string.
+    expect(dossierDateLabel({})).toBe('—');
+  });
+});
+
+describe('rowToAdminDossier', () => {
+  it('maps a fully populated governance row', () => {
+    const admin = rowToAdminDossier(
+      {
+        id: 'd-1',
+        naam: 'Naam',
+        onderwerp: 'O',
+        status: 'concept',
+        momentum: 'hoog',
+        eigenaar: 'Kernteam PA',
+        kompas: { risico: { score: 1, duiding: '' } },
+        md: { waaromNu: '# nu', waarover: '# wat', onsVerhaal: '# verhaal' },
+        versie: 4,
+        gepubliceerd: true,
+        sjabloon: 'standaard',
+        archief: { reden: 'afgerond' },
+        updated_at: new Date().toISOString(),
+      },
+      [{ v: 1, at: '1 jan 2026', by: 'PA', note: 'aangemaakt' }]
+    );
+    expect(admin).toMatchObject({
+      versie: 4,
+      gepubliceerd: true,
+      sjabloon: 'standaard',
+      bewerkt: 'nu',
+    });
+    expect(admin.versies).toHaveLength(1);
+  });
+
+  it('defaults every optional governance column on a freshly created row', () => {
+    const admin = rowToAdminDossier(
+      { id: 'd-2', naam: 'Naam', onderwerp: 'O', status: 'concept', momentum: 'laag' },
+      []
+    );
+    expect(admin).toMatchObject({
+      kompas: {},
+      md: { waaromNu: '', waarover: '', onsVerhaal: '' },
+      versie: 1,
+      gepubliceerd: false,
+      sjabloon: 'blanco',
+      archief: null,
+      bewerkt: '—',
+    });
+  });
+});
+
+describe('initDossiersDb — failures that are not Error instances', () => {
+  // node-postgres can reject with a bare string on a connection-level failure;
+  // both catches have a String(err) fallback so the log line still says something.
+  it('is fail-soft when table creation rejects with a string', async () => {
+    mockNone.mockRejectedValue('connection terminated');
+    await expect(initDossiersDb()).resolves.toBeUndefined();
+    expect(mockNone).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues seeding when one dossier insert rejects with a string', async () => {
+    mockNone.mockResolvedValueOnce(undefined); // CREATE tables
+    mockNone.mockRejectedValueOnce('connection terminated'); // first dossier INSERT
+    mockNone.mockResolvedValue(undefined);
+
+    await expect(initDossiersDb()).resolves.toBeUndefined();
+
+    expect(dossierSeedCalls().length).toBeGreaterThan(1);
+  });
+});
+
+describe('seed dossier ownership', () => {
+  it('seeds every dossier with a real owner, and attributes its history to the same person', async () => {
+    // SEED_OWNERS is keyed by SeedDossierId, so a dossier added without an owner
+    // fails to compile rather than seeding as a plausible-looking 'Kernteam PA'.
+    // This pins the behaviour that typing protects.
+    mockNone.mockResolvedValue(undefined);
+    await initDossiersDb();
+
+    const seeded = dossierSeedCalls().filter((c) =>
+      SEED_DOSSIER_IDS.includes(c[1][0] as (typeof SEED_DOSSIER_IDS)[number])
+    );
+    expect(seeded).toHaveLength(SEED_DOSSIER_IDS.length);
+
+    for (const call of seeded) {
+      const id = call[1][0] as string;
+      // pa_dossiers params are [id, tenant_id, naam, onderwerp, status, momentum, eigenaar, ...].
+      const eigenaar = call[1][6] as string;
+      expect(eigenaar).toBeTruthy();
+      expect(eigenaar).not.toBe('Kernteam PA');
+
+      // Every version row for that dossier is credited to its owner.
+      // pa_dossier_versions params are [dossier_id, v, by, note].
+      const versions = versionSeedCalls().filter((v) => v[1][0] === id);
+      expect(versions.length).toBeGreaterThan(0);
+      for (const v of versions) expect(v[1][2]).toBe(eigenaar);
+    }
   });
 });

@@ -20,25 +20,50 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 const mockFetchTkFeed = jest.fn();
 const mockFetchObFeed = jest.fn();
 const mockFetchEuFeed = jest.fn();
-jest.mock('./sources/tk.client', () => ({ fetchTkFeed: mockFetchTkFeed }));
-jest.mock('./sources/ob.client', () => ({ fetchObFeed: mockFetchObFeed }));
-jest.mock('./sources/eu.client', () => ({ fetchEuFeed: mockFetchEuFeed }));
+// Spread the real modules first: a factory replaces the module wholesale, so an
+// export added later is simply absent. That is how EU_DOCUMENT_TYPES went
+// missing from pa.routes.test's mock and made GET /v1/pa/types answer 500 while
+// every test still passed.
+const mockTkOverrides = { fetchTkFeed: mockFetchTkFeed };
+jest.mock('./sources/tk.client', () => ({
+  ...jest.requireActual('./sources/tk.client'),
+  ...mockTkOverrides,
+}));
+const mockObOverrides = { fetchObFeed: mockFetchObFeed };
+jest.mock('./sources/ob.client', () => ({
+  ...jest.requireActual('./sources/ob.client'),
+  ...mockObOverrides,
+}));
+const mockEuOverrides = { fetchEuFeed: mockFetchEuFeed };
+jest.mock('./sources/eu.client', () => ({
+  ...jest.requireActual('./sources/eu.client'),
+  ...mockEuOverrides,
+}));
 
 const mockScoreItem = jest.fn();
-jest.mock('./rules', () => ({ scoreItem: mockScoreItem }));
+const mockRulesOverrides = { scoreItem: mockScoreItem };
+jest.mock('./rules', () => ({
+  ...jest.requireActual('./rules'),
+  ...mockRulesOverrides,
+}));
 
 const mockFetchAllNewSubmittedTexts = jest.fn();
+const mockEpTextsOverrides = { fetchAllNewSubmittedTexts: mockFetchAllNewSubmittedTexts };
 jest.mock('./sources/ep-texts-submitted.client', () => ({
-  fetchAllNewSubmittedTexts: mockFetchAllNewSubmittedTexts,
+  ...jest.requireActual('./sources/ep-texts-submitted.client'),
+  ...mockEpTextsOverrides,
 }));
 
 const mockFetchFlevolandNews = jest.fn();
+const mockMediaOverrides = { fetchFlevolandNews: mockFetchFlevolandNews };
 jest.mock('./sources/media.client', () => ({
-  fetchFlevolandNews: mockFetchFlevolandNews,
+  ...jest.requireActual('./sources/media.client'),
+  ...mockMediaOverrides,
 }));
 
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import type { FeedItem } from '@ronl/shared';
+import { expectMockNamesRealExports } from '../test-utils/mockModule';
 
 // Default score: above threshold, no dossier
 const PASS = { rel: 5, tab: 'politiek' as const, dossierId: null };
@@ -84,6 +109,21 @@ beforeEach(() => {
   mockDb.none.mockResolvedValue(undefined);
   // getSeenEpTekstenRefs calls db.any; default to empty seen-set
   mockDb.any.mockResolvedValue([]);
+});
+
+describe('the module mocks', () => {
+  // Spreading requireActual stops an export going missing; this stops one being
+  // renamed, which would leave the override stubbing nothing.
+  it.each([
+    ['./sources/tk.client', mockTkOverrides],
+    ['./sources/ob.client', mockObOverrides],
+    ['./sources/eu.client', mockEuOverrides],
+    ['./sources/ep-texts-submitted.client', mockEpTextsOverrides],
+    ['./sources/media.client', mockMediaOverrides],
+    ['./rules', mockRulesOverrides],
+  ])('%s mock only names real exports', (path, overrides) => {
+    expectMockNamesRealExports(jest.requireActual(path as string), overrides);
+  });
 });
 
 describe('runCurationCycle — no searches', () => {
@@ -557,5 +597,210 @@ describe('promoteToInbox — human override', () => {
     await promoteToInbox('flevoland', feedItem());
     expect(mockDb.any).toHaveBeenCalledTimes(1);
     expect(mockScoreItem).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runCurationCycle — source label variants', () => {
+  const persistedInsert = () =>
+    mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  it('tags an EP submitted-texts item with its sub-source', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        feedItem({ id: 'eu-1', source: 'eu', subbron: 'ep-teksten', type: 'Verslag', date: null }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    expect(persistedInsert()![1][4]).toBe(
+      'Europees Parlement · Verslag · Ingediende teksten · onbekend'
+    );
+  });
+
+  it('distinguishes regional from national news items', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['media'] })]);
+    mockFetchFlevolandNews.mockResolvedValue([
+      feedItem({
+        id: 'md-1',
+        source: 'media',
+        subbron: 'nieuws-regionaal',
+        number: 'Omroep Flevoland',
+        date: null,
+      }),
+    ]);
+    await runCurationCycle();
+    expect(persistedInsert()![1][4]).toBe('Omroep Flevoland · Regionaal nieuws · onbekend');
+  });
+
+  it('falls back to the raw date string when it is not parseable', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({
+      items: [feedItem({ source: 'tk', type: 'Motie', date: 'binnenkort' })],
+      total: 1,
+    });
+    await runCurationCycle();
+    expect(persistedInsert()![1][4]).toBe('Tweede Kamer · Motie · binnenkort');
+  });
+});
+
+describe('runCurationCycle — saved searches without a query term', () => {
+  it('skips a search that has no q, fetching nothing for it', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: '', sources: ['tk', 'ob'] })]);
+    await runCurationCycle();
+    expect(mockFetchTkFeed).not.toHaveBeenCalled();
+    expect(mockFetchObFeed).not.toHaveBeenCalled();
+  });
+});
+
+describe('runCurationCycle — failures that are not Error instances', () => {
+  // Every step logs err instanceof Error ? err.message : String(err) and carries
+  // on; a bare-string rejection must not take the cycle down.
+  it('survives a persist that rejects with a string', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['tk'] })]);
+    mockFetchTkFeed.mockResolvedValue({ items: [feedItem({ source: 'tk' })], total: 1 });
+    mockDb.none.mockRejectedValue('connection terminated');
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+
+  it('survives a saved-search load that rejects with a string', async () => {
+    mockDb.any.mockRejectedValue('connection terminated');
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+
+  it('survives every feed source rejecting with a string', async () => {
+    mockDb.any.mockResolvedValue([
+      savedSearch({ q: 'stikstof', sources: ['tk', 'ob', 'eu', 'media'] }),
+    ]);
+    mockFetchTkFeed.mockRejectedValue('socket hang up');
+    mockFetchObFeed.mockRejectedValue('socket hang up');
+    mockFetchEuFeed.mockRejectedValue('socket hang up');
+    mockFetchAllNewSubmittedTexts.mockRejectedValue('socket hang up');
+    mockFetchFlevolandNews.mockRejectedValue('socket hang up');
+    await expect(runCurationCycle()).resolves.toBeUndefined();
+  });
+});
+
+describe('runCurationCycle — press-release labelling', () => {
+  const persistedInsert = () =>
+    mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  it('labels an EP press release distinctly from a plenary document', async () => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        feedItem({
+          id: '20260716IPR46531',
+          source: 'eu',
+          subbron: 'ep-persbericht',
+          type: 'Persbericht',
+          date: null,
+        }),
+      ],
+      total: 1,
+    });
+    await runCurationCycle();
+    // The type already reads 'Persbericht', so the sub-source label is suppressed
+    // rather than repeating the word.
+    expect(persistedInsert()![1][4]).toBe('Europees Parlement · Persbericht · onbekend');
+  });
+});
+
+describe('runCurationCycle — EP motion collapse', () => {
+  const persistedInserts = () =>
+    mockDb.none.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO pa_signals'));
+
+  const motion = (id: string, title: string) =>
+    feedItem({
+      id,
+      source: 'eu',
+      subbron: 'ep-teksten',
+      type: 'Ontwerpresolutie',
+      title,
+      date: null,
+      // persistCandidate only builds the ref JSON for an item that has a url.
+      url: `https://www.europarl.europa.eu/doceo/document/${id}_NL.html`,
+    });
+
+  const TITLE = 'MOTION FOR A RESOLUTION on the threat of war crimes in El-Obeid, Sudan';
+
+  beforeEach(() => {
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+  });
+
+  it('persists one signal for a motion tabled by several groups', async () => {
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        motion('B-10-2026-0360', TITLE),
+        motion('B-10-2026-0359', TITLE),
+        // EP is inconsistent about casing between siblings; they are one motion.
+        motion('B-10-2026-0358', TITLE.replace('threat of war crimes', 'Threat of War Crimes')),
+      ],
+      total: 3,
+    });
+
+    await runCurationCycle();
+
+    expect(persistedInserts()).toHaveLength(1);
+  });
+
+  it('keys the survivor on the title, not a ref, so later siblings update it', async () => {
+    // A ref-derived winner would change when a lower ref turns up in a later
+    // cycle, persisting a second row instead of updating the first.
+    mockFetchEuFeed.mockResolvedValue({
+      items: [motion('B-10-2026-0360', TITLE), motion('B-10-2026-0359', TITLE)],
+      total: 2,
+    });
+    await runCurationCycle();
+    const firstKey = persistedInserts()[0][1][13];
+
+    jest.clearAllMocks();
+    mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
+    mockDb.none.mockResolvedValue(undefined);
+    mockFetchEuFeed.mockResolvedValue({
+      items: [motion('B-10-2026-0346', TITLE), motion('B-10-2026-0360', TITLE)],
+      total: 2,
+    });
+    await runCurationCycle();
+
+    expect(persistedInserts()[0][1][13]).toBe(firstKey);
+  });
+
+  it('shows the lowest ref and how many others tabled it', async () => {
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        motion('B-10-2026-0360', TITLE),
+        motion('B-10-2026-0346', TITLE),
+        motion('B-10-2026-0359', TITLE),
+      ],
+      total: 3,
+    });
+
+    await runCurationCycle();
+
+    const ref = JSON.parse(persistedInserts()[0][1][10] as string);
+    expect(ref.nr).toBe('B-10-2026-0346 +2');
+  });
+
+  it('leaves distinct motions and press releases alone', async () => {
+    mockFetchEuFeed.mockResolvedValue({
+      items: [
+        motion('B-10-2026-0360', TITLE),
+        motion('B-10-2026-0301', 'MOTION FOR A RESOLUTION on something else entirely'),
+        feedItem({
+          id: '20260716IPR46531',
+          source: 'eu',
+          subbron: 'ep-persbericht',
+          type: 'Persbericht',
+          title: 'Press release - EU-China relations',
+          date: null,
+        }),
+      ],
+      total: 3,
+    });
+
+    await runCurationCycle();
+
+    expect(persistedInserts()).toHaveLength(3);
   });
 });

@@ -9,6 +9,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware never produces.
+    if (req.headers['x-test-no-user']) return next();
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
@@ -27,6 +30,9 @@ jest.mock('@auth/jwt.middleware', () => ({
   requireRoles:
     (...required: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
+      // Let the no-user probe through to the handler, whose own guard is the
+      // subject of the test; the real requireRoles would stop it here.
+      if (req.headers['x-test-no-user']) return next();
       const user = req.user;
       if (!user) {
         return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
@@ -60,6 +66,9 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
+// pa-dossiers.db reads config.pa.seedDemoData; the real module validates
+// the whole environment on import, which these route tests do not provide.
+jest.mock('@utils/config', () => ({ config: { pa: { seedDemoData: false } } }));
 
 import express from 'express';
 import request from 'supertest';
@@ -731,6 +740,55 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     expect(versionDelete?.[1]).toEqual(['stikstof']);
   });
 
+  it('admin → 200, takes the curated signals and zoekcriteria with it', async () => {
+    // The whole point of the cascade. Nothing in the database enforces it:
+    // dossier_id is a plain TEXT column on both tables with no FK, so a signal
+    // or a saved search whose dossier is gone simply keeps pointing at an id
+    // that no longer resolves. Observed on a real database: deleting one
+    // dossier left 37 curated signals and its zoekcriterium behind, all still
+    // counted on the Monitoring rail.
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    mockDb.none.mockResolvedValue(undefined);
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+    expect(res.status).toBe(200);
+
+    const deletes = mockDb.result.mock.calls.map((c) => String(c[0]));
+    expect(deletes.some((q) => /DELETE FROM pa_signals WHERE dossier_id/.test(q))).toBe(true);
+    expect(deletes.some((q) => /DELETE FROM pa_saved_searches WHERE dossier_id/.test(q))).toBe(
+      true
+    );
+  });
+
+  it('scopes the zoekcriteria delete by tenant, and the signals delete by dossier alone', async () => {
+    // pa_signals has no tenant_id column, so the dossier row matched on tenant
+    // above is what makes the signals delete safe. pa_saved_searches does have
+    // one, and passing it costs nothing.
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    mockDb.none.mockResolvedValue(undefined);
+    await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+
+    const signals = mockDb.result.mock.calls.find((c) =>
+      /DELETE FROM pa_signals/.test(String(c[0]))
+    );
+    const searches = mockDb.result.mock.calls.find((c) =>
+      /DELETE FROM pa_saved_searches/.test(String(c[0]))
+    );
+    expect(signals?.[1]).toEqual(['stikstof']);
+    expect(searches?.[1]).toEqual(['stikstof', 'flevoland']);
+  });
+
+  it('a failing signals delete rolls the whole thing back → 500', async () => {
+    // Partial is worse than none: ids are slug-derived, so recreating the
+    // dossier under the same name would inherit whatever survived.
+    mockDb.none.mockResolvedValue(undefined);
+    mockDb.result
+      .mockResolvedValueOnce({ rowCount: 1 }) // the dossier row
+      .mockRejectedValueOnce(new Error('signals delete failed'));
+    const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
+  });
+
   it('versions delete failing mid-transaction → 500 (not a partial delete leaving orphaned versions)', async () => {
     mockDb.result.mockResolvedValue({ rowCount: 1 });
     mockDb.none.mockRejectedValue(new Error('versions delete failed'));
@@ -866,5 +924,56 @@ describe('templates + snippets', () => {
       .send({ naam: 'Blok', md: '- item' });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('SNIPPET_CREATE_ERROR');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const NO_USER = { 'x-test-no-user': '1' };
+
+  it.each([
+    ['get', '/v1/pa/dossiers'],
+    ['get', '/v1/pa/dossiers/d-1'],
+    ['post', '/v1/pa/dossiers/d-1/watch'],
+    ['delete', '/v1/pa/dossiers/d-1/watch'],
+    ['post', '/v1/pa/dossiers'],
+    ['patch', '/v1/pa/dossiers/d-1'],
+    ['post', '/v1/pa/dossiers/d-1/archive'],
+    ['post', '/v1/pa/dossiers/d-1/unarchive'],
+    ['delete', '/v1/pa/dossiers/d-1'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await request(app)[method](path).set(NO_USER).send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('failures that are not Error instances', () => {
+  // pg can reject with a bare string on a connection-level failure; each catch
+  // has a String(err) fallback so the log line still says something.
+  const VALID_DOSSIER = { naam: 'Nieuw dossier', onderwerp: 'Onderwerp' };
+
+  it.each([
+    ['get', '/v1/pa/dossiers', PA, {}],
+    ['get', '/v1/pa/dossiers/d-1', PA, {}],
+    ['post', '/v1/pa/dossiers/d-1/watch', PA, {}],
+    ['delete', '/v1/pa/dossiers/d-1/watch', PA, {}],
+    ['post', '/v1/pa/dossiers', AUTHOR, VALID_DOSSIER],
+    ['patch', '/v1/pa/dossiers/d-1', AUTHOR, { naam: 'Gewijzigd' }],
+    ['post', '/v1/pa/dossiers/d-1/archive', ADMIN, { reden: 'afgerond' }],
+    ['post', '/v1/pa/dossiers/d-1/unarchive', ADMIN, {}],
+    ['delete', '/v1/pa/dossiers/d-1', ADMIN, {}],
+    ['get', '/v1/pa/templates', PA, {}],
+    ['post', '/v1/pa/templates', EDITOR, { naam: 'Sjabloon' }],
+    ['get', '/v1/pa/snippets', PA, {}],
+    ['post', '/v1/pa/snippets', EDITOR, { naam: 'Snippet', md: '# md' }],
+  ] as const)('%s %s answers 5xx rather than hanging', async (method, path, roles, body) => {
+    for (const fn of ['any', 'one', 'oneOrNone', 'none', 'result', 'tx'] as const) {
+      mockDb[fn].mockRejectedValue('connection terminated');
+    }
+    const res = await request(app)[method](path).set(roles).send(body);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(mockLogger.error).toHaveBeenCalled();
   });
 });

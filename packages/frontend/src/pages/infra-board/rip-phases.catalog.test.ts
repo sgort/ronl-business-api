@@ -44,7 +44,7 @@ describe('RIP_PHASES catalogue', () => {
   });
 
   it('only R2.1 carries a processDefinitionKey', () => {
-    expect(ripPhaseByCode('R2.1')?.processDefinitionKey).toBe('RipPhase1Process');
+    expect(ripPhaseByCode('R2.1')?.processDefinitionKey).toBe('RipR21Process');
     for (const code of NON_R21_CODES) {
       expect(ripPhaseByCode(code)?.processDefinitionKey).toBeUndefined();
     }
@@ -84,7 +84,7 @@ describe('getPhaseDeployStatus', () => {
   const beyond: RipPhase = { ...ripPhaseByCode('R5.3')! };
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {
-    expect(getPhaseDeployStatus(withKey, new Set(['RipPhase1Process']))).toBe('gedeployed');
+    expect(getPhaseDeployStatus(withKey, new Set(['RipR21Process']))).toBe('gedeployed');
   });
 
   it('is ontwerp when the phase has a key but it is not in the deployed set', () => {
@@ -96,7 +96,7 @@ describe('getPhaseDeployStatus', () => {
   });
 
   it('is onbekend when the phase is beyond, regardless of the deployed set', () => {
-    expect(getPhaseDeployStatus(beyond, new Set(['RipPhase1Process']))).toBe('onbekend');
+    expect(getPhaseDeployStatus(beyond, new Set(['RipR21Process']))).toBe('onbekend');
   });
 });
 

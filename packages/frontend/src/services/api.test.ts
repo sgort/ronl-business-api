@@ -456,12 +456,12 @@ describe('businessApi.rip', () => {
   it('deploymentStatus fetches the live deployed process keys', async () => {
     server.use(
       http.get('*/rip/phases/deployment-status', () =>
-        HttpResponse.json({ success: true, data: { deployedKeys: ['RipPhase1Process'] } })
+        HttpResponse.json({ success: true, data: { deployedKeys: ['RipR21Process'] } })
       )
     );
     expect(await businessApi.rip.deploymentStatus()).toEqual({
       success: true,
-      data: { deployedKeys: ['RipPhase1Process'] },
+      data: { deployedKeys: ['RipR21Process'] },
     });
   });
 
@@ -470,13 +470,13 @@ describe('businessApi.rip', () => {
       http.get('*/rip/phases/counts', () =>
         HttpResponse.json({
           success: true,
-          data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+          data: { counts: { RipR21Process: { wip: 3, gereed: 7 } } },
         })
       )
     );
     expect(await businessApi.rip.phasesCounts()).toEqual({
       success: true,
-      data: { counts: { RipPhase1Process: { wip: 3, gereed: 7 } } },
+      data: { counts: { RipR21Process: { wip: 3, gereed: 7 } } },
     });
   });
 

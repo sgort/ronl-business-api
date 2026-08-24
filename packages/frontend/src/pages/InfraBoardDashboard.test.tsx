@@ -70,7 +70,7 @@ describe('InfraBoardDashboard', () => {
       reload: vi.fn(),
     });
     mockUseDeployedProcessKeys.mockReturnValue({
-      data: { deployedKeys: ['RipPhase1Process'] },
+      data: { deployedKeys: ['RipR21Process'] },
       loading: false,
       error: false,
       reload: vi.fn(),

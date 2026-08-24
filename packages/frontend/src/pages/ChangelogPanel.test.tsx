@@ -9,7 +9,13 @@ import { changelog } from './changelog-data';
 // (60+ versions) — rendering every collapsed card is real DOM work that can
 // cross the 5s default under full-suite CPU contention. Give this file more
 // headroom rather than trimming the fixture down to something unrealistic.
-vi.setConfig({ testTimeout: 15000 });
+// changelog-data.ts renders 60+ real version entries, so these tests are
+// genuinely slow rather than unreliable. 15s was enough in isolation but not
+// inside a full `npm test` run, where Vitest saturates every core with
+// parallel test files and this one was observed taking 22s. A timeout exists
+// to catch a hang, not to assert a speed, so raising it costs no coverage —
+// see simEngine.test.ts for the one place where a real budget is asserted.
+vi.setConfig({ testTimeout: 60000 });
 
 afterEach(() => {
   document.body.style.overflow = '';

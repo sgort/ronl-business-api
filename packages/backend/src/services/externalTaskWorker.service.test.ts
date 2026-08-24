@@ -273,3 +273,126 @@ describe('lifecycle', () => {
     expect(internals(w).running).toBe(false);
   });
 });
+
+describe('poll loop', () => {
+  /** The poll loop's own state, beyond the handler internals used above. */
+  type PollInternals = WorkerInternals & {
+    pollTimeout: ReturnType<typeof setTimeout> | null;
+    idlePollInterval: number;
+  };
+  const pollInternals = (w: ExternalTaskWorker) => w as unknown as PollInternals;
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('does nothing once the worker has been stopped', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    const fetchSpy = jest.spyOn(i, 'fetchAndLock');
+
+    i.running = false;
+    await i.poll();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('backs off for the idle interval when Operaton has no work', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    jest.spyOn(i, 'fetchAndLock').mockResolvedValue([]);
+
+    await i.poll();
+
+    expect(i.pollTimeout).not.toBeNull();
+    expect(jest.getTimerCount()).toBe(1);
+
+    // Let the scheduled callback run; it re-enters poll, which returns at once
+    // now that the worker is no longer running.
+    i.running = false;
+    jest.advanceTimersByTime(i.idlePollInterval);
+    await Promise.resolve();
+
+    w.stop();
+  });
+
+  it('handles every locked task, then polls again immediately', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    const t1 = task('rip-edocs-workspace', {});
+    const t2 = task('rip-edocs-document', {});
+    jest.spyOn(i, 'fetchAndLock').mockResolvedValue([t1, t2]);
+    // Stop after the batch so the tail-call recursion terminates.
+    const handleSpy = jest.spyOn(i, 'handleTask').mockImplementation(async () => {
+      i.running = false;
+    });
+
+    await i.poll();
+
+    expect(handleSpy).toHaveBeenCalledTimes(2);
+    expect(handleSpy).toHaveBeenCalledWith(t1);
+    expect(handleSpy).toHaveBeenCalledWith(t2);
+    // No timer: a non-empty batch re-polls straight away rather than backing off.
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('keeps a failed task from taking the whole batch down', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    const t1 = task('rip-edocs-workspace', {});
+    const t2 = task('rip-edocs-document', {});
+    jest.spyOn(i, 'fetchAndLock').mockResolvedValue([t1, t2]);
+    const handleSpy = jest
+      .spyOn(i, 'handleTask')
+      .mockRejectedValueOnce(new Error('handler blew up'))
+      .mockImplementation(async () => {
+        i.running = false;
+      });
+
+    await expect(i.poll()).resolves.toBeUndefined();
+
+    expect(handleSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('backs off rather than spinning when fetchAndLock fails', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    jest.spyOn(i, 'fetchAndLock').mockRejectedValue(new Error('operaton down'));
+
+    await i.poll();
+
+    expect(i.pollTimeout).not.toBeNull();
+    expect(jest.getTimerCount()).toBe(1);
+
+    i.running = false;
+    jest.advanceTimersByTime(i.idlePollInterval);
+    await Promise.resolve();
+
+    w.stop();
+  });
+});
+
+describe('handleTask dispatch — document topic', () => {
+  it('completes the rip-edocs-document topic with the uploaded document id', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+    mockPost.mockResolvedValue({}); // completeTask
+
+    await internals(new ExternalTaskWorker()).handleTask(
+      task('rip-edocs-document', {
+        edocsWorkspaceId: 'ws-1',
+        projectNumber: 'P-1',
+        projectName: 'Proj',
+        documentTemplateId: 'rip-intake-report',
+        department: 'IVR',
+      })
+    );
+
+    const [url, body] = mockPost.mock.calls[0];
+    expect(url).toBe('http://operaton/engine-rest/external-task/t-1/complete');
+    expect(body.variables.edocsDocumentId.value).toBe('555');
+    expect(body.variables.edocsDocumentId_docId.value).toBe('d1');
+  });
+});

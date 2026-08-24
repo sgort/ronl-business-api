@@ -7,13 +7,15 @@ import {
   allStaticSections,
   findPaModeForSection,
 } from '../../pages/public-affairs-v2/modes.config';
+import { makePaDataStub } from '../../test/paData.stub';
 
 const mockDossiers = vi.hoisted(() => [
   { id: 'jeugdzorg', naam: 'Jeugdzorg' },
   { id: 'stikstof', naam: 'Stikstof & landbouw' },
 ]);
 vi.mock('../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () => ({ dossiers: { data: mockDossiers } }),
+  usePaData: () =>
+    makePaDataStub({ dossiers: { data: mockDossiers, status: 'ok', refetch: vi.fn() } }),
 }));
 
 describe('PACommandPalette', () => {

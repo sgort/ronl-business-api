@@ -7,6 +7,13 @@
  * token cache reloads the module via jest.resetModules().
  */
 
+// This file has no top-level import, so TypeScript would otherwise treat it as
+// a global script and hoist every top-level declaration below into the global
+// scope — where `mockAxios`, `Mod`, `freshModule` and friends collide with the
+// identically-named declarations in sibling test files. `export {}` makes it a
+// module and scopes them to this file.
+export {};
+
 const mockBackendClient = { get: jest.fn() };
 const mockAxiosPost = jest.fn();
 
@@ -244,5 +251,55 @@ describe('backend base URL', () => {
     const axiosDefault = jest.requireMock('axios').default as { create: jest.Mock };
     const createArgs = axiosDefault.create.mock.calls[axiosDefault.create.mock.calls.length - 1][0];
     expect(createArgs.baseURL).toBe('https://acc.api.open-regels.nl/v1/edocs');
+  });
+});
+
+describe('configuration defaults', () => {
+  it('falls back to the local Keycloak, the default client and port 3002', () => {
+    // Nothing is configured: this is the shape a bare `npx` run of the server sees.
+    jest.resetModules();
+    mockServer.setRequestHandler.mockClear();
+    const saved = { ...process.env };
+    for (const key of [
+      'KEYCLOAK_URL',
+      'KEYCLOAK_REALM',
+      'EDOCS_MCP_CLIENT_ID',
+      'EDOCS_MCP_CLIENT_SECRET',
+      'EDOCS_MCP_BACKEND_URL',
+      'PORT',
+    ]) {
+      delete process.env[key];
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./index');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const axios = require('axios').default as { create: jest.Mock };
+      expect(axios.create).toHaveBeenCalledWith(
+        expect.objectContaining({ baseURL: expect.stringContaining('localhost:3002') })
+      );
+    } finally {
+      Object.assign(process.env, saved);
+    }
+  });
+});
+
+describe('CallTool — request shapes and non-Error failures', () => {
+  beforeAll(() => loadModule());
+
+  it('handles a request that carries no arguments object at all', async () => {
+    mockAxiosPost.mockResolvedValue(tokenResponse());
+    mockBackendClient.get.mockResolvedValue({ data: { success: true, data: [] } });
+    const res = await callTool({ params: { name: 'workspace_list' } });
+    expect(res.isError).toBeFalsy();
+  });
+
+  it('reports a non-Error failure as text rather than as undefined', async () => {
+    // The token is already cached from the previous case, so the failure has to
+    // come from the backend call itself.
+    mockBackendClient.get.mockRejectedValue('socket hang up');
+    const res = await call('workspace_list');
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toBe('Error: socket hang up');
   });
 });

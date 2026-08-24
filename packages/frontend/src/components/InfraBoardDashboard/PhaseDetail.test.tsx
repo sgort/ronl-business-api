@@ -52,7 +52,7 @@ vi.mock('../../services/api', () => ({
 
 beforeEach(() => {
   mockUseDeployedProcessKeys.mockReturnValue({
-    data: { deployedKeys: ['RipPhase1Process'] },
+    data: { deployedKeys: ['RipR21Process'] },
     loading: false,
     error: false,
     reload: vi.fn(),
@@ -150,13 +150,13 @@ describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
     expect(screen.getByRole('button', { name: 'R2.1 starten' })).toBeInTheDocument();
   });
 
-  it('starts RipPhase1Process on click and shows success', async () => {
+  it('starts RipR21Process on click and shows success', async () => {
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'R2.1 starten' }));
 
-    expect(mockStart).toHaveBeenCalledWith('RipPhase1Process', {});
+    expect(mockStart).toHaveBeenCalledWith('RipR21Process', {});
     expect(await screen.findByText('R2.1 gestart', { exact: false })).toBeInTheDocument();
   });
 

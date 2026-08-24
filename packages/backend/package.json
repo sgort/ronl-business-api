@@ -1,12 +1,13 @@
 {
   "name": "@ronl/backend",
-  "version": "2026.08.13",
+  "version": "2026.08.23",
   "description": "Secure Business API layer for Dutch municipality BPMN services",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "edocs:health": "tsx scripts/edocs-healthcheck.ts",
     "doccle:health": "tsx scripts/doccle-healthcheck.ts",
+    "pa:reset-data": "tsx scripts/reset-pa-data.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/index.js",
     "lint": "eslint .",

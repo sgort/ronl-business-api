@@ -30,9 +30,11 @@ import {
   archiveDossier,
   unarchiveDossier,
   deleteDossier,
+  resetMockDossiers,
   type DossierWriteInput,
 } from '../../../services/dossierbeheer.api';
-import { isDossiersMock, setDossiersMock } from '../../../services/pa.api';
+import { isPaMock, setPaMock } from '../../../services/pa.api';
+import { resetMockDemoData } from '../../../services/mock-demo.store';
 import type { PaModeId } from '../../../pages/public-affairs-v2/modes.config';
 import DossierRow from './DossierRow';
 import DossierEditor from './DossierEditor';
@@ -55,7 +57,7 @@ interface Props {
 }
 
 export default function Dossierbeheer({ user, startCreate = false, onNavigate }: Props) {
-  const { dossiers } = usePaData();
+  const { dossiers, signals, notifications, refreshInboxCounts } = usePaData();
 
   const role = deriveDossierRole(user?.roles ?? []);
   const can = role.can;
@@ -70,11 +72,16 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
   const [deleteTarget, setDeleteTarget] = useState<AdminDossier | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [mockDisplay, setMockDisplay] = useState(isDossiersMock());
+  const [mockDisplay, setMockDisplay] = useState(isPaMock());
 
+  // Returns the promise so callers can wait for the list to be current before
+  // they navigate or clear their busy state. It used to return void, which made
+  // that impossible: handleSave fired it and changed section in the same tick,
+  // so the overview could render against a list that had not come back — the
+  // dossier was created, and the user did not see it.
   const refetch = useCallback(() => {
     setStatus('loading');
-    fetchAdminDossiers()
+    return fetchAdminDossiers()
       .then((rows) => {
         setItems(rows);
         setStatus('ok');
@@ -92,7 +99,21 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
       .catch(() => setSnippets([]));
   }, [refetch]);
 
-  const syncCockpit = () => dossiers.refetch();
+  // Everything the mock/live switch governs, not just dossiers. Since that flag
+  // became one switch for the whole cockpit, flipping it — or resetting the demo
+  // — also changes which signals, counts and notifications are correct.
+  //
+  // Notifications matter here for a reason that is easy to miss: switching to
+  // mock used to leave the live bell count standing, because nothing re-read it.
+  // It then cleared itself later, when confirming a signal happened to trigger a
+  // refetch and the mock branch returned nothing — so the bell looked like it
+  // was reacting to the curation rather than to the mode switch minutes earlier.
+  const syncCockpit = () => {
+    dossiers.refetch();
+    signals.refetch();
+    notifications.refetch();
+    void refreshInboxCounts();
+  };
 
   // Enter the create flow via the rail section (db-nieuw) so the rail highlight
   // and the content stay in sync; falls back to the internal view when the shell
@@ -114,8 +135,20 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
   // the cockpit so the choice takes effect and survives navigation + reloads.
   const toggleMock = () => {
     const next = !mockDisplay;
-    setDossiersMock(next);
+    setPaMock(next);
     setMockDisplay(next);
+    refetch();
+    syncCockpit();
+  };
+
+  // Put the demo back to the fixtures of the running build: both halves of the
+  // mock state, so a demo can be restarted without a reload and without one
+  // half surviving the other. Live is unreachable from here — mock data is
+  // entirely frontend-side — which is what makes offering this safe.
+  const resetDemo = () => {
+    if (!window.confirm('Demodata terugzetten naar de standaard van deze versie?')) return;
+    resetMockDemoData();
+    resetMockDossiers();
     refetch();
     syncCockpit();
   };
@@ -171,7 +204,10 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
       } else {
         await createDossier(toWriteInput(draft, publish));
       }
-      refetch();
+      // Awaited: a create navigates back to the overview, and that must not
+      // happen until the list it renders includes what was just created.
+      // syncCockpit stays fire-and-forget — the cockpit catches up on its own.
+      await refetch();
       syncCockpit();
       // Edit stays in the overview (same section); create returns from db-nieuw.
       if (isEdit) setView({ mode: 'list' });
@@ -371,22 +407,36 @@ export default function Dossierbeheer({ user, startCreate = false, onNavigate }:
         <span>
           {mockDisplay ? (
             <>
-              Dossiers resolven nu naar <code>MOCK_DOSSIERS</code> omdat{' '}
-              <code>VITE_PA_DOSSIERS_MOCK=true</code>. Zodra deze bron gevuld is en de GET-routes
-              onder het auth-blok staan, kan de vlag om — de cockpit leest dan deze dossiers via{' '}
-              <code>usePaData().dossiers</code>.
+              <strong>Mock</strong> — de hele cockpit draait op fixtures: dossiers uit{' '}
+              <code>MOCK_DOSSIERS</code>, plus de zoekcriteria, signalen en inbox. De database wordt
+              niet gelezen. Eén schakelaar voor alledrie, zodat mock en live vergelijkbaar zijn.
             </>
           ) : (
             <>
-              Vlag om: <code>VITE_PA_DOSSIERS_MOCK=false</code>. De cockpit leest deze dossiers live
-              via <code>GET /pa/dossiers</code> — geen frontendwijziging nodig, exact de seam die de
-              rework kocht.
+              <strong>Live</strong> — de cockpit leest alles uit de database: dossiers via{' '}
+              <code>GET /pa/dossiers</code>, zoekcriteria via <code>/pa/searches</code> en signalen
+              via <code>/pa/signals</code>. Leeg is hier een geldige uitkomst: er staat alleen wat
+              iemand zelf heeft aangemaakt.
             </>
           )}
         </span>
-        <button type="button" className="pac-db-abtn pac-db-flag-toggle" onClick={toggleMock}>
-          {mockDisplay ? 'Zet vlag om naar live →' : '↩ Terug naar mock'}
-        </button>
+        <div className="pac-db-flag-actions">
+          <button type="button" className="pac-db-abtn" onClick={toggleMock}>
+            {mockDisplay ? 'Zet vlag om naar live →' : '↩ Terug naar mock'}
+          </button>
+          {/* Mock only: in live there is no demo state to reset, and the button
+              would imply this page can rewrite the database. */}
+          {mockDisplay && (
+            <button
+              type="button"
+              className="pac-db-abtn pac-db-flag-reset"
+              onClick={resetDemo}
+              title="Zet dossiers, signalen en inbox terug naar de fixtures van deze versie"
+            >
+              ↺ Reset demodata
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

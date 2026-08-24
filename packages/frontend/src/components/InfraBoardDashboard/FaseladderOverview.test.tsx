@@ -31,13 +31,13 @@ vi.mock('../../services/infra.api', async (importOriginal) => {
 
 beforeEach(() => {
   mockUseDeployedProcessKeys.mockReturnValue({
-    data: { deployedKeys: ['RipPhase1Process'] },
+    data: { deployedKeys: ['RipR21Process'] },
     loading: false,
     error: false,
     reload: vi.fn(),
   });
   mockUseLivePhaseCounts.mockReturnValue({
-    data: { counts: { RipPhase1Process: { wip: 1, gereed: 2 } } },
+    data: { counts: { RipR21Process: { wip: 1, gereed: 2 } } },
     loading: false,
     error: false,
     reload: vi.fn(),

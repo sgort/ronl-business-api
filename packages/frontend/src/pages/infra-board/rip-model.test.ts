@@ -100,7 +100,7 @@ function activity(overrides: Partial<ActivityHistoryItem> = {}): ActivityHistory
 describe('getWipStepInfo', () => {
   it('identifies the running node as the current step, matching real Operaton shape', () => {
     // Fixture shape matches an actual GET /history/activity-instance
-    // response captured against a live RipPhase1Process instance during
+    // response captured against a live RipR21Process instance during
     // sub-project D's brainstorming.
     const history: ActivityHistoryItem[] = [
       activity({

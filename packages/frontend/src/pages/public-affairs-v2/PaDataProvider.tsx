@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   confirmSignal as apiConfirmSignal,
+  dismissSignal as apiDismissSignal,
   linkSignalDossier as apiLinkSignalDossier,
   watchDossier as apiWatchDossier,
   unwatchDossier as apiUnwatchDossier,
@@ -8,6 +9,7 @@ import {
   fetchAgenda,
   fetchDossiers,
   fetchInbox,
+  fetchInboxCounts,
   fetchSignals,
   fetchNotifications,
   ackNotifications,
@@ -26,6 +28,10 @@ export interface Resource<T> {
 // Tabs that carry an inbox badge (agenda uses a separate agendaCount badge).
 const INBOX_TABS = ['politiek', 'europa', 'regionaal', 'media'] as const;
 
+/** Startup count retries — linear backoff, so a slow-starting backend still fills the badges. */
+const MAX_COUNT_RETRIES = 4;
+const COUNT_RETRY_BASE_MS = 2000;
+
 interface NotificationsState {
   items: PaNotification[];
   unseenCount: number;
@@ -40,11 +46,13 @@ interface PaDataContextValue {
   /** Per-tab inbox counts — always accurate; updated by Monitoring on each load. */
   inboxCounts: Record<string, number>;
   updateInboxCount: (tab: string, count: number) => void;
+  refreshInboxCounts: () => Promise<void>;
   confirmSignal: (
     id: string,
     patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
   ) => Promise<Signal>;
   /** Links a watchlist signal to a dossier — can newly match a dossier watch. */
+  dismissSignal: (id: string) => Promise<Signal>;
   linkSignalDossier: (id: string, dossierId: string) => Promise<Signal>;
   /** "Watch this dossier" bell — creates/re-enables a personal dossier watch. */
   watchDossier: (dossierId: string) => Promise<void>;
@@ -106,12 +114,62 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     setInboxCounts((prev) => ({ ...prev, [tab]: count }));
   }, []);
 
-  // Seed per-tab counts at startup so badges are populated before Monitoring is visited.
+  const applyCounts = useCallback((counts: Record<string, number>) => {
+    // Zeroed base first: a tab whose inbox has emptied is absent from the
+    // response, so merging onto the previous state would keep a stale count.
+    const base = Object.fromEntries(INBOX_TABS.map((t) => [t, 0]));
+    setInboxCounts({ ...base, ...counts });
+  }, []);
+
+  /**
+   * Re-read every badge in one request.
+   *
+   * Needed because the counts are a snapshot: seeding them once at mount left
+   * every badge frozen at its startup value, so a curation run that arrived
+   * afterwards stayed invisible until the user opened each source in turn — at
+   * which point that one badge jumped and the others stayed stale. Anything that
+   * can change the inbox calls this.
+   *
+   * Failure keeps the previous numbers rather than zeroing them: a transient
+   * error is not evidence that a source emptied.
+   */
+  const refreshInboxCounts = useCallback(async () => {
+    try {
+      applyCounts(await fetchInboxCounts());
+    } catch {
+      /* keep the badges we have */
+    }
+  }, [applyCounts]);
+
+  // Seed per-tab counts at startup so badges are populated before Monitoring is
+  // visited. One counts request rather than four capped inbox fetches.
+  //
+  // Retried on failure: the cockpit can mount while the backend is still starting
+  // (or down), and a badge left at its 0 fallback reads as "this source has no
+  // signals" rather than "not loaded yet" — indistinguishable to the user, and it
+  // stays wrong until they happen to open that tab.
   useEffect(() => {
-    INBOX_TABS.forEach((tabId) => {
-      void fetchInbox({ tab: tabId }).then((inb) => updateInboxCount(tabId, inb.meta.total));
-    });
-  }, [updateInboxCount]);
+    let cancelled = false;
+    let attempt = 0;
+
+    const load = () => {
+      void fetchInboxCounts()
+        .then((counts) => {
+          if (cancelled) return;
+          applyCounts(counts);
+        })
+        .catch(() => {
+          if (cancelled || attempt >= MAX_COUNT_RETRIES) return;
+          attempt += 1;
+          setTimeout(load, attempt * COUNT_RETRY_BASE_MS);
+        });
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyCounts]);
 
   const confirmSignal = useCallback(
     async (
@@ -130,6 +188,20 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
     // refetch is stable (created with useCallback(fn, []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [signalsResource.refetch, inboxResource.refetch, notificationsResource.refetch]
+  );
+
+  const dismissSignal = useCallback(
+    async (id: string): Promise<Signal> => {
+      const result = await apiDismissSignal(id);
+      inboxResource.refetch();
+      // A dismissal can retire a watch's only unseen match, so the bell has to
+      // be re-read for the same reason a confirm does it.
+      notificationsResource.refetch();
+      return result;
+    },
+    // refetch is stable (created with useCallback(fn, []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inboxResource.refetch, notificationsResource.refetch]
   );
 
   const linkSignalDossier = useCallback(
@@ -203,8 +275,10 @@ export function PaDataProvider({ children }: { children: React.ReactNode }) {
         agenda: agendaResource,
         notifications: notificationsResource,
         inboxCounts,
+        refreshInboxCounts,
         updateInboxCount,
         confirmSignal,
+        dismissSignal,
         linkSignalDossier,
         watchDossier,
         unwatchDossier,

@@ -28,6 +28,7 @@ export interface Translations {
   back: string;
   tech: string;
   techLede: string;
+  techDmnDownload: string;
   aside: string;
   readMore: string;
   updated: string;
@@ -88,6 +89,7 @@ export const nl: Translations = {
   back: 'Terug naar resultaten',
   tech: 'Technische details',
   techLede: 'Voor ontwikkelaars en informatie-analisten.',
+  techDmnDownload: 'download DMN (xml)',
   aside: 'Over dit item',
   readMore: 'Lees verder bij de bron',
   updated: 'Bijgewerkt',

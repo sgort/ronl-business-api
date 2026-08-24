@@ -5,7 +5,7 @@ import { claimIfNeeded } from './helpers/tasks';
 
 // Phase 1 item 4 — one deep journey against a real backend-backed flow.
 // Citizen submits a Kapvergunning (tree felling permit) request via
-// AwbShellProcess -> DMN evaluation -> TreeFellingPermitSubProcess creates a
+// AwbShellProcess -> DMN evaluation -> TreeFellingPermitSubProcessE2E creates a
 // "Case review" task for the caseworker candidate group. Caseworker claims
 // and completes it, which advances AwbShellProcess itself to its own
 // caseworker task (Task_Phase6_Notify, candidateGroups="caseworker") — that

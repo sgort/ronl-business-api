@@ -31,9 +31,8 @@ jest.mock('@utils/config', () => ({
     },
   },
 }));
-jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
-}));
+const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
 import { OperatonService } from './operaton.service';
 import type { OperatonVariable, ProcessStartRequest } from '@ronl/shared';
@@ -87,18 +86,77 @@ describe('passthrough queries', () => {
   });
 });
 
+describe('resolveDeployedTenant', () => {
+  it('returns the tenantId of the deployed definition', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
+    // @ts-expect-error -- private method, exercised directly for this unit test
+    await expect(svc.resolveDeployedTenant('AwbZorgtoeslagProcess')).resolves.toBe('toeslagen');
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { key: 'AwbZorgtoeslagProcess', latestVersion: true },
+    });
+  });
+
+  it('prefers a tenant-scoped row over a coexisting untenanted legacy row for the same key', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: null }, { tenantId: 'flevoland' }],
+    });
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBe('flevoland');
+  });
+
+  it('returns null when the key is not deployed at all', async () => {
+    mockClient.get.mockResolvedValue({ data: [] });
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('NotDeployed')).resolves.toBeNull();
+  });
+
+  it('returns null on lookup failure rather than throwing', async () => {
+    mockClient.get.mockRejectedValue(new Error('network down'));
+    // @ts-expect-error -- private method
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBeNull();
+  });
+});
+
 describe('startProcess', () => {
   const req = () => ({ businessKey: 'bk', variables: {} }) as unknown as ProcessStartRequest;
 
-  it('injects municipality from tenantId when absent and posts to the start endpoint', async () => {
+  it('injects municipality from tenantId when absent and posts to the tenant-scoped start endpoint', async () => {
     mockClient.post.mockResolvedValue({ data: { id: 'pi-1' } });
     const request = req();
 
     const res = await svc.startProcess('MyProc', request, 'flevoland');
 
     expect(res).toEqual({ id: 'pi-1' });
-    expect(mockClient.post).toHaveBeenCalledWith('/process-definition/key/MyProc/start', request);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/MyProc/tenant-id/flevoland/start',
+      request
+    );
     expect(request.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('falls back to the untenanted start endpoint when no tenant-scoped definition exists', async () => {
+    mockClient.post
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { data: { message: 'No matching process definition with key: MyProc' } },
+      })
+      .mockResolvedValueOnce({ data: { id: 'pi-3' } });
+
+    const res = await svc.startProcess('MyProc', req(), 'flevoland');
+
+    expect(res).toEqual({ id: 'pi-3' });
+    expect(mockClient.post).toHaveBeenCalledTimes(2);
+    expect(mockClient.post).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/MyProc/tenant-id/flevoland/start',
+      expect.anything()
+    );
+    expect(mockClient.post).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/MyProc/start',
+      expect.anything()
+    );
   });
 
   it('keeps an explicitly provided municipality variable', async () => {
@@ -123,12 +181,56 @@ describe('startProcess', () => {
       response: {
         data: {
           type: 'RestException',
-          message: 'No matching process definition with key: RipPhase1Process and no tenant-id',
+          message: 'No matching process definition with key: RipR21Process and no tenant-id',
         },
       },
     });
-    await expect(svc.startProcess('RipPhase1Process', req(), 'flevoland')).rejects.toThrow(
-      /RipPhase1Process' is niet gevonden op deze Operaton-omgeving/
+    await expect(svc.startProcess('RipR21Process', req(), 'flevoland')).rejects.toThrow(
+      /RipR21Process' is niet gevonden op deze Operaton-omgeving/
+    );
+  });
+
+  it("scopes the start call to the process's actual deployed tenant, not the citizen's own", async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
+    mockClient.post.mockResolvedValue({ data: { id: 'pi1' } });
+
+    await svc.startProcess('AwbZorgtoeslagProcess', req(), 'unive');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/AwbZorgtoeslagProcess/tenant-id/toeslagen/start',
+      expect.anything()
+    );
+  });
+
+  it("falls back to the citizen's own tenant when the deployed tenant cannot be resolved", async () => {
+    mockClient.get.mockRejectedValue(new Error('lookup failed'));
+    mockClient.post.mockResolvedValue({ data: { id: 'pi1' } });
+
+    await svc.startProcess('SomeProcess', req(), 'flevoland');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/SomeProcess/tenant-id/flevoland/start',
+      expect.anything()
+    );
+  });
+});
+
+describe('getRipPhase1ActiveList / getRipPhase1CompletedList', () => {
+  it('getRipPhase1ActiveList filters by the RipR21Process key', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.getRipPhase1ActiveList('flevoland');
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ processDefinitionKey: 'RipR21Process' })
+    );
+  });
+
+  it('getRipPhase1CompletedList filters by the RipR21Process key', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.getRipPhase1CompletedList('flevoland');
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({ processDefinitionKey: 'RipR21Process' })
     );
   });
 });
@@ -136,14 +238,14 @@ describe('startProcess', () => {
 describe('getDeployedProcessKeys', () => {
   it('queries with keysIn + latestVersion and returns only the deployed subset, in input order', async () => {
     mockClient.get.mockResolvedValue({
-      data: [{ key: 'RipPhase1Process' }, { key: 'SomeOtherProcess' }],
+      data: [{ key: 'RipR21Process' }, { key: 'SomeOtherProcess' }],
     });
 
-    const result = await svc.getDeployedProcessKeys(['RipPhase1Process', 'NotDeployedYet']);
+    const result = await svc.getDeployedProcessKeys(['RipR21Process', 'NotDeployedYet']);
 
-    expect(result).toEqual(['RipPhase1Process']);
+    expect(result).toEqual(['RipR21Process']);
     expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
-      params: { keysIn: 'RipPhase1Process,NotDeployedYet', latestVersion: true },
+      params: { keysIn: 'RipR21Process,NotDeployedYet', latestVersion: true },
     });
   });
 
@@ -158,7 +260,17 @@ describe('getDeployedProcessKeys', () => {
   it('rethrows on failure', async () => {
     mockClient.get.mockRejectedValue(new Error('boom'));
 
-    await expect(svc.getDeployedProcessKeys(['RipPhase1Process'])).rejects.toThrow('boom');
+    await expect(svc.getDeployedProcessKeys(['RipR21Process'])).rejects.toThrow('boom');
+  });
+
+  it('adds tenantIdIn to the query when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ key: 'RipR21Process' }] });
+
+    await svc.getDeployedProcessKeys(['RipR21Process'], 'flevoland');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
+      params: { keysIn: 'RipR21Process', latestVersion: true, tenantIdIn: 'flevoland' },
+    });
   });
 });
 
@@ -176,14 +288,14 @@ describe('getPhaseInstanceCounts', () => {
       }
     );
 
-    const result = await svc.getPhaseInstanceCounts(['RipPhase1Process']);
+    const result = await svc.getPhaseInstanceCounts(['RipR21Process']);
 
-    expect(result).toEqual({ RipPhase1Process: { wip: 3, gereed: 7 } });
+    expect(result).toEqual({ RipR21Process: { wip: 3, gereed: 7 } });
     expect(mockClient.get).toHaveBeenCalledWith('/process-instance/count', {
-      params: { processDefinitionKey: 'RipPhase1Process' },
+      params: { processDefinitionKey: 'RipR21Process' },
     });
     expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/count', {
-      params: { processDefinitionKey: 'RipPhase1Process', finished: true },
+      params: { processDefinitionKey: 'RipR21Process', finished: true },
     });
   });
 
@@ -204,7 +316,20 @@ describe('getPhaseInstanceCounts', () => {
   it('rethrows on failure', async () => {
     mockClient.get.mockRejectedValue(new Error('boom'));
 
-    await expect(svc.getPhaseInstanceCounts(['RipPhase1Process'])).rejects.toThrow('boom');
+    await expect(svc.getPhaseInstanceCounts(['RipR21Process'])).rejects.toThrow('boom');
+  });
+
+  it('adds tenantIdIn to both count queries when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: { count: 1 } });
+
+    await svc.getPhaseInstanceCounts(['RipR21Process'], 'flevoland');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance/count', {
+      params: { processDefinitionKey: 'RipR21Process', tenantIdIn: 'flevoland' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/count', {
+      params: { processDefinitionKey: 'RipR21Process', finished: true, tenantIdIn: 'flevoland' },
+    });
   });
 });
 
@@ -466,11 +591,11 @@ describe('getVariableHints', () => {
 
 describe('getUserTasks', () => {
   it('builds tenant + candidateGroup params and derives the key from a versioned defId', async () => {
-    routeGet([['/task', { data: [{ id: 't1', processDefinitionId: 'RipPhase1Process:3:abc' }] }]]);
+    routeGet([['/task', { data: [{ id: 't1', processDefinitionId: 'RipR21Process:3:abc' }] }]]);
 
     const res = await svc.getUserTasks('u', 'flevoland', ['role-a', 'role-b']);
 
-    expect(res[0]).toMatchObject({ id: 't1', processDefinitionKey: 'RipPhase1Process' });
+    expect(res[0]).toMatchObject({ id: 't1', processDefinitionKey: 'RipR21Process' });
     expect(mockClient.get).toHaveBeenCalledWith('/task', {
       params: {
         processVariables: 'municipality_eq_flevoland',
@@ -526,6 +651,46 @@ describe('getBoardOwner', () => {
     await expect(svc.getBoardOwner('')).resolves.toBeNull();
     expect(mockClient.get).not.toHaveBeenCalled();
   });
+
+  it('tries the tenant-scoped XML lookup first when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({
+      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
+    });
+    await expect(svc.getBoardOwner('K10', 'flevoland')).resolves.toBe('rvo');
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/process-definition/key/K10/tenant-id/flevoland/xml'
+    );
+  });
+
+  it('falls back to the untenanted XML lookup when the tenant-scoped one reports no matching definition', async () => {
+    mockClient.get
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          data: {
+            message: 'No matching process definition with key: K11 and tenant-id: flevoland',
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { bpmn20Xml: '<camunda:property name="boardOwner" value="waterschap" />' },
+      });
+    await expect(svc.getBoardOwner('K11', 'flevoland')).resolves.toBe('waterschap');
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/K11/tenant-id/flevoland/xml'
+    );
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/K11/xml');
+  });
+
+  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
+    mockClient.get.mockResolvedValue({
+      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
+    });
+    await svc.getBoardOwner('K12'); // untenanted, caches under '::K12'
+    await svc.getBoardOwner('K12', 'flevoland'); // tenant-scoped, caches under 'flevoland::K12'
+    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('getCompletedTasks', () => {
@@ -550,7 +715,7 @@ describe('getCompletedTasks', () => {
         },
       ],
       [
-        '/process-definition/key/K1/xml',
+        '/process-definition/key/K1/tenant-id/flevoland/xml',
         { data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo"/>' } },
       ],
     ]);
@@ -583,6 +748,54 @@ describe('deployed forms', () => {
     await expect(svc.getDeployedStartForm('K')).resolves.toMatchObject({
       contentType: 'application/octet-stream',
     });
+  });
+
+  it('getDeployedStartForm tries the tenant-scoped lookup first when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: '<form/>', headers: { 'content-type': 'text/html' } });
+    await svc.getDeployedStartForm('K', 'flevoland');
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/process-definition/key/K/tenant-id/flevoland/deployed-start-form',
+      { responseType: 'text' }
+    );
+  });
+
+  it('getDeployedStartForm scopes to the resolved deployed tenant, not the passed-in citizen tenant', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: [{ tenantId: 'toeslagen' }] }) // resolveDeployedTenant
+      .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } }); // the form itself
+
+    await svc.getDeployedStartForm('AwbZorgtoeslagProcess', 'unive');
+
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/AwbZorgtoeslagProcess/tenant-id/toeslagen/deployed-start-form',
+      { responseType: 'text' }
+    );
+  });
+
+  it('getDeployedStartForm falls back to the untenanted lookup on a no-matching-definition error', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: [] }) // resolveDeployedTenant — key not deployed, returns null
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          data: { message: 'No matching process definition with key: K and tenant-id: flevoland' },
+        },
+      })
+      .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } });
+    await svc.getDeployedStartForm('K', 'flevoland');
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/K/tenant-id/flevoland/deployed-start-form',
+      { responseType: 'text' }
+    );
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      3,
+      '/process-definition/key/K/deployed-start-form',
+      {
+        responseType: 'text',
+      }
+    );
   });
 
   it('getDeployedTaskForm fetches the task deployed-form', async () => {
@@ -689,7 +902,7 @@ describe('archive list builders', () => {
     });
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
-      expect.objectContaining({ processDefinitionKey: 'RipPhase1Process', unfinished: true })
+      expect.objectContaining({ processDefinitionKey: 'RipR21Process', unfinished: true })
     );
   });
 
@@ -868,4 +1081,104 @@ describe('getCompletedTasks — branch gaps', () => {
     routeGet([['/history/task', Promise.reject(new Error('tasks-err'))]]);
     await expect(svc.getCompletedTasks('t')).rejects.toThrow('tasks-err');
   });
+});
+
+describe('failures that are not Error instances', () => {
+  // Operaton is reached over HTTP; a socket-level failure can surface as a bare
+  // string rather than an Error. Every catch has an 'Unknown error' fallback for
+  // exactly that, and a log line that says nothing is worse than none.
+  const CALLS: Array<[string, () => Promise<unknown>]> = [
+    ['getDeployedProcessKeys', () => svc.getDeployedProcessKeys(['K'], 'flevoland')],
+    ['getProcessInstance', () => svc.getProcessInstance('pi-1')],
+    ['getProcessVariables', () => svc.getProcessVariables('pi-1')],
+    ['getActivityHistory', () => svc.getActivityHistory('pi-1')],
+    ['deleteProcessInstance', () => svc.deleteProcessInstance('pi-1', 'reason')],
+    ['getProcessHistory', () => svc.getProcessHistory('applicant-1', 'flevoland')],
+    ['getHistoricVariables', () => svc.getHistoricVariables('pi-1')],
+    ['getHrOnboardingProfile', () => svc.getHrOnboardingProfile('e-1', 'flevoland')],
+    ['getVariableHints', () => svc.getVariableHints('K')],
+    ['getUserTasks', () => svc.getUserTasks('u-1', 'flevoland')],
+    ['getCompletedTasks', () => svc.getCompletedTasks('flevoland')],
+    ['getBoardOwner', () => svc.getBoardOwner('K', 'flevoland')],
+    ['getTask', () => svc.getTask('t-1')],
+    ['completeTask', () => svc.completeTask('t-1', { variables: {} })],
+    ['claimTask', () => svc.claimTask('t-1', 'u-1')],
+    ['getDeployedStartForm', () => svc.getDeployedStartForm('K', 'flevoland')],
+    ['getDeployedTaskForm', () => svc.getDeployedTaskForm('t-1')],
+  ];
+
+  it.each(CALLS)('%s logs Unknown error rather than undefined', async (_name, call) => {
+    mockClient.get.mockRejectedValue('socket hang up');
+    mockClient.post.mockRejectedValue('socket hang up');
+    mockClient.delete.mockRejectedValue('socket hang up');
+
+    await call().catch(() => undefined);
+
+    // Some of these degrade with a warn and a fallback value rather than an
+    // error and a rethrow; either channel proves the fallback was reached.
+    const logged = [...mockLogger.error.mock.calls, ...mockLogger.warn.mock.calls];
+    expect(logged).toContainEqual([
+      expect.any(String),
+      expect.objectContaining({ error: 'Unknown error' }),
+    ]);
+  });
+
+  it('healthCheck reports itself down with Unknown error', async () => {
+    mockClient.get.mockRejectedValue('socket hang up');
+    await expect(svc.healthCheck()).resolves.toMatchObject({
+      status: 'down',
+      error: 'Unknown error',
+    });
+  });
+});
+
+describe('list mappers when the history variables are sparse', () => {
+  // History returns every variable of every instance in one flat list, so the
+  // mappers have to skip variables they do not care about, tolerate a null
+  // value, and fall back for an instance that contributed no variables at all.
+  const LISTS: Array<[string, () => Promise<Array<Record<string, unknown>>>, string, string]> = [
+    ['getRipPhase1ActiveList', () => svc.getRipPhase1ActiveList('flevoland'), 'projectNumber', '—'],
+    [
+      'getRipPhase1CompletedList',
+      () => svc.getRipPhase1CompletedList('flevoland'),
+      'projectNumber',
+      '—',
+    ],
+    [
+      'getCapacityClaimActiveList',
+      () => svc.getCapacityClaimActiveList('flevoland'),
+      'jobTitle',
+      '—',
+    ],
+    [
+      'getCapacityClaimCompletedList',
+      () => svc.getCapacityClaimCompletedList('flevoland'),
+      'jobTitle',
+      '—',
+    ],
+  ];
+
+  it.each(LISTS)(
+    '%s maps a null value to "" and a variable-less instance to the default',
+    async (_name, call, field, fallback) => {
+      mockClient.post.mockResolvedValue({
+        data: [
+          { id: 'pi-1', startTime: '2026-01-01', endTime: '2026-01-02' },
+          { id: 'pi-2', startTime: '2026-01-03', endTime: '2026-01-04' },
+        ],
+      });
+      mockClient.get.mockResolvedValue({
+        data: [
+          // Not one of the fields any mapper collects — must be skipped outright.
+          { processInstanceId: 'pi-1', name: 'municipality', value: 'flevoland' },
+          { processInstanceId: 'pi-1', name: field, value: null },
+        ],
+      });
+
+      const list = await call();
+
+      expect(list[0][field]).toBe('');
+      expect(list[1][field]).toBe(fallback);
+    }
+  );
 });

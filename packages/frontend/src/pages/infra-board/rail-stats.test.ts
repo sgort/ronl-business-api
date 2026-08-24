@@ -43,7 +43,7 @@ const YESTERDAY = new Date(Date.now() - 86400000).toISOString();
 function makeLiveTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 't1',
-    processDefinitionKey: 'RipPhase1Process',
+    processDefinitionKey: 'RipR21Process',
     processInstanceId: 'i1',
     name: 'Live taak',
     assignee: 'user1',
@@ -205,7 +205,7 @@ describe('beheerRailPhaseGroups', () => {
   });
 
   it('mutes every phase whose process key is not in deployedKeys, and un-mutes the one that is', () => {
-    const groups = beheerRailPhaseGroups({}, new Set(['RipPhase1Process']));
+    const groups = beheerRailPhaseGroups({}, new Set(['RipR21Process']));
     const all = groups.flatMap((g) => g.phases);
     const r21 = all.find((p) => p.phase.code === 'R2.1');
     const others = all.filter((p) => p.phase.code !== 'R2.1');

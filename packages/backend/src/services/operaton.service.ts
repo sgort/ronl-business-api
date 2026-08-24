@@ -112,16 +112,21 @@ export class OperatonService {
    * actually deployed on this environment's Operaton instance. One query
    * regardless of how many keys are asked about.
    */
-  async getDeployedProcessKeys(keys: string[]): Promise<string[]> {
+  async getDeployedProcessKeys(keys: string[], tenantId?: string): Promise<string[]> {
     try {
       const response = await this.client.get('/process-definition', {
-        params: { keysIn: keys.join(','), latestVersion: true },
+        params: {
+          keysIn: keys.join(','),
+          latestVersion: true,
+          ...(tenantId ? { tenantIdIn: tenantId } : {}),
+        },
       });
       const found = new Set((response.data as Array<{ key: string }>).map((d) => d.key));
       return keys.filter((k) => found.has(k));
     } catch (error) {
       logger.error('Failed to query deployed process keys', {
         keys,
+        tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
@@ -134,22 +139,59 @@ export class OperatonService {
    * Count-only queries — no instance payloads.
    */
   async getPhaseInstanceCounts(
-    keys: string[]
+    keys: string[],
+    tenantId?: string
   ): Promise<Record<string, { wip: number; gereed: number }>> {
     const entries = await Promise.all(
       keys.map(async (key) => {
         const [wipRes, gereedRes] = await Promise.all([
           this.client.get('/process-instance/count', {
-            params: { processDefinitionKey: key },
+            params: { processDefinitionKey: key, ...(tenantId ? { tenantIdIn: tenantId } : {}) },
           }),
           this.client.get('/history/process-instance/count', {
-            params: { processDefinitionKey: key, finished: true },
+            params: {
+              processDefinitionKey: key,
+              finished: true,
+              ...(tenantId ? { tenantIdIn: tenantId } : {}),
+            },
           }),
         ]);
         return [key, { wip: wipRes.data.count, gereed: gereedRes.data.count }] as const;
       })
     );
     return Object.fromEntries(entries);
+  }
+
+  /**
+   * Discover the Operaton-native tenant-id a process-definition key is
+   * actually deployed under, via the untenanted list endpoint — unlike the
+   * /process-definition/key/{key}/... shorthand, this resolves regardless of
+   * tenant-id and returns each matching definition's own tenantId. Used to
+   * correctly scope processes that are deployed under a fixed tenant
+   * different from the calling citizen's own (e.g. AwbZorgtoeslagProcess,
+   * always handled under toeslagen regardless of which tenant's citizen is
+   * calling) instead of assuming the citizen's tenant is the process's
+   * tenant. If the same key has coexisting rows under multiple tenants (a
+   * legacy untenanted deployment alongside a newer tenant-scoped one), the
+   * tenant-scoped row wins. Returns null if the key isn't deployed, is
+   * deployed untenanted, or the lookup itself fails — callers should fall
+   * back to their own best guess.
+   */
+  private async resolveDeployedTenant(processKey: string): Promise<string | null> {
+    try {
+      const response = await this.client.get('/process-definition', {
+        params: { key: processKey, latestVersion: true },
+      });
+      const defs = response.data as Array<{ tenantId: string | null }>;
+      const tenantScoped = defs.find((d) => d.tenantId !== null);
+      return tenantScoped?.tenantId ?? defs[0]?.tenantId ?? null;
+    } catch (error) {
+      logger.warn('Failed to resolve deployed tenant; falling back to caller-provided tenant', {
+        processKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
+    }
   }
 
   /**
@@ -175,10 +217,33 @@ export class OperatonService {
         };
       }
 
-      const response = await this.client.post(
-        `/process-definition/key/${processKey}/start`,
-        request
-      );
+      // Try the tenant-scoped start first, scoped to the process's own
+      // *actual* deployed tenant (not necessarily the calling citizen's own
+      // tenant — e.g. AwbZorgtoeslagProcess is always handled under
+      // toeslagen regardless of which tenant's citizen is calling).
+      // Deployments made via LDE's mandatory-organization deploy flow carry
+      // Operaton's own native tenant-id and are invisible to the untenanted
+      // /start shorthand below — Operaton only resolves
+      // /process-definition/key/{key}/start against definitions deployed
+      // with *no* tenant-id. Not every process is tenant-scoped yet, so
+      // fall back to the untenanted lookup when the scoped one reports no
+      // matching definition.
+      const deployedTenant = await this.resolveDeployedTenant(processKey);
+      const scopeTenant = deployedTenant ?? tenantId;
+      let response;
+      try {
+        response = await this.client.post(
+          `/process-definition/key/${processKey}/tenant-id/${scopeTenant}/start`,
+          request
+        );
+      } catch (scopedError) {
+        const scopedBody = axios.isAxiosError(scopedError) ? scopedError.response?.data : null;
+        const scopedMessage: string = scopedBody?.message ?? '';
+        if (!scopedMessage.includes('No matching process definition with key')) {
+          throw scopedError;
+        }
+        response = await this.client.post(`/process-definition/key/${processKey}/start`, request);
+      }
 
       logger.info('Process started successfully', {
         processKey,
@@ -668,7 +733,7 @@ export class OperatonService {
       const boardOwnerByKey = new Map<string, string | null>();
       await Promise.all(
         distinctKeys.map(async (key) => {
-          boardOwnerByKey.set(key, await this.getBoardOwner(key));
+          boardOwnerByKey.set(key, await this.getBoardOwner(key, tenantId));
         })
       );
 
@@ -690,20 +755,57 @@ export class OperatonService {
   }
 
   /**
+   * Try a tenant-scoped Operaton lookup by process-definition key, falling
+   * back to the untenanted shorthand when Operaton reports no matching
+   * definition — the same pattern startProcess already uses. `suffix` is the
+   * URL path segment following `/process-definition/key/{key}` (and, when
+   * tenant-scoped, `/tenant-id/{tenantId}`), e.g. '/xml' or
+   * '/deployed-start-form'.
+   */
+  private async getByKeyWithTenantFallback<T>(
+    processKey: string,
+    tenantId: string | undefined,
+    suffix: string,
+    options?: { responseType?: 'text' }
+  ): Promise<{ data: T; headers: Record<string, string> }> {
+    if (tenantId) {
+      try {
+        const url = `/process-definition/key/${encodeURIComponent(processKey)}/tenant-id/${encodeURIComponent(tenantId)}${suffix}`;
+        const result = options
+          ? await this.client.get<T>(url, options)
+          : await this.client.get<T>(url);
+        return result as { data: T; headers: Record<string, string> };
+      } catch (scopedError) {
+        const scopedBody = axios.isAxiosError(scopedError) ? scopedError.response?.data : null;
+        const scopedMessage: string = scopedBody?.message ?? '';
+        if (!scopedMessage.includes('No matching process definition with key')) {
+          throw scopedError;
+        }
+      }
+    }
+    const url = `/process-definition/key/${encodeURIComponent(processKey)}${suffix}`;
+    const result = options ? await this.client.get<T>(url, options) : await this.client.get<T>(url);
+    return result as { data: T; headers: Record<string, string> };
+  }
+
+  /**
    * Resolve the owning board of a process by reading the `boardOwner` extension
    * property from its deployed BPMN (tagged at deploy time by LDE). Cached per key.
    * Returns null for untagged/legacy processes or on any lookup failure, so callers
    * can fall back to their static split without the archive ever breaking.
    */
-  async getBoardOwner(processDefinitionKey: string): Promise<string | null> {
+  async getBoardOwner(processDefinitionKey: string, tenantId?: string): Promise<string | null> {
     if (!processDefinitionKey) return null;
-    const cached = this.boardOwnerCache.get(processDefinitionKey);
+    const cacheKey = `${tenantId ?? ''}::${processDefinitionKey}`;
+    const cached = this.boardOwnerCache.get(cacheKey);
     if (cached !== undefined) return cached;
 
     let owner: string | null = null;
     try {
-      const res = await this.client.get(
-        `/process-definition/key/${encodeURIComponent(processDefinitionKey)}/xml`
+      const res = await this.getByKeyWithTenantFallback<{ bpmn20Xml?: string }>(
+        processDefinitionKey,
+        tenantId,
+        '/xml'
       );
       const xml: string = res.data?.bpmn20Xml ?? '';
       // Match the property regardless of name/value attribute order.
@@ -714,12 +816,13 @@ export class OperatonService {
     } catch (error) {
       logger.warn('Failed to resolve boardOwner; treating as untagged', {
         processDefinitionKey,
+        tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       owner = null;
     }
 
-    this.boardOwnerCache.set(processDefinitionKey, owner);
+    this.boardOwnerCache.set(cacheKey, owner);
     return owner;
   }
 
@@ -875,17 +978,24 @@ export class OperatonService {
    * Returns the raw form content as a string; callers must detect content type.
    * Camunda Forms (.form) will be valid JSON. Embedded HTML forms will be HTML.
    */
-  async getDeployedStartForm(processKey: string): Promise<{ data: string; contentType: string }> {
+  async getDeployedStartForm(
+    processKey: string,
+    tenantId?: string
+  ): Promise<{ data: string; contentType: string }> {
     try {
-      const response = await this.client.get(
-        `/process-definition/key/${processKey}/deployed-start-form`,
+      const deployedTenant = await this.resolveDeployedTenant(processKey);
+      const response = await this.getByKeyWithTenantFallback<string>(
+        processKey,
+        deployedTenant ?? tenantId,
+        '/deployed-start-form',
         { responseType: 'text' }
       );
       const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
-      return { data: response.data as string, contentType };
+      return { data: response.data, contentType };
     } catch (error) {
       logger.error('Failed to fetch deployed start form', {
         processKey,
+        tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
@@ -914,7 +1024,7 @@ export class OperatonService {
   }
 
   /**
-   * List active (unfinished) RipPhase1Process instances for a municipality,
+   * List active (unfinished) RipR21Process instances for a municipality,
    * enriched with projectNumber, projectName, edocsWorkspaceId.
    */
   async getRipPhase1ActiveList(tenantId: string): Promise<
@@ -928,7 +1038,7 @@ export class OperatonService {
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
-      processDefinitionKey: 'RipPhase1Process',
+      processDefinitionKey: 'RipR21Process',
       unfinished: true,
       variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
       sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
@@ -1026,7 +1136,7 @@ export class OperatonService {
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
-      processDefinitionKey: 'RipPhase1Process',
+      processDefinitionKey: 'RipR21Process',
       finished: true,
       variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
       sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],

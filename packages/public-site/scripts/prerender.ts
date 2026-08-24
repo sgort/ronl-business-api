@@ -19,6 +19,8 @@ import {
 import { PUB_SECTIONS } from '../src/lib/sections';
 import { mapToHits } from '../src/lib/sectionHits';
 import { slugify } from '../src/lib/slug';
+import { HERKOMST_STRINGS } from '../src/pages/herkomst/herkomstData';
+import { KT_CONCEPTS } from '../src/pages/herkomst/herkomstConcepts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -48,6 +50,23 @@ export function escapeHtml(s: string): string {
     "'": '&#39;',
   };
   return s.replace(/[&<>"']/g, (c) => map[c]);
+}
+
+// index.html hardcodes the social card's og:url/og:image to the production
+// origin (see the comment there) because a static HTML file can't know its
+// own deploy target. This rewrites both to whichever origin this prerender
+// run is actually for, so acceptance builds point at
+// acc.publiek.open-regels.nl instead of a production domain that may not
+// even be live yet — exactly the bug that shipped in v2026.08.15 (ACC's
+// og:image pointed at the still-undeployed prod domain, so link previews
+// on ACC silently failed to load the image).
+export function rewriteSocialCardOrigin(shell: string, origin: string): string {
+  return shell
+    .replace('content="https://publiek.open-regels.nl/"', `content="${origin}/"`)
+    .replace(
+      'content="https://publiek.open-regels.nl/og-open-regels.png"',
+      `content="${origin}/og-open-regels.png"`
+    );
 }
 
 export function injectIntoShell(
@@ -176,8 +195,16 @@ async function main() {
   if (!apiUrlMatch) throw new Error(`VITE_API_URL not found in ${ENV_FILE[mode]}`);
   process.env.PUBLIC_API_BASE_URL = apiUrlMatch[1].trim();
 
-  const shell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
-  const urls: string[] = ['/', '/woordenboek', '/toegankelijkheid', '/open-data', '/zoeken'];
+  const rawShell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
+  const shell = rewriteSocialCardOrigin(rawShell, origin);
+  const urls: string[] = [
+    '/',
+    '/woordenboek',
+    '/herkomst',
+    '/toegankelijkheid',
+    '/open-data',
+    '/zoeken',
+  ];
 
   // Home
   await writeRoute(shell, origin, '/', {
@@ -308,6 +335,23 @@ async function main() {
       ]),
     });
   }
+  // Herkomst — static content, no API data. Title/description/summary come
+  // straight from the page's own content module (herkomstData.ts /
+  // herkomstConcepts.ts) so a crawler that doesn't execute JS (and a
+  // link-preview scraper that only fetches the raw HTML) sees real,
+  // honest content instead of falling back to the homepage's — the same
+  // fallback that would otherwise happen via Azure's SPA navigationFallback
+  // for any route with no prerendered file of its own.
+  await writeRoute(shell, origin, '/herkomst', {
+    title: `${HERKOMST_STRINGS.nl.title} — Open Regels Nederland`,
+    description: HERKOMST_STRINGS.nl.sub,
+    bodyFragment: listFragment(
+      HERKOMST_STRINGS.nl.title,
+      HERKOMST_STRINGS.nl.sub,
+      Object.values(KT_CONCEPTS).map((c) => ({ title: c.naam.nl, summary: c.kort.nl }))
+    ),
+  });
+
   urls.push('/berichten', '/nieuws', '/producten', '/regels', '/processen');
 
   await writeFile(path.join(distDir, 'sitemap.xml'), buildSitemap(origin, urls), 'utf-8');

@@ -1,13 +1,28 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Dossierbeheer from './Dossierbeheer';
 import type { AdminDossier, DossierTemplate } from '@ronl/shared';
+import { makePaDataStub } from '../../../test/paData.stub';
+import { expectMockNamesRealExports } from '../../../test/mockModule';
 
 const mockDossiersRefetch = vi.hoisted(() => vi.fn());
+const mockSignalsRefetch = vi.hoisted(() => vi.fn());
+const mockRefreshInboxCounts = vi.hoisted(() => vi.fn());
+const mockNotificationsRefetch = vi.hoisted(() => vi.fn());
 vi.mock('../../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () => ({ dossiers: { refetch: mockDossiersRefetch } }),
+  usePaData: () =>
+    makePaDataStub({
+      dossiers: { data: [], status: 'ok', refetch: mockDossiersRefetch },
+      signals: { data: [], status: 'ok', refetch: mockSignalsRefetch },
+      notifications: {
+        data: { items: [], unseenCount: 0 },
+        status: 'ok',
+        refetch: mockNotificationsRefetch,
+      },
+      refreshInboxCounts: mockRefreshInboxCounts,
+    }),
 }));
 
 const mockApi = vi.hoisted(() => ({
@@ -19,14 +34,24 @@ const mockApi = vi.hoisted(() => ({
   archiveDossier: vi.fn(),
   unarchiveDossier: vi.fn(),
   deleteDossier: vi.fn(),
+  resetMockDossiers: vi.fn(),
 }));
 vi.mock('../../../services/dossierbeheer.api', () => mockApi);
 
+const mockResetDemoData = vi.hoisted(() => vi.fn());
+vi.mock('../../../services/mock-demo.store', () => ({ resetMockDemoData: mockResetDemoData }));
+
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 const mockSetDossiersMock = vi.hoisted(() => vi.fn());
-vi.mock('../../../services/pa.api', () => ({
-  isDossiersMock: mockIsDossiersMock,
-  setDossiersMock: mockSetDossiersMock,
+vi.mock('../../../services/keycloak', () => ({
+  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
+}));
+const paApi = { isPaMock: mockIsDossiersMock, setPaMock: mockSetDossiersMock };
+// Built on the real module so a member nobody stubbed is not silently missing.
+vi.mock('../../../services/pa.api', async (importActual) => ({
+  ...(await importActual<typeof import('../../../services/pa.api')>()),
+  isPaMock: mockIsDossiersMock,
+  setPaMock: mockSetDossiersMock,
 }));
 
 vi.mock('./DossierRow', () => ({
@@ -156,6 +181,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe('the pa.api mock', () => {
+  it('only names exports the real module has', async () => {
+    await expectMockNamesRealExports(vi.importActual('../../../services/pa.api'), paApi);
+  });
+});
+
 describe('Dossierbeheer', () => {
   it('shows an empty state with no dossiers', async () => {
     render(<Dossierbeheer user={author} />);
@@ -198,7 +229,64 @@ describe('Dossierbeheer', () => {
     await user.click(screen.getByRole('button', { name: /Zet vlag om naar live/ }));
 
     expect(mockSetDossiersMock).toHaveBeenCalledWith(false);
+    // All three, not just dossiers: the flag governs signals and searches too,
+    // so the rail would otherwise keep the previous mode's numbers until
+    // Monitoring was visited.
     expect(mockDossiersRefetch).toHaveBeenCalled();
+    expect(mockSignalsRefetch).toHaveBeenCalled();
+    expect(mockRefreshInboxCounts).toHaveBeenCalled();
+    // Notifications too: the mock branch returns none, so a stale live bell
+    // count would otherwise stand until something else happened to refetch it.
+    expect(mockNotificationsRefetch).toHaveBeenCalled();
+  });
+
+  it('offers "Reset demodata" in mock mode but not in live', async () => {
+    // Live has no demo state to reset, and the button would imply this page can
+    // rewrite the database — which is exactly the confusion the mock/live
+    // separation exists to remove.
+    const { unmount } = render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+    expect(screen.getByRole('button', { name: /Reset demodata/ })).toBeInTheDocument();
+    unmount();
+
+    mockIsDossiersMock.mockReturnValue(false);
+    render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+
+    expect(screen.queryByRole('button', { name: /Reset demodata/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Terug naar mock/ })).toBeInTheDocument();
+  });
+
+  it('resetting clears both halves of the demo state and reloads the surface', async () => {
+    // Signals live in the persisted store, dossiers in dossierbeheer's own
+    // store; one surviving the other would leave a half-reset demo.
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+
+    await user.click(screen.getByRole('button', { name: /Reset demodata/ }));
+
+    expect(mockResetDemoData).toHaveBeenCalled();
+    expect(mockApi.resetMockDossiers).toHaveBeenCalled();
+    expect(mockDossiersRefetch).toHaveBeenCalled();
+    expect(mockSignalsRefetch).toHaveBeenCalled();
+    expect(mockRefreshInboxCounts).toHaveBeenCalled();
+    // Notifications too: the mock branch returns none, so a stale live bell
+    // count would otherwise stand until something else happened to refetch it.
+    expect(mockNotificationsRefetch).toHaveBeenCalled();
+  });
+
+  it('cancelling the confirmation resets nothing', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<Dossierbeheer user={author} />);
+    await screen.findByText('Nog geen dossiers. Maak het eerste dossier aan.');
+
+    await user.click(screen.getByRole('button', { name: /Reset demodata/ }));
+
+    expect(mockResetDemoData).not.toHaveBeenCalled();
+    expect(mockApi.resetMockDossiers).not.toHaveBeenCalled();
   });
 
   it('"+ Nieuw dossier" without onNavigate opens the template gallery, and picking one opens a new-dossier editor', async () => {
@@ -211,6 +299,39 @@ describe('Dossierbeheer', () => {
 
     await user.click(screen.getByRole('button', { name: 'pick-template' }));
     expect(screen.getByText('editor:new')).toBeInTheDocument();
+  });
+
+  it('waits for the refreshed list before returning to the overview after a create', async () => {
+    // The bug this pins: handleSave used to fire refetch() and navigate in the
+    // same tick, so the overview could render against a list that had not come
+    // back. The dossier was created — the POST succeeded — and the user did not
+    // see it. Found by an end-to-end journey failing one run in three.
+    const onNavigate = vi.fn();
+    let releaseList!: (rows: AdminDossier[]) => void;
+    mockApi.createDossier.mockResolvedValue({});
+    mockApi.fetchAdminDossiers
+      .mockResolvedValueOnce([]) // initial mount
+      .mockImplementationOnce(
+        () =>
+          new Promise<AdminDossier[]>((resolve) => {
+            releaseList = resolve;
+          })
+      );
+
+    const user = userEvent.setup();
+    render(<Dossierbeheer user={author} startCreate onNavigate={onNavigate} />);
+    await user.click(screen.getByRole('button', { name: 'pick-template' }));
+    await user.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => expect(mockApi.createDossier).toHaveBeenCalled());
+    // Still in the editor: the list has not answered yet.
+    expect(onNavigate).not.toHaveBeenCalledWith('beheer', 'db-overzicht');
+
+    await act(async () => {
+      releaseList([]);
+    });
+
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('beheer', 'db-overzicht'));
   });
 
   it('"+ Nieuw dossier" with onNavigate delegates to the shell navigator instead', async () => {

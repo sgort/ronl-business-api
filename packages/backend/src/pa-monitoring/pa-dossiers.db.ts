@@ -2,10 +2,12 @@
  * PA Dossierbeheer — database init, seed and row mappers.
  *
  * The Beheer → Strategisch kompas → Dossierbeheer surface is the authoring
- * SOURCE for /pa/dossiers. This module owns the four tables behind it and
- * seeds them from the canonical @ronl/shared SEED_DOSSIERS so GET /pa/dossiers
- * serves the exact rich shape the cockpit renders — the flag flip
- * (VITE_PA_DOSSIERS_MOCK=false) then reads live dossiers with no frontend change.
+ * SOURCE for /pa/dossiers. This module owns the four tables behind it.
+ *
+ * Live and mock are strictly separate: the cockpit in mock mode renders the
+ * frontend's own MOCK_DOSSIERS fixture and never calls this module, while live
+ * mode serves whatever the database holds — which is only what someone
+ * authored, since the SEED_DOSSIERS demo rows are opt-in (see seedDossiers).
  *
  * Tables created inline (no migration framework, matches pa-monitoring.db.ts):
  *   pa_dossiers         — governance columns + kompas/md/body JSONB
@@ -16,7 +18,8 @@
 
 import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
-import { SEED_DOSSIERS } from '@ronl/shared';
+import { config } from '@utils/config';
+import { SEED_DOSSIERS, SEED_DOSSIER_IDS, type SeedDossierId } from '@ronl/shared';
 import type {
   Dossier,
   AdminDossier,
@@ -59,7 +62,13 @@ export function completeKompas(partial: PartialKompasScores | undefined | null):
 
 // ── Seed helpers ────────────────────────────────────────────────────
 
-const SEED_OWNERS: Record<string, string> = {
+/**
+ * Owning kernteam member per seed dossier. Keyed by SeedDossierId rather than by
+ * string, so adding a dossier to SEED_DOSSIERS without naming an owner here is a
+ * compile error instead of a row that silently seeds as 'Kernteam PA' — the sort
+ * of wrong-but-plausible value nobody notices in ACC.
+ */
+const SEED_OWNERS: Record<SeedDossierId, string> = {
   stikstof: 'Sanne Bakker',
   lelystad: 'Joost Veenstra',
   energie: 'Mara de Wit',
@@ -276,7 +285,11 @@ export async function initDossiersDb(): Promise<void> {
     `);
 
     logger.info('PA dossiers tables ready');
-    await seedDossiers();
+    // Demo dossiers are opt-in — see seedDossiers.
+    if (config.pa.seedDemoData) await seedDossiers();
+    else logger.info('PA demo dossiers not seeded (PA_SEED_DEMO_DATA is off)');
+    // Templates and snippets are not sample content: the authoring surface
+    // needs a sjabloon to create a dossier from, so they seed either way.
     await seedTemplatesAndSnippets();
   } catch (err) {
     logger.warn('PA dossiers DB init failed — will retry on next request', {
@@ -285,45 +298,71 @@ export async function initDossiersDb(): Promise<void> {
   }
 }
 
+/**
+ * Every dossier id this module seeds.
+ *
+ * Tooling needs to be able to remove exactly the demo rows from an environment
+ * that also holds authored ones, and "exactly the demo rows" has to stay tied to
+ * what the seed actually writes rather than a hand-kept list that drifts.
+ */
+export const DEMO_DOSSIER_IDS: readonly string[] = [...SEED_DOSSIER_IDS, ARCHIVED_EXAMPLE.id];
+
+/**
+ * Populate the tables with the SEED_DOSSIERS examples plus one archived case.
+ *
+ * Opt-in via PA_SEED_DEMO_DATA, and off by default, because these are the
+ * same dossiers the frontend serves as MOCK_DOSSIERS. Seeding them into the
+ * database made the mock/live flag flip a visual no-op, which was the point
+ * while the seam was being proven — but it also meant live could only ever be
+ * mock plus whatever had been authored on top, so the two modes could never be
+ * told apart. Live now means: dossiers someone actually created.
+ *
+ * Turning the flag on is still the way to give a fresh demo or ACC environment
+ * something to show.
+ */
 async function seedDossiers(): Promise<void> {
   const rows = [
-    ...SEED_DOSSIERS.map((d, idx) => ({
-      id: d.id,
-      naam: d.naam,
-      onderwerp: d.onderwerp,
-      status: d.status as AdminDossierStatus,
-      momentum: d.momentum,
-      eigenaar: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-      kompas: d.kompas as PartialKompasScores,
-      md: toMarkdown(d),
-      body: d,
-      versie: 3,
-      gepubliceerd: true,
-      sjabloon: 'standaard',
-      archief: null as DossierArchief | null,
-      versies: [
-        {
-          v: 1,
-          at: '12 mei 2026',
-          by: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-          note: 'Dossier aangemaakt vanuit sjabloon Standaard PA-dossier.',
-        },
-        {
-          v: 2,
-          at: '24 mei 2026',
-          by: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-          note: 'Kompas-startscores gezet; verhaal uitgewerkt.',
-        },
-        {
-          v: 3,
-          at: '1 jun 2026',
-          by: SEED_OWNERS[d.id] ?? 'Kernteam PA',
-          note: 'Verhaal bijgewerkt na laatste ontwikkeling.',
-        },
-      ] as DossierVersion[],
-      // Stagger updated_at so the overview shows varied "bewerkt N geleden" labels.
-      ageDays: [2, 5, 1, 21, 7][idx] ?? 7,
-    })),
+    ...SEED_DOSSIERS.map((d, idx) => {
+      // SEED_OWNERS is keyed by SeedDossierId, so this is a string, never undefined.
+      const eigenaar = SEED_OWNERS[d.id];
+      return {
+        id: d.id,
+        naam: d.naam,
+        onderwerp: d.onderwerp,
+        status: d.status as AdminDossierStatus,
+        momentum: d.momentum,
+        eigenaar,
+        kompas: d.kompas as PartialKompasScores,
+        md: toMarkdown(d),
+        body: d,
+        versie: 3,
+        gepubliceerd: true,
+        sjabloon: 'standaard',
+        archief: null as DossierArchief | null,
+        versies: [
+          {
+            v: 1,
+            at: '12 mei 2026',
+            by: eigenaar,
+            note: 'Dossier aangemaakt vanuit sjabloon Standaard PA-dossier.',
+          },
+          {
+            v: 2,
+            at: '24 mei 2026',
+            by: eigenaar,
+            note: 'Kompas-startscores gezet; verhaal uitgewerkt.',
+          },
+          {
+            v: 3,
+            at: '1 jun 2026',
+            by: eigenaar,
+            note: 'Verhaal bijgewerkt na laatste ontwikkeling.',
+          },
+        ] as DossierVersion[],
+        // Stagger updated_at so the overview shows varied "bewerkt N geleden" labels.
+        ageDays: [2, 5, 1, 21, 7][idx] ?? 7,
+      };
+    }),
     {
       ...ARCHIVED_EXAMPLE,
       body: buildBodyFromAuthoring(ARCHIVED_EXAMPLE),

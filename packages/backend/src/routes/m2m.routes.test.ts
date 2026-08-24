@@ -8,6 +8,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = { userId: 'm2m-user' } as Request['user'];
@@ -47,7 +50,7 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
-import m2mRouter from './m2m.routes';
+import m2mRouter, { M2M_ALLOWED_OPERATIONS } from './m2m.routes';
 import { operatonService } from '@services/operaton.service';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
@@ -322,5 +325,173 @@ describe('decision endpoints', () => {
     expect((await auth(request(app).get('/v1/m2m/decision/Dec'))).status).toBe(200);
     svc.getDecisionDefinition.mockRejectedValueOnce(new Error('nope'));
     expect((await auth(request(app).get('/v1/m2m/decision/Dec'))).status).toBe(404);
+  });
+});
+
+/** Every curated operation, with the route that fronts it and how it fails. */
+const OPERATIONS = [
+  ['process.list', 'get', '/v1/m2m/process', 'listProcessInstances', 500],
+  ['process.start', 'post', '/v1/m2m/process/K/start', 'startProcess', 500],
+  ['process.history', 'get', '/v1/m2m/process/history', 'queryProcessHistory', 500],
+  ['process.status', 'get', '/v1/m2m/process/pi-1/status', 'getProcessInstance', 404],
+  ['process.variables', 'get', '/v1/m2m/process/pi-1/variables', 'getProcessVariables', 404],
+  [
+    'process.historic-variables',
+    'get',
+    '/v1/m2m/process/pi-1/historic-variables',
+    'getHistoricVariables',
+    404,
+  ],
+  [
+    'process.decision-document',
+    'get',
+    '/v1/m2m/process/pi-1/decision-document',
+    'getDecisionDocument',
+    404,
+  ],
+  ['process.start-form', 'get', '/v1/m2m/process/K/start-form', 'getDeployedStartForm', 404],
+  ['process.variable-hints', 'get', '/v1/m2m/process/K/variable-hints', 'getVariableHints', 500],
+  ['process.delete', 'delete', '/v1/m2m/process/pi-1', 'deleteProcessInstance', 500],
+  ['task.list', 'get', '/v1/m2m/task', 'getUserTasks', 500],
+  ['task.get', 'get', '/v1/m2m/task/t-1', 'getTask', 404],
+  ['task.variables', 'get', '/v1/m2m/task/t-1/variables', 'getTaskVariables', 500],
+  ['task.form-schema', 'get', '/v1/m2m/task/t-1/form-schema', 'getDeployedTaskForm', 404],
+  ['task.claim', 'post', '/v1/m2m/task/t-1/claim', 'claimTask', 500],
+  ['task.complete', 'post', '/v1/m2m/task/t-1/complete', 'completeTask', 500],
+  ['decision.evaluate', 'post', '/v1/m2m/decision/K/evaluate', 'evaluateDecision', 500],
+  ['decision.get', 'get', '/v1/m2m/decision/K', 'getDecisionDefinition', 404],
+] as const;
+
+describe('the curation gate', () => {
+  it('covers exactly the operations the routes ask about', () => {
+    expect([...M2M_ALLOWED_OPERATIONS].sort()).toEqual(OPERATIONS.map(([op]) => op).sort());
+  });
+
+  it.each(OPERATIONS)(
+    'answers 403 OPERATION_NOT_PERMITTED for %s once it is de-listed',
+    async (op, method, path) => {
+      // The gate is operated by removing an entry from the list; do exactly that,
+      // rather than asserting against a hard-coded copy of it.
+      const index = M2M_ALLOWED_OPERATIONS.indexOf(op);
+      M2M_ALLOWED_OPERATIONS.splice(index, 1);
+      try {
+        const res = await auth(request(app)[method](path));
+        expect(res.status).toBe(403);
+        expect(res.body.error.code).toBe('OPERATION_NOT_PERMITTED');
+      } finally {
+        M2M_ALLOWED_OPERATIONS.splice(index, 0, op);
+      }
+    }
+  );
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as bare strings often enough that the String(error)
+  // fallback in each catch is a real path, not a formality.
+  it.each(OPERATIONS)(
+    '%s rejecting with a string still answers its error status',
+    async (_op, method, path, fn, status) => {
+      svc[fn].mockRejectedValue('socket hang up');
+      const res = await auth(request(app)[method](path));
+      expect(res.status).toBe(status);
+      expect(res.body.success).toBe(false);
+    }
+  );
+});
+
+describe('request bodies that leave fields out', () => {
+  it('starts a process with no variables when the body omits them', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-1' });
+    const res = await auth(request(app).post('/v1/m2m/process/K/start').send({}));
+    expect(res.status).toBe(200);
+    expect(svc.startProcess).toHaveBeenCalledWith(
+      'K',
+      expect.objectContaining({ variables: {} }),
+      'm2m'
+    );
+  });
+
+  it('queries history with an empty filter when there is no body at all', async () => {
+    svc.queryProcessHistory.mockResolvedValue([]);
+    const res = await auth(request(app).get('/v1/m2m/process/history'));
+    expect(res.status).toBe(200);
+    expect(svc.queryProcessHistory).toHaveBeenCalledWith({});
+  });
+
+  it('completes a task with no variables when the body omits them', async () => {
+    svc.completeTask.mockResolvedValue(undefined);
+    const res = await auth(request(app).post('/v1/m2m/task/t-1/complete').send({}));
+    expect(res.status).toBe(200);
+    expect(svc.completeTask).toHaveBeenCalledWith('t-1', { variables: {} });
+  });
+
+  it('evaluates a decision with no variables when the body omits them', async () => {
+    svc.evaluateDecision.mockResolvedValue([]);
+    const res = await auth(request(app).post('/v1/m2m/decision/K/evaluate').send({}));
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('variable coercion', () => {
+  it('passes through values already in Operaton form and infers a type for the rest', async () => {
+    svc.completeTask.mockResolvedValue(undefined);
+    await auth(
+      request(app)
+        .post('/v1/m2m/task/t-1/complete')
+        .send({
+          variables: {
+            alReedsGetypeerd: { value: '2026-01-01', type: 'Date' },
+            akkoord: true,
+            aantal: 3,
+            bedrag: 12.5,
+            toelichting: 'ok',
+            bijlage: { naam: 'a.pdf' },
+            reden: null,
+          },
+        })
+    );
+    expect(svc.completeTask).toHaveBeenCalledWith('t-1', {
+      variables: {
+        alReedsGetypeerd: { value: '2026-01-01', type: 'Date' },
+        akkoord: { value: true, type: 'Boolean' },
+        aantal: { value: 3, type: 'Integer' },
+        bedrag: { value: 12.5, type: 'Double' },
+        toelichting: { value: 'ok', type: 'String' },
+        bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
+        reden: { value: null, type: 'Null' },
+      },
+    });
+  });
+});
+
+describe('the M2M Operaton instance', () => {
+  it('uses a dedicated OperatonService when OPERATON_M2M_BASE_URL is configured', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { OperatonService } = require('@services/operaton.service') as {
+      OperatonService: jest.Mock;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { config } = require('@utils/config') as {
+      config: { operaton: Record<string, string | undefined> };
+    };
+    config.operaton.m2mBaseUrl = 'https://operaton-doc.test/engine-rest';
+    config.operaton.m2mUsername = 'm2m';
+    config.operaton.m2mPassword = 'pw';
+    try {
+      OperatonService.mockClear();
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('./m2m.routes');
+      });
+      expect(OperatonService).toHaveBeenCalledWith(
+        'https://operaton-doc.test/engine-rest',
+        'm2m',
+        'pw'
+      );
+    } finally {
+      config.operaton.m2mBaseUrl = '';
+      config.operaton.m2mUsername = undefined;
+      config.operaton.m2mPassword = undefined;
+    }
   });
 });

@@ -11,7 +11,10 @@ jest.mock('@services/nieuws.service', () => ({ getNieuwsItems: jest.fn() }));
 jest.mock('@services/berichten.service', () => ({ getBerichtenItems: jest.fn() }));
 jest.mock('@services/productenDiensten.service', () => ({ getProductenDienstenItems: jest.fn() }));
 jest.mock('@services/regelcatalogus.service', () => ({ getRegelcatalogusData: jest.fn() }));
-jest.mock('@services/lde.service', () => ({ getPublicProcesses: jest.fn() }));
+jest.mock('@services/lde.service', () => ({
+  getPublicProcesses: jest.fn(),
+  getPublicDmnsByService: jest.fn(),
+}));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
@@ -20,7 +23,7 @@ import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems } from '@services/berichten.service';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
 import { getRegelcatalogusData } from '@services/regelcatalogus.service';
-import { getPublicProcesses } from '@services/lde.service';
+import { getPublicProcesses, getPublicDmnsByService } from '@services/lde.service';
 
 type Mod = typeof import('./search.service');
 function freshModule(): Mod {
@@ -38,6 +41,7 @@ const m = {
   producten: getProductenDienstenItems as jest.Mock,
   regels: getRegelcatalogusData as jest.Mock,
   processen: getPublicProcesses as jest.Mock,
+  dmns: getPublicDmnsByService as jest.Mock,
 };
 
 function mockAllEmpty() {
@@ -46,6 +50,7 @@ function mockAllEmpty() {
   m.producten.mockResolvedValue({ items: [], total: 0 });
   m.regels.mockResolvedValue({ services: [], organizations: [], concepts: [], rules: [] });
   m.processen.mockResolvedValue([]);
+  m.dmns.mockResolvedValue(new Map());
 }
 
 let search: Mod;
@@ -172,6 +177,37 @@ describe('getPublicIndex', () => {
     expect(regel.ruleCount).toBe(1);
     expect(regel.rules).toEqual([{ naam: 'Recht op zorgtoeslag', geldig: '2026-01-01' }]);
     expect(regel.begrippen).toEqual(['Toetsingsinkomen']);
+  });
+
+  it('attaches the DMNs LDE publishes for a service, joined on the service URI', async () => {
+    m.regels.mockResolvedValue({
+      services: [
+        { uri: 'svc:1', title: 'Digital Twin Inkomensregelingen', description: '' },
+        { uri: 'svc:2', title: 'Geen DMN', description: '' },
+      ],
+      organizations: [],
+      concepts: [],
+      rules: [],
+    });
+    m.dmns.mockResolvedValue(
+      new Map([
+        [
+          'svc:1',
+          [{ title: 'HvA_full_dmn_export-patched.dmn', xmlUrl: 'https://lde.test/v1/dmns/x/xml' }],
+        ],
+      ])
+    );
+
+    const index = await search.getPublicIndex();
+    const withDmn = index.find((i) => i.slug === 'digital-twin-inkomensregelingen')!;
+    expect(withDmn.dmns).toEqual([
+      { title: 'HvA_full_dmn_export-patched.dmn', xmlUrl: 'https://lde.test/v1/dmns/x/xml' },
+    ]);
+
+    // A service LDE knows nothing about carries no dmns key at all, so the
+    // public site renders no download line rather than an empty one.
+    const withoutDmn = index.find((i) => i.slug === 'geen-dmn')!;
+    expect(withoutDmn.dmns).toBeUndefined();
   });
 
   it('a service with zero rules still appears (empty rules array, ruleCount 0)', async () => {

@@ -7,7 +7,7 @@ import { claimIfNeeded } from './helpers/tasks';
 // flow, alongside caseworker-journey.spec.ts's Kapvergunning roundtrip.
 // Citizen (test-citizen-unive, a commercial org) submits a Zorgtoeslag
 // (health care allowance) claim via AwbZorgtoeslagProcess -> DMN
-// evaluation -> ZorgtoeslagProvisionalSubProcess creates a "Case review"
+// evaluation -> ZorgtoeslagProvisionalSubProcessE2E creates a "Case review"
 // task. AwbZorgtoeslagProcess always runs under the toeslagen processing
 // authority regardless of which channel the citizen came from
 // (process.routes.ts overrides the municipality variable explicitly), so

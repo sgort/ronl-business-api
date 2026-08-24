@@ -50,6 +50,7 @@ function BronBadge({ bron }: { bron: string | null }) {
 const EP_SUBBRON_LABEL: Record<string, string> = {
   'ep-teksten': 'Ingediende teksten',
   'ep-rss': 'Plenaire RSS',
+  'ep-persbericht': 'Persbericht',
 };
 
 function EpMeta({ s }: { s: Signal }) {
@@ -557,7 +558,18 @@ function RawHitCard({
 }
 
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
-  const { confirmSignal, linkSignalDossier, dossiers, updateInboxCount } = usePaData();
+  const {
+    confirmSignal,
+    dismissSignal,
+    linkSignalDossier,
+    dossiers,
+    updateInboxCount,
+    refreshInboxCounts,
+    // Aliased: this component has its own tab-scoped `signals` state. This is
+    // the provider's cockpit-wide confirmed set, which feeds the rail counters.
+    signals: allSignals,
+  } = usePaData();
+  const refetchAllSignals = allSignals.refetch;
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
 
   const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
@@ -598,7 +610,16 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     inboxCountRef.current = inb.meta.total;
     setLoading(false);
     updateInboxCount(tab.id, inb.meta.total);
-  }, [tab.id, updateInboxCount]);
+    // The line above fixes this tab immediately; this re-reads the other three.
+    // Without it only the source you open is current, and the rest keep whatever
+    // they showed at mount — which is how a curation run stays invisible.
+    void refreshInboxCounts();
+    // Same problem, other half of the rail: useResource only fetches on mount,
+    // so the confirmed counter beside each source is a snapshot from whenever
+    // the page last loaded. It survived a database that had been emptied
+    // underneath it, still showing signals that no longer existed.
+    refetchAllSignals();
+  }, [tab.id, updateInboxCount, refreshInboxCounts, refetchAllSignals]);
 
   useEffect(() => {
     void load();
@@ -759,15 +780,35 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
       setSignals((prev) => [...prev, confirmed].sort((a, b) => b.rel - a.rel));
       inboxCountRef.current = Math.max(0, inboxCountRef.current - 1);
       updateInboxCount(tab.id, inboxCountRef.current);
+      // Confirming is the only action that changes the confirmed count, and the
+      // tab-load effect will not re-run for it, so the rail would sit one behind
+      // until the next navigation.
+      refetchAllSignals();
     } catch {
       // keep item in inbox on error
     }
   };
 
-  const handleDismiss = (id: string) => {
+  const handleDismiss = async (id: string) => {
+    // Hide it first — the row should go the moment it is clicked — then persist.
+    // Without the persist this was client-only state and the signal came back on
+    // the next reload, which is not what "Negeren" promises.
     setDismissedIds((prev) => new Set([...prev, id]));
     inboxCountRef.current = Math.max(0, inboxCountRef.current - 1);
     updateInboxCount(tab.id, inboxCountRef.current);
+    try {
+      await dismissSignal(id);
+      void refreshInboxCounts();
+    } catch {
+      // Put it back rather than leave the user believing it was ignored.
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      inboxCountRef.current += 1;
+      updateInboxCount(tab.id, inboxCountRef.current);
+    }
   };
 
   const handleLinkDossier = async (id: string, dossierId: string) => {

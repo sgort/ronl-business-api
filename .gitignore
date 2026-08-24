@@ -21,6 +21,11 @@ packages/backend/*.zip
 packages/backend/.env.development
 .env.production
 .env.acceptance
+# Backups of the above — an editor's or a script's .bak/.orig copy carries the
+# same secrets as the file it shadows, and the exact-path rules above miss it.
+.env*.bak*
+.env*.orig
+.env*.save
 
 # Logs
 logs/
@@ -38,6 +43,7 @@ packages/frontend/test-results/
 packages/frontend/e2e/test-results/
 packages/frontend/playwright-report/
 packages/frontend/e2e/playwright-report/
+/playwright-report/
 packages/frontend/e2e/.auth/
 packages/public-site/test-results/
 packages/public-site/e2e/test-results/
@@ -133,3 +139,13 @@ docs/edocs-rest-api-1.0.0.json
 publiek-handoff/
 docs/infra-beheer-handoff/
 docs/infra-beheer-handoff-v2/
+docs/herkomst-handoff/
+docs/regelsimulatie-handoff/
+
+# Testing docs staging copy. The canonical page is the doc site --
+# https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/
+# -- and every reference in this repo points there. This file is a working
+# copy patched here and then carried over by /iou-documentation-patch; keeping
+# it untracked stops it drifting into a second source of truth, which is the
+# problem deleting docs/TEST*.md set out to solve.
+docs/overview.md

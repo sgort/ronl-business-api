@@ -10,6 +10,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware never produces.
+    if (req.headers['x-test-no-user']) return next();
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
@@ -28,6 +31,9 @@ jest.mock('@auth/jwt.middleware', () => ({
   requireRoles:
     (...required: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
+      // Let the no-user probe through to the handler, whose own guard is the
+      // subject of the test; the real requireRoles would stop it here.
+      if (req.headers['x-test-no-user']) return next();
       const user = req.user;
       if (!user) {
         return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
@@ -56,18 +62,36 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
-jest.mock('./sources/tk.client', () => ({ fetchTkFeed: jest.fn(), TK_DOCUMENT_TYPES: ['Motie'] }));
+// Spread the real module first: a jest.mock factory replaces it wholesale, so
+// an export added later is simply absent. That is not hypothetical — when
+// EU_DOCUMENT_TYPES was added below, this suite's mock did not have it and
+// GET /v1/pa/types answered 500 while every route test still passed.
+const mockTkOverrides = { fetchTkFeed: jest.fn() };
+jest.mock('./sources/tk.client', () => ({
+  ...jest.requireActual('./sources/tk.client'),
+  ...mockTkOverrides,
+}));
+const mockObOverrides = { fetchObFeed: jest.fn() };
 jest.mock('./sources/ob.client', () => ({
-  fetchObFeed: jest.fn(),
-  OB_PUBLICATION_TYPES: ['Vergunning'],
+  ...jest.requireActual('./sources/ob.client'),
+  ...mockObOverrides,
 }));
-jest.mock('./sources/eu.client', () => ({ fetchEuFeed: jest.fn() }));
+const mockEuOverrides = { fetchEuFeed: jest.fn() };
+jest.mock('./sources/eu.client', () => ({
+  ...jest.requireActual('./sources/eu.client'),
+  ...mockEuOverrides,
+}));
 const mockPromoteToInbox = jest.fn();
+const mockCurationOverrides = { runCurationCycle: jest.fn(), promoteToInbox: mockPromoteToInbox };
 jest.mock('./curation.service', () => ({
-  runCurationCycle: jest.fn(),
-  promoteToInbox: mockPromoteToInbox,
+  ...jest.requireActual('./curation.service'),
+  ...mockCurationOverrides,
 }));
-jest.mock('./sources/agenda.client', () => ({ fetchAgenda: jest.fn() }));
+const mockAgendaOverrides = { fetchAgenda: jest.fn() };
+jest.mock('./sources/agenda.client', () => ({
+  ...jest.requireActual('./sources/agenda.client'),
+  ...mockAgendaOverrides,
+}));
 jest.mock('@utils/config', () => ({
   config: {
     pa: {
@@ -82,6 +106,7 @@ jest.mock('@utils/config', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { expectMockNamesRealExports } from '../test-utils/mockModule';
 import router from './pa.routes';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
@@ -102,6 +127,21 @@ app.use('/v1/pa', router);
 
 const PA = { 'x-test-roles': 'public-affairs' };
 const NON_PA = { 'x-test-roles': 'caseworker' };
+
+describe('the module mocks', () => {
+  // Spreading requireActual stops an export going missing; this stops one being
+  // renamed. A stale override name stubs nothing and the real implementation —
+  // a live network call, here — runs instead.
+  it.each([
+    ['./sources/tk.client', mockTkOverrides],
+    ['./sources/ob.client', mockObOverrides],
+    ['./sources/eu.client', mockEuOverrides],
+    ['./sources/agenda.client', mockAgendaOverrides],
+    ['./curation.service', mockCurationOverrides],
+  ])('%s mock only names real exports', (path, overrides) => {
+    expectMockNamesRealExports(jest.requireActual(path as string), overrides);
+  });
+});
 
 describe('PA routes — role gating', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -241,6 +281,78 @@ describe('PA routes — role gating', () => {
       expect(res.body.success).toBe(true);
       const [, values] = mockDb.result.mock.calls[0];
       expect(values).toEqual(['tenant', 'srch-1', 'flevoland']);
+    });
+  });
+
+  describe('POST /v1/pa/signals/:id/dismiss', () => {
+    const row = (status: string) => ({
+      id: 'sig-1',
+      tab: 'politiek',
+      dossier_id: null,
+      title: 'Test signal',
+      src: 'Tweede Kamer · Document',
+      bron: 'tk',
+      ref: null,
+      rel: 7,
+      impact: null,
+      impact_label: null,
+      duiding: null,
+      status,
+      ai_draft: null,
+      confirmed_by: null,
+      confirmed_at: null,
+      routing: null,
+    });
+
+    it('anonymous → 401', async () => {
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').send({});
+      expect(res.status).toBe(401);
+    });
+
+    it('authenticated non-PA role → 403', async () => {
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(NON_PA).send({});
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('unknown signal → 404', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      const res = await request(app).post('/v1/pa/signals/unknown-sig/dismiss').set(PA).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it('known signal → 200 and the status sticks', async () => {
+      // "Negeren" was client-only state before this, so an ignored signal came
+      // back on the next reload — the button did not do what it said.
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue(row('dismissed'));
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('dismissed');
+      expect(String(mockDb.none.mock.calls[0][0])).toContain("status = 'dismissed'");
+    });
+
+    it('clears routing, so a dismissed signal does not linger on the watchlist', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue(row('dismissed'));
+
+      await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(String(mockDb.none.mock.calls[0][0])).toContain('routing = NULL');
+    });
+
+    it('500s when the update fails', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockRejectedValue(new Error('db down'));
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('DISMISS_ERROR');
     });
   });
 
@@ -602,6 +714,23 @@ describe('PA routes — feed & agenda', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveProperty('tk');
       expect(res.body.data).toHaveProperty('ob');
+    });
+
+    it('lists eu, so the blanco search can reach the EU feed', async () => {
+      // fetchFeedSources derives the cockpit's bron chips from these keys. Without
+      // 'eu' there is no chip, so GET /feed?source=eu — which is implemented — can
+      // never be requested from the UI.
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(Object.keys(res.body.data)).toContain('eu');
+      expect(res.body.data.eu).toEqual(
+        expect.arrayContaining(['Verslag', 'Motie', 'Aangenomen tekst', 'Persbericht'])
+      );
+    });
+
+    it('omits a source that is switched off', async () => {
+      // media is disabled in this suite's config mock; eu is enabled.
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(Object.keys(res.body.data)).not.toContain('media');
     });
   });
 
@@ -1283,5 +1412,117 @@ describe('PA routes — mutation error branches (500s)', () => {
     const res = await request(app).patch('/v1/pa/signals/sig-1').set(PA).send({ dossierId: 'd1' });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('LINK_DOSSIER_ERROR');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const NO_USER = { 'x-test-no-user': '1' };
+
+  it.each([
+    ['get', '/v1/pa/feed'],
+    ['get', '/v1/pa/agenda'],
+    ['get', '/v1/pa/signals'],
+    ['post', '/v1/pa/signals'],
+    ['post', '/v1/pa/signals/s-1/confirm'],
+    ['get', '/v1/pa/searches'],
+    ['post', '/v1/pa/searches'],
+    ['delete', '/v1/pa/searches/s-1'],
+    ['patch', '/v1/pa/searches/s-1'],
+    ['patch', '/v1/pa/signals/s-1'],
+    ['get', '/v1/pa/notifications'],
+    ['post', '/v1/pa/notifications/ack'],
+    ['get', '/v1/pa/feed-token'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await request(app)[method](path).set(NO_USER).send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('failures that are not Error instances', () => {
+  // pg can reject with a bare string on a connection-level failure; each catch
+  // has a String(err) fallback so the log line still says something.
+  const PA_HDR = { 'x-test-roles': 'public-affairs' };
+
+  it.each([
+    ['get', '/v1/pa/signals', {}],
+    ['post', '/v1/pa/signals', { tab: 'politiek', title: 'T', src: 'S', bron: 'tk' }],
+    ['post', '/v1/pa/signals/s-1/confirm', {}],
+    ['get', '/v1/pa/searches', {}],
+    ['post', '/v1/pa/searches', { naam: 'N', query: { q: 'x' } }],
+    ['delete', '/v1/pa/searches/s-1', {}],
+    ['patch', '/v1/pa/searches/s-1', { naam: 'N' }],
+    ['patch', '/v1/pa/signals/s-1', { status: 'confirmed' }],
+    ['get', '/v1/pa/notifications', {}],
+    ['post', '/v1/pa/notifications/ack', { ids: ['n-1'] }],
+    ['get', '/v1/pa/feed-token', {}],
+  ] as const)('%s %s answers 5xx rather than hanging', async (method, path, body) => {
+    for (const fn of ['any', 'one', 'oneOrNone', 'none', 'result'] as const) {
+      mockDb[fn].mockRejectedValue('connection terminated');
+    }
+    const res = await request(app)[method](path).set(PA_HDR).send(body);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(mockLogger.error).toHaveBeenCalled();
+  });
+});
+
+describe('GET /v1/pa/signals/counts', () => {
+  // The file's other clearAllMocks hooks are scoped to their own describes.
+  beforeEach(() => jest.clearAllMocks());
+
+  const PA_HDR = { 'x-test-roles': 'public-affairs' };
+
+  // Other queries run in the same request path, so locate the counts query by
+  // its SQL rather than by call position.
+  const countsCall = () => mockDb.any.mock.calls.find((c) => String(c[0]).includes('GROUP BY tab'));
+
+  it('returns the inbox size per tab from a single grouped query', async () => {
+    mockDb.any.mockResolvedValue([
+      { tab: 'politiek', count: '165' },
+      { tab: 'europa', count: '44' },
+      { tab: 'regionaal', count: '62' },
+      { tab: 'media', count: '484' },
+    ]);
+
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ politiek: 165, europa: 44, regionaal: 62, media: 484 });
+    // One grouped query, not one per tab — the whole point of the endpoint.
+    const calls = mockDb.any.mock.calls.filter((c) => String(c[0]).includes('GROUP BY tab'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('counts the inbox statuses by default', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(countsCall()![1]).toEqual([['candidate', 'ai_drafted']]);
+  });
+
+  it('accepts an explicit status list', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals/counts?status=confirmed').set(PA_HDR);
+    expect(countsCall()![1]).toEqual([['confirmed']]);
+  });
+
+  it('omits a tab with no signals rather than inventing a zero', async () => {
+    // The badge falls back to 0 client-side; the endpoint reports only what exists.
+    mockDb.any.mockResolvedValue([{ tab: 'politiek', count: '3' }]);
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(res.body.data).toEqual({ politiek: 3 });
+  });
+
+  it('401s without a user', async () => {
+    const res = await request(app).get('/v1/pa/signals/counts').set('x-test-no-user', '1');
+    expect(res.status).toBe(401);
+  });
+
+  it('500s when the query fails', async () => {
+    mockDb.any.mockRejectedValue(new Error('db down'));
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNAL_COUNTS_ERROR');
   });
 });

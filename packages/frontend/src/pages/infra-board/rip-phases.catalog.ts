@@ -69,7 +69,7 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
     gates: ['Intake-formulier akkoord?', 'Akkoord Intake-verslag?', 'Akkoord Uitgangspunten VO?'],
     krediet: false,
     weeks: 10,
-    bron: 'RipPhase1Process.bpmn · 11 taken · 8 formulieren · 3 documenten',
+    bron: 'RipR21Process.bpmn · 11 taken · 8 formulieren · 3 documenten',
   },
   {
     code: 'R2.2',

@@ -77,7 +77,7 @@ services:
       - ronl-network
 
   # Operaton BPMN Engine (local, for E2E process/task testing — see
-  # docs/TESTING-FRONTEND-UI.md item 4; keeps test runs off the real
+  # E2E environment, item 4 of the testing docs; keeps test runs off the real
   # operaton.open-regels.nl engine). H2 file-based DB, no external DB
   # dependency. Host port 8081 matches OPERATON_BASE_URL in
   # packages/backend/.env.example. Volume permissions are fixed by the

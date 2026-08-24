@@ -38,12 +38,35 @@ const logger = createLogger('eu-client');
 // Kept from original: matches the AbortController timeout on the config page
 const HTTP_TIMEOUT_MS = 30_000;
 
+// europarl's CDN gates the RSS feeds on a recognised User-Agent family: a bare
+// product token ("ronl-business-api/1.0") is answered with an empty 202 just as a
+// missing one is, while the conventional "Mozilla/5.0 (compatible; …)" crawler
+// form is served the feed. Identifies us honestly within that form.
+const EU_RSS_USER_AGENT =
+  'Mozilla/5.0 (compatible; ronl-business-api/1.0; +https://open-regels.nl)';
+
 const EP_PLENARY_FEED = 'https://www.europarl.europa.eu/rss/doc/plenary/nl.xml';
 const EP_PRESSREL_FEED = 'https://www.europarl.europa.eu/rss/doc/press-releases/nl.xml';
 
 // ── Helpers (kept from original per handoff) ──────────────────────────────────
 
 // Document reference prefix → Dutch document type label
+/**
+ * Document types the EU source can yield, for the blanco search's type filter —
+ * the values TYPE_BY_PREFIX maps refs onto, plus 'Persbericht', which comes from
+ * the RSS category rather than a ref prefix because press releases have no ref.
+ * Mirrors TK_DOCUMENT_TYPES / OB_PUBLICATION_TYPES.
+ */
+export const EU_DOCUMENT_TYPES = [
+  'Verslag',
+  'Motie',
+  'Gezamenlijke motie',
+  'Aangenomen tekst',
+  'Schriftelijke vraag',
+  'Mondelinge vraag',
+  'Persbericht',
+] as const;
+
 const TYPE_BY_PREFIX: Record<string, string> = {
   'A-': 'Verslag',
   'B-': 'Motie',
@@ -136,12 +159,32 @@ interface RssItem {
 
 // Extract the normalised EP ref (e.g. "A-10-2026-0181") from a guid string
 // like "RR_A-10-2026-0181_v02-00_EN", or fall back to parsing the title suffix.
+//
+// No \b around the guid pattern: EP guids wrap the ref in underscores, and _ is
+// a word character, so \b never fires between "RR_" and "A-10-...". That left the
+// guid branch dead and every ref to the title fallback, which only works for
+// titles ending in the "A10-0099/2026" suffix. Half the live plenary feed — joint
+// resolutions, draft decisions, adopted texts — has Dutch prose titles with no
+// such suffix, so those items were dropped outright. The trailing (?!\d) stops a
+// longer digit run being truncated into a false 4-digit match.
 function extractRef(guid: string, title: string): string | null {
-  const m = guid.match(/\b([A-Z]{1,3}-10-\d{4}-\d{4})\b/);
+  const m = guid.match(/([A-Z]{1,3}-10-\d{4}-\d{4})(?!\d)/);
   if (m) return m[1];
   const t = title.match(/\b([A-Z]{1,3})10-(\d{4})\/(\d{4})\s*$/);
   if (t) return `${t[1]}-10-${t[3]}-${t[2]}`;
   return null;
+}
+
+// Press releases carry no EP document ref. Their identity is the IPR code EP
+// puts in the public URL — .../press-room/20260716IPR46537/ — which is present
+// on every item in the feed and unique across it. Taken from the link rather
+// than the guid (which spells the same thing as IPR-2026-07-16-46537) because
+// the link form is the one that appears publicly and is recognisable to a human.
+const PRESS_RELEASE_ID = /\/(\d{8}IPR\d+)\//;
+
+function extractPressReleaseId(link: string): string | null {
+  const m = link.match(PRESS_RELEASE_ID);
+  return m ? m[1] : null;
 }
 
 function normaliseRssItem(item: RssItem): FeedItem | null {
@@ -153,15 +196,34 @@ function normaliseRssItem(item: RssItem): FeedItem | null {
   const typeCat = categories.find((c) => c['@_domain'] === 'type');
   const rssType = typeCat ? (typeCat['#text']?.trim() ?? null) : null;
 
+  // Committee codes come as one category per committee with domain="body". The
+  // first is the responsible one — which is what commissie means elsewhere
+  // (agenda.client reads VoortouwCommissieNaam, ep-texts reads doc.committee) and
+  // what the cockpit's "Bevoegde commissie" chip claims. Co-responsible ones are
+  // appended rather than dropped, so a cross-committee item still shows them:
+  // "AGRI +1". Items like the Irish-Presidency press release carry seventeen.
+  const bodies = categories
+    .filter((c) => c['@_domain'] === 'body')
+    .map((c) => c['#text']?.trim())
+    .filter((c): c is string => !!c);
+  const commissie =
+    bodies.length === 0
+      ? null
+      : bodies.length === 1
+        ? bodies[0]
+        : `${bodies[0]} +${bodies.length - 1}`;
+
   // Ref from guid (plain string or object with #text)
   const guidRaw = item.guid;
   const guidStr = typeof guidRaw === 'object' ? (guidRaw['#text'] ?? '') : String(guidRaw ?? '');
   const ref = extractRef(guidStr, title);
 
-  // Only surface items with a recognisable EP document ref (not agendas, etc.)
-  if (!ref) return null;
+  const link = typeof item.link === 'string' ? item.link.trim() : '';
+  const pressReleaseId = ref ? null : extractPressReleaseId(link);
 
-  const type = rssType || inferType(ref);
+  // Everything else — agendas and the like — carries no identity we can key on.
+  const identity = ref ?? pressReleaseId;
+  if (!identity) return null;
 
   let date: string | null = null;
   if (item.pubDate) {
@@ -176,14 +238,19 @@ function normaliseRssItem(item: RssItem): FeedItem | null {
   const description = addDutchContext(`${title} ${rawDesc}`.trim());
 
   return {
-    id: ref,
+    id: identity,
     title,
-    type,
-    number: ref,
+    // A press release has no doc-ref prefix to infer a type from, so its
+    // category ("Persbericht") is the only source; fall back to it explicitly.
+    type: rssType || (ref ? inferType(ref) : 'Persbericht'),
+    number: identity,
     date,
-    url: doceoUrl(ref),
+    // doceoUrl builds a document URL, which a press release does not have — its
+    // own <link> is the canonical page.
+    url: ref ? doceoUrl(ref) : link,
     source: 'eu' as const,
-    subbron: 'ep-rss',
+    subbron: ref ? 'ep-rss' : 'ep-persbericht',
+    commissie,
     description,
   };
 }
@@ -216,7 +283,9 @@ export function parseRssFeed(xml: string): FeedItem[] {
 async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
   const key = 'eu:feed:' + createHash('sha256').update(feedUrl).digest('hex').slice(0, 16);
   const cached = await cacheGet<FeedItem[]>(key);
-  if (cached) return cached;
+  // An empty hit is not a valid answer to serve for the rest of the TTL — it is
+  // what a failed fetch used to leave behind. Re-fetch instead.
+  if (cached?.length) return cached;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
@@ -224,11 +293,23 @@ async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
   try {
     const res = await fetch(feedUrl, {
       signal: controller.signal,
-      headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
+      headers: {
+        Accept: 'application/rss+xml, application/xml, text/xml',
+        // Required, not cosmetic. Without an explicit User-Agent, europarl.europa.eu
+        // answers node's fetch with an empty 202 text/html body instead of the feed.
+        // 202 passes res.ok, so the empty body parsed to zero items and the source
+        // reported success while contributing nothing.
+        'User-Agent': EU_RSS_USER_AGENT,
+      },
     });
     clearTimeout(timer);
     if (!res.ok) throw new Error(`EU RSS ${res.status}: ${feedUrl}`);
     xml = await res.text();
+    // A 2xx that is not the feed — the bot-protection 202 above, an error page,
+    // a redirect landing — must fail loudly rather than parse to an empty list.
+    if (!xml.trimStart().startsWith('<')) {
+      throw new Error(`EU RSS ${res.status} returned ${xml.length} bytes of non-XML: ${feedUrl}`);
+    }
   } catch (err) {
     clearTimeout(timer);
     logger.warn('EU RSS fetch failed', {

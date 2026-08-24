@@ -68,6 +68,7 @@ export const PUB_SECTIONS: PubSection[] = [
  * route, and is excluded from search/sitemap per ARCHITECTURE.md's "Decided"
  * section. MainNav (Task 11) adds its link separately, statically. */
 export const WOORDENBOEK_PATH = '/woordenboek';
+export const HERKOMST_PATH = '/herkomst';
 
 export const PUB_TYPE_LABEL: Record<PubType, { nl: string; en: string }> = {
   bericht: { nl: 'Bericht', en: 'Announcement' },

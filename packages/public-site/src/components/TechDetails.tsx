@@ -1,7 +1,22 @@
 // packages/public-site/src/components/TechDetails.tsx
 import type { Translations } from '../i18n';
 
-export default function TechDetails({ t, rows }: { t: Translations; rows: [string, string][] }) {
+/** A downloadable source file for this item — today only the DMN a rule
+ * catalogue service is implemented by, served straight from LDE. */
+export interface TechDownload {
+  title: string;
+  xmlUrl: string;
+}
+
+export default function TechDetails({
+  t,
+  rows,
+  downloads,
+}: {
+  t: Translations;
+  rows: [string, string][];
+  downloads?: TechDownload[];
+}) {
   return (
     <details className="pub-tech">
       <summary>{t.tech}</summary>
@@ -15,6 +30,24 @@ export default function TechDetails({ t, rows }: { t: Translations; rows: [strin
                 <td>{v}</td>
               </tr>
             ))}
+            {downloads && downloads.length > 0 && (
+              <tr>
+                <th>{t.techDmnDownload}</th>
+                <td>
+                  {downloads.map((d) => (
+                    <a
+                      key={d.xmlUrl}
+                      className="pub-tech-dl"
+                      href={d.xmlUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      ↓ {d.title}
+                    </a>
+                  ))}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

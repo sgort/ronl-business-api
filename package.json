@@ -1,6 +1,6 @@
 {
   "name": "ronl-business-api",
-  "version": "2026.08.13",
+  "version": "2026.08.23",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
@@ -60,6 +60,10 @@
   "lint-staged": {
     "packages/frontend/**/*.{ts,tsx}": [
       "npm run lint:fix --workspace=@ronl/frontend",
+      "prettier --write"
+    ],
+    "packages/public-site/**/*.{ts,tsx}": [
+      "npm run lint:fix --workspace=@ronl/public-site",
       "prettier --write"
     ],
     "packages/backend/**/*.ts": [

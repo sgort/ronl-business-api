@@ -1,7 +1,8 @@
 /**
  * PA Monitoring API service.
  * Per-resource mock flags (all default false):
- *   VITE_PA_SIGNALS_MOCK=true  → signal/inbox/search fixtures
+ *   the runtime PA mock switch → dossier, signal, inbox and search fixtures
+ *   (see isPaMock; VITE_PA_DOSSIERS_MOCK / VITE_PA_SIGNALS_MOCK seed its default)
  *   VITE_PA_DOSSIERS_MOCK=true → dossier fixtures (backend endpoint not yet live)
  *   VITE_PA_AGENDA_MOCK=true   → agenda fixtures
  */
@@ -10,6 +11,14 @@ import axios from 'axios';
 import keycloak from './keycloak';
 import type { Dossier, FeedItem, PlenaryItem, Signal } from '@ronl/shared';
 import { MOCK_DOSSIERS } from '../pages/public-affairs-v2/pa.data';
+import {
+  mockSignals,
+  saveMockSignals,
+  mockSearches,
+  saveMockSearches,
+  seenNotificationIds,
+  saveSeenNotificationIds,
+} from './mock-demo.store';
 
 const API_BASE = import.meta.env.VITE_API_URL as string;
 
@@ -82,30 +91,40 @@ async function paDelete(path: string): Promise<void> {
   });
 }
 
-export const SIGNALS_MOCK = import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
 const AGENDA_MOCK = import.meta.env.VITE_PA_AGENDA_MOCK === 'true';
 
-// Dossiers mock/live is a *runtime* decision, persisted in localStorage and
-// defaulting to the env flag. The Beheer → Dossierbeheer flag banner flips it
-// so the cockpit can switch between MOCK_DOSSIERS and the live backend without a
-// rebuild — and remembers the choice across navigation and reloads.
-const DOSSIERS_MOCK_DEFAULT = import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true';
-const DOSSIERS_MOCK_KEY = 'paV2.dossiers.mock';
+// Mock/live is ONE runtime decision for the whole PA cockpit, persisted in
+// localStorage and defaulting to the env flags. The Beheer → Dossierbeheer flag
+// banner flips it, so the cockpit switches between fixtures and the live backend
+// without a rebuild — and remembers the choice across navigation and reloads.
+//
+// It governs dossiers, signals, inbox and saved searches together on purpose.
+// These used to be two independent flags (VITE_PA_DOSSIERS_MOCK for dossiers,
+// VITE_PA_SIGNALS_MOCK for the rest), which meant "mock mode" was not one thing:
+// flipping the banner gave you fixture dossiers next to live-but-empty signals
+// and criteria, so the two modes could not be compared. One switch, one meaning.
+//
+// The default ORs the two legacy vars so neither .env file changes meaning; both
+// are false in development and acceptance today, i.e. live unless you toggle.
+const PA_MOCK_DEFAULT =
+  import.meta.env.VITE_PA_DOSSIERS_MOCK === 'true' ||
+  import.meta.env.VITE_PA_SIGNALS_MOCK === 'true';
+const PA_MOCK_KEY = 'paV2.mock';
 
-export function isDossiersMock(): boolean {
+export function isPaMock(): boolean {
   try {
-    const v = localStorage.getItem(DOSSIERS_MOCK_KEY);
+    const v = localStorage.getItem(PA_MOCK_KEY);
     if (v === '1') return true;
     if (v === '0') return false;
   } catch {
     /* storage unavailable — fall back to the build-time flag */
   }
-  return DOSSIERS_MOCK_DEFAULT;
+  return PA_MOCK_DEFAULT;
 }
 
-export function setDossiersMock(on: boolean): void {
+export function setPaMock(on: boolean): void {
   try {
-    localStorage.setItem(DOSSIERS_MOCK_KEY, on ? '1' : '0');
+    localStorage.setItem(PA_MOCK_KEY, on ? '1' : '0');
   } catch {
     /* storage unavailable — non-fatal */
   }
@@ -155,6 +174,49 @@ const MOCK_CONFIRMED: Signal[] = [
     status: 'confirmed',
     confirmedBy: 'Sanne Bakker',
     confirmedAt: 'vandaag 08:41',
+  },
+  {
+    id: 'sg17',
+    tab: 'politiek',
+    dossierId: 'energie',
+    title: 'Verzamelbrief netcongestie: prioritering aansluitingen bedrijventerreinen',
+    src: 'Tweede Kamer · Brief regering · 2 dgn',
+    bron: 'tk',
+    ref: {
+      type: 'Brief regering',
+      nr: '2026D41120',
+      url: 'https://www.tweedekamer.nl/zoeken?q=netcongestie+prioritering+bedrijventerreinen&Types=Brief',
+    },
+    rel: 8,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Prioriteringskader raakt de Flevolandse bedrijventerreinen direct. Bruikbaar als onderbouwing bij het energy-hub-spoor.',
+    status: 'confirmed',
+    confirmedBy: 'Mara de Wit',
+    confirmedAt: '2 dgn geleden',
+  },
+  {
+    id: 'sg18',
+    tab: 'politiek',
+    dossierId: null,
+    title: 'Initiatiefnota over ruimtelijke inpassing van datacenters',
+    src: 'Tweede Kamer · Initiatiefnota · vorige week',
+    bron: 'tk',
+    ref: {
+      type: 'Initiatiefnota',
+      nr: '2026D39877',
+      url: 'https://www.tweedekamer.nl/zoeken?q=initiatiefnota+datacenters+ruimtelijke+inpassing',
+    },
+    rel: 6,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Bevestigd zonder dossier — staat op de watchlist. Raakt zowel netcapaciteit als ruimtelijke ordening; koppel zodra duidelijk is welk dossier dit draagt.',
+    status: 'confirmed',
+    confirmedBy: 'Mara de Wit',
+    confirmedAt: 'vorige week',
+    routing: 'watchlist',
   },
   {
     id: 'sg4',
@@ -345,6 +407,151 @@ const MOCK_CONFIRMED: Signal[] = [
     confirmedBy: 'test-pa-flevoland',
     confirmedAt: 'vandaag 11:05',
   },
+  {
+    id: 'sgm4',
+    tab: 'media',
+    dossierId: 'jeugdzorg',
+    title: 'Regionale omroep: wachtlijsten jeugdhulp lopen op in Noordelijk Flevoland',
+    src: 'Omroep Flevoland · nieuws · 3 dgn',
+    bron: 'media',
+    subbron: 'nieuws-regionaal',
+    regio: 'Flevoland · Noordoostpolder',
+    sentiment: 'negatief',
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Bevestigt het beeld uit de kwartaalrapportage en vergroot de kans op politieke vragen in de commissie Sociaal.',
+    status: 'confirmed',
+    confirmedBy: 'Joost Veenstra',
+    confirmedAt: '3 dgn geleden',
+  },
+  {
+    id: 'sg11',
+    tab: 'politiek',
+    dossierId: 'energie',
+    title: 'Kamerbrief Landelijk Actieprogramma Netcongestie naar de Kamer',
+    src: 'Tweede Kamer · Brief regering · 2 dgn',
+    bron: 'tk',
+    ref: {
+      type: 'Brief regering',
+      nr: '2026D16777',
+      url: 'https://www.tweedekamer.nl/zoeken?q=netcongestie+actieprogramma&Types=Brief',
+    },
+    rel: 9,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Benoemt provinciale regie op prioritering. Opent een venster om Flevokust als casus in te brengen.',
+    status: 'confirmed',
+    confirmedBy: 'Mara de Wit',
+    confirmedAt: 'gisteren 16:20',
+  },
+  {
+    id: 'sg12',
+    tab: 'politiek',
+    dossierId: 'jeugdzorg',
+    title: 'Motie over structurele bekostiging jeugdzorg aangenomen',
+    src: 'Tweede Kamer · Motie · vorige week',
+    bron: 'tk',
+    ref: {
+      type: 'Motie',
+      nr: '2026D15980',
+      url: 'https://www.tweedekamer.nl/zoeken?q=jeugdzorg+structurele+bekostiging&Types=Motie',
+    },
+    rel: 8,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Vraagt het kabinet om een meerjarig kader. Sluit aan op de regionale samenwerkingsafspraken.',
+    status: 'confirmed',
+    confirmedBy: 'Sanne Bakker',
+    confirmedAt: 'vorige week',
+  },
+  {
+    id: 'sg13',
+    tab: 'regionaal',
+    dossierId: 'energie',
+    title: 'Ontwerpbesluit netaansluiting bedrijventerrein Flevokust ter inzage',
+    src: 'Officiële Bekendmakingen · Provinciaal blad · 3 dgn',
+    bron: 'ob',
+    ref: {
+      type: 'Provinciaal blad',
+      nr: 'prb-2026-4471',
+      url: 'https://zoek.officielebekendmakingen.nl/prb-2026-4471.html',
+    },
+    rel: 8,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding: 'Eerste concrete stap na het capaciteitsonderzoek. Zienswijzetermijn loopt zes weken.',
+    status: 'confirmed',
+    confirmedBy: 'Mara de Wit',
+    confirmedAt: '3 dgn geleden',
+  },
+  {
+    id: 'sg14',
+    tab: 'regionaal',
+    dossierId: 'oostvaarders',
+    title: 'Beheerplan Oostvaardersplassen 2026-2030 ter inzage gelegd',
+    src: 'Officiële Bekendmakingen · Provinciaal blad · 1 wk',
+    bron: 'ob',
+    ref: {
+      type: 'Provinciaal blad',
+      nr: 'prb-2026-4302',
+      url: 'https://zoek.officielebekendmakingen.nl/prb-2026-4302.html',
+    },
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Publieke reactietermijn valt samen met het zomerreces. Reken op een piek in bezwaren.',
+    status: 'confirmed',
+    confirmedBy: 'Team Omgeving',
+    confirmedAt: '1 wk geleden',
+  },
+  {
+    id: 'sg15',
+    tab: 'regionaal',
+    dossierId: null,
+    title: 'Gemeenteblad Lelystad: geluidszone luchthaven geactualiseerd',
+    src: 'Officiële Bekendmakingen · Gemeenteblad · 4 dgn',
+    bron: 'ob',
+    ref: {
+      type: 'Gemeenteblad',
+      nr: 'gmb-2026-388214',
+      url: 'https://zoek.officielebekendmakingen.nl/gmb-2026-388214.html',
+    },
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding:
+      'Bevestigd zonder dossier — staat op de watchlist. Raakt de contour rond Batavastad, maar het is nog niet duidelijk of dit onder Lelystad Airport of onder een eigen geluidsdossier hoort.',
+    status: 'confirmed',
+    confirmedBy: 'Joost Veenstra',
+    confirmedAt: '4 dgn geleden',
+    routing: 'watchlist',
+  },
+  {
+    id: 'sg16',
+    tab: 'europa',
+    dossierId: 'energie',
+    title: 'Resolutie over versnelling van netinfrastructuur aangenomen',
+    src: 'Europees Parlement · Resolutie · vorige week',
+    bron: 'eu',
+    ref: {
+      type: 'Resolutie',
+      nr: 'TA-10-2026-0244',
+      url: 'https://www.europarl.europa.eu/doceo/document/TA-10-2026-0244_NL.html',
+    },
+    rel: 8,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding:
+      'Roept op tot snellere vergunningverlening voor netprojecten. Bruikbaar als steun in het net-dossier.',
+    status: 'confirmed',
+    confirmedBy: 'Mara de Wit',
+    confirmedAt: 'vorige week',
+  },
 ];
 
 const MOCK_INBOX: Signal[] = [
@@ -395,6 +602,72 @@ const MOCK_INBOX: Signal[] = [
       impact: 'risico',
       impactLabel: 'Risico',
       duiding: 'Raakt het verschil tussen RIVM-norm en Kamerbrief.',
+    },
+  },
+  {
+    id: 'in22',
+    tab: 'politiek',
+    dossierId: 'energie',
+    title: 'Schriftelijke vragen over doorlooptijd netaansluitingen bij provincies',
+    src: 'Tweede Kamer · Schriftelijke vragen · 6 u geleden',
+    bron: 'tk',
+    ref: {
+      type: 'Schriftelijke vragen',
+      nr: '2026Z12604',
+      url: 'https://www.tweedekamer.nl/zoeken?q=doorlooptijd+netaansluitingen+provincies&Types=Kamervraag',
+    },
+    rel: 7,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding: 'Vraagt expliciet naar provinciale doorlooptijden — opening voor Flevolandse cijfers.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding: 'Opening voor Flevolandse cijfers over doorlooptijden.',
+    },
+  },
+  {
+    id: 'in23',
+    tab: 'politiek',
+    dossierId: 'stikstof',
+    title: 'Amendement over vrijstellingsgrens weidegang',
+    src: 'Tweede Kamer · Amendement · gisteren',
+    bron: 'tk',
+    ref: {
+      type: 'Amendement',
+      nr: '2026D40551',
+      url: 'https://www.tweedekamer.nl/zoeken?q=amendement+vrijstellingsgrens+weidegang',
+    },
+    rel: 6,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+  },
+  {
+    id: 'in24',
+    tab: 'politiek',
+    dossierId: 'oostvaarders',
+    title: 'Verslag schriftelijk overleg beheer grote grazers',
+    src: 'Tweede Kamer · Verslag · 4 dgn',
+    bron: 'tk',
+    ref: {
+      type: 'Verslag',
+      nr: '2026D40118',
+      url: 'https://www.tweedekamer.nl/zoeken?q=schriftelijk+overleg+beheer+grote+grazers',
+    },
+    rel: 5,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding: 'Heropent de discussie over het beheerkader kort voor het provinciale besluit.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 5,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding: 'Heropent de beheerdiscussie kort voor het provinciale besluit.',
     },
   },
   {
@@ -566,6 +839,32 @@ const MOCK_INBOX: Signal[] = [
   },
   // ── Media & omgeving · nieuws-aggregator kandidaten ──────────────────
   {
+    id: 'in25',
+    tab: 'europa',
+    dossierId: 'energie',
+    title: 'Ontwerpadvies ITRE over grensoverschrijdende netprojecten',
+    src: 'Europees Parlement · Ontwerpadvies · deze week',
+    bron: 'eu',
+    subbron: 'ep-teksten',
+    commissie: 'ITRE',
+    ref: {
+      type: 'Ontwerpadvies',
+      nr: 'PA-10-2026-0117',
+      url: 'https://www.europarl.europa.eu/doceo/document/ITRE-PA-2026-0117_NL.html',
+    },
+    rel: 6,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding: 'Kan cofinanciering voor interconnectie verruimen — relevant voor het net-dossier.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 6,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding: 'Mogelijk ruimere cofinanciering voor interconnectie.',
+    },
+  },
+  {
     id: 'inm1',
     tab: 'media',
     dossierId: 'lelystad',
@@ -645,9 +944,301 @@ const MOCK_INBOX: Signal[] = [
         'Positief sentiment rond de pilot — momentum om het energy-hub-verhaal breder te agenderen.',
     },
   },
+  {
+    id: 'inm7',
+    tab: 'media',
+    dossierId: 'stikstof',
+    title: 'Vakblad: provincies verschillen sterk in vergunningverlening na uitspraak',
+    src: 'Nieuwe Oogst · achtergrond · 2 dgn',
+    bron: 'media',
+    subbron: 'nieuws-nationaal',
+    regio: null,
+    sentiment: 'neutraal',
+    rel: 6,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+  },
+  {
+    id: 'in13',
+    tab: 'politiek',
+    dossierId: 'energie',
+    title: 'Schriftelijke vragen over wachtrij netaansluitingen voor bedrijven',
+    src: 'Tweede Kamer · Kamervraag · 6 u geleden',
+    bron: 'tk',
+    ref: {
+      type: 'Kamervraag',
+      nr: '2026Z12044',
+      url: 'https://www.tweedekamer.nl/zoeken?q=netaansluiting+wachtrij+bedrijven&Types=Kamervraag',
+    },
+    rel: 8,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding: 'Vraagt expliciet naar regionale verschillen. Flevoland kan cijfers aanleveren.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 8,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding: 'Vraagt expliciet naar regionale verschillen.',
+    },
+  },
+  {
+    id: 'in14',
+    tab: 'politiek',
+    dossierId: 'jeugdzorg',
+    title: 'Rondetafelgesprek hervormingsagenda jeugd aangekondigd',
+    src: 'Tweede Kamer · Rondetafelgesprek · 1 dg',
+    bron: 'tk',
+    ref: {
+      type: 'Rondetafelgesprek',
+      nr: '2026A05712',
+      url: 'https://www.tweedekamer.nl/debat_en_vergadering',
+    },
+    rel: 6,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+  },
+  {
+    id: 'in15',
+    tab: 'politiek',
+    dossierId: 'stikstof',
+    title: 'Verslag schriftelijk overleg gebiedsprogramma stikstof',
+    src: 'Tweede Kamer · Verslag · 2 dgn',
+    bron: 'tk',
+    ref: {
+      type: 'Verslag',
+      nr: '2026D16410',
+      url: 'https://www.tweedekamer.nl/zoeken?q=gebiedsprogramma+stikstof&Types=Verslag',
+    },
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding: 'Tempo van de gebiedsprocessen wordt opnieuw ter discussie gesteld.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding: 'Tempo van de gebiedsprocessen opnieuw ter discussie.',
+    },
+  },
+  {
+    id: 'in16',
+    tab: 'regionaal',
+    dossierId: 'energie',
+    title: 'Provinciaal blad: subsidieplafond zonprojecten verhoogd',
+    src: 'Officiële Bekendmakingen · Provinciaal blad · 8 u geleden',
+    bron: 'ob',
+    ref: {
+      type: 'Provinciaal blad',
+      nr: 'prb-2026-4520',
+      url: 'https://zoek.officielebekendmakingen.nl/prb-2026-4520.html',
+    },
+    rel: 7,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding: 'Ruimte voor extra projecten in het lopende jaar.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding: 'Ruimte voor extra projecten dit jaar.',
+    },
+  },
+  {
+    id: 'in17',
+    tab: 'regionaal',
+    dossierId: 'jeugdzorg',
+    title: 'Gemeenteblad Almere: verordening jeugdhulp gewijzigd',
+    src: 'Officiële Bekendmakingen · Gemeenteblad · 1 dg',
+    bron: 'ob',
+    ref: {
+      type: 'Gemeenteblad',
+      nr: 'gmb-2026-393705',
+      url: 'https://zoek.officielebekendmakingen.nl/gmb-2026-393705.html',
+    },
+    rel: 6,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+  },
+  {
+    id: 'in18',
+    tab: 'regionaal',
+    dossierId: 'oostvaarders',
+    title: 'Ontheffing beheer grote grazers gepubliceerd',
+    src: 'Officiële Bekendmakingen · Provinciaal blad · 3 dgn',
+    bron: 'ob',
+    ref: {
+      type: 'Provinciaal blad',
+      nr: 'prb-2026-4488',
+      url: 'https://zoek.officielebekendmakingen.nl/prb-2026-4488.html',
+    },
+    rel: 8,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding: 'Publicatie trekt vrijwel zeker landelijke media-aandacht.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 8,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding: 'Trekt vrijwel zeker landelijke media-aandacht.',
+    },
+  },
+  {
+    id: 'in20',
+    tab: 'europa',
+    dossierId: null,
+    title: 'Ontwerpresolutie over een Europese netcode voor flexibiliteit',
+    src: 'Europees Parlement · Ontwerpresolutie · 2 dgn',
+    bron: 'eu',
+    ref: {
+      type: 'Ontwerpresolutie',
+      nr: 'B-10-2026-0351',
+      url: 'https://www.europarl.europa.eu/doceo/document/B-10-2026-0351_NL.html',
+    },
+    rel: 7,
+    impact: 'kans',
+    impactLabel: 'Kans',
+    duiding: 'Raakt de businesscase voor batterijopslag rechtstreeks.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'kans',
+      impactLabel: 'Kans',
+      duiding: 'Raakt de businesscase voor batterijopslag.',
+    },
+  },
+  {
+    id: 'in21',
+    tab: 'europa',
+    dossierId: 'stikstof',
+    title: 'Vraag met verzoek om schriftelijk antwoord over derogatie en waterkwaliteit',
+    src: 'Europees Parlement · Schriftelijke vraag · 4 dgn',
+    bron: 'eu',
+    ref: {
+      type: 'Schriftelijke vraag',
+      nr: 'E-002114-2026',
+      url: 'https://www.europarl.europa.eu/doceo/document/E-10-2026-002114_NL.html',
+    },
+    rel: 6,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+  },
+  {
+    id: 'inm4',
+    tab: 'media',
+    dossierId: 'energie',
+    title: 'Netbeheerder waarschuwt voor vollopend net in Flevoland',
+    src: 'Omroep Flevoland · regionaal nieuws · 5 u geleden',
+    bron: 'media',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'of-2026-08-1142',
+      url: 'https://www.omroepflevoland.nl/nieuws',
+    },
+    rel: 8,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding: 'Zet het capaciteitsvraagstuk regionaal op de agenda, vooruitlopend op het besluit.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 8,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding: 'Zet het capaciteitsvraagstuk regionaal op de agenda.',
+    },
+  },
+  {
+    id: 'inm5',
+    tab: 'media',
+    dossierId: 'jeugdzorg',
+    title: 'Flevolandse gemeenten luiden noodklok over jeugdzorgbudget',
+    src: 'de Stentor · regionaal nieuws · 1 dg',
+    bron: 'media',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'ds-2026-08-0774',
+      url: 'https://www.destentor.nl/flevoland',
+    },
+    rel: 7,
+    impact: 'risico',
+    impactLabel: 'Risico',
+    duiding: 'Versterkt de lobby richting het meerjarig kader.',
+    status: 'ai_drafted',
+    aiDraft: {
+      rel: 7,
+      impact: 'risico',
+      impactLabel: 'Risico',
+      duiding: 'Versterkt de lobby richting een meerjarig kader.',
+    },
+  },
+  {
+    id: 'inm6',
+    tab: 'media',
+    dossierId: 'oostvaarders',
+    title: 'Discussie over aantal grote grazers laait opnieuw op',
+    src: 'de Volkskrant · achtergrond · 2 dgn',
+    bron: 'media',
+    ref: {
+      type: 'Nieuwsartikel',
+      nr: 'vk-2026-08-0413',
+      url: 'https://www.volkskrant.nl',
+    },
+    rel: 6,
+    impact: null,
+    impactLabel: null,
+    duiding: null,
+    status: 'candidate',
+  },
 ];
 
 // ── Tab → connector metadata ─────────────────────────────────────────
+
+/**
+ * The demo's signals — the two fixtures above, seeded into a persisted store the
+ * first time they are read.
+ *
+ * Everything mock-mode serves goes through here rather than through the fixtures
+ * directly, so curating actually changes what the next read returns. Confirming
+ * used to build a new object and discard it, which is why the rail badge moved
+ * and then sprang back.
+ */
+function demoSignals(): Signal[] {
+  return mockSignals(() => [...MOCK_CONFIRMED, ...MOCK_INBOX].map((s) => ({ ...s })));
+}
+
+/** The inbox half: everything not yet confirmed. */
+function demoInbox(): Signal[] {
+  return demoSignals().filter((s) => s.status === 'candidate' || s.status === 'ai_drafted');
+}
+
+/**
+ * The demo's saved searches, from the same persisted store.
+ *
+ * Every write below goes through it. They used to be plain `return;` stubs,
+ * which was invisible while VITE_PA_SIGNALS_MOCK was false everywhere — those
+ * branches were unreachable and the calls actually hit the backend. Once one
+ * switch drove the whole cockpit they became live, and Zoekcriteria turned
+ * read-only in mock mode: edits, the notify bell and dossier watches all
+ * silently did nothing.
+ */
+function demoSearches(): SavedSearch[] {
+  return mockSearches(() => MOCK_SEARCHES.map((s) => ({ ...s })));
+}
+
+function patchDemoSearch(id: string, patch: Partial<SavedSearch>): void {
+  saveMockSearches(demoSearches().map((s) => (s.id === id ? { ...s, ...patch } : s)));
+}
 
 const TAB_SOURCES: Record<string, string[]> = {
   politiek: ['tk', 'ob'],
@@ -696,9 +1287,11 @@ export async function fetchSignals(params?: {
   tab?: string;
   dossierId?: string;
 }): Promise<Signal[]> {
-  if (SIGNALS_MOCK) {
-    let rows = MOCK_CONFIRMED.filter(
-      (s) => s.bron === 'tk' || s.bron === 'ob' || s.bron === 'eu' || s.bron === 'media'
+  if (isPaMock()) {
+    let rows = demoSignals().filter(
+      (s) =>
+        s.status === 'confirmed' &&
+        (s.bron === 'tk' || s.bron === 'ob' || s.bron === 'eu' || s.bron === 'media')
     );
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
@@ -721,12 +1314,30 @@ export interface InboxResult {
   meta: InboxMeta;
 }
 
+/**
+ * Inbox size per tab, in one request. The source badges need all four on mount;
+ * calling fetchInbox once per tab pulls four capped result sets to read four
+ * numbers off their meta. A tab with nothing in its inbox is absent from the
+ * result rather than reported as 0 — callers fall back.
+ */
+export async function fetchInboxCounts(): Promise<Record<string, number>> {
+  if (isPaMock()) {
+    const counts: Record<string, number> = {};
+    for (const s of demoInbox()) counts[s.tab] = (counts[s.tab] ?? 0) + 1;
+    return counts;
+  }
+  const env = await paGetRaw<{ success: boolean; data: Record<string, number> }>(
+    '/pa/signals/counts'
+  );
+  return env.data;
+}
+
 export async function fetchInbox(params?: {
   tab?: string;
   dossierId?: string;
 }): Promise<InboxResult> {
-  if (SIGNALS_MOCK) {
-    let rows = MOCK_INBOX.slice();
+  if (isPaMock()) {
+    let rows = demoInbox();
     if (params?.tab) rows = rows.filter((s) => s.tab === params.tab);
     if (params?.dossierId) rows = rows.filter((s) => s.dossierId === params.dossierId);
     return { data: rows, meta: { total: rows.length, cap: 100, capped: false } };
@@ -789,7 +1400,7 @@ const MOCK_SEARCHES: SavedSearch[] = [
 ];
 
 export async function fetchSearches(): Promise<SavedSearch[]> {
-  if (SIGNALS_MOCK) return MOCK_SEARCHES;
+  if (isPaMock()) return demoSearches();
   const rows = await paGet<
     {
       id: string;
@@ -827,7 +1438,7 @@ export async function fetchFeed(params: {
   skip?: number;
   top?: number;
 }): Promise<{ items: FeedItem[]; total: number | null }> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     const q = params.q.toLowerCase();
     const src = params.source ?? 'both';
     const items: FeedItem[] = [...MOCK_INBOX, ...MOCK_CONFIRMED]
@@ -861,7 +1472,22 @@ export async function createSavedSearch(input: {
   types?: string[];
   dossierId?: string | null;
 }): Promise<{ id: string }> {
-  if (SIGNALS_MOCK) return { id: `srch-mock-${Date.now()}` };
+  if (isPaMock()) {
+    // Returning an id without storing the row left the new criterium invisible.
+    const id = `srch-mock-${Date.now()}`;
+    saveMockSearches([
+      ...demoSearches(),
+      {
+        id,
+        dossierId: input.dossierId ?? null,
+        query: { q: input.q, types: input.types ?? [], source: input.source ?? ['tk', 'ob'] },
+        tags: [],
+        scope: 'user',
+        notify: false,
+      },
+    ]);
+    return { id };
+  }
   return paPost<{ id: string }>('/pa/searches', {
     scope: 'user',
     dossierId: input.dossierId ?? null,
@@ -872,7 +1498,7 @@ export async function createSavedSearch(input: {
 
 /** "Naar inbox" → promote one raw hit into the curation inbox as a candidate. */
 export async function promoteToInbox(item: FeedItem): Promise<Signal> {
-  if (SIGNALS_MOCK) {
+  if (isPaMock()) {
     return {
       id: `sig-${item.source}-${item.id}`,
       tab: item.source === 'ob' ? 'regionaal' : item.source === 'eu' ? 'europa' : 'politiek',
@@ -898,7 +1524,7 @@ export async function promoteToInbox(item: FeedItem): Promise<Signal> {
  * no dead/hardcoded chip. Falls back to tk+ob if the call fails.
  */
 export async function fetchFeedSources(): Promise<string[]> {
-  if (SIGNALS_MOCK) return ['tk', 'ob', 'media'];
+  if (isPaMock()) return ['tk', 'ob', 'media'];
   try {
     const types = await paGet<Record<string, unknown>>('/pa/types');
     const keys = Object.keys(types);
@@ -916,7 +1542,21 @@ export async function createSearch(input: {
   dossierId: string | null;
   scope: 'tenant' | 'user';
 }): Promise<{ id: string }> {
-  if (SIGNALS_MOCK) return { id: `srch-mock-${Date.now()}` };
+  if (isPaMock()) {
+    const id = `srch-mock-${Date.now()}`;
+    saveMockSearches([
+      ...demoSearches(),
+      {
+        id,
+        dossierId: input.dossierId,
+        query: { q: input.q, types: [], source: input.source },
+        tags: input.tags,
+        scope: input.scope,
+        notify: false,
+      },
+    ]);
+    return { id };
+  }
   return paPost<{ id: string }>('/pa/searches', {
     scope: input.scope,
     dossierId: input.dossierId,
@@ -936,7 +1576,24 @@ export async function updateSearch(
     scope?: 'tenant' | 'user';
   }
 ): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    const current = demoSearches().find((s) => s.id === id);
+    if (current) {
+      patchDemoSearch(id, {
+        ...(patch.tags !== undefined && { tags: patch.tags }),
+        ...(patch.dossierId !== undefined && { dossierId: patch.dossierId }),
+        ...(patch.scope !== undefined && { scope: patch.scope }),
+        ...((patch.q !== undefined || patch.source !== undefined) && {
+          query: {
+            ...current.query,
+            ...(patch.q !== undefined && { q: patch.q }),
+            ...(patch.source !== undefined && { source: patch.source }),
+          },
+        }),
+      });
+    }
+    return;
+  }
   await paPatch(`/pa/searches/${id}`, {
     ...(patch.scope !== undefined && { scope: patch.scope }),
     ...(patch.dossierId !== undefined && { dossierId: patch.dossierId }),
@@ -947,13 +1604,19 @@ export async function updateSearch(
 
 /** Mijn zoekopdrachten: remove a personal saved search. */
 export async function deleteSavedSearch(id: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    saveMockSearches(demoSearches().filter((s) => s.id !== id));
+    return;
+  }
   await paDelete(`/pa/searches/${id}`);
 }
 
 /** "↗ team": flip a personal search to tenant scope — only then does it feed the cron. */
 export async function promoteSearchToTenant(id: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    patchDemoSearch(id, { scope: 'tenant' });
+    return;
+  }
   await paPatch(`/pa/searches/${id}`, { scope: 'tenant' });
 }
 
@@ -961,19 +1624,45 @@ export async function promoteSearchToTenant(id: string): Promise<void> {
 
 /** Toggle notify on a saved search — drives the WatchBell in ZoekcriteriaSection. */
 export async function toggleSearchNotify(id: string, notify: boolean): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    patchDemoSearch(id, { notify });
+    return;
+  }
   await paPatch(`/pa/searches/${id}`, { notify });
 }
 
 /** "Watch this dossier" bell in the dossier detail header — creates/re-enables a
  *  personal watch-everything-for-this-dossier saved search (empty query). */
 export async function watchDossier(dossierId: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    // Live models a watch as a saved-search row with an empty query — mirror
+    // that, so the bell reads its state from the same place in both modes.
+    const all = demoSearches();
+    if (!all.some((s) => s.dossierId === dossierId && s.query.q === '')) {
+      saveMockSearches([
+        ...all,
+        {
+          id: `watch-mock-${dossierId}`,
+          dossierId,
+          query: { q: '', types: [], source: [] },
+          tags: [],
+          scope: 'user',
+          notify: true,
+        },
+      ]);
+    }
+    return;
+  }
   await paPost(`/pa/dossiers/${dossierId}/watch`, {});
 }
 
 export async function unwatchDossier(dossierId: string): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    saveMockSearches(
+      demoSearches().filter((s) => !(s.dossierId === dossierId && s.query.q === ''))
+    );
+    return;
+  }
   await paDelete(`/pa/dossiers/${dossierId}/watch`);
 }
 
@@ -992,11 +1681,87 @@ export interface PaNotification {
   seenAt: string | null;
 }
 
+/**
+ * OR-term matcher, mirroring the backend's query-match.ts.
+ *
+ * Duplicated rather than shared because @ronl/shared is types-only for the
+ * frontend build (see dossierbeheer notes) — a runtime import from its CJS
+ * barrel breaks the Vite/rollup build.
+ */
+function matchesQueryTerms(text: string, query: string): string | null {
+  if (!query.trim()) return null;
+  const lower = text.toLowerCase();
+  for (const term of query.split(/\s+OR\s+/i).map((t) => t.replace(/^"|"$/g, '').trim())) {
+    if (term && lower.includes(term.toLowerCase())) return term;
+  }
+  return null;
+}
+
+/**
+ * Mirrors notifications.service.ts's matchWatch: a watch on a dossier with an
+ * empty query matches every confirmed signal for that dossier, a watch with a
+ * query matches on a term hit against title + duiding, optionally further
+ * scoped to the dossier.
+ */
+function matchDemoWatch(watch: SavedSearch, signal: Signal): string | null {
+  const q = (watch.query?.q ?? '').trim();
+  const haystack = `${signal.title} ${signal.duiding ?? ''}`;
+  if (watch.dossierId) {
+    if (signal.dossierId !== watch.dossierId) return null;
+    if (!q) return `dossier:${watch.dossierId}`;
+    return matchesQueryTerms(haystack, q);
+  }
+  if (!q) return null;
+  return matchesQueryTerms(haystack, q);
+}
+
+/**
+ * Derive the demo's notifications, rather than store them.
+ *
+ * The backend recomputes on every confirm; deriving here is the same idea and
+ * keeps them consistent with whatever the store currently holds — a reset drops
+ * them automatically because the signals and searches they come from go with it.
+ * Only which ones have been *seen* needs remembering.
+ */
+function demoNotifications(): PaNotification[] {
+  const watches = demoSearches().filter((w) => w.notify);
+  if (!watches.length) return [];
+  const seen = seenNotificationIds();
+
+  const out: PaNotification[] = [];
+  for (const signal of demoSignals().filter((s) => s.status === 'confirmed')) {
+    const matches = watches
+      .map((w) => ({ id: w.id, dossierId: w.dossierId, label: matchDemoWatch(w, signal) }))
+      .filter(
+        (m): m is { id: string; dossierId: string | null; label: string } => m.label !== null
+      );
+    if (!matches.length) continue;
+    const id = `ntf-mock-${signal.id}`;
+    out.push({
+      id,
+      signalId: signal.id,
+      title: signal.title,
+      tab: signal.tab,
+      dossierId: signal.dossierId,
+      src: signal.src,
+      ref: signal.ref ?? null,
+      matchedSearches: matches,
+      createdAt: new Date().toISOString(),
+      seenAt: seen.includes(id) ? new Date().toISOString() : null,
+    });
+  }
+  return out;
+}
+
 /** Delivery inbox for watched saved searches — bell icon in the top bar. */
 export async function fetchNotifications(
   unseenOnly = false
 ): Promise<{ items: PaNotification[]; unseenCount: number }> {
-  if (SIGNALS_MOCK) return { items: [], unseenCount: 0 };
+  if (isPaMock()) {
+    const all = demoNotifications();
+    const unseen = all.filter((n) => !n.seenAt);
+    return { items: unseenOnly ? unseen : all, unseenCount: unseen.length };
+  }
   const res = await paGetRaw<{
     success: boolean;
     data: PaNotification[];
@@ -1007,23 +1772,27 @@ export async function fetchNotifications(
 
 /** Marks notifications seen. Omitted ids = every unseen notification for the caller. */
 export async function ackNotifications(ids?: string[]): Promise<void> {
-  if (SIGNALS_MOCK) return;
+  if (isPaMock()) {
+    const target = ids?.length ? ids : demoNotifications().map((n) => n.id);
+    saveSeenNotificationIds([...new Set([...seenNotificationIds(), ...target])]);
+    return;
+  }
   await paPost('/pa/notifications/ack', ids?.length ? { ids } : {});
 }
 
 /** Find-or-create the caller's personal RSS feed URL. */
 export async function fetchFeedToken(): Promise<{ token: string; url: string }> {
-  if (SIGNALS_MOCK) return { token: 'mock', url: '' };
+  if (isPaMock()) return { token: 'mock', url: '' };
   return paGet<{ token: string; url: string }>('/pa/feed-token');
 }
 
 export async function fetchDossiers(): Promise<Dossier[]> {
-  if (isDossiersMock()) return MOCK_DOSSIERS;
+  if (isPaMock()) return MOCK_DOSSIERS;
   return paGet<Dossier[]>('/pa/dossiers');
 }
 
 export async function fetchDossier(id: string): Promise<Dossier | undefined> {
-  if (isDossiersMock()) return MOCK_DOSSIERS.find((d) => d.id === id);
+  if (isPaMock()) return MOCK_DOSSIERS.find((d) => d.id === id);
   try {
     return await paGet<Dossier>(`/pa/dossiers/${id}`);
   } catch {
@@ -1256,7 +2025,7 @@ export interface SourcesStatus {
   feeds: SourcesStatusFeed[];
 }
 
-// Static offline fixture for SIGNALS_MOCK demo mode — not synced with feeds.ts by
+// Static offline fixture for PA mock mode — not synced with feeds.ts by
 // design (mock mode never calls the backend), kept illustrative only.
 const MOCK_SOURCE_FEEDS: SourcesStatusFeed[] = [
   {
@@ -1316,7 +2085,7 @@ const MOCK_SOURCE_FEEDS: SourcesStatusFeed[] = [
 ];
 
 export async function fetchSourcesStatus(): Promise<SourcesStatus> {
-  if (SIGNALS_MOCK)
+  if (isPaMock())
     return { tk: true, ob: true, eu: true, epTeksten: true, media: true, feeds: MOCK_SOURCE_FEEDS };
   return paGet<SourcesStatus>('/pa/sources/status');
 }
@@ -1329,21 +2098,49 @@ export async function confirmSignal(
   id: string,
   patch?: { duiding?: string; impact?: Signal['impact']; impactLabel?: string; rel?: number }
 ): Promise<Signal> {
-  if (SIGNALS_MOCK) {
-    const mock = MOCK_INBOX.find((s) => s.id === id);
-    if (!mock) throw new Error(`Mock signal ${id} not found`);
-    const confirmed: Signal = { ...mock, status: 'confirmed' as const, ...patch };
+  if (isPaMock()) {
+    const all = demoSignals();
+    const current = all.find((s) => s.id === id);
+    if (!current) throw new Error(`Mock signal ${id} not found`);
+    const confirmed: Signal = { ...current, status: 'confirmed' as const, ...patch };
     if (!confirmed.dossierId) confirmed.routing = 'watchlist';
+    // Written back, not just returned: without this the next read re-derived
+    // from the fixture and the rail badge sprang back to its original count.
+    saveMockSignals(all.map((s) => (s.id === id ? confirmed : s)));
     return confirmed;
   }
   return paPost<Signal>(`/pa/signals/${id}/confirm`, patch ?? {});
 }
 
+/**
+ * Ignore a signal for good.
+ *
+ * "Negeren" used to be client-only state in both modes, so an ignored signal
+ * came back on the next reload — the button did not do what it said. The status
+ * it sets is one the inbox query does not select, and curation's upsert only
+ * writes back rows still in `candidate`, so the dismissal survives later cycles
+ * the same way a confirm does.
+ */
+export async function dismissSignal(id: string): Promise<Signal> {
+  if (isPaMock()) {
+    const all = demoSignals();
+    const current = all.find((s) => s.id === id);
+    if (!current) throw new Error(`Mock signal ${id} not found`);
+    const dismissed: Signal = { ...current, status: 'dismissed' as const, routing: null };
+    saveMockSignals(all.map((s) => (s.id === id ? dismissed : s)));
+    return dismissed;
+  }
+  return paPost<Signal>(`/pa/signals/${id}/dismiss`, {});
+}
+
 export async function linkSignalDossier(id: string, dossierId: string): Promise<Signal> {
-  if (SIGNALS_MOCK) {
-    const mock = [...MOCK_CONFIRMED, ...MOCK_INBOX].find((s) => s.id === id);
-    if (!mock) throw new Error(`Mock signal ${id} not found`);
-    return { ...mock, dossierId, routing: null };
+  if (isPaMock()) {
+    const all = demoSignals();
+    const current = all.find((s) => s.id === id);
+    if (!current) throw new Error(`Mock signal ${id} not found`);
+    const linked: Signal = { ...current, dossierId, routing: null };
+    saveMockSignals(all.map((s) => (s.id === id ? linked : s)));
+    return linked;
   }
   return paPatch<Signal>(`/pa/signals/${id}`, { dossierId });
 }

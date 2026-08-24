@@ -142,3 +142,85 @@ describe('ingestAll', () => {
     await expect(ingestAll()).resolves.toEqual([]);
   });
 });
+
+describe('parseFeedXml — element shapes the happy-path fixtures do not produce', () => {
+  it('reads a CDATA/attribute node that carries its value in #text', () => {
+    const xml = `<rss><channel><item>
+      <title someattr="x">Kop met attribuut</title>
+      <link>https://f1/a</link>
+      <guid isPermaLink="false">g-1</guid>
+    </item></channel></rss>`;
+    const [item] = parseFeedXml(xml, source());
+    expect(item).toMatchObject({ title: 'Kop met attribuut', guid: 'g-1' });
+  });
+
+  it('coerces a non-string, non-object node to text', () => {
+    // fast-xml-parser hands back a number for a purely numeric element.
+    const xml = `<rss><channel><item>
+      <title>2026</title><link>https://f1/a</link>
+    </item></channel></rss>`;
+    const [item] = parseFeedXml(xml, source());
+    expect(item.title).toBe('2026');
+  });
+
+  it('falls back to summary, date and link for feeds that omit the usual elements', () => {
+    const xml = `<rss><channel><item>
+      <title>Kop</title>
+      <link>https://f1/a</link>
+      <summary>Uit summary</summary>
+      <date>2026-08-01</date>
+    </item></channel></rss>`;
+    const [item] = parseFeedXml(xml, source());
+    expect(item).toMatchObject({
+      description: 'Uit summary',
+      pubDate: '2026-08-01',
+      guid: 'https://f1/a',
+    });
+  });
+
+  it('treats an RSS channel with no items as an empty feed', () => {
+    expect(parseFeedXml('<rss><channel></channel></rss>', source())).toEqual([]);
+  });
+
+  it('treats an Atom feed with no entries as an empty feed', () => {
+    expect(parseFeedXml('<feed></feed>', source())).toEqual([]);
+  });
+
+  it('resolves an Atom link given as a single element rather than a list', () => {
+    const xml = `<feed><entry>
+      <title>Kop</title>
+      <link href="https://f1/atom-a"/>
+      <content>Inhoud</content>
+      <published>2026-08-01</published>
+    </entry></feed>`;
+    const [item] = parseFeedXml(xml, source());
+    expect(item).toMatchObject({
+      link: 'https://f1/atom-a',
+      description: 'Inhoud',
+      pubDate: '2026-08-01',
+      guid: 'https://f1/atom-a',
+    });
+  });
+
+  it('falls back to the first Atom link when none is marked alternate', () => {
+    const xml = `<feed><entry>
+      <title>Kop</title>
+      <link rel="self" href="https://f1/self"/>
+      <link rel="edit" href="https://f1/edit"/>
+    </entry></feed>`;
+    const [item] = parseFeedXml(xml, source());
+    expect(item.link).toBe('https://f1/self');
+  });
+
+  it('yields an empty link when the Atom entry has no link at all', () => {
+    const xml = '<feed><entry><title>Kop</title></entry></feed>';
+    expect(parseFeedXml(xml, source())).toEqual([]);
+  });
+});
+
+describe('ingestAll — non-Error feed failures', () => {
+  it('logs and skips a feed whose fetch rejects with a string', async () => {
+    mockSafeFetch.mockRejectedValue('socket hang up');
+    await expect(ingestAll()).resolves.toEqual([]);
+  });
+});

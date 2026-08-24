@@ -80,6 +80,35 @@ describe('Detail (regel)', () => {
     );
   });
 
+  it('offers the DMN source as a download inside technical details', async () => {
+    vi.mocked(api.getRegelBySlug).mockResolvedValue({
+      id: 'regel-digital-twin-inkomensregelingen',
+      slug: 'digital-twin-inkomensregelingen',
+      type: 'regel',
+      title: 'Digital Twin Inkomensregelingen',
+      summary: 'iKnow export',
+      org: 'Gemeente Amsterdam',
+      date: null,
+      audience: [],
+      external: null,
+      facts: [],
+      tech: [['api', '/v1/public/regels/digital-twin-inkomensregelingen']],
+      rules: [],
+      ruleCount: 0,
+      dmns: [
+        {
+          title: 'HvA_full_dmn_export-patched.dmn',
+          xmlUrl: 'https://lde.test/v1/dmns/_bad36e9e/xml',
+        },
+      ],
+    });
+    renderAt('digital-twin-inkomensregelingen');
+
+    const link = await screen.findByRole('link', { name: /HvA_full_dmn_export-patched\.dmn/ });
+    expect(link).toHaveAttribute('href', 'https://lde.test/v1/dmns/_bad36e9e/xml');
+    expect(link.closest('details')).toBe(screen.getByText(t.tech).closest('details'));
+  });
+
   it('shows a not-found message instead of crashing when the slug does not resolve', async () => {
     vi.mocked(api.getRegelBySlug).mockResolvedValue(null);
     renderAt('nope');

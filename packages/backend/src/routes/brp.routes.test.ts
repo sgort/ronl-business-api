@@ -7,6 +7,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => {
   const mw = (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
@@ -95,5 +98,22 @@ describe('POST /v1/brp/personen', () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error.message).toBe('BRP API request failed');
+  });
+});
+
+describe('BRP request options', () => {
+  it('treats an upstream 4xx as a response to inspect, not an exception', async () => {
+    mockPost.mockResolvedValue({ status: 200, data: { personen: [] } });
+
+    await auth(request(app).post('/v1/brp/personen')).send({});
+
+    const options = mockPost.mock.calls[0][2] as { validateStatus: (s: number) => boolean };
+    // The handler maps a 4xx body onto BRP_API_ERROR itself, so those must
+    // resolve; a 5xx stays an exception for the catch to translate.
+    expect(options.validateStatus(400)).toBe(true);
+    expect(options.validateStatus(404)).toBe(true);
+    expect(options.validateStatus(499)).toBe(true);
+    expect(options.validateStatus(500)).toBe(false);
+    expect(options.validateStatus(502)).toBe(false);
   });
 });

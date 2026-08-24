@@ -70,7 +70,7 @@ describe('combinePhaseCounts', () => {
 
 describe('normalizeLiveCounts', () => {
   it('maps backend processDefinitionKey counts onto phase codes with geparkeerd: 0', () => {
-    const raw = { RipPhase1Process: { wip: 3, gereed: 7 } };
+    const raw = { RipR21Process: { wip: 3, gereed: 7 } };
     const result = normalizeLiveCounts(raw, RIP_PHASES);
     expect(result['R2.1']).toEqual({ wip: 3, gereed: 7, geparkeerd: 0 });
     expect(result['R2.2']).toBeUndefined();

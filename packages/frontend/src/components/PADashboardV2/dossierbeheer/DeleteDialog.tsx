@@ -31,9 +31,11 @@ export default function DeleteDialog({ dossier, onConfirm, onClose, busy }: Prop
         </div>
         <div className="pac-db-dialog-body">
           <div className="pac-db-warn">
-            <b>Let op:</b> verwijderen wist de rij uit <code>pa_dossiers</code> inclusief alle
-            versies. Dit kan niet ongedaan worden gemaakt. Voor afgeronde dossiers is{' '}
-            <b>archiveren</b> (Archiefwet) vrijwel altijd de juiste keuze.
+            <b>Let op:</b> verwijderen wist het dossier{' '}
+            <b>inclusief alle versies, alle gecureerde signalen en alle zoekcriteria</b> die eraan
+            hangen. De monitoring op dit onderwerp stopt daarmee. Dit kan niet ongedaan worden
+            gemaakt. Voor afgeronde dossiers is <b>archiveren</b> (Archiefwet) vrijwel altijd de
+            juiste keuze.
           </div>
           <p style={{ marginTop: 12 }}>
             Typ de dossiernaam <b>{dossier.naam}</b> om te bevestigen:

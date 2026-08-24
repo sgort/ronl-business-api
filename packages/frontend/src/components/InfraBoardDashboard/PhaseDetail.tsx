@@ -230,7 +230,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     setSubmitting(true);
     setFallbackError(null);
     try {
-      const res = await businessApi.process.start('RipPhase1Process', {});
+      const res = await businessApi.process.start('RipR21Process', {});
       if (res.success) {
         setFallbackStarted(true);
         reloadWip();

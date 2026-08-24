@@ -12,6 +12,7 @@ import Results from './pages/Results';
 import SectionIndex from './pages/SectionIndex';
 import Regelcatalogus from './pages/Regelcatalogus';
 import Woordenboek from './pages/Woordenboek';
+import Herkomst from './pages/Herkomst';
 import Detail from './pages/Detail';
 import Toegankelijkheid from './pages/Toegankelijkheid';
 import OpenData from './pages/OpenData';
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/processen" element={<SectionIndex t={t} lang={lang} type="proces" />} />
         <Route path="/processen/:slug" element={<Detail t={t} lang={lang} type="proces" />} />
         <Route path="/woordenboek" element={<Woordenboek t={t} lang={lang} />} />
+        <Route path="/herkomst" element={<Herkomst t={t} lang={lang} />} />
         <Route path="/toegankelijkheid" element={<Toegankelijkheid lang={lang} />} />
         <Route path="/open-data" element={<OpenData lang={lang} />} />
         <Route path="*" element={<NotFound lang={lang} />} />

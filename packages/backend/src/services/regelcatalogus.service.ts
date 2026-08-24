@@ -4,7 +4,10 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('regelcatalogus-service');
 
-const SPARQL_ENDPOINT =
+/** The RONL knowledge graph this service reads from. Exported because lde.service
+ * has to pass the very same endpoint to LDE's /v1/dmns, and the two views must
+ * describe one graph — a second copy of this URL is a second source of truth. */
+export const SPARQL_ENDPOINT =
   process.env.RONL_SPARQL_ENDPOINT ||
   'https://api.open-regels.triply.cc/datasets/stevengort/RONL/services/RONL/sparql';
 

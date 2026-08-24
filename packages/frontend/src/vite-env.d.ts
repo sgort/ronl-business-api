@@ -13,3 +13,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Injected by vite.config.ts from packages/frontend/package.json. */
+declare const __APP_VERSION__: string;

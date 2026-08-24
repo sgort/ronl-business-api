@@ -132,7 +132,7 @@ app.get('/', (req: Request, res: Response) => {
     name: 'RONL Business API',
     version: packageJson.version,
     status: 'running',
-    environment: config.nodeEnv,
+    environment: config.deploymentEnv,
     documentation: '/v1/docs',
     endpoints: {
       health: '/v1/health',
@@ -274,7 +274,7 @@ const startServer = async () => {
 
   app.listen(port, host, () => {
     appLogger.info('Server started', {
-      environment: config.nodeEnv,
+      environment: config.deploymentEnv,
       host,
       port,
       corsOrigin: config.corsOrigin,
