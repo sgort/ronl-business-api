@@ -17,7 +17,7 @@ import {
   deriveDossierRole,
   type DossierRole,
 } from '../vendor/pages/public-affairs-v2/dossierbeheer.data';
-import { setDemoRoles } from './shims/keycloak';
+import { getUser, setDemoRoles } from './shims/keycloak';
 
 export type DemoRoleId = 'auteur' | 'redacteur' | 'beheerder' | 'geen';
 
@@ -50,22 +50,27 @@ export function DemoRoleProvider({ children }: { children: ReactNode }) {
   const [roleId, setRoleId] = useState<DemoRoleId>('beheerder');
 
   // The shim is a module-level mirror of "the synthetic token", not React
-  // state, so a reducer alone can't keep it in step. Writing it here, plainly,
-  // during render, means the mirror can never lag behind `roleId` — not on
-  // the first render, not on any later one — and there is exactly one call
-  // site instead of splitting it between an effect and a setter. The write is
-  // idempotent, so re-running it on a render that never commits is harmless.
-  // (An effect looks more idiomatic but only fires after commit, which is one
-  // render later than a click handler needs when a test asserts synchronously
-  // inside `act()`.)
+  // state, so a reducer alone can't keep it in step. This write has to happen
+  // in the render body, not in an effect (layout or passive): children render
+  // before any effect fires, in the same commit, and the vendored shell reads
+  // the shim fresh during render in more than one place (a later task's
+  // section router reads getUser() directly, for one) — those reads need to
+  // see the new value in the same pass that produced it. A write in an
+  // effect would still be one render behind for any sibling that reads the
+  // shim during its own render. The write is idempotent, so re-running it on
+  // a render that never commits (e.g. React re-invoking this function without
+  // committing) is harmless.
   setDemoRoles(KEYCLOAK_ROLE[roleId]);
 
   // Derived through the product's own function, from the same roles array
-  // the cockpit reads, so the demo cannot drift from real behaviour.
-  const role = useMemo<DossierRole>(() => {
-    const kc = KEYCLOAK_ROLE[roleId];
-    return deriveDossierRole(kc ? [kc] : []);
-  }, [roleId]);
+  // the cockpit reads (getUser().roles, post-write above) — not a
+  // hand-rebuilt array — so the demo cannot drift from real behaviour if
+  // getUser()'s composition or deriveDossierRole's inputs ever change.
+  // roleId isn't read directly in the callback below, but it's what the
+  // write above just used to update the shim; recomputing once that write
+  // has happened is the whole reason this depends on roleId.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const role = useMemo<DossierRole>(() => deriveDossierRole(getUser().roles), [roleId]);
 
   const value = useMemo<DemoRoleValue>(
     () => ({ roleId, setRoleId, role }),

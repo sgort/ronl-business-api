@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import {
@@ -77,5 +78,22 @@ describe('DemoRoleContext', () => {
       'beheerder',
       'geen',
     ]);
+  });
+
+  it('keeps the shim in sync under StrictMode double-invocation', () => {
+    // The provider syncs the shim with a plain call in its render body
+    // rather than an effect, specifically so a render-time double-invoke
+    // (StrictMode today; a memoized/skipped re-render tomorrow) can't leave
+    // the shim one step behind roleId. Render under StrictMode and assert
+    // the shim still reflects the latest selection after a role change.
+    render(
+      <StrictMode>
+        <DemoRoleProvider>
+          <Probe />
+        </DemoRoleProvider>
+      </StrictMode>
+    );
+    act(() => setRole('redacteur'));
+    expect(screen.getByTestId('roles')).toHaveTextContent('public-affairs,pa-editor');
   });
 });
