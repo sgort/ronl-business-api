@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtemp, writeFile, mkdir, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { compareTrees } from './check-drift.mjs';
@@ -41,7 +41,7 @@ describe('compareTrees', () => {
     expect(drift).toEqual([{ file: 'b.ts', status: 'missing' }]);
   });
 
-  it('ignores a trailing-newline difference nowhere and reports it as drift', async () => {
+  it('treats a trailing-newline difference as drift, not a false negative', async () => {
     // Byte-identical means byte-identical. A formatter that rewrites the origin
     // is real drift, because the next sync would bring the change across.
     const { origin, vendor } = await fixture();
@@ -49,6 +49,18 @@ describe('compareTrees', () => {
     await writeFile(path.join(vendor, 'a.ts'), 'export const a = 1;\n');
     expect(await compareTrees(origin, vendor, ['a.ts'])).toEqual([
       { file: 'a.ts', status: 'changed' },
+    ]);
+  });
+
+  it('reports a file whose origin was renamed or deleted upstream, without throwing', async () => {
+    // Origin-side-missing shares the 'changed' status with a content mismatch
+    // (see check-drift.mjs) — this asserts that overload deliberately, and
+    // that the branch does not throw. An upstream rename during the window
+    // before the cockpit is extracted is exactly when this branch fires.
+    const { origin, vendor } = await fixture();
+    await writeFile(path.join(vendor, 'c.ts'), 'export const c = 1;\n');
+    await expect(compareTrees(origin, vendor, ['c.ts'])).resolves.toEqual([
+      { file: 'c.ts', status: 'changed' },
     ]);
   });
 });
