@@ -52,7 +52,7 @@ function deriveMockStatus(project: PortfolioProject | undefined): Record<string,
 }
 
 /** Inline claim + complete panel for a single Operaton task. */
-function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
+function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task) => void }) {
   const [claiming, setClaiming] = useState(false);
   const [isClaimed, setIsClaimed] = useState(!!task.assignee);
   const [variables, setVariables] = useState<Record<string, unknown> | null>(null);
@@ -133,10 +133,10 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
           <TaskFormViewer
             taskId={task.id}
             variables={variables}
-            onCompleted={() => {
-              setMsg({ type: 'ok', text: 'Taak voltooid.' });
-              onDone();
-            }}
+            // No success message here: onDone unmounts this panel, so anything
+            // set alongside it is destroyed in the same tick and never paints.
+            // The parent owns the confirmation instead, because it survives.
+            onCompleted={() => onDone(task)}
             onError={() => setMsg({ type: 'err', text: 'Opslaan mislukt.' })}
           />
         )}
@@ -160,6 +160,8 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
     ? (allTasks ?? []).filter((t) => t.processInstanceId === projectRef.instanceId)
     : [];
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  /** Last completed task, kept so the confirmation outlives the panel. */
+  const [justCompleted, setJustCompleted] = useState<string | null>(null);
   const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
 
   // live instances are always in Fase 1 (R2.1); mock rows carry their own phase.
@@ -312,13 +314,21 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
           <div className="pb-taken-head">
             <h3>Open taken ({instanceTasks.length})</h3>
           </div>
+          {justCompleted && (
+            <div className="v2-taken-msg v2-taken-msg-success" role="status">
+              Taak voltooid: {justCompleted}
+            </div>
+          )}
           <div className="pb-taken-list">
             {instanceTasks.map((t) => (
               <button
                 type="button"
                 key={t.id}
                 className={`pb-taken-item ${selectedTaskId === t.id ? 'active' : ''}`}
-                onClick={() => setSelectedTaskId((prev) => (prev === t.id ? null : t.id))}
+                onClick={() => {
+                  setJustCompleted(null);
+                  setSelectedTaskId((prev) => (prev === t.id ? null : t.id));
+                }}
               >
                 <span className="pb-taken-item-name">{t.name}</span>
                 <span className={`v2-taken-pill ${t.assignee ? 'claimed' : 'open'}`}>
@@ -331,7 +341,8 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
             <TaskWorkPanel
               key={selectedTask.id}
               task={selectedTask}
-              onDone={() => {
+              onDone={(completed) => {
+                setJustCompleted(completed.name);
                 setSelectedTaskId(null);
                 reloadTasks();
                 reloadHistory();
