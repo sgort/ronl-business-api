@@ -5,13 +5,29 @@
  * packages/pa-demo/src/vendor on the copy side, so the two trees mirror each
  * other exactly and a diff needs no path translation.
  *
- * Deliberately absent:
+ * Deliberately absent from THIS LIST (not from disk — see below):
  *   components/PADashboardV2/PASectionRouter.tsx — the only carrier of the six
  *     ../CaseworkerDashboard/* imports, and section curation is what differs
- *     here. Replaced by src/demo/DemoSectionRouter.tsx.
+ *     here. Real implementation lives at src/demo/DemoSectionRouter.tsx.
  *   components/PADashboardV2/PADock.tsx — imports McpChatSection, which pulls
- *     in businessApi and would fire real LLM calls from a public page.
- *     Replaced by src/demo/shims/PADock.tsx.
+ *     in businessApi and would fire real LLM calls from a public page. Real
+ *     implementation lives at src/demo/shims/PADock.tsx.
+ *   services/keycloak.ts, services/tenant.ts,
+ *     components/SessionExpiryWarning.tsx — auth/tenant/session infra with
+ *     no place in an unauthenticated demo. Real implementations live at
+ *     src/demo/shims/*.
+ *
+ * All five of the above (plus PASectionRouter) DO have a same-path file
+ * physically sitting under src/vendor/ — a one-line re-export "overlay" so
+ * the vendored tree's relative imports resolve for both tsc and Vite without
+ * an alias and without editing any vendored file. Those overlay files are
+ * NOT vendored copies of anything (there is no packages/frontend origin for
+ * PADock.tsx or PASectionRouter.tsx under these names, and keycloak.ts /
+ * tenant.ts / SessionExpiryWarning.tsx are deliberately never copied), which
+ * is why they stay off this list: `vendor:sync` must never overwrite them
+ * and `vendor:check` must never flag them as drift. See src/vendor/README.md
+ * for the full rationale, including why `paths` in tsconfig.json doesn't
+ * apply here and why an ambient-module alternative was rejected.
  */
 export const VENDORED_FILES = [
   'services/pa.api.ts',
