@@ -1,0 +1,74 @@
+/**
+ * Demo furniture styling — deliberately its own visual language (dark strip,
+ * monospace-ish label) so this reads as "demo chrome bolted on top", never as
+ * part of the PA-Cockpit product it sits above. Scoped entirely under
+ * `.plato-bar`; never reuses or overrides a `.pac` class.
+ */
+
+.plato-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: #1a1d29;
+  color: #e6e8f0;
+  font-size: 13px;
+  line-height: 1.4;
+  border-bottom: 1px solid #33374a;
+}
+
+.plato-bar-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.plato-bar-roles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plato-bar-role-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.plato-bar-role {
+  border: 1px solid #464b63;
+  background: transparent;
+  color: #e6e8f0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plato-bar-role:hover {
+  border-color: #6b7093;
+}
+
+.plato-bar-role[aria-pressed='true'] {
+  background: #4f5bd5;
+  border-color: #4f5bd5;
+  color: #fff;
+}
+
+.plato-bar-reset {
+  margin-left: auto;
+  border: 1px solid #464b63;
+  background: transparent;
+  color: #e6e8f0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.plato-bar-reset:hover {
+  border-color: #6b7093;
+}
