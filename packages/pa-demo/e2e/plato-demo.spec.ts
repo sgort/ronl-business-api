@@ -8,23 +8,53 @@ import { test, expect, type Page } from '@playwright/test';
  * needs none of that spec's login/rate-limit/reload-reauth plumbing since
  * there is no backend and no session to lose.
  *
+ * Task 15 removed the demo bar (`src/demo/DemoBar.tsx`) entirely: it
+ * duplicated controls the cockpit already has in three places (the bar,
+ * Beheer → Rollen & rechten, and Dossierbeheer's own inert role bar) plus two
+ * resets. Role switching now lives only on Beheer → Rollen & rechten
+ * (src/demo/RollenRechten.tsx); reset now lives only in Dossierbeheer's own
+ * Mock banner ("↺ Reset demodata"). Every test below that used to reach for
+ * the bar was rewritten to drive those two controls instead — see each
+ * test's own comment for what moved and why the assertions it makes were
+ * kept intact rather than weakened in the move.
+ *
+ * One accepted trade-off from that removal, not re-litigated here: the
+ * "Demonstratie · fictieve gegevens" disclaimer the bar used to show on
+ * every page now appears on no page in Vandaag, Monitoring or Voortgang. It
+ * survives only on Profiel and inside Dossierbeheer's Mock banner — see the
+ * landing-view test below, which guards that as the current, deliberately
+ * accepted state rather than as an oversight.
+ *
  * Selectors below were read off the running app (`npm run dev`, port 5176)
- * rather than guessed — see task-10-report.md for how. Two things the
- * vendored shell does NOT give this demo, discovered the same way:
+ * rather than guessed — see task-10-report.md (original selectors) and
+ * task-15-report.md (the ones this task added or moved) for how. Two things
+ * the vendored shell does NOT give this demo, discovered the same way:
  *
  *   - Every rail item and mode tab is a <button>, never an <a>/link. Asking
  *     for role "link" anywhere in this file would find nothing.
- *   - "Beheer" is a substring of "Beheerder" (the demo bar's role button), so
- *     the mode tab must be matched with `exact: true` or it also matches the
- *     role button whenever both are on screen.
+ *   - "Beheer" is a substring of "Beheerder" (a role button's label, now on
+ *     Rollen & rechten and reflected — disabled — in Dossierbeheer), so the
+ *     mode tab must be matched with `exact: true` or it also matches a role
+ *     button whenever both are on screen.
  */
 
-/** The demo bar's own role buttons, scoped so "Beheerder" never matches the
- * disabled, purely-reflective role readout inside Dossierbeheer once that
- * section is on screen (same button text, different element, both role
- * "button" — see DemoRoleContext.tsx / Dossierbeheer.tsx). */
-function demoBarRole(page: Page, label: string) {
-  return page.locator('.plato-bar-roles').getByRole('button', { name: label });
+/** Rollen & rechten's own role buttons — this demo's actual, clickable role
+ * switcher (src/demo/RollenRechten.tsx). Scoped to `.pac-db-roleseg` outside
+ * `.pac-db-rolebar` so it never matches Dossierbeheer's same-labelled but
+ * disabled, purely-reflective role readout (same button text, different
+ * element, both role "button" — see DemoRoleContext.tsx / Dossierbeheer.tsx).
+ * The two are never mounted at once (DemoSectionRouter renders one section
+ * at a time), but the narrower scope documents the distinction regardless. */
+function rollenRechtenRole(page: Page, label: string) {
+  return page.locator('.pac-db-roleseg-btn', { hasText: label });
+}
+
+/** Dossierbeheer's own role bar — rendered `disabled`, purely reflective of
+ * whatever Rollen & rechten last set (see Dossierbeheer.tsx: "the role
+ * follows from your Keycloak rights"). Scoped to `.pac-db-rolebar` for the
+ * same reason as rollenRechtenRole above. */
+function dossierbeheerActiveRole(page: Page) {
+  return page.locator('.pac-db-rolebar .pac-db-roleseg-btn.active');
 }
 
 function railItem(page: Page, label: string) {
@@ -84,38 +114,57 @@ function watchForBackendRequests(page: Page): void {
 
 test.beforeEach(async ({ page }) => {
   watchForBackendRequests(page);
+  // Dossierbeheer's "↺ Reset demodata" (resetDemo in Dossierbeheer.tsx) is
+  // gated on a window.confirm() the old demo-bar reset never had — the bar
+  // called resetMockDemoData()/resetMockDossiers() directly. Auto-accepting
+  // here, globally, is safe: it's the only window.confirm() in the app (see
+  // `grep -rn window.confirm src/vendor` — one hit), so this can't mask a
+  // dialog some other flow relies on being dismissed.
+  page.on('dialog', (dialog) => dialog.accept());
   await page.goto('/');
   // Every test gets its own browser context (Playwright's default), so
-  // localStorage and the in-memory mock stores already start empty — this
-  // click is not cleanup, it's a smoke check that the reset control itself
-  // works, and it normalises on the Beheerder start role documented in
-  // DemoRoleContext.tsx regardless of what a slow-loading previous run left
-  // mid-flight.
-  await page.getByRole('button', { name: 'Demo herstellen' }).click();
-  await expect(demoBarRole(page, 'Beheerder')).toHaveAttribute('aria-pressed', 'true');
+  // localStorage and the in-memory mock stores already start empty, and
+  // DemoRoleProvider's useState always initialises to 'beheerder'
+  // (DemoRoleContext.tsx) — a fresh page load already normalises on the
+  // Beheerder start role with no reset click required. Unlike the old
+  // demo-bar reset (always on screen, one click), the surviving reset lives
+  // two clicks deep inside Beheer → Dossierbeheer, so smoke-testing that it
+  // actually works belongs in its own test below rather than in every
+  // test's setup.
 });
 
-test('the demo bar declares itself, and the landing view offers no Live toggle', async ({
-  page,
-}) => {
-  await expect(page.getByText(/demonstratie/i)).toBeVisible();
+test('the landing view carries no disclaimer and offers no Live toggle', async ({ page }) => {
+  // The demo bar used to show "Demonstratie · fictieve gegevens" on every
+  // page, including this one. Task 15 removed the bar and, with it, that
+  // reach — the disclaimer now survives only on Profiel and inside
+  // Dossierbeheer's Mock banner (both exercised further down this file).
+  // This is a deliberate, accepted trade-off (see plato-demo.spec.ts's file
+  // header and task-15-report.md), not a gap to "fix" by re-adding a bar or
+  // inventing a replacement here — this assertion exists so a future change
+  // that silently restores it on Vandaag gets noticed rather than shrugged
+  // off as an improvement.
+  await expect(page.getByText(/demonstratie/i)).toHaveCount(0);
   // Scoped deliberately to the page a visitor lands on (Vandaag) rather than
   // "no Live toggle anywhere" — one exists, in Dossierbeheer, and is checked
   // (hidden, not merely undiscovered by this test) below.
   await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
 });
 
-test('the page has one scrollbar, not two — DemoBar plus the cockpit fit exactly one viewport tall', async ({
-  page,
-}) => {
-  // dashboard-pa.css (vendored) hard-codes `.pac { height: 100vh }`, sound
-  // only when .pac is the only thing on the page. DemoBar renders above it
-  // here, so without demo-overrides.css's flex-layout override the combined
-  // height exceeds the viewport and produces a second, outer scrollbar on
-  // top of .pac-main's own internal one — the double-scrollbar the human
-  // partner reported comparing this demo to the live cockpit. Real-DOM
-  // proof, not a source-text guess: demo-overrides.test.ts checks the rules
-  // exist; this checks they actually win the cascade in a real browser.
+test('the page has one scrollbar, not two', async ({ page }) => {
+  // Historical context, not a live constraint any more: dashboard-pa.css
+  // (vendored) hard-codes `.pac { height: 100vh }`, sound only when `.pac`
+  // is the only thing on the page. An earlier version of this demo broke
+  // that by rendering a DemoBar header above `.pac`, producing a second,
+  // outer scrollbar on top of `.pac-main`'s own internal one — the
+  // double-scrollbar the human partner reported comparing this demo to the
+  // live cockpit. demo-overrides.css's flex-layout override fixed it then;
+  // Task 15 removed the bar (so `.pac` is once again the page's only child)
+  // but kept the override, since a lone flex child with `flex: 1` in a
+  // `height: 100%` column still fills it exactly — see that file's own
+  // comment for the re-measured numbers. This test is the real-DOM proof
+  // that still holds, not a source-text guess: demo-overrides.test.ts checks
+  // the rules exist; this checks the result actually has one scrollbar in a
+  // real browser.
   const html = await page.evaluate(() => ({
     scrollHeight: document.documentElement.scrollHeight,
     clientHeight: document.documentElement.clientHeight,
@@ -145,14 +194,23 @@ test('Beheer shows nine sections and no IOU or Hulpmiddelen', async ({ page }) =
   await expect(page.getByText('Gereedschap')).toHaveCount(0);
 });
 
-test('switching role changes what Dossierbeheer permits', async ({ page }) => {
+test('switching role on Rollen & rechten changes what Dossierbeheer permits', async ({ page }) => {
   // Regression guard for the subtlest bug in the project: the vendored shell
   // snapshots getUser() into React state at mount, so a naive role switch
   // would silently do nothing to Dossierbeheer's capabilities. Task 6 fixed
   // it (DemoSectionRouter consumes useDemoRole() so it re-renders, and reads
-  // a fresh getUser() rather than the stale `user` prop) — this is the first
-  // checked-in test that exercises the fix through the real UI rather than
-  // narrating it in a report.
+  // a fresh getUser() rather than the stale `user` prop); this is the
+  // checked-in test that exercises the fix through the real UI.
+  //
+  // Task 15 moved the *trigger* from the demo bar's own buttons to Rollen &
+  // rechten (RollenRechten.tsx), which drives the exact same
+  // useDemoRole().setRoleId the bar used to call — same context, same
+  // setter, same DemoSectionRouter/Dossierbeheer propagation path. Verified
+  // by hand before this rewrite (see task-15-report.md): switching role here
+  // still updates Dossierbeheer's reflective role bar and its real per-row
+  // "Verwijderen" button, so this is a relocation of the trigger, not a
+  // narrower assertion — every assertion below is unchanged from before the
+  // bar's removal.
   await page.getByRole('button', { name: 'Beheer', exact: true }).click();
   await railItem(page, 'Dossierbeheer').click();
 
@@ -164,13 +222,21 @@ test('switching role changes what Dossierbeheer permits', async ({ page }) => {
   // readout say so.
   await expect(deleteFirstRow).toBeEnabled();
   await expect(deleteCap).toHaveClass(/\bon\b/);
+  await expect(dossierbeheerActiveRole(page)).toHaveText('Beheerder');
 
-  // Auteur: deleting is lost. Dossierbeheer's own role bar is disabled by
-  // design (real caseworkers can't grant themselves rights) but still tracks
-  // the demo bar live, and the actual "Verwijderen" button on a real row —
-  // not just the capability chip — goes disabled with it.
-  await demoBarRole(page, 'Auteur').click();
-  await expect(page.locator('.pac-db-roleseg-btn.active')).toHaveText('Auteur');
+  // Switch role on Rollen & rechten — the rail persists across sub-sections
+  // within Beheer, so no need to re-click the "Beheer" mode tab.
+  await railItem(page, 'Rollen & rechten').click();
+  await rollenRechtenRole(page, 'Auteur').click();
+  await expect(rollenRechtenRole(page, 'Auteur')).toHaveClass(/\bactive\b/);
+
+  // Auteur: deleting is lost. Back on Dossierbeheer, its own role bar is
+  // disabled by design (real caseworkers can't grant themselves rights) but
+  // still tracks the switch made above live, and the actual "Verwijderen"
+  // button on a real row — not just the capability chip — goes disabled
+  // with it.
+  await railItem(page, 'Dossierbeheer').click();
+  await expect(dossierbeheerActiveRole(page)).toHaveText('Auteur');
   await expect(deleteCap).toHaveClass(/\boff\b/);
   await expect(deleteFirstRow).toBeDisabled();
 });
@@ -205,7 +271,8 @@ test('an authored dossier appears immediately and does not survive a reload', as
   await expect(page.getByText(naam)).toBeVisible();
 
   // A genuine reload re-executes every module, so the in-memory store comes
-  // back empty — the same mechanism "Demo herstellen" relies on.
+  // back empty — the same mechanism "Reset demodata" relies on (see the
+  // dedicated reset test below for the no-reload path).
   await page.reload();
   await page.getByRole('button', { name: 'Beheer', exact: true }).click();
   await railItem(page, 'Dossierbeheer').click();
@@ -228,11 +295,48 @@ test('Dossierbeheer hides its own live toggle; only Reset demodata is offered', 
   // backend-less demo, so clicking the live toggle would not reach a real
   // API either; it would hit the same same-origin `${undefined}/pa/...`
   // pattern the network-isolation test below proves crashes the app.
+  //
+  // Since Task 15, this reset button is also the demo's *only* reset — the
+  // demo bar's duplicate is gone. (Its Mock banner text above explains the
+  // fixtures in its own words — "Mock — de hele cockpit draait op
+  // fixtures…" — rather than the literal "demonstratie" disclaimer text, so
+  // that text is deliberately not asserted here; see the landing-view test
+  // for where "demonstratie" itself is and isn't checked.)
   await page.getByRole('button', { name: 'Beheer', exact: true }).click();
   await railItem(page, 'Dossierbeheer').click();
 
   await expect(page.getByRole('button', { name: /Zet vlag om naar live/ })).toBeHidden();
   await expect(page.getByRole('button', { name: /Reset demodata/ })).toBeVisible();
+});
+
+test('Reset demodata clears an authored dossier without a full page reload', async ({ page }) => {
+  // The dedicated exercise of the demo's one remaining reset control,
+  // separated out from beforeEach now that reaching it takes two clicks
+  // (Beheer → Dossierbeheer) instead of the always-on-screen demo bar.
+  // resetDemo() in the vendored Dossierbeheer.tsx gates on window.confirm()
+  // (auto-accepted in beforeEach) and, unlike the old bar's resetDemo, does
+  // NOT reload the page — it clears both mock stores and calls refetch() /
+  // syncCockpit() instead. This test proves that no-reload path actually
+  // clears state, which the reload-based "does not survive a reload" test
+  // above cannot: that one would pass even if the reset button itself were
+  // wired to do nothing at all.
+  await page.getByRole('button', { name: 'Beheer', exact: true }).click();
+  await railItem(page, 'Nieuw dossier').click();
+
+  await page.locator('.pac-db-tpl', { hasText: 'Blanco dossier' }).click();
+  await page.getByRole('button', { name: /Doorgaan met dit sjabloon/ }).click();
+
+  const naam = `Reset-test-dossier ${Date.now()}`;
+  const fields = page.locator('.pac-db-card').first().locator('input.pac-db-input');
+  await fields.nth(0).fill(naam);
+  await fields.nth(1).fill('E2E test-onderwerp');
+
+  await page.getByRole('button', { name: 'Dossier aanmaken' }).click();
+  await railItem(page, 'Dossierbeheer').click();
+  await expect(page.getByText(naam)).toBeVisible();
+
+  await page.getByRole('button', { name: /Reset demodata/ }).click();
+  await expect(page.getByText(naam)).toHaveCount(0);
 });
 
 test('the page issues no request to any backend', async ({ page }) => {

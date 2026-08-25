@@ -38,35 +38,42 @@
 }
 
 /**
- * Single-scrollbar layout fix.
+ * Single-scrollbar layout fix — now vestigial-safe, kept because it still
+ * does the same job.
  *
- * dashboard-pa.css (vendored) sets `.pac { height: 100vh; ... }`. In the
- * real cockpit `.pac` is the only thing on the page, so 100vh exactly fills
- * the viewport and the sole scroll region is `.pac-main`'s own
- * `overflow-y: auto`. Here, App.tsx renders `<DemoBar />` (the
- * `.plato-bar` header, ~46px) as a sibling ABOVE `.pac`, so total content
- * height is bar-height + 100vh — taller than the viewport. That produces a
- * *second*, outer scrollbar on the page (html/body) on top of `.pac-main`'s
- * inner one, which is the double-scrollbar the human partner reported.
- * `body { margin: 0 }` in the vendored index.css does not touch this: it
- * removes an 8px margin, not the ~46px bar pushing `.pac` below the fold.
- * Confirmed empirically before this fix: document.documentElement.
- * scrollHeight (846px) > .clientHeight (800px) at an 800px viewport, with
- * .plato-bar measuring ~46px — the gap the bar adds, byte-for-byte.
+ * dashboard-pa.css (vendored) sets `.pac { height: 100vh; ... }`, sound when
+ * `.pac` is the only thing on the page. That used to not be true here: an
+ * earlier version of this demo rendered a `<DemoBar />` header as a sibling
+ * ABOVE `.pac`, which pushed total content height past the viewport and
+ * produced a second, outer scrollbar (html/body) on top of `.pac-main`'s own
+ * inner one. This block turned #root into a column flexbox and let `.pac`
+ * take the remaining space (`flex: 1 1 auto`) instead of hard-coding its own
+ * 100vh, so the two scroll regions collapsed back into one.
  *
- * Fix: turn #root into a column flexbox capped at 100vh, let `.plato-bar`
- * take its natural (`flex-shrink: 0`) height, and let `.pac` take the rest
- * instead of hard-coding its own 100vh. `min-height: 0` on the flex item is
- * required — without it, a flex item's default `min-height: auto` refuses
- * to shrink below its content's height, which would defeat `flex: 1` here
+ * The demo bar is gone now (Task 15 — role switching moved to Beheer →
+ * Rollen & rechten, reset moved to Dossierbeheer's own Mock banner), so
+ * `.pac` is once again the only thing #root renders. That's why the
+ * `.plato-bar { flex-shrink: 0 }` rule that used to sit here was deleted:
+ * `.plato-bar` no longer exists in the DOM, so the rule matched nothing.
+ * The rest of this block was kept rather than deleted alongside it: a lone
+ * flex child with `flex: 1 1 auto` in a `height: 100%` column still fills
+ * that column exactly, so leaving `.pac` on the flex-fill path is harmless
+ * and produces the same single scrollbar as `.pac`'s own `height: 100vh`
+ * would. `min-height: 0` on the flex item is still required for that fill
+ * to work — without it, a flex item's default `min-height: auto` refuses to
+ * shrink below its content's height, which would defeat `flex: 1` here
  * exactly as `.pac-main`'s own pre-existing `min-height: 0` (dashboard-pa.css)
  * already documents needing for the same reason one level down.
  *
- * No !important: `.pac`'s own `height` and `#root`'s new `display`/`height`
- * are both plain, equal-or-lower-specificity selectors; this file loads
- * after dashboard-pa.css (see App.tsx's import order — PADashboardV2, which
- * pulls in dashboard-pa.css, is imported before this file), so the cascade
- * alone decides the winner.
+ * Re-measured after the demo bar's removal (Task 15), 800px viewport:
+ * document.documentElement.scrollHeight === .clientHeight === 800 — one
+ * scrollbar, as expected now that `.pac` is #root's only child again.
+ *
+ * No !important: `.pac`'s own `height` and `#root`'s `display`/`height` are
+ * both plain, equal-or-lower-specificity selectors; this file loads after
+ * dashboard-pa.css (see App.tsx's import order — PADashboardV2, which pulls
+ * in dashboard-pa.css, is imported before this file), so the cascade alone
+ * decides the winner.
  */
 html,
 body,
@@ -77,10 +84,6 @@ body,
 #root {
   display: flex;
   flex-direction: column;
-}
-
-.plato-bar {
-  flex-shrink: 0;
 }
 
 .pac {
