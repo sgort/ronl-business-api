@@ -52,6 +52,21 @@ function railItem(page: Page, label: string) {
  * initial mount — before any test-specific click — so a listener registered
  * later would already have missed it. Keyed per Page so each test's own
  * fresh browser context (Playwright's default) gets its own list.
+ *
+ * Static images are excluded, not by path but by how the browser itself
+ * classified the request (`resourceType() === 'image'`). Since the second
+ * vendor root started shipping packages/frontend/public's feiten-icons
+ * PNGs (vendor-manifest.mjs's ASSET_FILES), a real, legitimate request —
+ * `<img src="/pa/feiten-icons/wonen.png">` from FeitenCijfers.tsx — matches
+ * the same `/\/(?:pa|v1)\//` path pattern the backend-path check above
+ * exists to catch, and would otherwise be a false positive the moment any
+ * test visits Feiten & cijfers (see the test below — none did before this).
+ * resourceType() over a path/extension exclusion (e.g. matching `.png`)
+ * because it reflects *how* the browser is using the response rather than
+ * guessing from the URL shape: every real API call this app makes is a
+ * `fetch`/`xhr` resourceType, never `image`, so this narrowing cannot hide
+ * a genuine backend call that happens to have an image-shaped URL — it can
+ * only hide requests the browser itself decided were image loads.
  */
 const suspectRequests = new WeakMap<Page, string[]>();
 
@@ -59,6 +74,7 @@ function watchForBackendRequests(page: Page): void {
   const suspects: string[] = [];
   suspectRequests.set(page, suspects);
   page.on('request', (req) => {
+    if (req.resourceType() === 'image') return;
     const url = new URL(req.url());
     const offHost = url.hostname !== 'localhost' && url.hostname !== '127.0.0.1';
     const backendPath = /\/(?:pa|v1)\//.test(url.pathname);
@@ -87,6 +103,24 @@ test('the demo bar declares itself, and the landing view offers no Live toggle',
   // "no Live toggle anywhere" — one exists, in Dossierbeheer, and is checked
   // (hidden, not merely undiscovered by this test) below.
   await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
+});
+
+test('the page has one scrollbar, not two — DemoBar plus the cockpit fit exactly one viewport tall', async ({
+  page,
+}) => {
+  // dashboard-pa.css (vendored) hard-codes `.pac { height: 100vh }`, sound
+  // only when .pac is the only thing on the page. DemoBar renders above it
+  // here, so without demo-overrides.css's flex-layout override the combined
+  // height exceeds the viewport and produces a second, outer scrollbar on
+  // top of .pac-main's own internal one — the double-scrollbar the human
+  // partner reported comparing this demo to the live cockpit. Real-DOM
+  // proof, not a source-text guess: demo-overrides.test.ts checks the rules
+  // exist; this checks they actually win the cascade in a real browser.
+  const html = await page.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+  }));
+  expect(html.scrollHeight).toBeLessThanOrEqual(html.clientHeight);
 });
 
 test('Beheer shows nine sections and no IOU or Hulpmiddelen', async ({ page }) => {
@@ -230,6 +264,33 @@ test('the page issues no request to any backend', async ({ page }) => {
     .click({ timeout: 5_000 })
     .catch(() => {});
   await page.waitForTimeout(1000);
+
+  expect(suspectRequests.get(page)).toEqual([]);
+});
+
+test('Feiten & cijfers renders its monitor icons and issues no backend request', async ({
+  page,
+}) => {
+  // The interaction the vendored-assets fix (this task) is actually for:
+  // FeitenCijfers.tsx's <MonitorIcon> requests /pa/feiten-icons/*.png,
+  // which — before vendor-manifest.mjs grew a second, asset-vendoring root
+  // — 404'd on this app (the PNGs lived only in packages/frontend/public,
+  // never copied here), and matches the same `/pa|v1/` path shape the
+  // network guard above uses to catch a real backend call. This test
+  // exercises the real DOM (an actual <img>, actually loaded) rather than
+  // reasoning about it from the file list, and doubles as proof the guard's
+  // image-resourceType narrowing doesn't let a real backend call slip past
+  // — no visible mock/network failure and the suspects list is still empty.
+  await page.getByRole('button', { name: 'Monitoring', exact: true }).click();
+  await railItem(page, 'Feiten & cijfers').click();
+
+  await expect(page.getByRole('heading', { name: 'Feiten & cijfers' })).toBeVisible();
+
+  const icon = page.locator('.pac-feit-img').first();
+  await expect(icon).toBeVisible();
+  await expect(icon).toHaveJSProperty('complete', true);
+  const naturalWidth = await icon.evaluate((img: HTMLImageElement) => img.naturalWidth);
+  expect(naturalWidth).toBeGreaterThan(0);
 
   expect(suspectRequests.get(page)).toEqual([]);
 });

@@ -1,9 +1,13 @@
 /**
  * Demo-owned overrides of vendored PA-Cockpit chrome.
  *
- * Not demo furniture (see demo-bar.css for that) — this file exists purely
- * to suppress one specific piece of vendored UI that must not be reachable
- * on a public, mock-only demo: Dossierbeheer's own "Zet vlag om naar live →"
+ * Not demo furniture (see demo-bar.css for that) — this file holds CSS that
+ * has to win against the vendored stylesheets but cannot be added to them
+ * (vendored files are never edited, see src/vendor/README.md). Two rules,
+ * two unrelated reasons; each is documented at its own declaration below.
+ *
+ * The first suppresses one specific piece of vendored UI that must not be
+ * reachable on a public, mock-only demo: Dossierbeheer's own "Zet vlag om naar live →"
  * / "↩ Terug naar mock" button (src/vendor/components/PADashboardV2/
  * dossierbeheer/Dossierbeheer.tsx). That button calls the vendored
  * component's own toggleMock(), which writes '0' to the same paV2.mock key
@@ -31,4 +35,56 @@
  */
 .pac-db-flag-actions .pac-db-abtn:not(.pac-db-flag-reset) {
   display: none;
+}
+
+/**
+ * Single-scrollbar layout fix.
+ *
+ * dashboard-pa.css (vendored) sets `.pac { height: 100vh; ... }`. In the
+ * real cockpit `.pac` is the only thing on the page, so 100vh exactly fills
+ * the viewport and the sole scroll region is `.pac-main`'s own
+ * `overflow-y: auto`. Here, App.tsx renders `<DemoBar />` (the
+ * `.plato-bar` header, ~46px) as a sibling ABOVE `.pac`, so total content
+ * height is bar-height + 100vh — taller than the viewport. That produces a
+ * *second*, outer scrollbar on the page (html/body) on top of `.pac-main`'s
+ * inner one, which is the double-scrollbar the human partner reported.
+ * `body { margin: 0 }` in the vendored index.css does not touch this: it
+ * removes an 8px margin, not the ~46px bar pushing `.pac` below the fold.
+ * Confirmed empirically before this fix: document.documentElement.
+ * scrollHeight (846px) > .clientHeight (800px) at an 800px viewport, with
+ * .plato-bar measuring ~46px — the gap the bar adds, byte-for-byte.
+ *
+ * Fix: turn #root into a column flexbox capped at 100vh, let `.plato-bar`
+ * take its natural (`flex-shrink: 0`) height, and let `.pac` take the rest
+ * instead of hard-coding its own 100vh. `min-height: 0` on the flex item is
+ * required — without it, a flex item's default `min-height: auto` refuses
+ * to shrink below its content's height, which would defeat `flex: 1` here
+ * exactly as `.pac-main`'s own pre-existing `min-height: 0` (dashboard-pa.css)
+ * already documents needing for the same reason one level down.
+ *
+ * No !important: `.pac`'s own `height` and `#root`'s new `display`/`height`
+ * are both plain, equal-or-lower-specificity selectors; this file loads
+ * after dashboard-pa.css (see App.tsx's import order — PADashboardV2, which
+ * pulls in dashboard-pa.css, is imported before this file), so the cascade
+ * alone decides the winner.
+ */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+.plato-bar {
+  flex-shrink: 0;
+}
+
+.pac {
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
 }

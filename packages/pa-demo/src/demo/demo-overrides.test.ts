@@ -41,4 +41,18 @@ describe('demo-overrides.css', () => {
     // reset button, which must stay visible and clickable.
     expect(css).not.toMatch(/\.pac-db-abtn\s*\{[^}]*display:\s*none/);
   });
+
+  it('lets .pac take the remaining flex space instead of its own hard-coded 100vh', () => {
+    // .pac { height: 100vh } (vendored dashboard-pa.css) assumes .pac is the
+    // only thing on the page. Here DemoBar sits above it, so without this
+    // override the combined height exceeds the viewport and produces a
+    // second, outer scrollbar on top of .pac-main's own internal one — the
+    // double-scrollbar the human partner reported (see this rule's own
+    // comment for the measured before/after numbers). Source-text guard
+    // only, same caveat as the rest of this file: it cannot confirm the
+    // rule wins the cascade in a real browser — see plato-demo.spec.ts's
+    // "no outer scrollbar" test for that proof.
+    expect(css).toMatch(/#root\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(/\.pac\s*\{[^}]*height:\s*auto/);
+  });
 });
