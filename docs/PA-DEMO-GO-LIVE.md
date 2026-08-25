@@ -86,6 +86,29 @@ reachable on its `*.azurestaticapps.net` hostname afterwards — useful, because
 lets you verify a deploy before pointing the domain at it, keeping "does the
 pipeline work" and "does DNS resolve" as separate questions.
 
+## 3b. The social card, before the first PROD deploy
+
+`packages/pa-demo/public/og-pa-demo.png` is the Open Graph card. Its _URLs_ are
+per-environment automatically — `index.html` is authored against the production
+origin and `vite.config.ts`'s `transformIndexHtml` plugin rewrites `og:url` and
+`og:image` to the origin being built for (`scripts/social-card-origin.ts`,
+covered by unit tests and by an E2E test that compares them against the run's own
+base origin).
+
+**The image is not.** The shipped PNG has acceptance baked into its pixels: an
+`ACCEPTATIEOMGEVING` badge and `acc.plato.open-regels.nl` in its footer. Deploying
+it to production unchanged yields a card reading ACC while `og:url` reads PROD.
+
+- [ ] Re-capture the production card before the first PROD deploy. Two edits in
+      `docs/pa-demo-social-handoff/reference/social-card-pa-demo.html` — drop the
+      `<p class="badge">` and change the `<span class="url">` to
+      `plato.open-regels.nl` — then capture `#card` at exactly 1× (1200×630) and
+      replace `packages/pa-demo/public/og-pa-demo.png`. Full instructions in that
+      folder's `README.md`.
+
+Leave `Mockdata · geen productiegegevens` on the card. It is true on production
+too — pa-demo is mock-only by construction on every environment (§5).
+
 ## 4. Workflows
 
 | Workflow                 | Fires on                               | Deploys                    |
@@ -163,8 +186,9 @@ Keycloak needed, unlike every other suite in this repo:
       E2E_BASE_URL=https://acc.plato.open-regels.nl \
         npm run test:e2e --workspace=@ronl/pa-demo
 
-That runs the same nine tests against the real domain, including the no-backend
-network guard and the hidden-toggle assertion. Prefer it to a manual smoke test.
+That runs the same eleven tests against the real domain, including the
+no-backend network guard, the hidden-toggle assertions and the social card's
+origin check. Prefer it to a manual smoke test.
 
 Quick manual checks that catch the common deploy faults:
 
@@ -174,6 +198,10 @@ Quick manual checks that catch the common deploy faults:
       static assets deployed.
 - [ ] The response carries `content-security-policy: … connect-src 'self' …`.
 - [ ] Beheer shows **nine** sections, with no IOU group and no Hulpmiddelen.
+- [ ] Paste the site URL into a link-preview validator (or Slack) and confirm the
+      card renders. The E2E test proves `og:image` resolves to a real PNG on this
+      origin; only a scraper proves the preview itself composes. On ACC the card
+      should read `ACCEPTATIEOMGEVING` — on PROD it must not (§3b).
 
 Note that a 404-shaped URL returns **200 serving the SPA shell**, because `.json`
 and most extensions are not in `navigationFallback`'s exclude list. Check the

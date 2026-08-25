@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { originForMode, rewriteSocialCardOrigin } from './scripts/social-card-origin';
 
 // Stamped onto the mock demo store's persisted state, so shipping a release
 // with changed fixtures resets every visitor instead of leaving them on a
@@ -9,8 +10,21 @@ import react from '@vitejs/plugin-react';
 const pkgVersion = (createRequire(import.meta.url)('./package.json') as { version: string })
   .version;
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    react(),
+    {
+      // index.html is authored against the production origin (see the comment
+      // there). Rewrite it to whatever origin this build is for, so an ACC
+      // deploy's link previews do not point at a domain that is not live yet.
+      // public-site does the same thing in its prerender step; pa-demo has no
+      // prerender, so it happens here.
+      name: 'pa-demo-social-card-origin',
+      transformIndexHtml(html: string) {
+        return rewriteSocialCardOrigin(html, originForMode(mode));
+      },
+    },
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(pkgVersion),
   },
@@ -99,4 +113,4 @@ export default defineConfig({
       ],
     },
   },
-});
+}));

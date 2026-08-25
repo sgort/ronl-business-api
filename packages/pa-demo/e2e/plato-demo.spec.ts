@@ -177,6 +177,32 @@ test('the landing view carries no disclaimer and offers no Live toggle', async (
   await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
 });
 
+test('the social card advertises this deployment, not another one', async ({ page, baseURL }) => {
+  // index.html is authored against the production origin and rewritten at build
+  // time by vite.config.ts's transformIndexHtml plugin. The pure rewrite is unit
+  // tested in scripts/social-card-origin.test.ts; this covers the wiring, which
+  // unit tests cannot reach — a plugin that silently stopped running would leave
+  // every assertion there passing while ACC shipped production URLs.
+  //
+  // Compared against the run's own base origin rather than a hardcoded host, so
+  // the same assertion holds on localhost, on acc.plato and later on plato —
+  // same reasoning as the backend-request guard further down this file.
+  expect(baseURL, 'baseURL is required but was undefined').toBeTruthy();
+  const ownOrigin = new URL(baseURL!).origin;
+
+  const ogUrl = await page.locator('meta[property="og:url"]').getAttribute('content');
+  const ogImage = await page.locator('meta[property="og:image"]').getAttribute('content');
+
+  expect(new URL(ogUrl!).origin).toBe(ownOrigin);
+  expect(new URL(ogImage!).origin).toBe(ownOrigin);
+
+  // And the image is a real file, not the SPA shell handed back by
+  // navigationFallback — a 200 alone would not tell those apart.
+  const res = await page.request.get(ogImage!);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['content-type']).toContain('image/png');
+});
+
 test('the floating assistant toggle never renders, and clicking cannot strand it', async ({
   page,
 }) => {

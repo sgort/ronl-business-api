@@ -11,9 +11,8 @@ const configPath = join(
   'public',
   'staticwebapp.config.json'
 );
-const csp: string = JSON.parse(readFileSync(configPath, 'utf-8')).globalHeaders[
-  'Content-Security-Policy'
-];
+const swaConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+const csp: string = swaConfig.globalHeaders['Content-Security-Policy'];
 
 function cspDirective(name: string): string[] {
   const part = csp
@@ -42,5 +41,19 @@ describe('pa-demo Content-Security-Policy', () => {
 
   it('refuses to be framed', () => {
     expect(cspDirective('frame-ancestors')).toEqual(["'none'"]);
+  });
+});
+
+describe('pa-demo navigationFallback', () => {
+  it('serves .png as a real file rather than rewriting it to the SPA shell', () => {
+    // The social card lives at /og-pa-demo.png. Without this exclusion the
+    // navigationFallback rewrites it to index.html, and the scraper gets a
+    // 200 with an HTML body where it expected an image — no error anywhere,
+    // just a link preview with no picture. Proven once already on this site:
+    // a request for a nonexistent .json returned 200 serving the SPA shell,
+    // which briefly looked like a file leak.
+    const exclude: string[] = swaConfig.navigationFallback.exclude;
+
+    expect(exclude.some((p) => /\bpng\b/.test(p))).toBe(true);
   });
 });
