@@ -3,7 +3,6 @@
 declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
-  readonly VITE_SITE_URL?: string;
   readonly VITE_PA_DOSSIERS_MOCK?: string;
   readonly VITE_PA_SIGNALS_MOCK?: string;
   readonly VITE_PA_AGENDA_MOCK?: string;
