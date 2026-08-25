@@ -45,7 +45,8 @@ so the reversal is visible rather than silently rewritten into the history.
    backend hostnames and internal engineering detail on a public page. It
    was replaced with a curated executive summary of the 25 CalVer releases,
    distilled into 8 themed entries — corrected in
-   [Decisions](#decisions) and [Beheer — the nine sections](#beheer--the-nine-sections).
+   [Decisions](#decisions) and [Package shape](#package-shape), where
+   `changelog-data.filtered.ts` was added to the demo-owned tree.
 3. **Dossiers are session-scoped, not persisted.** The
    [Data flow and state](#data-flow-and-state) section implied both mock
    stores persist across a reload. `mock-demo.store.ts` does; `dossierbeheer.api.ts`
