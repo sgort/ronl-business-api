@@ -144,9 +144,11 @@ packages/pa-demo/src/
 item 4.
 
 Dependencies: `react`, `react-dom`, `react-router-dom`, `axios` (imported by
-`pa.api.ts`, though no request is ever issued), and the real `@ronl/shared`
-workspace package — already a published boundary, so it is depended on rather
-than vendored.
+`pa.api.ts`, though no request is ever issued), `react-markdown`,
+`remark-gfm` and `rehype-sanitize` (imported by the vendored `MdEditor.tsx`
+and `Issuekaart.tsx` to render and sanitise dossier markdown), and the real
+`@ronl/shared` workspace package — already a published boundary, so it is
+depended on rather than vendored.
 
 ### Vendoring rules
 
