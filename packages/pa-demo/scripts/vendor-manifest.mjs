@@ -73,3 +73,47 @@ export const VENDORED_FILES = [
 
 export const ORIGIN_ROOT = '../frontend/src';
 export const VENDOR_ROOT = './src/vendor';
+
+/**
+ * A second vendored root: static assets from packages/frontend/public that
+ * a vendored src/ file references by a hard-coded absolute path rather than
+ * an import — so a file-by-file manifest walked from src/ (above) can never
+ * discover them by following imports. FeitenCijfers.tsx (vendored) sets
+ * `ICON_BASE = '/pa/feiten-icons/'` and reads tenants.json via `fetch`
+ * (services/tenant.ts, not vendored, but src/demo/shims/tenant.ts bakes its
+ * Flevoland theme values from this same file — see that shim's header).
+ *
+ * Deliberately absent from THIS LIST: timeline-config.json. It exists in
+ * packages/frontend/public but is fetched only by packages/frontend/src/
+ * pages/Dashboard.tsx (`fetch('/timeline-config.json')`), which is not part
+ * of the PA Cockpit and has no vendored counterpart here — nothing in
+ * pa-demo ever requests it. Confirmed by grepping packages/frontend/src for
+ * 'timeline-config': Dashboard.tsx is the only hit. Vendoring it anyway
+ * "just in case" would be exactly the one-off, undiscoverable copy this
+ * second root exists to avoid needing.
+ *
+ * staticwebapp.config.json also lives in packages/frontend/public but is
+ * NOT listed here either — pa-demo owns its own copy at packages/pa-demo/
+ * public/staticwebapp.config.json (a different CSP: no Keycloak/API origins
+ * to allow), so it is deliberately never synced from frontend's.
+ */
+export const ASSET_FILES = [
+  'pa/feiten-icons/bredewelvaart.png',
+  'pa/feiten-icons/economischprogramma.png',
+  'pa/feiten-icons/inwonerspeiling.png',
+  'pa/feiten-icons/kennishub.png',
+  'pa/feiten-icons/klimaatenenergie.png',
+  'pa/feiten-icons/landschap.png',
+  'pa/feiten-icons/mobiliteitenruimte.png',
+  'pa/feiten-icons/omgevingsvisie.png',
+  'pa/feiten-icons/positievegezondheid.png',
+  'pa/feiten-icons/regionaleenergiestrategie.png',
+  'pa/feiten-icons/voorzieningenmonitor.png',
+  'pa/feiten-icons/waterprogramma.png',
+  'pa/feiten-icons/werkgelegenheidsonderzoek.png',
+  'pa/feiten-icons/wonen.png',
+  'tenants.json',
+];
+
+export const ASSET_ORIGIN_ROOT = '../frontend/public';
+export const ASSET_VENDOR_ROOT = './public';
