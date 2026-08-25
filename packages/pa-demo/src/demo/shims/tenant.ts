@@ -47,7 +47,12 @@ const FLEVOLAND: TenantConfig = {
   organisationType: 'province',
 };
 
-// Verbatim copy of tenants.json -> tenants.flevoland.theme.
+// Verbatim copy of tenants.json -> tenants.flevoland.theme. Hand-copied, not
+// auto-applied from the vendored file (see the file header for why); a
+// divergence can't ship silently — tenant.test.ts cross-checks this literal
+// against public/tenants.json, and vendor:check independently flags any
+// upstream change to that file. Auto-applying from the fetched/imported JSON
+// instead remains the unimplemented alternative, tracked as a follow-up.
 const FLEVOLAND_THEME = {
   primary: '#0046ad',
   primaryDark: '#134F7D',
