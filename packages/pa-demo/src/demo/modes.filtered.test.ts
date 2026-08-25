@@ -86,7 +86,6 @@ describe('filtered modes', () => {
     // section — a typo would silently drop a page rather than fail.
     const real = new Set(allStaticSections().map((s) => s.id));
     for (const id of ALLOWED_SECTION_IDS) {
-      if (id === 'dossiers') continue; // data-driven, not a static section
       // sort-kompas/sort-momentum are legitimately allow-listed for the
       // rail's sort-order group but are deliberately excluded from
       // allStaticSections() — they set a sort, not a navigable section — so

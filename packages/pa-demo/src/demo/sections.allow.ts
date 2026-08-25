@@ -18,8 +18,6 @@ export const ALLOWED_SECTION_IDS: readonly string[] = [
   'vandaag',
   'sort-kompas',
   'sort-momentum',
-  // Dossiers (data-driven: the id is a dossier id, not a static section)
-  'dossiers',
   // Monitoring
   'agenda',
   'feiten',
