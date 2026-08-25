@@ -79,9 +79,18 @@ export const VENDOR_ROOT = './src/vendor';
  * a vendored src/ file references by a hard-coded absolute path rather than
  * an import — so a file-by-file manifest walked from src/ (above) can never
  * discover them by following imports. FeitenCijfers.tsx (vendored) sets
- * `ICON_BASE = '/pa/feiten-icons/'` and reads tenants.json via `fetch`
- * (services/tenant.ts, not vendored, but src/demo/shims/tenant.ts bakes its
- * Flevoland theme values from this same file — see that shim's header).
+ * `ICON_BASE = '/pa/feiten-icons/'`.
+ *
+ * Deliberately absent from THIS LIST: tenants.json. It used to be vendored
+ * here purely as a drift oracle for src/demo/shims/tenant.ts's hand-copied
+ * FLEVOLAND_THEME literal — nothing in pa-demo ever fetches it at runtime
+ * (services/tenant.ts, the module that would, is shimmed rather than
+ * vendored). Vendoring it anyway shipped 18 KB of internal multi-tenant
+ * config — real contact details, non-public sections — to a public site for
+ * no runtime reason. tenant.test.ts now reads
+ * packages/frontend/public/tenants.json directly instead, which is strictly
+ * better as an oracle too: it compares the literal against the actual
+ * source of truth rather than against a copy that itself needed checking.
  *
  * Deliberately absent from THIS LIST: timeline-config.json. It exists in
  * packages/frontend/public but is fetched only by packages/frontend/src/
@@ -112,7 +121,6 @@ export const ASSET_FILES = [
   'pa/feiten-icons/waterprogramma.png',
   'pa/feiten-icons/werkgelegenheidsonderzoek.png',
   'pa/feiten-icons/wonen.png',
-  'tenants.json',
 ];
 
 export const ASSET_ORIGIN_ROOT = '../frontend/public';

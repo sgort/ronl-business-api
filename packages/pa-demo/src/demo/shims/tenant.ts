@@ -18,18 +18,16 @@
  * :root custom property — reproduces what the real app does.
  *
  * FLEVOLAND_THEME below is copied verbatim from the `theme` key of the
- * flevoland entry in packages/frontend/public/tenants.json (now vendored to
- * packages/pa-demo/public/tenants.json and covered by vendor:check's asset
- * root — see scripts/vendor-manifest.mjs). It is a literal rather than a
- * fetch of that same file for the same offline-by-design reason the rest of
- * this shim is: plato issues no runtime data fetches (see e2e/
- * plato-demo.spec.ts's "no backend" test and playwright.config.ts's header),
- * and importing public/tenants.json as a JS module instead is not a safe
- * alternative — Vite explicitly does not process imports of files under
- * public/. A drift check aside, if tenants.json ever changes upstream,
- * vendor:check's asset-drift check flags the vendored tenants.json file
- * itself (byte comparison), which is the prompt to re-copy the values below
- * by hand; there is no silent way for the two to diverge undetected.
+ * flevoland entry in packages/frontend/public/tenants.json. It is a literal
+ * rather than a fetch of that file for the same offline-by-design reason
+ * the rest of this shim is: plato issues no runtime data fetches (see e2e/
+ * plato-demo.spec.ts's "no backend" test and playwright.config.ts's header).
+ * tenants.json itself is deliberately NOT vendored (it used to be, purely as
+ * a local drift oracle for the literal below — see scripts/vendor-manifest.mjs
+ * for why that shipped 18 KB of internal multi-tenant config to a public
+ * site for no runtime reason and was removed). tenant.test.ts instead reads
+ * packages/frontend/public/tenants.json directly and cross-checks it against
+ * FLEVOLAND_THEME, so a divergence still can't ship silently.
  *
  * The vendored shell (pages/PADashboardV2.tsx) chains `.then()` off both
  * initializeTenantTheme() and loadTenantConfigs(), so both must resolve to
@@ -48,11 +46,11 @@ const FLEVOLAND: TenantConfig = {
 };
 
 // Verbatim copy of tenants.json -> tenants.flevoland.theme. Hand-copied, not
-// auto-applied from the vendored file (see the file header for why); a
+// auto-applied from the source file (see the file header for why); a
 // divergence can't ship silently — tenant.test.ts cross-checks this literal
-// against public/tenants.json, and vendor:check independently flags any
-// upstream change to that file. Auto-applying from the fetched/imported JSON
-// instead remains the unimplemented alternative, tracked as a follow-up.
+// against packages/frontend/public/tenants.json directly. Auto-applying from
+// a fetched/imported JSON instead remains the unimplemented alternative,
+// tracked as a follow-up.
 const FLEVOLAND_THEME = {
   primary: '#0046ad',
   primaryDark: '#134F7D',
@@ -76,7 +74,7 @@ export function loadTenantConfigs(): Promise<TenantConfig[]> {
 export function initializeTenantTheme(_municipality?: string): Promise<boolean> {
   // Same setProperty sequence as the real applyTenantTheme() — see the file
   // header for why a CSS-only fallback isn't enough and why this is a
-  // literal rather than a fetch of the vendored tenants.json.
+  // literal rather than a fetch of tenants.json.
   const root = document.documentElement;
   root.style.setProperty('--color-primary', FLEVOLAND_THEME.primary);
   root.style.setProperty('--color-primary-dark', FLEVOLAND_THEME.primaryDark);
