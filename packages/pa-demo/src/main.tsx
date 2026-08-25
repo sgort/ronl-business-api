@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { forceMockMode } from './main-helpers';
 import App from './App';
+import './vendor/index.css';
 
 // Before anything imports pa.api and reads the flag.
 forceMockMode();

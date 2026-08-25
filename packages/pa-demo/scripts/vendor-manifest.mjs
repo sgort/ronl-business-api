@@ -30,6 +30,7 @@
  * apply here and why an ambient-module alternative was rejected.
  */
 export const VENDORED_FILES = [
+  'index.css',
   'services/pa.api.ts',
   'services/dossierbeheer.api.ts',
   'services/mock-demo.store.ts',
