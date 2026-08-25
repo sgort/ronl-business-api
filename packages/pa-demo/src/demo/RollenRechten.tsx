@@ -30,7 +30,13 @@ export default function RollenRechten() {
         welke rechten die geeft in Dossierbeheer — de knoppen daar volgen automatisch mee.
       </p>
 
-      <span className="pac-db-roleseg">
+      {/* data-testid, not just the shared .pac-db-roleseg class: Dossierbeheer's
+          own (disabled, reflective) role bar renders the identical
+          .pac-db-roleseg > .pac-db-roleseg-btn structure, and plain-class
+          selectors can't tell the two apart. This is the E2E hook that lets
+          the demo's actual switcher be targeted unambiguously — see
+          plato-demo.spec.ts's rollenRechtenRole(). */}
+      <span className="pac-db-roleseg" data-testid="rollen-roleseg">
         {DEMO_ROLE_OPTIONS.map((opt) => (
           <button
             key={opt.id}

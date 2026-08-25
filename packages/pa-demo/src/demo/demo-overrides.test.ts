@@ -44,14 +44,19 @@ describe('demo-overrides.css', () => {
 
   it('lets .pac take the remaining flex space instead of its own hard-coded 100vh', () => {
     // .pac { height: 100vh } (vendored dashboard-pa.css) assumes .pac is the
-    // only thing on the page. Here DemoBar sits above it, so without this
-    // override the combined height exceeds the viewport and produces a
-    // second, outer scrollbar on top of .pac-main's own internal one — the
-    // double-scrollbar the human partner reported (see this rule's own
-    // comment for the measured before/after numbers). Source-text guard
-    // only, same caveat as the rest of this file: it cannot confirm the
-    // rule wins the cascade in a real browser — see plato-demo.spec.ts's
-    // "no outer scrollbar" test for that proof.
+    // only thing on the page. That assumption held again as of Task 15,
+    // which deleted the DemoBar header that used to sit above .pac as a
+    // sibling (the double-scrollbar the human partner originally reported
+    // came from that sibling pushing total content past the viewport). This
+    // rule is kept anyway rather than reverted to the vendored default: a
+    // lone flex child with flex: 1 1 auto in a height: 100% column fills
+    // that column exactly, so the override is harmless and produces the
+    // same single scrollbar .pac's own height: 100vh would — see this
+    // rule's own comment in demo-overrides.css for the re-measured numbers.
+    // Source-text guard only, same caveat as the rest of this file: it
+    // cannot confirm the rule wins the cascade in a real browser — see
+    // plato-demo.spec.ts's "the page has one scrollbar, not two" test for
+    // that proof.
     expect(css).toMatch(/#root\s*\{[^}]*display:\s*flex/);
     expect(css).toMatch(/\.pac\s*\{[^}]*height:\s*auto/);
   });

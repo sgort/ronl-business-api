@@ -39,14 +39,18 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 /** Rollen & rechten's own role buttons — this demo's actual, clickable role
- * switcher (src/demo/RollenRechten.tsx). Scoped to `.pac-db-roleseg` outside
- * `.pac-db-rolebar` so it never matches Dossierbeheer's same-labelled but
- * disabled, purely-reflective role readout (same button text, different
- * element, both role "button" — see DemoRoleContext.tsx / Dossierbeheer.tsx).
- * The two are never mounted at once (DemoSectionRouter renders one section
- * at a time), but the narrower scope documents the distinction regardless. */
+ * switcher (src/demo/RollenRechten.tsx). Scoped to the `data-testid` its
+ * wrapper carries for exactly this reason, not to the shared
+ * `.pac-db-roleseg-btn` / `.pac-db-roleseg` classes: Dossierbeheer's
+ * disabled, purely-reflective role readout renders the identical
+ * `.pac-db-roleseg > .pac-db-roleseg-btn` structure (same button text,
+ * different element, both role "button" — see DemoRoleContext.tsx /
+ * Dossierbeheer.tsx), so a plain-class locator can't tell the two apart on
+ * its own. The two are never mounted at once (DemoSectionRouter renders one
+ * section at a time), but this scoping doesn't rely on that invariant —
+ * it's a real container match, not a coincidence of what's on screen. */
 function rollenRechtenRole(page: Page, label: string) {
-  return page.locator('.pac-db-roleseg-btn', { hasText: label });
+  return page.getByTestId('rollen-roleseg').locator('.pac-db-roleseg-btn', { hasText: label });
 }
 
 /** Dossierbeheer's own role bar — rendered `disabled`, purely reflective of
