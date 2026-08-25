@@ -5,7 +5,8 @@ import DemoSectionRouter from './DemoSectionRouter';
 import { DROPPED_SECTION_IDS } from './sections.allow';
 import { getUser } from './shims/keycloak';
 import { getTenantConfig } from './shims/tenant';
-import { DemoRoleProvider, useDemoRole, type DemoRoleId } from './DemoRoleContext';
+import { DemoRoleProvider } from './DemoRoleContext';
+import { useDemoRole, type DemoRoleId } from './demo-role';
 
 // Each vendored section has its own test file in packages/frontend, so every
 // child is mocked one level below what the router itself consumes.

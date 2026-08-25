@@ -177,6 +177,37 @@ test('the landing view carries no disclaimer and offers no Live toggle', async (
   await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
 });
 
+test('the floating assistant toggle never renders, and clicking cannot strand it', async ({
+  page,
+}) => {
+  // PADashboardV2 (vendored) renders a fixed "✦ Vraag de assistent" button
+  // whenever `hasAccess && !dockOpen`, and the dock it opens is a null shim
+  // here — PADock is not vendored, because it pulls in real MCP/LLM calls.
+  // Clicking it therefore hid the button (it renders only while !dockOpen)
+  // and put nothing in its place, with the only onClose sitting inside the
+  // dock that rendered nothing. demo-overrides.css hides it.
+  //
+  // toBeHidden(), not toHaveCount(0): the button IS in the DOM — it is
+  // suppressed by a computed style that has to out-specify the vendored
+  // `.pac .pac-dock-toggle { display: flex }`. Counting elements would pass
+  // just as happily if the rule lost the cascade and the button were plainly
+  // visible, which is the exact regression worth catching.
+  const toggle = page.locator('.pac-dock-toggle');
+  await expect(toggle).toHaveCount(1);
+  await expect(toggle).toBeHidden();
+
+  // The trap was persistent, not just momentary: PADashboardV2 writes
+  // dockOpen to sessionStorage['paV2.dock.open'] on every change, so a
+  // visitor who tripped it stayed stranded for the rest of the session and a
+  // reload did not help. Seed that state directly and assert the page still
+  // comes up whole — this is what makes the CSS fix sufficient for visitors
+  // who already clicked, rather than needing the key cleared at boot.
+  await page.evaluate(() => sessionStorage.setItem('paV2.dock.open', '1'));
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Beheer', exact: true })).toBeVisible();
+  await expect(page.locator('.pac-dock-toggle')).toBeHidden();
+});
+
 test('the page has one scrollbar, not two', async ({ page }) => {
   // Historical context, not a live constraint any more: dashboard-pa.css
   // (vendored) hard-codes `.pac { height: 100vh }`, sound only when `.pac`

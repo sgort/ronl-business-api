@@ -91,3 +91,40 @@ body,
   min-height: 0;
   flex: 1 1 auto;
 }
+
+/**
+ * Suppresses the floating "✦ Vraag de assistent" button
+ * (src/vendor/pages/PADashboardV2.tsx, rendered when `hasAccess && !dockOpen`).
+ *
+ * It must not be reachable here because the dock it opens does not exist in
+ * this build: PADock is deliberately not vendored (it imports McpChatSection,
+ * which pulls in businessApi and would fire real MCP/LLM calls from a public
+ * page), so src/demo/shims/PADock.tsx stands in for it and returns null.
+ *
+ * That made the button a one-way trap rather than merely a dead control.
+ * Clicking it sets dockOpen = true, which (a) hides the button, since it
+ * renders only while !dockOpen, and (b) renders the null shim, so nothing
+ * appears in its place. The only onClose that could set dockOpen back to
+ * false lives inside the dock that rendered nothing, so there is no way back.
+ * PADashboardV2 also persists the flag — sessionStorage['paV2.dock.open'],
+ * written in an effect on every change — so the trap survives a reload for
+ * the rest of the browser session. That is exactly the reported symptom: the
+ * button vanished on click and did not return after a hard refresh, but was
+ * back in a private window, which starts a fresh sessionStorage.
+ *
+ * Hiding it in CSS rather than clearing the storage key is the fix that holds:
+ * a visitor who already tripped it keeps dockOpen = true, and this rule makes
+ * that state indistinguishable from the intended one. `display: none` also
+ * removes the button from the tab order, so it is not reachable by keyboard
+ * either.
+ *
+ * No !important, but this rule does need `.pac` to match the vendored
+ * declaration's specificity: dashboard-pa.css:1122 sets `display: flex` on
+ * `.pac .pac-dock-toggle` (0,2,0), so a bare `.pac-dock-toggle` (0,1,0) would
+ * lose outright. Equal specificity plus this file loading later (App.tsx
+ * imports PADashboardV2, and with it dashboard-pa.css, before this file)
+ * decides it on cascade order.
+ */
+.pac .pac-dock-toggle {
+  display: none;
+}

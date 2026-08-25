@@ -10,39 +10,20 @@
  * It is implemented by rewriting the synthetic token rather than by patching
  * components, so the vendored permission UI — caps chips, the 🔒 hints in
  * DossierEditor, every disabled action — follows on its own.
+ *
+ * This module deliberately exports the provider and nothing else: the role
+ * vocabulary, the context object and `useDemoRole` live in ./demo-role, so
+ * that Fast Refresh can swap this component without re-running them. See that
+ * file's header for why the split exists.
  */
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   deriveDossierRole,
   type DossierRole,
 } from '../vendor/pages/public-affairs-v2/dossierbeheer.data';
 import { getUser, setDemoRoles } from './shims/keycloak';
-
-export type DemoRoleId = 'auteur' | 'redacteur' | 'beheerder' | 'geen';
-
-/** Keycloak role each position grants; `geen` grants none. */
-const KEYCLOAK_ROLE: Record<DemoRoleId, string | null> = {
-  auteur: 'pa-author',
-  redacteur: 'pa-editor',
-  beheerder: 'pa-admin',
-  geen: null,
-};
-
-export const DEMO_ROLE_OPTIONS: { id: DemoRoleId; label: string }[] = [
-  { id: 'auteur', label: 'Auteur' },
-  { id: 'redacteur', label: 'Redacteur' },
-  { id: 'beheerder', label: 'Beheerder' },
-  { id: 'geen', label: 'Geen dossierrol' },
-];
-
-interface DemoRoleValue {
-  roleId: DemoRoleId;
-  setRoleId: (id: DemoRoleId) => void;
-  role: DossierRole;
-}
-
-const DemoRoleCtx = createContext<DemoRoleValue | null>(null);
+import { DemoRoleCtx, KEYCLOAK_ROLE, type DemoRoleId, type DemoRoleValue } from './demo-role';
 
 export function DemoRoleProvider({ children }: { children: ReactNode }) {
   // Beheerder first: a visitor should see the whole product before being
@@ -78,10 +59,4 @@ export function DemoRoleProvider({ children }: { children: ReactNode }) {
   );
 
   return <DemoRoleCtx.Provider value={value}>{children}</DemoRoleCtx.Provider>;
-}
-
-export function useDemoRole(): DemoRoleValue {
-  const ctx = useContext(DemoRoleCtx);
-  if (!ctx) throw new Error('useDemoRole must be used inside DemoRoleProvider');
-  return ctx;
 }

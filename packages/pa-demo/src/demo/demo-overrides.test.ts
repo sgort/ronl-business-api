@@ -42,6 +42,17 @@ describe('demo-overrides.css', () => {
     expect(css).not.toMatch(/\.pac-db-abtn\s*\{[^}]*display:\s*none/);
   });
 
+  it('hides the floating assistant toggle, at a specificity that can beat the vendored rule', () => {
+    // The button opens a dock that is a null shim here (PADock is not
+    // vendored), and clicking it persists dockOpen to sessionStorage with no
+    // reachable control to unset it — so it must never render. The `.pac `
+    // prefix is load-bearing, not decoration: dashboard-pa.css sets
+    // `display: flex` on `.pac .pac-dock-toggle`, so a bare `.pac-dock-toggle`
+    // selector would lose the specificity fight (0,1,0) vs (0,2,0) and the
+    // button would still be visible with this file's text otherwise intact.
+    expect(css).toMatch(/\.pac\s+\.pac-dock-toggle\s*\{[^}]*display:\s*none/);
+  });
+
   it('lets .pac take the remaining flex space instead of its own hard-coded 100vh', () => {
     // .pac { height: 100vh } (vendored dashboard-pa.css) assumes .pac is the
     // only thing on the page. That assumption held again as of Task 15,

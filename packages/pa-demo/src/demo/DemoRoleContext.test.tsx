@@ -1,12 +1,8 @@
 import { StrictMode } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import {
-  DemoRoleProvider,
-  useDemoRole,
-  DEMO_ROLE_OPTIONS,
-  type DemoRoleId,
-} from './DemoRoleContext';
+import { DemoRoleProvider } from './DemoRoleContext';
+import { useDemoRole, DEMO_ROLE_OPTIONS, type DemoRoleId } from './demo-role';
 import { getUser } from './shims/keycloak';
 
 let setRole: (id: DemoRoleId) => void;

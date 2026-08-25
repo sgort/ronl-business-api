@@ -16,7 +16,7 @@
  */
 import '../vendor/pages/public-affairs-v2/dossierbeheer.css';
 import { DB_ROLES, DB_CAPS } from '../vendor/pages/public-affairs-v2/dossierbeheer.data';
-import { DEMO_ROLE_OPTIONS, useDemoRole } from './DemoRoleContext';
+import { DEMO_ROLE_OPTIONS, useDemoRole } from './demo-role';
 
 export default function RollenRechten() {
   const { roleId, setRoleId, role } = useDemoRole();

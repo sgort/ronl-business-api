@@ -47,7 +47,7 @@ import BronnenSection from '../vendor/components/PADashboardV2/BronnenSection';
 import Dossierbeheer from '../vendor/components/PADashboardV2/dossierbeheer/Dossierbeheer';
 import Profiel from './Profiel';
 import RollenRechten from './RollenRechten';
-import { useDemoRole } from './DemoRoleContext';
+import { useDemoRole } from './demo-role';
 import { getUser } from './shims/keycloak';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
