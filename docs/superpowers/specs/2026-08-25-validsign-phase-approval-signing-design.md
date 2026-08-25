@@ -54,18 +54,34 @@ Everything below was read from the codebases and the running engine:
 - **The API key is the account key**, not a subaccount key.
 - Signers do **not** need a ValidSign account of their own.
 
-### Explicitly inferred, not yet verified
+### Verified by live probe
 
 ValidSign is the EU-branded OneSpan Sign platform — same 11.47 SDK versions,
-same documented auth scheme, and the
-`/api/packages/{id}/roles/{roleId}/signingUrl` endpoint appears in their own
-documentation. The **remaining** endpoint shape used in section D is inferred
-from OneSpan Sign's REST API and has **not** been verified against a live call.
+same documented auth scheme. Section D's endpoint shape was originally inferred
+from OneSpan Sign's REST API; a read-only
+`GET /api/packages?from=1&to=1` against production returned **HTTP 200** and
+confirmed it:
 
-A single read-only `GET /api/packages?from=1&to=1` will settle it, and should
-be run before section D is implemented. Because the key is the account key, it
-must also answer whether packages created via the API land under the
-`Provincie Flevoland` subaccount by default or need an explicit sender.
+- Envelope is `{ count, results }`, with working `from`/`to` pagination.
+- Packages carry `roles[].signers[]` — the role/signer split this design relies
+  on — plus `documents[].approvals[].fields[]`, the structure signature fields
+  are placed into, and a string `status` enum.
+
+Two findings from that probe change the design rather than merely confirm it:
+
+- **`createPackage` must set an explicit sender.** The account holds 12
+  packages and the sampled one belongs to a different colleague entirely.
+  Without an explicit sender, packages would be attributed to whichever default
+  owner the key resolves to, which is not necessarily the intended one.
+- **The API key is account-wide, not scoped.** It can enumerate — and act on —
+  every package in the Provincie Flevoland account, including colleagues'
+  signed contracts. See section F.
+
+**Still unverified:** the exact field-placement payload. `approvals` and
+`fields` were empty on the sampled `DRAFT` package, and reading a completed one
+would have meant reading a colleague's signed contract, which the probe
+deliberately did not do. Confirm it against the first package this integration
+creates itself.
 
 ## Decisions
 
@@ -206,6 +222,11 @@ getPackageStatus(packageId): Promise<PackageStatus>
 downloadSignedDocument(packageId, docId): Promise<Buffer>
 downloadEvidenceSummary(packageId): Promise<Buffer>
 ```
+
+`createPackage`'s input carries an **explicit sender**, never relying on the
+key's default owner — see "Verified by live probe". It also sets one role of
+signer type for the task claimant, and one signature field positioned from
+`RenderedPdf.signatureFields`.
 
 **The stub is a state machine**, `DRAFT → SENT → COMPLETED | DECLINED`, not
 canned responses — the E2E journey must be able to drive a signature to
@@ -370,6 +391,23 @@ The additions are conditional on `stubMode === false`.
 
 The key goes in App Settings, never into this repo's deploy scripts.
 
+**The API key is an account-wide credential, and must be handled as one.** The
+live probe established that it enumerates all 12 packages in the Provincie
+Flevoland account, including ones belonging to other senders. It is therefore
+not "a secret to keep out of logs" but a credential that grants read and write
+access across colleagues' signed contracts. Consequences:
+
+- Every package this integration creates sets an **explicit sender**, so RIP
+  approvals are never silently attributed to whoever the key defaults to.
+- The `VALIDSIGN_LIVE_TIERS` allowlist matters more than it did when it was
+  proposed only as quota protection: an accidental live call is an action taken
+  against the whole account, not a sandbox.
+- Long term, this integration should use a **dedicated integration sender**
+  rather than a personal account key. Reusing a person's key couples the
+  province's process approvals to one employee's account and gives the
+  application far more reach than it needs. Out of scope to build, but it
+  should not become permanent by default.
+
 ## Testing
 
 - Mocked-axios unit tests per service method; stub state-machine tests
@@ -396,7 +434,10 @@ The key goes in App Settings, never into this repo's deploy scripts.
    `VALIDSIGN_LIVE_TIERS=development`.
 3. Start one R2.1 instance, drive it to `Accorderen Projectplan 4`, sign once.
 4. Revert both env vars immediately.
-5. The ValidSign dashboard should move from 1/1 to 2/2 transactions.
+5. The signer's own ValidSign dashboard should move from 1/1 to 2/2
+   transactions. Note this is the **per-sender dashboard view**, not the
+   account total: the API reports 12 packages across the whole account, so the
+   account-wide count is not a usable before/after check.
 
 **Expect the callback never to arrive.** ValidSign's cloud cannot reach
 `localhost`, so completion will come from the **poller**, roughly one interval
@@ -434,9 +475,10 @@ today. No data migration, no code revert.
 1. **Blast radius of the Markdown conversion** — convert all three documents at
    once (deleting the `switch`), or `rip-pdp` only, keeping the switch for the
    other two and deleting it in a follow-up? Not yet decided.
-2. **Sender context.** The API key is the account key. Still to confirm by the
-   read-only probe: whether packages created via the API land under the
-   `Provincie Flevoland` subaccount by default, or need an explicit sender.
+2. ~~**Sender context.**~~ **Resolved by the live probe:** packages must carry
+   an explicit sender. The key is account-wide and the account holds packages
+   from multiple senders, so nothing may rely on a default. See "Verified by
+   live probe" and section F.
 3. **Branch coupling.** `feature/validsign-signing` currently carries E2E commit
    `3968122`, so ValidSign and the E2E improvement cannot land separately
    without a cherry-pick.
