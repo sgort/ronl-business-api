@@ -66,19 +66,33 @@ function railItem(page: Page, label: string) {
 }
 
 /**
- * Requests that look like they reached, or tried to reach, a backend — a
- * host other than localhost, or a same-origin path shaped like an API call.
+ * Requests that look like they reached, or tried to reach, a backend — an
+ * origin other than the app's own, or a same-origin path shaped like an API
+ * call.
  *
- * Flagging only an off-host request is not enough: VITE_API_URL is unset in
- * this demo, so a live-mode fetch builds `${undefined}/pa/agenda` — a
- * *relative* URL the browser resolves same-origin, to
- * http://localhost:5176/undefined/pa/agenda. That request never leaves
- * localhost, so an off-host-only check misses it entirely. A path that looks
- * like a backend call (contains /pa/ or /v1/, matching every real route this
- * app calls — see pa.api.ts / dossierbeheer.api.ts) is flagged regardless of
- * host, which is what actually catches that regression; the off-host check
+ * "The app's own origin" is `baseURL` (the fixture Playwright derives from
+ * playwright.config.ts's `use.baseURL`, which is always set — either
+ * `E2E_BASE_URL` when running post-deploy, e.g.
+ * https://acc.plato.open-regels.nl, or the local dev server otherwise), not
+ * a hardcoded `localhost`/`127.0.0.1` pair. Hardcoding it broke the moment
+ * this suite ran against a deployment: the app's own document, JS bundle and
+ * stylesheet are then served from that deployed origin, which is off-host by
+ * a literal-localhost check even though nothing left the app itself. Passed
+ * in explicitly by the caller rather than read from `page.url()` inside the
+ * listener, since the request that matters most (PaDataProvider's initial
+ * fetchAgenda, see below) can fire before the first navigation resolves.
+ *
+ * Flagging only an off-origin request is still not enough on its own:
+ * VITE_API_URL is unset in this demo, so a live-mode fetch builds
+ * `${undefined}/pa/agenda` — a *relative* URL the browser resolves
+ * same-origin, e.g. to http://localhost:5176/undefined/pa/agenda (or the
+ * deployed origin's equivalent). That request never leaves the app's own
+ * origin, so an origin-only check misses it entirely. A path that looks like
+ * a backend call (contains /pa/ or /v1/, matching every real route this app
+ * calls — see pa.api.ts / dossierbeheer.api.ts) is flagged regardless of
+ * origin, which is what actually catches that regression; the origin check
  * is kept alongside it since it still catches a differently-shaped defect (a
- * real external origin).
+ * request to a genuinely foreign host).
  *
  * Attached in beforeEach, before the first navigation, rather than inside
  * the "no backend" test itself: the one backend call this demo can make
@@ -104,20 +118,29 @@ function railItem(page: Page, label: string) {
  */
 const suspectRequests = new WeakMap<Page, string[]>();
 
-function watchForBackendRequests(page: Page): void {
+function watchForBackendRequests(page: Page, baseURL: string | undefined): void {
+  // baseURL comes from Playwright's own `baseURL` fixture, which mirrors
+  // playwright.config.ts's `use.baseURL` — itself always set (`liveTarget ??
+  // 'http://localhost:5176'`). It should never actually be undefined; failing
+  // loudly here beats silently falling back to a guessed origin and quietly
+  // disabling the origin half of the guard.
+  if (!baseURL) {
+    throw new Error('watchForBackendRequests: baseURL is required but was undefined');
+  }
+  const ownOrigin = new URL(baseURL).origin;
   const suspects: string[] = [];
   suspectRequests.set(page, suspects);
   page.on('request', (req) => {
     if (req.resourceType() === 'image') return;
     const url = new URL(req.url());
-    const offHost = url.hostname !== 'localhost' && url.hostname !== '127.0.0.1';
+    const offOrigin = url.origin !== ownOrigin;
     const backendPath = /\/(?:pa|v1)\//.test(url.pathname);
-    if (offHost || backendPath) suspects.push(req.url());
+    if (offOrigin || backendPath) suspects.push(req.url());
   });
 }
 
-test.beforeEach(async ({ page }) => {
-  watchForBackendRequests(page);
+test.beforeEach(async ({ page, baseURL }) => {
+  watchForBackendRequests(page, baseURL);
   // Dossierbeheer's "↺ Reset demodata" (resetDemo in Dossierbeheer.tsx) is
   // gated on a window.confirm() the old demo-bar reset never had — the bar
   // called resetMockDemoData()/resetMockDossiers() directly. Auto-accepting
