@@ -67,8 +67,8 @@ export const changelog: Changelog = {
           items: [
             'De limiet op API-verzoeken is verhoogd naar wat een normale werksessie daadwerkelijk verbruikt — voorheen kon gewoon doorklikken al een foutieve "kon dossiers niet laden"-melding opleveren.',
             'Een dossier verwijderen ruimt nu ook de bijbehorende signalen en zoekcriteria op, in plaats van ze als wees achter te laten.',
-            'Live werken toont voortaan duidelijk wanneer iets nog in quarantaine staat en wanneer verzoeken worden afgeremd; een nieuw dossier verschijnt direct op het overzicht in plaats van pas na een herlaadactie.',
-            'Het volledige traject van dossier aanmaken tot live publiceren wordt nu end-to-end automatisch getest.',
+            'Een nieuw dossier verschijnt voortaan direct op het overzicht zodra het is aangemaakt, in plaats van pas zichtbaar te worden na een herlaadactie.',
+            'Het aanmaken van een dossier en het toevoegen van een zoekcriterium in live werken wordt nu end-to-end automatisch getest, inclusief dat beide een herlaadactie overleven.',
             'De demo-omgeving draait voortaan op dezelfde onderliggende code als de live omgeving, zodat wat u hier ziet ook is wat productie doet.',
           ],
         },
@@ -91,7 +91,7 @@ export const changelog: Changelog = {
             'Voorbeelddata verschijnt niet langer stiekem in een live omgeving — een lege live cockpit is nu een eerlijke, verwachte uitkomst in plaats van een storing.',
             'Moties van hetzelfde Europees Parlement-fractieoverleg worden gebundeld tot één signaal in plaats van te dupliceren.',
             'De ruwe EU-feed is nu doorzoekbaar vanuit de cockpit en persberichten van het Europees Parlement worden meegenomen.',
-            'Een mapping-fout die zonder waarschuwing ruim de helft van de plenaire feed liet wegvallen, is gevonden en gerepareerd.',
+            'Een mapping-fout die zonder waarschuwing de helft van de plenaire feed liet wegvallen, is gevonden en gerepareerd.',
           ],
         },
       ],
@@ -132,13 +132,13 @@ export const changelog: Changelog = {
           items: [
             'De Herkomst-pagina laat per begrip in acht stappen zien hoe de vraag die een burger op het scherm ziet, terugvoert tot de letterlijke wettekst waarop die is gebaseerd.',
             'De nieuwe Regelsimulatie speelt een beleidsregel — de aanschafsubsidie voor een thuisbatterij — dag voor dag af over een heel scenario, en toont wie er wel en niet mee wordt bereikt.',
-            "Beide pagina's zijn voorzien van deelbare social-media-kaarten en zijn vooraf gerenderd voor een snelle eerste weergave.",
+            'De Herkomst-pagina is voorzien van een deelbare social-media-kaart en wordt vooraf gerenderd voor een snelle eerste weergave.',
           ],
         },
       ],
     },
     {
-      version: '2026.08.6–2026.08.14',
+      version: '2026.08.4–2026.08.14',
       status: 'Released',
       statusColor: 'green',
       borderColor: 'green',
@@ -152,6 +152,7 @@ export const changelog: Changelog = {
           items: [
             "Het voorlopige model met zes globale fases is vervangen door de echte twaalf-fasen RIP-ladder, overal: Portfolio (Gantt en Kanban), Mijn dag en de fasedetailpagina's.",
             'Aantallen per fase — gereed om te starten, in behandeling, geparkeerd, afgerond — komen nu live uit het achterliggende proces-systeem in plaats van uit voorbeelddata.',
+            'De Beheer-omgeving toont nu ook per fase of het onderliggende proces daadwerkelijk is uitgerold in het proces-systeem, en geeft een begrijpelijke melding in plaats van een technische foutmelding wanneer dat nog niet zo is.',
             'De navigatiebalk toont per werkmodus actuele cijfers: taken van vandaag, projecten die met spoed dreigen te verlopen, en een groen/geel/rood gezondheidsoverzicht per fase.',
             'Een apart overzicht voor geparkeerde projecten is toegevoegd.',
           ],
@@ -159,12 +160,12 @@ export const changelog: Changelog = {
       ],
     },
     {
-      version: '2026.08.1–2026.08.5',
+      version: '2026.08.1–2026.08.3',
       status: 'Released',
       statusColor: 'green',
       borderColor: 'green',
-      date: '7–10 aug 2026',
-      scope: ['frontend', 'backend', 'public-site'],
+      date: '7 aug 2026',
+      scope: ['backend', 'public-site'],
       sections: [
         {
           icon: '🧹',
@@ -172,8 +173,7 @@ export const changelog: Changelog = {
           title: 'Publieke Regelcatalogus: laatste puntjes op de i',
           items: [
             "Pagina's laden merkbaar sneller doordat ze starten vanuit vooraf gerenderde data in plaats van een lege pagina die pas na een API-aanroep vult.",
-            "Organisatielogo's op de Regelcatalogus laden nu correct, en een start van een proces zonder onderliggende implementatie geeft een begrijpelijke melding in plaats van een technische foutmelding.",
-            'De backend rapporteert nu ook welke RIP-fases daadwerkelijk zijn uitgerold in het proces-systeem, en welke nog niet.',
+            "Organisatielogo's op de Regelcatalogus laden nu correct, en de voettekst toont voortaan de eigen omgeving en het actuele releasenummer.",
           ],
         },
       ],
@@ -193,7 +193,7 @@ export const changelog: Changelog = {
           items: [
             'Nieuw, zelfstandig onderdeel van het platform: een openbare, niet-ingelogde website waarop iedereen de regelcatalogus kan doorzoeken — organisaties, diensten, regels en begrippen — met resultaten die naar een specifieke regel of begrip doorlinken.',
             'Vanaf de eerste regel gebouwd zonder enige inlogafhankelijkheid: er is geen sessie, geen token en geen gebruikersaccount om te kunnen misbruiken.',
-            'Een geautomatiseerde controle test voortaan elke build van de publieke site en breekt de build meteen af zodra er authenticatiecode, trackingcode of een verwijzing naar een backend-omgeving in de gebundelde bestanden terechtkomt — een garantie die niet van menselijke oplettendheid hoeft af te hangen.',
+            'Een geautomatiseerde controle test voortaan elke build van de publieke site en breekt de build meteen af zodra er authenticatiecode of trackingcode in de gebundelde bestanden terechtkomt — een garantie die niet van menselijke oplettendheid hoeft af te hangen.',
             "Vooraf gerenderde pagina's, een sitemap en toegankelijkheids- en open-datapagina's, plus een testreeks (zoektocht, diepe links, toetsenbordbediening, geautomatiseerde toegankelijkheidscontroles) die bij elke wijziging opnieuw draait.",
           ],
         },
