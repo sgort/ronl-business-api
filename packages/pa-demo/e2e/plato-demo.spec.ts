@@ -31,7 +31,43 @@ function railItem(page: Page, label: string) {
   return page.locator('.pac-rail-item', { hasText: label });
 }
 
+/**
+ * Requests that look like they reached, or tried to reach, a backend — a
+ * host other than localhost, or a same-origin path shaped like an API call.
+ *
+ * Flagging only an off-host request is not enough: VITE_API_URL is unset in
+ * this demo, so a live-mode fetch builds `${undefined}/pa/agenda` — a
+ * *relative* URL the browser resolves same-origin, to
+ * http://localhost:5176/undefined/pa/agenda. That request never leaves
+ * localhost, so an off-host-only check misses it entirely. A path that looks
+ * like a backend call (contains /pa/ or /v1/, matching every real route this
+ * app calls — see pa.api.ts / dossierbeheer.api.ts) is flagged regardless of
+ * host, which is what actually catches that regression; the off-host check
+ * is kept alongside it since it still catches a differently-shaped defect (a
+ * real external origin).
+ *
+ * Attached in beforeEach, before the first navigation, rather than inside
+ * the "no backend" test itself: the one backend call this demo can make
+ * (fetchAgenda, gated on VITE_PA_AGENDA_MOCK) fires from PaDataProvider's
+ * initial mount — before any test-specific click — so a listener registered
+ * later would already have missed it. Keyed per Page so each test's own
+ * fresh browser context (Playwright's default) gets its own list.
+ */
+const suspectRequests = new WeakMap<Page, string[]>();
+
+function watchForBackendRequests(page: Page): void {
+  const suspects: string[] = [];
+  suspectRequests.set(page, suspects);
+  page.on('request', (req) => {
+    const url = new URL(req.url());
+    const offHost = url.hostname !== 'localhost' && url.hostname !== '127.0.0.1';
+    const backendPath = /\/(?:pa|v1)\//.test(url.pathname);
+    if (offHost || backendPath) suspects.push(req.url());
+  });
+}
+
 test.beforeEach(async ({ page }) => {
+  watchForBackendRequests(page);
   await page.goto('/');
   // Every test gets its own browser context (Playwright's default), so
   // localStorage and the in-memory mock stores already start empty — this
@@ -43,11 +79,13 @@ test.beforeEach(async ({ page }) => {
   await expect(demoBarRole(page, 'Beheerder')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('the demo bar declares itself and offers no Live toggle', async ({ page }) => {
+test('the demo bar declares itself, and the landing view offers no Live toggle', async ({
+  page,
+}) => {
   await expect(page.getByText(/demonstratie/i)).toBeVisible();
-  // Dossierbeheer's own mock/live toggle ("Zet vlag om naar live →") is not
-  // reachable from the page a visitor lands on, so this only needs to hold
-  // before any navigation — the assertion below runs on the Vandaag tab.
+  // Scoped deliberately to the page a visitor lands on (Vandaag) rather than
+  // "no Live toggle anywhere" — one exists, in Dossierbeheer, and is checked
+  // (hidden, not merely undiscovered by this test) below.
   await expect(page.getByRole('button', { name: /live/i })).toHaveCount(0);
 });
 
@@ -140,23 +178,58 @@ test('an authored dossier appears immediately and does not survive a reload', as
   await expect(page.getByText(naam)).toHaveCount(0);
 });
 
+test('Dossierbeheer hides its own live toggle; only Reset demodata is offered', async ({
+  page,
+}) => {
+  // Dossierbeheer.tsx unconditionally renders a "Zet vlag om naar live →"
+  // button (wired to pa.api.ts's toggleMock) right next to "↺ Reset
+  // demodata" — both in .pac-db-flag-actions. It cannot be removed by
+  // editing the vendored component, so Task 8 suppressed it with a CSS rule
+  // in demo-overrides.css instead (`.pac-db-flag-actions
+  // .pac-db-abtn:not(.pac-db-flag-reset) { display: none; }`).
+  // demo-overrides.test.ts already proves that rule exists as source text;
+  // it cannot prove it wins in a browser. This is that proof: real DOM, real
+  // computed style, via toBeHidden()/toBeVisible() rather than a source grep.
+  // Load-bearing beyond tidiness — VITE_API_URL is unset in this
+  // backend-less demo, so clicking the live toggle would not reach a real
+  // API either; it would hit the same same-origin `${undefined}/pa/...`
+  // pattern the network-isolation test below proves crashes the app.
+  await page.getByRole('button', { name: 'Beheer', exact: true }).click();
+  await railItem(page, 'Dossierbeheer').click();
+
+  await expect(page.getByRole('button', { name: /Zet vlag om naar live/ })).toBeHidden();
+  await expect(page.getByRole('button', { name: /Reset demodata/ })).toBeVisible();
+});
+
 test('the page issues no request to any backend', async ({ page }) => {
   // The behavioural counterpart to the CSP and the build-time bundle gate:
   // watch the real network rather than trusting the configuration. Route
   // taken deliberately touches the one surface with a real live/mock branch
   // in its source (AgendaView.tsx / fetchAgenda, gated on
   // VITE_PA_AGENDA_MOCK) — see task-10-report.md for the red probe that
-  // proves this assertion is load-bearing rather than decorative.
-  const offSite: string[] = [];
-  page.on('request', (req) => {
-    const url = new URL(req.url());
-    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') offSite.push(req.url());
-  });
-
-  await page.getByRole('button', { name: 'Monitoring', exact: true }).click();
-  await railItem(page, 'Agenda').click();
-  await railItem(page, 'Politiek (NL)').click();
+  // proves this assertion is load-bearing rather than decorative, and for
+  // why the listener has to be attached in beforeEach rather than here.
+  //
+  // The click chain below can itself hang if the very defect this test
+  // exists to catch fires mid-navigation (a malformed same-origin agenda
+  // response reaching <AgendaCountBadge> throws with no error boundary in
+  // the tree, unmounting the whole shell — confirmed by instrumenting
+  // console/pageerror events against a real VITE_PA_AGENDA_MOCK=false run,
+  // see task-10-report.md). Each click gets a short, explicit timeout and
+  // swallows its own failure so a UI hang from that defect cannot prevent
+  // the assertion below from running and reporting the real cause — the
+  // captured URL — instead of a generic 30s test-timeout with no evidence.
+  await page
+    .getByRole('button', { name: 'Monitoring', exact: true })
+    .click({ timeout: 5_000 })
+    .catch(() => {});
+  await railItem(page, 'Agenda')
+    .click({ timeout: 5_000 })
+    .catch(() => {});
+  await railItem(page, 'Politiek (NL)')
+    .click({ timeout: 5_000 })
+    .catch(() => {});
   await page.waitForTimeout(1000);
 
-  expect(offSite).toEqual([]);
+  expect(suspectRequests.get(page)).toEqual([]);
 });
