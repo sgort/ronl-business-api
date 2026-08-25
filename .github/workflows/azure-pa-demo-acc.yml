@@ -62,6 +62,17 @@ jobs:
         working-directory: packages/pa-demo
         run: npm run vendor:check
 
+      - name: Install Playwright browser
+        working-directory: packages/pa-demo
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        working-directory: packages/pa-demo
+        # No backend, database or Keycloak needed: pa-demo issues no network
+        # requests, and Playwright starts its own dev server (see
+        # e2e/playwright.config.ts) — that's the whole environment.
+        run: npm run test:e2e
+
       - name: Build for ACC (includes the bundle gate)
         working-directory: packages/pa-demo
         run: |
