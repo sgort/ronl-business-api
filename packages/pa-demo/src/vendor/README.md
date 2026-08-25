@@ -10,8 +10,45 @@ from `packages/frontend` — deliberately, so that the extraction's interface
 could be designed against a real second consumer rather than guessed at.
 
 **Exit condition:** when `@ronl/pa-cockpit` exists and `pa-demo` depends on it,
-delete this directory, `../../scripts/vendor-*.mjs`, `../../scripts/check-drift.*`
-and `.github/workflows/pa-demo-drift.yml`. Nothing under `src/demo/` changes.
+extraction is **not** just deleting this directory — `src/` outside `src/demo/`
+has real work to do too. Checklist:
+
+1. Delete this directory, `../../scripts/vendor-*.mjs`,
+   `../../scripts/check-drift.*` and `.github/workflows/pa-demo-drift.yml`.
+2. **Rewrite every import specifier that reaches into `../vendor/` (or
+   `./vendor/`) to the `@ronl/pa-cockpit` package specifier.** Verified as of
+   this writing: 32 specifier occurrences across 12 files —
+   `DemoSectionRouter.tsx` alone accounts for 14 (import statements on lines
+   31–47) plus one type-only reference at line 73; the rest are in
+   `DemoRoleContext.tsx`, `RollenRechten.tsx`, `Profiel.tsx`,
+   `modes.filtered.ts`, `modes.filtered.exports.test.ts`,
+   `changelog-data.filtered.ts`, `changelog-data.filtered.exports.test.ts`,
+   `App.tsx`, `main.tsx`, `mock-lock.test.ts` and
+   `DemoSectionRouter.test.tsx`. Don't trust this number blindly — it drifts
+   with every change to `src/demo/`. Regenerate it from `packages/pa-demo`
+   with:
+   ```
+   grep -rnoE "['\"]\.\.?/vendor/[^'\"]*['\"]" --include="*.ts" --include="*.tsx" src
+   ```
+3. **Re-point (or delete) both `vite.config.ts` aliases.** Both are keyed to
+   _relative specifier text_ — `/^(\.\.?\/)+(pages\/)?(public-affairs-v2\/)?modes\.config$/`
+   and `/^\.\/changelog-data$/`. Once step 2 turns the vendored code's
+   imports into package specifiers, neither regex matches anything and both
+   demo-owned filters **silently stop applying** — no build error, no type
+   error, nothing red in CI on its own.
+   - For `changelog-data`, that silent failure is still caught indirectly:
+     `scripts/check-bundle.mjs` scans `dist/` for the real changelog's
+     backend origins and auth-library names and fails the build if it finds
+     them.
+   - **The section allow-list (`sections.allow.ts`) has no equivalent
+     backstop.** If its alias silently stops applying, IOU and Hulpmiddelen
+     reappear in the rail and the ⌘K palette on a public, unauthenticated
+     site — `DemoSectionRouter` has no `case` for their ids, so they render
+     blank rather than error. That is the worst failure mode available here:
+     quiet, and easy to miss in review. Add a drift or bundle check that
+     would catch this _before_ deleting the alias, not after.
+4. Re-run the full verify suite (`test`, `lint`, `type-check`, `vendor:check`,
+   `build`, `test:e2e`) against the extracted state before calling it done.
 
 Re-sync with `npm run vendor:sync --workspace=@ronl/pa-demo`; check for
 divergence with `npm run vendor:check --workspace=@ronl/pa-demo`.
@@ -76,10 +113,12 @@ which is exactly what this directory forbids. That one _is_ handled by a
 has no entry for it either; `tsc` is deliberately left to resolve
 `modes.config` to the real vendored file, which it already does unaided. That
 is sound rather than an oversight: `src/demo/modes.filtered.ts` re-exports
-the same names and types the real `modes.config.ts` does (for now, literally
-`export * from '../vendor/pages/public-affairs-v2/modes.config'`; Task 4 will
-narrow it to a genuine filter), so type-checking the vendored call sites
-against the unfiltered module is a sound proxy for type-checking them against
+the same names and types the real `modes.config.ts` does — Task 4 replaced
+its original `export * from '../vendor/pages/public-affairs-v2/modes.config'`
+placeholder with the genuine curated filter that ships today, narrowing
+`PA_MODES`'s runtime contents via `sections.allow.ts` while keeping the same
+exported names and types — so type-checking the vendored call sites against
+the unfiltered module remains a sound proxy for type-checking them against
 what actually runs.
 
 **Net result:** `tsconfig.json` carries no alias configuration whatsoever.
@@ -91,9 +130,3 @@ alias). Confirmed clean with `npm run type-check --workspace=@ronl/pa-demo`
 and, separately, with a diagnostic (uncommitted) test that `import()`s
 `vendor/pages/PADashboardV2` end-to-end under Vite/Vitest — proving the
 same resolution holds at runtime, not just statically under `tsc`.
-
-**Placeholder stubs created by Task 3, to be replaced by later tasks:**
-`src/demo/DemoSectionRouter.tsx` (Task 6 — the demo-safe dispatcher) and
-`src/demo/modes.filtered.ts` (Task 4 — the actual curated filter). Both
-currently exist only so this task's `type-check` and `vendor:check` could be
-verified end-to-end; their current contents are not meant to ship.
