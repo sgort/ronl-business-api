@@ -409,22 +409,34 @@ const SCOPE_TAG_LABELS: Record<ScopeTag, string> = {
   frontend: 'Frontend',
   backend: 'Backend',
   'public-site': 'Public Site',
+  'pa-demo': 'PA Demo',
 };
 
-function ScopeBadge({ scope }: { scope: NonNullable<ChangelogVersion['scope']> }) {
+// One colour per deployable, so a single-scope badge identifies its package at
+// a glance. Keyed by ScopeTag rather than chained ternaries: adding a tag to
+// ScopeTag then fails type-check here until a colour is chosen for it, which is
+// how 'pa-demo' avoided silently inheriting the public-site teal.
+const SCOPE_TAG_CLASSES: Record<ScopeTag, string> = {
+  frontend: 'bg-blue-100 text-blue-800',
+  backend: 'bg-purple-100 text-purple-800',
+  'public-site': 'bg-teal-100 text-teal-800',
+  'pa-demo': 'bg-amber-100 text-amber-800',
+};
+
+// Exported for its own tests: the real changelog carries no 'pa-demo'-scoped
+// entry until the first release that ships one, so rendering the whole panel
+// cannot exercise that tag. Exporting a component (rather than a helper) keeps
+// react-refresh/only-export-components satisfied.
+export function ScopeBadge({ scope }: { scope: NonNullable<ChangelogVersion['scope']> }) {
   const isMulti = Array.isArray(scope) ? scope.length > 1 : scope === 'both';
   const label = Array.isArray(scope)
     ? scope.map((tag) => SCOPE_TAG_LABELS[tag]).join(' + ')
     : scope === 'both'
       ? 'Full-stack'
       : SCOPE_TAG_LABELS[scope];
-  const cls = isMulti
-    ? 'bg-gray-200 text-gray-700'
-    : (Array.isArray(scope) ? scope[0] : scope) === 'frontend'
-      ? 'bg-blue-100 text-blue-800'
-      : (Array.isArray(scope) ? scope[0] : scope) === 'backend'
-        ? 'bg-purple-100 text-purple-800'
-        : 'bg-teal-100 text-teal-800';
+  const primary = Array.isArray(scope) ? scope[0] : scope;
+  const cls =
+    isMulti || primary === 'both' ? 'bg-gray-200 text-gray-700' : SCOPE_TAG_CLASSES[primary];
 
   return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${cls}`}>{label}</span>;
 }

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ChangelogPanel from './ChangelogPanel';
+import ChangelogPanel, { ScopeBadge } from './ChangelogPanel';
 import { changelog } from './changelog-data';
 
 // changelog-data.ts carries the project's real, ever-growing release history
@@ -128,5 +128,45 @@ describe('ChangelogPanel', () => {
     const firstCommit = commitVersion.commits[0];
     expect(screen.getByText(firstCommit.subject)).toBeInTheDocument();
     expect(screen.getByText(`${firstCommit.sha} — ${firstCommit.author}`)).toBeInTheDocument();
+  });
+});
+
+describe('ScopeBadge', () => {
+  // One colour per deployable is the whole point of the badge — before
+  // SCOPE_TAG_CLASSES existed the class was picked by a ternary chain whose
+  // final `else` swallowed every tag that was not frontend or backend, so
+  // 'pa-demo' would have rendered in public-site's teal with nothing failing.
+  it.each([
+    ['frontend', 'Frontend', 'bg-blue-100'],
+    ['backend', 'Backend', 'bg-purple-100'],
+    ['public-site', 'Public Site', 'bg-teal-100'],
+    ['pa-demo', 'PA Demo', 'bg-amber-100'],
+  ] as const)('renders a distinct badge for the single scope %s', (tag, label, cls) => {
+    render(<ScopeBadge scope={[tag]} />);
+    const badge = screen.getByText(label);
+    expect(badge).toHaveClass(cls);
+  });
+
+  it("joins a multi-package scope and renders it neutral rather than in one member's colour", () => {
+    render(<ScopeBadge scope={['backend', 'pa-demo']} />);
+    const badge = screen.getByText('Backend + PA Demo');
+    expect(badge).toHaveClass('bg-gray-200');
+    expect(badge).not.toHaveClass('bg-purple-100');
+  });
+
+  it("renders a legacy flat 'both' scope as Full-stack, not as a lookup miss", () => {
+    render(<ScopeBadge scope="both" />);
+    const badge = screen.getByText('Full-stack');
+    expect(badge).toHaveClass('bg-gray-200');
+    expect(badge.className).not.toContain('undefined');
+  });
+
+  it('renders a legacy flat single scope with the same colour as its array form', () => {
+    const { unmount } = render(<ScopeBadge scope="frontend" />);
+    const flat = screen.getByText('Frontend').className;
+    unmount();
+
+    render(<ScopeBadge scope={['frontend']} />);
+    expect(screen.getByText('Frontend').className).toBe(flat);
   });
 });

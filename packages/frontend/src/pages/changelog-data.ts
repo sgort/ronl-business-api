@@ -22,7 +22,7 @@ export interface ChangelogSection {
 // every existing 'both' entry predates packages/public-site and specifically
 // means "frontend + backend"; reusing it for a different combination later
 // would retroactively misrepresent those historical entries.
-export type ScopeTag = 'frontend' | 'backend' | 'public-site';
+export type ScopeTag = 'frontend' | 'backend' | 'public-site' | 'pa-demo';
 
 // New entries express scope as an array of ScopeTag, even for a single
 // package (e.g. ['backend']) — this is what lets a release touch backend +
