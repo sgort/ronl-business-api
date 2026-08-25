@@ -25,6 +25,43 @@ something that silently ages.
 Every claim below was verified against file content, not inferred. Line references
 are to `acc` at `00605d8`.
 
+## Corrected since this design was written
+
+The build (16 tasks, branch `feat/public-pa-cockpit`) surfaced four places
+where this document no longer matches what shipped. Each is corrected in
+place below, at the section where it was originally stated; this list exists
+so the reversal is visible rather than silently rewritten into the history.
+
+1. **How mock mode is forced** (originally in
+   [The four guarantees that there is no Live](#the-four-guarantees-that-there-is-no-live)).
+   The claim that `isPaMock()` is forced `true` "ignoring `localStorage`
+   entirely" is not achievable without editing a vendored file: `isPaMock()`
+   is called by `pa.api.ts`'s own internal branches, and an aliased export
+   never reaches them. What actually ships is a build-time default plus a
+   boot-time write — corrected wording below.
+2. **The changelog does not ship as-is.** Originally recorded as "Shipped
+   as-is — the development history is part of the pitch." The real
+   changelog trips the build-time bundle gate: six strings in it would put
+   backend hostnames and internal engineering detail on a public page. It
+   was replaced with a curated executive summary of the 25 CalVer releases,
+   distilled into 8 themed entries — corrected in
+   [Decisions](#decisions) and [Beheer — the nine sections](#beheer--the-nine-sections).
+3. **Dossiers are session-scoped, not persisted.** The
+   [Data flow and state](#data-flow-and-state) section implied both mock
+   stores persist across a reload. `mock-demo.store.ts` does; `dossierbeheer.api.ts`
+   has no `localStorage` at all — a module-level store, so an authored
+   dossier survives in-app navigation but not a reload. The human partner
+   accepted this and ruled that dossier persistence should be built in the
+   original Dashboard and reach plato through the vendored copy, not
+   implemented demo-side.
+4. **There is no demo bar.** Originally the role selector, reset and
+   disclaimer lived in a persistent demo bar rendered above the cockpit
+   chrome. It was removed: the role selector existed in three places and
+   reset in two. Role switching now lives only on Beheer → Rollen &
+   rechten; reset only in Dossierbeheer's Mock banner. Corrected in
+   [Decisions](#decisions) and
+   [The demo user and the role switcher](#the-demo-user-and-the-role-switcher).
+
 ## What this is not
 
 - Not part of, and shares no code with, `@ronl/public-site`. Separate package,
@@ -36,18 +73,18 @@ are to `acc` at `00605d8`.
 
 ## Decisions
 
-| Decision          | Choice                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| Purpose           | Showcase / sales demo                                                                      |
-| Hosting           | Own SWA: `plato.open-regels.nl` (`main`), `acc.plato.open-regels.nl` (`acc`)               |
-| Architecture now  | Standalone `packages/pa-demo` with a vendored copy of the cockpit                          |
-| Architecture next | Extract `@ronl/pa-cockpit`; repoint `frontend` **and** `pa-demo`; delete the vendored copy |
-| Beheer            | Curated: 9 sections. No IOU, no Gereedschap, no assistant dock                             |
-| Rollen & rechten  | New PA-native page built on `DB_ROLES` / `DB_CAPS`                                         |
-| Profiel           | Demo-owned rebuild, not a vendored caseworker component                                    |
-| Role switching    | Visitor-selectable, from a persistent demo bar                                             |
-| Changelog         | Shipped as-is — the development history is part of the pitch                               |
-| Drift window      | Weeks; a reporting (non-blocking) drift check                                              |
+| Decision          | Choice                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| Purpose           | Showcase / sales demo                                                                       |
+| Hosting           | Own SWA: `plato.open-regels.nl` (`main`), `acc.plato.open-regels.nl` (`acc`)                |
+| Architecture now  | Standalone `packages/pa-demo` with a vendored copy of the cockpit                           |
+| Architecture next | Extract `@ronl/pa-cockpit`; repoint `frontend` **and** `pa-demo`; delete the vendored copy  |
+| Beheer            | Curated: 9 sections. No IOU, no Gereedschap, no assistant dock                              |
+| Rollen & rechten  | New PA-native page built on `DB_ROLES` / `DB_CAPS`                                          |
+| Profiel           | Demo-owned rebuild, not a vendored caseworker component                                     |
+| Role switching    | Visitor-selectable, from Beheer → Rollen & rechten (**corrected** — no demo bar; see below) |
+| Changelog         | Curated executive summary, 8 themed entries (**corrected** — not shipped as-is; see below)  |
+| Drift window      | Weeks; a reporting (non-blocking) drift check                                               |
 
 ## Why fork first, extract second
 
@@ -91,15 +128,19 @@ packages/pa-demo/src/
     shims/tenant.ts
     shims/SessionExpiryWarning.tsx
     shims/PADock.tsx
-    DemoBar.tsx
     DemoRoleContext.tsx
     DemoSectionRouter.tsx
     Profiel.tsx
     RollenRechten.tsx
     sections.allow.ts
     modes.filtered.ts
+    changelog-data.filtered.ts
   main.tsx, App.tsx
 ```
+
+**Corrected** — `DemoBar.tsx` does not exist; see
+[Corrected since this design was written](#corrected-since-this-design-was-written),
+item 4.
 
 Dependencies: `react`, `react-dom`, `react-router-dom`, `axios` (imported by
 `pa.api.ts`, though no request is ever issued), and the real `@ronl/shared`
@@ -184,21 +225,30 @@ _without_ rights sees is part of the governance story.
 
 ### Where the switcher lives
 
+**Corrected** — see
+[Corrected since this design was written](#corrected-since-this-design-was-written),
+item 4. This section originally described a persistent demo bar; it does not
+exist. What shipped instead:
+
 Not in Dossierbeheer's own role bar. Those buttons are `disabled` with
 `title="De rol volgt uit je Keycloak-rechten"` and a comment reading _"reflects the
 token-derived role (not a permission switcher)"_ — correct for the product, and
 enabling them would mean editing a vendored file.
 
-Instead a persistent **demo bar** rendered by `App.tsx` above the cockpit chrome,
-on every page: the role selector, `Demo herstellen`, and a "demonstration with
-fictional data" disclaimer. Three benefits: the role is switchable from anywhere;
-the bar reads as demo furniture rather than a product feature; and it is the
-natural home for the reset and disclaimer a public showcase needs anyway.
+The role selector lives on the demo-owned **Beheer → Rollen & rechten** page
+instead — the same page that documents `DB_ROLES` / `DB_CAPS` for a visitor,
+so the switcher sits next to the explanation of what it does. It was
+originally planned for a persistent demo bar rendered above the cockpit
+chrome on every page, alongside `Demo herstellen` and a disclaimer, but the
+role selector ended up existing in three places and reset in two once built;
+both were consolidated to a single source instead. Reset now lives only in
+Dossierbeheer's own Mock banner, not on Rollen & rechten.
 
-Dossierbeheer's role bar then becomes a **live readout** — still disabled, but
-re-rendering as the role changes. That is a better demo beat than a second
-switcher: change the role in the demo bar, watch the product's own permissions
-display follow.
+Dossierbeheer's role bar remains a **live readout** — still disabled, but
+re-rendering as the role changes. That is still a better demo beat than a
+second switcher: change the role on Rollen & rechten, watch the product's own
+permissions display follow, from wherever the cockpit's own navigation takes
+a visitor to Beheer.
 
 ## Beheer — the nine sections
 
@@ -228,23 +278,45 @@ fetch (Voornaam, Achternaam, Afdeling, Functie, Toegangsniveau).
 
 ## Data flow and state
 
+**Corrected** — see
+[Corrected since this design was written](#corrected-since-this-design-was-written),
+item 3. The diagram below originally implied both stores persist the same
+way; they do not.
+
 ```
 fixtures (MOCK_DOSSIERS, PA_TAXONOMY, MOCK_AGENDA)
-   └─ seeded on first read ─→ mock-demo.store    (localStorage 'paV2.mock.demo')
-                              dossierbeheer.api   (mock dossier store)
+   └─ seeded on first read ─→ mock-demo.store    (localStorage 'paV2.mock.demo', persists)
+                              dossierbeheer.api   (module-level store, in memory only)
                                     └─→ PaDataProvider ─→ cockpit components
 ```
 
-Writes go through the same action functions live uses. Version stamping carries
-real weight here: the store discards persisted state whose `v` does not match
-`__APP_VERSION__`, injected by Vite from package.json — so a pa-demo release with
-changed fixtures automatically resets every visitor rather than leaving them on a
-stale copy. pa-demo's version number is therefore functional, not bookkeeping.
+Writes go through the same action functions live uses, but the two stores do
+not persist the same way. `mock-demo.store.ts` does write to `localStorage`
+under `paV2.mock.demo` — signals, saved zoekcriteria and seen notifications
+survive a reload. `dossierbeheer.api.ts` has **no** `localStorage` call at
+all: it is a plain module-level store, so an authored dossier appears
+immediately and survives in-app navigation, but not a page reload. The human
+partner accepted this rather than treating it as a defect, and ruled that
+dossier persistence should be built in the original Dashboard and reach
+plato through the vendored copy when that lands — not implemented
+demo-side, which would mean either editing a vendored file or building a
+second, parallel persistence mechanism for one fork.
 
-`Demo herstellen` calls both `resetMockDemoData()` and `resetMockDossiers()`,
-mirroring `Dossierbeheer.tsx:148`. Where localStorage is unavailable (private
-browsing) the store's existing `try/catch` degrades to in-memory: the demo works
-but does not survive a reload. That is acceptable and is not engineered around.
+Version stamping carries real weight for the store that does persist:
+`mock-demo.store.ts` discards persisted state whose `v` does not match
+`__APP_VERSION__`, injected by Vite from package.json — so a pa-demo release
+with changed fixtures automatically resets every visitor rather than leaving
+them on a stale copy. pa-demo's version number is therefore functional, not
+bookkeeping.
+
+Dossierbeheer's own vendored "↺ Reset demodata" button
+(`Dossierbeheer.tsx:150-151`) calls both `resetMockDemoData()` and
+`resetMockDossiers()` — the same pairing this design originally assigned to
+a `Demo herstellen` button in the now-removed demo bar (see
+[The demo user and the role switcher](#the-demo-user-and-the-role-switcher)).
+Where localStorage is unavailable (private browsing) `mock-demo.store`'s
+existing `try/catch` degrades to in-memory: the demo works but does not
+survive a reload. That is acceptable and is not engineered around.
 
 With no backend there are no 4xx, 5xx, timeouts or auth expiries. The loading and
 error states inside vendored components still exist and simply never fire; they are
@@ -252,10 +324,19 @@ not stripped, because stripping them would mean editing `vendor/`.
 
 ## The four guarantees that there is no Live
 
-Independent layers, each sufficient alone:
+Independent layers, each sufficient alone. **Corrected** — layer 1's
+mechanism below was originally described as "`isPaMock()` forced `true`,
+ignoring `localStorage` entirely"; that is not achievable without editing a
+vendored file, because `isPaMock()` is called by `pa.api.ts`'s own internal
+branches, which an aliased export never reaches. See
+[Corrected since this design was written](#corrected-since-this-design-was-written),
+item 1.
 
-1. **`isPaMock()` forced `true`**, ignoring `localStorage` entirely, so no stale
-   `paV2.mock` key or console poke can flip it.
+1. **Build-time default plus a boot-time write** — both legacy mock env vars
+   are `true`, so an absent key means mock, and `main.tsx` writes `'1'` to
+   `paV2.mock` before mounting so an inherited or stale key cannot win. That
+   stops a stale key flipping it; it is not an absolute lock against someone
+   with devtools open. Layers 3 and 4 below are what make that acceptable.
 2. **No toggle in the UI** — `Dossierbeheer`'s `toggleMock` button (line 424) is
    absent from the demo build. `resetDemo` (line 433) stays.
 3. **CSP `connect-src 'self'`** in `public/staticwebapp.config.json`. Where
@@ -400,6 +481,15 @@ keep it visible.
   condition — but ultimately mitigated only by doing step 2.
 - **A vendored path that is not mock-guarded.** `isPaMock()` guards 25 branches and
   `fetchAgenda` has its own flag; layers 3 and 4 catch anything missed, loudly.
-- **Prospects reading fixture data as real.** The demo bar carries the disclaimer;
-  the fixtures are recognisably Flevoland examples (stikstof, lelystad, energie,
-  jeugdzorg, oostvaarders) rather than plausible live material.
+- **Prospects reading fixture data as real.** Consequence of correction 4
+  (no demo bar): the "fictieve gegevens" disclaimer this risk originally
+  pointed at the demo bar for now appears on exactly one page,
+  `Profiel.tsx:48`, and nowhere in Vandaag, Monitoring or Voortgang.
+  Dossierbeheer's Mock banner describes mock _data sourcing_, not
+  fictional data — a different claim. The fixtures are recognisably
+  Flevoland examples (stikstof, lelystad, energie, jeugdzorg, oostvaarders)
+  rather than plausible live material, which narrows but does not close the
+  gap. The human partner has explicitly deferred finding another way to
+  surface the disclaimer until after the first deploy; candidates include a
+  `<title>`, a footer line, a first-visit dismissible notice, or a slim
+  disclaimer-only strip.
