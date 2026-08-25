@@ -286,7 +286,11 @@ than assumed:
 - `packages/pa-demo/src/demo/modes.filtered.ts`, and both
   `*.filtered.exports.test.ts` parity guards — those exist solely to catch the
   `tsc`/Vite resolution split, which stops existing
-- the two `resolve.alias` entries in `packages/pa-demo/vite.config.ts`
+- the two `resolve.alias` entries in `packages/pa-demo/vite.config.ts` — the two
+  entries only, not the file. By the time this lands, `vite.config.ts` is also
+  expected to carry a `transformIndexHtml` plugin rewriting the social card's
+  origin per build mode (see `docs/pa-demo-social-handoff/`, shipped ahead of
+  this work). Removing the aliases must not tidy that away with them.
 - the **"Vendored-copy re-sync"** section of `.claude/commands/bump-release.md`, and the accompanying carve-out in its scope cross-check
 
 `packages/pa-demo/src/demo/sections.allow.ts` **survives** — it is the policy,
