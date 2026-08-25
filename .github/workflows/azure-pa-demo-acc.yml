@@ -4,8 +4,15 @@ on:
   push:
     branches:
       - acc
+    # packages/shared/** is included even though pa-demo's @ronl/shared
+    # imports are type-only (erased before Vite ever sees them — see
+    # src/vendor/services/pa.api.ts:1687). A shared-only change can't alter
+    # the compiled output, but without this filter a breaking type change in
+    # @ronl/shared would never run pa-demo's type-check step here, and would
+    # instead surface later at an unrelated pa-demo PR.
     paths:
       - 'packages/pa-demo/**'
+      - 'packages/shared/**'
       - '.github/workflows/azure-pa-demo-acc.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
