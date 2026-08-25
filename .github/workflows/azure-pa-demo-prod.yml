@@ -1,0 +1,69 @@
+name: Deploy PA Demo to Azure Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/pa-demo/**'
+      - '.github/workflows/azure-pa-demo-prod.yml'
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy_job:
+    runs-on: ubuntu-latest
+    name: Build and Deploy Production PA Demo
+    environment:
+      name: production
+      url: https://plato.open-regels.nl
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@ronl/shared
+
+      - name: Lint
+        working-directory: packages/pa-demo
+        run: npm run lint
+
+      - name: Type-check
+        working-directory: packages/pa-demo
+        run: npm run type-check
+
+      - name: Unit tests
+        working-directory: packages/pa-demo
+        run: npm test
+
+      - name: Vendored copy matches packages/frontend
+        working-directory: packages/pa-demo
+        run: npm run vendor:check
+
+      - name: Build for production (includes the bundle gate)
+        working-directory: packages/pa-demo
+        run: |
+          npm run build:prod
+          test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
+          test -f dist/staticwebapp.config.json || (echo "ERROR: SWA config not copied!" && exit 1)
+          echo "✅ Build completed successfully"
+
+      - name: Deploy to Azure Static Web Apps
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: '/packages/pa-demo/dist'
+          skip_app_build: true

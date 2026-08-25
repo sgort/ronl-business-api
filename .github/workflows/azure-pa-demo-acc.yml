@@ -1,0 +1,85 @@
+name: Deploy PA Demo to Azure ACC
+
+on:
+  push:
+    branches:
+      - acc
+    paths:
+      - 'packages/pa-demo/**'
+      - '.github/workflows/azure-pa-demo-acc.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - acc
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy ACC PA Demo
+    environment:
+      name: acc
+      url: https://acc.plato.open-regels.nl
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=@ronl/shared
+
+      - name: Lint
+        working-directory: packages/pa-demo
+        run: npm run lint
+
+      - name: Type-check
+        working-directory: packages/pa-demo
+        run: npm run type-check
+
+      - name: Unit tests
+        working-directory: packages/pa-demo
+        run: npm test
+
+      - name: Vendored copy matches packages/frontend
+        working-directory: packages/pa-demo
+        run: npm run vendor:check
+
+      - name: Build for ACC (includes the bundle gate)
+        working-directory: packages/pa-demo
+        run: |
+          npm run build:acc
+          test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
+          test -f dist/staticwebapp.config.json || (echo "ERROR: SWA config not copied!" && exit 1)
+          echo "✅ Build completed successfully"
+
+      - name: Deploy to Azure Static Web Apps
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_ACC }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: '/packages/pa-demo/dist'
+          skip_app_build: true
+
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_ACC }}
+          action: 'close'

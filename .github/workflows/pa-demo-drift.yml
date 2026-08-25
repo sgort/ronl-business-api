@@ -1,0 +1,45 @@
+name: PA Demo vendor drift
+
+# Drift is caused by edits to packages/frontend/src, which never trigger the
+# pa-demo deploy workflow — that one is path-filtered to packages/pa-demo/**.
+# A drift check placed there would be green forever and catch nothing.
+#
+# This reports without blocking, deliberately. Failing the build would turn an
+# unrelated cockpit PR red because a demo copy is stale, which trains people to
+# ignore it. The @ronl/pa-cockpit extraction is what resolves the drift; this
+# only has to keep it visible.
+on:
+  push:
+    branches:
+      - acc
+    paths:
+      - 'packages/frontend/src/**'
+  pull_request:
+    branches:
+      - acc
+    paths:
+      - 'packages/frontend/src/**'
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    name: Report vendored-copy drift
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check for drift
+        working-directory: packages/pa-demo
+        run: |
+          if node scripts/check-drift.mjs > drift.txt 2>&1; then
+            cat drift.txt
+            echo "::notice title=pa-demo::Vendored copy is in sync."
+          else
+            cat drift.txt
+            echo "::warning title=pa-demo vendored copy is stale::$(head -1 drift.txt) Run 'npm run vendor:sync --workspace=@ronl/pa-demo' and re-run the pa-demo suite."
+          fi
