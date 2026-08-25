@@ -467,7 +467,13 @@ test.describe('RIP fase 1 (R2.1)', () => {
     await openInstanceDetail(page);
 
     const worked: string[] = [];
-    for (let guard = 0; guard < 25; guard++) {
+    // Separate from the task count on purpose: an iteration that only waits for
+    // the next task to appear is not progress, and letting those consume the
+    // same budget as real work is how a run ran out of iterations mid-journey.
+    const MAX_ITERATIONS = 60;
+    let finished = false;
+
+    for (let guard = 0; guard < MAX_ITERATIONS; guard++) {
       const items = page.locator('.pb-taken-item');
 
       // An empty list means one of two very different things: the process is
@@ -475,13 +481,32 @@ test.describe('RIP fase 1 (R2.1)', () => {
       // Treating the second as the first ended runs early with a partial
       // journey that still looked orderly. The engine is asked which it is.
       if ((await items.count()) === 0) {
-        if ((await nextStep(instanceId!)) === 'done') break;
-        // Still running, so the next task is coming — most likely the engine
-        // is on the automatic Relatics step. Going round through Mijn dag both
-        // waits for a task to exist (the todo row only renders when one does)
-        // and remounts the detail, whose task list is fetched on mount and has
-        // no other reason to refetch while nothing is being completed.
-        await openInstanceDetail(page);
+        if ((await nextStep(instanceId!)) === 'done') {
+          finished = true;
+          break;
+        }
+        // The engine has a task, so give the list a chance to render it before
+        // forcing anything. ProjectDetail fetches its tasks on mount, and
+        // navigating away the instant the count reads 0 throws away the request
+        // already in flight — then the remount starts another and the next
+        // iteration throws that away too. That is a livelock, and it presented
+        // as the journey stopping after six tasks with the engine plainly
+        // holding a seventh.
+        if (
+          !(await items
+            .first()
+            .isVisible({ timeout: 5_000 })
+            .catch(() => false))
+        ) {
+          // Genuinely not coming on its own — remount to refetch. The task list
+          // is fetched on mount and has no other reason to refetch while
+          // nothing is being completed.
+          await openInstanceDetail(page);
+        }
+        await expect(
+          items.first(),
+          'the engine has an open task the board never rendered'
+        ).toBeVisible({ timeout: 30_000 });
         continue;
       }
 
@@ -527,6 +552,25 @@ test.describe('RIP fase 1 (R2.1)', () => {
       });
 
       worked.push(name);
+    }
+
+    // Running out of iterations is not the same as finishing, and must never be
+    // allowed to fall through to the assertions below. It did once: the loop
+    // gave up with the instance still running, and the failure surfaced as
+    // "Gereed expected 3, received 2" — a count that was perfectly correct for
+    // a process that had not finished. The real fault was invisible.
+    if (!finished) {
+      const stillRunning = !(await instanceFinished(instanceId!));
+      const open = await fetch(`${OPERATON}/task?processInstanceId=${instanceId}`)
+        .then((r) => (r.ok ? (r.json() as Promise<Array<{ name: string }>>) : []))
+        .catch(() => []);
+      throw new Error(
+        `gave up after ${MAX_ITERATIONS} iterations without the process finishing. ` +
+          `Worked ${worked.length} task(s): ${worked.join(' | ')}. ` +
+          `Instance ${instanceId} still running: ${stillRunning}. ` +
+          `Engine reports ${open.length} open task(s): ` +
+          `${open.map((t) => t.name.replace(/\s+/g, ' ')).join(' | ') || '(none)'}.`
+      );
     }
 
     // Every user task in the happy path, and nothing looping.
