@@ -79,7 +79,7 @@ only new entries going forward use CalVer.
     `packages/shared/package.json` too if shared itself was versioned.
     `packages/pa-demo` also depends on `@ronl/shared`, but only for **types**
     (erased before Vite sees them), so a shared-only change does not imply
-    `'pa-demo'` — see "Vendored-copy re-sync" below for what does.
+    `'pa-demo'`.
   - (Legacy entries carry a string `scope` like `'both'` instead — `'both'`
     means frontend + backend. Never author a new one of these.)
   - If `scope` is **absent** (only possible on a legacy entry — new entries
@@ -144,52 +144,13 @@ Map the touched top-level dirs to the `scope` array (one entry per package):
 - `packages/frontend/**` → include `'frontend'`
 - `packages/backend/**` → include `'backend'`
 - `packages/public-site/**` → include `'public-site'`
-- `packages/pa-demo/**` → include `'pa-demo'` (but read the re-sync carve-out
-  below first — a `packages/pa-demo/**` diff is not always a pa-demo change)
+- `packages/pa-demo/**` → include `'pa-demo'`
 - `packages/shared/**` → include **both** `'frontend'` and `'backend'` (shared
   feeds both builds; there is no `'shared'` scope tag)
 
 Do **not** count the changelog file itself
 (`packages/frontend/src/pages/changelog-data.ts`) as a `'frontend'` change — every
-release edits it, so it would make every release look frontend-scoped. The same
-exemption covers its vendored mirror, `packages/pa-demo/src/vendor/pages/changelog-data.ts`.
-
-#### Vendored-copy re-sync
-
-`packages/pa-demo` carries a byte-identical vendored fork of 39 files from
-`packages/frontend/src` (see `packages/pa-demo/scripts/vendor-manifest.mjs`),
-and `packages/pa-demo/scripts/check-drift.mjs` enforces it. **A release that
-touches any vendored path leaves that mirror stale**, so after step 3 and
-before committing:
-
-```bash
-npm run vendor:sync --workspace=@ronl/pa-demo
-npm run vendor:check --workspace=@ronl/pa-demo
-```
-
-Run it on **every** release, not only pa-demo-scoped ones — `pages/changelog-data.ts`
-and `pages/ChangelogPanel.tsx` are both vendored, so flipping the entry to
-Released in step 3 is itself enough to break drift. Skipping it does not fail
-this release (the drift workflow reports without blocking, and the pa-demo
-deploy only runs when `packages/pa-demo/**` changes); it fails the _next_
-pa-demo change, whose deploy runs `vendor:check` as a blocking step.
-
-Then decide scope from **what the re-sync actually rewrote**:
-
-- Only `src/vendor/pages/changelog-data.ts` changed → **do not** add
-  `'pa-demo'`. That file is aliased away at bundle time
-  (`src/demo/changelog-data.filtered.ts` stands in for it; the vendored copy
-  exists only so `tsc` can resolve `ChangelogPanel.tsx`'s import), so the
-  shipped demo bundle is byte-for-byte unaffected. Bumping pa-demo here would
-  version a package whose output did not change.
-- Any other vendored file changed → **add `'pa-demo'`**. Those do reach the
-  demo bundle, so the release genuinely ships a new pa-demo.
-
-Either way the re-sync writes into `packages/pa-demo/**`, which matches the
-deploy workflow's path filter — so **the release commit will trigger _Deploy PA
-Demo to Azure ACC_ even on a changelog-only re-sync**. That run is a harmless
-no-op rebuild of an unchanged bundle. Say so in step 7 rather than letting it
-look like an unexplained deploy.
+release edits it, so it would make every release look frontend-scoped.
 
 If the declared `scope` does not cover the changed packages, **stop and warn**
 the user with the specifics (declared vs. detected) and ask how to proceed. Do
@@ -343,9 +304,6 @@ State:
 - Any endpoint keys that were added or removed
 - If scope was inferred or a cross-check mismatch was found, say so
 - For a new-format entry: how many commits it covers
-- What the pa-demo vendor re-sync rewrote, and — if it rewrote anything — that
-  the commit will trigger _Deploy PA Demo to Azure ACC_, noting whether that run
-  ships a real change or is a no-op rebuild (per step 2's carve-out)
 
 Then ask whether to commit. Do not commit unless the user confirms.
 When committing, use the message format:

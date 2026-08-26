@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => ({
       provider: 'v8',
       reportOnFailure: true,
       include: ['src/**/*.{ts,tsx}'],
-      // No 'src/vendor/**' entry any more — there is nothing to exclude. What
+      // No vendor-directory entry any more — there is nothing to exclude. What
       // it used to hide (the cockpit itself) is now @ronl/pa-cockpit, covered
       // by that package's own suite, so these figures are this package's own
       // code and nothing else.

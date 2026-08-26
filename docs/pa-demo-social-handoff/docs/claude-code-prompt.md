@@ -114,8 +114,6 @@ preserve all four:
 
 - `npm run lint --workspace=@ronl/pa-demo` and `type-check` pass
 - `npm run test --workspace=@ronl/pa-demo` passes, including the new tests
-- `npm run vendor:check --workspace=@ronl/pa-demo` still passes — **no file
-  under `src/vendor/` is touched by this change**
 - `npm run build --workspace=@ronl/pa-demo` passes the bundle gate, and
   `dist/index.html` contains the correct origin for the mode built
 - `dist/og-pa-demo.png` exists

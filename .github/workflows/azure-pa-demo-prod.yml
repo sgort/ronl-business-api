@@ -5,11 +5,11 @@ on:
     branches:
       - main
     # packages/shared/** is included even though pa-demo's @ronl/shared
-    # imports are type-only (erased before Vite ever sees them — see
-    # src/vendor/services/pa.api.ts:1687). A shared-only change can't alter
-    # the compiled output, but without this filter a breaking type change in
-    # @ronl/shared would never run pa-demo's type-check step here, and would
-    # instead surface later at an unrelated pa-demo PR.
+    # imports are type-only (erased before Vite ever sees them). A
+    # shared-only change can't alter the compiled output, but without this
+    # filter a breaking type change in @ronl/shared would never run
+    # pa-demo's type-check step here, and would instead surface later at an
+    # unrelated pa-demo PR.
     paths:
       - 'packages/pa-demo/**'
       - 'packages/shared/**'
@@ -52,10 +52,6 @@ jobs:
       - name: Unit tests
         working-directory: packages/pa-demo
         run: npm test
-
-      - name: Vendored copy matches packages/frontend
-        working-directory: packages/pa-demo
-        run: npm run vendor:check
 
       - name: Build for production (includes the bundle gate)
         working-directory: packages/pa-demo

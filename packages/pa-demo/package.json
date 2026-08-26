@@ -15,9 +15,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
-    "vendor:sync": "node scripts/vendor-sync.mjs",
-    "vendor:check": "node scripts/check-drift.mjs"
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts"
   },
   "dependencies": {
     "@ronl/pa-cockpit": "*",

@@ -115,7 +115,6 @@ too — pa-demo is mock-only by construction on every environment (§5).
 | ------------------------ | -------------------------------------- | -------------------------- |
 | `azure-pa-demo-acc.yml`  | push/PR to `acc` + `workflow_dispatch` | `acc.plato.open-regels.nl` |
 | `azure-pa-demo-prod.yml` | push to `main` + `workflow_dispatch`   | `plato.open-regels.nl`     |
-| `pa-demo-drift.yml`      | changes to `packages/frontend/src/**`  | nothing — reports only     |
 
 Both deploy workflows are path-filtered to `packages/pa-demo/**`,
 `packages/shared/**` and their own file. A push touching only `pa-demo` therefore
@@ -127,29 +126,12 @@ alter the compiled output. The filter exists so a _breaking type change_ still
 runs pa-demo's `type-check` here, rather than surfacing later at an unrelated PR.
 
 ACC runs, in order: install → build shared → lint → type-check → unit tests →
-`vendor:check` → Playwright browser install → **E2E** → build (with the bundle
-gate) → deploy. **PROD does not run E2E**; if that matters to you, add it before
-the first production deploy rather than after.
+Playwright browser install → **E2E** → build (with the bundle gate) → deploy.
+**PROD does not run E2E**; if that matters to you, add it before the first
+production deploy rather than after.
 
 `workflow_dispatch` on both means a deploy can be triggered by hand — useful when
 merging with `[no ci]` in the tip commit to suppress the automatic run.
-
-### The drift workflow
-
-`pa-demo` holds a **byte-identical vendored copy** of the cockpit from
-`packages/frontend` (39 source files + 15 assets), listed in
-`packages/pa-demo/scripts/vendor-manifest.mjs`. `pa-demo-drift.yml` triggers on
-`packages/frontend/src/**` — _not_ on `packages/pa-demo/**` — because drift is
-caused by editing the origin. A check filtered to `pa-demo` would be green
-forever and catch nothing.
-
-It **reports without blocking**, via a `::warning` annotation: failing an
-unrelated cockpit PR because a demo copy is stale trains people to ignore it. The
-blocking check lives in the deploy workflows instead, where a stale copy genuinely
-should not ship.
-
-Re-sync with `npm run vendor:sync --workspace=@ronl/pa-demo`; check with
-`npm run vendor:check --workspace=@ronl/pa-demo`.
 
 ## 5. What keeps the demo off the backend
 
@@ -160,8 +142,8 @@ all four rather than trading one for another.
    default is mock; `src/main.tsx` writes `'1'` to `paV2.mock` before mounting, so
    an inherited or stale key cannot win. Guarded by `src/mock-lock.test.ts` and
    `src/env-files.test.ts`.
-2. **No toggle in the UI.** The vendored `Dossierbeheer` renders its own "Zet vlag
-   om naar live →" button; `src/demo/demo-overrides.css` hides it with
+2. **No toggle in the UI.** The `Dossierbeheer` component from `@ronl/pa-cockpit`
+   renders its own "Zet vlag om naar live →" button; `src/demo/demo-overrides.css` hides it with
    `display: none`, which removes it from the tab order and the accessibility tree
    as well as the screen. The reset button beside it stays. Proven in a real
    browser only by the E2E suite.
@@ -194,8 +176,8 @@ Quick manual checks that catch the common deploy faults:
 
 - [ ] A deep link (e.g. `/beheer`) returns 200, not 404 — confirms the SWA config
       shipped inside `dist/` and `navigationFallback` is active.
-- [ ] `/pa/feiten-icons/wonen.png` returns 200 `image/png` — confirms the vendored
-      static assets deployed.
+- [ ] `/pa/feiten-icons/wonen.png` returns 200 `image/png` — confirms the
+      `@ronl/pa-cockpit` static assets deployed.
 - [ ] The response carries `content-security-policy: … connect-src 'self' …`.
 - [ ] Beheer shows **nine** sections, with no IOU group and no Hulpmiddelen.
 - [ ] Paste the site URL into a link-preview validator (or Slack) and confirm the
@@ -212,7 +194,7 @@ response body, not the status code, before concluding a file leaked.
 - **Authored dossiers do not survive a reload.** `mock-demo.store.ts` persists
   signals, saved searches and seen notifications to `localStorage`;
   `dossierbeheer.api.ts` is in-memory only. The agreed fix is to build persistence
-  in the real Dashboard, so plato inherits it through the vendored copy.
+  in the real Dashboard, so plato inherits it through `@ronl/pa-cockpit`.
 - **The fictional-data disclaimer appears on one page only** — `src/demo/Profiel.tsx`.
   Dossierbeheer's Mock banner describes mock _data sourcing_, not fictional data.
   A site-wide replacement is deliberately deferred until after the first deploy.
@@ -221,7 +203,3 @@ response body, not the status code, before concluding a file leaked.
   The real `changelog-data.ts` trips the bundle gate — its commit messages quote
   backend hostnames and auth-library names. Content added there must stay clear of
   `scripts/check-bundle.mjs`'s forbidden list.
-- **The vendored copy is temporary.** `src/vendor/README.md` carries the exit
-  condition: extraction into a shared `@ronl/pa-cockpit` package. Read it before
-  attempting that — it is more than deleting a directory, and both Vite aliases
-  are keyed to relative specifier text that stops matching afterwards.

@@ -9,7 +9,7 @@
  * session, no backend and no assistant.
  *
  * These are the same five files this package used to plant as re-export
- * overlays inside src/vendor/ (services/keycloak.ts, services/tenant.ts,
+ * overlays inside its old vendor directory (services/keycloak.ts, services/tenant.ts,
  * components/SessionExpiryWarning.tsx, components/PADashboardV2/PADock.tsx and
  * .../PASectionRouter.tsx), positioned so the vendored copy's relative imports
  * would resolve to them without editing a vendored file. The host contract was
