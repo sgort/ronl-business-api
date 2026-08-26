@@ -72,6 +72,10 @@
       "npm run lint:fix --workspace=@ronl/pa-demo",
       "prettier --write"
     ],
+    "packages/pa-cockpit/**/*.{ts,tsx}": [
+      "npm run lint:fix --workspace=@ronl/pa-cockpit",
+      "prettier --write"
+    ],
     "packages/backend/**/*.ts": [
       "npm run lint:fix --workspace=@ronl/backend",
       "prettier --write"
