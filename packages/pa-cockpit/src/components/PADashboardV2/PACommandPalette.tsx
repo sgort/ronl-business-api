@@ -8,11 +8,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  allStaticSections,
-  findPaModeForSection,
-  type PaModeId,
-} from '../../pages/public-affairs-v2/modes.config';
+import type { PaModeId } from '../../pages/public-affairs-v2/modes.config';
+import { usePaModes } from '../../modes/PaModesContext';
 import { usePaData } from '../../pages/public-affairs-v2/PaDataProvider';
 
 interface Hit {
@@ -29,6 +26,7 @@ interface Props {
 
 export default function PACommandPalette({ open, onClose, onSelect }: Props) {
   const { dossiers } = usePaData();
+  const { allStaticSections, findPaModeForSection } = usePaModes();
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +41,7 @@ export default function PACommandPalette({ open, onClose, onSelect }: Props) {
       out.push({ id: d.id, label: d.naam, mode: 'dossiers' });
     }
     return out;
-  }, [dossiers.data]);
+  }, [dossiers.data, allStaticSections, findPaModeForSection]);
 
   const hits: Hit[] = useMemo(() => {
     const q = query.trim().toLowerCase();

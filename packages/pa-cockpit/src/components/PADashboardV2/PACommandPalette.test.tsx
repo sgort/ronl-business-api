@@ -6,7 +6,9 @@ import PACommandPalette from './PACommandPalette';
 import {
   allStaticSections,
   findPaModeForSection,
+  PA_MODES,
 } from '../../pages/public-affairs-v2/modes.config';
+import { PaModesProvider } from '../../modes/PaModesContext';
 import { makePaDataStub } from '../../test/paData.stub';
 
 const mockDossiers = vi.hoisted(() => [
@@ -18,16 +20,20 @@ vi.mock('../../pages/public-affairs-v2/PaDataProvider', () => ({
     makePaDataStub({ dossiers: { data: mockDossiers, status: 'ok', refetch: vi.fn() } }),
 }));
 
+function renderPalette(ui: React.ReactElement) {
+  return render(<PaModesProvider modes={PA_MODES}>{ui}</PaModesProvider>);
+}
+
 describe('PACommandPalette', () => {
   it('renders nothing when closed', () => {
-    const { container } = render(
+    const { container } = renderPalette(
       <PACommandPalette open={false} onClose={vi.fn()} onSelect={vi.fn()} />
     );
     expect(container).toBeEmptyDOMElement();
   });
 
   it('lists every static section plus every dossier when open', () => {
-    render(<PACommandPalette open onClose={vi.fn()} onSelect={vi.fn()} />);
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={vi.fn()} />);
 
     const firstSection = allStaticSections()[0];
     expect(screen.getByText(firstSection.label)).toBeInTheDocument();
@@ -37,7 +43,7 @@ describe('PACommandPalette', () => {
 
   it('typing filters the list, showing the empty state for no matches', async () => {
     const user = userEvent.setup();
-    render(<PACommandPalette open onClose={vi.fn()} onSelect={vi.fn()} />);
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={vi.fn()} />);
 
     await user.type(
       screen.getByPlaceholderText('Spring naar… (dossier, monitoring, voortgang, …)'),
@@ -60,7 +66,7 @@ describe('PACommandPalette', () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<PACommandPalette open onClose={onClose} onSelect={onSelect} />);
+    renderPalette(<PACommandPalette open onClose={onClose} onSelect={onSelect} />);
 
     await user.click(screen.getByText('Jeugdzorg'));
 
@@ -71,7 +77,7 @@ describe('PACommandPalette', () => {
   it('selecting a static section calls onSelect with its owning mode', async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
-    render(<PACommandPalette open onClose={vi.fn()} onSelect={onSelect} />);
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={onSelect} />);
 
     const firstSection = allStaticSections()[0];
     await user.click(screen.getByText(firstSection.label));
@@ -82,7 +88,7 @@ describe('PACommandPalette', () => {
   it('Escape closes the palette', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<PACommandPalette open onClose={onClose} onSelect={vi.fn()} />);
+    renderPalette(<PACommandPalette open onClose={onClose} onSelect={vi.fn()} />);
 
     await user.keyboard('{Escape}');
 
@@ -92,7 +98,9 @@ describe('PACommandPalette', () => {
   it('clicking the overlay closes the palette, clicking inside does not', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    const { container } = render(<PACommandPalette open onClose={onClose} onSelect={vi.fn()} />);
+    const { container } = renderPalette(
+      <PACommandPalette open onClose={onClose} onSelect={vi.fn()} />
+    );
 
     await user.click(container.querySelector('.pac-palette')!);
     expect(onClose).not.toHaveBeenCalled();
