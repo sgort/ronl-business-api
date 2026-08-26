@@ -26,7 +26,19 @@ export interface PaTenantConfig {
   displayName: string;
 }
 
-/** The subset of keycloak-js the cockpit touches. Signatures mirror the real ones. */
+/**
+ * The subset of the host's *auth service* the cockpit touches — not all of
+ * it is keycloak-js's own surface. `authenticated`, `token`, `updateToken`
+ * and `logout` do mirror keycloak-js's signatures, with one deliberate
+ * adjustment: `authenticated` is required here, while keycloak-js declares
+ * it optional (`authenticated?: boolean`). A host adapter should pass
+ * `!!keycloak.authenticated`, exactly as
+ * packages/frontend/src/pages/PADashboardV2.tsx:220 already does.
+ * `getUser` is not keycloak-js's at all: it is the host's own function (see
+ * packages/frontend/src/services/keycloak.ts), which derives a user object
+ * from `keycloak.tokenParsed`. Do not go looking for `getUser` in
+ * keycloak-js's typings — it isn't there.
+ */
 export interface PaCockpitAuth {
   authenticated: boolean;
   token: string | undefined;
@@ -76,6 +88,13 @@ export function getPaCockpitTenant(): PaCockpitTenant {
  * Test-only. Not exported from src/index.ts — the public entry point built in
  * Task 7 must not re-export this. It exists so tests can reset module-global
  * state between cases; a host application has no legitimate reason to call it.
+ *
+ * Its safety currently rests on Vitest's default per-file module isolation:
+ * each test file gets its own fresh copy of the module-level `services`
+ * variable, so nothing leaks between files even when a test forgets to call
+ * this. If isolation were ever disabled repo-wide for speed, a test file
+ * that calls configurePaCockpit and never resets could leak state into a
+ * file that runs afterward in the same worker.
  */
 export function __resetPaCockpitHostForTests(): void {
   services = null;
