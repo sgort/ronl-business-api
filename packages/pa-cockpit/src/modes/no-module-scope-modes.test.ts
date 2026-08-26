@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
+import ts from 'typescript';
 import * as pkg from '../index';
 
 /**
@@ -19,7 +20,8 @@ import * as pkg from '../index';
  * real config module. So this file guards every way the door can be opened,
  * with four rules across two assertions.
  *
- * Source rules, all on comment-stripped text (assertion 1):
+ * Source rules (assertion 1). Each reads one of the two texts scanSource
+ * derives; which one is not interchangeable — see its doc comment:
  *
  *   R1  No file may name a guarded identifier in an import/export *clause*
  *       taken from modes.config. Applies to EVERY file, allow-list included:
@@ -78,76 +80,124 @@ const R3_EXEMPT = new Set(
 );
 
 /**
- * Blanks out comments, preserving length and leaving string/template literals
- * intact.
+ * One parse, two derived texts — because the rules that ACCUSE and the rule
+ * that EXCUSES need opposite error directions.
  *
- * Both halves of that are load-bearing, and each was learned from a defect in
- * an earlier revision of this guard:
+ *   `accuse`  comments blanked; string, template, regex and JSX text KEPT.
+ *   `excuse`  those literal contents blanked as well.
  *
- *  - Comments must go. `src/index.ts`'s own doc comment names both guarded
- *    functions to explain why it does not export them, and would otherwise
- *    trip R3 — as would any future comment discussing them, which is exactly
- *    the kind of false positive that gets a guard deleted rather than fixed.
+ * Why they differ. Extra text can only ever *add* matches, so for R1, R2 and
+ * R3's "does this name appear at all" scan, keeping literals is safe: the
+ * worst case is a false accusation, which is loud and gets fixed. But
+ * `boundFromUsePaModes` is the one rule that *switches another rule off*.
+ * Feeding it text that is not code lets a single line disarm R3 for a whole
+ * file:
  *
- *  - Strings must stay. A module specifier *is* a string literal, so blanking
- *    strings makes R1 and R2 match nothing at all; that shipped once, silently
- *    inert. Blanking them also broke R3: the scanner had no notion of JSX text,
- *    so a lone apostrophe in `Collega's koppelen aan dit dossier`
- *    (Issuekaart.tsx) flipped quote parity and blanked half the file, hiding a
- *    real leak in five separate sources.
+ *     const _docs = 'const { allStaticSections } = usePaModes()';
  *
- * The scanner still *tracks* strings, without erasing them, so that a `//`
- * inside one is not mistaken for a comment — `https://…` URLs are common in
- * this tree (feiten.data.ts, pa.api.ts), and treating those as comments would
- * blank the rest of each line.
+ * — after which `cfg.allStaticSections()` from a dynamic import sails through,
+ * and R3 is the only rule covering dynamic imports and computed member access.
+ * So the excusing rule reads the erased text, where a phrase in a literal
+ * cannot mint a binding. A real destructure clause is never literal content,
+ * so the erasure costs that rule nothing.
  *
- * The trade-off of keeping strings is that R3 would flag a guarded name
- * written *inside* a string literal. Verified as costless today: every
- * occurrence of either name anywhere in src is a comment, an identifier, or an
- * import clause — none is string content. If that ever changes, prefer
- * renaming the string over reintroducing string-blanking, which is what made
- * this guard half-blind before.
+ * The general rule, worth keeping in mind before adding a fifth rule here:
+ * **a rule that accuses may read a superset of the code; a rule that excuses
+ * must read a subset.** They cannot share an input.
+ *
+ * ── Why this uses the TypeScript parser rather than a scanner ──
+ *
+ * Three hand-rolled scanners were tried here and each shipped a distinct
+ * silent hole, every one of them a form of "this text is not code but the
+ * scanner thought it was", or the reverse:
+ *
+ *   1. Blanking string literals erased module specifiers, leaving R1/R2
+ *      matching nothing at all — inert, and green.
+ *   2. Quote-tracking with no notion of JSX text: the apostrophe in
+ *      `Collega's koppelen aan dit dossier` (Issuekaart.tsx) opened a phantom
+ *      literal that suppressed comment-stripping for the rest of the file.
+ *   3. Capping quotes at a newline fixed that, but not
+ *      `dossierbeheer.data.ts:166` — `.replace(/[#>*`|_-]/g, ' ')`, a regex
+ *      literal containing a backtick, which opened a phantom *template*
+ *      literal. Template literals may legally span lines, so no newline cap
+ *      can help; seven comment lines went on surviving.
+ *
+ * Each fix was correct and each left another instance of the same class. The
+ * parser already knows exactly which spans are comments, literals and JSX
+ * text, in every one of these cases and the ones nobody has hit yet, so the
+ * guard asks it instead of guessing. `typescript` is already a devDependency
+ * and already runs over this package in `npm run type-check`.
  */
-function stripComments(src: string): string {
-  const out = src.split('');
-  const blank = (from: number, to: number) => {
-    for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+interface Scanned {
+  /** Comments blanked, literal contents kept. For rules that accuse. */
+  accuse: string;
+  /** Comments and literal contents blanked. For the rule that excuses. */
+  excuse: string;
+}
+
+function scanSource(src: string, fileName: string): Scanned {
+  const sf = ts.createSourceFile(
+    fileName,
+    src,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+
+  const accuse = src.split('');
+  const excuse = src.split('');
+  const blank = (target: string[], from: number, to: number) => {
+    for (let k = from; k < to; k++) if (target[k] !== '\n') target[k] = ' ';
   };
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    const next = src[i + 1];
-    if (c === '/' && next === '/') {
-      const end = src.indexOf('\n', i);
-      const stop = end === -1 ? src.length : end;
-      blank(i, stop);
-      i = stop;
-    } else if (c === '/' && next === '*') {
-      const end = src.indexOf('*/', i + 2);
-      const stop = end === -1 ? src.length : end + 2;
-      blank(i, stop);
-      i = stop;
-    } else if (c === "'" || c === '"' || c === '`') {
-      // Skip over, do not blank: the text is kept for R1/R2.
-      let j = i + 1;
-      while (j < src.length) {
-        if (src[j] === '\\') j += 2;
-        else if (src[j] === c) break;
-        else j++;
+  const blankBoth = (from: number, to: number) => {
+    blank(accuse, from, to);
+    blank(excuse, from, to);
+  };
+
+  const seenComment = new Set<number>();
+  const visit = (node: ts.Node) => {
+    // Every comment in a file is leading trivia of some token, so walking down
+    // to the tokens reaches all of them — including the ones before EOF.
+    for (const range of ts.getLeadingCommentRanges(src, node.pos) ?? []) {
+      if (!seenComment.has(range.pos)) {
+        seenComment.add(range.pos);
+        blankBoth(range.pos, range.end);
       }
-      i = Math.min(j + 1, src.length);
-    } else {
-      i++;
     }
-  }
-  return out.join('');
+
+    // Literal *contents* — quotes and delimiters stay so offsets keep lining
+    // up and R1/R2's specifier matching still sees a quoted string in `accuse`.
+    const start = node.getStart(sf);
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isRegularExpressionLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
+      // Template head/middle/tail keep their `${` and backticks; only the
+      // literal text between delimiters is erased, so `${expr}` stays code.
+      blank(excuse, start + 1, node.end - 1);
+    } else if (ts.isJsxText(node)) {
+      blank(excuse, start, node.end);
+    }
+
+    node.getChildren(sf).forEach(visit);
+  };
+  sf.getChildren(sf).forEach(visit);
+
+  return { accuse: accuse.join(''), excuse: excuse.join('') };
 }
 
 /** R1: guarded names appearing in an import/export clause from modes.config. */
 function guardedNamesImportedFromConfig(code: string): string[] {
   const hits = new Set<string>();
+  // `\s*` not `\s+` before the brace: `import{x}from'./modes.config'` is legal
+  // (Prettier would never emit it, but the guard should not depend on Prettier).
+  // `\b` keeps `reimport{…}` from matching.
   const re =
-    /(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"][^'"]*modes\.config(?:\.js)?['"]/g;
+    /\b(?:import|export)\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"][^'"]*modes\.config(?:\.js)?['"]/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(code)) !== null) {
     for (const name of GUARDED_NAMES) {
@@ -206,17 +256,17 @@ function findOffenders(): Offender[] {
   const offenders: Offender[] = [];
   for (const file of walk(SRC_DIR)) {
     const rel = relative(SRC_DIR, file);
-    const code = stripComments(readFileSync(file, 'utf-8'));
+    const { accuse, excuse } = scanSource(readFileSync(file, 'utf-8'), file);
 
     // R1 and R2 apply to every file, allow-list included.
-    const imported = guardedNamesImportedFromConfig(code);
+    const imported = guardedNamesImportedFromConfig(accuse);
     if (imported.length > 0) {
       offenders.push({
         file: rel,
         reason: `imports ${imported.join(', ')} from modes.config — that is the unfiltered version`,
       });
     }
-    if (reachesConfigWholesale(code)) {
+    if (reachesConfigWholesale(accuse)) {
       offenders.push({
         file: rel,
         reason: 'namespace-imports or star-re-exports modes.config, which can yield either helper',
@@ -225,9 +275,11 @@ function findOffenders(): Offender[] {
 
     // R3 only: the two sanctioned files are exempt from this rule alone.
     if (R3_EXEMPT.has(rel)) continue;
-    const bound = boundFromUsePaModes(code);
+    // The accusation reads the superset, the excuse reads the subset — see
+    // scanSource. Swapping these two arguments reopens the disarming exploit.
+    const bound = boundFromUsePaModes(excuse);
     const unexplained = GUARDED_NAMES.filter(
-      (name) => new RegExp(`\\b${name}\\b`).test(code) && !bound.has(name)
+      (name) => new RegExp(`\\b${name}\\b`).test(accuse) && !bound.has(name)
     );
     if (unexplained.length > 0) {
       offenders.push({
