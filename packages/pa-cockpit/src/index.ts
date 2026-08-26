@@ -1,26 +1,22 @@
 /**
  * The package's public surface. Everything a host needs and nothing it does not
- * — notably not __resetPaCockpitHostForTests.
+ * — notably not __resetPaCockpitHostForTests, and not the internal
+ * components, which are reached only through the shell or through
+ * PaSectionsRouter.
  *
- * Two different kinds of "internal component" live under src/, and they are
- * NOT treated the same:
- *
- *  - Shell-internals (PACommandPalette, PANoAccessPanel, NotificationsPanel,
- *    WatchBell, CuratiePijplijnFlow, ...) are rendered directly by
- *    PADashboardV2 itself and never by a host. Those stay unexported, reached
- *    only through the shell.
- *  - Section-content building blocks (Vandaag, Issuekaart, Monitoring,
- *    AgendaView, Voortgang, FeitenView, the "beheer" panels, Dossierbeheer,
- *    and the usePaData()/MONITORING_TABS data they need) are the opposite:
- *    PADashboardV2 renders NONE of them — it unconditionally delegates all
- *    section content to the host's `SectionRouter` (see PaSectionRouterProps).
- *    A host's SectionRouter (packages/frontend's PASectionRouter.tsx,
- *    packages/pa-demo's DemoSectionRouter.tsx) is what dispatches
- *    `sectionId` to one of these, so they must be exported for a host to
- *    build one at all. Exporting them does not reopen the modes bypass this
- *    file used to warn about below (that bypass is about the *rail/palette*
- *    seeing sections a host tried to hide, not about the section renderers
- *    themselves being reusable).
+ * `PaSectionsRouter` is the one exception to "internal components stay
+ * internal": PADashboardV2 renders no section content itself — it
+ * unconditionally delegates to the host's `SectionRouter` (see
+ * PaSectionRouterProps) — so a host cannot dispatch to Vandaag, Issuekaart,
+ * Monitoring, the package's own "beheer" panels, etc. without something to
+ * call. Exporting the fourteen components individually and asking every
+ * host to hand-write the same MONITORING_IDS/VOORTGANG_IDS/db-* dispatch
+ * logic was tried and reverted — that grammar is package knowledge, not
+ * host knowledge, and hand-maintaining it per host was exactly the vendored
+ * fork's most-duplicated behaviour, just formalised. PaSectionsRouter is
+ * that grammar, written once; see its own file header for the composition
+ * contract a host must follow (its own ids checked first, this component as
+ * the unconditional tail).
  *
  * Deliberately absent: `allStaticSections` and `findPaModeForSection`. Neither
  * host calls them — packages/frontend passes PA_MODES straight through and
@@ -59,28 +55,4 @@ export type {
 export { deriveDossierRole } from './pages/public-affairs-v2/dossierbeheer.data';
 export type { DossierRole } from './pages/public-affairs-v2/dossierbeheer.data';
 
-/**
- * Section-content building blocks. A host's SectionRouter composes these
- * (plus its own host-specific sections, e.g. packages/frontend's Profiel,
- * Rollen and IOU panels) into the full `sectionId` dispatch PADashboardV2
- * requires. See the file header for why these are exported at all.
- */
-export { default as Vandaag } from './pages/public-affairs-v2/Vandaag';
-export type { Prioritering } from './pages/public-affairs-v2/Vandaag';
-export { default as Issuekaart } from './pages/public-affairs-v2/Issuekaart';
-export { default as Monitoring } from './pages/public-affairs-v2/Monitoring';
-export { default as AgendaView } from './pages/public-affairs-v2/AgendaView';
-export { default as Voortgang } from './pages/public-affairs-v2/Voortgang';
-export type { VoortgangView } from './pages/public-affairs-v2/Voortgang';
-export type { KompasViz } from './pages/public-affairs-v2/Kompas';
-export { MONITORING_TABS } from './pages/public-affairs-v2/pa.data';
-export type { MonitoringTabId } from './pages/public-affairs-v2/pa.data';
-export { usePaData } from './pages/public-affairs-v2/PaDataProvider';
-export { FeitenView } from './pages/public-affairs-v2/FeitenCijfers';
-
-export { default as KompasSpecSection } from './components/PADashboardV2/KompasSpecSection';
-export { default as CuratieSpecSection } from './components/PADashboardV2/CuratieSpecSection';
-export { default as NotificatiesSection } from './components/PADashboardV2/NotificatiesSection';
-export { default as ZoekcriteriaSection } from './components/PADashboardV2/ZoekcriteriaSection';
-export { default as BronnenSection } from './components/PADashboardV2/BronnenSection';
-export { default as Dossierbeheer } from './components/PADashboardV2/dossierbeheer/Dossierbeheer';
+export { default as PaSectionsRouter } from './components/PADashboardV2/PaSectionsRouter';

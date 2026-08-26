@@ -20,6 +20,9 @@ import SessionExpiryWarning from '../components/SessionExpiryWarning';
 import ChangelogPanel from './ChangelogPanel';
 
 configurePaCockpit({
+  // Getters, not snapshots: keycloak.token is replaced on every refresh, so a
+  // plain `token: keycloak.token` would freeze the value captured at module load
+  // and every request after the first refresh would send a stale bearer.
   auth: {
     get authenticated() {
       return !!keycloak.authenticated;
@@ -36,9 +39,6 @@ configurePaCockpit({
   tenant: { initializeTenantTheme, loadTenantConfigs, getTenantConfig, getDefaultTenantConfig },
 });
 
-// Getters, not snapshots: keycloak.token is replaced on every refresh, so a
-// plain `token: keycloak.token` would freeze the value captured at module load
-// and every request after the first refresh would send a stale bearer.
 export const paCockpitHost: PaCockpitHost = {
   modes: PA_MODES,
   SectionRouter: PASectionRouter,

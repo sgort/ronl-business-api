@@ -61,6 +61,7 @@ import NotificationsPanel from './public-affairs-v2/NotificationsPanel';
 // only be redundant for those hosts and would leave a future host that forgets
 // the styles.css import with a half-styled cockpit and no error to say why.
 
+/** Props the host's section dispatcher receives from the shell. */
 export interface PaSectionRouterProps {
   sectionId: string;
   prioritering: Prioritering;
