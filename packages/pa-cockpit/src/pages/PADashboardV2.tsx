@@ -13,34 +13,36 @@
  * exactly as the caseworker shell does — no PA-specific colours hardcoded.
  *
  * What's intentionally inherited:
- *   - keycloak auth + getUser()
+ *   - auth + getUser(), now via the host's registered PaCockpitAuth
  *   - tenant theme via initializeTenantTheme(user.municipality)
- *   - McpChatSection (via PADock) for the IOU assistant
+ *   - McpChatSection (via the host's Dock) for the IOU assistant
  *
  * What's new:
  *   - 4-mode PA information architecture (dossier-centric)
  *   - Kompas radar + 0–2 scorecard, signal duiding, lobby-canon timeline
+ *
+ * Host seams: this shell owns all five of them. Two are *services* read
+ * through ../host (auth, tenant); three are *React* seams supplied on the
+ * required `host` prop (the section router, the assistant dock, the session
+ * warning and the changelog panel), plus the mode set itself. Nothing here
+ * reaches for packages/frontend any more — see ../host for why the split runs
+ * along the service/React line rather than putting everything in one place.
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
-import keycloak, { getUser } from '../services/keycloak';
-import {
-  initializeTenantTheme,
-  loadTenantConfigs,
-  getTenantConfig,
-  getDefaultTenantConfig,
-} from '../services/tenant';
-import type { TenantConfig } from '../services/tenant';
+import { getPaCockpitAuth, getPaCockpitTenant, type PaTenantConfig } from '../host';
+import { PaModesProvider, usePaModes } from '../modes/PaModesContext';
 import type { KeycloakUser } from '@ronl/shared';
 
 import {
-  PA_MODES,
   SORT_SECTION_IDS,
   isPaItemVisible,
   type PaGateContext,
   type PaModeId,
   type OrgTypeGate,
+  type PaModeConfig,
 } from './public-affairs-v2/modes.config';
 import { kompasTotal } from './public-affairs-v2/pa.data';
 import { PaDataProvider, usePaData } from './public-affairs-v2/PaDataProvider';
@@ -48,15 +50,47 @@ import { Trend } from './public-affairs-v2/Kompas';
 import type { Prioritering } from './public-affairs-v2/Vandaag';
 import type { KompasViz } from './public-affairs-v2/Kompas';
 
-import PASectionRouter from '../components/PADashboardV2/PASectionRouter';
 import PACommandPalette from '../components/PADashboardV2/PACommandPalette';
-import PADock from '../components/PADashboardV2/PADock';
 import PANoAccessPanel from '../components/PADashboardV2/PANoAccessPanel';
-import SessionExpiryWarning from '../components/SessionExpiryWarning';
-import ChangelogPanel from './ChangelogPanel';
 import NotificationsPanel from './public-affairs-v2/NotificationsPanel';
 
 import './public-affairs-v2/dashboard-pa.css';
+
+/** Props the host's section dispatcher receives from the shell. */
+export interface PaSectionRouterProps {
+  sectionId: string;
+  prioritering: Prioritering;
+  kompasViz: KompasViz;
+  user: KeycloakUser | null;
+  tenantConfig: PaTenantConfig | null;
+  onOpenDossier: (id: string) => void;
+  onNavigate?: (mode: PaModeId, sectionId: string) => void;
+}
+
+/** Props the host's assistant dock receives from the shell. */
+export interface PaDockProps {
+  user: KeycloakUser | null;
+  onClose: () => void;
+}
+
+/** Props the host's changelog slide-over receives from the shell. */
+export interface PaChangelogPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+/**
+ * The React half of the host contract. `modes` is required rather than
+ * defaulted to PA_MODES on purpose: a public, unauthenticated host must be
+ * able to narrow the set, and a default would let it forget to.
+ */
+export interface PaCockpitHost {
+  modes: PaModeConfig[];
+  SectionRouter: ComponentType<PaSectionRouterProps>;
+  Dock: ComponentType<PaDockProps>;
+  SessionExpiryWarning: ComponentType;
+  ChangelogPanel: ComponentType<PaChangelogPanelProps>;
+}
 
 function SignalCountBadge({ tabId }: { tabId: string }) {
   const { signals, inboxCounts } = usePaData();
@@ -215,11 +249,22 @@ const STORAGE_KEY_DOCK = 'paV2.dock.open';
 const REQUIRED_ROLES = ['public-affairs'];
 const REQUIRED_ORG_TYPES: OrgTypeGate[] = ['province'];
 
-export default function PADashboardV2() {
+/**
+ * The shell body. Split out from the default export because it calls
+ * usePaModes(), and a component cannot useContext a provider it renders
+ * itself — the hook would run above the provider in the tree and throw.
+ */
+function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
+  // Capitalised locals: JSX treats a lowercase tag as a literal HTML element,
+  // so `<host.SectionRouter />` written as a lowercase binding would silently
+  // render an unknown element instead of the host's component.
+  const { SectionRouter, Dock, SessionExpiryWarning, ChangelogPanel } = host;
+  const { modes } = usePaModes();
+
   const navigate = useNavigate();
-  const [isAuthenticated] = useState<boolean>(() => !!keycloak.authenticated);
+  const [isAuthenticated] = useState<boolean>(() => !!getPaCockpitAuth().authenticated);
   const [user, setUser] = useState<KeycloakUser | null>(null);
-  const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
+  const [tenantConfig, setTenantConfig] = useState<PaTenantConfig | null>(null);
 
   const [mode, setMode] = useState<PaModeId>('vandaag');
   const [activeSection, setActiveSection] = useState<string>('vandaag');
@@ -246,20 +291,23 @@ export default function PADashboardV2() {
 
   // ── Tenant theme + user once we know auth state ─────────
   useEffect(() => {
+    // Resolved inside the effect, never at module scope: a module-scope read
+    // would run at import time, before any host has called configurePaCockpit.
+    const tenant = getPaCockpitTenant();
     if (isAuthenticated) {
-      const currentUser = getUser();
+      const currentUser = getPaCockpitAuth().getUser();
       setUser(currentUser);
       if (currentUser?.municipality) {
-        initializeTenantTheme(currentUser.municipality).then(() => {
-          loadTenantConfigs().then(() => {
-            setTenantConfig(getTenantConfig(currentUser.municipality!));
+        tenant.initializeTenantTheme(currentUser.municipality).then(() => {
+          tenant.loadTenantConfigs().then(() => {
+            setTenantConfig(tenant.getTenantConfig(currentUser.municipality!));
           });
         });
         return;
       }
     }
-    loadTenantConfigs().then(() => {
-      setTenantConfig(getDefaultTenantConfig());
+    tenant.loadTenantConfigs().then(() => {
+      setTenantConfig(tenant.getDefaultTenantConfig());
     });
   }, [isAuthenticated]);
 
@@ -325,7 +373,7 @@ export default function PADashboardV2() {
     setActiveSection(id);
   };
 
-  const currentMode = PA_MODES.find((m) => m.id === mode)!;
+  const currentMode = modes.find((m) => m.id === mode)!;
 
   const handleLogin = () => {
     sessionStorage.setItem('selected_idp', 'medewerker');
@@ -333,8 +381,9 @@ export default function PADashboardV2() {
     navigate('/auth');
   };
   const handleLogout = () => {
-    if (keycloak.authenticated) {
-      keycloak.logout({ redirectUri: window.location.origin + '/' });
+    const auth = getPaCockpitAuth();
+    if (auth.authenticated) {
+      auth.logout({ redirectUri: window.location.origin + '/' });
     } else {
       navigate('/dashboard/public-affairs');
     }
@@ -510,7 +559,7 @@ export default function PADashboardV2() {
 
         {/* ── Mode tabs ── */}
         <nav className="pac-tabs" aria-label="Werkmodus">
-          {PA_MODES.map((m) => (
+          {modes.map((m) => (
             <button
               key={m.id}
               type="button"
@@ -557,7 +606,7 @@ export default function PADashboardV2() {
                   requiredOrgTypes={REQUIRED_ORG_TYPES}
                 />
               ) : (
-                <PASectionRouter
+                <SectionRouter
                   sectionId={activeSection}
                   prioritering={prioritering}
                   kompasViz={kompasViz}
@@ -573,7 +622,7 @@ export default function PADashboardV2() {
             </div>
           </main>
 
-          {hasAccess && dockOpen && <PADock user={user} onClose={() => setDockOpen(false)} />}
+          {hasAccess && dockOpen && <Dock user={user} onClose={() => setDockOpen(false)} />}
         </div>
 
         {hasAccess && !dockOpen && (
@@ -593,5 +642,18 @@ export default function PADashboardV2() {
         />
       </PaDataProvider>
     </div>
+  );
+}
+
+/**
+ * The cockpit shell. `host` is required — it carries the mode set plus the
+ * four components the shell renders but does not own. The provider is
+ * rendered here rather than inside the body so the body can consume it.
+ */
+export default function PADashboardV2({ host }: { host: PaCockpitHost }) {
+  return (
+    <PaModesProvider modes={host.modes}>
+      <PADashboardV2Inner host={host} />
+    </PaModesProvider>
   );
 }

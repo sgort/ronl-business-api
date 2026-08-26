@@ -2,26 +2,80 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import PADashboardV2 from './PADashboardV2';
-import type { Dossier } from '@ronl/shared';
+import PADashboardV2, { type PaCockpitHost } from './PADashboardV2';
+import type { Dossier, KeycloakUser } from '@ronl/shared';
 import { makePaDataStub } from '../test/paData.stub';
+import { configurePaCockpit, __resetPaCockpitHostForTests } from '../host';
+import { PA_MODES } from './public-affairs-v2/modes.config';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
 
-const mockKeycloak = vi.hoisted(() => ({
+/**
+ * Host registration is a plain top-level import plus a beforeEach here, unlike
+ * services/pa.api.test.ts which must take `configurePaCockpit` from a dynamic
+ * import inside freshApi(). The difference is vi.resetModules(): that file
+ * resets the registry per case, so a statically-bound configurePaCockpit would
+ * write to the pre-reset copy of ../host while pa.api read the post-reset one.
+ * This file never resets modules, so the shell and this test share one instance
+ * of ../host and a static import is the honest, simpler thing.
+ *
+ * The auth object reads through `authState` via a getter rather than capturing
+ * values at registration time, because the cases below flip authentication
+ * *after* beforeEach has run and before render.
+ */
+const authState = {
   authenticated: false,
-  logout: vi.fn(),
-}));
-const mockGetUser = vi.hoisted(() => vi.fn());
-vi.mock('../services/keycloak', () => ({ default: mockKeycloak, getUser: mockGetUser }));
+  user: null as KeycloakUser | null,
+};
+const logoutMock = vi.fn();
 
-vi.mock('../services/tenant', () => ({
-  initializeTenantTheme: vi.fn().mockResolvedValue(true),
-  loadTenantConfigs: vi.fn().mockResolvedValue({}),
-  getTenantConfig: vi.fn().mockReturnValue(null),
-  getDefaultTenantConfig: vi.fn().mockReturnValue(null),
-}));
+function configureHost() {
+  configurePaCockpit({
+    auth: {
+      get authenticated() {
+        return authState.authenticated;
+      },
+      token: 'test-token',
+      getUser: () => authState.user,
+      updateToken: async () => false,
+      logout: logoutMock,
+    },
+    tenant: {
+      initializeTenantTheme: async () => true,
+      loadTenantConfigs: async () => ({}),
+      getTenantConfig: () => null,
+      getDefaultTenantConfig: () => null,
+    },
+  });
+}
+
+/**
+ * The React half of the contract. The four components stand in for the host's
+ * own; `modes` is the full set, so a case that narrows it is visibly narrowing
+ * something that would otherwise be there.
+ */
+const testHost: PaCockpitHost = {
+  modes: PA_MODES,
+  SectionRouter: (props) => (
+    <div data-testid="section-router">
+      section={props.sectionId}
+      <button type="button" onClick={() => props.onNavigate?.('monitoring', 'europa')}>
+        deep-nav-to-europa
+      </button>
+    </div>
+  ),
+  Dock: () => <div data-testid="dock">dock</div>,
+  SessionExpiryWarning: () => null,
+  ChangelogPanel: () => null,
+};
+
+const authorizedUser: KeycloakUser = {
+  sub: '1',
+  name: 'Test User',
+  roles: ['public-affairs'],
+  organisation_type: 'province',
+} as unknown as KeycloakUser;
 
 const dossiers: Dossier[] = [
   {
@@ -57,37 +111,21 @@ vi.mock('./public-affairs-v2/PaDataProvider', () => ({
 const defaultPaData = () =>
   makePaDataStub({ dossiers: { data: dossiers, status: 'ok', refetch: vi.fn() } });
 
-vi.mock('../components/PADashboardV2/PASectionRouter', () => ({
-  default: (props: {
-    sectionId: string;
-    onNavigate: (mode: string, sectionId: string) => void;
-  }) => (
-    <div data-testid="section-router">
-      section={props.sectionId}
-      <button type="button" onClick={() => props.onNavigate('monitoring', 'europa')}>
-        deep-nav-to-europa
-      </button>
-    </div>
-  ),
-}));
 vi.mock('../components/PADashboardV2/PACommandPalette', () => ({
   default: (props: { open: boolean }) =>
     props.open ? <div data-testid="palette">palette-open</div> : null,
 }));
-vi.mock('../components/PADashboardV2/PADock', () => ({
-  default: () => <div data-testid="dock">dock</div>,
-}));
 vi.mock('../components/PADashboardV2/PANoAccessPanel', () => ({
   default: () => <div data-testid="no-access">no access</div>,
 }));
-vi.mock('../components/SessionExpiryWarning', () => ({ default: () => null }));
-vi.mock('./ChangelogPanel', () => ({ default: () => null }));
 vi.mock('./public-affairs-v2/NotificationsPanel', () => ({ default: () => null }));
 
 describe('PADashboardV2', () => {
   beforeEach(() => {
-    mockKeycloak.authenticated = false;
-    mockGetUser.mockReturnValue(null);
+    authState.authenticated = false;
+    authState.user = null;
+    __resetPaCockpitHostForTests();
+    configureHost();
     mockUsePaData.mockReturnValue(defaultPaData());
   });
 
@@ -96,48 +134,38 @@ describe('PADashboardV2', () => {
   });
 
   it('shows the login prompt when not authenticated', () => {
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
     expect(screen.getByText('Inloggen vereist')).toBeInTheDocument();
   });
 
   it('shows the no-access panel for an authenticated user missing the required role/org-type', () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
+    authState.authenticated = true;
+    authState.user = {
       sub: '1',
       name: 'Test User',
       roles: ['public-affairs'],
       organisation_type: 'municipality', // wrong org type — gate requires 'province'
-    });
+    } as unknown as KeycloakUser;
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
 
     expect(screen.getByTestId('no-access')).toBeInTheDocument();
   });
 
   it('renders the section router on the default section for an authorized user', () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
-      sub: '1',
-      name: 'Test User',
-      roles: ['public-affairs'],
-      organisation_type: 'province',
-    });
+    authState.authenticated = true;
+    authState.user = authorizedUser;
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
 
     expect(screen.getByTestId('section-router')).toHaveTextContent('section=vandaag');
   });
 
   it('lists only actief dossiers in the Vandaag rail, ordered as provided', () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
-      sub: '1',
-      name: 'Test User',
-      roles: ['public-affairs'],
-      organisation_type: 'province',
-    });
+    authState.authenticated = true;
+    authState.user = authorizedUser;
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
 
     expect(screen.getByText('Stikstof')).toBeInTheDocument();
     expect(screen.getByText('Jeugdzorg')).toBeInTheDocument();
@@ -145,16 +173,11 @@ describe('PADashboardV2', () => {
   });
 
   it('clicking a dossier in the rail jumps to Dossiers mode on that dossier', async () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
-      sub: '1',
-      name: 'Test User',
-      roles: ['public-affairs'],
-      organisation_type: 'province',
-    });
+    authState.authenticated = true;
+    authState.user = authorizedUser;
     const user = userEvent.setup();
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
     await user.click(screen.getByText('Stikstof'));
 
     expect(screen.getByTestId('section-router')).toHaveTextContent('section=stikstof');
@@ -162,32 +185,22 @@ describe('PADashboardV2', () => {
   });
 
   it('switching to Monitoring lands on its default section (politiek)', async () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
-      sub: '1',
-      name: 'Test User',
-      roles: ['public-affairs'],
-      organisation_type: 'province',
-    });
+    authState.authenticated = true;
+    authState.user = authorizedUser;
     const user = userEvent.setup();
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
     await user.click(screen.getByRole('button', { name: 'Monitoring' }));
 
     expect(screen.getByTestId('section-router')).toHaveTextContent('section=politiek');
   });
 
   it('remembers the last visited section per mode when switching back', async () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
-      sub: '1',
-      name: 'Test User',
-      roles: ['public-affairs'],
-      organisation_type: 'province',
-    });
+    authState.authenticated = true;
+    authState.user = authorizedUser;
     const user = userEvent.setup();
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
     await user.click(screen.getByRole('button', { name: 'Monitoring' }));
     await user.click(screen.getByRole('button', { name: 'deep-nav-to-europa' }));
     expect(screen.getByTestId('section-router')).toHaveTextContent('section=europa');
@@ -199,29 +212,44 @@ describe('PADashboardV2', () => {
     expect(screen.getByTestId('section-router')).toHaveTextContent('section=europa');
   });
 
-  it('logout calls keycloak.logout with the app origin as redirect', async () => {
-    mockKeycloak.authenticated = true;
-    mockGetUser.mockReturnValue({
-      sub: '1',
-      name: 'Test User',
-      roles: ['public-affairs'],
-      organisation_type: 'province',
-    });
+  it("logout calls the host auth's logout with the app origin as redirect", async () => {
+    authState.authenticated = true;
+    authState.user = authorizedUser;
     const user = userEvent.setup();
 
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
     await waitFor(() => expect(screen.getByTitle('Uitloggen')).toBeInTheDocument());
     await user.click(screen.getByTitle('Uitloggen'));
 
-    expect(mockKeycloak.logout).toHaveBeenCalledWith({ redirectUri: window.location.origin + '/' });
+    expect(logoutMock).toHaveBeenCalledWith({ redirectUri: window.location.origin + '/' });
   });
 
   it('toggles the command palette open via the search button', async () => {
     const user = userEvent.setup();
-    render(<PADashboardV2 />);
+    render(<PADashboardV2 host={testHost} />);
 
     expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Snel navigeren' }));
     expect(screen.getByTestId('palette')).toBeInTheDocument();
+  });
+
+  it('renders only the modes the host supplied', () => {
+    // Deny-by-default made observable: a host narrowing its mode set must not
+    // find the full rail rendered anyway. This is the guarantee that replaces
+    // pa-demo's Vite alias, and the reason `modes` is required rather than
+    // defaulted to PA_MODES.
+    //
+    // The full-set render first is not decoration: it is what makes the second
+    // assertion capable of failing. Without it, a shell that ignored
+    // host.modes entirely and rendered nothing would still "pass".
+    const full = render(<PADashboardV2 host={testHost} />);
+    expect(screen.getByRole('button', { name: 'Beheer' })).toBeInTheDocument();
+    full.unmount();
+
+    const narrowed = PA_MODES.filter((m) => m.id === 'vandaag');
+    render(<PADashboardV2 host={{ ...testHost, modes: narrowed }} />);
+
+    expect(screen.getByRole('button', { name: 'Vandaag' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Beheer' })).not.toBeInTheDocument();
   });
 });
