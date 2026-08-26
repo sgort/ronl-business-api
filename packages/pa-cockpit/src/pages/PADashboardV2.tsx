@@ -54,9 +54,13 @@ import PACommandPalette from '../components/PADashboardV2/PACommandPalette';
 import PANoAccessPanel from '../components/PADashboardV2/PANoAccessPanel';
 import NotificationsPanel from './public-affairs-v2/NotificationsPanel';
 
-import './public-affairs-v2/dashboard-pa.css';
+// No direct dashboard-pa.css import here: every host imports the aggregated
+// '@ronl/pa-cockpit/styles.css' (which pulls this in, plus dossierbeheer.css)
+// before rendering PADashboardV2 — see packages/frontend/src/App.tsx and, from
+// Task 11, packages/pa-demo/src/App.tsx. A second, partial import here would
+// only be redundant for those hosts and would leave a future host that forgets
+// the styles.css import with a half-styled cockpit and no error to say why.
 
-/** Props the host's section dispatcher receives from the shell. */
 export interface PaSectionRouterProps {
   sectionId: string;
   prioritering: Prioritering;

@@ -9,31 +9,43 @@
  *
  * Dossiers are data-driven, so any id that resolves to a dossier renders the
  * Issuekaart. Unknown ids fall through to a friendly placeholder.
+ *
+ * This is packages/frontend's `host.SectionRouter` (see pages/pa-cockpit-host.tsx)
+ * — a permanent host seam, not a candidate for moving into @ronl/pa-cockpit.
+ * Most of the sections it dispatches to ARE package code (imported below);
+ * the "beheer" management panels for Profiel, Rollen, the IOU sections and
+ * Gereedschap are frontend-only and stay local.
  */
 
-import Vandaag, { type Prioritering } from '../../pages/public-affairs-v2/Vandaag';
-import Issuekaart from '../../pages/public-affairs-v2/Issuekaart';
-import Monitoring from '../../pages/public-affairs-v2/Monitoring';
-import AgendaView from '../../pages/public-affairs-v2/AgendaView';
-import Voortgang, { type VoortgangView } from '../../pages/public-affairs-v2/Voortgang';
-import type { KompasViz } from '../../pages/public-affairs-v2/Kompas';
-import { MONITORING_TABS, type MonitoringTabId } from '../../pages/public-affairs-v2/pa.data';
-import { usePaData } from '../../pages/public-affairs-v2/PaDataProvider';
+import {
+  Vandaag,
+  Issuekaart,
+  Monitoring,
+  AgendaView,
+  Voortgang,
+  FeitenView,
+  usePaData,
+  MONITORING_TABS,
+  KompasSpecSection,
+  CuratieSpecSection,
+  NotificatiesSection,
+  ZoekcriteriaSection,
+  BronnenSection,
+  Dossierbeheer,
+  type Prioritering,
+  type VoortgangView,
+  type KompasViz,
+  type MonitoringTabId,
+  type PaModeId,
+  type PaTenantConfig,
+} from '@ronl/pa-cockpit';
 import type { KeycloakUser } from '@ronl/shared';
-import type { TenantConfig } from '../../services/tenant';
 import ProfielSection from '../CaseworkerDashboard/ProfielSection';
 import RollenSection from '../CaseworkerDashboard/RollenSection';
 import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenarioSection';
 import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
 import GereedschapSection from '../CaseworkerDashboard/GereedschapSection';
-import { FeitenView } from '../../pages/public-affairs-v2/FeitenCijfers';
-import KompasSpecSection from './KompasSpecSection';
-import CuratieSpecSection from './CuratieSpecSection';
-import NotificatiesSection from './NotificatiesSection';
-import ZoekcriteriaSection from './ZoekcriteriaSection';
-import BronnenSection from './BronnenSection';
-import Dossierbeheer from './dossierbeheer/Dossierbeheer';
 
 const MONITORING_IDS = new Set<string>(MONITORING_TABS.map((t) => t.id));
 const VOORTGANG_IDS = new Set<string>(['voortgang', 'kompas-log', 'interventie-log']);
@@ -57,12 +69,9 @@ interface Props {
   prioritering: Prioritering;
   kompasViz: KompasViz;
   user: KeycloakUser | null;
-  tenantConfig: TenantConfig | null;
+  tenantConfig: PaTenantConfig | null;
   onOpenDossier: (id: string) => void;
-  onNavigate?: (
-    mode: import('../../pages/public-affairs-v2/modes.config').PaModeId,
-    sectionId: string
-  ) => void;
+  onNavigate?: (mode: PaModeId, sectionId: string) => void;
 }
 
 export default function PASectionRouter({

@@ -3,50 +3,55 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PASectionRouter from './PASectionRouter';
-import { makePaDataStub } from '../../test/paData.stub';
+import { makePaDataStub } from '@ronl/pa-cockpit/test-utils';
 
 const mockDossiers = vi.hoisted(() => [
   { id: 'jeugdzorg', naam: 'Jeugdzorg', status: 'sluimerend' },
   { id: 'stikstof', naam: 'Stikstof & landbouw', status: 'actief' },
 ]);
-vi.mock('../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () =>
-    makePaDataStub({ dossiers: { data: mockDossiers, status: 'ok', refetch: vi.fn() } }),
-}));
-
-vi.mock('../../pages/public-affairs-v2/Vandaag', () => ({ default: () => <div>vandaag</div> }));
 
 const mockIssuekaart = vi.hoisted(() => vi.fn());
-vi.mock('../../pages/public-affairs-v2/Issuekaart', () => ({
-  default: (props: never) => {
-    mockIssuekaart(props);
-    return <div>issuekaart</div>;
-  },
-}));
-
 const mockMonitoring = vi.hoisted(() => vi.fn());
-vi.mock('../../pages/public-affairs-v2/Monitoring', () => ({
-  default: (props: never) => {
-    mockMonitoring(props);
-    return <div>monitoring</div>;
-  },
-}));
-
-vi.mock('../../pages/public-affairs-v2/AgendaView', () => ({
-  default: () => <div>agenda-view</div>,
-}));
-
 const mockVoortgang = vi.hoisted(() => vi.fn());
-vi.mock('../../pages/public-affairs-v2/Voortgang', () => ({
-  default: (props: never) => {
-    mockVoortgang(props);
-    return <div>voortgang</div>;
-  },
-}));
+const mockDossierbeheer = vi.hoisted(() => vi.fn());
 
-vi.mock('../../pages/public-affairs-v2/FeitenCijfers', () => ({
-  FeitenView: () => <div>feiten-view</div>,
-}));
+// PASectionRouter now sources its section-content components from the
+// package rather than from sibling files in packages/frontend, so they are
+// mocked as one module rather than per relative path. `importOriginal` keeps
+// every real export PASectionRouter also relies on at runtime (MONITORING_TABS)
+// intact, overriding only usePaData and the components under test here.
+vi.mock('@ronl/pa-cockpit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@ronl/pa-cockpit')>();
+  return {
+    ...actual,
+    usePaData: () =>
+      makePaDataStub({ dossiers: { data: mockDossiers, status: 'ok', refetch: vi.fn() } }),
+    Vandaag: () => <div>vandaag</div>,
+    Issuekaart: (props: never) => {
+      mockIssuekaart(props);
+      return <div>issuekaart</div>;
+    },
+    Monitoring: (props: never) => {
+      mockMonitoring(props);
+      return <div>monitoring</div>;
+    },
+    AgendaView: () => <div>agenda-view</div>,
+    Voortgang: (props: never) => {
+      mockVoortgang(props);
+      return <div>voortgang</div>;
+    },
+    FeitenView: () => <div>feiten-view</div>,
+    KompasSpecSection: () => <div>kompas-spec</div>,
+    CuratieSpecSection: () => <div>curatie-spec</div>,
+    NotificatiesSection: () => <div>notificaties</div>,
+    ZoekcriteriaSection: () => <div>zoekcriteria</div>,
+    BronnenSection: () => <div>bronnen</div>,
+    Dossierbeheer: (props: never) => {
+      mockDossierbeheer(props);
+      return <div>dossierbeheer</div>;
+    },
+  };
+});
 
 vi.mock('../CaseworkerDashboard/ProfielSection', () => ({ default: () => <div>profiel</div> }));
 vi.mock('../CaseworkerDashboard/RollenSection', () => ({ default: () => <div>rollen</div> }));
@@ -65,19 +70,6 @@ vi.mock('../CaseworkerDashboard/IouZakenSection', () => ({
 }));
 vi.mock('../CaseworkerDashboard/GereedschapSection', () => ({
   default: () => <div>gereedschap</div>,
-}));
-vi.mock('./KompasSpecSection', () => ({ default: () => <div>kompas-spec</div> }));
-vi.mock('./CuratieSpecSection', () => ({ default: () => <div>curatie-spec</div> }));
-vi.mock('./NotificatiesSection', () => ({ default: () => <div>notificaties</div> }));
-vi.mock('./ZoekcriteriaSection', () => ({ default: () => <div>zoekcriteria</div> }));
-vi.mock('./BronnenSection', () => ({ default: () => <div>bronnen</div> }));
-
-const mockDossierbeheer = vi.hoisted(() => vi.fn());
-vi.mock('./dossierbeheer/Dossierbeheer', () => ({
-  default: (props: never) => {
-    mockDossierbeheer(props);
-    return <div>dossierbeheer</div>;
-  },
 }));
 
 const baseProps = {

@@ -9,9 +9,15 @@ const mockKeycloak = vi.hoisted(() => ({
   tokenParsed: null as { realm_access?: { roles: string[] } } | null,
 }));
 const mockInitializeKeycloak = vi.hoisted(() => vi.fn());
+// getUser is unused by anything this file exercises (ProtectedRoute never
+// calls it) but is required: importing './App' also loads
+// './pages/pa-cockpit-host' for its side-effecting configurePaCockpit() call,
+// and that module destructures getUser from this same mock.
+const mockGetUser = vi.hoisted(() => vi.fn());
 vi.mock('./services/keycloak', () => ({
   default: mockKeycloak,
   initializeKeycloak: mockInitializeKeycloak,
+  getUser: mockGetUser,
 }));
 
 function renderAt(initialPath: string) {
