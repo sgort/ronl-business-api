@@ -13,6 +13,7 @@ on:
     paths:
       - 'packages/pa-demo/**'
       - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
       - '.github/workflows/azure-pa-demo-acc.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]

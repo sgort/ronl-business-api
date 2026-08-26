@@ -7,6 +7,7 @@ on:
     paths:
       - 'packages/frontend/**'
       - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
       - '.github/workflows/azure-frontend-prod.yml'
   workflow_dispatch:
 

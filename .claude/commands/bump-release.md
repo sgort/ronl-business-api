@@ -145,6 +145,9 @@ Map the touched top-level dirs to the `scope` array (one entry per package):
 - `packages/backend/**` → include `'backend'`
 - `packages/public-site/**` → include `'public-site'`
 - `packages/pa-demo/**` → include `'pa-demo'`
+- `packages/pa-cockpit/**` → include **both** `'frontend'` and `'pa-demo'` (the
+  package is compiled into both apps and deployed on its own by neither; same
+  rule `packages/shared/**` already follows for frontend + backend)
 - `packages/shared/**` → include **both** `'frontend'` and `'backend'` (shared
   feeds both builds; there is no `'shared'` scope tag)
 
