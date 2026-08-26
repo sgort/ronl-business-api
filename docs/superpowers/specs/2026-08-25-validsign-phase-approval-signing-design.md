@@ -94,7 +94,9 @@ Taken by the user during design, recorded so they are not silently revisited:
 3. **Generate the PDF in RBA** from process variables, rather than using a
    ValidSign template or round-tripping through eDOCS.
 4. **Render from the LDE document template's zones**, not a hardcoded renderer.
-5. **Source documents become Markdown** (`.md`), not `.txt`.
+5. **The source document becomes Markdown** (`.md`), not `.txt` — for
+   `rip-pdp` only. The other two RIP documents keep the existing hardcoded
+   renderer and stay `.txt`.
 6. **The signed PDF is archived back into the project's eDOCS workspace.**
 7. **One signer: whoever claims the task.** Identity from the Keycloak token.
 8. **Callback webhook plus a polling safety net.**
@@ -194,13 +196,39 @@ with real text-wrapping helpers (`heightOfString`, wrapped `text()`); pdf-lib is
 built for editing existing PDFs and leaves wrapping to the caller. Built-in
 Helvetica covers Latin-1, so Dutch diacritics need no embedded font.
 
-**Simplification this unlocks.** `renderDocumentContent()` in
-`externalTaskWorker.service.ts` is a hardcoded `switch` restating, as TypeScript
-string literals, content the `.document` templates already define — two sources
-of truth for one document. Once `renderTemplate()` + `toMarkdown()` exist the
-worker calls them and the switch is deleted. **Blast radius: all three
-documents change from hand-written `.txt` to template-rendered `.md`.** Note
-that `linked-data-explorer` carries its own copy of
+**Simplification this unlocks — scoped to `rip-pdp` only.**
+`renderDocumentContent()` in `externalTaskWorker.service.ts` is a hardcoded
+`switch` restating, as TypeScript string literals, content the `.document`
+templates already define — two sources of truth for one document. Once
+`renderTemplate()` + `toMarkdown()` exist, that duplication can go.
+
+By decision, **only `rip-pdp` migrates now**: it is the document the signature
+actually touches, so converting `rip-intake-report` and `rip-psu-report` in the
+same change would alter two documents for no benefit to this feature. The
+worker therefore selects its renderer per template:
+
+```ts
+// Templates migrated off the hardcoded switch. Deleting this set — and the
+// switch with it — is the follow-up, once the rendered output has been
+// reviewed in eDOCS for a real project.
+const TEMPLATE_RENDERER_MIGRATED = new Set(['rip-pdp']);
+```
+
+Migrated templates render through `renderTemplate()` + `toMarkdown()` and are
+archived as `.md`; the other two keep the `switch` and stay `.txt` until the
+follow-up. An explicit allowlist rather than a scattered conditional, so the
+temporary fork is greppable and removing it is a single deletion.
+
+**Blast radius: one document.** `rip-pdp` changes from a hand-written `.txt` to
+a template-rendered `.md`. `rip-intake-report` and `rip-psu-report` are
+byte-for-byte unchanged.
+
+Note that this shared renderer serves **two** moments, not one: document
+creation (`Task_AanvullenProjectplan4`, via the worker, emitting Markdown) and
+signing (`Task_AccorderenProjectplan4`, emitting the PDF). Only the emitter
+differs.
+
+Note also that `linked-data-explorer` carries its own copy of
 `externalTaskWorker.service.ts` with the same switch; this change covers RBA's
 copy only.
 
@@ -461,6 +489,10 @@ registration), not a code one.
 - The six `.document` copies under
   `examples/organizations/flevoland/rip-phase1{,-swimlanes}/`, which carry the
   same zone-key defect but a correct `processKey`.
+- Migrating `rip-intake-report` and `rip-psu-report` to the template renderer
+  and deleting `renderDocumentContent()`'s `switch` along with the
+  `TEMPLATE_RENDERER_MIGRATED` allowlist. Deliberate follow-up, not an
+  oversight — see section C.
 - LDE's duplicate `externalTaskWorker.service.ts`.
 
 ## Rollback
@@ -472,13 +504,14 @@ today. No data migration, no code revert.
 
 ## Open questions
 
-1. **Blast radius of the Markdown conversion** — convert all three documents at
-   once (deleting the `switch`), or `rip-pdp` only, keeping the switch for the
-   other two and deleting it in a follow-up? Not yet decided.
+1. ~~**Blast radius of the Markdown conversion.**~~ **Decided:** `rip-pdp`
+   only. `rip-intake-report` and `rip-psu-report` keep the hardcoded `switch`
+   and stay `.txt`; migrating them and deleting the switch is a follow-up. See
+   section C.
 2. ~~**Sender context.**~~ **Resolved by the live probe:** packages must carry
    an explicit sender. The key is account-wide and the account holds packages
    from multiple senders, so nothing may rely on a default. See "Verified by
    live probe" and section F.
-3. **Branch coupling.** `feature/validsign-signing` currently carries E2E commit
-   `3968122`, so ValidSign and the E2E improvement cannot land separately
-   without a cherry-pick.
+3. ~~**Branch coupling.**~~ **Decided:** ValidSign and the E2E improvement land
+   together. `feature/validsign-signing` keeps E2E commit `3968122`; no
+   cherry-pick, no separate branch.
