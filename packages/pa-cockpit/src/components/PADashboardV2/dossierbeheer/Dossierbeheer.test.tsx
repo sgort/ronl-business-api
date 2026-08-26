@@ -43,9 +43,6 @@ vi.mock('../../../services/mock-demo.store', () => ({ resetMockDemoData: mockRes
 
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 const mockSetDossiersMock = vi.hoisted(() => vi.fn());
-vi.mock('../../../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
 const paApi = { isPaMock: mockIsDossiersMock, setPaMock: mockSetDossiersMock };
 // Built on the real module so a member nobody stubbed is not silently missing.
 vi.mock('../../../services/pa.api', async (importActual) => ({

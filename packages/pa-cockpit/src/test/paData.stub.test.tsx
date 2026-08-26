@@ -16,10 +16,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 
-vi.mock('../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
-
 vi.mock('../services/pa.api', async (importActual) => {
   const actual = await importActual<typeof import('../services/pa.api')>();
   return {

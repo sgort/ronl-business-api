@@ -6,9 +6,6 @@ import CuratieSpecSection from './CuratieSpecSection';
 import { expectMockNamesRealExports } from '../../test/mockModule';
 
 const mockTriggerCurationCycle = vi.hoisted(() => vi.fn());
-vi.mock('../../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
 const paApi = { triggerCurationCycle: mockTriggerCurationCycle };
 // Built on the real module so a member nobody stubbed is not silently missing.
 vi.mock('../../services/pa.api', async (importActual) => ({

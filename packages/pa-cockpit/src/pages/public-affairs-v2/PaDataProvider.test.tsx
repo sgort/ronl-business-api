@@ -21,9 +21,6 @@ const mocks = vi.hoisted(() => ({
   ackNotifications: vi.fn(),
 }));
 
-vi.mock('../../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
 // Built on the real module so a member nobody stubbed is not silently missing.
 vi.mock('../../services/pa.api', async (importActual) => ({
   ...(await importActual<typeof import('../../services/pa.api')>()),

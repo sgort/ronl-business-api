@@ -12,9 +12,6 @@ const paApi = vi.hoisted(() => ({
 const mockFetchSourcesStatus = paApi.fetchSourcesStatus;
 const mockFetchFeedToken = paApi.fetchFeedToken;
 
-vi.mock('../../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
 // Built on the real module so a member nobody stubbed is not silently missing.
 vi.mock('../../services/pa.api', async (importActual) => ({
   ...(await importActual<typeof import('../../services/pa.api')>()),

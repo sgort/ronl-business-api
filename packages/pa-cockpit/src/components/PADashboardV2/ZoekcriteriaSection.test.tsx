@@ -11,9 +11,6 @@ const mockFetchSearches = vi.hoisted(() => vi.fn());
 const mockCreateSearch = vi.hoisted(() => vi.fn());
 const mockUpdateSearch = vi.hoisted(() => vi.fn());
 const mockDeleteSavedSearch = vi.hoisted(() => vi.fn());
-vi.mock('../../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
 const paApi = {
   fetchSearches: mockFetchSearches,
   createSearch: mockCreateSearch,

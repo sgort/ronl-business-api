@@ -30,9 +30,6 @@ const paApi = vi.hoisted(() => ({
   signalTag: vi.fn(() => 'nl'),
   signalTagLabel: vi.fn(() => 'Politiek NL'),
 }));
-vi.mock('../../services/keycloak', () => ({
-  default: { authenticated: false, token: undefined, updateToken: vi.fn() },
-}));
 // Built on the real module so a member nobody stubbed is not silently missing.
 vi.mock('../../services/pa.api', async (importActual) => ({
   ...(await importActual<typeof import('../../services/pa.api')>()),

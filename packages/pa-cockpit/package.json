@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./test-utils": "./src/test/index.ts"
   },
   "scripts": {
     "test": "vitest run --coverage",
