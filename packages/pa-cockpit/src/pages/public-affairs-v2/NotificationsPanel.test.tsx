@@ -188,7 +188,7 @@ describe('list', () => {
     render(<NotificationsPanel isOpen onClose={vi.fn()} />);
 
     expect(screen.getByText('Motie over stikstof').closest('li')?.className).toContain(
-      'opacity-60'
+      'pac-notif-item--seen'
     );
   });
 
@@ -196,7 +196,7 @@ describe('list', () => {
     render(<NotificationsPanel isOpen onClose={vi.fn()} />);
 
     expect(screen.getByText('Motie over stikstof').closest('li')?.className).not.toContain(
-      'opacity-60'
+      'pac-notif-item--seen'
     );
   });
 });

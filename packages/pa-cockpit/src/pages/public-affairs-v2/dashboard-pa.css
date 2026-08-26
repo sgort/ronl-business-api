@@ -1955,3 +1955,72 @@
 .pac .pac-notif-props .pac-spec-table td { vertical-align: top; }
 .pac .pac-notif-code { font-family: var(--pac-mono); font-size: 10.5px; color: var(--pac-ink-3); margin-top: 3px; }
 .pac .pac-notif-props .pac-beheer-note code { font-family: var(--pac-mono); font-size: 11px; background: var(--pac-bg); border: 1px solid var(--pac-rule-2); padding: 1px 5px; color: var(--pac-ink); }
+
+/* ── Meldingen (notifications slide-over) ─────────────────────
+   NotificationsPanel.tsx — translated 1:1 from Tailwind utility
+   classes so the package carries no Tailwind dependency (see
+   no-tailwind.test.ts). Values below are literal Tailwind
+   computed values (spacing scale, gray palette, shadow/timing
+   tokens), not the .pac design tokens, so the rendered result
+   stays pixel-identical to what it replaced. */
+.pac .pac-notif-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 50;
+  transition: opacity 300ms;
+}
+.pac .pac-notif-panel {
+  position: fixed; top: 0; right: 0; height: 100%; width: 100%;
+  background: #fff; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  z-index: 60; display: flex; flex-direction: column;
+  transition: transform 300ms cubic-bezier(0, 0, 0.2, 1);
+}
+@media (min-width: 640px) {
+  .pac .pac-notif-panel { width: 420px; }
+}
+.pac .pac-notif-header {
+  flex-shrink: 0; color: #fff; padding: 1rem 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+.pac .pac-notif-header-row { display: flex; align-items: center; justify-content: space-between; }
+.pac .pac-notif-header-left { display: flex; align-items: center; gap: 0.75rem; }
+.pac .pac-notif-icon { font-size: 1.5rem; line-height: 2rem; }
+.pac .pac-notif-title { font-size: 1.25rem; line-height: 1.75rem; font-weight: 700; }
+.pac .pac-notif-subtitle { font-size: 0.875rem; line-height: 1.25rem; }
+.pac .pac-notif-close {
+  color: #fff; background: none; border: none; border-radius: 9999px;
+  padding: 0.5rem; cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pac .pac-notif-close:hover { background-color: rgba(255, 255, 255, 0.2); }
+.pac .pac-notif-close-icon { width: 1.5rem; height: 1.5rem; }
+.pac .pac-notif-content { flex: 1 1 0%; overflow-y: auto; overflow-x: hidden; padding: 1.5rem; }
+.pac .pac-notif-empty { font-size: 0.875rem; line-height: 1.25rem; color: #6b7280; }
+.pac .pac-notif-list { list-style: none; margin: 0; padding: 0; }
+.pac .pac-notif-list > * + * { margin-top: 0.75rem; }
+.pac .pac-notif-item { border: 1px solid; border-radius: 0.5rem; padding: 1rem; }
+.pac .pac-notif-item--seen { border-color: #e5e7eb; opacity: 0.6; }
+.pac .pac-notif-item--unseen { border-color: #d1d5db; background-color: #f9fafb; }
+.pac .pac-notif-item-title {
+  font-weight: 600; color: #111827; font-size: 0.875rem; line-height: 1.25rem;
+  overflow-wrap: break-word;
+}
+.pac .pac-notif-item-src {
+  font-size: 0.75rem; line-height: 1rem; color: #4b5563; margin-top: 0.25rem;
+  overflow-wrap: break-word;
+}
+.pac .pac-notif-item-link { margin-left: 0.25rem; font-weight: 600; text-decoration: none; }
+.pac .pac-notif-item-link:hover { text-decoration: underline; }
+.pac .pac-notif-item-via {
+  font-size: 0.75rem; line-height: 1rem; color: #9ca3af;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  margin-top: 0.25rem; overflow-wrap: break-word;
+}
+.pac .pac-notif-footer {
+  flex-shrink: 0; padding: 1rem 1.5rem; background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb; text-align: center;
+}
+.pac .pac-notif-ack {
+  font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; text-decoration: none;
+  background: none; border: none; padding: 0; cursor: pointer;
+}
+.pac .pac-notif-ack:hover { text-decoration: underline; }
