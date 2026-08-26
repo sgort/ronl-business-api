@@ -266,8 +266,14 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
   const [user, setUser] = useState<KeycloakUser | null>(null);
   const [tenantConfig, setTenantConfig] = useState<PaTenantConfig | null>(null);
 
-  const [mode, setMode] = useState<PaModeId>('vandaag');
-  const [activeSection, setActiveSection] = useState<string>('vandaag');
+  // Seeded from the host's set, not from a hardcoded 'vandaag'. A host is free
+  // to drop whole modes — that is what `modes` being required is *for* — and a
+  // hardcoded seed would leave `mode` pointing outside the supplied set on the
+  // very first render. For the full PA_MODES this is byte-identical: modes[0]
+  // is 'vandaag' and its defaultSectionId is 'vandaag'.
+  // PaModesProvider guarantees the set is non-empty, so modes[0] is safe here.
+  const [mode, setMode] = useState<PaModeId>(() => modes[0].id);
+  const [activeSection, setActiveSection] = useState<string>(() => modes[0].defaultSectionId);
   const [lastSection, setLastSection] = useState<Partial<Record<PaModeId, string>>>({});
   const [dossierId, setDossierId] = useState<string>('');
   // Seeded to '' at mount; DossierSelectionSyncer picks the first actief dossier
@@ -373,7 +379,13 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
     setActiveSection(id);
   };
 
-  const currentMode = modes.find((m) => m.id === mode)!;
+  // Total, not `!`. `mode` can be set to something outside the host's set from
+  // three directions: goToDossier hardcodes 'dossiers', the host's SectionRouter
+  // calls onNavigate with a mode of its choosing, and the palette's onSelect.
+  // Under the old `!` any of those landing on a mode the host did not supply
+  // *and* not handled by the vandaag/dossiers rail branches crashed on
+  // `currentMode.label` below. Degrade to the first supplied mode instead.
+  const currentMode = modes.find((m) => m.id === mode) ?? modes[0];
 
   const handleLogin = () => {
     sessionStorage.setItem('selected_idp', 'medewerker');

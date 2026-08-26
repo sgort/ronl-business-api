@@ -64,4 +64,18 @@ describe('PaModesProvider', () => {
   it('throws outside a provider rather than silently offering the full set', () => {
     expect(() => render(<Probe />)).toThrow(/PaModesProvider/);
   });
+
+  it('rejects an empty mode set, which consumers index into', () => {
+    // PADashboardV2 seeds its initial mode from modes[0] and falls back to it
+    // for an out-of-set mode. Both are safe only because this throws — an empty
+    // set would otherwise reach the shell and fail as "reading 'id' of
+    // undefined", pointing at the shell instead of at the host's wiring.
+    expect(() =>
+      render(
+        <PaModesProvider modes={[]}>
+          <Probe />
+        </PaModesProvider>
+      )
+    ).toThrow(/empty `modes` array/);
+  });
 });

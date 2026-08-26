@@ -35,6 +35,19 @@ export function PaModesProvider({
   modes: PaModeConfig[];
   children: ReactNode;
 }) {
+  // Asserted here rather than in the shell because this provider is the single
+  // chokepoint every consumer reaches modes through, so one check covers the
+  // shell's `modes[0]` seed, its `?? modes[0]` fallback, and anything added
+  // later that indexes the set. A silently empty set would otherwise surface as
+  // `Cannot read properties of undefined (reading 'id')` somewhere downstream,
+  // which says nothing about the host wiring that actually caused it.
+  if (modes.length === 0) {
+    throw new Error(
+      'PaModesProvider was given an empty `modes` array — the cockpit needs at least one mode. ' +
+        'Check the host’s modes wiring (a filter that matched nothing?).'
+    );
+  }
+
   const value = useMemo<PaModesValue>(
     () => ({
       modes,

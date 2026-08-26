@@ -252,4 +252,41 @@ describe('PADashboardV2', () => {
     expect(screen.getByRole('button', { name: 'Vandaag' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Beheer' })).not.toBeInTheDocument();
   });
+
+  it('renders for a host whose set does not contain vandaag', () => {
+    // The initial mode used to be hardcoded to 'vandaag' and looked up with a
+    // non-null assertion, so any host that dropped that mode crashed on first
+    // render at currentMode.label. Nothing about 'vandaag' is special to the
+    // shell; it is just what PA_MODES happens to list first.
+    authState.authenticated = true;
+    authState.user = authorizedUser;
+
+    const narrowed = PA_MODES.filter((m) => m.id === 'monitoring');
+    render(<PADashboardV2 host={{ ...testHost, modes: narrowed }} />);
+
+    expect(screen.getByRole('button', { name: 'Monitoring' })).toHaveClass('active');
+    expect(screen.queryByRole('button', { name: 'Vandaag' })).not.toBeInTheDocument();
+    // Seeded from the mode's own defaultSectionId, not from the old 'vandaag'.
+    expect(screen.getByTestId('section-router')).toHaveTextContent('section=politiek');
+  });
+
+  it('falls back to the first supplied mode when navigated outside the set', async () => {
+    // The host's SectionRouter chooses the mode it passes to onNavigate, and it
+    // has no obligation to pick one the host also put in `modes`. Here it jumps
+    // to 'monitoring' against a vandaag-only set. That lands in the static-rail
+    // branch, which reads currentMode.label — the exact dereference the old
+    // non-null assertion turned into a crash. It must degrade, not throw.
+    authState.authenticated = true;
+    authState.user = authorizedUser;
+    const user = userEvent.setup();
+
+    const narrowed = PA_MODES.filter((m) => m.id === 'vandaag');
+    render(<PADashboardV2 host={{ ...testHost, modes: narrowed }} />);
+
+    await user.click(screen.getByRole('button', { name: 'deep-nav-to-europa' }));
+
+    expect(screen.getByTestId('section-router')).toHaveTextContent('section=europa');
+    // Rail fell back to the only mode the host supplied.
+    expect(screen.getByText('Vandaag', { selector: '.pac-rail-card' })).toBeInTheDocument();
+  });
 });
