@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
+import { getErrorMessage } from '@utils/errors';
 import {
   OperatonVariable,
   ProcessStartRequest,
@@ -608,6 +609,136 @@ export class OperatonService {
       }
     );
     return { templateId, template: JSON.parse(dataRes.data) as DocumentTemplate };
+  }
+
+  /**
+   * Find the running process instance tracking a given ValidSign package, along
+   * with its process variables and its single open user task. Used by the
+   * ValidSign webhook and poller to locate what to complete once a signature
+   * finishes; both look the instance up fresh on every call, since neither can
+   * assume the other hasn't already acted on it.
+   *
+   * Returns null when no running instance carries that validsignPackageId, or
+   * when it has no open task left to complete (the process has already moved
+   * on).
+   */
+  async findInstanceByValidsignPackage(packageId: string): Promise<{
+    processInstanceId: string;
+    taskId: string;
+    status: string;
+    edocsWorkspaceId?: string;
+    department?: string;
+    documentId?: string;
+    projectNumber?: string;
+  } | null> {
+    try {
+      const instancesRes = await this.client.get('/process-instance', {
+        params: { variables: `validsignPackageId_eq_${packageId}` },
+      });
+      const instances: Array<{ id: string }> = instancesRes.data;
+      if (instances.length === 0) return null;
+
+      const processInstanceId = instances[0].id;
+      const [variables, tasksRes] = await Promise.all([
+        this.getProcessVariables(processInstanceId),
+        this.client.get('/task', { params: { processInstanceId } }),
+      ]);
+      const tasks: Array<{ id: string }> = tasksRes.data;
+      if (tasks.length === 0) return null;
+
+      const value = (name: string): unknown => variables[name]?.value;
+      return {
+        processInstanceId,
+        taskId: tasks[0].id,
+        status: String(value('validsignStatus') ?? ''),
+        edocsWorkspaceId: value('edocsWorkspaceId') as string | undefined,
+        department: value('department') as string | undefined,
+        documentId: value('validsignDocumentId') as string | undefined,
+        projectNumber: value('projectNumber') as string | undefined,
+      };
+    } catch (error) {
+      logger.error('Failed to find process instance by ValidSign package', {
+        packageId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List every running instance whose validsignStatus variable is 'sent' —
+   * a package handed to ValidSign but not yet resolved. Used by the poller
+   * (validsignPoller.service.ts) to sweep for signatures whose completion
+   * webhook never arrived: it drives `completeSignature` for each package id
+   * this returns, which is itself a no-op if nothing has actually changed.
+   */
+  async findInstancesAwaitingSignature(): Promise<
+    Array<{ processInstanceId: string; validsignPackageId: string }>
+  > {
+    try {
+      const instancesRes = await this.client.get('/process-instance', {
+        params: { variables: 'validsignStatus_eq_sent' },
+      });
+      const instances: Array<{ id: string }> = instancesRes.data;
+      if (instances.length === 0) return [];
+
+      // allSettled, not all: one instance with a corrupt/unreadable variable
+      // set (or referencing something since deleted) must not take down the
+      // whole sweep. Promise.all would reject on that single row and discard
+      // every other instance's result, and because this poller is the only
+      // completion path in local development, that one poisoned instance
+      // would silently stop every signature -- for every project -- from
+      // ever completing again, with nothing but a generic "sweep failed"
+      // line to show for it. Log the offending instance by id and move on.
+      const settled = await Promise.allSettled(
+        instances.map(async (instance) => {
+          const variables = await this.getProcessVariables(instance.id);
+          const packageId = variables.validsignPackageId?.value;
+          return packageId
+            ? { processInstanceId: instance.id, validsignPackageId: String(packageId) }
+            : null;
+        })
+      );
+
+      const results: Array<{ processInstanceId: string; validsignPackageId: string }> = [];
+      settled.forEach((outcome, index) => {
+        if (outcome.status === 'fulfilled') {
+          if (outcome.value) results.push(outcome.value);
+          return;
+        }
+        logger.warn('Skipping one instance while sweeping for awaited signatures', {
+          processInstanceId: instances[index].id,
+          error: getErrorMessage(outcome.reason),
+        });
+      });
+
+      return results;
+    } catch (error) {
+      logger.error('Failed to find process instances awaiting signature', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Set (merge) process variables on a running instance.
+   */
+  async setProcessVariables(
+    processInstanceId: string,
+    variables: Record<string, OperatonVariable>
+  ): Promise<void> {
+    try {
+      await this.client.post(`/process-instance/${processInstanceId}/variables`, {
+        modifications: variables,
+      });
+    } catch (error) {
+      logger.error('Failed to set process variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
   }
 
   /**

@@ -873,6 +873,149 @@ describe('getTaskSignatureSpec', () => {
   });
 });
 
+describe('findInstanceByValidsignPackage', () => {
+  it('resolves the matching instance, its variables and its single open task', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        {
+          data: {
+            validsignStatus: { value: 'sent', type: 'String' },
+            edocsWorkspaceId: { value: 'ws-1', type: 'String' },
+            department: { value: 'Infra', type: 'String' },
+            validsignDocumentId: { value: 'doc-9', type: 'String' },
+            projectNumber: { value: '24102', type: 'String' },
+          },
+        },
+      ],
+      ['/task', { data: [{ id: 'task-1' }] }],
+    ]);
+
+    await expect(svc.findInstanceByValidsignPackage('pkg-1')).resolves.toEqual({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+      edocsWorkspaceId: 'ws-1',
+      department: 'Infra',
+      documentId: 'doc-9',
+      projectNumber: '24102',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance', {
+      params: { variables: 'validsignPackageId_eq_pkg-1' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/task', {
+      params: { processInstanceId: 'pi-1' },
+    });
+  });
+
+  it('returns null when no running instance carries that package id', async () => {
+    routeGet([['/process-instance', { data: [] }]]);
+    expect(await svc.findInstanceByValidsignPackage('pkg-missing')).toBeNull();
+  });
+
+  it('returns null when the instance has no open task left', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [/\/process-instance\/pi-1\/variables$/, { data: {} }],
+      ['/task', { data: [] }],
+    ]);
+    expect(await svc.findInstanceByValidsignPackage('pkg-1')).toBeNull();
+  });
+
+  it('rethrows on upstream failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+    await expect(svc.findInstanceByValidsignPackage('pkg-1')).rejects.toThrow('boom');
+  });
+});
+
+describe('findInstancesAwaitingSignature', () => {
+  it('resolves processInstanceId + validsignPackageId for each instance awaiting a signature', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }, { id: 'pi-2' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        { data: { validsignPackageId: { value: 'pkg-1', type: 'String' } } },
+      ],
+      [
+        /\/process-instance\/pi-2\/variables$/,
+        { data: { validsignPackageId: { value: 'pkg-2', type: 'String' } } },
+      ],
+    ]);
+
+    await expect(svc.findInstancesAwaitingSignature()).resolves.toEqual([
+      { processInstanceId: 'pi-1', validsignPackageId: 'pkg-1' },
+      { processInstanceId: 'pi-2', validsignPackageId: 'pkg-2' },
+    ]);
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance', {
+      params: { variables: 'validsignStatus_eq_sent' },
+    });
+  });
+
+  it('returns an empty array when no instance is awaiting a signature', async () => {
+    routeGet([['/process-instance', { data: [] }]]);
+    expect(await svc.findInstancesAwaitingSignature()).toEqual([]);
+  });
+
+  it('skips an instance whose validsignPackageId variable is missing', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [/\/process-instance\/pi-1\/variables$/, { data: {} }],
+    ]);
+    expect(await svc.findInstancesAwaitingSignature()).toEqual([]);
+  });
+
+  it('excludes an instance whose variable fetch rejects but keeps the rest, logging the offender', async () => {
+    mockClient.get.mockImplementation((url: string) => {
+      if (url === '/process-instance') {
+        return Promise.resolve({ data: [{ id: 'pi-bad' }, { id: 'pi-good' }] });
+      }
+      if (url === '/process-instance/pi-bad/variables') {
+        return Promise.reject(new Error('variable fetch failed'));
+      }
+      if (url === '/process-instance/pi-good/variables') {
+        return Promise.resolve({
+          data: { validsignPackageId: { value: 'pkg-good', type: 'String' } },
+        });
+      }
+      return Promise.reject(new Error(`unexpected GET ${url}`));
+    });
+
+    await expect(svc.findInstancesAwaitingSignature()).resolves.toEqual([
+      { processInstanceId: 'pi-good', validsignPackageId: 'pkg-good' },
+    ]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Skipping one instance while sweeping for awaited signatures',
+      expect.objectContaining({ processInstanceId: 'pi-bad', error: 'variable fetch failed' })
+    );
+  });
+
+  it('rethrows on upstream failure of the top-level query, not swallowed like a single bad row', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+    await expect(svc.findInstancesAwaitingSignature()).rejects.toThrow('boom');
+  });
+});
+
+describe('setProcessVariables', () => {
+  it('POSTs modifications to the process instance variables endpoint', async () => {
+    mockClient.post.mockResolvedValue({ data: {} });
+    const variables: Record<string, OperatonVariable> = {
+      validsignStatus: { value: 'completed', type: 'String' },
+    };
+
+    await svc.setProcessVariables('pi-1', variables);
+
+    expect(mockClient.post).toHaveBeenCalledWith('/process-instance/pi-1/variables', {
+      modifications: variables,
+    });
+  });
+
+  it('rethrows on upstream failure', async () => {
+    mockClient.post.mockRejectedValue(new Error('boom'));
+    await expect(svc.setProcessVariables('pi-1', {})).rejects.toThrow('boom');
+  });
+});
+
 describe('document bundles', () => {
   it('getRipPhase1Documents returns variables plus present templates (null for absent)', async () => {
     routeGet([

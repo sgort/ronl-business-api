@@ -122,6 +122,34 @@ export class ValidsignService {
     return res.data.status as PackageStatus;
   }
 
+  /**
+   * Resolves the id of the (single) document inside a package, to pass to
+   * downloadSignedDocument(). Nothing upstream of this hands us a document
+   * id directly, so we ask ValidSign rather than guess one -- a wrong or
+   * stale id 404s the signed-PDF download and silently drops the archival
+   * step, even though the task still completes.
+   *
+   * Verified response shape (read-only GET against the live account):
+   * `{ id, name, status, sender, roles[], documents[] }`, each document
+   * carrying `{ id, name, index, ... }`.
+   */
+  async getSignedDocumentId(packageId: string): Promise<string> {
+    this.assertLiveAllowed();
+    if (this.isStub) return `stub-doc-${packageId}`;
+    let res;
+    try {
+      res = await this.client.get(`/packages/${packageId}`);
+    } catch (err) {
+      this.logUpstreamError('getSignedDocumentId', err);
+      throw err;
+    }
+    const documents = res.data.documents as Array<{ id: string }> | undefined;
+    if (!documents || documents.length === 0) {
+      throw new Error(`VALIDSIGN_NO_DOCUMENTS: package ${packageId} has no documents`);
+    }
+    return documents[0].id;
+  }
+
   async downloadSignedDocument(packageId: string, documentId: string): Promise<Buffer> {
     this.assertLiveAllowed();
     if (this.isStub) return Buffer.from(`%PDF-1.4 stub signed ${packageId}`);

@@ -122,6 +122,13 @@ describe('ValidsignService in stub mode', () => {
     const signed = await svc.downloadSignedDocument(packageId, 'doc-1');
     expect(signed.subarray(0, 5).toString('ascii')).toBe('%PDF-');
   });
+
+  it('getSignedDocumentId returns a deterministic stub id without touching the network', async () => {
+    const svc = new ValidsignService();
+    const { packageId } = await svc.createPackage(input);
+    await expect(svc.getSignedDocumentId(packageId)).resolves.toBe(`stub-doc-${packageId}`);
+    await expect(svc.getSignedDocumentId(packageId)).resolves.toBe(`stub-doc-${packageId}`);
+  });
 });
 
 describe('the live guard', () => {
@@ -215,5 +222,50 @@ describe('the live REST path', () => {
       expect(meta?.config).toBeUndefined();
       expect(meta?.error).toBeUndefined();
     }
+  });
+
+  it('getSignedDocumentId returns the id of the first document', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        id: 'pkg-1',
+        documents: [
+          { id: 'doc-abc', name: 'rip-pdp.pdf', index: 0 },
+          { id: 'doc-xyz', name: 'other.pdf', index: 1 },
+        ],
+      },
+    });
+
+    await expect(new ValidsignService().getSignedDocumentId('pkg-1')).resolves.toBe('doc-abc');
+    expect(mockClient.get).toHaveBeenCalledWith('/packages/pkg-1');
+  });
+
+  it('getSignedDocumentId throws a distinguishable error when the package has no documents', async () => {
+    mockClient.get.mockResolvedValue({ data: { id: 'pkg-1', documents: [] } });
+
+    await expect(new ValidsignService().getSignedDocumentId('pkg-1')).rejects.toThrow(
+      /VALIDSIGN_NO_DOCUMENTS/
+    );
+  });
+
+  it('getSignedDocumentId logs only safe fields on a failed request', async () => {
+    mockLogger.error.mockClear();
+    const axiosError = {
+      isAxiosError: true,
+      message: 'Request failed with status code 404',
+      response: { status: 404, statusText: 'Not Found', data: { code: 'PACKAGE_NOT_FOUND' } },
+      config: {
+        url: '/packages/pkg-1',
+        method: 'get',
+        headers: { Authorization: 'Basic super-secret-account-key' },
+      },
+    };
+    mockClient.get.mockRejectedValue(axiosError);
+
+    await expect(new ValidsignService().getSignedDocumentId('pkg-1')).rejects.toBe(axiosError);
+
+    const serializedCalls = JSON.stringify(mockLogger.error.mock.calls);
+    expect(serializedCalls).not.toContain('super-secret-account-key');
+    expect(serializedCalls).not.toContain('Authorization');
+    expect(serializedCalls).not.toContain('headers');
   });
 });
