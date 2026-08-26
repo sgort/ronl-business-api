@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { forceMockMode } from './main-helpers';
-import { isPaMock } from './vendor/services/pa.api';
+// The real predicate every cockpit service branches on, read through the
+// package's public surface — not a restatement of it here.
+import { isPaMock } from '@ronl/pa-cockpit';
 
 describe('forced mock mode', () => {
   beforeEach(() => localStorage.clear());

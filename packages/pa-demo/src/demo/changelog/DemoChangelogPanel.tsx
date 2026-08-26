@@ -6,10 +6,11 @@
  * audience. Three curated entries need none of that — no collapsing, no
  * metadata, just version/date, the themed heading, and the bullets.
  *
- * Structurally matches PaChangelogPanelProps from @ronl/pa-cockpit
- * ({ isOpen, onClose }) so it is assignable to PaCockpitHost['ChangelogPanel']
- * once pa-demo is rewired onto the package in Task 11 — not imported from
- * there yet, since that dependency doesn't exist on this branch.
+ * Typed with PaChangelogPanelProps from @ronl/pa-cockpit rather than a local
+ * restatement of { isOpen, onClose }, so it is assignable to
+ * PaCockpitHost['ChangelogPanel'] by construction: if the shell ever starts
+ * passing this seam something else, that is a type error here rather than a
+ * prop this panel silently ignores.
  *
  * pac-* classes, styled in the colocated changelog.css, not Tailwind: Task 8
  * made @ronl/pa-cockpit Tailwind-free specifically so a host forgetting a
@@ -17,15 +18,11 @@
  * Tailwind here would put pa-demo right back in that failure mode.
  */
 import { useEffect } from 'react';
+import type { PaChangelogPanelProps } from '@ronl/pa-cockpit';
 import { DEMO_CHANGELOG } from './changelog.data';
 import './changelog.css';
 
-interface DemoChangelogPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export default function DemoChangelogPanel({ isOpen, onClose }: DemoChangelogPanelProps) {
+export default function DemoChangelogPanel({ isOpen, onClose }: PaChangelogPanelProps) {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) onClose();

@@ -23,6 +23,9 @@ const EXPECTED_VALUE_EXPORTS = [
   'SORT_SECTION_IDS',
   'isPaItemVisible',
   'deriveDossierRole',
+  'DB_ROLES',
+  'DB_CAPS',
+  'isPaMock',
   'PaSectionsRouter',
 ].sort();
 

@@ -6,10 +6,7 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  // src/vendor is a byte-identical copy of packages/frontend and is linted
-  // there. Linting it here would produce findings that cannot be fixed
-  // without editing a vendored file, which this package forbids.
-  ignorePatterns: ['dist', '.eslintrc.cjs', 'src/vendor'],
+  ignorePatterns: ['dist', '.eslintrc.cjs'],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
   rules: {

@@ -1,23 +1,22 @@
 /**
- * Demo-owned overrides of vendored PA-Cockpit chrome.
+ * Demo-owned overrides of @ronl/pa-cockpit chrome.
  *
- * This file holds CSS that has to win against the vendored stylesheets but
- * cannot be added to them (vendored files are never edited, see
- * src/vendor/README.md). Two rule blocks below, two unrelated reasons; each
- * is documented at its own declaration.
+ * This file holds CSS that has to win against the package's stylesheets but
+ * does not belong in them: every rule below is true of this deployment only,
+ * and the package is shared with the authenticated caseworker app, where each
+ * of these controls is legitimate. Two rule blocks, two unrelated reasons;
+ * each is documented at its own declaration.
  *
- * The first suppresses one specific piece of vendored UI that must not be
- * reachable on a public, mock-only demo: Dossierbeheer's own "Zet vlag om naar live →"
- * / "↩ Terug naar mock" button (src/vendor/components/PADashboardV2/
- * dossierbeheer/Dossierbeheer.tsx). That button calls the vendored
- * component's own toggleMock(), which writes '0' to the same paV2.mock key
+ * The first suppresses one specific piece of cockpit UI that must not be
+ * reachable on a public, mock-only demo: Dossierbeheer's own "Zet vlag om naar
+ * live →" / "↩ Terug naar mock" button (the package's
+ * components/PADashboardV2/dossierbeheer/Dossierbeheer.tsx). That button calls
+ * the component's own toggleMock(), which writes '0' to the same paV2.mock key
  * main-helpers.ts's forceMockMode() writes '1' to at boot — a visitor
  * clicking it mid-demo would flip the cockpit to live and it would try (and
  * fail, loudly, against a backend that doesn't exist) to fetch from a real
- * API. It cannot be removed by editing dossierbeheer.css or the component:
- * both are vendored, and vendored files are never edited (see
- * src/vendor/README.md). A CSS override loaded after the vendored
- * stylesheet is the only lever available.
+ * API. A CSS override loaded after the package stylesheet is the lever that
+ * needs no host seam for it.
  *
  * The reset button ("↺ Reset demodata") is a sibling in the same
  * .pac-db-flag-actions container and must stay visible and clickable — it
@@ -25,13 +24,13 @@
  * rule targets. The two are distinguished by the pac-db-flag-reset class,
  * which only the reset button carries.
  *
- * No !important: verified in the running app that the vendored stylesheet
+ * No !important: verified in the running app that the package stylesheet
  * never sets `display` on .pac-db-abtn (only white-space, font, color,
  * border, cursor — see dossierbeheer.css lines ~43-90), so there is no
- * competing declaration to lose a specificity fight against. If a future
- * vendor sync introduces one, vendor:check's byte-diff will flag the sync
- * itself for review, at which point this rule's win should be re-checked in
- * the browser rather than assumed.
+ * competing declaration to lose a specificity fight against. If the package
+ * ever introduces one, this rule's win should be re-checked in the browser
+ * rather than assumed — demo-overrides.test.ts guards the selector's shape,
+ * not the cascade.
  */
 .pac-db-flag-actions .pac-db-abtn:not(.pac-db-flag-reset) {
   display: none;
@@ -41,7 +40,7 @@
  * Single-scrollbar layout fix — now vestigial-safe, kept because it still
  * does the same job.
  *
- * dashboard-pa.css (vendored) sets `.pac { height: 100vh; ... }`, sound when
+ * dashboard-pa.css (in @ronl/pa-cockpit) sets `.pac { height: 100vh; ... }`, sound when
  * `.pac` is the only thing on the page. That used to not be true here: an
  * earlier version of this demo rendered a `<DemoBar />` header as a sibling
  * ABOVE `.pac`, which pushed total content height past the viewport and
@@ -70,10 +69,11 @@
  * scrollbar, as expected now that `.pac` is #root's only child again.
  *
  * No !important: `.pac`'s own `height` and `#root`'s `display`/`height` are
- * both plain, equal-or-lower-specificity selectors; this file loads after
- * dashboard-pa.css (see App.tsx's import order — PADashboardV2, which pulls
- * in dashboard-pa.css, is imported before this file), so the cascade alone
- * decides the winner.
+ * both plain, equal-or-lower-specificity selectors, and this file loads after
+ * dashboard-pa.css, so the cascade alone decides the winner. That ordering is
+ * asserted by App.tsx, which imports '@ronl/pa-cockpit/styles.css' (the
+ * aggregate that pulls in dashboard-pa.css) on the line before this file. It
+ * is a two-line invariant in one file — keep the two imports in that order.
  */
 html,
 body,
@@ -94,12 +94,14 @@ body,
 
 /**
  * Suppresses the floating "✦ Vraag de assistent" button
- * (src/vendor/pages/PADashboardV2.tsx, rendered when `hasAccess && !dockOpen`).
+ * (the package's pages/PADashboardV2.tsx, rendered when
+ * `hasAccess && !dockOpen`).
  *
  * It must not be reachable here because the dock it opens does not exist in
- * this build: PADock is deliberately not vendored (it imports McpChatSection,
- * which pulls in businessApi and would fire real MCP/LLM calls from a public
- * page), so src/demo/shims/PADock.tsx stands in for it and returns null.
+ * this build: the dock is a host seam (PaCockpitHost.Dock), and this host
+ * supplies src/demo/shims/PADock.tsx, which returns null. The real one
+ * imports McpChatSection, which pulls in businessApi and would fire real
+ * MCP/LLM calls from a public page.
  *
  * That made the button a one-way trap rather than merely a dead control.
  * Clicking it sets dockOpen = true, which (a) hides the button, since it
@@ -118,12 +120,12 @@ body,
  * removes the button from the tab order, so it is not reachable by keyboard
  * either.
  *
- * No !important, but this rule does need `.pac` to match the vendored
+ * No !important, but this rule does need `.pac` to match the package
  * declaration's specificity: dashboard-pa.css:1122 sets `display: flex` on
  * `.pac .pac-dock-toggle` (0,2,0), so a bare `.pac-dock-toggle` (0,1,0) would
- * lose outright. Equal specificity plus this file loading later (App.tsx
- * imports PADashboardV2, and with it dashboard-pa.css, before this file)
- * decides it on cascade order.
+ * lose outright. Equal specificity plus this file loading later — App.tsx
+ * imports '@ronl/pa-cockpit/styles.css', which pulls in dashboard-pa.css,
+ * on the line before it imports this file — decides it on cascade order.
  */
 .pac .pac-dock-toggle {
   display: none;

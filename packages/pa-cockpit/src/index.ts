@@ -52,7 +52,34 @@ export type {
   OrgTypeGate,
 } from './pages/public-affairs-v2/modes.config';
 
-export { deriveDossierRole } from './pages/public-affairs-v2/dossierbeheer.data';
+/**
+ * The dossier permission model, as data.
+ *
+ * `deriveDossierRole` is what packages/pa-demo's role switch runs its
+ * synthetic Keycloak roles through, so its demo cannot drift from real
+ * behaviour. `DB_ROLES` / `DB_CAPS` are the same two tables Dossierbeheer's
+ * own (disabled, reflective) role bar renders, and pa-demo's demo-owned
+ * "Beheer › Rollen & rechten" page is built on them rather than on a
+ * hand-written copy — for exactly that reason: a second table of the same
+ * facts is a fork waiting to happen, which is the thing this whole package
+ * exists to stop.
+ */
+export { deriveDossierRole, DB_ROLES, DB_CAPS } from './pages/public-affairs-v2/dossierbeheer.data';
 export type { DossierRole } from './pages/public-affairs-v2/dossierbeheer.data';
+
+/**
+ * Whether the cockpit's services are in mock mode.
+ *
+ * Exported for a host that has to *guarantee* it, not merely set it:
+ * packages/pa-demo is a public, backend-less deployment whose entire safety
+ * story is "no request ever leaves the page", and this flag is what every
+ * service in `services/pa.api.ts` branches on. Its src/mock-lock.test.ts
+ * asserts the flag through this export after its own boot-time
+ * `forceMockMode()`, so the guarantee is tested against the real predicate
+ * rather than against a restatement of it. Deliberately read-only — the
+ * matching `setPaMock` stays internal, because a host does not need a second
+ * way to turn mocking off.
+ */
+export { isPaMock } from './services/pa.api';
 
 export { default as PaSectionsRouter } from './components/PADashboardV2/PaSectionsRouter';
