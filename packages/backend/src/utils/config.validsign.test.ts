@@ -13,7 +13,7 @@ describe('config.validsign', () => {
   it('defaults to stub mode with no live tiers', async () => {
     delete process.env.VALIDSIGN_STUB_MODE;
     delete process.env.VALIDSIGN_LIVE_TIERS;
-    const { config } = await import('./config');
+    const { config } = await import('./config.js');
     expect(config.validsign.stubMode).toBe(true);
     expect(config.validsign.liveTiers).toEqual([]);
     expect(config.validsign.baseUrl).toBe('https://my.validsign.eu/api');
@@ -22,7 +22,7 @@ describe('config.validsign', () => {
 
   it('parses an explicit live-tier allowlist', async () => {
     process.env.VALIDSIGN_LIVE_TIERS = 'development, production';
-    const { config } = await import('./config');
+    const { config } = await import('./config.js');
     expect(config.validsign.liveTiers).toEqual(['development', 'production']);
   });
 
@@ -32,7 +32,7 @@ describe('config.validsign', () => {
     process.env.VALIDSIGN_CALLBACK_SECRET = 's';
     process.env.VALIDSIGN_LIVE_TIERS = 'production';
     process.env.DEPLOYMENT_ENV = 'acceptance';
-    await expect(import('./config')).rejects.toThrow(/not in VALIDSIGN_LIVE_TIERS/);
+    await expect(import('./config.js')).rejects.toThrow(/not in VALIDSIGN_LIVE_TIERS/);
   });
 
   it('starts live when the tier is allowlisted', async () => {
@@ -41,7 +41,7 @@ describe('config.validsign', () => {
     process.env.VALIDSIGN_CALLBACK_SECRET = 's';
     process.env.VALIDSIGN_LIVE_TIERS = 'acceptance';
     process.env.DEPLOYMENT_ENV = 'acceptance';
-    const { config } = await import('./config');
+    const { config } = await import('./config.js');
     expect(config.validsign.stubMode).toBe(false);
   });
 });

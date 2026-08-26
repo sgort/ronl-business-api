@@ -20,6 +20,14 @@ export interface AuthenticatedUser {
   displayName?: string;
   preferredUsername?: string;
   employeeId?: string;
+  // Not present on every token; ValidSign package creation depends on it
+  // and must refuse (422) rather than guess when it is missing.
+  email?: string;
+  // Derived from displayName (or preferredUsername as fallback), not carried
+  // by the token itself. Split on the FIRST space so a Dutch surname with
+  // internal spaces ("van der Berg") stays intact in lastName.
+  givenName?: string;
+  familyName?: string;
 }
 
 export interface KeycloakUser {

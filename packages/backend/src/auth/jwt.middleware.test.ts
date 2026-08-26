@@ -115,6 +115,39 @@ describe('jwtMiddleware', () => {
     expect(next).toHaveBeenCalled();
   });
 
+  it('propagates email and splits displayName on the FIRST space', async () => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, { ...basePayload, name: 'Jan van der Berg', email: 'jan@example.nl' })
+    );
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    expect(req.user?.email).toBe('jan@example.nl');
+    // Splitting on the LAST space would give lastName "Berg" and drop "van der".
+    expect(req.user?.givenName).toBe('Jan');
+    expect(req.user?.familyName).toBe('van der Berg');
+  });
+
+  it('falls back to preferred_username for name-splitting when displayName is absent', async () => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, { ...basePayload, name: undefined, preferred_username: 'jdoe' })
+    );
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    expect(req.user?.givenName).toBe('jdoe');
+    expect(req.user?.familyName).toBeUndefined();
+    expect(req.user?.email).toBeUndefined();
+  });
+
   it('401 INVALID_TOKEN when verification fails', async () => {
     mockVerify.mockImplementation((_t, _k, _o, cb) => cb(new Error('expired'), undefined));
     const req = {

@@ -59,9 +59,28 @@ function validateToken(token: string): Promise<JWTPayload> {
 }
 
 /**
+ * Split a full name into (firstName, remainder) on the FIRST space only.
+ * Splitting on the last space would mangle a Dutch surname with internal
+ * spaces: "Jan van der Berg" must give firstName "Jan", lastName
+ * "van der Berg", not lastName "Berg".
+ */
+function splitName(fullName: string | undefined): { givenName?: string; familyName?: string } {
+  if (!fullName) return {};
+  const trimmed = fullName.trim();
+  if (!trimmed) return {};
+  const spaceIndex = trimmed.indexOf(' ');
+  if (spaceIndex === -1) return { givenName: trimmed };
+  return {
+    givenName: trimmed.slice(0, spaceIndex),
+    familyName: trimmed.slice(spaceIndex + 1).trim(),
+  };
+}
+
+/**
  * Extract authenticated user from JWT payload
  */
 function extractUser(payload: JWTPayload): AuthenticatedUser {
+  const { givenName, familyName } = splitName(payload.name ?? payload.preferred_username);
   return {
     userId: payload.sub,
     tenantId: payload.municipality,
@@ -72,6 +91,9 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
     displayName: payload.name,
     preferredUsername: payload.preferred_username,
     employeeId: payload.employeeId,
+    email: payload.email,
+    givenName,
+    familyName,
   };
 }
 
