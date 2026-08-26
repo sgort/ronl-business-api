@@ -8,6 +8,7 @@ import {
   Task,
   ActivityHistoryItem,
 } from '@ronl/shared';
+import type { DocumentTemplate } from '@services/document/documentTemplate.types';
 
 const logger = createLogger('operaton-service');
 
@@ -27,6 +28,13 @@ export class OperatonService {
    * re-fetching BPMN on every archive load. `null` (no tag) is cached too.
    */
   private boardOwnerCache = new Map<string, string | null>();
+
+  /**
+   * Cache of processDefinitionId → BPMN XML. The XML for a given definition
+   * id is immutable in Operaton, so this never needs invalidating. Without it,
+   * every opened task refetches the whole document from the engine.
+   */
+  private bpmnXmlCache = new Map<string, string>();
 
   constructor(baseUrl?: string, username?: string, password?: string) {
     const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
@@ -532,10 +540,86 @@ export class OperatonService {
   }
 
   /**
+   * Fetch BPMN XML for a process definition, caching by processDefinitionId.
+   * Operaton's BPMN XML is immutable for a given definition id, so the cache
+   * never needs invalidating.
+   */
+  private async getCachedBpmnXml(processDefinitionId: string): Promise<string> {
+    const cached = this.bpmnXmlCache.get(processDefinitionId);
+    if (cached) return cached;
+    const res = await this.client.get(`/process-definition/${processDefinitionId}/xml`);
+    const xml: string = res.data.bpmn20Xml;
+    this.bpmnXmlCache.set(processDefinitionId, xml);
+    return xml;
+  }
+
+  /**
+   * Reads a ronl:* attribute from ONE user task rather than from the first
+   * match anywhere in the document. Scoping matters: a process can tag several
+   * tasks, and which one carries the attribute is the whole point.
+   */
+  private readTaskRonlAttribute(
+    bpmnXml: string,
+    taskDefinitionKey: string,
+    attribute: string
+  ): string | null {
+    const escaped = taskDefinitionKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const element = new RegExp(`<bpmn:userTask\\b[^>]*\\bid="${escaped}"[^>]*>`).exec(bpmnXml);
+    if (!element) return null;
+    const attr = new RegExp(`\\b${attribute}="([^"]+)"`).exec(element[0]);
+    return attr ? attr[1] : null;
+  }
+
+  /**
+   * Resolves ronl:signatureRef on a single user task to its deployed
+   * DocumentTemplate. Returns null when the task is not signature-bearing,
+   * which is the common case for every ordinary task in the app.
+   */
+  async getTaskSignatureSpec(
+    processInstanceId: string,
+    taskDefinitionKey: string
+  ): Promise<{ templateId: string; template: DocumentTemplate } | null> {
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+
+    const bpmnXml = await this.getCachedBpmnXml(processDefinitionId);
+    const templateId = this.readTaskRonlAttribute(bpmnXml, taskDefinitionKey, 'ronl:signatureRef');
+    if (!templateId) return null;
+
+    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const deploymentId: string = procDefRes.data.deploymentId;
+
+    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resources: Array<{ id: string; name: string; deploymentId: string }> = resourcesRes.data;
+    const resource = resources.find((r) => r.name === `${templateId}.document`);
+    if (!resource) {
+      logger.error('signatureRef names a template with no deployment resource', {
+        processInstanceId,
+        taskDefinitionKey,
+        templateId,
+      });
+      throw new Error('SIGNATURE_TEMPLATE_NOT_FOUND');
+    }
+
+    const dataRes = await this.client.get(
+      `/deployment/${deploymentId}/resources/${resource.id}/data`,
+      {
+        responseType: 'text',
+      }
+    );
+    return { templateId, template: JSON.parse(dataRes.data) as DocumentTemplate };
+  }
+
+  /**
    * Fetch the DocumentTemplate linked via camunda:documentRef on any UserTask in the BPMN
    * associated with the given process instance. Works for completed instances via the history API.
    * Throws Error('DOCUMENT_NOT_FOUND') when no camunda:documentRef is present or the deployment
    * resource is absent.
+   *
+   * NOTE: unlike getTaskSignatureSpec(), this is intentionally NOT scoped to a
+   * single <bpmn:userTask>. It has no task key to scope to (see class docs /
+   * task-5 report for why scoping it would change its return-first-match
+   * contract and break its existing callers/tests).
    */
   async getDecisionDocument(processInstanceId: string): Promise<Record<string, unknown>> {
     // 1. Resolve processDefinitionId via history API (active /process-instance/{id} returns 404 for COMPLETED)

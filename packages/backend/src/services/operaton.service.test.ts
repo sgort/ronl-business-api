@@ -839,6 +839,40 @@ describe('getDecisionDocument', () => {
   });
 });
 
+describe('getTaskSignatureSpec', () => {
+  const XML = `<bpmn:definitions>
+    <bpmn:userTask id="Task_A" ronl:documentRef="rip-pdp" />
+    <bpmn:userTask id="Task_AccorderenProjectplan4" ronl:signatureRef="rip-pdp" />
+    <bpmn:userTask id="Task_B" />
+  </bpmn:definitions>`;
+
+  const setupSignature = (xml: string, documentJson: unknown) =>
+    routeGet([
+      [/\/history\/process-instance\/pi-1$/, { data: { processDefinitionId: 'pd-1' } }],
+      ['/process-definition/pd-1/xml', { data: { bpmn20Xml: xml } }],
+      ['/process-definition/pd-1', { data: { deploymentId: 'dep-1' } }],
+      ['/deployment/dep-1/resources', { data: [{ id: 'r1', name: 'rip-pdp.document' }] }],
+      [/\/deployment\/dep-1\/resources\/r1\/data$/, { data: JSON.stringify(documentJson) }],
+    ]);
+
+  it('returns the template named by the tagged task', async () => {
+    setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
+    const spec = await svc.getTaskSignatureSpec('pi-1', 'Task_AccorderenProjectplan4');
+    expect(spec).not.toBeNull();
+    expect(spec!.templateId).toBe('rip-pdp');
+  });
+
+  it('returns null for an untagged task even when another task is tagged', async () => {
+    setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
+    expect(await svc.getTaskSignatureSpec('pi-1', 'Task_B')).toBeNull();
+  });
+
+  it('does not confuse documentRef on one task with signatureRef on another', async () => {
+    setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
+    expect(await svc.getTaskSignatureSpec('pi-1', 'Task_A')).toBeNull();
+  });
+});
+
 describe('document bundles', () => {
   it('getRipPhase1Documents returns variables plus present templates (null for absent)', async () => {
     routeGet([
