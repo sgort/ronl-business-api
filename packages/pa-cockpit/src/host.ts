@@ -33,7 +33,7 @@ export interface PaTenantConfig {
  * adjustment: `authenticated` is required here, while keycloak-js declares
  * it optional (`authenticated?: boolean`). A host adapter should pass
  * `!!keycloak.authenticated`, exactly as
- * packages/frontend/src/pages/PADashboardV2.tsx:220 already does.
+ * packages/frontend/src/pages/pa-cockpit-host.tsx:28 already does.
  * `getUser` is not keycloak-js's at all: it is the host's own function (see
  * packages/frontend/src/services/keycloak.ts), which derives a user object
  * from `keycloak.tokenParsed`. Do not go looking for `getUser` in

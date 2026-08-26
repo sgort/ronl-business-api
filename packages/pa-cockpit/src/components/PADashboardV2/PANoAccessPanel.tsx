@@ -1,8 +1,10 @@
 /**
  * PANoAccessPanel — defence-in-depth fallback for users who reach the PA
  * cockpit without the `public-affairs` role / `province` org-type. Mirrors
- * the caseworker NoAccessPanel and reuses the same `.v2-no-access` styles
- * from dashboard-v2.css (kept global, not scoped to .cwd-v2).
+ * the caseworker NoAccessPanel, but not its styles: packages/frontend's
+ * `.v2-no-access` rules are scoped to `.cwd-v2` (dashboard-v2.css:457,464,
+ * 472,478), so this package ships its own `.pac`-scoped copy instead
+ * (dashboard-pa.css:1136-1160), already diverged from the caseworker rules.
  */
 
 interface Props {

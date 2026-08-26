@@ -199,7 +199,7 @@ response body, not the status code, before concluding a file leaked.
   Dossierbeheer's Mock banner describes mock _data sourcing_, not fictional data.
   A site-wide replacement is deliberately deferred until after the first deploy.
 - **The changelog is a curated summary**, not the product's real history: 25 CalVer
-  releases distilled into 8 themed entries in `src/demo/changelog-data.filtered.ts`.
+  releases distilled into 3 themed entries in `src/demo/changelog/changelog.data.ts`.
   The real `changelog-data.ts` trips the bundle gate — its commit messages quote
   backend hostnames and auth-library names. Content added there must stay clear of
   `scripts/check-bundle.mjs`'s forbidden list.

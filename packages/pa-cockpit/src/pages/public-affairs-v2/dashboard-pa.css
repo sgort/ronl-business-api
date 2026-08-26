@@ -1334,8 +1334,8 @@
 .pac .pac-toast b { font-weight: 700; }
 /* ============================================================
    Curatiepijplijn spec (Beheer · Monitoring)
-   Append verbatim to packages/frontend/src/pages/public-affairs-v2/dashboard-pa.css
-   (same .pac scope as the rest of that file). Powers CuratieSpecSection.tsx.
+   Appended verbatim to this file (same .pac scope as the rest of it).
+   Powers CuratieSpecSection.tsx.
    Uses only existing --pac-* tokens, so it inherits the tenant theme.
    ============================================================ */
 
