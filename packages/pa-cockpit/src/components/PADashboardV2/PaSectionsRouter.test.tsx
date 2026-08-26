@@ -112,6 +112,33 @@ describe('PaSectionsRouter', () => {
     );
   });
 
+  it('forwards the host-supplied `user` to Dossierbeheer', () => {
+    // The one prop this component passes straight through rather than
+    // deriving, and the only place in the file that does it — which is what
+    // makes it worth its own case. Dossierbeheer runs `user` through
+    // deriveDossierRole() to decide what its role bar and every guarded
+    // action permit, so dropping the forward would not throw: it would
+    // silently downgrade every visitor to "no dossier role". Nothing else
+    // caught that. The cases above pin `startCreate` only, and a host's own
+    // suite legitimately stops at this component's boundary (see
+    // packages/pa-demo/src/demo/DemoSectionRouter.test.tsx, whose probe
+    // replaces this component wholesale), so before this case the mutation
+    // was visible to the e2e suite alone.
+    //
+    // A concrete object rather than baseProps' `user: null`: objectContaining
+    // with a null value reads as "asserts nothing" to the next reader, and an
+    // identity check states the property being protected.
+    const user = { sub: 'u-1', roles: ['public-affairs', 'pa-admin'] } as never;
+
+    const { rerender } = render(
+      <PaSectionsRouter {...baseProps} sectionId="db-overzicht" user={user} />
+    );
+    expect(mockDossierbeheer).toHaveBeenLastCalledWith(expect.objectContaining({ user }));
+
+    rerender(<PaSectionsRouter {...baseProps} sectionId="db-nieuw" user={user} />);
+    expect(mockDossierbeheer).toHaveBeenLastCalledWith(expect.objectContaining({ user }));
+  });
+
   it.each([
     ['bronnen', 'bronnen'],
     ['zoekcriteria', 'zoekcriteria'],

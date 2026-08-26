@@ -69,6 +69,24 @@ describe('buildAllowedModes', () => {
     for (const dropped of DROPPED_SECTION_IDS) expect(ids).not.toContain(dropped);
   });
 
+  it('leaves no cockpit section undecided', () => {
+    // sections.allow.ts is deny-by-default only for as long as both of its
+    // lists stay exhaustive. A section added to the cockpit later and named in
+    // neither one is filtered out of the rail and out of ⌘K by the code
+    // above — which looks like the policy working — while remaining
+    // *renderable*: DemoSectionRouter's DROPPED_SECTION_IDS guard would not
+    // match it, so an in-app onNavigate would send it straight to
+    // PaSectionsRouter and it would draw. That is deny-by-default quietly
+    // becoming allow-by-omission, and every test here would still be green.
+    // This is the case that fails instead, naming the id that needs a
+    // decision.
+    const all = PA_MODES.flatMap((m) => m.groups.flatMap((g) => g.items.map((i) => i.id)));
+    const undecided = all.filter(
+      (id) => !ALLOWED_SECTION_IDS.includes(id) && !DROPPED_SECTION_IDS.includes(id)
+    );
+    expect(undecided).toEqual([]);
+  });
+
   it('hides dropped sections from the command palette', () => {
     // The palette takes no sections prop — it reads the host's modes through
     // usePaModes(), so filtering in DemoSectionRouter alone would leave ⌘K
