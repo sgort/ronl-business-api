@@ -10,7 +10,7 @@
  */
 
 import axios from 'axios';
-import keycloak from './keycloak';
+import { getPaCockpitAuth } from '../host';
 import { isPaMock } from './pa.api';
 import type {
   AdminDossier,
@@ -35,14 +35,15 @@ const API_BASE = import.meta.env.VITE_API_URL as string;
 export { isPaMock };
 
 async function authHeaders(): Promise<Record<string, string>> {
-  if (keycloak.authenticated) {
+  const auth = getPaCockpitAuth();
+  if (auth.authenticated) {
     try {
-      await keycloak.updateToken(120);
+      await auth.updateToken(120);
     } catch {
       /* expired — proceed anyway */
     }
   }
-  return keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {};
+  return auth.token ? { Authorization: `Bearer ${auth.token}` } : {};
 }
 
 async function get<T>(path: string): Promise<T> {

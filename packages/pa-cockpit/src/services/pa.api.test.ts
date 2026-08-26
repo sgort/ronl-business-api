@@ -4,12 +4,36 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import type { FeedItem } from '@ronl/shared';
 
-const mockKeycloak = vi.hoisted(() => ({
+// The host's `services` state lives on the module-scope `let` in ../host, so it
+// only follows a fresh registry the same way pa.api's own env-driven state does:
+// configure it via a dynamic import taken *after* vi.resetModules(), in the same
+// freshApi() call that will go on to (dynamically, so same registry) import
+// pa.api itself. A static top-level `import { configurePaCockpit } from '../host'`
+// would bind to the pre-reset module instance and silently configure a copy
+// nothing else ever reads.
+const authState = {
   authenticated: false,
   token: undefined as string | undefined,
-  updateToken: vi.fn(),
-}));
-vi.mock('./keycloak', () => ({ default: mockKeycloak }));
+};
+const updateTokenMock = vi.fn();
+
+function hostConfig() {
+  return {
+    auth: {
+      authenticated: authState.authenticated,
+      token: authState.token,
+      getUser: () => null,
+      updateToken: updateTokenMock,
+      logout: async () => {},
+    },
+    tenant: {
+      initializeTenantTheme: async () => true,
+      loadTenantConfigs: async () => ({}),
+      getTenantConfig: () => null,
+      getDefaultTenantConfig: () => null,
+    },
+  };
+}
 
 /** Fresh module instance with the given mock flags baked in via import.meta.env. */
 async function freshApi(
@@ -19,6 +43,8 @@ async function freshApi(
   vi.stubEnv('VITE_PA_AGENDA_MOCK', String(!!opts.agendaMock));
   vi.stubEnv('VITE_PA_DOSSIERS_MOCK', String(!!opts.dossiersMock));
   vi.resetModules();
+  const { configurePaCockpit } = await import('../host');
+  configurePaCockpit(hostConfig());
   return import('./pa.api');
 }
 
@@ -28,9 +54,9 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 beforeEach(() => {
-  mockKeycloak.authenticated = false;
-  mockKeycloak.token = undefined;
-  mockKeycloak.updateToken.mockReset().mockResolvedValue(true);
+  authState.authenticated = false;
+  authState.token = undefined;
+  updateTokenMock.mockReset().mockResolvedValue(true);
   window.localStorage.clear();
 });
 
@@ -801,5 +827,18 @@ describe('linkSignalDossier', () => {
     const result = await api.linkSignalDossier('sig-1', 'stikstof');
 
     expect(result.dossierId).toBe('stikstof');
+  });
+});
+
+describe('host configuration', () => {
+  it('fails with a named error when no host has been configured', async () => {
+    vi.stubEnv('VITE_PA_DOSSIERS_MOCK', 'false');
+    vi.resetModules();
+    const { __resetPaCockpitHostForTests } = await import('../host');
+    __resetPaCockpitHostForTests();
+
+    const api = await import('./pa.api');
+
+    await expect(api.fetchDossiers()).rejects.toThrow(/configurePaCockpit/);
   });
 });

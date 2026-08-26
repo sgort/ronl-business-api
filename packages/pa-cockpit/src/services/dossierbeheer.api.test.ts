@@ -6,17 +6,43 @@ import type { DossierWriteInput } from './dossierbeheer.api';
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 vi.mock('./pa.api', () => ({ isPaMock: mockIsDossiersMock }));
 
-const mockKeycloak = vi.hoisted(() => ({
+// The host's `services` state lives on the module-scope `let` in ../host, so it
+// only follows a fresh registry the same way the isPaMock stub does. Configure it
+// via a dynamic import taken *after* vi.resetModules(), in the same freshApi()
+// call that will go on to (dynamically, so same registry) import
+// dossierbeheer.api itself. A static top-level `import { configurePaCockpit }
+// from '../host'` would bind to the pre-reset module instance and silently
+// configure a copy nothing else ever reads.
+const authState = {
   authenticated: false,
   token: undefined as string | undefined,
-  updateToken: vi.fn(),
-}));
-vi.mock('./keycloak', () => ({ default: mockKeycloak }));
+};
+const updateTokenMock = vi.fn();
+
+function hostConfig() {
+  return {
+    auth: {
+      authenticated: authState.authenticated,
+      token: authState.token,
+      getUser: () => null,
+      updateToken: updateTokenMock,
+      logout: async () => {},
+    },
+    tenant: {
+      initializeTenantTheme: async () => true,
+      loadTenantConfigs: async () => ({}),
+      getTenantConfig: () => null,
+      getDefaultTenantConfig: () => null,
+    },
+  };
+}
 
 /** Fresh module instance per test so the in-memory mock store never leaks between tests. */
 async function freshApi(isMock: boolean) {
   vi.resetModules();
   mockIsDossiersMock.mockReturnValue(isMock);
+  const { configurePaCockpit } = await import('../host');
+  configurePaCockpit(hostConfig());
   return import('./dossierbeheer.api');
 }
 
@@ -38,9 +64,9 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 beforeEach(() => {
-  mockKeycloak.authenticated = false;
-  mockKeycloak.token = undefined;
-  mockKeycloak.updateToken.mockReset().mockResolvedValue(true);
+  authState.authenticated = false;
+  authState.token = undefined;
+  updateTokenMock.mockReset().mockResolvedValue(true);
 });
 
 describe('dossierbeheer.api — mock mode', () => {
@@ -175,8 +201,8 @@ describe('dossierbeheer.api — mock mode', () => {
 
 describe('dossierbeheer.api — live mode', () => {
   it('fetches admin dossiers from the backend with an auth header', async () => {
-    mockKeycloak.authenticated = true;
-    mockKeycloak.token = 'test-token';
+    authState.authenticated = true;
+    authState.token = 'test-token';
     let receivedAuth: string | null = null;
 
     server.use(
@@ -223,5 +249,18 @@ describe('dossierbeheer.api — live mode', () => {
     await api.deleteDossier('some-id');
 
     expect(called).toBe(true);
+  });
+});
+
+describe('host configuration', () => {
+  it('fails with a named error when no host has been configured', async () => {
+    vi.resetModules();
+    mockIsDossiersMock.mockReturnValue(false);
+    const { __resetPaCockpitHostForTests } = await import('../host');
+    __resetPaCockpitHostForTests();
+
+    const api = await import('./dossierbeheer.api');
+
+    await expect(api.fetchAdminDossiers()).rejects.toThrow(/configurePaCockpit/);
   });
 });

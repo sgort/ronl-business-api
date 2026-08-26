@@ -8,7 +8,7 @@
  */
 
 import axios from 'axios';
-import keycloak from './keycloak';
+import { getPaCockpitAuth } from '../host';
 import type { Dossier, FeedItem, PlenaryItem, Signal } from '@ronl/shared';
 import { MOCK_DOSSIERS } from '../pages/public-affairs-v2/pa.data';
 import {
@@ -23,71 +23,76 @@ import {
 const API_BASE = import.meta.env.VITE_API_URL as string;
 
 async function paGet<T>(path: string): Promise<T> {
-  if (keycloak.authenticated) {
+  const auth = getPaCockpitAuth();
+  if (auth.authenticated) {
     try {
-      await keycloak.updateToken(120);
+      await auth.updateToken(120);
     } catch {
       /* expired — proceed anyway */
     }
   }
   const res = await axios.get<{ success: boolean; data: T }>(`${API_BASE}${path}`, {
-    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+    headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
   });
   return res.data.data;
 }
 
 async function paGetRaw<T>(path: string): Promise<T> {
-  if (keycloak.authenticated) {
+  const auth = getPaCockpitAuth();
+  if (auth.authenticated) {
     try {
-      await keycloak.updateToken(120);
+      await auth.updateToken(120);
     } catch {
       /* expired — proceed anyway */
     }
   }
   const res = await axios.get<T>(`${API_BASE}${path}`, {
-    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+    headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
   });
   return res.data;
 }
 
 async function paPost<T>(path: string, body: unknown): Promise<T> {
-  if (keycloak.authenticated) {
+  const auth = getPaCockpitAuth();
+  if (auth.authenticated) {
     try {
-      await keycloak.updateToken(120);
+      await auth.updateToken(120);
     } catch {
       /* expired */
     }
   }
   const res = await axios.post<{ success: boolean; data: T }>(`${API_BASE}${path}`, body, {
-    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+    headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
   });
   return res.data.data;
 }
 
 async function paPatch<T>(path: string, body: unknown): Promise<T> {
-  if (keycloak.authenticated) {
+  const auth = getPaCockpitAuth();
+  if (auth.authenticated) {
     try {
-      await keycloak.updateToken(120);
+      await auth.updateToken(120);
     } catch {
       /* expired */
     }
   }
   const res = await axios.patch<{ success: boolean; data: T }>(`${API_BASE}${path}`, body, {
-    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+    headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
   });
   return res.data.data;
 }
 
 async function paDelete(path: string): Promise<void> {
-  if (keycloak.authenticated) {
+  const auth = getPaCockpitAuth();
+  if (auth.authenticated) {
     try {
-      await keycloak.updateToken(120);
+      await auth.updateToken(120);
     } catch {
       /* expired */
     }
   }
   await axios.delete(`${API_BASE}${path}`, {
-    headers: keycloak.token ? { Authorization: `Bearer ${keycloak.token}` } : {},
+    headers: auth.token ? { Authorization: `Bearer ${auth.token}` } : {},
   });
 }
 
