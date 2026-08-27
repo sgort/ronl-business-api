@@ -61,4 +61,9 @@ export const demoCockpitHost: PaCockpitHost = {
   Dock: PADock,
   SessionExpiryWarning,
   ChangelogPanel: DemoChangelogPanel,
+  // No onLogin or onLogout: plato is public and unauthenticated, so there is no
+  // session to begin or end. Their absence is what removes the login controls and
+  // makes the avatar inert — see the cockpit's render rules. Do not add a no-op
+  // callback here; a no-op would restore a control that does nothing, which is
+  // the defect this replaced.
 };

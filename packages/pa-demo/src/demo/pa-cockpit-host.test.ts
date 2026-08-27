@@ -29,4 +29,9 @@ describe('pa-cockpit-host', () => {
       expect(ids).not.toContain(dropped);
     }
   });
+
+  it('supplies no session callbacks, so the cockpit renders none', () => {
+    expect(demoCockpitHost.onLogin).toBeUndefined();
+    expect(demoCockpitHost.onLogout).toBeUndefined();
+  });
 });

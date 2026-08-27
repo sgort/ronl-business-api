@@ -95,6 +95,19 @@ export interface PaCockpitHost {
   Dock: ComponentType<PaDockProps>;
   SessionExpiryWarning: ComponentType;
   ChangelogPanel: ComponentType<PaChangelogPanelProps>;
+
+  /**
+   * Begin a login. Absent means this host offers no login, and no login control
+   * renders — see the render rules in
+   * docs/superpowers/specs/2026-08-27-cockpit-session-seam-design.md §4.
+   */
+  onLogin?: () => void;
+
+  /**
+   * End the session. Absent means this host has no session to end; the avatar
+   * still renders as an identity display, but not as a button.
+   */
+  onLogout?: () => void;
 }
 
 function SignalCountBadge({ tabId }: { tabId: string }) {
