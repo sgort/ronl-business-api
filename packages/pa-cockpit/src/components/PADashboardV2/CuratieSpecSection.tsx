@@ -3,8 +3,11 @@
  *
  * Read-only explainer of the signal-curation pipeline, sibling of
  * KompasSpecSection: header + the shared CuratiePijplijnFlow diagram + footnotes.
- * The router (PASectionRouter) already wraps Beheer content in
- * <div className="v2-main-pad">, so this returns a bare fragment.
+ * PaSectionsRouter — this package's own router, not the host's
+ * PASectionRouter — already wraps Beheer content in a <div>, so this returns
+ * a bare fragment. That wrapper supplies no padding; see the note beside it
+ * for why its `v2-main-pad` class is inert under `.pac` and where the padding
+ * actually comes from.
  *
  * Static by design. The same <CuratiePijplijnFlow /> is embedded in Monitoring's
  * inline "Hoe werkt de curatiepijplijn?" explainer — one diagram, two homes.

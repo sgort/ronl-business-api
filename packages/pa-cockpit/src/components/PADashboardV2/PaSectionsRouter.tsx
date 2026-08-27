@@ -137,6 +137,28 @@ export default function PaSectionsRouter({
         // reason.
         content = null;
     }
+    // `v2-main-pad` is inert here, and deliberately kept anyway.
+    //
+    // Its only rule anywhere is `.cwd-v2 .v2-main-pad`
+    // (packages/frontend/src/pages/caseworker-v2/dashboard-v2.css:436), in a
+    // stylesheet imported by CaseworkerDashboardV2.tsx alone. The PA shell
+    // renders under `.pac`, which exists precisely so it cannot collide with
+    // the caseworker app (see PADashboardV2's file header) and is never
+    // nested inside `.cwd-v2`. So under `.pac` the class matches nothing: in
+    // packages/pa-demo the rule is not even in the bundle, and in
+    // packages/frontend it is present but unreachable from this markup.
+    //
+    // The padding a reader sees around this content comes from
+    // `.pac .pac-main-pad` (dashboard-pa.css:300) on the shell's own <main>
+    // wrapper at PADashboardV2.tsx:614 — one rule, with no child selectors,
+    // so this inner <div> contributes no layout of its own either.
+    //
+    // It stays because the class is live in the `.cwd-v2` family and both PA
+    // hosts spell their section wrappers the same way (packages/frontend's
+    // PASectionRouter, packages/pa-demo's DemoSectionRouter). Dropping it in
+    // one of the three would make the convention inconsistent rather than
+    // absent. Recorded here so nobody re-derives it, and so no future comment
+    // claims it supplies padding — two of them once did.
     return <div className="v2-main-pad">{content}</div>;
   }
 

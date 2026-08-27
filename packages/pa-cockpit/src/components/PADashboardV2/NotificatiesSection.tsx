@@ -5,8 +5,11 @@
  * sibling of CuratieSpecSection / KompasSpecSection: header + a three-
  * properties table + the NotificatiesFlow matcher diagram + footnotes.
  *
- * The router (PASectionRouter) already wraps Beheer content in
- * <div className="v2-main-pad">, so this returns a bare .pac-cspec block.
+ * PaSectionsRouter — this package's own router, not the host's
+ * PASectionRouter — already wraps Beheer content in a <div>, so this returns
+ * a bare .pac-cspec block. That wrapper supplies no padding; see the note
+ * beside it for why its `v2-main-pad` class is inert under `.pac` and where
+ * the padding actually comes from.
  *
  * Static by design — it documents the loop described in docs/WATCHBELL.md.
  * No mutations, no data fetching: it explains the machinery that WatchBell.tsx,

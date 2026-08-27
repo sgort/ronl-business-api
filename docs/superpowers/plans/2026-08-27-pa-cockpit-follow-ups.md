@@ -239,9 +239,32 @@ is the fix, but it is a repo-wide decision.
 
 ## 7. Two guards with known blind spots
 
-> **Assessed, deliberately left** — the Tailwind bullet is a decision, not a
-> task. The `v2-main-pad` bullet still carries one actionable ask: correct the
-> two doc comments or drop the class.
+> **Closed.** The Tailwind bullet was always a decision, not a task. The
+> `v2-main-pad` thread is now resolved by correcting the comments — the option
+> the entry offered first, and the right one once the class turned out to be
+> live elsewhere.
+>
+> The claim was wrong twice over: it named `PASectionRouter` (the _host's_
+> component) when the wrapper is emitted by the package's own
+> `PaSectionsRouter.tsx:140` after de-vendoring, and it implied the wrapper
+> supplies padding when it supplies none.
+>
+> Inertness is provable from the CSS, no browser needed: `.cwd-v2 .v2-main-pad`
+> (`caseworker-v2/dashboard-v2.css:436`) is the only rule anywhere, in a
+> stylesheet imported by `CaseworkerDashboardV2.tsx` alone. In pa-demo the rule
+> is not in the bundle at all; in the frontend it is present but unreachable,
+> since PA renders under `.pac` — which `PADashboardV2.tsx:6` says exists
+> precisely so it cannot collide with `.cwd-v2`. The visible padding is
+> `.pac .pac-main-pad` (`dashboard-pa.css:300`) on the shell's own `<main>`
+> wrapper at `PADashboardV2.tsx:614`, a single rule with no child selectors.
+>
+> **The class stays.** Dropping it would mean editing ten sites across three
+> workspaces for no functional gain, and it is genuinely live in the `.cwd-v2`
+> family — the frontend's `PASectionRouter` and pa-demo's `DemoSectionRouter`
+> spell their section wrappers the same way and make no claim about it.
+> Removing it from one of the three would leave the convention inconsistent
+> rather than absent. The authoritative explanation now sits beside the wrapper
+> in `PaSectionsRouter.tsx`, with both section files pointing at it.
 
 Both are recorded rather than open bugs — each was assessed and deliberately left.
 
@@ -256,7 +279,8 @@ Both are recorded rather than open bugs — each was assessed and deliberately l
   are `.cwd-v2 .v2-main-pad`, and the PA shell renders under `.pac`, never nested in
   `.cwd-v2`. The real padding comes from `.pac .pac-main-pad`. A no-op convention
   maintained across three workspaces, with two comments claiming it does something.
-  Correct the comments or drop the class.
+  Correct the comments or drop the class. **Done — comments corrected; see the
+  note above.**
 
 ---
 
