@@ -194,6 +194,26 @@ loudly.
 
 ## 9. Three frontend test files fail intermittently under parallelism
 
+> **Done** — root cause found and fixed. It was never those three files, and it
+> was never shared state. Evidence: 839/839 green in five consecutive parallel
+> runs on an idle machine; 8-16 failures under concurrent load; **every failure
+> `Error: Test timed out in 5000ms`**, Vitest's default, which none of the four
+> Vitest workspaces had overridden. The affected file set tracks machine load —
+> six files under the load used to reproduce it (`IouFeedbackSection`,
+> `IouGebruiksscenarioSection`, `RegelSimulatie`, `Portfolio`, `SimMissedPanel`,
+> `simEngine`), three under whatever load existed when it was first reported —
+> which is why it looked random. `packages/pa-cockpit` had it too, unnoticed.
+> `testTimeout: 20000` in all four configs: same load, all four workspaces green,
+> zero timeouts. The repo had already diagnosed this class once and fixed it in a
+> single file (`ChangelogPanel.test.tsx`, 60s) with the reasoning written out —
+> "a timeout exists to catch a hang, not to assert a speed". That override stays;
+> it renders 93 real version cards and needs more than 20s.
+>
+> Worth noting what this retires: `--no-file-parallelism`, the standing rule about
+> it, and the five `test:serial` scripts were all scaffolding around a default
+> nobody had questioned. They remain useful as diagnostics — serial is still the
+> right way to isolate a suspected flake — but they are no longer load-bearing.
+
 `IouGebruiksscenarioSection.test.tsx`, `Portfolio.test.tsx` and
 `SimMissedPanel.test.tsx` fail between one and seven times per run of
 `npm test --workspace=@ronl/frontend`, varying run to run. With
@@ -258,6 +278,37 @@ It spreads `importOriginal` for its three mocks but does not call
 on `@ronl/pa-cockpit/test-utils`. Item 8 fixed exactly this in
 `PASectionRouter.test.tsx`; this file was added on the same branch and repeated
 half of it. Cheap to close.
+
+---
+
+## 14. Rotate the changelog out of the app bundle
+
+`packages/frontend/src/pages/changelog-data.ts` is **5,061 lines / 353 KB
+carrying 93 releases**, imported by five pages so it lands in the main chunk for
+every visitor of a 2.1 MB bundle. **68 of those 93 are pre-CalVer** — the era
+before the versioning scheme changed.
+
+The product runs a documentation site, which is the natural home for full
+history. There is already a precedent for the split: `packages/pa-demo`'s curated
+changelog covers only the CalVer era, and its file comment states the 68
+pre-CalVer releases are _"out of scope by design, not merely omitted for space."_
+That call was made once already, for the public demo.
+
+Rotating would also retire `ChangelogPanel.test.tsx`'s 60s timeout override on
+its own terms rather than by raising a limit — that file is slow because it
+renders 93 real version cards, which is a genuine cost rather than a machine
+artefact.
+
+**Needs a design pass, not just an implementation.** It touches the release
+procedure (`/bump-release` edits this file every release and would grow a
+rotation step), the documentation site (someone must build and maintain the
+archive page), and a user-facing panel that may serve a sales purpose in-app.
+Open questions: how many releases stay, does rotation happen at a version
+boundary or a count, and does the panel link out to the archive.
+
+**This does not overlap item 9.** Item 9's timeouts hit six files, none of them
+changelog-related; `ChangelogPanel` was not among them precisely because it
+already had its override.
 
 ---
 
