@@ -18,11 +18,11 @@ import * as pkg from '../index';
  * The exports stay because `notificaties-nav.test.ts` and
  * `PACommandPalette.test.tsx` legitimately compute expected values from the
  * real config module. So this file guards every way the door can be opened,
- * with four rules across two assertions.
+ * with six rules across two assertions.
  *
- * Source rules (assertion 1). The three that accuse read scanSource's text;
- * the one that excuses reads its AST. That split is not interchangeable —
- * see scanSource's doc comment:
+ * Source rules (assertion 1). The rules that accuse read scanSource's text;
+ * the two that govern the excuse read its AST. That split is not
+ * interchangeable — see scanSource's doc comment:
  *
  *   R1  No file may name a guarded identifier in an import/export *clause*
  *       taken from modes.config. Applies to EVERY file, allow-list included:
@@ -37,6 +37,18 @@ import * as pkg from '../index';
  *       path-independent rule: it does not care how the name arrived, so
  *       `.js` suffixes, dynamic imports and aliased re-exports are all
  *       covered.
+ *   R3b No file may *declare* a binding named `usePaModes` — importing one is
+ *       the only sanctioned way to have that name. A decoy declared in an
+ *       inner function scope, in a file that *also* imports the genuine hook,
+ *       otherwise disarms R3 for the whole file: R3's premise check confirms
+ *       the real import exists, and the binding walk below then matches the
+ *       decoy's call site, because a call expression carries no scope
+ *       information that walk can see. Fail-closed — a file that both imports
+ *       and shadows the hook cannot be trusted to have called the import.
+ *   R5  No file may dynamically `import('…/modes.config')`. Applies to EVERY
+ *       file, allow-list included. A plain text rule in the safe direction,
+ *       and the one that covers the delivery mechanism rather than the
+ *       disarm.
  *
  * Surface rule (assertion 2):
  *
@@ -62,6 +74,27 @@ import * as pkg from '../index';
  * `const { allStaticSections, findPaModeForSection } = usePaModes()` is the
  * correct usage, and allow-listing the palette to silence it would exempt the
  * one component whose potential leak motivated the context in the first place.
+ *
+ * ── Why R3b and R5 ──
+ *
+ * They close the residual left open when R3 was hardened. R3 verifies that
+ * `usePaModes` was imported from PaModesContext — but it verifies that about
+ * the *file*, while the binding walk matches call sites *anywhere in the
+ * tree*. Import the real hook at module scope, declare a decoy inside a
+ * function body, and the premise holds while the match comes from the decoy.
+ * That exploit compiled with zero `tsc` and zero `eslint` errors.
+ *
+ * Both rules fire independently against it, and either alone would be enough.
+ * They are kept together because they fail in different directions: R3b is a
+ * shadowing rule that could in principle produce a false positive — a file
+ * that legitimately imports the hook and also binds the name for an unrelated
+ * reason; none exists today, and the cost of one is a rename — while R5 is a
+ * pure text accusation that cannot. Defence in depth here is nearly free.
+ *
+ * An earlier ruling parked this residual as needing a `ts.TypeChecker`. It
+ * does not. Deciding whether a *particular* decoy shadows a *particular* call
+ * site would; refusing the excuse for the whole file does not, and is the
+ * safe answer wherever the two differ.
  */
 
 const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -202,6 +235,17 @@ function reachesConfigWholesale(code: string): boolean {
 }
 
 /**
+ * R5: a dynamic `import('…/modes.config')`, which yields the whole module
+ * scope with no identifier for R1 or R3 to see and no static form for R2.
+ * Applies to every file, allow-list included — nothing in this package has a
+ * reason to load the config asynchronously, so the rule costs nothing, and the
+ * construct it forbids is exactly the delivery half of the R3 exploit.
+ */
+function dynamicallyImportsConfig(code: string): boolean {
+  return /\bimport\s*\(\s*['"][^'"]*modes\.config(?:\.js)?['"]\s*\)/.test(code);
+}
+
+/**
  * Specifier of the module that owns the real hook. Matched on the trailing
  * path so any relative depth works — `../modes/PaModesContext`,
  * `../../modes/PaModesContext`, `./PaModesContext` from inside src/modes.
@@ -247,6 +291,44 @@ function localUsePaModesName(sf: ts.SourceFile): string | null {
 }
 
 /**
+ * R3b: does this file *declare* anything named `usePaModes`, as opposed to
+ * importing it?
+ *
+ * The import specifier is itself a binding of that name and is the sanctioned
+ * one, so `ImportDeclaration` subtrees are skipped wholesale. Everything else
+ * counts: a function declaration, a `const`/`let`, a parameter, a destructured
+ * binding element, a named function expression, a class.
+ *
+ * Scope is deliberately ignored — see the header's "Why R3b and R5".
+ */
+function declaresUsePaModes(sf: ts.SourceFile): boolean {
+  let found = false;
+  const visit = (node: ts.Node) => {
+    if (found) return;
+    // The legitimate import is not a shadow — and it is the only binding of
+    // this name that R3's premise check accepts in the first place.
+    if (ts.isImportDeclaration(node)) return;
+    if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isVariableDeclaration(node) ||
+        ts.isParameter(node) ||
+        ts.isBindingElement(node)) &&
+      node.name &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === 'usePaModes'
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return found;
+}
+
+/**
  * Names the file destructures out of the *verified* `usePaModes` hook.
  *
  * Reads the AST rather than text. That is the same principle the two texts
@@ -260,6 +342,9 @@ function boundFromUsePaModes(sf: ts.SourceFile): Set<string> {
   const bound = new Set<string>();
   const hook = localUsePaModesName(sf);
   if (!hook) return bound;
+  // R3b. Checked after the import premise, not instead of it: the file must
+  // both import the hook and never shadow the name for the excuse to stand.
+  if (declaresUsePaModes(sf)) return bound;
 
   const visit = (node: ts.Node) => {
     if (
@@ -303,7 +388,7 @@ function findOffenders(): Offender[] {
     const rel = relative(SRC_DIR, file);
     const { accuse, sf } = scanSource(readFileSync(file, 'utf-8'), file);
 
-    // R1 and R2 apply to every file, allow-list included.
+    // R1, R2 and R5 apply to every file, allow-list included.
     const imported = guardedNamesImportedFromConfig(accuse);
     if (imported.length > 0) {
       offenders.push({
@@ -315,6 +400,13 @@ function findOffenders(): Offender[] {
       offenders.push({
         file: rel,
         reason: 'namespace-imports or star-re-exports modes.config, which can yield either helper',
+      });
+    }
+    if (dynamicallyImportsConfig(accuse)) {
+      offenders.push({
+        file: rel,
+        reason:
+          'dynamically imports modes.config, which yields the unfiltered module scope with nothing to name',
       });
     }
 

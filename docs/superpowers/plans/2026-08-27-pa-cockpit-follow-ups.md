@@ -16,6 +16,42 @@ today.
 
 ## 1. Close the `usePaModes` guard residual
 
+> **Done.** R3b and R5 added to
+> `packages/pa-cockpit/src/modes/no-module-scope-modes.test.ts`, both
+> mutation-proven against the exploit and green with no false positives on the
+> real tree. No `ts.TypeChecker`, no new dependency.
+>
+> **R3b** refuses the R3 excuse for any file that _declares_ a binding named
+> `usePaModes` — function, `const`/`let`, parameter, binding element, named
+> function expression or class — skipping `ImportDeclaration` subtrees, since
+> the import specifier is the one sanctioned binding of that name. Scope is
+> deliberately ignored: deciding whether a _particular_ decoy reaches a
+> _particular_ call site is the question that would need a TypeChecker;
+> refusing the excuse for the whole file needs only the tree and is the safe
+> answer wherever the two differ.
+>
+> **R5** forbids a dynamic `import('…/modes.config')` in every file, allow-list
+> included — a plain text accusation covering the delivery half.
+>
+> Three probes, each isolating one rule, each reverted and confirmed by
+> `git status`:
+>
+> | Probe                                            | Result                       |
+> | ------------------------------------------------ | ---------------------------- |
+> | Inner-scope decoy + real import (the R3 exploit) | red — R3b, names unexplained |
+> | Dynamic import, no guarded identifier anywhere   | red — R5                     |
+> | Both halves in one file                          | red — both rules, separately |
+>
+> Kept as two rules rather than one because they fail in different directions:
+> R3b could in principle produce a false positive (a file legitimately importing
+> the hook that also binds the name for an unrelated reason — none exists, and
+> the cost is a rename); R5 cannot.
+
+---
+
+<details>
+<summary>Original entry</summary>
+
 **~20 lines, no new dependency. Do this one first.**
 
 `packages/pa-cockpit/src/modes/no-module-scope-modes.test.ts` stops components
@@ -47,6 +83,8 @@ The park itself was still the right call at the time — harm needs a decoy _and
 dynamic import in the same file, and the guard is defence-in-depth behind the
 required `host.modes` prop, `buildAllowedModes`, the E2E section assertion and the
 CSP. But do not inherit "needs a TypeChecker" as settled fact.
+
+</details>
 
 ---
 
@@ -192,50 +230,86 @@ loudly.
 
 ---
 
-## 9. Three frontend test files fail intermittently under parallelism
+## 9. Frontend test files fail intermittently under file parallelism
 
-> **Done** — root cause found and fixed. It was never those three files, and it
-> was never shared state. Evidence: 839/839 green in five consecutive parallel
-> runs on an idle machine; 8-16 failures under concurrent load; **every failure
-> `Error: Test timed out in 5000ms`**, Vitest's default, which none of the four
-> Vitest workspaces had overridden. The affected file set tracks machine load —
-> six files under the load used to reproduce it (`IouFeedbackSection`,
-> `IouGebruiksscenarioSection`, `RegelSimulatie`, `Portfolio`, `SimMissedPanel`,
-> `simEngine`), three under whatever load existed when it was first reported —
-> which is why it looked random. `packages/pa-cockpit` had it too, unnoticed.
-> `testTimeout: 20000` in all four configs: same load, all four workspaces green,
-> zero timeouts. The repo had already diagnosed this class once and fixed it in a
-> single file (`ChangelogPanel.test.tsx`, 60s) with the reasoning written out —
-> "a timeout exists to catch a hang, not to assert a speed". That override stays;
-> it renders 93 real version cards and needs more than 20s.
->
-> Worth noting what this retires: `--no-file-parallelism`, the standing rule about
-> it, and the five `test:serial` scripts were all scaffolding around a default
-> nobody had questioned. They remain useful as diagnostics — serial is still the
-> right way to isolate a suspected flake — but they are no longer load-bearing.
+> **Done.** Root cause found, fixed, and verified under the exact load that
+> produced it. Commit `194ffaf`.
 
-`IouGebruiksscenarioSection.test.tsx`, `Portfolio.test.tsx` and
-`SimMissedPanel.test.tsx` fail between one and seven times per run of
-`npm test --workspace=@ronl/frontend`, varying run to run. With
-`--no-file-parallelism` the workspace is stable at 836/836.
+### What it turned out to be
 
-**Verified pre-existing**, not caused by any of this work: the changes were
-stashed, the baseline re-run reproduced the same signature in the same files, and
-the stash was restored.
+Not the three files named in the original report, and not shared state. Every
+failure carried the same message — `Error: Test timed out in 5000ms` — Vitest's
+default, which **none of the four Vitest workspaces had overridden**.
 
-**The cause is not the trap this repo already knows about.** None of the three
-uses `performance.now`, fake timers, `localStorage` or `sessionStorage` — so this
-is not the wall-clock contention that `*.perf.test.ts` and `ChangelogPanel`'s
-raised timeout already address. Something else is shared between them, and it has
-not been identified.
+| Condition                         | Result                       |
+| --------------------------------- | ---------------------------- |
+| Idle machine, full parallelism    | 839/839 green, five runs     |
+| Under concurrent load, 5s default | 15 failed, then 16, then 8   |
+| Every one of those failures       | `Test timed out in 5000ms`   |
+| Same load, `testTimeout: 20000`   | 839/839 green, zero timeouts |
 
-Worth finding rather than masking. Serial execution would hide it, and CI runs
-parallel — so CI is where it will eventually surface, on a gating suite. Likely
-candidates in rough order: module-level state that survives Vitest's per-file
-isolation, an unisolated temp directory, or a fixture all three mutate.
+The affected file set tracks machine load rather than any property of the files:
+six under the load used to reproduce it (`IouFeedbackSection`,
+`IouGebruiksscenarioSection`, `RegelSimulatie`, `Portfolio`, `SimMissedPanel`,
+`simEngine`), three under whatever load existed when it was first reported. That
+is why it looked random — and why _"what do these three files share?"_ was the
+wrong question. The earlier investigation correctly ruled out `performance.now`,
+fake timers, `localStorage` and `sessionStorage`, then went looking for a fourth
+shared thing that was never there.
 
-Note the deliberate choice not to disable parallelism globally, and the reasoning
-behind it, now recorded as a standing rule in `~/.claude/CLAUDE.md`.
+It was, as originally suspected, pre-existing rather than caused by this branch —
+verified by stashing the changes and reproducing the same signature on baseline.
+
+`packages/pa-cockpit` had the same latent flake, unnoticed, because it had only
+ever been run as a load generator for the frontend suite.
+
+### The fix
+
+`testTimeout: 20000` in all four Vitest configs, with the diagnosis in a comment
+beside it. jsdom component tests are CPU-bound; a 5s timeout is a hang detector,
+not a budget, and on a saturated machine it fires as one. Raising it costs no
+coverage — a genuinely hung test still fails, four times slower.
+
+The repo had already reached this conclusion once and applied it to a single
+file: `ChangelogPanel.test.tsx` carries `vi.setConfig({ testTimeout: 60000 })`
+with the reasoning written out. The general case had simply never been asked.
+
+### What was built around this bug, and whether it still earns its place
+
+Three artefacts were added while the cause was unknown. Reviewed after the fix:
+
+**The `~/.claude/CLAUDE.md` rule — _"a parallel-run failure is not a finding
+until it fails in isolation"_. Keep.** It is what made the diagnosis possible,
+and it already prescribes the fix that landed: _do not disable parallelism
+globally to make the symptom go away; when a suite really is parallelism-
+sensitive, fix it at its own boundary — adjust the timeout it actually needs._
+Its two companion clauses stand on independent merits: check which runner you are
+addressing before reaching for a flag, and do not background a long suite then
+read only its tail.
+
+**The five `test:serial` scripts and the root aggregator. Keep — on different
+grounds than they were added.** They were introduced to chase this flake. They
+are retained because the problem they actually solve is permanent: **two runners
+behind one command shape.** `backend` is Jest and wants `--runInBand`; the other
+four are Vitest and want `--no-file-parallelism`. Isolating a suspected flake
+stays a recurring need, and these few lines remove a trap agents demonstrably
+fell into.
+
+**`ChangelogPanel.test.tsx`'s 60s override. Keep.** Genuine slowness, not a
+machine artefact — it renders 93 real version cards and took 22s once, so the new
+20s global would not cover it. Item 14 is the thing that would actually retire
+it, on its own terms rather than by raising a limit.
+
+Net effect: `--no-file-parallelism` and the serial scripts are now **diagnostics
+rather than load-bearing**. Serial execution is still the right way to isolate a
+suspected flake; it is no longer how the suite is expected to pass.
+
+**Deliberately not corrected.** The Global Constraints blocks in
+`2026-08-26-de-vendor-pa-cockpit.md` and `2026-08-27-cockpit-session-seam.md`
+still say _"three test files that fail intermittently under file parallelism."_
+That was accurate when written and it governed how those plans were executed.
+Rewriting an executed plan to match what was learned afterwards turns a record
+into fiction — the correction lives here instead.
 
 ---
 
