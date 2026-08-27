@@ -11,6 +11,7 @@
   },
   "scripts": {
     "test": "vitest run --coverage",
+    "test:serial": "vitest run --coverage --no-file-parallelism",
     "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

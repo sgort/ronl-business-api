@@ -16,6 +16,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
     "type-check": "tsc --noEmit",
     "test": "jest --coverage",
+    "test:serial": "jest --coverage --runInBand",
     "test:unit": "jest --testPathPattern=tests/unit",
     "test:integration": "jest --testPathPattern=tests/integration",
     "test:watch": "jest --watch",
