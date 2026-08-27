@@ -3,8 +3,37 @@ import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
 import { edocsService } from '@services/edocs.service';
+import { operatonService } from '@services/operaton.service';
+import { renderTemplate } from '@services/document/renderTemplate';
+import { toMarkdown } from '@services/document/toMarkdown';
 
 const logger = createLogger('external-task-worker');
+
+/**
+ * Templates migrated off the hardcoded renderDocumentContent() switch.
+ * Deleting this set — and the switch with it — is the follow-up, once the
+ * rendered output has been reviewed in eDOCS for a real project. Only rip-pdp
+ * migrates now: it is the document the ValidSign signature touches, so
+ * converting the other two would change documents for no benefit here.
+ */
+const TEMPLATE_RENDERER_MIGRATED = new Set(['rip-pdp']);
+
+/**
+ * Operaton hands worker variables over as { value, type } envelopes;
+ * renderTemplate wants a plain map. Only `.value` survives here — no
+ * truthiness coercion — so a legitimately `false` or `0` variable value
+ * passes through unchanged and it is renderTemplate's own
+ * undefined/null/'' em-dash check that decides, not this flattener.
+ */
+function flattenVariables(
+  variables: Record<string, { value: unknown; type: string }>
+): Record<string, unknown> {
+  const flat: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(variables)) {
+    flat[key] = entry?.value;
+  }
+  return flat;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -288,9 +317,18 @@ export class ExternalTaskWorker {
       );
     }
 
-    const content = this.renderDocumentContent(templateId, task.variables);
+    const migrated = TEMPLATE_RENDERER_MIGRATED.has(templateId);
+    const content = migrated
+      ? toMarkdown(
+          renderTemplate(
+            await operatonService.getDeployedTemplate(task.processInstanceId, templateId),
+            flattenVariables(task.variables)
+          )
+        )
+      : this.renderDocumentContent(templateId, task.variables);
+    const extension = migrated ? 'md' : 'txt';
     const contentBase64 = Buffer.from(content, 'utf-8').toString('base64');
-    const filename = `${templateId}-${projectNumber}.txt`;
+    const filename = `${templateId}-${projectNumber}.${extension}`;
     const docName = `${projectNumber} — ${this.templateIdToLabel(templateId)} — ${projectName}`;
 
     const result = await edocsService.uploadDocument(workspaceId, filename, contentBase64, {

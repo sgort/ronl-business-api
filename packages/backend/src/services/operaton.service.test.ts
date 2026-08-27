@@ -871,6 +871,45 @@ describe('getTaskSignatureSpec', () => {
     setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
     expect(await svc.getTaskSignatureSpec('pi-1', 'Task_A')).toBeNull();
   });
+
+  it('throws SIGNATURE_TEMPLATE_NOT_FOUND when the attribute names a missing resource', async () => {
+    routeGet([
+      [/\/history\/process-instance\/pi-1$/, { data: { processDefinitionId: 'pd-1' } }],
+      ['/process-definition/pd-1/xml', { data: { bpmn20Xml: XML } }],
+      ['/process-definition/pd-1', { data: { deploymentId: 'dep-1' } }],
+      ['/deployment/dep-1/resources', { data: [{ id: 'r9', name: 'other.document' }] }],
+    ]);
+    await expect(svc.getTaskSignatureSpec('pi-1', 'Task_AccorderenProjectplan4')).rejects.toThrow(
+      'SIGNATURE_TEMPLATE_NOT_FOUND'
+    );
+  });
+});
+
+describe('getDeployedTemplate', () => {
+  const setup = (resources: unknown, documentJson: unknown) =>
+    routeGet([
+      [/\/history\/process-instance\/pi-1$/, { data: { processDefinitionId: 'pd-1' } }],
+      ['/process-definition/pd-1', { data: { deploymentId: 'dep-1' } }],
+      ['/deployment/dep-1/resources', { data: resources }],
+      [/\/deployment\/dep-1\/resources\/r1\/data$/, { data: JSON.stringify(documentJson) }],
+    ]);
+
+  it('fetches and parses the named template, without touching the BPMN xml endpoint', async () => {
+    setup([{ id: 'r1', name: 'rip-pdp.document' }], { id: 'rip-pdp', zones: {}, bindings: [] });
+    await expect(svc.getDeployedTemplate('pi-1', 'rip-pdp')).resolves.toEqual({
+      id: 'rip-pdp',
+      zones: {},
+      bindings: [],
+    });
+    expect(mockClient.get).not.toHaveBeenCalledWith('/process-definition/pd-1/xml');
+  });
+
+  it('throws SIGNATURE_TEMPLATE_NOT_FOUND when the named resource is absent', async () => {
+    setup([{ id: 'r9', name: 'other.document' }], {});
+    await expect(svc.getDeployedTemplate('pi-1', 'rip-pdp')).rejects.toThrow(
+      'SIGNATURE_TEMPLATE_NOT_FOUND'
+    );
+  });
 });
 
 describe('findInstanceByValidsignPackage', () => {

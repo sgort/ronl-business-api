@@ -11,6 +11,9 @@ jest.mock('axios', () => ({ __esModule: true, default: { post: jest.fn() } }));
 jest.mock('@services/edocs.service', () => ({
   edocsService: { ensureWorkspace: jest.fn(), uploadDocument: jest.fn() },
 }));
+jest.mock('@services/operaton.service', () => ({
+  operatonService: { getDeployedTemplate: jest.fn() },
+}));
 jest.mock('@utils/config', () => ({
   config: { operaton: { baseUrl: 'http://operaton/engine-rest' } },
 }));
@@ -21,10 +24,13 @@ jest.mock('@utils/logger', () => ({
 import axios from 'axios';
 import { ExternalTaskWorker } from './externalTaskWorker.service';
 import { edocsService } from '@services/edocs.service';
+import { operatonService } from '@services/operaton.service';
 
 const mockPost = (axios as unknown as { post: jest.Mock }).post;
 const mockEnsure = (edocsService as unknown as { ensureWorkspace: jest.Mock }).ensureWorkspace;
 const mockUpload = (edocsService as unknown as { uploadDocument: jest.Mock }).uploadDocument;
+const mockGetDeployedTemplate = (operatonService as unknown as { getDeployedTemplate: jest.Mock })
+  .getDeployedTemplate;
 
 type Var = { value: unknown; type: string };
 type Vars = Record<string, Var>;
@@ -158,6 +164,116 @@ describe('handleUploadDocument', () => {
       )
     ).rejects.toThrow(/missing required variables/);
     expect(mockUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleUploadDocument — template-rendered documents', () => {
+  /** Minimal TipTap doc: one heading block containing the given (placeholder) text. */
+  const heading = (text: string) => ({
+    type: 'doc' as const,
+    content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text }] }],
+  });
+
+  const migratedVars = {
+    edocsWorkspaceId: 'ws-1',
+    projectNumber: 'FL-042',
+    projectName: 'Proj',
+    documentTemplateId: 'rip-pdp',
+    department: 'IVR',
+  };
+
+  it('renders rip-pdp from the deployed template as Markdown', async () => {
+    mockGetDeployedTemplate.mockResolvedValue({
+      id: 'rip-pdp',
+      bindings: [
+        {
+          id: 'b1',
+          placeholder: '{{projectNumber}}',
+          variableKey: 'projectNumber',
+          source: 'process',
+        },
+      ],
+      zones: {
+        body: {
+          blocks: [{ id: 'x', type: 'text', content: heading('Project {{projectNumber}}') }],
+        },
+      },
+    });
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', migratedVars)
+    );
+
+    expect(mockGetDeployedTemplate).toHaveBeenCalledWith('pi-1', 'rip-pdp');
+    const [, filename, contentB64] = mockUpload.mock.calls[0];
+    expect(filename).toBe('rip-pdp-FL-042.md');
+    expect(Buffer.from(contentB64, 'base64').toString('utf8')).toContain('# Project FL-042');
+  });
+
+  it('leaves rip-intake-report on the hardcoded renderer as .txt', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...migratedVars, documentTemplateId: 'rip-intake-report' })
+    );
+
+    const [, filename, contentB64] = mockUpload.mock.calls[0];
+    expect(filename).toBe('rip-intake-report-FL-042.txt');
+    expect(Buffer.from(contentB64, 'base64').toString('utf8')).toContain(
+      'INTAKE REPORT (Column 2)'
+    );
+    expect(mockGetDeployedTemplate).not.toHaveBeenCalled();
+  });
+
+  it('leaves rip-psu-report on the hardcoded renderer as .txt', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...migratedVars, documentTemplateId: 'rip-psu-report' })
+    );
+
+    const [, filename, contentB64] = mockUpload.mock.calls[0];
+    expect(filename).toBe('rip-psu-report-FL-042.txt');
+    expect(Buffer.from(contentB64, 'base64').toString('utf8')).toContain('PSU REPORT (Column 3)');
+    expect(mockGetDeployedTemplate).not.toHaveBeenCalled();
+  });
+
+  it('flattens variables without turning a real false or 0 into an em dash', async () => {
+    mockGetDeployedTemplate.mockResolvedValue({
+      id: 'rip-pdp',
+      bindings: [
+        {
+          id: 'b1',
+          placeholder: '{{projectNumber}}',
+          variableKey: 'projectNumber',
+          source: 'process',
+        },
+        { id: 'b2', placeholder: '{{isUrgent}}', variableKey: 'isUrgent', source: 'process' },
+        { id: 'b3', placeholder: '{{riskCount}}', variableKey: 'riskCount', source: 'process' },
+      ],
+      zones: {
+        body: {
+          blocks: [
+            {
+              id: 'x',
+              type: 'text',
+              content: heading('Project {{projectNumber}} urgent={{isUrgent}} risks={{riskCount}}'),
+            },
+          ],
+        },
+      },
+    });
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...migratedVars, isUrgent: false, riskCount: 0 })
+    );
+
+    const [, , contentB64] = mockUpload.mock.calls[0];
+    const content = Buffer.from(contentB64, 'base64').toString('utf8');
+    expect(content).toContain('urgent=false');
+    expect(content).toContain('risks=0');
   });
 });
 

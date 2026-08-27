@@ -587,6 +587,43 @@ export class OperatonService {
     const templateId = this.readTaskRonlAttribute(bpmnXml, taskDefinitionKey, 'ronl:signatureRef');
     if (!templateId) return null;
 
+    const template = await this.fetchDeployedTemplate(
+      processInstanceId,
+      taskDefinitionKey,
+      templateId
+    );
+    return { templateId, template };
+  }
+
+  /**
+   * Fetch a named template's deployed `.document` resource for a process
+   * instance. Used by the document-render path once the template id is
+   * already known (e.g. rip-pdp's `documentTemplateId` process variable),
+   * unlike getTaskSignatureSpec which first has to resolve the template id
+   * from the tagged task's ronl:signatureRef attribute.
+   */
+  async getDeployedTemplate(
+    processInstanceId: string,
+    templateId: string
+  ): Promise<DocumentTemplate> {
+    return this.fetchDeployedTemplate(processInstanceId, undefined, templateId);
+  }
+
+  /**
+   * Shared deployment-resource lookup behind getTaskSignatureSpec and
+   * getDeployedTemplate: process instance -> process definition -> deployment
+   * -> named `.document` resource -> parsed template. taskDefinitionKey is
+   * only used for the not-found log line and is undefined when called from
+   * getDeployedTemplate, which has no task in play.
+   */
+  private async fetchDeployedTemplate(
+    processInstanceId: string,
+    taskDefinitionKey: string | undefined,
+    templateId: string
+  ): Promise<DocumentTemplate> {
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+
     const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
     const deploymentId: string = procDefRes.data.deploymentId;
 
@@ -594,7 +631,7 @@ export class OperatonService {
     const resources: Array<{ id: string; name: string; deploymentId: string }> = resourcesRes.data;
     const resource = resources.find((r) => r.name === `${templateId}.document`);
     if (!resource) {
-      logger.error('signatureRef names a template with no deployment resource', {
+      logger.error('named template has no deployment resource', {
         processInstanceId,
         taskDefinitionKey,
         templateId,
@@ -608,7 +645,7 @@ export class OperatonService {
         responseType: 'text',
       }
     );
-    return { templateId, template: JSON.parse(dataRes.data) as DocumentTemplate };
+    return JSON.parse(dataRes.data) as DocumentTemplate;
   }
 
   /**
