@@ -3,18 +3,25 @@ import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import SigningPanel from './SigningPanel';
+import SigningPanel, { resolveSigningUrl } from './SigningPanel';
 
 const mockCreatePackage = vi.hoisted(() => vi.fn());
 const mockStatus = vi.hoisted(() => vi.fn());
+const mockGetBaseUrl = vi.hoisted(() => vi.fn());
 vi.mock('../../services/api', () => ({
-  businessApi: { validsign: { createPackage: mockCreatePackage, status: mockStatus } },
+  businessApi: {
+    validsign: { createPackage: mockCreatePackage, status: mockStatus },
+    getBaseUrl: mockGetBaseUrl,
+  },
 }));
 
 const spec = { required: true as const, templateId: 'rip-pdp', status: 'none' as const };
 
 describe('SigningPanel', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetBaseUrl.mockReturnValue('http://localhost:3002/v1');
+  });
   afterEach(() => vi.useRealTimers());
 
   it('offers both delivery routes before anything is created', () => {
@@ -170,5 +177,60 @@ describe('SigningPanel', () => {
     // Give any errant effect re-run a tick to fire before asserting.
     await new Promise((r) => setTimeout(r, 50));
     expect(mockStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves a relative signingUrl against the API origin, not the frontend origin — the actual bug', async () => {
+    // Regression test for the real deploy failure: a relative signingUrl
+    // put straight into an iframe resolves against the FRONTEND's own
+    // origin (jsdom's default document origin here, http://localhost:3000),
+    // which is exactly what made the earlier "shows the ceremony iframe"
+    // test's toContain(...) assertion pass even though the bug was live —
+    // an iframe.src getter resolves relative attributes against ANY base,
+    // so the substring still matched. Asserting the full src against the
+    // API's origin is the only way this actually catches it.
+    mockGetBaseUrl.mockReturnValue('http://localhost:3002/v1');
+    mockCreatePackage.mockResolvedValue({
+      success: true,
+      data: { packageId: 'pkg-1', signingUrl: '/v1/validsign/stub/ceremony/pkg-1' },
+    });
+    render(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: /Onderteken nu/ }));
+    await waitFor(() => {
+      const frame = document.querySelector('iframe.pb-sign-frame') as HTMLIFrameElement;
+      expect(frame.src).toBe('http://localhost:3002/v1/validsign/stub/ceremony/pkg-1');
+    });
+  });
+});
+
+describe('resolveSigningUrl', () => {
+  it('(a) resolves a relative path against the API origin, without duplicating /v1', () => {
+    expect(resolveSigningUrl('/v1/validsign/stub/ceremony/pkg-1', 'http://localhost:3002/v1')).toBe(
+      'http://localhost:3002/v1/validsign/stub/ceremony/pkg-1'
+    );
+  });
+
+  it('(b) passes an absolute signingUrl through completely unchanged', () => {
+    const absolute = 'https://sign.validsign.eu/ceremony/abc123';
+    expect(resolveSigningUrl(absolute, 'http://localhost:3002/v1')).toBe(absolute);
+    // Even against a base that would otherwise look plausible.
+    expect(resolveSigningUrl(absolute, '')).toBe(absolute);
+  });
+
+  it('(c) uses the relative signingUrl unchanged when VITE_API_URL is itself relative or empty', () => {
+    expect(resolveSigningUrl('/v1/validsign/stub/ceremony/pkg-1', '')).toBe(
+      '/v1/validsign/stub/ceremony/pkg-1'
+    );
+    expect(resolveSigningUrl('/v1/validsign/stub/ceremony/pkg-1', '/api')).toBe(
+      '/v1/validsign/stub/ceremony/pkg-1'
+    );
+  });
+
+  it('(d) does not throw on a malformed API base URL, and falls back to the relative path', () => {
+    expect(() =>
+      resolveSigningUrl('/v1/validsign/stub/ceremony/pkg-1', 'not a url::')
+    ).not.toThrow();
+    expect(resolveSigningUrl('/v1/validsign/stub/ceremony/pkg-1', 'not a url::')).toBe(
+      '/v1/validsign/stub/ceremony/pkg-1'
+    );
   });
 });
