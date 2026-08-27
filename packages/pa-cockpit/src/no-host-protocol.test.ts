@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)));
 
-const FORBIDDEN = ['selected_idp', 'post_login_redirect', '/dashboard/public-affairs', "'/auth'"];
+const FORBIDDEN = ['selected_idp', 'post_login_redirect', '/dashboard/public-affairs', '/auth'];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
