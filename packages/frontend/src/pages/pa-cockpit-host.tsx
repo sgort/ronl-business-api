@@ -32,9 +32,6 @@ configurePaCockpit({
     },
     getUser,
     updateToken: (minValidity) => keycloak.updateToken(minValidity ?? 0),
-    logout: async (options) => {
-      await keycloak.logout(options);
-    },
   },
   tenant: { initializeTenantTheme, loadTenantConfigs, getTenantConfig, getDefaultTenantConfig },
 });

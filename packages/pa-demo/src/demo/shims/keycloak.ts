@@ -38,18 +38,16 @@ export function getUser(): KeycloakUser {
  * ../pa-cockpit-host.tsx) is written against it exactly as
  * packages/frontend's is against the real keycloak-js instance:
  * `keycloak.authenticated`, `keycloak.token`,
- * `keycloak.updateToken(minValidity)`, `keycloak.logout({ redirectUri })`.
- * Every method here is a no-op that keeps that adapter's happy path:
- * authenticated, never expiring, never redirecting. The parameters mirror
- * keycloak-js's real signatures so the adapter type-checks against
- * PaCockpitAuth unchanged.
+ * `keycloak.updateToken(minValidity)`. Every method here is a no-op that
+ * keeps that adapter's happy path: authenticated, never expiring. The
+ * parameters mirror keycloak-js's real signatures so the adapter
+ * type-checks against PaCockpitAuth unchanged.
  */
 const keycloak = {
   authenticated: true,
   token: '',
   tokenParsed: {},
   login: () => Promise.resolve(),
-  logout: (_options?: { redirectUri?: string }) => Promise.resolve(),
   updateToken: (_minValidity?: number) => Promise.resolve(false),
   isTokenExpired: () => false,
 };

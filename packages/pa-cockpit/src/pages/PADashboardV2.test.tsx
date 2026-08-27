@@ -28,7 +28,6 @@ const authState = {
   authenticated: false,
   user: null as KeycloakUser | null,
 };
-const logoutMock = vi.fn();
 
 function configureHost() {
   configurePaCockpit({
@@ -39,7 +38,6 @@ function configureHost() {
       token: 'test-token',
       getUser: () => authState.user,
       updateToken: async () => false,
-      logout: logoutMock,
     },
     tenant: {
       initializeTenantTheme: async () => true,

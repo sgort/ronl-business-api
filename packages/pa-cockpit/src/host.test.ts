@@ -11,7 +11,6 @@ const auth = {
   token: 'tok',
   getUser: () => null,
   updateToken: async () => false,
-  logout: async () => {},
 };
 const tenant = {
   initializeTenantTheme: async () => true,

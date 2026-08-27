@@ -6,7 +6,6 @@ const mockKeycloak = vi.hoisted(() => ({
   authenticated: false,
   token: undefined as string | undefined,
   updateToken: vi.fn(),
-  logout: vi.fn(),
 }));
 const mockGetUser = vi.hoisted(() => vi.fn());
 
@@ -60,11 +59,6 @@ describe('pa-cockpit-host', () => {
 
     await getPaCockpitAuth().updateToken(30);
     expect(mockKeycloak.updateToken).toHaveBeenCalledWith(30);
-  });
-
-  it('delegates logout with the caller-supplied options', async () => {
-    await getPaCockpitAuth().logout({ redirectUri: 'https://example.test' });
-    expect(mockKeycloak.logout).toHaveBeenCalledWith({ redirectUri: 'https://example.test' });
   });
 
   it('wires the tenant service straight through, unchanged', () => {

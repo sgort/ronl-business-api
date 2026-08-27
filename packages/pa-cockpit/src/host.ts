@@ -28,8 +28,8 @@ export interface PaTenantConfig {
 
 /**
  * The subset of the host's *auth service* the cockpit touches — not all of
- * it is keycloak-js's own surface. `authenticated`, `token`, `updateToken`
- * and `logout` do mirror keycloak-js's signatures, with one deliberate
+ * it is keycloak-js's own surface. `authenticated`, `token` and
+ * `updateToken` do mirror keycloak-js's signatures, with one deliberate
  * adjustment: `authenticated` is required here, while keycloak-js declares
  * it optional (`authenticated?: boolean`). A host adapter should pass
  * `!!keycloak.authenticated`, exactly as
@@ -37,14 +37,16 @@ export interface PaTenantConfig {
  * `getUser` is not keycloak-js's at all: it is the host's own function (see
  * packages/frontend/src/services/keycloak.ts), which derives a user object
  * from `keycloak.tokenParsed`. Do not go looking for `getUser` in
- * keycloak-js's typings — it isn't there.
+ * keycloak-js's typings — it isn't there. Ending a session is not part of
+ * this contract: a host that wants a login/logout control wires it through
+ * the `onLogin`/`onLogout` callbacks on `PaCockpitHost` instead (see
+ * PADashboardV2's `host` prop), calling its own auth service directly.
  */
 export interface PaCockpitAuth {
   authenticated: boolean;
   token: string | undefined;
   getUser(): KeycloakUser | null;
   updateToken(minValidity?: number): Promise<boolean>;
-  logout(options?: { redirectUri?: string }): Promise<void>;
 }
 
 export interface PaCockpitTenant {
