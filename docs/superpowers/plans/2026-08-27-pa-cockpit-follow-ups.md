@@ -90,6 +90,48 @@ CSP. But do not inherit "needs a TypeChecker" as settled fact.
 
 ## 2. A surface pass over `packages/pa-cockpit/src/index.ts`
 
+> **Done.** Surface narrowed by three, and the type half of the pin made real.
+>
+> **Removed** — `isPaItemVisible`, `PaGateContext`, `OrgTypeGate`. The first two
+> are live package-internal code (PADashboardV2 builds the gate context and
+> applies it when rendering the rail) that no host can call, because a host never
+> sees a `PaRailItem` un-gated. `OrgTypeGate` had zero consumers of _this_ copy:
+> `CaseworkerDashboardV2.tsx` imports the character-identical union from its own
+> `pages/caseworker-v2/modes.config.ts:18`. All three stay exported from
+> `modes.config` for internal use; re-adding one is a line, now caught by the pin.
+>
+> **Kept, with the reason recorded in the file** — the audit found five more type
+> exports with no host consumer, and stopping at "zero consumers, delete it" would
+> have been wrong for four of them. `PaModeId`, `PaRailItem` and `PaRailGroup` are
+> the field types of `PaModeConfig`, which pa-demo _does_ consume; exporting a
+> value while withholding the types needed to hold it is precisely what produces a
+> host-side re-declaration — which is how the two `OrgTypeGate` declarations
+> happened in the first place. `PaCockpitAuth`, `PaCockpitTenant` and
+> `PaCockpitServices` are the parameter and return types of exported functions.
+>
+> **Recorded, not changed** — `getPaCockpitAuth` / `getPaCockpitTenant` /
+> `SORT_SECTION_IDS` have only a test as their consumer. Each is the read side of
+> something a host writes, and a host that could not read it back could not test
+> its own wiring. `isPaMock` is the same shape and already carried that reasoning.
+> Noted in `index.ts` so the next audit does not read them as dead.
+>
+> **The type pin.** `index.test.ts` listed the type exports in a `void`ed array as
+> documentation, so that half of the contract was exactly as unwatched as the whole
+> surface had been before the file existed. It now parses `index.ts` with the
+> TypeScript AST — the same parse-don't-scan choice, for the same reasons, as
+> `no-module-scope-modes.test.ts` — and asserts the type names, catching both
+> spellings (`export type { X }` and `export { type X }`). Four probes, each
+> isolating one name:
+>
+> | Probe                                  | Result                 |
+> | -------------------------------------- | ---------------------- |
+> | Type export added                      | red — `+PaGateContext` |
+> | Type export removed                    | red — `−PaRailGroup`   |
+> | Inline `export { type X }` spelling    | red — `+OrgTypeGate`   |
+> | Value export removed (older assertion) | red — `−isPaMock`      |
+>
+> pa-cockpit 368/368, frontend 839/839, pa-demo 97/97, public-site 140/140.
+
 The entry point was narrowed from 23 names to 9 in Task 9, then re-widened twice
 for real needs. Every export was resolved against actual imports in both hosts;
 three have **no consumer in either**:

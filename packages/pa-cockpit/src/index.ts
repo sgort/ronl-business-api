@@ -26,6 +26,32 @@
  * exists to keep that door shut inside the package; opening it at the package
  * boundary for a use case nobody has would defeat the point. A host that needs
  * either one gets it from usePaModes(), narrowed to the modes it supplied.
+ *
+ * Also deliberately absent, removed after a consumer audit found none:
+ *
+ *   `isPaItemVisible` and `PaGateContext`  The rail-item gate. Real code, but
+ *     package-internal: PADashboardV2 builds the gate context and applies it
+ *     when rendering the rail. A host never sees a `PaRailItem` un-gated, so
+ *     it has nothing to call this on.
+ *   `OrgTypeGate`  Zero consumers of *this* copy. packages/frontend appears to
+ *     use it, but `CaseworkerDashboardV2.tsx` imports the character-identical
+ *     union its own `pages/caseworker-v2/modes.config.ts:18` declares — a
+ *     different dashboard's config that happens to agree. Exporting ours
+ *     advertised a shared vocabulary that nothing shares. The duplication
+ *     itself is a separate question (follow-up item 4); this only stops the
+ *     package claiming to have settled it.
+ *
+ * All three remain exported from modes.config for use inside the package.
+ * Re-add them here when a host needs one — both hosts are in this repo, so
+ * that is a one-line change caught immediately by index.test.ts.
+ *
+ * Two exports have only a test as their consumer, recorded so the next audit
+ * does not read them as dead: `getPaCockpitAuth` / `getPaCockpitTenant` are
+ * read back only by packages/frontend's pa-cockpit-host.test.ts, and
+ * `SORT_SECTION_IDS` only by pa-demo's allowed-modes.test.ts. Both are the
+ * read side of something a host writes, and a host that could not read it
+ * back could not test its own wiring. `isPaMock` is the same shape, with its
+ * reasoning below.
  */
 export { default as PADashboardV2 } from './pages/PADashboardV2';
 export type {
@@ -38,18 +64,21 @@ export type {
 export { configurePaCockpit, getPaCockpitAuth, getPaCockpitTenant } from './host';
 export type { PaCockpitAuth, PaCockpitTenant, PaCockpitServices, PaTenantConfig } from './host';
 
-export {
-  PA_MODES,
-  SORT_SECTION_IDS,
-  isPaItemVisible,
-} from './pages/public-affairs-v2/modes.config';
+export { PA_MODES, SORT_SECTION_IDS } from './pages/public-affairs-v2/modes.config';
+/**
+ * The vocabulary of `PA_MODES`, kept even though only `PaModeConfig` is named
+ * by a host today (pa-demo's buildAllowedModes). A host handed
+ * `PaModeConfig[]` cannot destructure or narrow it without `PaModeId`,
+ * `PaRailItem` and `PaRailGroup` — they are the type of its own fields, not a
+ * speculative extra. Exporting a value while withholding the types needed to
+ * hold it is the kind of surface that forces a host to re-declare them, which
+ * is how the two `OrgTypeGate` declarations below happened.
+ */
 export type {
   PaModeId,
   PaModeConfig,
   PaRailItem,
   PaRailGroup,
-  PaGateContext,
-  OrgTypeGate,
 } from './pages/public-affairs-v2/modes.config';
 
 /**
