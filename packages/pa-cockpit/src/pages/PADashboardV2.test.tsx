@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PADashboardV2, { type PaCockpitHost } from './PADashboardV2';
 import type { Dossier, KeycloakUser } from '@ronl/shared';
@@ -212,16 +212,30 @@ describe('PADashboardV2', () => {
     expect(screen.getByTestId('section-router')).toHaveTextContent('section=europa');
   });
 
-  it("logout calls the host auth's logout with the app origin as redirect", async () => {
+  it('renders the avatar as a button and calls onLogout when a host supplies it', async () => {
     authState.authenticated = true;
     authState.user = authorizedUser;
+    const onLogout = vi.fn();
     const user = userEvent.setup();
+    render(<PADashboardV2 host={{ ...testHost, onLogout }} />);
 
+    const avatar = screen.getByTitle('Uitloggen');
+    expect(avatar.tagName).toBe('BUTTON');
+    await user.click(avatar);
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the avatar inert when the host supplies no onLogout', () => {
+    // The avatar is the identity display, not a labelled logout button — a public
+    // demo still wants the initials. What it must not have is a control that does
+    // nothing, which is what the shimmed logout produced before this seam existed.
+    authState.authenticated = true;
+    authState.user = authorizedUser;
     render(<PADashboardV2 host={testHost} />);
-    await waitFor(() => expect(screen.getByTitle('Uitloggen')).toBeInTheDocument());
-    await user.click(screen.getByTitle('Uitloggen'));
 
-    expect(logoutMock).toHaveBeenCalledWith({ redirectUri: window.location.origin + '/' });
+    const avatar = document.querySelector('.pac-avatar');
+    expect(avatar).not.toBeNull();
+    expect(avatar!.tagName).not.toBe('BUTTON');
   });
 
   it('toggles the command palette open via the search button', async () => {

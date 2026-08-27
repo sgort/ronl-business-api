@@ -405,20 +405,6 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
   // `currentMode.label` below. Degrade to the first supplied mode instead.
   const currentMode = modes.find((m) => m.id === mode) ?? modes[0];
 
-  const handleLogin = () => {
-    sessionStorage.setItem('selected_idp', 'medewerker');
-    sessionStorage.setItem('post_login_redirect', '/dashboard/public-affairs');
-    navigate('/auth');
-  };
-  const handleLogout = () => {
-    const auth = getPaCockpitAuth();
-    if (auth.authenticated) {
-      auth.logout({ redirectUri: window.location.origin + '/' });
-    } else {
-      navigate('/dashboard/public-affairs');
-    }
-  };
-
   // ── Rail content per mode ──
   const renderRail = () => {
     if (mode === 'vandaag') {
@@ -560,14 +546,18 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
                 <span className="pac-username">
                   {user?.name ?? user?.preferred_username ?? 'Medewerker'}
                 </span>
-                <button
-                  type="button"
-                  className="pac-avatar"
-                  onClick={handleLogout}
-                  title="Uitloggen"
-                >
-                  {initials}
-                </button>
+                {host.onLogout ? (
+                  <button
+                    type="button"
+                    className="pac-avatar"
+                    onClick={host.onLogout}
+                    title="Uitloggen"
+                  >
+                    {initials}
+                  </button>
+                ) : (
+                  <span className="pac-avatar">{initials}</span>
+                )}
                 <NotificationBellButton onOpen={() => setNotificationsOpen(true)} />
                 <button
                   type="button"
@@ -580,9 +570,11 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
                 </button>
               </>
             ) : (
-              <button type="button" className="pac-btn pac-btn-sm" onClick={handleLogin}>
-                Inloggen
-              </button>
+              host.onLogin && (
+                <button type="button" className="pac-btn pac-btn-sm" onClick={host.onLogin}>
+                  Inloggen
+                </button>
+              )
             )}
           </div>
         </header>
@@ -626,9 +618,11 @@ function PADashboardV2Inner({ host }: { host: PaCockpitHost }) {
                     De PA-Cockpit bevat strategische dossierinformatie. Log in als medewerker om
                     verder te gaan.
                   </p>
-                  <button type="button" className="pac-btn" onClick={handleLogin}>
-                    Inloggen als medewerker
-                  </button>
+                  {host.onLogin && (
+                    <button type="button" className="pac-btn" onClick={host.onLogin}>
+                      Inloggen als medewerker
+                    </button>
+                  )}
                 </div>
               ) : !hasAccess ? (
                 <PANoAccessPanel
