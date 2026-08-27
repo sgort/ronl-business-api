@@ -244,6 +244,93 @@ function stubCeremonyHtml(packageId: string): string {
 </html>`;
 }
 
+/**
+ * What the signer sees in the iframe after submitting the stub ceremony.
+ *
+ * The panel does not read this response -- it learns the outcome by polling the
+ * task's signature status -- so this page exists purely so a human is not left
+ * looking at raw JSON, or at an empty frame, after an action that just
+ * completed their Operaton task. All three outcomes are stated plainly:
+ * declining is a legitimate result here, not a failure, and must not read as
+ * one. No inline style or script, so the global CSP's default-src 'self' does
+ * not block it.
+ */
+function stubCeremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): string {
+  const body = {
+    signed: {
+      title: 'Ondertekend',
+      text: 'De handtekening is vastgelegd. Deze taak is afgerond; u kunt dit venster sluiten.',
+    },
+    declined: {
+      title: 'Niet ondertekend',
+      text: 'U heeft geweigerd te ondertekenen. Het proces gaat terug naar bewerking.',
+    },
+    failed: {
+      title: 'Ondertekenen mislukt',
+      text: 'De handtekening kon niet worden vastgelegd. Probeer het opnieuw of neem contact op met de beheerder.',
+    },
+  }[outcome];
+  return `<!doctype html>
+<html lang="nl">
+<head><meta charset="utf-8"><title>ValidSign stub — ${escapeHtml(body.title)}</title></head>
+<body>
+  <h1>${escapeHtml(body.title)}</h1>
+  <p>${escapeHtml(body.text)}</p>
+</body>
+</html>`;
+}
+
+/**
+ * The frontend embeds this page in an iframe on a DIFFERENT origin from this
+ * API (Vite dev server vs. the API) -- exactly as it would embed a real
+ * ValidSign ceremony URL, see validsignService.getSigningUrl's comment.
+ * Helmet's global defaults (index.ts) set `X-Frame-Options: SAMEORIGIN` and a
+ * CSP `frame-ancestors 'self'`; a browser that sees BOTH headers honours the
+ * more restrictive one, so both forbid the cross-origin embed.
+ * `X-Frame-Options` cannot express a list of allowed origins at all, so it is
+ * removed outright here rather than overridden; `frame-ancestors` replaces
+ * it, scoped to the origins this app already trusts for CORS --
+ * `config.corsOrigin`, the same value the CORS middleware uses (index.ts).
+ * That value is typed as `string[]`, but is ultimately hand-edited into an
+ * env var, so this normalises defensively rather than trusting the shape: it
+ * tolerates a bare string and an item that still carries an embedded comma,
+ * and drops a literal `'*'` entry rather than ever forwarding it -- no
+ * configured origin (or only a wildcard) falls back to `'self'`, the same
+ * restriction helmet already applied, NEVER to `frame-ancestors *`.
+ *
+ * This relaxation is acceptable ONLY because it is this narrow: every other
+ * response keeps helmet's untouched defaults -- this function is called from
+ * nowhere else in the app -- and this very route 404s whenever stub mode is
+ * off (see file header), so the relaxed policy does not exist in any live
+ * deployment; it only ever reaches a development or test browser.
+ *
+ * The rest of the CSP (default-src 'self' and everything else helmet built)
+ * is preserved, not replaced: the ceremony page has no inline <script>, no
+ * inline style attribute and no external resource of its own (see
+ * stubCeremonyHtml above), so default-src 'self' does not block anything it
+ * needs to render -- only frame-ancestors needs to change on this response.
+ */
+function stubCeremonyAllowedFrameAncestors(): string {
+  const raw = config.corsOrigin as unknown;
+  const items = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+  const origins = items
+    .flatMap((item) => String(item).split(','))
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0 && item !== '*');
+  return origins.length > 0 ? origins.join(' ') : "'self'";
+}
+
+function applyStubCeremonyFramingHeaders(res: express.Response): void {
+  res.removeHeader('X-Frame-Options');
+  const existingCsp = res.getHeader('Content-Security-Policy');
+  const directives = (typeof existingCsp === 'string' ? existingCsp : '')
+    .split(';')
+    .map((directive) => directive.trim())
+    .filter((directive) => directive.length > 0 && !directive.startsWith('frame-ancestors'));
+  directives.push(`frame-ancestors ${stubCeremonyAllowedFrameAncestors()}`);
+  res.setHeader('Content-Security-Policy', directives.join('; '));
+}
+
 callbackRouter.get('/stub/ceremony/:packageId', (req, res) => {
   if (!validsignService.isStub) {
     return res.status(404).json({
@@ -253,6 +340,7 @@ callbackRouter.get('/stub/ceremony/:packageId', (req, res) => {
   }
   const { packageId } = req.params;
   try {
+    applyStubCeremonyFramingHeaders(res);
     return res.status(200).type('html').send(stubCeremonyHtml(packageId));
   } catch (error) {
     logger.error('Failed to render stub ceremony page', {
@@ -278,19 +366,27 @@ callbackRouter.post('/stub/ceremony/:packageId/sign', async (req, res) => {
   const { packageId } = req.params;
   const outcomeRaw = (req.body as { outcome?: string }).outcome;
   const outcome = outcomeRaw === 'DECLINED' ? 'DECLINED' : 'COMPLETED';
+  // The browser renders THIS response inside the same iframe the ceremony page
+  // was served into, so it needs the same framing relaxation the GET got --
+  // without it the POST result is blocked and the signer sees an empty frame
+  // even though the signature was recorded. HTML rather than JSON for the same
+  // reason: whatever comes back is what the signer looks at. The panel does not
+  // read this response at all; it learns the outcome by polling the task's
+  // status, so this page only has to tell a human what happened.
+  applyStubCeremonyFramingHeaders(res);
   try {
     validsignService.stubSign(packageId, outcome);
     await completeSignature(packageId);
-    return res.json({ success: true, data: { packageId, outcome } });
+    return res
+      .status(200)
+      .type('html')
+      .send(stubCeremonyResultHtml(outcome === 'DECLINED' ? 'declined' : 'signed'));
   } catch (error) {
     logger.error('Stub ceremony sign failed', {
       packageId,
       error: getErrorMessage(error),
     });
-    return res.status(500).json({
-      success: false,
-      error: { code: 'STUB_SIGN_FAILED', message: 'Failed to record stub signature' },
-    });
+    return res.status(500).type('html').send(stubCeremonyResultHtml('failed'));
   }
 });
 

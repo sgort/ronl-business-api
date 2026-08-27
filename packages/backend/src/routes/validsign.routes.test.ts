@@ -14,6 +14,11 @@ jest.mock('@utils/config', () => ({
       callbackSecret: 'secret',
       senderEmail: 'sender@flevoland.nl',
     },
+    // Mutated directly by individual tests below (same pattern as
+    // mockValidsign.isStub) to exercise the configured-origins,
+    // empty-origins and wildcard-origin cases for the stub ceremony's
+    // frame-ancestors header.
+    corsOrigin: ['http://localhost:5173', 'http://localhost:3000'],
   },
 }));
 
@@ -70,6 +75,7 @@ jest.mock('@utils/logger', () => ({
 }));
 
 import express from 'express';
+import helmet from 'helmet';
 import request from 'supertest';
 import validsignRouter, {
   callbackRouter,
@@ -81,6 +87,7 @@ import { validsignService } from '@services/validsign.service';
 import { completeSignature } from '@services/validsignCompletion.service';
 import { renderTemplate } from '@services/document/renderTemplate';
 import { toPdf } from '@services/document/toPdf';
+import { config } from '@utils/config';
 
 const mockGetTask = operatonService.getTask as jest.Mock;
 const mockGetTaskSignatureSpec = operatonService.getTaskSignatureSpec as jest.Mock;
@@ -104,6 +111,28 @@ const mockToPdf = toPdf as jest.Mock;
 // concerns of its own, and relies on the app-wide body parsers -- mirror that
 // here rather than mounting an isolated parser per router (see index.ts).
 const app = express();
+// Mirror index.ts's helmet() call exactly (same directives config) so the
+// framing-header tests below observe the SAME headers a real request would
+// carry: without this, there would be no X-Frame-Options / CSP on any
+// response to prove the stub ceremony route removes/replaces, and every
+// other route keeps them.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+  })
+);
 // Mirror index.ts exactly, including using the SAME isCallbackPath
 // predicate (not a re-typed literal) -- the callback parses its own body
 // and is exempted from this global JSON parser, so a malformed/oversized
@@ -119,9 +148,12 @@ app.use('/v1/validsign', validsignRouter);
 
 const authHeader = { 'x-test-auth': '1' };
 
+const mockConfig = config as unknown as { corsOrigin: string[] };
+
 beforeEach(async () => {
   jest.clearAllMocks();
   mockValidsign.isStub = true;
+  mockConfig.corsOrigin = ['http://localhost:5173', 'http://localhost:3000'];
   mockGetTask.mockResolvedValue({
     id: 'task-1',
     processInstanceId: 'pi-1',
@@ -604,5 +636,57 @@ describe('the stub ceremony', () => {
       .send({ outcome: 'DECLINED' });
     expect(res.status).toBe(200);
     expect(mockValidsign.stubSign).toHaveBeenCalledWith('pkg-1', 'DECLINED');
+  });
+});
+
+// Real supertest requests through a real helmet() mount (see the app setup
+// above) -- not an assertion on a mocked res.setHeader call, which would
+// prove nothing about whether an actual browser renders the frame.
+describe('stub ceremony framing headers (iframe embed from a different origin)', () => {
+  it('removes X-Frame-Options entirely, so it cannot override the CSP allowance', async () => {
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    expect(res.status).toBe(200);
+    expect(res.headers['x-frame-options']).toBeUndefined();
+  });
+
+  it('sets CSP frame-ancestors to the configured CORS origins', async () => {
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    const csp = res.headers['content-security-policy'];
+    expect(csp).toContain('frame-ancestors http://localhost:5173 http://localhost:3000');
+  });
+
+  it('never emits a wildcard frame-ancestors, even if corsOrigin somehow carried one', async () => {
+    mockConfig.corsOrigin = ['*'];
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    const csp = res.headers['content-security-policy'] as string;
+    expect(csp).not.toContain('frame-ancestors *');
+    expect(csp).toContain("frame-ancestors 'self'");
+  });
+
+  it("falls back to frame-ancestors 'self' when no origins are configured", async () => {
+    mockConfig.corsOrigin = [];
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    const csp = res.headers['content-security-policy'] as string;
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(csp).not.toContain('frame-ancestors *');
+  });
+
+  it('preserves the rest of the CSP (default-src etc.) on the same response', async () => {
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    const csp = res.headers['content-security-policy'] as string;
+    expect(csp).toContain("default-src 'self'");
+  });
+
+  it('leaves every OTHER route with its restrictive headers intact -- proving the relaxation is narrow', async () => {
+    mockGetTaskVariables.mockResolvedValue({ validsignStatus: 'completed' });
+    const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(res.status).toBe(200);
+    expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self'");
   });
 });
