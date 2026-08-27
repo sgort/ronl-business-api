@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { expectMockNamesRealExports } from '@ronl/pa-cockpit/test-utils';
 import PASectionRouter from './PASectionRouter';
 
 // One stub, not twelve: everything this file doesn't own — Vandaag,
@@ -10,12 +11,25 @@ import PASectionRouter from './PASectionRouter';
 // packages/pa-cockpit/src/components/PADashboardV2/PaSectionsRouter.test.tsx;
 // this file only needs to prove it is reached, with the right props, for
 // anything this host doesn't recognise itself.
+//
+// Spreading the real module before the override is the pattern
+// packages/pa-cockpit/src/test/mockModule.ts documents, and
+// expectMockNamesRealExports (below) is the assertion half of the same fix:
+// a wholesale replacement would leave any other name this file starts
+// importing from the package silently undefined instead of failing loudly.
 const mockPaSectionsRouter = vi.hoisted(() => vi.fn());
-vi.mock('@ronl/pa-cockpit', () => ({
-  PaSectionsRouter: (props: never) => {
-    mockPaSectionsRouter(props);
-    return <div>pa-sections-router</div>;
+const paCockpitMock = vi.hoisted(() => ({
+  exports: {
+    PaSectionsRouter: (props: never) => {
+      mockPaSectionsRouter(props);
+      return <div>pa-sections-router</div>;
+    },
   },
+}));
+
+vi.mock('@ronl/pa-cockpit', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@ronl/pa-cockpit')>()),
+  ...paCockpitMock.exports,
 }));
 
 vi.mock('../CaseworkerDashboard/ProfielSection', () => ({ default: () => <div>profiel</div> }));
@@ -47,6 +61,15 @@ const baseProps = {
 };
 
 describe('PASectionRouter', () => {
+  it('mocks only names @ronl/pa-cockpit really exports', async () => {
+    // vi.importActual, not import(): the path is mocked, so a plain dynamic
+    // import would hand back the mock and compare it with itself.
+    await expectMockNamesRealExports(
+      vi.importActual('@ronl/pa-cockpit'),
+      paCockpitMock.exports as Record<string, unknown>
+    );
+  });
+
   it.each([
     ['profiel', 'profiel'],
     ['rollen', 'rollen'],
