@@ -10,10 +10,12 @@ import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.c
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
 import { useActivityHistory, usePhase1Documents, useOpenTasks } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
+import type { SignatureSpec } from '../../services/api';
 import type { Task } from '@ronl/shared';
 import Fase1Swimlane from './Fase1Swimlane';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
+import SigningPanel from './SigningPanel';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -56,16 +58,32 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task)
   const [claiming, setClaiming] = useState(false);
   const [isClaimed, setIsClaimed] = useState(!!task.assignee);
   const [variables, setVariables] = useState<Record<string, unknown> | null>(null);
+  const [sig, setSig] = useState<SignatureSpec | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  // Always fetch process variables on mount so they're visible before claiming.
+  // Always fetch process variables AND the signing spec on mount so they're
+  // visible before claiming — one extra request per OPENED task, never per
+  // listed task. allSettled, not all: a blip in the (new) signature spec
+  // endpoint must not blank the (long-working) variables display for every
+  // ordinary, non-signing task — each result degrades independently, so a
+  // failed spec fetch just falls back to "no signature required" instead of
+  // discarding variables that already came back fine.
   useEffect(() => {
     setDetailLoading(true);
-    businessApi.task.variables(task.id).then((res) => {
-      if (res.success) setVariables(res.data as Record<string, unknown>);
-      setDetailLoading(false);
-    });
+    Promise.allSettled([
+      businessApi.task.variables(task.id),
+      businessApi.validsign.taskSpec(task.id),
+    ])
+      .then(([varsResult, sigResult]) => {
+        if (varsResult.status === 'fulfilled' && varsResult.value.success) {
+          setVariables(varsResult.value.data as Record<string, unknown>);
+        }
+        if (sigResult.status === 'fulfilled' && sigResult.value.success && sigResult.value.data) {
+          setSig(sigResult.value.data);
+        }
+      })
+      .finally(() => setDetailLoading(false));
   }, [task.id]);
 
   const claim = async () => {
@@ -129,6 +147,11 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task)
           <button type="button" className="v2-btn" onClick={claim} disabled={claiming}>
             {claiming ? 'Claimen…' : 'Taak claimen'}
           </button>
+        ) : sig?.required ? (
+          // No completion message here either, for the same reason as below:
+          // onDone unmounts this panel, so anything set alongside it dies in
+          // the same tick and never paints. The parent owns the confirmation.
+          <SigningPanel taskId={task.id} spec={sig} onCompleted={() => onDone(task)} />
         ) : (
           <TaskFormViewer
             taskId={task.id}
