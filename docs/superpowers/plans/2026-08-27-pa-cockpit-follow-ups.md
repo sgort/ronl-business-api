@@ -76,6 +76,10 @@ removing a type export is still silent. Worth closing at the same time.
 
 ## 3. The login protocol is still hardcoded in the package
 
+> **Designed** — see `docs/superpowers/specs/2026-08-27-cockpit-session-seam-design.md`.
+> Resolved as optional `onLogin` / `onLogout` host callbacks; `PaCockpitAuth` loses
+> `logout`, whose only caller is the block being replaced.
+
 `packages/pa-cockpit/src/pages/PADashboardV2.tsx:396-405` sets two `sessionStorage`
 keys (`selected_idp`, `post_login_redirect`), an IdP literal (`'medewerker'`) and
 navigates to two router paths (`/auth`, `/dashboard/public-affairs`). All five are
@@ -124,6 +128,8 @@ The branch removed the fork and consolidated the section-id grammar into
 
 ## 5. Dead dependencies in `packages/pa-demo`
 
+> **Done** in `2381f32`. Kept here for the reasoning.
+
 `axios`, `react-markdown`, `remark-gfm` and `rehype-sanitize` are declared but have
 **zero importers** anywhere under `packages/pa-demo/`. They existed for the
 vendored tree; `@ronl/pa-cockpit` declares all four itself. The deletion checklist
@@ -132,6 +138,8 @@ covered the tree and its machinery, not the tree's dependency footprint.
 ---
 
 ## 6. Node version floor vs the `pathToFileURL` `windows` option
+
+> **Done** in `2381f32`. Kept here for the reasoning.
 
 `88f7906` fixed a Windows bug where the bundle gate silently no-opped, using
 `pathToFileURL(argv1, { windows })`. That option needs **Node ≥20.13**, while root
@@ -165,6 +173,8 @@ Both are recorded rather than open bugs — each was assessed and deliberately l
 
 ## 8. Test-mock hygiene in `packages/frontend`
 
+> **Done** in `2381f32`. Kept here for the reasoning.
+
 `packages/frontend/src/components/PADashboardV2/PASectionRouter.test.tsx` mocks
 `@ronl/pa-cockpit` with neither `importOriginal` nor `expectMockNamesRealExports` —
 the helper the package ships on `./test-utils` for exactly this hazard.
@@ -172,6 +182,33 @@ the helper the package ships on `./test-utils` for exactly this hazard.
 facility the package added; the other, mocking the same entry, does not. A future
 value import from the package would silently become `undefined` rather than failing
 loudly.
+
+---
+
+## 9. Three frontend test files fail intermittently under parallelism
+
+`IouGebruiksscenarioSection.test.tsx`, `Portfolio.test.tsx` and
+`SimMissedPanel.test.tsx` fail between one and seven times per run of
+`npm test --workspace=@ronl/frontend`, varying run to run. With
+`--no-file-parallelism` the workspace is stable at 836/836.
+
+**Verified pre-existing**, not caused by any of this work: the changes were
+stashed, the baseline re-run reproduced the same signature in the same files, and
+the stash was restored.
+
+**The cause is not the trap this repo already knows about.** None of the three
+uses `performance.now`, fake timers, `localStorage` or `sessionStorage` — so this
+is not the wall-clock contention that `*.perf.test.ts` and `ChangelogPanel`'s
+raised timeout already address. Something else is shared between them, and it has
+not been identified.
+
+Worth finding rather than masking. Serial execution would hide it, and CI runs
+parallel — so CI is where it will eventually surface, on a gating suite. Likely
+candidates in rough order: module-level state that survives Vitest's per-file
+isolation, an unisolated temp directory, or a fixture all three mutate.
+
+Note the deliberate choice not to disable parallelism globally, and the reasoning
+behind it, now recorded as a standing rule in `~/.claude/CLAUDE.md`.
 
 ---
 
@@ -189,3 +226,5 @@ loudly.
 - **`packages/pa-demo/scripts/check-drift.mjs`'s Windows bug** was reported against
   `acc` and is real there. This branch deletes the file, so it needs no fix. The same
   idiom in the two `check-bundle.mjs` files _was_ fixed, in `88f7906`.
+
+---
