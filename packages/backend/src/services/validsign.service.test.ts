@@ -181,6 +181,12 @@ describe('the live REST path', () => {
     mockConfig.deploymentEnv = 'development';
     mockClient.post.mockReset();
     mockClient.get.mockReset();
+    // Without this, mockFormAppend.mock.calls accumulates across every test
+    // in this describe (form.append happens whether or not the subsequent
+    // axios.post succeeds), and each test's `.find(c => c[0] === 'payload')`
+    // below would silently pick up an EARLIER test's payload instead of its
+    // own.
+    mockFormAppend.mockClear();
   });
 
   it('creates a package with an explicit sender and one signer role', async () => {
@@ -201,12 +207,65 @@ describe('the live REST path', () => {
     expect(payload.sender.email).toBe('steven.gort@ictu.nl');
     expect(payload.roles).toHaveLength(1);
     expect(payload.roles[0].signers[0].email).toBe('pl@flevoland.nl');
+    // extract:false -- we author this PDF and know the coordinates, so
+    // text-anchor extraction would only add a failure mode.
+    expect(payload.documents[0].extract).toBe(false);
     expect(payload.documents[0].approvals[0].fields[0]).toMatchObject({
       page: 0,
       width: 200,
       height: 50,
       type: 'SIGNATURE',
     });
+  });
+
+  it('omits settings.ceremony.handOver when the caller derived no handOverUrl', async () => {
+    mockClient.post.mockResolvedValue({ data: { id: 'pkg-1' } });
+    mockClient.get.mockResolvedValue({
+      data: { roles: [{ id: 'role-1', type: 'SIGNER', signers: [{ email: 'pl@flevoland.nl' }] }] },
+    });
+
+    // `input` (module-level fixture) deliberately carries no handOverUrl --
+    // a real caller falls back to this when it cannot derive a PUBLICLY
+    // reachable board URL (e.g. localhost). ValidSign's own account default
+    // must apply rather than the package failing to create or a handOver
+    // link the signer's browser refuses to follow.
+    await new ValidsignService().createPackage(input);
+
+    const payload = JSON.parse(
+      mockFormAppend.mock.calls.find((c) => c[0] === 'payload')![1] as string
+    );
+    expect(payload.settings).toBeUndefined();
+  });
+
+  it('points settings.ceremony.handOver at the board, not the ValidSign account default, with autoRedirect false', async () => {
+    mockClient.post.mockResolvedValue({ data: { id: 'pkg-1' } });
+    mockClient.get.mockResolvedValue({
+      data: { roles: [{ id: 'role-1', type: 'SIGNER', signers: [{ email: 'pl@flevoland.nl' }] }] },
+    });
+
+    await new ValidsignService().createPackage({
+      ...input,
+      handOverUrl: 'https://ronl.flevoland.nl/dashboard/infra-board',
+    });
+
+    const payload = JSON.parse(
+      mockFormAppend.mock.calls.find((c) => c[0] === 'payload')![1] as string
+    );
+    expect(payload.settings.ceremony.handOver).toMatchObject({
+      href: 'https://ronl.flevoland.nl/dashboard/infra-board',
+      // false, matching the account default: ValidSign's own
+      // "Ondertekening voltooid" confirmation is informative and correct on
+      // its own, and the board's task panel already removes itself the
+      // moment it detects the signature -- nothing should rush the signer
+      // past a legal-signature confirmation.
+      autoRedirect: false,
+    });
+    // Confirmed live: the account default left these as "Beeindigen" /
+    // "Customer Home page", pointing at the province's public website
+    // (https://www.flevoland.nl/) rather than the board.
+    expect(payload.settings.ceremony.handOver.text).not.toBe('Beeindigen');
+    expect(payload.settings.ceremony.handOver.title).not.toBe('Customer Home page');
+    expect(payload.settings.ceremony.handOver.href).not.toBe('https://www.flevoland.nl/');
   });
 
   it('logs only safe fields on a failed request, never the raw error or its config/headers', async () => {

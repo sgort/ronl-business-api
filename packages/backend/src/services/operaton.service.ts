@@ -456,6 +456,47 @@ export class OperatonService {
   }
 
   /**
+   * Resolve a task's process variables from HISTORY rather than the runtime
+   * task API -- for exactly the situation getDecisionDocument's own comment
+   * already describes: Operaton's active /task/{id} 404s the moment a task
+   * completes, because completing it is what removes it from the runtime.
+   *
+   * Unlike /history/process-instance (which DOES have a single-resource
+   * /{id} form -- see getDecisionDocument's histRes call above), Operaton has
+   * NO path-parameter form for a single historic task: /history/task/{id}
+   * 404s unconditionally, regardless of whether the task exists. The only
+   * real lookup is the QUERY endpoint, GET /history/task?taskId=..., which
+   * returns an ARRAY (verified directly against a running engine: the path
+   * form 404s, the query form returns exactly one match). This looks the
+   * task up that way to recover its processInstanceId, then reads that
+   * instance's final historic variables.
+   *
+   * Returns null ONLY when the query genuinely returns zero results -- that
+   * is "no such task", not "Operaton is unreachable". Any other failure
+   * (network error, timeout, 5xx) is logged and rethrown, so a transport
+   * failure can never be mistaken for "there is no such task" by a caller
+   * that only checks for null.
+   */
+  async getHistoricTaskVariables(taskId: string): Promise<Record<string, unknown> | null> {
+    let processInstanceId: string;
+    try {
+      const response = await this.client.get('/history/task', { params: { taskId } });
+      const tasks: Array<{ processInstanceId: string }> = response.data;
+      if (tasks.length === 0) {
+        return null;
+      }
+      processInstanceId = tasks[0].processInstanceId;
+    } catch (error) {
+      logger.error('Failed to get historic task', {
+        taskId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+    return this.getHistoricVariables(processInstanceId);
+  }
+
+  /**
    * Find the most recent completed HrOnboardingProcess for a given employeeId.
    * Returns flattened historic variables, or null if no completed instance found.
    */

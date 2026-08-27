@@ -48,6 +48,7 @@ jest.mock('@services/operaton.service', () => ({
     getTask: jest.fn(),
     getTaskSignatureSpec: jest.fn(),
     getTaskVariables: jest.fn(),
+    getHistoricTaskVariables: jest.fn(),
     setProcessVariables: jest.fn(),
   },
 }));
@@ -92,6 +93,7 @@ import { config } from '@utils/config';
 const mockGetTask = operatonService.getTask as jest.Mock;
 const mockGetTaskSignatureSpec = operatonService.getTaskSignatureSpec as jest.Mock;
 const mockGetTaskVariables = operatonService.getTaskVariables as jest.Mock;
+const mockGetHistoricTaskVariables = operatonService.getHistoricTaskVariables as jest.Mock;
 const mockSetProcessVariables = operatonService.setProcessVariables as jest.Mock;
 
 const mockValidsign = validsignService as unknown as {
@@ -405,6 +407,12 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
         signer: { email: 'signer@flevoland.nl', firstName: 'Jan', lastName: 'van der Berg' },
       })
     );
+    // beforeEach configures corsOrigin as localhost -- the everyday local-dev
+    // shape -- so handOverUrl must be omitted (see deriveBoardHandOverUrl):
+    // a real ValidSign ceremony's handOver link is followed by the signer's
+    // OWN browser on the public internet, which Private Network Access
+    // blocks outright from reaching any localhost/private address.
+    expect(mockValidsign.createPackage.mock.calls[0][0].handOverUrl).toBeUndefined();
     expect(mockValidsign.sendPackage).toHaveBeenCalledWith('pkg-1');
     expect(mockSetProcessVariables).toHaveBeenCalledWith(
       'pi-1',
@@ -579,6 +587,45 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package');
     expect(res.status).toBe(401);
   });
+
+  it('derives an absolute handOverUrl at the infra board when corsOrigin is a public origin', async () => {
+    mockConfig.corsOrigin = ['https://ronl.flevoland.nl'];
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({});
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-fwd', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-fwd');
+
+    await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    // Deliberately NOT derived from the request's own host/forwarded
+    // headers -- see deriveBoardHandOverUrl's comment -- so this asserts
+    // against the configured corsOrigin, not anything supertest sent.
+    expect(mockValidsign.createPackage.mock.calls[0][0].handOverUrl).toBe(
+      'https://ronl.flevoland.nl/dashboard/infra-board'
+    );
+  });
+
+  it('omits handOverUrl when corsOrigin is empty/unconfigured', async () => {
+    mockConfig.corsOrigin = [];
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({});
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-empty', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-empty');
+
+    await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(mockValidsign.createPackage.mock.calls[0][0].handOverUrl).toBeUndefined();
+  });
 });
 
 describe('GET /v1/validsign/task/:taskId/status', () => {
@@ -587,12 +634,67 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ status: 'completed' });
+    expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
   });
 
   it('defaults to none when unset', async () => {
     mockGetTaskVariables.mockResolvedValue({});
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.body.data).toEqual({ status: 'none' });
+  });
+
+  // The regression test: this is the actual bug. Completing the task removes
+  // it from the RUNTIME task API, which 404s -- that must fall back to
+  // history and report the completed status, not fail. Must fail against the
+  // pre-fix code (which had no history fallback at all).
+  it('falls back to history and reports completed status when the runtime task is gone', async () => {
+    mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    mockGetHistoricTaskVariables.mockResolvedValue({
+      validsignStatus: 'completed',
+      approvalStatus: 'approved',
+    });
+    const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ status: 'completed' });
+    expect(mockGetHistoricTaskVariables).toHaveBeenCalledWith('task-1');
+  });
+
+  it('answers 404 SIGNATURE_STATUS_NOT_FOUND when neither runtime nor history knows the task', async () => {
+    mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    mockGetHistoricTaskVariables.mockResolvedValue(null);
+    const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('SIGNATURE_STATUS_NOT_FOUND');
+  });
+
+  // The dangerous confusion this fix must not introduce: a transport failure
+  // (Operaton unreachable, timeout, 5xx) must never be treated as "the task
+  // is merely historic" -- that would let the panel see 'completed' for a
+  // signature that never happened. Only a genuine runtime 404 may fall back
+  // to history at all.
+  it('does NOT fall back to history, and does NOT report completed, on a transport failure', async () => {
+    mockGetTaskVariables.mockRejectedValue(new Error('ECONNREFUSED'));
+    const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
+    expect(res.body.data?.status).not.toBe('completed');
+    expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
+  });
+
+  it('does NOT fall back to history on a non-404 axios error (e.g. a 500 from Operaton)', async () => {
+    mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 500 } });
+    const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
+    expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
+  });
+
+  it('500s when the runtime is gone AND the history lookup itself blows up (transport failure, not "not found")', async () => {
+    mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    mockGetHistoricTaskVariables.mockRejectedValue(new Error('history unreachable'));
+    const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
   });
 });
 
@@ -636,6 +738,39 @@ describe('the stub ceremony', () => {
       .send({ outcome: 'DECLINED' });
     expect(res.status).toBe(200);
     expect(mockValidsign.stubSign).toHaveBeenCalledWith('pkg-1', 'DECLINED');
+  });
+});
+
+describe('GET /v1/validsign/ceremony/complete', () => {
+  // This is the case the fix exists for: ValidSign's own handOver link is
+  // only ever followed in LIVE mode, so the route must not 404 there --
+  // that would reproduce the exact "confusing, looks broken" symptom this
+  // work fixes.
+  it('answers 200 with the framing headers even when stub mode is OFF', async () => {
+    mockValidsign.isStub = false;
+    const res = await request(app).get('/v1/validsign/ceremony/complete');
+    expect(res.status).toBe(200);
+    expect(res.type).toBe('text/html');
+    expect(res.headers['x-frame-options']).toBeUndefined();
+    expect(res.headers['content-security-policy']).toContain(
+      'frame-ancestors http://localhost:5173 http://localhost:3000'
+    );
+  });
+
+  it('also answers 200 in stub mode', async () => {
+    mockValidsign.isStub = true;
+    const res = await request(app).get('/v1/validsign/ceremony/complete');
+    expect(res.status).toBe(200);
+  });
+
+  it('tells the signer the signature is recorded and the window can be closed', async () => {
+    const res = await request(app).get('/v1/validsign/ceremony/complete');
+    expect(res.text).toContain('Ondertekend');
+  });
+
+  it('does not require authentication', async () => {
+    const res = await request(app).get('/v1/validsign/ceremony/complete');
+    expect(res.status).not.toBe(401);
   });
 });
 

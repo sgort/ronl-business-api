@@ -47,6 +47,26 @@ export interface CreatePackageInput {
   pdf: Buffer;
   fileName: string;
   signatureFields: SignatureField[];
+  /**
+   * Absolute, PUBLICLY reachable URL of the infra board (see
+   * validsign.routes.ts's deriveBoardHandOverUrl), derived by the caller
+   * from config.corsOrigin -- NEVER from this backend's own host. When
+   * present, createPackageLive points ValidSign's settings.ceremony.handOver
+   * at it so the signer's browser returns to their work instead of the
+   * account-level default (confirmed live: a redirect to the province's
+   * public website).
+   *
+   * Omit when the caller could not derive a PUBLIC origin -- most notably on
+   * localhost, where the board itself is not publicly reachable. This is
+   * not merely a cosmetic fallback: a signer's browser on a real ValidSign
+   * ceremony (my.validsign.eu) is blocked outright by Private Network Access
+   * (a browser security policy, confirmed live) from navigating to ANY
+   * private-network address, so sending one here would land the signer on a
+   * browser-level error page immediately after a legal signature was
+   * recorded. Omitting handOver and letting ValidSign's own account default
+   * apply is a far better failure mode.
+   */
+  handOverUrl?: string;
 }
 
 interface StubPackage {
@@ -323,6 +343,41 @@ export class ValidsignService {
       // packages from several senders. Relying on a default owner would
       // attribute province approvals to whoever the key resolves to.
       sender: { email: input.senderEmail },
+      // Overrides the account-level ceremony finish button, which (confirmed
+      // live) defaults to settings.ceremony.handOver = { href:
+      // "https://www.flevoland.nl/", text: "Beeindigen", ... } -- the
+      // province's own public site, rendered inside the board's task-panel
+      // iframe after a real signature completes. Sent only when the caller
+      // (validsign.routes.ts's deriveBoardHandOverUrl) could derive a
+      // PUBLICLY reachable board URL; omitted otherwise so package creation
+      // still succeeds and the (confusing, but harmless) account default
+      // applies rather than a link the signer's browser refuses to follow.
+      //
+      // autoRedirect: false -- matching the account default (the signer
+      // must click through). ValidSign's own ceremony-complete page is
+      // informative and correct on its own, and the board's task panel is
+      // already polling the task's status and removes itself the moment a
+      // signature is detected, so nothing depends on an auto-redirect.
+      // autoRedirect:true was tried and found live to be actively harmful:
+      // combined with a handOver target the signer's browser refuses (see
+      // handOverUrl's comment on CreatePackageInput), it rushed the signer
+      // straight into a browser-level block screen instead of letting them
+      // see ValidSign's own confirmation first.
+      ...(input.handOverUrl
+        ? {
+            settings: {
+              ceremony: {
+                handOver: {
+                  autoRedirect: false,
+                  href: input.handOverUrl,
+                  text: 'Terug naar het infrabord',
+                  title: 'Keer terug naar uw takenoverzicht op het infrabord',
+                  parameters: ['transaction_id', 'signer_id', 'status'],
+                },
+              },
+            },
+          }
+        : {}),
       roles: [
         {
           id: 'signer1',

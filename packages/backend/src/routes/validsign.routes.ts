@@ -28,12 +28,21 @@
  *       without breaking the very flow it exists to stand in for. Both
  *       routes 404 (not merely refuse) unless validsignService.isStub, so
  *       they do not exist at all in a live deployment.
+ *     - the ceremony completion page (GET /ceremony/complete), unauthenticated
+ *       for the same reason as the stub ceremony above. settings.ceremony.
+ *       handOver (validsign.service.ts's createPackageLive) does NOT point
+ *       here -- it points at the infra board itself, derived from
+ *       config.corsOrigin (see deriveBoardHandOverUrl below) -- but the route
+ *       is kept, and deliberately still reachable regardless of stub mode:
+ *       it is harmless, already tested, and remains the sensible target if
+ *       a backend-served landing page is wanted again later.
  *
  * - the default-exported router — the infra board's own authenticated
  *   endpoints, sitting behind jwtMiddleware + tenantMiddleware like every
  *   other authenticated route (see rip.routes.ts).
  */
 import crypto from 'node:crypto';
+import axios from 'axios';
 import express from 'express';
 import rateLimit, { MemoryStore } from 'express-rate-limit';
 import type { OperatonVariable } from '@ronl/shared';
@@ -245,17 +254,20 @@ function stubCeremonyHtml(packageId: string): string {
 }
 
 /**
- * What the signer sees in the iframe after submitting the stub ceremony.
+ * What the signer sees after a ceremony finishes -- shared by the stub
+ * ceremony's own POST /sign result AND the live completion page below
+ * (GET /ceremony/complete), rather than each rendering its own copy.
  *
- * The panel does not read this response -- it learns the outcome by polling the
- * task's signature status -- so this page exists purely so a human is not left
- * looking at raw JSON, or at an empty frame, after an action that just
- * completed their Operaton task. All three outcomes are stated plainly:
- * declining is a legitimate result here, not a failure, and must not read as
- * one. No inline style or script, so the global CSP's default-src 'self' does
- * not block it.
+ * Neither caller's page is read by the panel -- it learns the outcome by
+ * polling the task's signature status -- so this exists purely so a human is
+ * not left looking at raw JSON, or at an empty frame (stub), or at the
+ * province's public website (live -- see createPackageLive's handOver
+ * comment), after an action that just completed their Operaton task. All
+ * three outcomes are stated plainly: declining is a legitimate result here,
+ * not a failure, and must not read as one. No inline style or script, so the
+ * global CSP's default-src 'self' does not block it.
  */
-function stubCeremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): string {
+function ceremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): string {
   const body = {
     signed: {
       title: 'Ondertekend',
@@ -272,7 +284,7 @@ function stubCeremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): stri
   }[outcome];
   return `<!doctype html>
 <html lang="nl">
-<head><meta charset="utf-8"><title>ValidSign stub — ${escapeHtml(body.title)}</title></head>
+<head><meta charset="utf-8"><title>Ondertekenen — ${escapeHtml(body.title)}</title></head>
 <body>
   <h1>${escapeHtml(body.title)}</h1>
   <p>${escapeHtml(body.text)}</p>
@@ -281,8 +293,9 @@ function stubCeremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): stri
 }
 
 /**
- * The frontend embeds this page in an iframe on a DIFFERENT origin from this
- * API (Vite dev server vs. the API) -- exactly as it would embed a real
+ * The frontend embeds ceremony-related pages (this route's, and the live
+ * completion page below) in an iframe on a DIFFERENT origin from this API
+ * (Vite dev server vs. the API) -- exactly as it would embed a real
  * ValidSign ceremony URL, see validsignService.getSigningUrl's comment.
  * Helmet's global defaults (index.ts) set `X-Frame-Options: SAMEORIGIN` and a
  * CSP `frame-ancestors 'self'`; a browser that sees BOTH headers honours the
@@ -298,36 +311,52 @@ function stubCeremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): stri
  * configured origin (or only a wildcard) falls back to `'self'`, the same
  * restriction helmet already applied, NEVER to `frame-ancestors *`.
  *
- * This relaxation is acceptable ONLY because it is this narrow: every other
- * response keeps helmet's untouched defaults -- this function is called from
- * nowhere else in the app -- and this very route 404s whenever stub mode is
- * off (see file header), so the relaxed policy does not exist in any live
- * deployment; it only ever reaches a development or test browser.
+ * This relaxation is acceptable even on a route reachable in a live
+ * deployment (the completion page below is, deliberately -- see its own
+ * comment) because it is scoped to `config.corsOrigin`: exactly the origins
+ * this app already trusts enough to answer their cross-origin XHRs, never
+ * wider. Every other response keeps helmet's untouched defaults -- this
+ * function is called from nowhere else in the app.
  *
  * The rest of the CSP (default-src 'self' and everything else helmet built)
- * is preserved, not replaced: the ceremony page has no inline <script>, no
- * inline style attribute and no external resource of its own (see
- * stubCeremonyHtml above), so default-src 'self' does not block anything it
- * needs to render -- only frame-ancestors needs to change on this response.
+ * is preserved, not replaced: these ceremony pages have no inline <script>,
+ * no inline style attribute and no external resource of their own (see
+ * stubCeremonyHtml and ceremonyResultHtml above), so default-src 'self' does
+ * not block anything they need to render -- only frame-ancestors needs to
+ * change on these responses.
  */
-function stubCeremonyAllowedFrameAncestors(): string {
+/**
+ * Normalises config.corsOrigin defensively rather than trusting its
+ * declared `string[]` shape: it is ultimately hand-edited into an env var,
+ * so this tolerates a bare string and an item that still carries an
+ * embedded comma, and drops a literal `'*'` entry rather than ever
+ * forwarding it. Shared by ceremonyAllowedFrameAncestors (below) and
+ * deriveBoardHandOverUrl (near CEREMONY_COMPLETE_PATH) -- the two places in
+ * this file that need "the origins this app already trusts as its own
+ * frontend", read the same defensive way.
+ */
+function corsOriginList(): string[] {
   const raw = config.corsOrigin as unknown;
   const items = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
-  const origins = items
+  return items
     .flatMap((item) => String(item).split(','))
     .map((item) => item.trim())
     .filter((item) => item.length > 0 && item !== '*');
+}
+
+function ceremonyAllowedFrameAncestors(): string {
+  const origins = corsOriginList();
   return origins.length > 0 ? origins.join(' ') : "'self'";
 }
 
-function applyStubCeremonyFramingHeaders(res: express.Response): void {
+function applyCeremonyFramingHeaders(res: express.Response): void {
   res.removeHeader('X-Frame-Options');
   const existingCsp = res.getHeader('Content-Security-Policy');
   const directives = (typeof existingCsp === 'string' ? existingCsp : '')
     .split(';')
     .map((directive) => directive.trim())
     .filter((directive) => directive.length > 0 && !directive.startsWith('frame-ancestors'));
-  directives.push(`frame-ancestors ${stubCeremonyAllowedFrameAncestors()}`);
+  directives.push(`frame-ancestors ${ceremonyAllowedFrameAncestors()}`);
   res.setHeader('Content-Security-Policy', directives.join('; '));
 }
 
@@ -340,7 +369,7 @@ callbackRouter.get('/stub/ceremony/:packageId', (req, res) => {
   }
   const { packageId } = req.params;
   try {
-    applyStubCeremonyFramingHeaders(res);
+    applyCeremonyFramingHeaders(res);
     return res.status(200).type('html').send(stubCeremonyHtml(packageId));
   } catch (error) {
     logger.error('Failed to render stub ceremony page', {
@@ -373,21 +402,134 @@ callbackRouter.post('/stub/ceremony/:packageId/sign', async (req, res) => {
   // reason: whatever comes back is what the signer looks at. The panel does not
   // read this response at all; it learns the outcome by polling the task's
   // status, so this page only has to tell a human what happened.
-  applyStubCeremonyFramingHeaders(res);
+  applyCeremonyFramingHeaders(res);
   try {
     validsignService.stubSign(packageId, outcome);
     await completeSignature(packageId);
     return res
       .status(200)
       .type('html')
-      .send(stubCeremonyResultHtml(outcome === 'DECLINED' ? 'declined' : 'signed'));
+      .send(ceremonyResultHtml(outcome === 'DECLINED' ? 'declined' : 'signed'));
   } catch (error) {
     logger.error('Stub ceremony sign failed', {
       packageId,
       error: getErrorMessage(error),
     });
-    return res.status(500).type('html').send(stubCeremonyResultHtml('failed'));
+    return res.status(500).type('html').send(ceremonyResultHtml('failed'));
   }
+});
+
+/* ------------------------------------------------------------------ */
+/* Ceremony completion page -- reachable in BOTH stub and live mode.  */
+/* Unauthenticated (see file header): ValidSign hands the signer's    */
+/* browser here directly, with no Keycloak token available.           */
+/* ------------------------------------------------------------------ */
+
+export const CEREMONY_COMPLETE_PATH = '/v1/validsign/ceremony/complete';
+
+/**
+ * The infra board's own landing route (App.tsx: `/dashboard/infra-board`),
+ * which opens straight onto "Mijn dag" / "Overzicht" -- the "Vandaag" view
+ * the repo owner meant when asking for a hand-over back to work. There is
+ * no deep-link/hash for that specific section, and none is needed: the
+ * board defaults there on load, so the bare route already lands the signer
+ * exactly where they'd want to be.
+ */
+const INFRA_BOARD_PATH = '/dashboard/infra-board';
+
+/**
+ * True unless `hostname` (already the `.hostname` of a parsed URL -- no
+ * port, IPv6 brackets intact) is loopback or a private/link-local address a
+ * real signer's browser could never reach: `localhost`, `127.0.0.0/8`,
+ * `::1`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`,
+ * or a bare hostname with no dot at all (an intranet short name, e.g. a
+ * machine's own hostname). Deliberately conservative: anything this cannot
+ * positively classify as a dotted IPv4 literal outside those ranges (a
+ * non-loopback IPv6 literal, for instance) still has a dot-free bracketed
+ * form and so falls through the "no dot" rule to NOT public. Getting this
+ * wrong in the "assume public" direction is the expensive mistake -- see
+ * deriveBoardHandOverUrl's comment -- so every ambiguous case here resolves
+ * to false.
+ */
+function isPublicHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host === '::1') return false;
+  if (!host.includes('.')) return false;
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (ipv4) {
+    const a = Number(ipv4[1]);
+    const b = Number(ipv4[2]);
+    if (a === 127 || a === 10) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 169 && b === 254) return false;
+  }
+  return true;
+}
+
+/**
+ * Absolute URL of INFRA_BOARD_PATH on the configured frontend, for
+ * ValidSign's settings.ceremony.handOver.href (see createPackageLive) -- the
+ * page a REAL ceremony hands the signer's browser to when they finish.
+ *
+ * Deliberately derived from `config.corsOrigin` (the SAME trusted-frontend
+ * value CORS and ceremonyAllowedFrameAncestors already use, normalised the
+ * same defensive way via corsOriginList -- see its comment on why that
+ * normalisation exists), NEVER from the incoming request's own host: this
+ * runs when CREATING the package, on THIS backend, so "reachable from the
+ * signer's browser" can only be answered by what this app is configured to
+ * trust as its public frontend, not by whatever localhost address a
+ * developer happens to be hitting this API on.
+ *
+ * Takes the first configured origin and requires it to pass isPublicHost.
+ * Returns undefined -- never a localhost/private URL -- otherwise, so the
+ * caller omits handOver entirely (see CreatePackageInput.handOverUrl's
+ * comment) rather than sending one. That asymmetry is deliberate: a
+ * REAL ValidSign ceremony's handOver link is followed by the signer's own
+ * browser on the public internet (my.validsign.eu), which Private Network
+ * Access (confirmed live, a browser security policy, not something this
+ * code can negotiate around) BLOCKS outright from navigating to ANY
+ * private-network address -- so a wrongly-included localhost handOver
+ * strands the signer on a browser-level error page immediately after a
+ * legal signature was recorded, which is strictly worse than the omitted
+ * case, where ValidSign's own account default (the province's public site)
+ * applies instead.
+ */
+export function deriveBoardHandOverUrl(): string | undefined {
+  const [origin] = corsOriginList();
+  if (!origin) return undefined;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return undefined;
+  }
+  if (!isPublicHost(url.hostname)) return undefined;
+  return new URL(INFRA_BOARD_PATH, url.origin).toString();
+}
+
+/**
+ * A backend-served landing page for a completed ValidSign ceremony. NOT
+ * currently the target of settings.ceremony.handOver -- createPackageLive
+ * points that at the infra board instead (see deriveBoardHandOverUrl above)
+ * so a signer returns to their own work rather than a dead-end confirmation
+ * screen. Kept, and deliberately still reachable regardless of stub mode
+ * (unlike the stub ceremony routes above): it is harmless, already tested,
+ * and remains the sensible target if a backend-served landing page is
+ * wanted again later -- see this file's header comment.
+ *
+ * If it were ever wired back into handOver, ValidSign appends its own query
+ * parameters to the href it was given (transaction_id, signer_id, status --
+ * see the `parameters` array in createPackageLive), but nothing here would
+ * need to read them: exactly like the stub ceremony, the panel learns the
+ * real outcome by polling the task's own signature status, not by reading
+ * this page's response. This page's only job is to tell a human their
+ * signature is recorded and the window can be closed -- so it always
+ * renders the 'signed' copy; there is no outcome to distinguish from here.
+ */
+callbackRouter.get('/ceremony/complete', (_req, res) => {
+  applyCeremonyFramingHeaders(res);
+  return res.status(200).type('html').send(ceremonyResultHtml('signed'));
 });
 
 /* ------------------------------------------------------------------ */
@@ -572,6 +714,11 @@ router.post('/task/:taskId/package', async (req, res) => {
       pdf: pdf.bytes,
       fileName: `${spec.templateId}.pdf`,
       signatureFields: pdf.signatureFields,
+      // Deliberately NOT derived from this request's own host -- see
+      // deriveBoardHandOverUrl's comment for why the trusted frontend
+      // origin (config.corsOrigin) is the only sane source for a URL a
+      // signer's browser must be able to reach on the public internet.
+      handOverUrl: deriveBoardHandOverUrl(),
     });
     await validsignService.sendPackage(packageId);
 
@@ -625,6 +772,20 @@ router.post('/task/:taskId/package', async (req, res) => {
 
 /**
  * GET /task/:taskId/status
+ *
+ * The signing panel polls this to learn when a signature completes -- but
+ * completing the task is exactly what removes it from Operaton's RUNTIME
+ * task API, which then 404s. That is a normal, expected outcome here (see
+ * getDecisionDocument's comment for the same lesson elsewhere in this
+ * service), not an error, so a runtime 404 falls back to HISTORY instead of
+ * failing the request.
+ *
+ * Any OTHER failure (Operaton unreachable, a timeout, a 5xx) must stay a
+ * genuine error: reporting it as if the task were merely historic would let
+ * the panel see a completed signature for one that never actually happened.
+ * Only a real 404 -- Operaton positively saying "no such runtime task" --
+ * triggers the history fallback; every other axios failure falls straight
+ * through to the existing 500 below.
  */
 router.get('/task/:taskId/status', async (req, res) => {
   const { taskId } = req.params;
@@ -632,14 +793,44 @@ router.get('/task/:taskId/status', async (req, res) => {
     const variables = await operatonService.getTaskVariables(taskId);
     return res.json({ success: true, data: { status: statusFromVariables(variables) } });
   } catch (error) {
-    logger.error('Failed to resolve signature status', {
-      taskId,
-      error: getErrorMessage(error),
-    });
-    return res.status(500).json({
-      success: false,
-      error: { code: 'SIGNATURE_STATUS_FAILED', message: 'Failed to resolve signature status' },
-    });
+    if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
+      logger.error('Failed to resolve signature status', {
+        taskId,
+        error: getErrorMessage(error),
+      });
+      return res.status(500).json({
+        success: false,
+        error: { code: 'SIGNATURE_STATUS_FAILED', message: 'Failed to resolve signature status' },
+      });
+    }
+
+    try {
+      const historicVariables = await operatonService.getHistoricTaskVariables(taskId);
+      if (historicVariables) {
+        return res.json({
+          success: true,
+          data: { status: statusFromVariables(historicVariables) },
+        });
+      }
+      // Neither the runtime nor history knows this task id. This is a
+      // genuine "not found", never expected to resolve by polling again --
+      // 404 (a distinguishable code) rather than 500, so the panel can tell
+      // "this will never resolve" apart from a transient failure and stop
+      // polling, instead of retrying a dead endpoint forever.
+      return res.status(404).json({
+        success: false,
+        error: { code: 'SIGNATURE_STATUS_NOT_FOUND', message: 'Task not found' },
+      });
+    } catch (historyError) {
+      logger.error('Failed to resolve signature status from history', {
+        taskId,
+        error: getErrorMessage(historyError),
+      });
+      return res.status(500).json({
+        success: false,
+        error: { code: 'SIGNATURE_STATUS_FAILED', message: 'Failed to resolve signature status' },
+      });
+    }
   }
 });
 

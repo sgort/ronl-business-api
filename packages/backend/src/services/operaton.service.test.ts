@@ -417,6 +417,55 @@ describe('getHistoricVariables', () => {
   });
 });
 
+describe('getHistoricTaskVariables', () => {
+  // Operaton has NO single-resource path form for a historic task --
+  // /history/task/{id} 404s unconditionally, verified directly against a
+  // running engine. The only real lookup is the QUERY endpoint, which
+  // returns an ARRAY. This is the regression test for that: asserting the
+  // actual URL/params the mock received is what catches a route back to the
+  // wrong (path-parameter) shape.
+  it('queries /history/task with taskId as a query param, resolves processInstanceId, and flattens historic variables', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: [{ id: 't1', processInstanceId: 'pi-9' }] }) // /history/task?taskId=t1
+      .mockResolvedValueOnce({ data: [{ name: 'validsignStatus', value: 'completed' }] }); // /history/variable-instance
+
+    await expect(svc.getHistoricTaskVariables('t1')).resolves.toEqual({
+      validsignStatus: 'completed',
+    });
+    expect(mockClient.get).toHaveBeenNthCalledWith(1, '/history/task', {
+      params: { taskId: 't1' },
+    });
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/history/variable-instance', {
+      params: { processInstanceId: 'pi-9', deserializeValues: true },
+    });
+  });
+
+  it('returns null on an EMPTY result array -- the task id is genuinely unknown to history too', async () => {
+    mockClient.get.mockResolvedValueOnce({ data: [] });
+    await expect(svc.getHistoricTaskVariables('unknown-task')).resolves.toBeNull();
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows a transport failure rather than returning null -- unreachable must never look like "no such task"', async () => {
+    mockClient.get.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(svc.getHistoricTaskVariables('t1')).rejects.toThrow('ECONNREFUSED');
+  });
+
+  it('rethrows a 404 from the query endpoint itself (not the same as an empty result array)', async () => {
+    mockClient.get.mockRejectedValueOnce({ isAxiosError: true, response: { status: 404 } });
+    await expect(svc.getHistoricTaskVariables('t1')).rejects.toMatchObject({
+      response: { status: 404 },
+    });
+  });
+
+  it('rethrows a non-404 axios error (e.g. a 500) rather than returning null', async () => {
+    mockClient.get.mockRejectedValueOnce({ isAxiosError: true, response: { status: 500 } });
+    await expect(svc.getHistoricTaskVariables('t1')).rejects.toMatchObject({
+      response: { status: 500 },
+    });
+  });
+});
+
 describe('getTaskVariables', () => {
   it('resolves the task, fetches its process variables, and flattens .value', async () => {
     mockClient.get

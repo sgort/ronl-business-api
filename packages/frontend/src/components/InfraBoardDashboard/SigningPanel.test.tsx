@@ -94,6 +94,47 @@ describe('SigningPanel', () => {
     expect(mockStatus.mock.calls.length).toBe(callsAtUnmount);
   });
 
+  it('stops silently polling and surfaces an error after repeated status-poll failures', async () => {
+    mockCreatePackage.mockResolvedValue({
+      success: true,
+      data: { packageId: 'p', signingUrl: '/x' },
+    });
+    // Every poll fails the same way a persistently unreachable status
+    // endpoint would (res.success: false) -- the exact silent-forever case
+    // this guards against.
+    mockStatus.mockResolvedValue({
+      success: false,
+      error: { code: 'SIGNATURE_STATUS_FAILED', message: 'boom' },
+    });
+    render(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: /Onderteken nu/ }));
+    await waitFor(() => expect(screen.getByText(/status.*niet worden opgehaald/i)).toBeTruthy(), {
+      timeout: 10000,
+    });
+    // No retry button: retrying cannot fix an unreachable status endpoint.
+    expect(screen.queryByRole('button', { name: /Opnieuw proberen/ })).toBeNull();
+    const callsAtError = mockStatus.mock.calls.length;
+    // Entering the error state stops polling entirely -- it is not silent
+    // failure with the panel spinning forever underneath the message.
+    await new Promise((r) => setTimeout(r, 3500));
+    expect(mockStatus.mock.calls.length).toBe(callsAtError);
+  }, 15000);
+
+  it('does not surface an error on a single transient poll failure', async () => {
+    mockCreatePackage.mockResolvedValue({
+      success: true,
+      data: { packageId: 'p', signingUrl: '/x' },
+    });
+    mockStatus
+      .mockRejectedValueOnce(new Error('network blip'))
+      .mockResolvedValue({ success: true, data: { status: 'sent' } });
+    render(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: /Onderteken nu/ }));
+    await waitFor(() => expect(mockStatus).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 3200));
+    expect(screen.queryByText(/status.*niet worden opgehaald/i)).toBeNull();
+  }, 10000);
+
   it('offers no retry on a 422 — the signer has no email claim, which retrying cannot fix', async () => {
     mockCreatePackage.mockResolvedValue({
       success: false,
