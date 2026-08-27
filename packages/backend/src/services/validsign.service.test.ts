@@ -114,13 +114,31 @@ describe('ValidsignService in stub mode', () => {
     expect(await svc.getPackageStatus(packageId)).toBe('DRAFT');
   });
 
-  it('returns a signed PDF without touching the network', async () => {
+  it('returns a real, well-formed signed PDF without touching the network', async () => {
     const svc = new ValidsignService();
     const { packageId } = await svc.createPackage(input);
     await svc.sendPackage(packageId);
     svc.stubSign(packageId, 'COMPLETED');
     const signed = await svc.downloadSignedDocument(packageId, 'doc-1');
     expect(signed.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    // A real single-page pdfkit document is on the order of a thousand
+    // bytes; the old placeholder string was 27 bytes. This is the size
+    // check that would catch a regression back to the placeholder.
+    expect(signed.length).toBeGreaterThan(500);
+    // The placeholder string never had this trailer — only a real PDF
+    // stream ends with the standard end-of-file marker.
+    expect(signed.subarray(-6).toString('ascii')).toContain('%%EOF');
+  });
+
+  it('returns a real, well-formed evidence summary PDF without touching the network', async () => {
+    const svc = new ValidsignService();
+    const { packageId } = await svc.createPackage(input);
+    await svc.sendPackage(packageId);
+    svc.stubSign(packageId, 'COMPLETED');
+    const evidence = await svc.downloadEvidenceSummary(packageId);
+    expect(evidence.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    expect(evidence.length).toBeGreaterThan(500);
+    expect(evidence.subarray(-6).toString('ascii')).toContain('%%EOF');
   });
 
   it('getSignedDocumentId returns a deterministic stub id without touching the network', async () => {

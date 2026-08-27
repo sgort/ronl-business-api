@@ -1,10 +1,42 @@
 import axios, { AxiosInstance } from 'axios';
 import FormData from 'form-data';
+import PDFDocument from 'pdfkit';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import type { SignatureField } from '@services/document/toPdf';
 
 const logger = createLogger('validsign-service');
+
+/**
+ * Builds a minimal, well-formed, single-page PDF for stub-mode downloads.
+ * These stand in for real ValidSign output, and the completion path
+ * archives them into the province's real eDOCS document store alongside
+ * genuine documents — a bare string with a "%PDF-" prefix uploads fine but
+ * is not a real PDF and fails to open there. Uses pdfkit the same way
+ * services/document/toPdf.ts does, rather than a second ad-hoc approach.
+ */
+function buildStubPdf(title: string, lines: string[]): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const pdf = new PDFDocument({ size: 'A4', margin: 56 });
+    const chunks: Buffer[] = [];
+    pdf.on('data', (c: Buffer) => chunks.push(c));
+    pdf.on('error', reject);
+    pdf.on('end', () => resolve(Buffer.concat(chunks)));
+
+    pdf.font('Helvetica-Bold').fontSize(16).text(title);
+    pdf.moveDown(1);
+    pdf.font('Helvetica').fontSize(11);
+    for (const line of lines) {
+      if (line === '') {
+        pdf.moveDown(0.5);
+        continue;
+      }
+      pdf.text(line);
+      pdf.moveDown(0.3);
+    }
+    pdf.end();
+  });
+}
 
 export type PackageStatus = 'DRAFT' | 'SENT' | 'COMPLETED' | 'DECLINED' | 'EXPIRED' | 'ARCHIVED';
 
@@ -152,7 +184,17 @@ export class ValidsignService {
 
   async downloadSignedDocument(packageId: string, documentId: string): Promise<Buffer> {
     this.assertLiveAllowed();
-    if (this.isStub) return Buffer.from(`%PDF-1.4 stub signed ${packageId}`);
+    if (this.isStub) {
+      const signerName = this.stubPackages.get(packageId)?.signerName;
+      return buildStubPdf('Stub-ondertekening (ontwikkelomgeving)', [
+        `Pakket: ${packageId}`,
+        `Document: ${documentId}`,
+        ...(signerName ? [`Ondertekenaar: ${signerName}`] : []),
+        '',
+        'Dit is een stub-handtekening, gegenereerd in de ontwikkelomgeving.',
+        'Dit document heeft geen juridische waarde en is geen echte ValidSign-ondertekening.',
+      ]);
+    }
     const res = await this.client.get(`/packages/${packageId}/documents/${documentId}/pdf`, {
       responseType: 'arraybuffer',
     });
@@ -161,7 +203,16 @@ export class ValidsignService {
 
   async downloadEvidenceSummary(packageId: string): Promise<Buffer> {
     this.assertLiveAllowed();
-    if (this.isStub) return Buffer.from(`%PDF-1.4 stub evidence ${packageId}`);
+    if (this.isStub) {
+      const signerName = this.stubPackages.get(packageId)?.signerName;
+      return buildStubPdf('Stub-bewijssamenvatting (ontwikkelomgeving)', [
+        `Pakket: ${packageId}`,
+        ...(signerName ? [`Ondertekenaar: ${signerName}`] : []),
+        '',
+        'Dit is een stub-vervanging voor de evidence summary van ValidSign,',
+        'gegenereerd in de ontwikkelomgeving. Dit document heeft geen juridische waarde.',
+      ]);
+    }
     const res = await this.client.get(`/packages/${packageId}/evidence/summary`, {
       responseType: 'arraybuffer',
     });
