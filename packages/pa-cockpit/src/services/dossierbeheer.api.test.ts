@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import type { DossierWriteInput } from './dossierbeheer.api';
+import type { PaCockpitServices } from '../host';
 
 const mockIsDossiersMock = vi.hoisted(() => vi.fn());
 vi.mock('./pa.api', () => ({ isPaMock: mockIsDossiersMock }));
@@ -19,14 +20,13 @@ const authState = {
 };
 const updateTokenMock = vi.fn();
 
-function hostConfig() {
+function hostConfig(): PaCockpitServices {
   return {
     auth: {
       authenticated: authState.authenticated,
       token: authState.token,
       getUser: () => null,
       updateToken: updateTokenMock,
-      logout: async () => {},
     },
     tenant: {
       initializeTenantTheme: async () => true,

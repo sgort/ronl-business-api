@@ -1,18 +1,22 @@
 /**
  * What a host must supply before the cockpit can run.
  *
- * Two mechanisms, chosen by what each seam is. This module carries the two
- * NON-React services, because services/pa.api.ts and
+ * The rule: what's read at module scope, by services, goes through
+ * configurePaCockpit; what's read during render goes through the `host` prop
+ * on PADashboardV2 instead (see PaCockpitHost there). This module carries the
+ * two NON-React services, because services/pa.api.ts and
  * services/dossierbeheer.api.ts read them at module scope and cannot consume a
  * React context. That is sound here specifically because token lookup is not
  * reactive: the value is read when a request is made, not when something
- * renders.
+ * renders. `onLogin`/`onLogout` are not services with a module-scope reader —
+ * they are plain callbacks a component invokes during render (from a click
+ * handler), so they ride the `host` prop rather than living here even though
+ * neither is a section, a dock, or any other React component.
  *
- * React seams go through the `host` prop on PADashboardV2 instead (see
- * PaCockpitHost there). Do not move a React seam into this module. Module
- * state feeding React components is what caused the DemoRoleContext defect
- * during the demo build: a mount-effect snapshot never saw later mutations,
- * so the UI silently kept rendering a stale value.
+ * Do not move a render-time seam into this module. Module state feeding
+ * React components is what caused the DemoRoleContext defect during the demo
+ * build: a mount-effect snapshot never saw later mutations, so the UI
+ * silently kept rendering a stale value.
  */
 import type { KeycloakUser } from '@ronl/shared';
 

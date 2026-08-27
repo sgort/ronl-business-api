@@ -21,12 +21,14 @@
  *   - 4-mode PA information architecture (dossier-centric)
  *   - Kompas radar + 0–2 scorecard, signal duiding, lobby-canon timeline
  *
- * Host seams: this shell owns all five of them. Two are *services* read
- * through ../host (auth, tenant); three are *React* seams supplied on the
- * required `host` prop (the section router, the assistant dock, the session
- * warning and the changelog panel), plus the mode set itself. Nothing here
- * reaches for packages/frontend any more — see ../host for why the split runs
- * along the service/React line rather than putting everything in one place.
+ * Host seams: this shell owns two kinds of them. Two are *services* read
+ * through ../host (auth, tenant), resolved at module scope. The other 7 ride
+ * the required `host` prop: the mode set, four React components (the section
+ * router, the assistant dock, the session warning and the changelog panel),
+ * and two optional session callbacks (onLogin, onLogout) invoked during
+ * render. Nothing here reaches for packages/frontend any more — see ../host
+ * for why the split runs along the module-scope/render-time line rather than
+ * putting everything in one place.
  */
 
 import { useEffect, useMemo, useState } from 'react';

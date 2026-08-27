@@ -76,9 +76,14 @@ removing a type export is still silent. Worth closing at the same time.
 
 ## 3. The login protocol is still hardcoded in the package
 
-> **Designed** — see `docs/superpowers/specs/2026-08-27-cockpit-session-seam-design.md`.
-> Resolved as optional `onLogin` / `onLogout` host callbacks; `PaCockpitAuth` loses
-> `logout`, whose only caller is the block being replaced.
+> **Done** on `feat/pa-cockpit-follow-ups` (`682385c`, `96c2f86`, `f450e54`), to
+> the design in `docs/superpowers/specs/2026-08-27-cockpit-session-seam-design.md`.
+> Session controls are now optional `onLogin` / `onLogout` host callbacks whose
+> absence removes the control, the five hardcoded host facts are gone with a
+> source-text guard keeping them gone, and `PaCockpitAuth` lost `logout`. The
+> demo's avatar renders inert rather than disappearing — it is the identity
+> display, not a labelled button — and no fourth `demo-overrides.css` rule was
+> added, which was the point. Kept here for the reasoning.
 
 `packages/pa-cockpit/src/pages/PADashboardV2.tsx:396-405` sets two `sessionStorage`
 keys (`selected_idp`, `post_login_redirect`), an IdP literal (`'medewerker'`) and
@@ -173,7 +178,9 @@ Both are recorded rather than open bugs — each was assessed and deliberately l
 
 ## 8. Test-mock hygiene in `packages/frontend`
 
-> **Done** in `2381f32`. Kept here for the reasoning.
+> **Done** in `2381f32`. Kept here for the reasoning. Note the same hazard
+> recurred immediately: `PaCockpitRoute.test.tsx`, added on the very next branch,
+> uses `importOriginal` but not `expectMockNamesRealExports` — see item 13.
 
 `packages/frontend/src/components/PADashboardV2/PASectionRouter.test.tsx` mocks
 `@ronl/pa-cockpit` with neither `importOriginal` nor `expectMockNamesRealExports` —
@@ -212,6 +219,48 @@ behind it, now recorded as a standing rule in `~/.claude/CLAUDE.md`.
 
 ---
 
+## 10. The protocol guard is blind to test files, and `/auth` is a loose needle
+
+`packages/pa-cockpit/src/no-host-protocol.test.ts` walks `src` but filters
+`!/\.test\.tsx?$/`. Excluding tests is defensible — a test may legitimately need
+a literal to assert against — but nothing records it as a decision, and it is
+exactly where dead contract fixtures accumulate.
+
+Separately, `'/auth'` was deliberately made quote-agnostic in `f17682d` so that
+`navigate("/auth")` could not slip past. The cost is that it is now a bare
+substring: any future `api/auth`, `oauth/…` or similar would trip it. Currently
+green, no comment warns about it.
+
+## 11. The demo shim keeps three members nobody reads
+
+`packages/pa-demo/src/demo/shims/keycloak.ts` lost `logout` because it existed
+only to satisfy a contract member that no longer exists. `login`, `tokenParsed`
+and `isTokenExpired` are in the same object with **zero consumers** anywhere in
+`packages/pa-demo/src` — `keycloak.test.ts` exercises only `getUser` and
+`setDemoRoles`. The file's rewritten header now names the three members the
+adapter actually uses, which makes the three extra ones read as an oversight
+rather than a decision.
+
+## 12. The seam's render rule is pinned by tests, not by types
+
+`onLogout` now guards on `keycloak.authenticated` like three of its four sibling
+dashboards, so the "moved, not invented" claim in its header is literally true.
+What remains: `onLogin`'s _absence_ is typed (`onLogin?:`), but the **render rule**
+it drives is not — nothing in the type system says "no callback means no control".
+Two tests pin it, which is what the whole-branch review demanded, but a host could
+still supply `onLogin` and separately hide the button by other means without the
+compiler noticing. Recorded as a known limit of the approach, not a defect.
+
+## 13. `PaCockpitRoute.test.tsx` uses half the mock-hygiene pattern
+
+It spreads `importOriginal` for its three mocks but does not call
+`expectMockNamesRealExports`, the assertion half of the helper the package ships
+on `@ronl/pa-cockpit/test-utils`. Item 8 fixed exactly this in
+`PASectionRouter.test.tsx`; this file was added on the same branch and repeated
+half of it. Cheap to close.
+
+---
+
 ## Not follow-ups — resolved, recorded so they are not re-raised
 
 - **`packages/public-site`'s build failing locally** is not a defect. Its prerender
@@ -226,5 +275,7 @@ behind it, now recorded as a standing rule in `~/.claude/CLAUDE.md`.
 - **`packages/pa-demo/scripts/check-drift.mjs`'s Windows bug** was reported against
   `acc` and is real there. This branch deletes the file, so it needs no fix. The same
   idiom in the two `check-bundle.mjs` files _was_ fixed, in `88f7906`.
+
+---
 
 ---

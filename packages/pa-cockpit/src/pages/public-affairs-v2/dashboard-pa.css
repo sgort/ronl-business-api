@@ -133,6 +133,9 @@
   border: none;
   cursor: pointer;
 }
+/* Inert fallback when the host supplies no onLogout: an identity display,
+   not a control, so it must not hint clickability with the hand cursor. */
+.pac span.pac-avatar { cursor: default; }
 .pac .v2-changelog-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.25);

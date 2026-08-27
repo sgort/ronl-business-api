@@ -31,7 +31,9 @@ export default function PaCockpitRoute() {
         navigate('/auth');
       },
       onLogout: () => {
-        keycloak.logout({ redirectUri: window.location.origin + '/' });
+        if (keycloak.authenticated) {
+          keycloak.logout({ redirectUri: window.location.origin + '/' });
+        }
       },
     }),
     [navigate]

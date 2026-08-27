@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import type { FeedItem } from '@ronl/shared';
+import type { PaCockpitServices } from '../host';
 
 // The host's `services` state lives on the module-scope `let` in ../host, so it
 // only follows a fresh registry the same way pa.api's own env-driven state does:
@@ -17,14 +18,13 @@ const authState = {
 };
 const updateTokenMock = vi.fn();
 
-function hostConfig() {
+function hostConfig(): PaCockpitServices {
   return {
     auth: {
       authenticated: authState.authenticated,
       token: authState.token,
       getUser: () => null,
       updateToken: updateTokenMock,
-      logout: async () => {},
     },
     tenant: {
       initializeTenantTheme: async () => true,

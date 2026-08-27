@@ -25,6 +25,7 @@
     "check-format": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "test": "npm run test --workspaces --if-present",
+    "test:serial": "npm run test:serial --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",

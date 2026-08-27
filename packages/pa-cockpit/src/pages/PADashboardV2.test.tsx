@@ -136,6 +136,42 @@ describe('PADashboardV2', () => {
     expect(screen.getByText('Inloggen vereist')).toBeInTheDocument();
   });
 
+  it('renders both login controls when the host supplies onLogin, and each calls it', async () => {
+    const onLogin = vi.fn();
+    const user = userEvent.setup();
+    render(<PADashboardV2 host={{ ...testHost, onLogin }} />);
+
+    const headerButton = screen.getByRole('button', { name: 'Inloggen' });
+    const panelButton = screen.getByRole('button', { name: 'Inloggen als medewerker' });
+    expect(headerButton).toBeInTheDocument();
+    expect(panelButton).toBeInTheDocument();
+
+    await user.click(headerButton);
+    expect(onLogin).toHaveBeenCalledTimes(1);
+
+    await user.click(panelButton);
+    expect(onLogin).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders neither login control without onLogin, but keeps the login-required text', () => {
+    // The gate this pins is exactly the one the design spec rejected doing with
+    // CSS (§2): pinned by no package test, caught only by ACC E2E. testHost
+    // supplies no onLogin, so both controls must be absent — while the
+    // explanatory panel text (already covered above only by coincidence) must
+    // still render for an unauthenticated visitor.
+    render(<PADashboardV2 host={testHost} />);
+
+    expect(screen.getByRole('heading', { name: 'Inloggen vereist' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/De PA-Cockpit bevat strategische dossierinformatie/)
+    ).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: 'Inloggen' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Inloggen als medewerker' })
+    ).not.toBeInTheDocument();
+  });
+
   it('shows the no-access panel for an authenticated user missing the required role/org-type', () => {
     authState.authenticated = true;
     authState.user = {
