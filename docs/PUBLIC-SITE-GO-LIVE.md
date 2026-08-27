@@ -183,6 +183,135 @@ These need a real live URL, so they can only happen after steps 1–5.
       DigiToegankelijk register — content is live, the registration itself is a
       separate manual step on that external site.
 
+## 7. PROD promotion — the rest of the `acc` → `main` delta (read before merging)
+
+§1–6 cover the **public-site** slice. But PROD currently runs **v3.8.2 (17 Jul)** and
+`acc` is **2026.08.23** — merging `acc → main` deploys **342 commits / 21 releases**
+across the **backend, the caseworker frontend, and the public-site**, not just the public
+site. Package versions after the merge: backend `2026.08.23`, frontend `2026.08.23`,
+public-site `2026.08.20`. That last one is **not** a lag to fix — `bump-release` versions
+per scope, and public-site was last in scope at v2026.08.20.
+
+### 7a. Backend before the push — app-wide (blocking)
+
+Three workflows fire on push to `main`, each path-filtered, and they are **not** symmetric:
+
+| Workflow                    | Trigger paths                       | What it actually does                       |
+| --------------------------- | ----------------------------------- | ------------------------------------------- |
+| `azure-backend-prod.yml`    | `packages/backend/**`, `shared/**`  | **builds + uploads an artifact only**       |
+| `azure-frontend-prod.yml`   | `packages/frontend/**`, `shared/**` | **deploys** to SWA `mijn.open-regels.nl`    |
+| `azure-publicsite-prod.yml` | `packages/public-site/**`           | **deploys** to SWA `publiek.open-regels.nl` |
+
+So the frontends self-deploy on push while the backend does not — `azure-backend-prod.yml`
+is named "Build Backend for Production" and stops at `upload-artifact`. The backend deploy
+is still the manual `deploy-backend-to-prod.sh` (unchanged in this delta: builds locally,
+then `az webapp deploy` → `ronl-business-api-prod` / `rg-ronl-prod`). Push first and the
+new frontends call a v3.8.2 backend that lacks their routes.
+
+- [ ] **CI is green on `acc` first.** `28ab6ca` gated all three PROD workflows on lint +
+      unit tests, and the frontend additionally on `npm run test:perf` (performance
+      budget), public-site on lint + type-check + tests. A failing gate means the deploy
+      step never runs — you get a half-promoted `main`, backend deployed and frontends not.
+- [ ] Merge `acc → main` **locally** (do not push yet).
+- [ ] `bash deploy-backend-to-prod.sh` — backend live on PROD first.
+- [ ] Smoke-test the PROD backend (`/v1/health` reports the new version; a `/v1/public/*`
+      route responds, not 404).
+- [ ] **Then** push `main` — triggers both SWA deploys against the now-current backend.
+
+### 7b. Backend env vars on the PROD App Service
+
+Everything new since v3.8.2. Unset keys fall through to the **code default in `config.ts`**,
+not to `.env.example` — the example file is local-dev documentation and disagrees with the
+code in at least one place (it ships `EDOCS_MCP_ENABLED=true`; the code default is `false`).
+
+| Var                                             | Code default              | PROD action                                                                            |
+| ----------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------- |
+| `DEPLOYMENT_ENV`                                | falls back to `NODE_ENV`  | **set to `production`** — new in `e28dc19`, else `/v1/health` mislabels the tier       |
+| `PA_SEED_DEMO_DATA`                             | `false`                   | leave unset — live means dossiers/criteria someone authored                            |
+| `RATE_LIMIT_MAX_REQUESTS`                       | **`1000`** (was `100`)    | leave unset to pick up the raise — see the proxy caveat below                          |
+| `EDOCS_MCP_ENABLED` / `EDOCS_MCP_CLIENT_SECRET` | `false` / `''`            | leave unset unless you want the eDOCS assistant (then enable + set the M2M secret)     |
+| `EDOCS_STUB_MODE`                               | `true` (stub)             | leave stubbed unless real eDOCS is wanted                                              |
+| `DOCCLE_*` (new `/v1/doccle` route)             | `DOCCLE_STUB_MODE` `true` | leave stubbed unless real Doccle is wanted (then base URL + creds + `STUB_MODE=false`) |
+| `PUBLIC_SHOW_WIP_PROCESSES`                     | `false`                   | keep unset/false in PROD                                                               |
+
+- [ ] Set `DEPLOYMENT_ENV=production` on the PROD App Service (display-only, non-blocking,
+      but `/v1/health` is what 7a's smoke test reads).
+- [ ] Confirm eDOCS-MCP + Doccle are off/stubbed (or configured deliberately).
+
+**Blocking — the required-env checks now actually fire.** `e28dc19` found that the
+`DATABASE_URL` / `OPERATON_BASE_URL` guards were dead code: both resolve through a
+non-empty localhost fallback, so `!config.database.url` could never be true and a
+production deploy with no `DATABASE_URL` started happily, pointing its audit log at
+localhost. They now test `process.env` and gate on production, and `validateConfig()`
+**throws at import** — so a missing value is no longer a silent misconfiguration, it is a
+backend that will not boot.
+
+- [ ] Confirm `DATABASE_URL` **and** `OPERATON_BASE_URL` are set in PROD App Settings.
+      (Both were verified present on `ronl-business-api-prod` when the check was written —
+      this is a confirm, but a boot-blocking one if it is wrong.)
+
+**Worth knowing — the rate limit is per deployment, not per user.** The limiter keys on
+`${tenantId}:${req.ip}` and `TRUST_PROXY` defaults to `false`, so behind App Service's
+front-end proxy Express reads one internal address for every client and the whole tier
+shares a single 1000/min budget. The raise from 100 exists because one PA authoring
+journey measured 21 requests to `/v1/pa/*`; with several caseworkers at once the shared
+budget is still the ceiling. A throttle surfaces as "Kon dossiers niet laden", which reads
+like a backend fault. Not fixed in this delta — watch the request log's `ip` field if PROD
+starts 429-ing.
+
+### 7c. Frontend PROD build — the PA mock switch
+
+`4b4b320` (v2026.08.22) collapsed `VITE_PA_DOSSIERS_MOCK` and `VITE_PA_SIGNALS_MOCK` into
+**one** switch covering dossiers, signals, inbox and zoekcriteria together. The two vars
+still exist, but only as the **build-time default** — `PA_MOCK_DEFAULT` ORs them, and a
+`paV2.mock` **localStorage** entry (`'1'`/`'0'`) overrides it per browser.
+
+- [ ] Both `VITE_PA_DOSSIERS_MOCK` and `VITE_PA_SIGNALS_MOCK` are `false` in the frontend's
+      `.env.production` — either one at `true` puts the whole cockpit in mock. They are
+      already `false` there; this is a confirm, not a change.
+- [ ] Real PA data still depends on the new backend from 7a being live.
+
+Two things the old single-var checkbox did not capture:
+
+- **The build can't guarantee live.** The Dossierbeheer banner writes `paV2.mock`, so a
+  PROD user who toggles it stays in mock across reloads regardless of what shipped. The
+  banner names the active mode — that is what to read when a PROD cockpit looks wrong.
+- **Empty is a valid live answer.** Live means dossiers, criteria and signals someone
+  actually authored (`9b1773d`/`60bea12` stopped the demo seed; `PA_SEED_DEMO_DATA` is off
+  by default). A PROD cockpit with nothing in it is a correct empty install, not a failed
+  deploy. The old `paV2.dossiers.mock` key is dead — any existing override resets to the
+  default once.
+
+### 7d. No action needed (verified against the full delta)
+
+- **DB self-migrates.** Every DDL statement added between `main` and `acc` is
+  `CREATE TABLE IF NOT EXISTS` or `ALTER TABLE … ADD COLUMN IF NOT EXISTS` — checked by
+  diffing all of `packages/backend/src` for non-idempotent DDL, which returned nothing. The
+  eight `pa_*` tables (`dossiers`, `dossier_versions`, `signals`, `notifications`,
+  `saved_searches`, `feed_tokens`, `templates`, `snippets`) apply themselves to the existing
+  PROD database on boot. No manual step.
+- **`form-data` `^4.0.5`** is the only new backend production dependency; it installs on deploy.
+- **Caddy Skosmos fix** (§4) is already deployed and shared across environments. Its
+  `frame-ancestors` allow-list already names both PROD origins — `mijn.open-regels.nl` and
+  `publiek.open-regels.nl` — so no per-tier edit is needed.
+- **public-site at `2026.08.20`** while backend/frontend are at `2026.08.23` is correct, not
+  a missed bump. See the premise above.
+
+### 7e. Post-deploy — smoke-test the caseworker app too
+
+§6 verifies the public site. A month and a half of caseworker-frontend changes also ships,
+so once PROD is up:
+
+- [ ] Smoke-test the **caseworker app** (login → a dashboard per role), not only
+      `publiek.open-regels.nl`.
+- [ ] PA cockpit: an **empty** live cockpit is the correct result on a fresh PROD database
+      (see 7c). Check the Dossierbeheer banner reports live before reading anything into it.
+
+The live-test scripts gained real coverage in this delta (`test-smoke-live.sh`,
+`test-m2m-routes.sh`, `test-edocs-live.sh`, `test-doccle-live.sh`), but **none has a `prod`
+preset** — `TARGET` accepts only `local|acc` and hard-errors otherwise. To point one at
+PROD, override `BASE_URL` / `KEYCLOAK_URL` explicitly rather than passing `TARGET=prod`.
+
 ## Rollback
 
 Static Web Apps deploy is push-based per branch (`acc` → ACC, `main` → prod) with

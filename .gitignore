@@ -49,6 +49,10 @@ packages/public-site/test-results/
 packages/public-site/e2e/test-results/
 packages/public-site/playwright-report/
 packages/public-site/e2e/playwright-report/
+packages/pa-demo/test-results/
+packages/pa-demo/e2e/test-results/
+packages/pa-demo/playwright-report/
+packages/pa-demo/e2e/playwright-report/
 packages/frontend/e2e/.pending-operaton-cleanup.json
 
 # IDEs and editors

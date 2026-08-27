@@ -1,0 +1,130 @@
+/**
+ * Demo-owned overrides of vendored PA-Cockpit chrome.
+ *
+ * This file holds CSS that has to win against the vendored stylesheets but
+ * cannot be added to them (vendored files are never edited, see
+ * src/vendor/README.md). Two rule blocks below, two unrelated reasons; each
+ * is documented at its own declaration.
+ *
+ * The first suppresses one specific piece of vendored UI that must not be
+ * reachable on a public, mock-only demo: Dossierbeheer's own "Zet vlag om naar live →"
+ * / "↩ Terug naar mock" button (src/vendor/components/PADashboardV2/
+ * dossierbeheer/Dossierbeheer.tsx). That button calls the vendored
+ * component's own toggleMock(), which writes '0' to the same paV2.mock key
+ * main-helpers.ts's forceMockMode() writes '1' to at boot — a visitor
+ * clicking it mid-demo would flip the cockpit to live and it would try (and
+ * fail, loudly, against a backend that doesn't exist) to fetch from a real
+ * API. It cannot be removed by editing dossierbeheer.css or the component:
+ * both are vendored, and vendored files are never edited (see
+ * src/vendor/README.md). A CSS override loaded after the vendored
+ * stylesheet is the only lever available.
+ *
+ * The reset button ("↺ Reset demodata") is a sibling in the same
+ * .pac-db-flag-actions container and must stay visible and clickable — it
+ * is how a visitor restarts the demo, and is explicitly not the button this
+ * rule targets. The two are distinguished by the pac-db-flag-reset class,
+ * which only the reset button carries.
+ *
+ * No !important: verified in the running app that the vendored stylesheet
+ * never sets `display` on .pac-db-abtn (only white-space, font, color,
+ * border, cursor — see dossierbeheer.css lines ~43-90), so there is no
+ * competing declaration to lose a specificity fight against. If a future
+ * vendor sync introduces one, vendor:check's byte-diff will flag the sync
+ * itself for review, at which point this rule's win should be re-checked in
+ * the browser rather than assumed.
+ */
+.pac-db-flag-actions .pac-db-abtn:not(.pac-db-flag-reset) {
+  display: none;
+}
+
+/**
+ * Single-scrollbar layout fix — now vestigial-safe, kept because it still
+ * does the same job.
+ *
+ * dashboard-pa.css (vendored) sets `.pac { height: 100vh; ... }`, sound when
+ * `.pac` is the only thing on the page. That used to not be true here: an
+ * earlier version of this demo rendered a `<DemoBar />` header as a sibling
+ * ABOVE `.pac`, which pushed total content height past the viewport and
+ * produced a second, outer scrollbar (html/body) on top of `.pac-main`'s own
+ * inner one. This block turned #root into a column flexbox and let `.pac`
+ * take the remaining space (`flex: 1 1 auto`) instead of hard-coding its own
+ * 100vh, so the two scroll regions collapsed back into one.
+ *
+ * The demo bar is gone now (Task 15 — role switching moved to Beheer →
+ * Rollen & rechten, reset moved to Dossierbeheer's own Mock banner), so
+ * `.pac` is once again the only thing #root renders. That's why the
+ * `.plato-bar { flex-shrink: 0 }` rule that used to sit here was deleted:
+ * `.plato-bar` no longer exists in the DOM, so the rule matched nothing.
+ * The rest of this block was kept rather than deleted alongside it: a lone
+ * flex child with `flex: 1 1 auto` in a `height: 100%` column still fills
+ * that column exactly, so leaving `.pac` on the flex-fill path is harmless
+ * and produces the same single scrollbar as `.pac`'s own `height: 100vh`
+ * would. `min-height: 0` on the flex item is still required for that fill
+ * to work — without it, a flex item's default `min-height: auto` refuses to
+ * shrink below its content's height, which would defeat `flex: 1` here
+ * exactly as `.pac-main`'s own pre-existing `min-height: 0` (dashboard-pa.css)
+ * already documents needing for the same reason one level down.
+ *
+ * Re-measured after the demo bar's removal (Task 15), 800px viewport:
+ * document.documentElement.scrollHeight === .clientHeight === 800 — one
+ * scrollbar, as expected now that `.pac` is #root's only child again.
+ *
+ * No !important: `.pac`'s own `height` and `#root`'s `display`/`height` are
+ * both plain, equal-or-lower-specificity selectors; this file loads after
+ * dashboard-pa.css (see App.tsx's import order — PADashboardV2, which pulls
+ * in dashboard-pa.css, is imported before this file), so the cascade alone
+ * decides the winner.
+ */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+.pac {
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/**
+ * Suppresses the floating "✦ Vraag de assistent" button
+ * (src/vendor/pages/PADashboardV2.tsx, rendered when `hasAccess && !dockOpen`).
+ *
+ * It must not be reachable here because the dock it opens does not exist in
+ * this build: PADock is deliberately not vendored (it imports McpChatSection,
+ * which pulls in businessApi and would fire real MCP/LLM calls from a public
+ * page), so src/demo/shims/PADock.tsx stands in for it and returns null.
+ *
+ * That made the button a one-way trap rather than merely a dead control.
+ * Clicking it sets dockOpen = true, which (a) hides the button, since it
+ * renders only while !dockOpen, and (b) renders the null shim, so nothing
+ * appears in its place. The only onClose that could set dockOpen back to
+ * false lives inside the dock that rendered nothing, so there is no way back.
+ * PADashboardV2 also persists the flag — sessionStorage['paV2.dock.open'],
+ * written in an effect on every change — so the trap survives a reload for
+ * the rest of the browser session. That is exactly the reported symptom: the
+ * button vanished on click and did not return after a hard refresh, but was
+ * back in a private window, which starts a fresh sessionStorage.
+ *
+ * Hiding it in CSS rather than clearing the storage key is the fix that holds:
+ * a visitor who already tripped it keeps dockOpen = true, and this rule makes
+ * that state indistinguishable from the intended one. `display: none` also
+ * removes the button from the tab order, so it is not reachable by keyboard
+ * either.
+ *
+ * No !important, but this rule does need `.pac` to match the vendored
+ * declaration's specificity: dashboard-pa.css:1122 sets `display: flex` on
+ * `.pac .pac-dock-toggle` (0,2,0), so a bare `.pac-dock-toggle` (0,1,0) would
+ * lose outright. Equal specificity plus this file loading later (App.tsx
+ * imports PADashboardV2, and with it dashboard-pa.css, before this file)
+ * decides it on cascade order.
+ */
+.pac .pac-dock-toggle {
+  display: none;
+}
