@@ -464,6 +464,78 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     expect(mockValidsign.createPackage).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['sent', 'pkg-existing-sent'],
+    ['completed', 'pkg-existing-completed'],
+    ['declined', 'pkg-existing-declined'],
+  ])(
+    '409s with VALIDSIGN_PACKAGE_EXISTS when validsignStatus is already %s, without creating a package',
+    async (status, existingPackageId) => {
+      mockGetTaskSignatureSpec.mockResolvedValue({
+        templateId: 'tpl-1',
+        template: { name: 'Uitgangspunten VO-fase' },
+      });
+      mockGetTaskVariables.mockResolvedValue({
+        validsignStatus: status,
+        validsignPackageId: existingPackageId,
+      });
+
+      const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('VALIDSIGN_PACKAGE_EXISTS');
+      expect(res.body.data).toEqual({ packageId: existingPackageId });
+      expect(mockValidsign.createPackage).not.toHaveBeenCalled();
+      expect(mockRenderTemplate).not.toHaveBeenCalled();
+      expect(mockToPdf).not.toHaveBeenCalled();
+    }
+  );
+
+  it('validsignStatus: failed is treated as retriable and creates a fresh package', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({
+      validsignStatus: 'failed',
+      validsignPackageId: 'pkg-old-failed',
+    });
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-retry', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-retry');
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(200);
+    expect(mockValidsign.createPackage).toHaveBeenCalledTimes(1);
+    expect(res.body.data).toEqual({
+      packageId: 'pkg-retry',
+      signingUrl: '/v1/validsign/stub/ceremony/pkg-retry',
+    });
+  });
+
+  it('no validsignStatus variable at all still creates a package exactly as before', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({ projectNumber: 'RIP-1' });
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-none', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-none');
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(200);
+    expect(mockValidsign.createPackage).toHaveBeenCalledTimes(1);
+    expect(res.body.data).toEqual({
+      packageId: 'pkg-none',
+      signingUrl: '/v1/validsign/stub/ceremony/pkg-none',
+    });
+  });
+
   it('404s when the task carries no signature template', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue(null);
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);

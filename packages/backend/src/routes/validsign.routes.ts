@@ -205,12 +205,10 @@ callbackRouter.use(
   (err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (isBodyParseError(err)) {
       logger.warn('ValidSign callback rejected: malformed or oversized body');
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: { code: 'INVALID_BODY', message: 'Malformed request body' },
-        });
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_BODY', message: 'Malformed request body' },
+      });
     }
     next(err);
   }
@@ -372,6 +370,11 @@ router.get('/task/:taskId/spec', async (req, res) => {
  * for an in-app ceremony (falling back to email only if that fetch fails);
  * 'email' is a deliberate choice by the signer (typically on a phone) and
  * skips the signing-URL fetch entirely. Any other value is 400.
+ *
+ * Refuses with 409 VALIDSIGN_PACKAGE_EXISTS (existing packageId included in
+ * `data`) when the task's validsignStatus is already 'sent', 'completed' or
+ * 'declined' -- see the guard below for why 'failed' is treated as
+ * retriable instead of blocked.
  */
 router.post('/task/:taskId/package', async (req, res) => {
   const { taskId } = req.params;
@@ -422,6 +425,43 @@ router.post('/task/:taskId/package', async (req, res) => {
     }
 
     const variables = await operatonService.getTaskVariables(taskId);
+
+    // Guard against creating a second package for a task that already has
+    // one. A sent ValidSign package puts a real signature request in a real
+    // inbox and cannot be recalled -- creating a second one means a double
+    // send, and the process's single validsignPackageId variable can only
+    // ever point at one of them, orphaning whichever completes second. This
+    // must run BEFORE renderTemplate/toPdf/createPackage below: refusing
+    // after any of those would defeat the point.
+    //
+    // 'failed' deliberately passes through and is treated as retriable, not
+    // blocked: nothing in this route (or elsewhere in the codebase) ever
+    // writes validsignStatus = 'failed' today, so seeing it here can only
+    // come from a future or external write that is, by construction, a
+    // statement that no live package resulted from the prior attempt --
+    // exactly the situation retrying is safe for. The states that DO risk a
+    // real inbox already holding a request -- 'sent', 'completed',
+    // 'declined' -- are the ones blocked below. Blocking 'failed' too, with
+    // no code path anywhere that ever clears it back to retriable, would
+    // strand the task behind a manual Operaton variable edit forever, which
+    // defeats the purpose of an automatic guard.
+    const existingStatus = statusFromVariables(variables);
+    if (
+      existingStatus === 'sent' ||
+      existingStatus === 'completed' ||
+      existingStatus === 'declined'
+    ) {
+      const existingPackageId = variables['validsignPackageId'] as string | undefined;
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'VALIDSIGN_PACKAGE_EXISTS',
+          message: 'A signature request has already been created for this task',
+        },
+        data: { packageId: existingPackageId },
+      });
+    }
+
     const rendered = renderTemplate(spec.template, variables);
     const pdf = await toPdf(rendered);
 
