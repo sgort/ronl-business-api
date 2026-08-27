@@ -54,7 +54,13 @@ interface TaskSpec {
   match: RegExp;
   fields: Field[];
   /** The form's own submit button — every RIP form labels it differently. */
-  submit: RegExp;
+  submit?: RegExp;
+  /**
+   * The task carries ronl:signatureRef in the BPMN, so the board renders
+   * SigningPanel rather than a form: no fields, no submit button, and the
+   * ValidSign poller completes it server-side. See signPhaseApproval.
+   */
+  signature?: true;
 }
 
 const TEXT = 'E2E — automated run';
@@ -113,8 +119,16 @@ const TASK_SPECS: TaskSpec[] = [
       { id: 'Field_ConfirmedTimeline', kind: 'text', value: '10 weken' },
     ],
   },
+  // Must precede the generic /Accorderen Projectplan/ entry below: .find()
+  // takes the first match, and only "4. Uitgangspunten VO-fase" carries
+  // ronl:signatureRef. "2. Intake-verslag" is still an ordinary form.
   {
-    match: /Accorderen Projectplan/i, // covers both 2. Intake-verslag and 4. Uitgangspunten
+    match: /Accorderen Projectplan 4/i,
+    signature: true,
+    fields: [],
+  },
+  {
+    match: /Accorderen Projectplan/i, // 2. Intake-verslag only; 4 signs, above
     submit: /Submit decision/i,
     fields: [{ id: 'Field_ApprovalStatus', kind: 'radio', option: /^Approved/i }],
   },
@@ -394,6 +408,50 @@ async function openInstanceDetail(page: Page) {
     .click({ timeout: 60_000 });
 }
 
+/**
+ * Work a task that requires a digital signature instead of a form.
+ *
+ * A task carrying ronl:signatureRef in the BPMN makes the board render
+ * SigningPanel where a form would otherwise be, so there is no .fjs-form to
+ * fill and no submit button to click. Completion happens server-side: the
+ * ValidSign poller notices the signed package and completes the task. Nothing
+ * the browser does here completes it, which is why the caller waits for the
+ * task to leave the list rather than for a completion POST.
+ *
+ * STUB ONLY. Against a live tier this would send a real signature request from
+ * the account's own registered sender, and the ceremony would be a real
+ * validsign.eu page no test can drive. The iframe src is checked before
+ * anything is clicked: the stub's URL is a path under the backend, a live one
+ * is an absolute validsign.eu URL. That turns "someone ran E2E with live
+ * credentials" from a real signature request into a clean test failure.
+ */
+async function signPhaseApproval(page: Page, name: string): Promise<void> {
+  await expect(
+    page.locator('.pb-sign-panel'),
+    `signing panel for "${name}" never rendered`
+  ).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole('button', { name: 'Onderteken nu' }).click();
+
+  const frame = page.locator('iframe.pb-sign-frame');
+  await expect(frame, 'the ceremony iframe never appeared').toBeVisible({ timeout: 30_000 });
+
+  expect(
+    await frame.getAttribute('src'),
+    'refusing to drive a LIVE ValidSign ceremony from a test — set ' +
+      'VALIDSIGN_STUB_MODE=true and restart the backend'
+  ).toContain('/validsign/stub/ceremony/');
+
+  // The stub ceremony is served by the backend, so it is cross-origin to the
+  // frontend; frameLocator handles that, a nested page.locator would not.
+  const ceremony = page.frameLocator('iframe.pb-sign-frame');
+  await ceremony.getByRole('button', { name: 'Onderteken', exact: true }).click();
+  await expect(
+    ceremony.getByRole('heading', { name: 'Ondertekend' }),
+    'the stub ceremony did not confirm the signature'
+  ).toBeVisible({ timeout: 15_000 });
+}
+
 let rateLimit: ReturnType<typeof watchForRateLimit>;
 let instanceId: string | null = null;
 
@@ -526,29 +584,38 @@ test.describe('RIP fase 1 (R2.1)', () => {
       // filled, form state does not have it, and submit is silently blocked by
       // a required field with no error shown anywhere. Wait for the form's own
       // submit button before touching any field.
-      const submitButton = page.locator('.fjs-form button', { hasText: spec!.submit });
-      await expect(submitButton, `form for "${name}" never rendered`).toBeVisible({
-        timeout: 20_000,
-      });
+      if (spec!.signature) {
+        await signPhaseApproval(page, name);
+      } else {
+        const submitButton = page.locator('.fjs-form button', { hasText: spec!.submit! });
+        await expect(submitButton, `form for "${name}" never rendered`).toBeVisible({
+          timeout: 20_000,
+        });
 
-      for (const field of spec!.fields) await fillField(page, field);
+        for (const field of spec!.fields) await fillField(page, field);
 
-      // Waiting on the "Taak voltooid." message would never work: onCompleted
-      // sets it and immediately calls onDone, which clears selectedTaskId and
-      // unmounts the panel the message lives in. The completion POST is the
-      // signal that survives.
-      const completed = page.waitForResponse(
-        (r) => /\/task\/[^/]+\/complete$/.test(r.url()) && r.request().method() === 'POST',
-        { timeout: 30_000 }
-      );
-      await submitButton.click();
-      const res = await completed;
-      expect(res.status(), `completing "${name}" failed`).toBeLessThan(400);
+        // Waiting on the "Taak voltooid." message would never work: onCompleted
+        // sets it and immediately calls onDone, which clears selectedTaskId and
+        // unmounts the panel the message lives in. The completion POST is the
+        // signal that survives.
+        const completed = page.waitForResponse(
+          (r) => /\/task\/[^/]+\/complete$/.test(r.url()) && r.request().method() === 'POST',
+          { timeout: 30_000 }
+        );
+        await submitButton.click();
+        const res = await completed;
+        expect(res.status(), `completing "${name}" failed`).toBeLessThan(400);
+      }
 
       // The list reloads after onDone; wait for this task to leave it before
-      // reading the next one, or the same task gets picked up twice.
+      // reading the next one, or the same task gets picked up twice. This is
+      // the signal for BOTH paths, but they wait on different things: a form
+      // task has already had its completion POST confirmed above, while a
+      // signature task is completed server-side by the ValidSign poller, so
+      // the wait there is bounded by VALIDSIGN_POLL_INTERVAL_MS (15s default)
+      // plus the refetch, not by anything the browser did.
       await expect(page.locator('.pb-taken-item', { hasText: name })).toHaveCount(0, {
-        timeout: 20_000,
+        timeout: spec!.signature ? 90_000 : 20_000,
       });
 
       worked.push(name);
