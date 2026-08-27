@@ -97,7 +97,9 @@ Taken by the user during design, recorded so they are not silently revisited:
 5. **The source document becomes Markdown** (`.md`), not `.txt` — for
    `rip-pdp` only. The other two RIP documents keep the existing hardcoded
    renderer and stay `.txt`.
-6. **The signed PDF is archived back into the project's eDOCS workspace.**
+6. **The signed PDF is archived back into eDOCS.** (Stated at design time as
+   "into the project's eDOCS workspace" — R2.1 has no workspace, so it is a
+   standalone upload. See section D.)
 7. **One signer: whoever claims the task.** Identity from the Keycloak token.
 8. **Callback webhook plus a polling safety net.**
 9. **Task completion happens server-side from the callback**, not from the UI.
@@ -262,8 +264,35 @@ completion with no network. In stub mode `getSigningUrl()` returns a URL
 pointing at **RBA itself** (`/v1/validsign/stub/ceremony/{packageId}`), serving
 a minimal page with an "Onderteken" button that advances the machine. The
 iframe, the polling and the completion path are then identical in stub and
-live, and `SigningPanel` contains no stub branch at all. Because that URL is
-same-origin, Playwright can drive it with `frameLocator()`.
+live, and `SigningPanel` contains no stub branch at all. Playwright can drive
+it with `frameLocator()`, which works across origins.
+
+**Corrected during implementation — "same-origin" was wrong**, and it was
+wrong in a way that cost most of a day. The frontend and the API are
+_different_ origins (the Vite dev server versus the backend), so:
+
+- A **relative** signing URL resolves against the FRONTEND, not the backend.
+  The panel must resolve it against the API base's origin, taking the origin
+  only — the stub path already carries its own `/v1` prefix.
+- Helmet's defaults (`X-Frame-Options: SAMEORIGIN`, CSP `frame-ancestors
+'self'`) forbid the embed. The stub ceremony routes relax `frame-ancestors`
+  to the configured CORS origins and drop `X-Frame-Options` — narrowly, on
+  those routes only, and they 404 outside stub mode so the relaxation does not
+  exist in a live deployment.
+- Both the ceremony page AND its sign POST need that treatment. The POST
+  response renders in the same iframe, so a JSON body or a missing header
+  leaves the signer staring at a blocked frame after an action that already
+  succeeded.
+
+Every unit test mocked the API layer, so none of this was visible until a
+person clicked the button.
+
+**Private Network Access constrains live testing on localhost.** A browser
+forbids a public page (`my.validsign.eu`) from navigating to a private-network
+address. This is a browser policy, not something code can work around, and it
+applies to _any_ localhost target — backend or frontend. It is why
+`settings.ceremony.handOver` (see below) is omitted when the derived URL is
+not publicly reachable.
 
 **Three locks on live signing**, all required:
 
@@ -295,10 +324,28 @@ completeSignature(packageId):
   1. resolve instance  GET /process-instance?variables=validsignPackageId_eq_<id>
   2. if validsignStatus === 'completed' → return          (idempotency gate)
   3. download signed PDF + evidence summary
-  4. edocsService.uploadDocument(...) x2 into the project workspace
+  4. edocsService.uploadDocument(...) x2, STANDALONE (workspaceId = null)
   5. write validsignStatus / SignedDocNumber / SignedAt / SignerName
   6. complete the Operaton task with approvalStatus = approved | rejected
 ```
+
+**Corrected during implementation — there is no project workspace.** This
+originally uploaded into the instance's `edocsWorkspaceId` and skipped
+archiving when that was missing. `RipR21Process` never creates an eDOCS
+workspace: its only service task is `rip-relatics-workspace`. So that variable
+is absent on _every_ R2.1 instance, and the archival step could never have
+succeeded for this phase. Independently, the workspace-ref upload path is
+broken on this DM server; a standalone upload is the only confirmed-working
+one, so both roads lead to the same fix.
+
+**The department comes from configuration, not from the instance.** It maps to
+the DM server's `UV_AFD_NAAM` profile field, validated against a real
+department list. R2.1's intake form sets `department='infrastructuur'`, which
+is not on that list — proven by uploading one identical PDF twice, changing
+only that field: `infrastructuur` failed, `IVR` succeeded. It is a property of
+the eDOCS environment, not of the project, so it reads `EDOCS_DEPARTMENT` —
+the same value the eDOCS smoke test uses. The guard remains, now checking the
+configured value rather than the instance variable.
 
 Guarded by a per-`packageId` in-process mutex on top of the status check: the
 variable read/write is not atomic, and a simultaneous callback and poll can
@@ -397,10 +444,19 @@ The additions are conditional on `stubMode === false`.
 
 **The callback route:**
 
-- Skipped from the **global** limiter and given its own, keyed on the shared
-  secret. Otherwise a busy board could exhaust the shared IP bucket and hand
-  ValidSign's callback a 429, dropping a signature — precisely the failure the
-  poller exists to catch.
+- Skipped from the **global** limiter and given its own, keyed on the **client
+  IP** via the same `rateLimitKey` helper the global limiter uses. Otherwise a
+  busy board could exhaust the shared IP bucket and hand ValidSign's callback a
+  429, dropping a signature — precisely the failure the poller exists to catch.
+
+  **Corrected during implementation.** This originally said "keyed on the
+  shared secret rather than the IP", which sounded neat — the callback shares
+  no address with the board — and was exploitable: the key would then be
+  client-supplied, so anyone varying the header per request would mint a fresh
+  budget, leaving a public unauthenticated endpoint with no effective
+  throttling at all. The global exemption is right; the key was not. Its own
+  bucket, 60/minute/IP.
+
 - Mounted **before** `jwtMiddleware`; ValidSign carries no token.
 - Secret compared with `crypto.timingSafeEqual`, length-checked first so the
   compare cannot throw on a mismatched length.
@@ -449,10 +505,14 @@ access across colleagues' signed contracts. Consequences:
   leaves `TaskFormViewer` untouched — every non-signing task in the app flows
   through that branch.
 - E2E: work the journey as today, and at `Accorderen Projectplan 4` click
-  "Onderteken nu", sign in the same-origin stub frame, then assert the task
-  completed with `approvalStatus=approved`. This extends
-  `rip-r21-journey.spec.ts`, owned by another session — a coordination point,
-  not a unilateral edit.
+  "Onderteken nu", sign in the stub frame with `frameLocator()` — which works
+  across origins, so the frame being served by the API rather than the dev
+  server is not an obstacle — then assert the task completed with
+  `approvalStatus=approved`. Note the task completes SERVER-side, so the
+  assertion belongs against the engine, not against the panel; and the panel
+  only learns of it on its next poll, which is governed by
+  `VALIDSIGN_POLL_INTERVAL_MS`. This extends `rip-r21-journey.spec.ts`, owned
+  by another session — a coordination point, not a unilateral edit.
 
 ### Live-fire
 
@@ -494,6 +554,53 @@ registration), not a code one.
   `TEMPLATE_RENDERER_MIGRATED` allowlist. Deliberate follow-up, not an
   oversight — see section C.
 - LDE's duplicate `externalTaskWorker.service.ts`.
+
+## Known limitations
+
+Recorded rather than implied away. Each was found by running the feature
+against live systems, not by testing.
+
+**The duplicate-package guard narrows the window; it does not close it.**
+`POST /task/:taskId/package` refuses with 409 when the instance already
+carries a package, but the check and the write are not atomic: two truly
+simultaneous requests can both pass it. Closing that properly needs an atomic
+conditional write or a lock, and a lock would not hold across instances
+anyway. Three mitigations cover the realistic paths — the panel withholds the
+button once a package exists, its `preparing` state removes the button on the
+first click so a double-click cannot fire twice, and the guard closes every
+sequential retry. What remains requires two concurrent requests from separate
+tabs or a scripted storm. A sent signature request cannot be recalled, so this
+is worth knowing about rather than assuming solved.
+
+**A completed task cannot be observed on the runtime API.** The panel polls
+for completion, but completing the task is exactly what removes it from
+Operaton's runtime — so the endpoint could report every state except the one
+the caller waits for. The status route falls back to the historic API when the
+runtime task is gone. Two traps live here: `/history/task` is a QUERY endpoint
+returning an array, with no `/history/task/{id}` path form (unlike
+`/history/process-instance/{id}`, which does exist); and only a genuine 404 may
+be read as "gone" — any other failure must rethrow, or a transport error would
+be reported as a completed signature.
+
+**Signing in stub mode produces a real PDF, deliberately.** An earlier stub
+returned a 27-byte string with a PDF header. It uploaded to eDOCS perfectly
+and could not be opened, which made a stubbed end-to-end run pass while the
+final step was broken and invisible.
+
+**`settings.ceremony.handOver` is set only when the board is publicly
+reachable.** It is the destination of ValidSign's "Beëindigen" button, and the
+account default points at the province's public website, which then renders
+inside the board's iframe. It is overridden to return the signer to the board
+— but omitted entirely for loopback and private addresses, because Private
+Network Access blocks such a navigation and a blocked page is worse than the
+default. `autoRedirect` stays `false`: a signer finishing a legal signature
+should see ValidSign's own confirmation rather than be moved past it.
+
+**Locally, completion always arrives via the poller.** ValidSign's cloud
+cannot reach a developer's localhost, so the callback never fires there and
+`VALIDSIGN_POLL_INTERVAL_MS` (default 15000) governs how long the panel takes
+to notice. The callback path can only be exercised where the backend is
+publicly reachable.
 
 ## Rollback
 
