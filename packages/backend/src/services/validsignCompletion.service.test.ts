@@ -31,11 +31,19 @@ const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: 
 jest.mock('@utils/logger', () => ({
   createLogger: () => mockLogger,
 }));
+// The archival department now comes from configuration, not from the
+// instance -- this must be mutable per-test (and reset in beforeEach) so the
+// guard's fail path (an unconfigured department) can be exercised alongside
+// the normal 'IVR' default.
+jest.mock('@utils/config', () => ({
+  config: { edocs: { department: 'IVR' } },
+}));
 
 import { completeSignature } from './validsignCompletion.service';
 import { operatonService } from '@services/operaton.service';
 import { validsignService } from '@services/validsign.service';
 import { edocsService } from '@services/edocs.service';
+import { config } from '@utils/config';
 
 const mockFindInstance = operatonService.findInstanceByValidsignPackage as jest.Mock;
 const mockCompleteTask = operatonService.completeTask as jest.Mock;
@@ -61,7 +69,10 @@ mockCompleteTask.mockResolvedValue(undefined);
 mockSetVariables.mockResolvedValue(undefined);
 
 describe('completeSignature', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    config.edocs.department = 'IVR';
+  });
 
   it('archives the signed document and completes the task as approved', async () => {
     mockFindInstance.mockResolvedValue({
@@ -75,6 +86,30 @@ describe('completeSignature', () => {
 
     expect(await completeSignature('pkg-1')).toBe('completed');
     expect(mockUploadDocument).toHaveBeenCalledTimes(2); // signed PDF + evidence
+    // Both uploads are standalone: the workspace-ref path is broken on the DM
+    // server, and RipR21Process never creates a workspace anyway, so every
+    // call must pass a null workspace id -- not found.edocsWorkspaceId.
+    // The department is the CONFIGURED value (config.edocs.department), not
+    // the instance's `department` process variable -- that variable is no
+    // longer read by this service at all.
+    expect(mockUploadDocument).toHaveBeenNthCalledWith(
+      1,
+      null,
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ department: 'IVR' })
+    );
+    expect(mockUploadDocument).toHaveBeenNthCalledWith(
+      2,
+      null,
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ department: 'IVR' })
+    );
+    // The signed document and the evidence summary must be distinguishable
+    // from each other in InfoCenter.
+    const [firstCall, secondCall] = mockUploadDocument.mock.calls;
+    expect(firstCall[3].docName).not.toEqual(secondCall[3].docName);
     // Resolves the signed document's id from ValidSign rather than guessing
     // one -- a wrong/hardcoded id would 404 against a live account.
     expect(mockDownloadSignedDocument).toHaveBeenCalledWith('pkg-1', 'doc-live-1');
@@ -89,10 +124,42 @@ describe('completeSignature', () => {
           validsignStatus: { value: 'completed', type: 'String' },
           validsignArchiveStatus: { value: 'ok', type: 'String' },
           approvalStatus: { value: 'approved', type: 'String' },
+          validsignSignedDocNumber: { value: 'DOC-1', type: 'String' },
+          validsignSignedDocId: { value: 'edocs-doc-1', type: 'String' },
         }),
       })
     );
     expect(mockSetVariables).not.toHaveBeenCalled();
+  });
+
+  it('archives with the configured department even when the instance department variable disagrees -- regression for the eDOCS UV_AFD_NAAM validation defect', async () => {
+    // R2.1 instances carry department='infrastructuur', a value the DM
+    // server's UV_AFD_NAAM profile field rejects (proven against the live
+    // test server). On the old code this was passed straight through and
+    // every archival attempt failed; it must now be ignored in favour of
+    // config.edocs.department.
+    mockFindInstance.mockResolvedValue({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+      department: 'infrastructuur',
+    });
+    mockGetPackageStatus.mockResolvedValue('COMPLETED');
+
+    expect(await completeSignature('pkg-1')).toBe('completed');
+    expect(mockUploadDocument).toHaveBeenCalledTimes(2);
+    for (const call of mockUploadDocument.mock.calls) {
+      expect(call[3]).toEqual(expect.objectContaining({ department: 'IVR' }));
+      expect(call[3].department).not.toBe('infrastructuur');
+    }
+    expect(mockCompleteTask).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          validsignArchiveStatus: { value: 'ok', type: 'String' },
+        }),
+      })
+    );
   });
 
   it('completes the task as rejected when the signer declines', async () => {
@@ -163,43 +230,88 @@ describe('completeSignature', () => {
     expect(mockSetVariables).not.toHaveBeenCalled();
   });
 
-  it('skips the upload and fails archiving when edocsWorkspaceId is missing, but still completes the task', async () => {
+  it('archives successfully when edocsWorkspaceId is missing -- RipR21Process never creates one, so this is the normal case, not an error', async () => {
     mockFindInstance.mockResolvedValue({
       processInstanceId: 'pi-1',
       taskId: 'task-1',
       status: 'sent',
       department: 'Infra',
-      // edocsWorkspaceId intentionally absent.
+      // edocsWorkspaceId intentionally absent -- every R2.1 instance looks
+      // like this. This is the regression test for the actual defect: on the
+      // old code this guard treated the missing field as an archival
+      // failure and skipped the upload entirely.
     });
     mockGetPackageStatus.mockResolvedValue('COMPLETED');
+    // A prior test in this suite overrides mockUploadDocument to reject;
+    // clearAllMocks() resets call history but not mock implementations, so
+    // this must be restored explicitly rather than relying on suite order.
+    mockUploadDocument.mockResolvedValue({
+      documentId: 'edocs-doc-1',
+      documentNumber: 'DOC-1',
+      workspaceId: null,
+    });
 
     expect(await completeSignature('pkg-1')).toBe('completed');
-    expect(mockUploadDocument).not.toHaveBeenCalled();
-    expect(mockGetSignedDocumentId).not.toHaveBeenCalled();
+    expect(mockGetSignedDocumentId).toHaveBeenCalled();
+    expect(mockUploadDocument).toHaveBeenCalledTimes(2);
+    expect(mockUploadDocument).toHaveBeenCalledWith(
+      null,
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ department: 'IVR' })
+    );
     expect(mockCompleteTask).toHaveBeenCalledWith(
       'task-1',
       expect.objectContaining({
         variables: expect.objectContaining({
-          validsignArchiveStatus: { value: 'failed', type: 'String' },
+          validsignArchiveStatus: { value: 'ok', type: 'String' },
           approvalStatus: { value: 'approved', type: 'String' },
         }),
       })
     );
-    const [, meta] = mockLogger.error.mock.calls.find(
-      (call) =>
-        call[0] ===
-        'Archiving the signed document to eDOCS skipped: required instance data is missing'
-    )!;
-    expect(meta).toMatchObject({ processInstanceId: 'pi-1', missingFields: ['edocsWorkspaceId'] });
+    expect(mockLogger.error).not.toHaveBeenCalledWith(
+      'Archiving the signed document to eDOCS skipped: EDOCS_DEPARTMENT is not configured',
+      expect.anything()
+    );
   });
 
-  it('skips the upload and fails archiving when department is missing, but still completes the task', async () => {
+  // The guard used to check the instance's `department` process variable; it
+  // now checks config.edocs.department instead, since that's where the
+  // upload's department value actually comes from. These two tests cover its
+  // pass and fail paths.
+  it('archives normally when the configured department is present (guard pass path)', async () => {
+    config.edocs.department = 'IVR';
     mockFindInstance.mockResolvedValue({
       processInstanceId: 'pi-1',
       taskId: 'task-1',
       status: 'sent',
       edocsWorkspaceId: 'ws-1',
-      // department intentionally absent.
+      // department instance variable intentionally absent -- the guard no
+      // longer looks at it at all.
+    });
+    mockGetPackageStatus.mockResolvedValue('COMPLETED');
+
+    expect(await completeSignature('pkg-1')).toBe('completed');
+    expect(mockUploadDocument).toHaveBeenCalledTimes(2);
+    expect(mockCompleteTask).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          validsignArchiveStatus: { value: 'ok', type: 'String' },
+          approvalStatus: { value: 'approved', type: 'String' },
+        }),
+      })
+    );
+  });
+
+  it('skips the upload and fails archiving when the configured department is empty, but still completes the task (guard fail path)', async () => {
+    config.edocs.department = '';
+    mockFindInstance.mockResolvedValue({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+      edocsWorkspaceId: 'ws-1',
+      department: 'Infra', // present on the instance, but no longer consulted
     });
     mockGetPackageStatus.mockResolvedValue('COMPLETED');
 
@@ -215,11 +327,9 @@ describe('completeSignature', () => {
         }),
       })
     );
-    const [, meta] = mockLogger.error.mock.calls.find(
-      (call) =>
-        call[0] ===
-        'Archiving the signed document to eDOCS skipped: required instance data is missing'
-    )!;
-    expect(meta).toMatchObject({ processInstanceId: 'pi-1', missingFields: ['department'] });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Archiving the signed document to eDOCS skipped: EDOCS_DEPARTMENT is not configured',
+      expect.objectContaining({ processInstanceId: 'pi-1' })
+    );
   });
 });

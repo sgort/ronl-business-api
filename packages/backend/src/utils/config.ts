@@ -139,6 +139,7 @@ interface Config {
     userId: string;
     password: string;
     stubMode: boolean;
+    department: string;
   };
   edocsMcp: {
     enabled: boolean;
@@ -318,6 +319,14 @@ export const config: Config = {
     userId: process.env.EDOCS_USER_ID ?? '',
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
+    // UV_AFD_NAAM profile field on the DM server -- a property of the eDOCS
+    // environment, not of the project/instance doing the archiving (see
+    // EDOCS_DEPARTMENT in .env.example for why this must not come from a
+    // process variable). 'IVR' is the value proven to work against the live
+    // test server, so a developer with no extra configuration still gets a
+    // working archive. Not required: an empty value degrades to an upload
+    // failure per document, not a startup failure.
+    department: process.env.EDOCS_DEPARTMENT ?? 'IVR',
   },
 
   edocsMcp: {

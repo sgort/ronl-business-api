@@ -1,4 +1,5 @@
 import type { OperatonVariable } from '@ronl/shared';
+import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
 import { edocsService } from '@services/edocs.service';
@@ -49,25 +50,36 @@ async function doComplete(packageId: string): Promise<'completed' | 'declined' |
   };
 
   if (approved) {
-    // The eDOCS upload needs an explicit workspace and department; both come
-    // from process variables set at package-creation time. If either is
-    // missing this is a data problem on the instance, not an eDOCS outage --
-    // skip the download-and-upload entirely rather than sending a malformed
-    // upload with an empty-string workspace id or department.
-    const { edocsWorkspaceId, department, processInstanceId } = found;
+    // The eDOCS upload needs a department -- it maps to the DM server's
+    // UV_AFD_NAAM profile field, which is validated against a real
+    // department list, and the DM server rejects document creation without
+    // it. This is a property of the eDOCS environment, not of the process
+    // instance: a provincial-department value like R2.1's
+    // department='infrastructuur' process variable has no reason to appear
+    // in a DM server's profile list (it doesn't -- that was the original bug
+    // here), so the department is sourced from configuration instead. The
+    // guard below now checks that configured value rather than the instance
+    // variable: it still exists to avoid sending a malformed upload with an
+    // empty-string department, just guarding a config problem instead of a
+    // per-instance data problem.
+    //
+    // No workspace id is required. RipR21Process has no eDOCS-workspace task
+    // (its only service task is rip-relatics-workspace), so edocsWorkspaceId
+    // is absent on every R2.1 instance -- that's the normal case, not an
+    // error. The workspace-ref upload path is also independently broken on
+    // this DM server; a standalone upload (workspaceId=null) is the only
+    // confirmed-working path, so that's what's used below regardless of
+    // whether edocsWorkspaceId happens to be set.
+    const { processInstanceId, projectNumber } = found;
+    const department = config.edocs.department;
 
     // The direct condition below (not a derived boolean/array) is what lets
-    // TypeScript narrow edocsWorkspaceId/department to plain strings in the
-    // else branch, all the way through to the upload calls -- no assertions
-    // needed.
-    if (!edocsWorkspaceId || !department) {
-      const missingFields = [
-        !edocsWorkspaceId && 'edocsWorkspaceId',
-        !department && 'department',
-      ].filter((f): f is string => !!f);
+    // TypeScript narrow department to a plain string in the else branch, all
+    // the way through to the upload calls -- no assertions needed.
+    if (!department) {
       logger.error(
-        'Archiving the signed document to eDOCS skipped: required instance data is missing',
-        { packageId, processInstanceId, missingFields }
+        'Archiving the signed document to eDOCS skipped: EDOCS_DEPARTMENT is not configured',
+        { packageId, processInstanceId }
       );
       variables.validsignArchiveStatus = { value: 'failed', type: 'String' };
     } else {
@@ -81,16 +93,16 @@ async function doComplete(packageId: string): Promise<'completed' | 'declined' |
           validsignService.downloadSignedDocument(packageId, documentId),
           validsignService.downloadEvidenceSummary(packageId),
         ]);
-        const base = `${found.projectNumber ?? 'RIP'} — Uitgangspunten VO-fase (ondertekend)`;
+        const base = `${projectNumber ?? 'RIP'} — Uitgangspunten VO-fase (ondertekend)`;
         const doc = await edocsService.uploadDocument(
-          edocsWorkspaceId,
-          `rip-pdp-${found.projectNumber ?? packageId}-signed.pdf`,
+          null,
+          `rip-pdp-${projectNumber ?? packageId}-signed.pdf`,
           signed.toString('base64'),
-          { docName: base, department }
+          { docName: `${base} — getekend document`, department }
         );
         await edocsService.uploadDocument(
-          edocsWorkspaceId,
-          `rip-pdp-${found.projectNumber ?? packageId}-evidence.pdf`,
+          null,
+          `rip-pdp-${projectNumber ?? packageId}-evidence.pdf`,
           evidence.toString('base64'),
           { docName: `${base} — bewijsoverzicht`, department }
         );
