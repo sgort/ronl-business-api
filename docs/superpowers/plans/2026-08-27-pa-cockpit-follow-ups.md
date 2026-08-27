@@ -197,6 +197,10 @@ is the fix, but it is a repo-wide decision.
 
 ## 7. Two guards with known blind spots
 
+> **Assessed, deliberately left** — the Tailwind bullet is a decision, not a
+> task. The `v2-main-pad` bullet still carries one actionable ask: correct the
+> two doc comments or drop the class.
+
 Both are recorded rather than open bugs — each was assessed and deliberately left.
 
 - **The Tailwind guard** (`packages/pa-cockpit/src/no-tailwind.test.ts`) cannot see
@@ -315,6 +319,13 @@ into fiction — the correction lives here instead.
 
 ## 10. The protocol guard is blind to test files, and `/auth` is a loose needle
 
+> **Done** — `88150ba`. Both properties are now recorded in
+> `no-host-protocol.test.ts` rather than inferred: the test-file exclusion is
+> documented as a decision, with the note that dead contract fixtures can
+> accumulate there unseen (two were found that way), and the bare `/auth` needle
+> carries a comment saying it will also match `api/auth` or `oauth/…` — and to
+> sharpen it if a legitimate match ever appears, not weaken it.
+
 `packages/pa-cockpit/src/no-host-protocol.test.ts` walks `src` but filters
 `!/\.test\.tsx?$/`. Excluding tests is defensible — a test may legitimately need
 a literal to assert against — but nothing records it as a decision, and it is
@@ -327,6 +338,9 @@ green, no comment warns about it.
 
 ## 11. The demo shim keeps three members nobody reads
 
+> **Done** — `88150ba`. `login`, `tokenParsed` and `isTokenExpired` removed;
+> the header now explains that the shim never grew them either.
+
 `packages/pa-demo/src/demo/shims/keycloak.ts` lost `logout` because it existed
 only to satisfy a contract member that no longer exists. `login`, `tokenParsed`
 and `isTokenExpired` are in the same object with **zero consumers** anywhere in
@@ -337,6 +351,8 @@ rather than a decision.
 
 ## 12. The seam's render rule is pinned by tests, not by types
 
+> **Recorded limit, not a defect.** No work item unless the approach changes.
+
 `onLogout` now guards on `keycloak.authenticated` like three of its four sibling
 dashboards, so the "moved, not invented" claim in its header is literally true.
 What remains: `onLogin`'s _absence_ is typed (`onLogin?:`), but the **render rule**
@@ -346,6 +362,10 @@ still supply `onLogin` and separately hide the button by other means without the
 compiler noticing. Recorded as a known limit of the approach, not a defect.
 
 ## 13. `PaCockpitRoute.test.tsx` uses half the mock-hygiene pattern
+
+> **Done** — `88150ba`. Both halves of the pattern now used for the first-party
+> mocks; `react-router-dom` is deliberately exempt (third-party, stable surface)
+> with the reasoning inline.
 
 It spreads `importOriginal` for its three mocks but does not call
 `expectMockNamesRealExports`, the assertion half of the helper the package ships
