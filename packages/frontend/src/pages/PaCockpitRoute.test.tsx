@@ -2,28 +2,52 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { expectMockNamesRealExports } from '@ronl/pa-cockpit/test-utils';
 
 // vi.hoisted: vi.mock factories are hoisted above these consts, so the
 // factory-referenced fns must be created inside vi.hoisted (same pattern as
 // InfraBoardDashboard.test.tsx / PASectionRouter.test.tsx) or the read
 // happens before initialization.
+//
+// react-router-dom is not run through expectMockNamesRealExports below: the
+// hazard the helper guards against — a hand-written mock naming an export the
+// real module doesn't have — is about first-party surfaces this repo renames
+// or restructures (an npm package's own module, or a sibling service file).
+// `useNavigate` is a long-stable public export of a third-party router; the
+// package boundaries worth pinning here are the ones this repo owns.
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
   useNavigate: () => navigate,
 }));
 
-const logout = vi.hoisted(() => vi.fn());
+const keycloakMock = vi.hoisted(() => {
+  const logout = vi.fn();
+  return {
+    logout,
+    exports: {
+      default: { authenticated: true, token: 't', logout, updateToken: vi.fn() },
+      getUser: () => null,
+    },
+  };
+});
 vi.mock('../services/keycloak', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/keycloak')>()),
-  default: { authenticated: true, token: 't', logout, updateToken: vi.fn() },
-  getUser: () => null,
+  ...keycloakMock.exports,
 }));
 
-const cockpit = vi.hoisted(() => vi.fn((_props: { host: Record<string, unknown> }) => null));
+const cockpitMock = vi.hoisted(() => {
+  const cockpit = vi.fn((_props: { host: Record<string, unknown> }) => null);
+  return {
+    cockpit,
+    exports: {
+      PADashboardV2: (props: { host: Record<string, unknown> }) => cockpit(props),
+    },
+  };
+});
 vi.mock('@ronl/pa-cockpit', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@ronl/pa-cockpit')>()),
-  PADashboardV2: (props: { host: Record<string, unknown> }) => cockpit(props),
+  ...cockpitMock.exports,
 }));
 
 import PaCockpitRoute from './PaCockpitRoute';
@@ -36,10 +60,23 @@ function hostArg() {
       <PaCockpitRoute />
     </MemoryRouter>
   );
-  return (cockpit.mock.calls[0][0] as { host: Record<string, () => void> }).host;
+  return (cockpitMock.cockpit.mock.calls[0][0] as { host: Record<string, () => void> }).host;
 }
 
 describe('PaCockpitRoute', () => {
+  it('mocks only names @ronl/pa-cockpit and ../services/keycloak really export', async () => {
+    // vi.importActual, not import(): the path is mocked, so a plain dynamic
+    // import would hand back the mock and compare it with itself.
+    await expectMockNamesRealExports(
+      vi.importActual('@ronl/pa-cockpit'),
+      cockpitMock.exports as Record<string, unknown>
+    );
+    await expectMockNamesRealExports(
+      vi.importActual('../services/keycloak'),
+      keycloakMock.exports as Record<string, unknown>
+    );
+  });
+
   it('supplies both session callbacks to the cockpit', () => {
     const host = hostArg();
     expect(typeof host.onLogin).toBe('function');
@@ -58,6 +95,8 @@ describe('PaCockpitRoute', () => {
 
   it('onLogout ends the real session', () => {
     hostArg().onLogout();
-    expect(logout).toHaveBeenCalledWith({ redirectUri: window.location.origin + '/' });
+    expect(keycloakMock.logout).toHaveBeenCalledWith({
+      redirectUri: window.location.origin + '/',
+    });
   });
 });

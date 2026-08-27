@@ -18,12 +18,27 @@ import { dirname, join } from 'node:path';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)));
 
+// '/auth' is deliberately a bare, quote-agnostic substring rather than a
+// quoted literal ('"/auth"' or "'/auth'") — that was the point of f17682d,
+// so that a re-introduced `navigate("/auth")` (or any other quoting/template
+// form) could not slip past by construction. The cost is that it also
+// matches any string that merely *contains* `/auth`, e.g. `api/auth` or
+// `oauth/…`. There is no such false positive in the tree today. If one shows
+// up, the fix is to make this needle more specific (e.g. anchor on the
+// leading quote), not to weaken or remove it.
 const FORBIDDEN = ['selected_idp', 'post_login_redirect', '/dashboard/public-affairs', '/auth'];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const p = join(dir, entry);
     if (statSync(p).isDirectory()) return walk(p);
+    // Test files are deliberately excluded: a test may legitimately need one
+    // of the FORBIDDEN literals to assert against (e.g. to pin that a
+    // component does *not* emit it). This is a decision, not an oversight —
+    // but it means this guard is blind to `*.test.ts(x)`, so a dead contract
+    // fixture (a leftover literal a test no longer needs) can accumulate
+    // there unseen. Two such fixtures were found and removed on the previous
+    // branch, which is how this was noticed.
     return /\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry) ? [p] : [];
   });
 }
