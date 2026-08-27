@@ -77,10 +77,26 @@ function splitName(fullName: string | undefined): { givenName?: string; familyNa
 }
 
 /**
+ * Prefer the real given_name/family_name claims when the realm's protocol
+ * mappers supply BOTH; a token carrying only one of the two is treated as
+ * not having them, so a half-empty name is never sent -- fall back to
+ * splitting displayName/preferred_username on the first space instead. Not
+ * every realm maps these claims (this app's own client did not, until a
+ * real token was checked), so the split must survive as a genuine fallback,
+ * not dead code.
+ */
+function resolveName(payload: JWTPayload): { givenName?: string; familyName?: string } {
+  if (payload.given_name && payload.family_name) {
+    return { givenName: payload.given_name, familyName: payload.family_name };
+  }
+  return splitName(payload.name ?? payload.preferred_username);
+}
+
+/**
  * Extract authenticated user from JWT payload
  */
 function extractUser(payload: JWTPayload): AuthenticatedUser {
-  const { givenName, familyName } = splitName(payload.name ?? payload.preferred_username);
+  const { givenName, familyName } = resolveName(payload);
   return {
     userId: payload.sub,
     tenantId: payload.municipality,

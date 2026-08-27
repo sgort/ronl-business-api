@@ -148,6 +148,75 @@ describe('jwtMiddleware', () => {
     expect(req.user?.email).toBeUndefined();
   });
 
+  it('prefers given_name/family_name claims over splitting displayName when both are present', async () => {
+    // The real Keycloak token for this client has neither `email` nor
+    // `name` -- only once given_name/family_name were added as protocol
+    // mappers does a real signer name become derivable at all. When both
+    // claims are present they must win over the split, even though `name`
+    // here is also present and would split to something different.
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, {
+        ...basePayload,
+        name: 'Should Not Be Used',
+        given_name: 'Infra',
+        family_name: 'Medewerker Flevoland',
+      })
+    );
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    expect(req.user?.givenName).toBe('Infra');
+    expect(req.user?.familyName).toBe('Medewerker Flevoland');
+  });
+
+  it('falls back to splitting displayName when given_name/family_name are both absent', async () => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, {
+        ...basePayload,
+        name: 'Jan van der Berg',
+        given_name: undefined,
+        family_name: undefined,
+      })
+    );
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    // Splitting on the LAST space would give lastName "Berg" and drop "van der".
+    expect(req.user?.givenName).toBe('Jan');
+    expect(req.user?.familyName).toBe('van der Berg');
+  });
+
+  it('falls back to the split when only ONE of given_name/family_name is present, rather than sending a half-empty name', async () => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, {
+        ...basePayload,
+        name: 'Jan van der Berg',
+        given_name: 'Infra',
+        family_name: undefined,
+      })
+    );
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    // Not "Infra" (the lone real claim) -- the split of `name` instead,
+    // since a half-empty name (a first name with no last name from a real
+    // claim that only partially populated) must never be sent.
+    expect(req.user?.givenName).toBe('Jan');
+    expect(req.user?.familyName).toBe('van der Berg');
+  });
+
   it('401 INVALID_TOKEN when verification fails', async () => {
     mockVerify.mockImplementation((_t, _k, _o, cb) => cb(new Error('expired'), undefined));
     const req = {
