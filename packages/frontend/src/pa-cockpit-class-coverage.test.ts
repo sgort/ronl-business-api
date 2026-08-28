@@ -13,8 +13,9 @@ import ts from 'typescript';
  * packages/pa-demo never imports dashboard-v2.css — CaseworkerDashboardV2.tsx
  * is its only importer anywhere — so the cockpit carries its own copy of every
  * v2-* rule it needs. That is not decay; it is what makes the package render
- * standalone, which is the demo's whole premise. dashboard-pa.css:1139 and
- * PANoAccessPanel.tsx both say so already.
+ * standalone, which is the demo's whole premise. dashboard-pa.css's own
+ * "No-access panel (defence-in-depth)" block and PANoAccessPanel.tsx both say
+ * so already.
  *
  * The failure this catches: someone adds a class to a package component and
  * styles it in one stylesheet. The other host silently loses styling, and
@@ -33,7 +34,8 @@ import ts from 'typescript';
  * A text scan cannot do this. `\bv2-` matches inside `cwd-v2-palette`, because
  * `-` is a word boundary, so a regex reports a phantom `v2-palette` class that
  * no stylesheet defines — and the text it matched was a *comment*
- * (PACommandPalette.tsx:6 discusses `.cwd-v2-palette*` in prose), not markup.
+ * (PACommandPalette.tsx's own file-header comment discusses `.cwd-v2-palette*`
+ * in prose), not markup.
  * Reading string and template literals from the parse tree excludes comments by
  * construction, and matching a whole token makes `cwd-v2-palette` a non-match
  * rather than a near-miss. Same choice, for the same reasons, as

@@ -202,9 +202,10 @@ dead case nobody looked at.
 >
 > A fifth item turned up during design that the entry above never listed:
 > `PACommandPalette.tsx:6-7` claimed it reused `.cwd-v2-palette*` styles. It renders
-> only `pac-palette*` classes, all defined at `dashboard-pa.css:1050-1082` — same
-> defect class as the `v2-main-pad` comments corrected in item 7, and worse in
-> effect, since it implied `pa-demo` depends on a stylesheet it never loads.
+> only `pac-palette*` classes, all defined in dashboard-pa.css's "Command palette
+> (⌘K)" block — same defect class as the `v2-main-pad` comments corrected in
+> item 7, and worse in effect, since it implied `pa-demo` depends on a
+> stylesheet it never loads.
 >
 > Three alternatives were considered and rejected, one line each: a shared
 > `brand.css` reverses the decision written at `pa-demo/src/index.css:1-16` that
@@ -310,8 +311,9 @@ is the fix, but it is a repo-wide decision.
 > is not in the bundle at all; in the frontend it is present but unreachable,
 > since PA renders under `.pac` — which `PADashboardV2.tsx:6` says exists
 > precisely so it cannot collide with `.cwd-v2`. The visible padding is
-> `.pac .pac-main-pad` (`dashboard-pa.css:300`) on the shell's own `<main>`
-> wrapper at `PADashboardV2.tsx:614`, a single rule with no child selectors.
+> `.pac .pac-main-pad`, in dashboard-pa.css's "Main content area" block, on
+> the shell's own `<main>` wrapper at `PADashboardV2.tsx:614`, a single rule
+> with no child selectors.
 >
 > **The class stays.** Dropping it would mean editing ten sites across three
 > workspaces for no functional gain, and it is genuinely live in the `.cwd-v2`

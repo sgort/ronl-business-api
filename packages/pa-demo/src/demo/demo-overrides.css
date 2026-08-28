@@ -121,11 +121,12 @@ body,
  * either.
  *
  * No !important, but this rule does need `.pac` to match the package
- * declaration's specificity: dashboard-pa.css:1122 sets `display: flex` on
- * `.pac .pac-dock-toggle` (0,2,0), so a bare `.pac-dock-toggle` (0,1,0) would
- * lose outright. Equal specificity plus this file loading later — App.tsx
- * imports '@ronl/pa-cockpit/styles.css', which pulls in dashboard-pa.css,
- * on the line before it imports this file — decides it on cascade order.
+ * declaration's specificity: dashboard-pa.css's "Floating dock toggle" block
+ * sets `display: flex` on `.pac .pac-dock-toggle` (0,2,0), so a bare
+ * `.pac-dock-toggle` (0,1,0) would lose outright. Equal specificity plus this
+ * file loading later — App.tsx imports '@ronl/pa-cockpit/styles.css', which
+ * pulls in dashboard-pa.css, on the line before it imports this file —
+ * decides it on cascade order.
  */
 .pac .pac-dock-toggle {
   display: none;

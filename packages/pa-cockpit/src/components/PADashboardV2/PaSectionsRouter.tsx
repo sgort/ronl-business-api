@@ -149,9 +149,10 @@ export default function PaSectionsRouter({
     // packages/frontend it is present but unreachable from this markup.
     //
     // The padding a reader sees around this content comes from
-    // `.pac .pac-main-pad` (dashboard-pa.css:300) on the shell's own <main>
-    // wrapper at PADashboardV2.tsx:614 — one rule, with no child selectors,
-    // so this inner <div> contributes no layout of its own either.
+    // `.pac .pac-main-pad`, in dashboard-pa.css's "Main content area" block,
+    // on the shell's own <main> wrapper at PADashboardV2.tsx:614 — one rule,
+    // with no child selectors, so this inner <div> contributes no layout of
+    // its own either.
     //
     // It stays because the class is live in the `.cwd-v2` family and both PA
     // hosts spell their section wrappers the same way (packages/frontend's
