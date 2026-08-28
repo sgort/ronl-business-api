@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import ts from 'typescript';
@@ -137,9 +138,19 @@ function renderedV2Classes(): Map<string, string[]> {
 /** Does this stylesheet define a rule for `.cls`, as a whole class token? */
 function definesClass(cssPath: string, cls: string): boolean {
   const css = readFileSync(cssPath, 'utf-8');
+  // Strip CSS comments before matching. Both stylesheets already narrate in
+  // `/* ... */` comments — e.g. "Counterpart: `.cwd-v2 .v2-changelog-btn`"
+  // and "Mirrors the caseworker `.v2-no-access` styles" — and a class named
+  // only in that prose must not count as a rule, or deleting the real rule
+  // while the comment survives would leave this guard green on the comment
+  // alone. Same reason renderedV2Classes() reads only string/template
+  // literals on the .tsx side rather than scanning raw text: comments
+  // describe code, they are not code. CSS comments do not nest, so a
+  // non-greedy global replace is exact, not just an approximation.
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
   // Negative lookahead so `.v2-no-access` does not count as defining
   // `.v2-no-access-title`, and vice versa.
-  return new RegExp(`\\.${cls}(?![a-zA-Z0-9_-])`).test(css);
+  return new RegExp(`\\.${cls}(?![a-zA-Z0-9_-])`).test(withoutComments);
 }
 
 describe('v2-* classes rendered by @ronl/pa-cockpit are styled in both stylesheets', () => {
@@ -167,5 +178,24 @@ describe('v2-* classes rendered by @ronl/pa-cockpit are styled in both styleshee
       }
     }
     expect(gaps, gaps.join('\n')).toEqual([]);
+  });
+
+  it('does not count a class named only inside a CSS comment as defined', () => {
+    // Pins the comment strip in definesClass(). Both stylesheets already
+    // narrate real rules in prose comments — dashboard-pa.css says things
+    // like "Counterpart: `.cwd-v2 .v2-changelog-btn`" and "Mirrors the
+    // caseworker `.v2-no-access` styles" — so without the strip, deleting
+    // the real rule while the comment survives would leave this guard green
+    // on the comment alone. This fails if the `.replace(/\/\*[\s\S]*?\*\//g,
+    // '')` line in definesClass() is removed, because the raw regex would
+    // then match the class name inside the comment text below.
+    const tmpDir = mkdtempSync(join(tmpdir(), 'pa-cockpit-class-coverage-'));
+    const tmpCss = join(tmpDir, 'fixture.css');
+    writeFileSync(
+      tmpCss,
+      '/* .v2-comment-only-class is documented here but never defined */\n' +
+        '.v2-something-else { color: red; }\n'
+    );
+    expect(definesClass(tmpCss, 'v2-comment-only-class')).toBe(false);
   });
 });
