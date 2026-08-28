@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 /**
  * The five RONL brand colours exist as literals in four files, and nothing
@@ -46,6 +47,32 @@ const BRAND_TOKENS = [
   'color-accent',
 ] as const;
 
+/**
+ * Strip `/* ... *\/` and `// ...` comments before matching.
+ *
+ * All four SOURCES files narrate themselves in prose — pa-demo/src/index.css
+ * carries a 16-line doc comment about these very tokens, and tailwind.config.js
+ * has both comment styles. A comment naming a token in the same syntax as a
+ * real declaration is not a definition of it, the same reasoning
+ * pa-cockpit-class-coverage.test.ts's definesClass() already applies to
+ * dashboard-pa.css and dashboard-v2.css.
+ *
+ * The two tests below need this in different amounts, not the same amount:
+ *
+ *  - The conflict test (below) is safe either way. A comment that mismatches
+ *    the real value is a false *positive* — it fails loudly, on a run where
+ *    nothing is actually broken, and gets fixed the first time someone looks.
+ *  - The anti-vacuity test inherits the dangerous direction. Delete a file's
+ *    real `:root` block but leave a doc comment spelling
+ *    `--color-primary: #01689b;` in colon-semicolon form, and an unstripped
+ *    match still "finds" every token — the guard goes green on the very
+ *    defect it exists to catch, with nothing left to notice. Comments do not
+ *    nest, so a non-greedy global replace is exact, not an approximation.
+ */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
 /** Every (token, value) pair one file declares. Values lower-cased: #FFF and #fff are one colour. */
 function pairsIn(relPath: string, pattern: RegExp): Array<[string, string]> {
   const full = join(REPO_ROOT, relPath);
@@ -60,7 +87,10 @@ function pairsIn(relPath: string, pattern: RegExp): Array<[string, string]> {
         `update SOURCES — do not delete the entry.`
     );
   }
-  return [...text.matchAll(new RegExp(pattern.source, 'g'))].map((m) => [m[1], m[2].toLowerCase()]);
+  return [...stripComments(text).matchAll(new RegExp(pattern.source, 'g'))].map((m) => [
+    m[1],
+    m[2].toLowerCase(),
+  ]);
 }
 
 describe('the five brand colours agree across every file that spells them', () => {
@@ -93,5 +123,27 @@ describe('the five brand colours agree across every file that spells them', () =
       }
     }
     expect(missing, missing.join('\n')).toEqual([]);
+  });
+
+  it('does not count a token named only inside a comment as declared', () => {
+    // Pins the strip in pairsIn(). This is the anti-vacuity test's own
+    // exposure: a comment spelling `--color-primary: #01689b;` in the same
+    // syntax as a real declaration, with no `:root` block anywhere in the
+    // file, must still come back empty — not "found". Without the
+    // `stripComments()` call in pairsIn(), this fixture would report the
+    // token present, which is exactly how a deleted real declaration could
+    // hide behind a doc comment and leave the guard green.
+    const tmpDir = mkdtempSync(join(tmpdir(), 'brand-colours-'));
+    const tmpCss = join(tmpDir, 'fixture.css');
+    writeFileSync(
+      tmpCss,
+      '/*\n' +
+        ' * Historical reference only, no :root block here:\n' +
+        ' *   --color-primary: #01689b;\n' +
+        ' */\n'
+    );
+    // pairsIn() re-joins its argument onto REPO_ROOT, so it needs a path
+    // relative to that root, not the absolute tmpCss.
+    expect(pairsIn(relative(REPO_ROOT, tmpCss), CSS_DECL)).toEqual([]);
   });
 });
