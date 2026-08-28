@@ -3,8 +3,14 @@
  *
  * Searches static sections (from modes.config) plus all dossiers (data-driven).
  * Selecting an item switches to the owning mode and sets the active section.
- * Mirrors the caseworker CommandPalette; reuses the same `.cwd-v2-palette*`
- * styles (kept global) plus the `.pac-palette*` skin in dashboard-pa.css.
+ * Mirrors the caseworker CommandPalette in behaviour, but shares none of its
+ * CSS: every class here is `.pac-palette*`, fully defined at
+ * dashboard-pa.css:1050-1082 including the inner .label, .mode, .pal-empty and
+ * .pal-hint. It depends on no caseworker stylesheet, which is what lets it
+ * render correctly in packages/pa-demo — a workspace that never loads
+ * dashboard-v2.css at all. An earlier version of this comment claimed it
+ * reused `.cwd-v2-palette*` "kept global"; that was never true and implied a
+ * dependency the demo could not satisfy.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';

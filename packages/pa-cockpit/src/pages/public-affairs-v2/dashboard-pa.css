@@ -136,6 +136,17 @@
 /* Inert fallback when the host supplies no onLogout: an identity display,
    not a control, so it must not hint clickability with the hand cursor. */
 .pac span.pac-avatar { cursor: default; }
+/* ── Changelog button ────────────────────────────────────────
+   Counterpart: `.cwd-v2 .v2-changelog-btn` (packages/frontend
+   caseworker-v2/dashboard-v2.css:158). Byte-identical today, and required
+   rather than redundant: packages/pa-demo never imports dashboard-v2.css, so
+   without this copy the demo renders the button unstyled.
+
+   The values are free to diverge — packages/frontend's
+   src/pa-cockpit-class-coverage.test.ts enforces that every v2-* class a
+   package component renders has a rule in BOTH stylesheets, and deliberately
+   does not compare declarations. `.v2-no-access` below has already used that
+   freedom. */
 .pac .v2-changelog-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -1136,9 +1147,15 @@
 .pac .pac-generic p { font-size: 14px; line-height: 1.6; max-width: 64ch; }
 
 /* ── No-access panel (defence-in-depth) ─────────────────────
-   Mirrors the caseworker `.v2-no-access` styles. If dashboard-v2.css is
-   already loaded these are redundant; kept here so the PA cockpit renders
-   the panel correctly even when loaded standalone. Scoped under .pac. */
+   Mirrors the caseworker `.v2-no-access` styles (dashboard-v2.css:457-490).
+   Not redundant: packages/pa-demo never imports dashboard-v2.css, so this copy
+   is the only thing styling the panel there. Scoped under .pac.
+
+   These values have deliberately diverged from the caseworker set — --pac-*
+   tokens rather than --v2-*, 60ch rather than 520px, and a border-left accent.
+   That is allowed: packages/frontend's src/pa-cockpit-class-coverage.test.ts
+   requires only that every class name exists in both stylesheets, never that
+   the declarations match. Adding a class here means adding it there too. */
 .pac .v2-no-access {
   max-width: 60ch;
   margin: 40px auto;
