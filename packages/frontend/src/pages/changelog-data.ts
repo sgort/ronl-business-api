@@ -108,6 +108,1147 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.32',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['frontend'],
+      commits: [
+        {
+          sha: '3b4a68e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'CI work gets its own changelog type and release scope',
+          details: [
+            'Pipeline and supply-chain work had no home in the changelog. It landed as a chore, next to housekeeping, when it is the one category whose commits change how everything else is built and shipped.',
+            "It is also a release scope now, and deliberately not a deployable: a CI-scoped release bumps the root version only. Bumping a package for it would trip that package's path-filtered workflow and deploy code that did not change.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.31',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['ci'],
+      commits: [
+        {
+          sha: 'f8e9257',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The register is corrected, and the gate explained',
+          details: [
+            "The register implied CI deploys the backend. It does not: the backend workflows build, test and upload an artifact with no deploy step. The backend reaches acceptance and production through gitignored scripts run from a developer machine, so the gate never sees that path and the ruleset cannot gate it. The unpinned install that ships the backend's dependency tree runs there, not in CI.",
+            'Adds a queued-improvements list and a document explaining the machinery, leaving the register as the record of current state so a digest change touches only one file.',
+          ],
+        },
+        {
+          sha: '350cd67',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Releases land through a pull request',
+          details: [
+            'The acceptance branch now requires a pull request and a passing audit, so the old flow — fast-forwarding locally and pushing directly — is rejected. The release command opens a PR instead, and the repo rule that pre-approved that fast-forward is removed rather than left authorising an operation GitHub would refuse.',
+            "Six further corrections came with it, all found by running the equivalent command twice under the pilot repo's own gate rather than by reasoning about it — among them excluding merge commits from the changelog range, computing that range only after the branch is current, and reconciling open PRs before any version editing.",
+          ],
+        },
+        {
+          sha: 'ee9d005',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Actions pinned to digests, GITHUB_TOKEN scoped to least privilege',
+          details: [
+            'All 27 action references across eight workflows are pinned to commit digests, at the current major so the change is behaviour-preserving. A tag can be moved; a digest cannot, and the deploy action referenced here published one ref as both a 2021 tag and a 2024 branch head.',
+            'Credentials are no longer persisted into the workspace after checkout — a live token was previously written into the git config and mounted into a closed-source third-party container. Token scope drops to read-only by default, with write access granted only to the six jobs that comment on pull requests, and none at all to the three that only tear down a preview.',
+            'A blocking audit gate now enforces all of this on every pull request, pinned to an exact tool version rather than the action default of latest.',
+          ],
+        },
+        {
+          sha: '4d74a2c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "The lockfile's engines match package.json",
+          details: [
+            'The manifest declared a Node floor the lockfile had not caught up with. Committed as its own change rather than riding along in an unrelated one.',
+          ],
+        },
+        {
+          sha: '19899ea',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Renovate configuration lands ahead of the pinning',
+          details: [
+            'Renovate reads its configuration only from the default branch, so this had to land before the app was installed — otherwise it onboards with defaults: no cooldown, no digest pinning, and no guard on the deploy action whose v1 is both a 2021 tag and a 2024 branch head. This repo references it nine times across four deploy pipelines.',
+            'Updates are held for fourteen days so vendors and researchers have time to find problems, with a deliberate exception: security advisories bypass the wait entirely. Without that exception the policy would delay exactly the updates that must not wait, which is why such policies get disabled mid-incident.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.30',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['frontend', 'pa-demo'],
+      commits: [
+        {
+          sha: '1ea6afc',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Brand-colour matching strips comments first',
+          details: [
+            'The brand-colour test matched raw file text with no comment strip, unlike the class-coverage test, which already strips block comments before matching — because a comment naming a thing is not a definition of it.',
+            'The asymmetry between the two was mostly defensible, but the anti-vacuity half inherited the dangerous side of it: a colour mentioned only in prose would have counted as pinned.',
+          ],
+        },
+        {
+          sha: 'f75a3b7',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Stylesheet citations use anchors, not line numbers',
+          details: [
+            'Inserting an 11-line comment near the top of the shared stylesheet shifted every line after it. Only the citation written by that same commit was caught and fixed; five more citations into the same file went stale unnoticed — one of them now landing mid-declaration inside an unrelated rule.',
+            'They now cite by anchor rather than coordinate, which is the only form that survives an edit above them.',
+          ],
+        },
+        {
+          sha: 'dfb1a4b',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: "The plan's expected test totals are corrected",
+          details: [
+            'The plan predicted eight added assertions and the totals that follow. The real numbers are one higher in each case: a ninth assertion came from a review finding mid-plan, and the plan was never updated to match.',
+          ],
+        },
+        {
+          sha: '2fa4ed4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The palette CSS citation is anchored to content',
+          details: [
+            "A header comment cited a line range that was correct when written — but the same commit's own second step inserted eleven lines earlier in the file, shifting the cited block down. The citation went stale inside the commit that wrote it.",
+          ],
+        },
+        {
+          sha: 'd8caa61',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Follow-up item 4 is closed',
+          details: [
+            'Records what the guards work actually found: three of the four listed duplications are required copies rather than decay. The demo never imports the caseworker stylesheet, so the package must carry its own rule for every class its components render, or the demo renders unstyled.',
+          ],
+        },
+        {
+          sha: 'f84f99d',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'A probe snippet that would silently no-op is fixed',
+          details: [
+            'A verification probe used a string replace whose search text carried the indentation of the *rendered* file listing rather than the source — two extra spaces per level, introduced by the display prefix used while writing the plan.',
+            'Run verbatim it would have matched nothing, returned the text unchanged, left the file unmutated, and then reported the test as passing. A probe that cannot fail is worse than no probe.',
+          ],
+        },
+        {
+          sha: '8350041',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: "The palette's CSS claim is corrected",
+          details: [
+            'The component claimed it reused a set of global palette styles plus a local skin. That was false: it renders only the local classes, and the package stylesheet defines every one of them. No class of the named global family exists anywhere in the file or the package.',
+            'The claim was worse than merely wrong — it told a reader that a dependency existed which does not, inviting them to preserve it.',
+          ],
+        },
+        {
+          sha: '09b9c78',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The class-coverage guard strips CSS comments before matching',
+          details: [
+            'The guard matched over raw stylesheet text, so a class named only inside a comment would false-positive as defined. No such comment existed at review time — but a later task in the same plan adds prose comments that name real classes by their selector, which would have created exactly that hole.',
+            'Elevated from Minor to Important once that cross-task context was noticed.',
+          ],
+        },
+        {
+          sha: '883af09',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: "The demo's auth adapter is pinned, including where it correctly differs",
+          details: [
+            "The demo registers an auth adapter and nothing tested it, while the frontend's equivalent was already pinned. This mirrors that file.",
+            'The two adapters differ in exactly two places, and both differences are correct rather than drift — so the test pins the differences too, instead of asserting a false equivalence.',
+          ],
+        },
+        {
+          sha: 'b8c9f97',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Every rendered class must be styled in both sheets',
+          details: [
+            "The demo never imports the caseworker stylesheet, so the package carries its own copy of every rule its components need. That is not decay; it is what makes the package render standalone, which is the demo's whole premise.",
+            'The guard makes that requirement enforceable: if a package-owned component grows a new class and only one stylesheet gets a rule for it, the guard fails rather than the demo silently rendering unstyled.',
+          ],
+        },
+        {
+          sha: '781afe4',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The five brand colours are pinned across all four files',
+          details: [
+            'The brand colours exist as literals in four files with nothing keeping them in step — two stylesheet root blocks and two build-config fallbacks. One fact, four hand-maintained copies, no test.',
+            'The copies are deliberate: the app-shell styling stays per-app on purpose and the shared package leaves it out. So the fix is a guard that fails when they diverge, not deduplication.',
+          ],
+        },
+        {
+          sha: '19aaa79',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Implementation plan for the duplication guards',
+          details: [
+            'Five tasks: three guards, two comment corrections, and closing the follow-up item. Eight assertions added, no runtime code changed.',
+            'Three things the plan resolves by checking rather than assuming — each of which would otherwise have produced a task that could not be implemented as written.',
+          ],
+        },
+        {
+          sha: 'b651bd8',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design guards for the duplication the extraction did not reach',
+          details: [
+            "The investigation changed the framing twice. Three of the four listed duplications turn out to be required rather than accidental: the demo never imports the caseworker stylesheet, so every class a package-owned component renders must also have a rule in the package's own sheet, or the demo renders it unstyled.",
+            'Both files already said so. The copies are the price of the package rendering standalone — so the answer is to make divergence detectable, not to remove the duplication.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.29',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['backend', 'frontend', 'pa-demo', 'public-site'],
+      commits: [
+        {
+          sha: '7196730',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Two comments claiming a wrapper does something are corrected',
+          details: [
+            "Two sections claimed the host's router wraps their content in a padding div. Wrong twice: after de-vendoring the wrapper is emitted by the package's own router rather than the host's, and it supplies no padding at all.",
+          ],
+        },
+        {
+          sha: '2071d2f',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The package surface is narrowed and its type exports pinned',
+          details: [
+            'Removes three exports a consumer audit found unused. Two are live package-internal code that no host can call, because a host never sees the un-gated item they operate on; the third had no consumers at all.',
+          ],
+        },
+        {
+          sha: '5cd1ef6',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Follow-up items already closed are marked as such',
+          details: [
+            'Three items had landed but their entries never got a status marker, so the list read as though they were still open. Verified in the code rather than from the commit message.',
+          ],
+        },
+        {
+          sha: '217a5c1',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The modes guard residual is closed',
+          details: [
+            'The parked hole: a decoy function of the same name declared in an inner scope, in a file that also imports the genuine hook, disarmed the rule for the whole file — and compiled with zero type and lint errors.',
+            'The mechanism was a seam between two halves of the rule, one verifying the local name and the other trusting it.',
+          ],
+        },
+        {
+          sha: '194ffaf',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Vitest timeout is raised to 20s in all four workspaces',
+          details: [
+            'The parallel-run flakiness turned out to be neither a small file set nor shared state. The frontend suite is 839/839 green in five consecutive parallel runs on an idle machine, and produces 8–16 failures under concurrent load — every one of them a timeout at the 5000ms default, which none of the four Vitest workspaces had overridden.',
+            'The affected file set tracks machine load rather than any property of the tests, which is what ruled out contention on shared state as the cause.',
+          ],
+        },
+        {
+          sha: '88150ba',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Three carried minors from the session-seam work',
+          details: [
+            "The protocol guard's two undocumented properties are now recorded rather than inferred: it deliberately skips test files, which is why dead contract fixtures can accumulate there unseen — two were found that way — and its path needle is bare and quote-agnostic by design, so it will also match superficially similar paths.",
+          ],
+        },
+        {
+          sha: '76da89e',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The login half of the session seam is pinned',
+          details: [
+            'The whole-branch review found half this seam undefended: deleting both of the guards on the login callback left the package fully green. The spec asked for those tests; the plan lost them between spec and brief, and nothing recorded the reduction.',
+            'That mattered beyond coverage, because the spec had explicitly rejected the alternative of hiding these controls.',
+          ],
+        },
+        {
+          sha: '0cc57a4',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Every workspace gets a test:serial script',
+          details: [
+            'The repo runs two test runners behind one command shape — backend on Jest, the other four on Vitest — so any flag a caller reaches for is right in four places and wrong in the fifth. The serial flags differ between them, and Jest rejects the Vitest ones outright.',
+            "That mismatch produced repeated unrecognised-option failures while chasing the parallel-run flakiness. A named script per workspace means the runner's identity stops being something the caller has to know.",
+          ],
+        },
+        {
+          sha: 'f450e54',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'Logout leaves the auth contract, now host-owned',
+          details: [
+            'Logout is removed from the auth contract since nothing in the package calls it any more — session teardown goes through the host callbacks instead. Both host adapters drop the member they no longer need to supply.',
+          ],
+        },
+        {
+          sha: 'f17682d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The auth-path guard needle is quote-agnostic',
+          details: [
+            'The forbidden list mixed bare substrings with one quote-wrapped needle, so it only matched a single-quoted path — a double-quoted call or a template literal walked straight past it, while the other three needles would still catch their equivalents.',
+          ],
+        },
+        {
+          sha: '96c2f86',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The cockpit takes session controls from the host',
+          details: [
+            "The shell no longer calls logout itself or writes the host's login protocol. The three control sites — the avatar, the header button and the login-required panel — now key off the host callbacks added in the previous commit.",
+          ],
+        },
+        {
+          sha: '682385c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Optional session callbacks on the host contract',
+          details: [
+            'Adds the login and logout callbacks to the host contract and wires both hosts to supply them, without the package reading them yet — so every workspace stays green at this step.',
+            'The frontend gains a route component rendered where the cockpit mounts, so it has router context, moving the existing session-storage and navigation protocol out of the package and back into the app that owns that convention.',
+          ],
+        },
+        {
+          sha: '19f4a98',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Implementation plan for the session seam',
+          details: [
+            'Three tasks against the approved design, ordered so every one leaves all five workspaces green — no pre-ruled broken intermediate, unlike the extraction that preceded it. Optional props are added and wired first, read second, and the old contract member dropped only once nothing calls it.',
+          ],
+        },
+        {
+          sha: 'b6363a6',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design for session controls as a host seam',
+          details: [
+            'The package hardcoded five facts belonging to a host application: two session-storage key names, an identity-provider literal and two router paths.',
+            'That protocol is a house convention shared by five files in the frontend — the cockpit was the sixth participant, and extraction stranded it outside the app that owns the convention rather than inventing a leak. The fix is to hand those controls back to the host.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.28',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['backend', 'frontend', 'pa-demo', 'public-site'],
+      commits: [
+        {
+          sha: '2381f32',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Three extraction follow-ups cleared',
+          details: [
+            'The demo declared four dependencies with no importers anywhere in the package — they existed for the vendored tree the extraction deleted. All four were declared at identical ranges elsewhere, so removing them changes nothing that resolves.',
+          ],
+        },
+        {
+          sha: 'd82e792',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The extraction follow-ups are recorded',
+          details: [
+            'Eight items surfaced by the per-task and whole-branch reviews and adjudicated as deferrable. None blocks the merge. They lived only in an execution ledger under a git-ignored path, which does not travel with the branch.',
+            'The first item corrects an earlier ruling: a guard residual had been parked partly on the grounds that closing it required a type checker, which turned out not to be so.',
+          ],
+        },
+        {
+          sha: '88f7906',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The bundle gate silently no-opped on Windows',
+          details: [
+            'Both bundle-check scripts guarded their entry point by comparing a module URL against the process argument. On Windows that argument is a drive-letter path with backslashes, so the comparison never held — the gate exited zero having checked nothing, and the build passed.',
+            'Both scripts run as the last step of every build for two public unauthenticated sites, checking for auth libraries, telemetry and backend origins. On Windows, none of that was ever checked.',
+          ],
+        },
+        {
+          sha: '5847ac9',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The demo starts alongside the other dev servers',
+          details: [
+            'A dev script existed but nothing called it, so the umbrella dev command brought up backend, frontend and public site while the demo stayed dark.',
+            'Now that the demo renders from the shared package rather than its own vendored copy, a cockpit change affects both apps — starting one without the other makes it easy to verify the frontend and miss the demo.',
+          ],
+        },
+        {
+          sha: '120caac',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "The demo's mode narrowing is guarded, and dead path references fixed",
+          details: [
+            "The host's modes prop is what keeps the IOU and Hulpmiddelen sections off the public demo, and nothing asserted it. A new test pins that prop and asserts no dropped section id ever reaches it. Mutation-verified: reverting to the unfiltered set fails both new assertions.",
+          ],
+        },
+        {
+          sha: '6938f7d',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'pa-cockpit is wired into CI path filters and release scoping',
+          details: [
+            'The new package needed to appear in the path filters that decide which workflows run, and in the release tooling that decides which versions move — otherwise a change to the cockpit would trigger nothing and version nothing.',
+          ],
+        },
+        {
+          sha: '7e1e942',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The vendored-copy drift machinery is retired',
+          details: [
+            'With the fork gone, the manifest, sync script, byte-level drift checker and the workflow that ran it have nothing left to police. This is what the whole extraction was for.',
+          ],
+        },
+        {
+          sha: 'cadd9fd',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Deny-by-default and the user forward are pinned',
+          details: [
+            'Two regression nets for properties this work exists to protect, with no production code changes.',
+            'The section allow-list is deny-by-default only while both of its lists stay exhaustive. A section added to the cockpit later and named in neither is filtered out of the rail and the palette — which looks exactly like the policy working, rather than like a gap.',
+          ],
+        },
+        {
+          sha: '420cc28',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The demo renders from the package, and the fork is deleted',
+          details: [
+            'The demo carried a byte-identical copy of the cockpit — 44 files, 1.1 MB, kept honest by a manifest, a sync script and a byte-level drift checker. With the package extracted and the frontend already moved onto it, the demo follows and the copy goes.',
+            'The demo now supplies its own host adapter rather than overlaying files, which is the seam the vendored fork existed to discover.',
+          ],
+        },
+        {
+          sha: '517ac94',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The demo gets its own changelog panel',
+          details: [
+            "Replaces the vendored stand-in with a small purpose-built panel owning its own release type, re-derived from the cockpit's own history. It is a plain slide-over styled with scoped classes in a colocated stylesheet — no Tailwind, matching the decision taken for the package itself.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.27',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['frontend', 'pa-demo'],
+      commits: [
+        {
+          sha: '2f6c0dc',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'One PaSectionsRouter replaces a fourteen-export surface',
+          details: [
+            "The frontend's section router and the demo's carried byte-identical id groupings, an identical panel dispatch, and an identical remount branch. That is section-id grammar about the package's own ids, not host knowledge.",
+            "Exporting fourteen components and asking every host to hand-maintain that grammar would have kept the vendored fork's most-duplicated behaviour, merely formalised. One router now owns it.",
+          ],
+        },
+        {
+          sha: 'f034866',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The frontend consumes the cockpit from @ronl/pa-cockpit',
+          details: [
+            'Rewires the frontend onto the package, restoring a green type-check, lint, test and build across the whole repo after the preceding tasks deliberately left it broken.',
+            'A new host module wires the Keycloak and tenant services into the package configuration, using getter-based auth fields so a refreshed token is never captured by value and left stale.',
+          ],
+        },
+        {
+          sha: '1c2c51e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "The notification overlay's fade curve is restored",
+          details: [
+            "The overlay lost its timing function during the Tailwind conversion, so its 300ms fade fell back to the CSS default ease rather than Tailwind's curve. Every other converted transition was re-checked; none of the rest were missing theirs.",
+          ],
+        },
+        {
+          sha: '9ec961c',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The notifications panel drops Tailwind for scoped pac-* rules',
+          details: [
+            "All 20 class occurrences are converted to scoped rules — 19 caught by the new guard's regex, plus one conditional class set through a template literal that the guard cannot see but which was still real Tailwind usage.",
+            'Values are the literal Tailwind-computed values rather than the nearest design token, to keep the rendered result pixel-identical.',
+          ],
+        },
+        {
+          sha: 'b696757',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The modes guard verifies the hook it excuses on',
+          details: [
+            'The excusing rule matched a destructuring pattern without checking that the hook being called was actually the real one. A locally declared decoy of the same name registered both guarded names as bound and switched the rule off for the entire file.',
+          ],
+        },
+        {
+          sha: 'b064527',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The modes guard parses source instead of matching text',
+          details: [
+            'Keeping string literals in scope was safe for the three rules that accuse — extra text only adds matches. But the rule that *excuses* read the same text, so a single line of documentation-shaped string could disarm the only rule covering dynamic imports.',
+            'The guard now parses the source, and its two inputs are split so an excusing rule can no longer be fed by an accusing one.',
+          ],
+        },
+        {
+          sha: '688b18d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The modes guard is restored after a coverage regression',
+          details: [
+            'The previous rewrite replaced the old path-and-clause rule rather than adding to it, and shipped a broken source stripper. The net effect was a guard weaker than the one it replaced: a named import planted as a probe passed the new guard, while the old one caught the same leak.',
+          ],
+        },
+        {
+          sha: '53d7f95',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The shell honours any host mode set',
+          details: [
+            'The shell required the host to supply a specific mode. The initial mode was hardcoded and looked up with a non-null assertion, so a host that dropped it crashed on first render. Both the mode and the active section are now seeded from the first entry of whatever set the host provides — byte-identical for the full set, whose first entry is that mode — and the lookup is total.',
+          ],
+        },
+        {
+          sha: '7369b44',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The shell moves, taking its host seams as a required prop',
+          details: [
+            'The shell carried all five host seams; each is now supplied rather than imported. Auth and tenant resolve through configured getters inside functions, and the four host components become members of a required prop.',
+            'Making the prop required rather than optional means a host cannot silently omit a seam and discover it at runtime.',
+          ],
+        },
+        {
+          sha: '7e1ca24',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Importing the unfiltered mode helpers is guarded against',
+          details: [
+            'The demo depends on its filtered view of the mode config being the only one reachable. A guard now fails the build if the unfiltered helpers are imported directly, which is what would silently restore the dropped sections.',
+          ],
+        },
+        {
+          sha: '1515a1d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The rail and palette derive from injected modes',
+          details: [
+            'Rather than reading a module-level config, the rail and command palette are derived from the mode set the host injects — which is what lets the demo present a curated subset without the package knowing anything about curation.',
+          ],
+        },
+        {
+          sha: '2adb4ad',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The shared PA test helpers move with their tests',
+          details: [
+            'Test helpers move into the package alongside the code they exercise, so the tests travel with what they test rather than being stranded in the frontend.',
+          ],
+        },
+        {
+          sha: '3292c07',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The cockpit views, components and stylesheets move',
+          details: [
+            'The bulk of the move: views, components and stylesheets leave the frontend for the package. The frontend does not type-check at this point in the sequence — deliberately, and stated in the plan so an implementer does not try to repair it early and fight the migration.',
+          ],
+        },
+        {
+          sha: '5e5da9f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The package declares the environment contract it expects',
+          details: [
+            'The moved code read build-time environment values and compile-time defines that only existed because the frontend happened to provide them. The package now declares what it expects, so a second consumer cannot inherit them by accident.',
+          ],
+        },
+        {
+          sha: '0148d27',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The API services move onto the injected auth',
+          details: [
+            'The services move next in the sequence, because they carry the auth seam and nothing else — isolating the one dependency that has to become injectable before anything above them can move.',
+          ],
+        },
+        {
+          sha: '8a8f753',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The pure data and mode config move out of the frontend',
+          details: [
+            'First in the sequence, so later tasks have something to import. Pure data and configuration carry no host dependencies, which makes them the only safe thing to move before the seams exist.',
+          ],
+        },
+        {
+          sha: 'b1a7d8c',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The host auth contract is stated plainly',
+          details: [
+            'What the package actually requires of a host for authentication, written down rather than inferred from the call sites it happens to make.',
+          ],
+        },
+        {
+          sha: 'e601de5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The host service contract',
+          details: [
+            'The interface a host must satisfy to mount the cockpit — auth and tenant services, and the components the shell renders but does not own.',
+          ],
+        },
+        {
+          sha: 'ffcf315',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The pa-cockpit workspace package is scaffolded',
+          details: [
+            'Adds packages/pa-cockpit as the workspace both the caseworker frontend and the public demo will import, replacing the vendored copy.',
+          ],
+        },
+        {
+          sha: '4e2f4d7',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Implementation plan for de-vendoring the cockpit',
+          details: [
+            'Thirteen tasks against the approved design. The order is load-bearing: pure data and mode config first so later tasks have something to import, the API services next because they carry the auth seam and nothing else, then the views, then the modes context, and the shell last since it carries all five seams.',
+            'The frontend does not type-check between two of those tasks. That is stated up front so an implementer does not try to repair it early and fight the migration.',
+          ],
+        },
+        {
+          sha: 'a25dece',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The build-config deletion is narrowed to the two aliases',
+          details: [
+            'The social card work lands ahead of this and adds a plugin to the same file. "Delete the alias entries" read closely enough to "tidy the build config" that an implementer could have taken the plugin with them, so the doc now names which two entries go and why the rest stays.',
+          ],
+        },
+        {
+          sha: '6fb03b1',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design for de-vendoring the cockpit into a package',
+          details: [
+            'Records the design for deleting the vendored tree and the drift machinery policing it, by moving the 39 duplicated files into a workspace package both apps import.',
+            'The measurement reframes the job: those 39 files leave their own set through exactly five relative specifiers, and those five are precisely the five files the demo already overlays. The seam was therefore already discovered empirically by building a second consumer first, rather than being designed in the abstract.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.26',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['pa-demo', 'frontend'],
+      commits: [
+        {
+          sha: 'f9b580f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'An Open Graph social card',
+          details: [
+            'Links to the demo rendered as a bare URL. The package now ships a 1200×630 card, a full OG and Twitter meta block modelled on the public site, and a description meta tag it never had.',
+            'The part needing care is the origin: a static index.html cannot know its own deploy target, and the OG spec requires absolute URLs because scrapers do not resolve relative paths. So the page is authored against production and a build plugin rewrites the URL and image to whichever origin is being built — without it, an acceptance deploy would advertise production assets.',
+          ],
+        },
+        {
+          sha: '13f9c9a',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The social card design handoff',
+          details: [
+            'The design assets and their provenance, committed as handed over, because the go-live checklist cites that path for the production re-capture — so it has to be in the repo or the checklist points at nothing.',
+            'It weighs 1.3 MB, almost all of it a self-contained HTML card with fonts inlined plus review screenshots. Those are review artifacts rather than build inputs and could be pruned later; kept whole here because discarding parts of a handover is not the recipient’s call.',
+          ],
+        },
+        {
+          sha: 'b93ff69',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The assistant toggle was a one-way trap, not a dead control',
+          details: [
+            'The vendored shell renders a floating assistant button whenever the dock is closed. The dock itself is deliberately not vendored — it pulls in chat machinery that would fire real MCP and LLM calls from a public page — so a shim stands in and returns null.',
+            'That made clicking it unrecoverable rather than merely inert: the click sets the open flag, which both hides the button and renders the null shim, leaving nothing able to unset the flag again.',
+          ],
+        },
+        {
+          sha: 'ee97564',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'bump-release learns about packages/pa-demo',
+          details: [
+            'The command knew nothing about the demo package, so a demo release had no way to version the package it changed. It is now a scope tag, mapped through the scope table, the touched-directories cross-check and the version-file list.',
+            'The non-obvious part is the vendored mirror: the demo vendors 39 files from the frontend, two of which are the changelog data and panel — so every release, which by definition edits the changelog, leaves the mirror stale.',
+          ],
+        },
+        {
+          sha: 'b6c6945',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "The backend-request guard compares against the run's own origin",
+          details: [
+            "The guard hardcoded localhost as the only same-host origin, which is correct only when Playwright serves the app itself. Run against a live deployment, the app's own document, bundle and stylesheet became off-host by that check, producing two false failures against the acceptance site.",
+            "It now compares against the configured base URL's own origin, passed in from the fixture, and fails loudly if that is missing rather than silently reverting to the old assumption.",
+          ],
+        },
+        {
+          sha: '1edef68',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'A go-live checklist for the demo',
+          details: [
+            'The deployment setup existed only in a git-ignored scratch file. The resource names, the deployment-token secret names, and the requirement that the Static Web App be created with Source: Other — which otherwise writes a competing workflow into this repo — were one deletion away from being lore.',
+            'It records acceptance as done and production as pending, and captures the reasoning that is not obvious from the code, such as why the drift workflow triggers on frontend source rather than on the demo package.',
+          ],
+        },
+        {
+          sha: '0eca129',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The E2E suite runs in the acceptance deploy workflow',
+          details: [
+            "The E2E suite is the only proof of two of the four no-Live layers — that the live toggle is actually hidden in a real browser's cascade, and that the page issues no network request — and it had never run in CI.",
+            'It now runs before the build, with a browser install step first, since no workflow in this repo previously installed Playwright. The demo needs no backend, database or Keycloak: Playwright starts its own dev server and that is the whole environment.',
+          ],
+        },
+        {
+          sha: '70e787c',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'A stale stylesheet reference and a no-op allow-list entry are dropped',
+          details: [
+            'The overrides header still pointed at a stylesheet deleted two tasks earlier. And the allow-list named the dossiers sentinel, but that mode carries no groups and no rail item uses the id, so the check was never consulted for it — a no-op entry the tests had to explicitly skip.',
+          ],
+        },
+        {
+          sha: '19cce30',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The mock-only environment invariant is actually guarded',
+          details: [
+            "The existing lock test only ever proved the test environment file, because Vitest's mode is always test. Nothing read the production or acceptance env files anywhere, so deleting a mock flag from either would have left every check green.",
+            'A new test asserts across all four environment files that the three mock flags are true and the API URL is absent. Verified red then green: deleting a flag from the production file fails the test naming that file and flag.',
+          ],
+        },
+        {
+          sha: '5145239',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The tenant config is no longer shipped to the public site',
+          details: [
+            'Because the asset vendor root is the public directory, vendoring the tenant config deployed 18 KB of internal multi-tenant configuration to the public demo — real contact details, non-public sections, entries flagged as not public, and the very IOU sections this demo deliberately drops. Nothing in the demo ever fetched it.',
+            'Its only consumer was a drift test, which now reads the frontend copy directly instead.',
+          ],
+        },
+        {
+          sha: '45a3918',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: "The vendor README's exit condition is corrected",
+          details: [
+            'The exit condition claimed extraction was a plain directory deletion with nothing under the demo tree changing. Wrong on two counts: two dozen import specifiers point into the vendored tree and need rewriting, and both build aliases are keyed to relative specifier text that stops matching once those imports change — silently disabling the changelog and section allow-list filters.',
+            'It is now a checklist with counts verified by grep rather than assumed, and names the missing backstop explicitly: the dropped sections would silently reappear on the public site.',
+          ],
+        },
+        {
+          sha: '2b37889',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The sanitiser dependency is declared',
+          details: [
+            "Two vendored files import a Markdown sanitiser that only resolved because npm workspaces hoisted it from the frontend. It is now declared at the frontend's exact pinned version, and the design doc's dependency list corrected — it repeated the same gap and was missing two more.",
+          ],
+        },
+        {
+          sha: '1921ccb',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: "A correction's citation points at the right section",
+          details: [
+            'The corrections summary cited a section that contains no mention of the changelog, before or after the edit — the wrong link. The actual second location is the package-shape section. Found in review.',
+          ],
+        },
+        {
+          sha: '15a4730',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Four factual defects in the design are corrected',
+          details: [
+            "The design was written before the build ran and diverged from what shipped in four places. The most consequential: mock mode is not forced true ignoring storage entirely — it cannot be, since the check is called by the API layer's own internal branches, which an aliased export never reaches. What ships is a build-time default plus a boot-time write.",
+            'The changelog also does not ship as-is: it trips the build-time bundle gate, because six strings would leak backend hostnames and internal detail.',
+          ],
+        },
+        {
+          sha: 'a59a0a7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Four checkable misstatements in the changelog summary',
+          details: [
+            "Review found the executive summary mechanically sound but holding four checkable misstatements in customer-facing copy — including a claimed backend-origin check that the gate which actually shipped does not have (that check exists only in the demo's own, unrelated gate), and a claim of a social card and prerendering for two pages when only one has either.",
+          ],
+        },
+        {
+          sha: 'dca4fe7',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'An executive-summary changelog scoped to CalVer releases',
+          details: [
+            'Replaces the placeholder with a curated summary of the 25 CalVer releases, grouped into eight themed entries covering what shipped and why it matters to a prospective province — not a re-listing of every commit. The 68 pre-CalVer releases stay out of scope by design.',
+            'The public-site launch entry describes the bundle-cleanliness gate and the auth-free scaffold without naming any of the auth libraries the gate forbids, since naming them would trip it.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.25',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['pa-demo'],
+      commits: [
+        {
+          sha: '60ecb71',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The role locator now does the scoping its comment promised',
+          details: [
+            "The locator's doc comment claimed it was scoped so it could never match Dossierbeheer's identical, disabled role bar, but the implementation was a plain unscoped class match. Both the demo's Rollen & rechten page and the vendored Dossierbeheer render the same structure, so the claimed protection did not exist in code — it worked only because the router renders one section at a time, an invariant the test never asserted.",
+          ],
+        },
+        {
+          sha: '10ef511',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The demo bar is gone; role and reset are single-sourced',
+          details: [
+            "The role selector existed in three places — the demo bar, Beheer → Rollen & rechten, and Dossierbeheer's inert vendored role bar — plus two separate resets. Role switching now lives only on Rollen & rechten, and reset only in Dossierbeheer's own mock banner.",
+            'The role provider stays, since the section router still needs it as a context ancestor.',
+          ],
+        },
+        {
+          sha: '49af8ce',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The theme hand-copy tradeoff is signposted',
+          details: [
+            "Review flagged that the drift check comparing the shim's theme literal against the vendored tenant config detects a divergence but cannot auto-apply one — a manual maintenance trap with an alarm attached, not a solved problem. A short comment now points at the literal itself, so the next person does not have to re-derive the tradeoff: the value is hand-copied, two checks between them ensure a divergence cannot ship silently, and auto-applying from the vendored JSON remains the unimplemented alternative.",
+          ],
+        },
+        {
+          sha: 'c0ab873',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The double scrollbar is gone',
+          details: [
+            "The vendored dashboard stylesheet hard-codes a full-viewport height, which is sound only when the cockpit is the only thing on the page. With the demo bar rendered above it the combined height exceeded the viewport, producing a second outer scrollbar on top of the cockpit's own internal one. Removing the body margin did not touch this — that is an 8px margin, not the ~46px the bar adds.",
+            'The override now makes the root a column flexbox capped to the viewport and lets the cockpit take the remaining space, measured before and after.',
+          ],
+        },
+        {
+          sha: '9c20c53',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Flevoland theme is applied at runtime, not as a CSS fallback',
+          details: [
+            'The cockpit stylesheets read theme custom properties with Flevoland blue and magenta as fallbacks — values that only apply while those properties are undefined. The vendored global stylesheet sets them to generic RONL blue and orange at the root, which satisfies the fallback and silently rebrands the whole cockpit orange.',
+            'The real tenant service solves this the same way for every tenant: it sets each theme variable on the document element at runtime, which wins the cascade over an inherited value.',
+          ],
+        },
+        {
+          sha: '7ca4e78',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The public asset tree is vendored as a second manifest root',
+          details: [
+            'A vendored component reads 14 monitor icons from a hard-coded path rather than an import, so a manifest that discovers files by following imports could never find them — the demo shipped none of them, and every icon 404ed on two sections.',
+            'A second asset root now sits alongside the source manifest, covering the icons and the tenant config the tenant shim needs.',
+          ],
+        },
+        {
+          sha: 'f09b024',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Deploys also trigger on shared-package changes',
+          details: [
+            "The demo's imports from the shared package are type-only and erased before the bundler sees them, so a shared-only change cannot alter compiled output. But without this filter a breaking type change in shared would never run the demo's type-check, and would instead surface later at an unrelated demo PR.",
+            'It also matches the mechanical repo convention: frontend and backend both depend on shared and both include it in their path filters; the public site does not depend on it and does not.',
+          ],
+        },
+        {
+          sha: '22b038a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Tailwind and the global stylesheet are vendored',
+          details: [
+            "The global stylesheet is vendored as the 39th manifest entry, with Tailwind, PostCSS and Autoprefixer at the exact versions the frontend pins, and configs adapted to the demo's tree. The typography plugin was dropped, since no vendored file uses it.",
+            'This fixed three visual bugs caused by Tailwind utility classes never being processed at all.',
+          ],
+        },
+        {
+          sha: 'b2c8bcd',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The demo deploys to acc.plato and plato, and reports vendor drift',
+          details: [
+            "Two Static Web Apps deploy workflows mirror the public site's — lint, type-check, unit tests, build with the bundle gate, deploy — plus a shared-package build step the public site does not need, and a blocking vendor check before build, since a stale demo copy genuinely should not deploy.",
+            'Drift gets its own workflow, triggered on frontend source pushes rather than demo ones: the deploy workflows are path-filtered to the demo package and would never see an edit to the origin the copy tracks. It reports via a warning annotation without failing the job.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.24',
+      status: 'Released',
+      date: '28 aug 2026',
+      scope: ['pa-demo'],
+      commits: [
+        {
+          sha: 'f305935',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The hidden live toggle and same-origin calls are now actually proven',
+          details: [
+            "Nothing checked in proved Dossierbeheer's own live/mock toggle stays hidden in a rendered browser — the existing test only asserted that the suppressing CSS rule exists as source text. A new test navigates to Dossierbeheer and checks the toggle is hidden while Reset demodata stays visible.",
+            "The network-isolation guard compared hostnames only, so it could not catch a same-origin backend-shaped request — exactly what fetchAgenda() issues when VITE_API_URL is unset, since the resulting path resolves relative to the demo's own origin.",
+          ],
+        },
+        {
+          sha: 'a2228e1',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The demo journey is driven end to end without a backend',
+          details: [
+            'Five Playwright tests run against the live vendored shell with no mocking and no backend, database or Keycloak — Playwright starts its own dev server. Selectors were read off the running app rather than taken from the task brief, which held several wrong assumptions: rail items are buttons rather than links, the cap-del and cap-publish testids do not exist, and a created dossier survives in-app navigation but not a reload.',
+            'Two assertions carry the weight: that switching role actually changes what Dossierbeheer permits, guarding the getUser() staleness bug fixed earlier; and that the page issues no request to any backend, proven load-bearing by a red probe with the agenda mock disabled.',
+          ],
+        },
+        {
+          sha: '36ba4f4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'No-Live is enforced by a CSP and a bundle gate',
+          details: [
+            "staticwebapp.config.json ships a CSP with connect-src 'self' only, so the browser refuses any outbound request the demo's code might someday make. The stronger layer is scripts/check-bundle.mjs, which scans every built .js file for auth libraries, telemetry and the real backend origins, and fails the build if any appear — proving the URL is not in the bundle to be requested at all.",
+            "The forbidden list is adapted from the public site's rather than copied: it targets keycloak-js the library and the two backend origins, not the bare string 'keycloak', which this bundle ships legitimately in DB_ROLES and the visible role bar. The first real build caught a genuine finding.",
+          ],
+        },
+        {
+          sha: '36487eb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "Dossierbeheer's own live-toggle button is hidden",
+          details: [
+            "The vendored Dossierbeheer renders its own switch-to-live button, which calls the vendored toggleMock() and writes '0' to the same storage key forceMockMode() writes '1' to — but only at boot. A visitor clicking it mid-demo would flip the cockpit to live against a backend that does not exist, in front of the audience the demo exists to persuade.",
+            'It cannot be removed by editing the vendored component or its CSS, so demo-overrides.css suppresses it with a single rule, imported once from App.tsx and kept separate from the demo-bar styling.',
+          ],
+        },
+        {
+          sha: 'd0aff6a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The cockpit mounts with a demo bar and forced mock mode',
+          details: [
+            "forceMockMode() writes the mock flag before mount, so an inherited '0' from another Open Regels app on the same origin cannot win over the build-time default.",
+            "DemoBar carries the demo's one permission control — four role options as enabled, aria-pressed buttons — plus a reset that clears both the signals/searches and dossiers stores and reloads. It uses its own class prefix and stylesheet, deliberately kept outside the vendored scope. There is no live/mock toggle.",
+            'DemoRoleProvider wraps the demo bar and the vendored shell, and must be an ancestor because the section router reads the role during its own render.',
+          ],
+        },
+        {
+          sha: '58959d5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Profiel names the right kind of organisation',
+          details: [
+            'The tenant row hardcoded the label "Gemeente" next to a display name that is always Provincie Flevoland — a mismatch a Dutch government audience would notice immediately. The label now follows organisationType through a small lookup, covered by a test that overrides the shim to a municipality tenant for one render and confirms the label follows, so the coverage is not merely correct by coincidence for the single tenant the shim ships.',
+            "Also sweeps two review minors, including role-switcher buttons that had reused a CSS class setting cursor: default — correct for the vendored, deliberately disabled role bar, wrong for the demo's actually clickable controls.",
+          ],
+        },
+        {
+          sha: '2166b6d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'PA-native Profiel and Rollen & rechten pages',
+          details: [
+            'Both pages were stubs. Neither reuses the caseworker original: the caseworker Rollen section describes caseworker and HR roles and names no pa-* role at all, and Profiel fetches HR data by employee id. Both are caseworker components that would not have become part of the later @ronl/pa-cockpit extraction.',
+            "Rollen & rechten is built on the real role and capability tables and hosts the demo's actual role selector, reusing the vendored role-bar classes so it matches the disabled bar in Dossierbeheer. Profiel mirrors the product's two-block layout: account fields from the shims, and a static stand-in for the HR fetch.",
+          ],
+        },
+        {
+          sha: '9b9dbd2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Sections route without any caseworker component',
+          details: [
+            'DemoSectionRouter replaces the placeholder with a real dispatcher modelled on the vendored router — same six required props, same data call, same section-id grammar — but with the six caseworker dashboard imports dropped entirely. Profiel and Rollen render demo-owned pages, the IOU and Gereedschap cases are gone, and any dropped or unmatched id renders nothing rather than falling through to a placeholder panel.',
+            'It also closes a role-propagation gap found while reviewing the previous task: the vendored shell snapshots the user into React state once at mount and never refreshes it, so forwarding that prop to sections would have made the role selector silently do nothing.',
+          ],
+        },
+        {
+          sha: '8bd0b78',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The demo role is derived from the shim, not rebuilt by hand',
+          details: [
+            "Role is now derived from the shim's roles after the write, rather than from a hand-rebuilt array — so the comment claiming it reads the same roles the cockpit reads is now literally true, and the derivation cannot silently diverge if the shim's base roles change.",
+            'The render-body write was also re-justified: it is required because children render before any effect fires in the same commit, and the section router reads the shim fresh during its own render — not because of act() timing in one test file, which was the wrong reason previously cited. A StrictMode double-invocation regression test was added.',
+          ],
+        },
+        {
+          sha: 'a5f338b',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Roles switch by rewriting the synthetic token',
+          details: [
+            "Selecting a role rewrites the shim's synthetic Keycloak roles array and derives capabilities through the product's own deriveDossierRole, so capability chips, editor lock hints and every disabled action in the vendored cockpit follow, with no vendored file touched.",
+            'Four positions are offered, with the broadest as the default: a visitor should see the whole product before being shown what a narrower role loses.',
+          ],
+        },
+        {
+          sha: '9268eea',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Sort sentinels no longer leak into the ⌘K palette',
+          details: [
+            'allStaticSections() had stopped excluding the two sort sentinels, unlike the origin it forks. Because both ids are allow-listed to keep them in the rail\'s sort-order group, they leaked into the palette\'s hit list, and selecting either fell through to the "not available" panel since the router has no case for them.',
+            'The exclusion is restored verbatim from the origin, with a test asserting neither sentinel appears in the output, and the "allows every id it lists" test now skips sentinel ids for the same reason it already skipped the dossiers sentinel.',
+          ],
+        },
+        {
+          sha: '0111adf',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Sections are curated by a deny-by-default allow-list',
+          details: [
+            "sections.allow.ts is the source of truth for which section ids the demo may show: 21 static ids plus the data-driven dossiers sentinel, and the five dropped ids, reconciled one-to-one against the real modes config's 26 rail items.",
+            'The filter is applied at the data source rather than at the router, and re-exports every name the real modes config exports, so no vendored consumer sees an undefined import. That matters because the command palette calls the section list directly with no props, so filtering anywhere else would have missed it.',
+          ],
+        },
+        {
+          sha: 'dd16ff1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Auth, tenant and dock shims resolve behind an alias map',
+          details: [
+            'Shims let the vendored cockpit tree resolve its five imports outside itself without editing a single vendored file.',
+            "The resolution mechanism differs by whether the target collides with a real vendored file, and was decided empirically rather than assumed: TypeScript's paths mapping was proven not to apply — adding the proposed block produced byte-identical tsc output, because every import in question is relative and paths only rewrites non-relative specifiers.",
+          ],
+        },
+        {
+          sha: 'fdea397',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The origin-gone drift branch is covered',
+          details: [
+            'A fifth comparison test asserts that a file renamed or deleted upstream reports as changed without throwing — the branch that fires during the weeks-long window before the cockpit is extracted, previously unverified by any test. Also drops an unused import and retitles a self-contradictory test.',
+          ],
+        },
+        {
+          sha: '58f9435',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The cockpit is vendored with a manifest-driven sync and drift check',
+          details: [
+            'A byte-identical vendored copy of the cockpit, kept honest by a manifest that drives the sync and a drift check that reports when the origin moves. Vendored files are never edited; external imports resolve through aliases to demo shims instead.',
+          ],
+        },
+        {
+          sha: '6a6f25f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The pa-demo package is scaffolded',
+          details: [
+            'Adds packages/pa-demo as a new workspace, the container for the public mock-only cockpit that ships to plato.open-regels.nl.',
+          ],
+        },
+        {
+          sha: 'c421cdf',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Implementation plan for the public mock-only cockpit',
+          details: [
+            'Twelve tasks, each ending in an independently testable deliverable.',
+            'Red/green is structural rather than advisory here. Nearly every guarantee the demo makes is a negative assertion — no backend origin in the CSP, no auth library or API URL in the bundle, no dropped section reachable from ⌘K, no inherited storage key able to flip mock mode — and negative assertions are exactly the ones that pass vacuously when wrong. So five steps write no code at all: they name the thing to break, the failure message to expect, and the restore.',
+          ],
+        },
+        {
+          sha: '02391a6',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design for a public mock-only PA Cockpit',
+          details: [
+            'A showcase instance of the cockpit on an unauthenticated public site, with no option to switch to Live. Mock mode was already a working demo driven by the same mutation actions live uses, so the work is packaging and severing auth rather than building demo behaviour.',
+            'It ships as a vendored copy deliberately ahead of extracting @ronl/pa-cockpit rather than after it: the extraction has to commit to an interface, and nothing outside packages/frontend had ever consumed the cockpit, so building a real second consumer first makes that boundary empirical instead of imagined. It also leaves the shipping cockpit alone during a 342-commit promotion.',
+          ],
+        },
+        {
+          sha: 'a80174b',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The promotion delta is brought current',
+          details: [
+            'The go-live section had been written against a 136-commit delta with acc at 2026.08.3. The delta is now 342 commits across 21 releases with acc at 2026.08.23, and three of its five subsections had gone stale in ways that would have misled the promotion.',
+            'The ordering claim survives, but the public-site production workflow did not exist when it was written: three path-filtered workflows now fire on push to main and two of them deploy. Since all three are gated on lint and tests, a red gate leaves main half-promoted — backend deployed by the manual script, frontends never deployed. CI-green-on-acc is now the leading check.',
+          ],
+        },
+        {
+          sha: 'da72abf',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The production promotion delta beyond the public site',
+          details: [
+            'Merging acc into main promotes the full delta across backend, frontend and public site, not just the public site. Documents the extras: the app-wide backend-before-push ordering, the safe-by-default backend environment variables, the frontend mock flag, that the database self-migrates on boot with no manual step, and a caseworker-app smoke test.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.23',
       status: 'Released',
       date: '22 aug 2026',
