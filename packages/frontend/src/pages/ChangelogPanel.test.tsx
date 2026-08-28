@@ -67,6 +67,7 @@ describe('ChangelogPanel', () => {
   it('clicking a collapsed version expands it, clicking again collapses it', async () => {
     const user = userEvent.setup();
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    // see the note at the first await — this is load-bearing
     await screen.findByRole('dialog');
 
     const second = changelog.versions[1];
@@ -107,6 +108,7 @@ describe('ChangelogPanel', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<ChangelogPanel isOpen onClose={onClose} />);
+    // see the note at the first await — this is load-bearing
     await screen.findByRole('dialog');
 
     await user.keyboard('{Escape}');
