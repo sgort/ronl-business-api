@@ -832,7 +832,14 @@ npm test --workspace=@ronl/pa-demo
 npm test --workspace=@ronl/public-site
 ```
 
-Expected totals: backend 1576, frontend 841, pa-cockpit 368, pa-demo 103, public-site 140 — **3,028**, up from 3,020 by the eight assertions this plan adds.
+Expected totals: backend 1576, frontend 842, pa-cockpit 368, pa-demo 103, public-site 140 — **3,029**, up from 3,020 by the nine assertions this plan adds.
+
+The plan originally predicted 841 and 3,028, counting the eight assertions the five
+tasks were specified to add. Task 2's review produced a fix round that added a ninth —
+a test pinning that a class named only inside a CSS comment does not count as defined.
+A plan cannot predict the tests its own review loop will require, so treat the figure
+as a floor rather than an equality: a higher count with every task green means the loop
+did its job, while a lower one means something was lost.
 
 If a test fails inside a full run, re-run it in isolation before concluding anything: a parallel-only failure may be contention rather than a defect. Use `npm run test:serial --workspace=@ronl/<name>` — `--no-file-parallelism` is Vitest-only and the backend is Jest.
 
