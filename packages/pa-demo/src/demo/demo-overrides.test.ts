@@ -30,7 +30,7 @@ const css = readFileSync(
 );
 
 describe('demo-overrides.css', () => {
-  it('hides the vendored live-toggle button but not the reset button', () => {
+  it('hides Dossierbeheer’s live-toggle button but not the reset button', () => {
     expect(css).toMatch(
       /\.pac-db-flag-actions\s+\.pac-db-abtn:not\(\.pac-db-flag-reset\)\s*\{[^}]*display:\s*none/
     );
@@ -42,9 +42,9 @@ describe('demo-overrides.css', () => {
     expect(css).not.toMatch(/\.pac-db-abtn\s*\{[^}]*display:\s*none/);
   });
 
-  it('hides the floating assistant toggle, at a specificity that can beat the vendored rule', () => {
-    // The button opens a dock that is a null shim here (PADock is not
-    // vendored), and clicking it persists dockOpen to sessionStorage with no
+  it('hides the floating assistant toggle, at a specificity that can beat the package rule', () => {
+    // The button opens a dock that is a null shim here (this host supplies
+    // shims/PADock), and clicking it persists dockOpen to sessionStorage with no
     // reachable control to unset it — so it must never render. The `.pac `
     // prefix is load-bearing, not decoration: dashboard-pa.css sets
     // `display: flex` on `.pac .pac-dock-toggle`, so a bare `.pac-dock-toggle`
@@ -54,12 +54,12 @@ describe('demo-overrides.css', () => {
   });
 
   it('lets .pac take the remaining flex space instead of its own hard-coded 100vh', () => {
-    // .pac { height: 100vh } (vendored dashboard-pa.css) assumes .pac is the
+    // .pac { height: 100vh } (the package's dashboard-pa.css) assumes .pac is the
     // only thing on the page. That assumption held again as of Task 15,
     // which deleted the DemoBar header that used to sit above .pac as a
     // sibling (the double-scrollbar the human partner originally reported
     // came from that sibling pushing total content past the viewport). This
-    // rule is kept anyway rather than reverted to the vendored default: a
+    // rule is kept anyway rather than reverted to the package default: a
     // lone flex child with flex: 1 1 auto in a height: 100% column fills
     // that column exactly, so the override is harmless and produces the
     // same single scrollbar .pac's own height: 100vh would — see this

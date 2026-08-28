@@ -1,51 +1,35 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { expectMockNamesRealExports } from '@ronl/pa-cockpit/test-utils';
 import PASectionRouter from './PASectionRouter';
-import { makePaDataStub } from '../../test/paData.stub';
 
-const mockDossiers = vi.hoisted(() => [
-  { id: 'jeugdzorg', naam: 'Jeugdzorg', status: 'sluimerend' },
-  { id: 'stikstof', naam: 'Stikstof & landbouw', status: 'actief' },
-]);
-vi.mock('../../pages/public-affairs-v2/PaDataProvider', () => ({
-  usePaData: () =>
-    makePaDataStub({ dossiers: { data: mockDossiers, status: 'ok', refetch: vi.fn() } }),
-}));
-
-vi.mock('../../pages/public-affairs-v2/Vandaag', () => ({ default: () => <div>vandaag</div> }));
-
-const mockIssuekaart = vi.hoisted(() => vi.fn());
-vi.mock('../../pages/public-affairs-v2/Issuekaart', () => ({
-  default: (props: never) => {
-    mockIssuekaart(props);
-    return <div>issuekaart</div>;
+// One stub, not twelve: everything this file doesn't own — Vandaag,
+// Issuekaart, Monitoring, Voortgang, the package's own "beheer" panels, and
+// the dossier-lookup-or-placeholder fallthrough — now lives behind a single
+// package export. Its own behaviour is covered by
+// packages/pa-cockpit/src/components/PADashboardV2/PaSectionsRouter.test.tsx;
+// this file only needs to prove it is reached, with the right props, for
+// anything this host doesn't recognise itself.
+//
+// Spreading the real module before the override is the pattern
+// packages/pa-cockpit/src/test/mockModule.ts documents, and
+// expectMockNamesRealExports (below) is the assertion half of the same fix:
+// a wholesale replacement would leave any other name this file starts
+// importing from the package silently undefined instead of failing loudly.
+const mockPaSectionsRouter = vi.hoisted(() => vi.fn());
+const paCockpitMock = vi.hoisted(() => ({
+  exports: {
+    PaSectionsRouter: (props: never) => {
+      mockPaSectionsRouter(props);
+      return <div>pa-sections-router</div>;
+    },
   },
 }));
 
-const mockMonitoring = vi.hoisted(() => vi.fn());
-vi.mock('../../pages/public-affairs-v2/Monitoring', () => ({
-  default: (props: never) => {
-    mockMonitoring(props);
-    return <div>monitoring</div>;
-  },
-}));
-
-vi.mock('../../pages/public-affairs-v2/AgendaView', () => ({
-  default: () => <div>agenda-view</div>,
-}));
-
-const mockVoortgang = vi.hoisted(() => vi.fn());
-vi.mock('../../pages/public-affairs-v2/Voortgang', () => ({
-  default: (props: never) => {
-    mockVoortgang(props);
-    return <div>voortgang</div>;
-  },
-}));
-
-vi.mock('../../pages/public-affairs-v2/FeitenCijfers', () => ({
-  FeitenView: () => <div>feiten-view</div>,
+vi.mock('@ronl/pa-cockpit', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@ronl/pa-cockpit')>()),
+  ...paCockpitMock.exports,
 }));
 
 vi.mock('../CaseworkerDashboard/ProfielSection', () => ({ default: () => <div>profiel</div> }));
@@ -66,19 +50,6 @@ vi.mock('../CaseworkerDashboard/IouZakenSection', () => ({
 vi.mock('../CaseworkerDashboard/GereedschapSection', () => ({
   default: () => <div>gereedschap</div>,
 }));
-vi.mock('./KompasSpecSection', () => ({ default: () => <div>kompas-spec</div> }));
-vi.mock('./CuratieSpecSection', () => ({ default: () => <div>curatie-spec</div> }));
-vi.mock('./NotificatiesSection', () => ({ default: () => <div>notificaties</div> }));
-vi.mock('./ZoekcriteriaSection', () => ({ default: () => <div>zoekcriteria</div> }));
-vi.mock('./BronnenSection', () => ({ default: () => <div>bronnen</div> }));
-
-const mockDossierbeheer = vi.hoisted(() => vi.fn());
-vi.mock('./dossierbeheer/Dossierbeheer', () => ({
-  default: (props: never) => {
-    mockDossierbeheer(props);
-    return <div>dossierbeheer</div>;
-  },
-}));
 
 const baseProps = {
   sectionId: 'vandaag',
@@ -90,58 +61,22 @@ const baseProps = {
 };
 
 describe('PASectionRouter', () => {
-  it('routes "vandaag" to Vandaag', () => {
-    render(<PASectionRouter {...baseProps} sectionId="vandaag" />);
-    expect(screen.getByText('vandaag')).toBeInTheDocument();
-  });
-
-  it('routes "agenda" to AgendaView, ahead of the Monitoring tab match', () => {
-    render(<PASectionRouter {...baseProps} sectionId="agenda" />);
-    expect(screen.getByText('agenda-view')).toBeInTheDocument();
-  });
-
-  it('routes "feiten" to FeitenView', () => {
-    render(<PASectionRouter {...baseProps} sectionId="feiten" />);
-    expect(screen.getByText('feiten-view')).toBeInTheDocument();
-  });
-
-  it('routes a monitoring tab id to Monitoring with that tab active', () => {
-    render(<PASectionRouter {...baseProps} sectionId="politiek" />);
-    expect(screen.getByText('monitoring')).toBeInTheDocument();
-    expect(mockMonitoring).toHaveBeenCalledWith(expect.objectContaining({ activeTab: 'politiek' }));
-  });
-
-  it('routes a voortgang id to Voortgang with that view', () => {
-    render(<PASectionRouter {...baseProps} sectionId="kompas-log" />);
-    expect(screen.getByText('voortgang')).toBeInTheDocument();
-    expect(mockVoortgang).toHaveBeenCalledWith(expect.objectContaining({ view: 'kompas-log' }));
-  });
-
-  it('"db-overzicht" and "db-nieuw" both route to Dossierbeheer, only the latter sets startCreate', () => {
-    const { rerender } = render(<PASectionRouter {...baseProps} sectionId="db-overzicht" />);
-    expect(screen.getByText('dossierbeheer')).toBeInTheDocument();
-    expect(mockDossierbeheer).toHaveBeenLastCalledWith(
-      expect.not.objectContaining({ startCreate: true })
-    );
-
-    rerender(<PASectionRouter {...baseProps} sectionId="db-nieuw" />);
-    expect(mockDossierbeheer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ startCreate: true })
+  it('mocks only names @ronl/pa-cockpit really exports', async () => {
+    // vi.importActual, not import(): the path is mocked, so a plain dynamic
+    // import would hand back the mock and compare it with itself.
+    await expectMockNamesRealExports(
+      vi.importActual('@ronl/pa-cockpit'),
+      paCockpitMock.exports as Record<string, unknown>
     );
   });
 
   it.each([
-    ['bronnen', 'bronnen'],
-    ['zoekcriteria', 'zoekcriteria'],
-    ['notificaties', 'notificaties'],
-    ['kompas-spec', 'kompas-spec'],
-    ['curatie-spec', 'curatie-spec'],
     ['profiel', 'profiel'],
     ['rollen', 'rollen'],
     ['iou-gebruiksscenario', 'iou-gebruiksscenario'],
     ['iou-feedback', 'iou-feedback'],
     ['gereedschap-overzicht', 'gereedschap'],
-  ])('beheer section "%s" routes to its component', (sectionId, text) => {
+  ])('host-owned section "%s" routes to its component', (sectionId, text) => {
     render(<PASectionRouter {...baseProps} sectionId={sectionId} />);
     expect(screen.getByText(text)).toBeInTheDocument();
   });
@@ -158,25 +93,27 @@ describe('PASectionRouter', () => {
     );
   });
 
-  it('a sectionId matching a dossier id renders Issuekaart for that dossier', () => {
-    render(<PASectionRouter {...baseProps} sectionId="jeugdzorg" />);
-    expect(screen.getByText('issuekaart')).toBeInTheDocument();
-    expect(mockIssuekaart).toHaveBeenCalledWith(
-      expect.objectContaining({ dossier: mockDossiers[0] })
+  it('anything not host-owned delegates to PaSectionsRouter with the same props', () => {
+    render(<PASectionRouter {...baseProps} sectionId="vandaag" />);
+    expect(screen.getByText('pa-sections-router')).toBeInTheDocument();
+    expect(mockPaSectionsRouter).toHaveBeenCalledWith(
+      expect.objectContaining({ ...baseProps, sectionId: 'vandaag' })
     );
   });
 
-  it('an unknown sectionId falls back to the first actief dossier with a way back', async () => {
-    const onOpenDossier = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <PASectionRouter {...baseProps} sectionId="deleted-dossier" onOpenDossier={onOpenDossier} />
-    );
-
-    expect(screen.getByText(/Deze sectie is niet \(meer\) beschikbaar/)).toBeInTheDocument();
-    const link = screen.getByRole('button', { name: /Naar Stikstof & landbouw/ });
-    await user.click(link);
-
-    expect(onOpenDossier).toHaveBeenCalledWith('stikstof');
-  });
+  it.each([
+    'agenda',
+    'feiten',
+    'politiek',
+    'kompas-log',
+    'db-overzicht',
+    'bronnen',
+    'some-dossier-id',
+  ])(
+    'delegates "%s" to PaSectionsRouter too — this file owns only its seven host ids',
+    (sectionId) => {
+      render(<PASectionRouter {...baseProps} sectionId={sectionId} />);
+      expect(screen.getByText('pa-sections-router')).toBeInTheDocument();
+    }
+  );
 });

@@ -8,12 +8,13 @@
  * -accent). plato is single-tenant and offline, so tenant *config* here is
  * a literal — but the *theme* still has to be applied the same way the real
  * service applies it, at runtime, via setProperty. It cannot be left to CSS
- * alone: the vendored .pac stylesheets read `var(--color-primary, #0046ad)`
+ * alone: the cockpit's .pac stylesheets read `var(--color-primary, #0046ad)`
  * — Flevoland blue as a fallback that only fires while the variable is
- * undefined. index.css (also vendored, also correctly — it is the generic
- * RONL shell style, not PA-Cockpit-specific) sets --color-primary/-secondary
- * to generic RONL blue/orange at :root, which satisfies that var() and
- * silently overrides the Flevoland fallback everywhere. Only an explicit
+ * undefined. src/index.css — the generic RONL app-shell style, deliberately
+ * not part of @ronl/pa-cockpit's styles.css — sets
+ * --color-primary/-secondary to generic RONL blue/orange at :root, which
+ * satisfies that var() and silently overrides the Flevoland fallback
+ * everywhere. Only an explicit
  * setProperty call — inline style, which wins the cascade over an inherited
  * :root custom property — reproduces what the real app does.
  *
@@ -22,16 +23,15 @@
  * rather than a fetch of that file for the same offline-by-design reason
  * the rest of this shim is: plato issues no runtime data fetches (see e2e/
  * plato-demo.spec.ts's "no backend" test and playwright.config.ts's header).
- * tenants.json itself is deliberately NOT vendored (it used to be, purely as
- * a local drift oracle for the literal below — see scripts/vendor-manifest.mjs
- * for why that shipped 18 KB of internal multi-tenant config to a public
- * site for no runtime reason and was removed). tenant.test.ts instead reads
+ * tenants.json itself is deliberately NOT copied here (it used to be, purely
+ * as a local oracle for the literal below — 18 KB of internal multi-tenant
+ * config shipped to a public site for no runtime reason, since removed). tenant.test.ts instead reads
  * packages/frontend/public/tenants.json directly and cross-checks it against
  * FLEVOLAND_THEME, so a divergence still can't ship silently.
  *
- * The vendored shell (pages/PADashboardV2.tsx) chains `.then()` off both
- * initializeTenantTheme() and loadTenantConfigs(), so both must resolve to
- * real Promises even though there is nothing to await.
+ * The cockpit shell (@ronl/pa-cockpit's pages/PADashboardV2.tsx) chains
+ * `.then()` off both initializeTenantTheme() and loadTenantConfigs(), so both
+ * must resolve to real Promises even though there is nothing to await.
  */
 export interface TenantConfig {
   id: string;

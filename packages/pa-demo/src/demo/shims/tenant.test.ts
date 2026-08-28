@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { initializeTenantTheme } from './tenant';
 
 // packages/frontend/public/tenants.json, not this package's copy: pa-demo
-// no longer vendors tenants.json (it was 18 KB of internal multi-tenant
+// no longer keeps a copy of tenants.json (it was 18 KB of internal multi-tenant
 // config — real contact details, non-public sections — shipped to a public
 // site for no runtime reason; nothing in pa-demo ever fetches it). Pointing
 // straight at the origin means this guard compares the baked-in literal
@@ -33,7 +33,7 @@ describe('demo tenant shim', () => {
     expect(style.getPropertyValue('--color-accent')).toBe('#F5A623');
   });
 
-  it("resolves to true so the vendored shell's .then() chain runs", async () => {
+  it("resolves to true so the cockpit shell's .then() chain runs", async () => {
     expect(await initializeTenantTheme()).toBe(true);
   });
 
@@ -41,7 +41,7 @@ describe('demo tenant shim', () => {
     // The shim bakes these values in literally (see tenant.ts's header for
     // why); this is the guard that the literal still matches the real
     // source of truth it was copied from — packages/frontend's tenants.json,
-    // read directly since pa-demo no longer vendors a copy of its own.
+    // read directly since pa-demo no longer keeps a copy of its own.
     const tenants = JSON.parse(readFileSync(path.join(frontendPublicDir, 'tenants.json'), 'utf-8'));
     const theme = tenants.tenants.flevoland.theme;
 

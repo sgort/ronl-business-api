@@ -16,6 +16,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
     "type-check": "tsc --noEmit",
     "test": "jest --coverage",
+    "test:serial": "jest --coverage --runInBand",
     "test:unit": "jest --testPathPattern=tests/unit",
     "test:integration": "jest --testPathPattern=tests/integration",
     "test:watch": "jest --watch",
@@ -86,7 +87,7 @@
     "typescript-eslint": "^8.0.0"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=20.13.0",
     "npm": ">=10.0.0"
   }
 }
