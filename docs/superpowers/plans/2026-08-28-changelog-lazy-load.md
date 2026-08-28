@@ -177,9 +177,29 @@ The `import { changelog } from './changelog-data';` line below it stays — the 
 
 Run: `npx vitest run --no-file-parallelism src/pages/ChangelogPanel.test.tsx --root packages/frontend`
 
-Expected: the four `ScopeBadge` tests PASS, and seven of the eight `ChangelogPanel` tests FAIL — they assert on content synchronously after `render(…)`, and the content now arrives one microtask later. `'renders nothing when closed'` passes, because the shim returns `null` without suspending.
+Expected in a **whole-file run**: the seven `ScopeBadge` tests PASS, `'renders nothing when closed'` PASSES, and **exactly one** `ChangelogPanel` test fails — `'when open, shows a version card for every release with the latest one expanded'`. One failure, fourteen passes, fifteen total.
 
-This run is the point of the step: it enumerates precisely which assertions depended on synchronous rendering, so Step 6 is a checklist rather than a guess. If a `ScopeBadge` test fails here, Step 4's import is wrong.
+**That is not seven failures, and the reason matters.** `lazy()` caches its resolved promise at **module scope**, so the first test that renders the panel open suspends and fails, and every later test in the file rides the now-warmed cache and renders synchronously. Six tests therefore pass for a reason unrelated to what they assert.
+
+To see the real failure set, run them individually:
+
+```bash
+for t in \
+  "when open, shows a version card" \
+  "clicking a collapsed version expands it" \
+  "the close" \
+  "clicking the overlay calls onClose" \
+  "pressing Escape calls onClose" \
+  "locks body scroll while open" \
+  "a per-commit format version shows"; do
+  npx vitest run --no-file-parallelism src/pages/ChangelogPanel.test.tsx \
+    --root packages/frontend -t "$t" 2>&1 | grep -E "^ *Tests "
+done
+```
+
+Expected: all seven FAIL in isolation. That is the list Step 6 works from.
+
+This inverts the hazard the repo's standing rule describes. There, a _failure_ that depends on how the suite was run is not yet a finding. Here a _pass_ depends on it — six tests would break the moment anyone reorders the file, inserts a test above them, or runs one with `-t`. Adding all seven awaits is what makes each test independent of its neighbours, which is why Step 6 does not stop at the one test that fails in a whole-file run.
 
 - [ ] **Step 6: Await the lazy resolve in the seven tests that need it**
 
@@ -263,7 +283,9 @@ const toggle = await screen.findByRole('button', {
 - [ ] **Step 7: Run the tests and watch them pass**
 
 Run: `npx vitest run --no-file-parallelism src/pages/ChangelogPanel.test.tsx --root packages/frontend`
-Expected: PASS, 12 tests (8 `ChangelogPanel` + 4 `ScopeBadge`).
+Expected: PASS, **15** tests — 8 `ChangelogPanel` plus 7 `ScopeBadge` (three `it(` blocks and a four-row `it.each`).
+
+Then confirm the order-independence this task exists to establish, by re-running the seven from Step 5 individually with `-t`. All seven must now pass standalone. A test that passes in file order but not alone has not been fixed; it has been hidden.
 
 If a test times out rather than failing an assertion, the lazy import is not resolving — check that the `lazy()` specifier matches the created filename exactly.
 
