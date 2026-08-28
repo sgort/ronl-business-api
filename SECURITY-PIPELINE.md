@@ -154,45 +154,13 @@ change, but GitHub Actions runs the workflow file _from the branch being pushed_
 `main` still carries unpinned copies and will keep using them until `acc` is
 promoted. Pinning the file is not the same as pinning the branch that runs it.
 
-## Queued CI improvements
+## Pending work
 
-Deliberately left out of the pinning work, which was kept behaviour-preserving so
-that a broken deploy would be attributable. Roughly in order of what they buy.
+This document records what _is_. Pending work lives in
+[`docs/superpowers/plans/2026-08-28-ci-follow-ups.md`](docs/superpowers/plans/2026-08-28-ci-follow-ups.md),
+following the same convention as the other follow-up lists in that directory.
 
-1. **Pin the backend deploy bundle's dependencies.** Copy the lockfile into
-   `packages/backend/deploy/` and use `npm ci --omit=dev` rather than
-   `npm install --production --omit=dev`. Closes the widest floating surface in
-   the repo. Note the wrinkle: `@ronl/shared` is deleted from `package.json`
-   before the install and copied in afterwards, because it is a workspace
-   dependency npm cannot fetch from the registry — a lockfile-based install needs
-   the same treatment, so this is not a one-word change.
-
-2. **Move the backend deploy into a workflow.** The blocker was authentication,
-   not YAML: `az webapp deploy` works locally under `az login`, while
-   `azure/webapps-deploy` authenticates over SCM basic auth, which Azure now
-   disables by default. The likely route is OIDC — an app registration with a
-   federated credential for this repo, `azure/login`, `permissions: id-token:
-write`, then the same `az webapp deploy` the scripts already use. **Confirm
-   against a real failed run before committing to that diagnosis.**
-
-3. **Pin the Node runtime.** The workflows request `node-version: '20'`, which
-   floats across every 20.x release. `.nvmrc` says `22` and `engines.node` says
-   `>= 20.13.0` — three different answers to the same question. Once they are
-   meant to agree, `node-version-file: .nvmrc` settles it in one place.
-
-4. **Make PR previews worth opening.** A preview frontend gets an ephemeral
-   `*.azurestaticapps.net` origin that is not in the backend's `CORS_ORIGIN`
-   allowlist, and `VITE_API_URL` is baked in at build time, so anything touching
-   the API fails. Today a preview only demonstrates that static pages render.
-   Allowing the preview origin (and matching Keycloak redirect URIs) would change
-   that.
-
-5. **Consider `paths:` filters on the frontend workflows.** `frontend-acc`,
-   `pa-demo-acc` and `publicsite-acc` trigger on every PR to `acc` regardless of
-   what changed — a one-file config PR redeploys three sites. The backend
-   workflows already do this correctly.
-
-6. **Action major upgrades.** Renovate offers `checkout`, `setup-node` and
-   `upload-artifact` v7 on the dependency dashboard. Kept separate from pinning
-   on purpose: pinning is behaviour-preserving, upgrading is not, and bundling
-   them would make a failure ambiguous.
+Highest value there, and the only item on this page's exceptions list that is
+fixable from our side: **pin the backend deploy bundle's dependencies**, which
+today are resolved by an `npm install` with no lockfile, on a developer machine,
+for the artifact that ships to production.
