@@ -629,8 +629,13 @@ python3 - <<'PY'
 import pathlib
 p = pathlib.Path('packages/pa-demo/src/demo/pa-cockpit-host.tsx')
 s = p.read_text()
-s = s.replace("      get token() {\n        return keycloak.token;\n      },", "      token: keycloak.token,")
-p.write_text(s)
+# The file indents these at 4/6/4 spaces. Assert the replacement actually
+# happened: a str.replace that matches nothing returns the string unchanged and
+# fails silently, so the probe would report a false "passed" — the test would go
+# green because the mutation was never applied, not because it survived.
+old = "    get token() {\n      return keycloak.token;\n    },"
+assert old in s, "probe did not match — check the indentation against the live file"
+p.write_text(s.replace(old, "    token: keycloak.token,"))
 PY
 npx vitest run --no-file-parallelism src/demo/pa-cockpit-host.auth.test.ts --root packages/pa-demo
 # Expected: FAIL on "reads the token at call time"
