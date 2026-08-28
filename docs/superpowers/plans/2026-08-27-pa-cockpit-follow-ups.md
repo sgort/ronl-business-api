@@ -187,6 +187,61 @@ dead case nobody looked at.
 
 ## 4. Duplication the branch did not reach
 
+> **Done.** Three of the four listed duplications are required copies, not decay.
+> `packages/pa-demo` never imports `dashboard-v2.css` — `CaseworkerDashboardV2.tsx:55`
+> is its only importer anywhere — so `@ronl/pa-cockpit` must carry its own rule for
+> every `v2-*` class it renders, or the demo renders unstyled. The copies are the
+> price of the package being standalone-renderable, which is the demo's whole
+> premise.
+>
+> The fourth — the two `configurePaCockpit` auth adapters — was not duplication at
+> all. The two differences are each correct for their side: keycloak-js types
+> `authenticated?: boolean` and requires a `number` from `updateToken`, while the
+> demo's shim is already boolean and takes an optional parameter. The real gap was
+> that only the frontend's adapter had a test.
+>
+> A fifth item turned up during design that the entry above never listed:
+> `PACommandPalette.tsx:6-7` claimed it reused `.cwd-v2-palette*` styles. It renders
+> only `pac-palette*` classes, all defined at `dashboard-pa.css:1050-1082` — same
+> defect class as the `v2-main-pad` comments corrected in item 7, and worse in
+> effect, since it implied `pa-demo` depends on a stylesheet it never loads.
+>
+> Three alternatives were considered and rejected, one line each: a shared
+> `brand.css` reverses the decision written at `pa-demo/src/index.css:1-16` that
+> app-shell CSS stays per-app; a shared token module couples the ESM
+> `tailwind.config.js` files to a CommonJS `@ronl/shared` build for five constants
+> that never change; consolidating the CSS makes the caseworker dashboard take its
+> chrome from the PA cockpit package.
+>
+> Three guards landed:
+>
+> - **Guard A** (`781afe4`) — the five brand colours pinned across all four files
+>   that spell them, `packages/pa-demo/src/brand-colours.test.ts`, 2 tests.
+> - **Guard B** (`b8c9f97`) — every `v2-*` class a package component renders must
+>   have a rule in both stylesheets,
+>   `packages/frontend/src/pa-cockpit-class-coverage.test.ts`. It deliberately does
+>   not assert value equality: `.v2-no-access*` has already diverged on purpose,
+>   and a guard enforcing equality would be red against a decision already made and
+>   get deleted rather than fixed.
+> - **Guard C** (`883af09`) — the demo's auth adapter pinned,
+>   `packages/pa-demo/src/demo/pa-cockpit-host.auth.test.ts`, 4 tests.
+>
+> | Probe                                                                         | Result                                         |
+> | ----------------------------------------------------------------------------- | ---------------------------------------------- |
+> | A brand colour edited in any of the four files it appears in                  | red — Guard A                                  |
+> | A `v2-*` class rendered by a package component with no rule in one stylesheet | red — Guard B                                  |
+> | A `configurePaCockpit` auth-adapter difference changed                        | red — Guard C                                  |
+> | `.pac .v2-no-access`'s `max-width` changed                                    | green — Guard B does not assert value equality |
+> | A class name spelled inside a CSS comment                                     | green — `definesClass` excludes comments       |
+>
+> The last row is the sequencing lesson worth keeping: Guard B's review returned
+> zero Critical and zero Important findings, and one Minor — that `definesClass`
+> matched raw CSS text without excluding comments, harmless because no such comment
+> existed yet. The comment corrections that closed the fifth item above then
+> created one. Had the two landed in the other order, that correction would have
+> silently disarmed part of Guard B. The fix landed first (`09b9c78`), the comment
+> corrections after (`8350041`).
+
 The branch removed the fork and consolidated the section-id grammar into
 `PaSectionsRouter`. These survived:
 
