@@ -22,7 +22,11 @@ export interface ChangelogSection {
 // every existing 'both' entry predates packages/public-site and specifically
 // means "frontend + backend"; reusing it for a different combination later
 // would retroactively misrepresent those historical entries.
-export type ScopeTag = 'frontend' | 'backend' | 'public-site' | 'pa-demo';
+// 'ci' is not a deployable: it marks a release that changes how the pipeline
+// itself works — workflow pinning, gates, release tooling — and touches no
+// package. A 'ci'-scoped release bumps the root package.json only, so it
+// triggers none of the path-filtered deploy workflows.
+export type ScopeTag = 'frontend' | 'backend' | 'public-site' | 'pa-demo' | 'ci';
 
 // New entries express scope as an array of ScopeTag, even for a single
 // package (e.g. ['backend']) — this is what lets a release touch backend +
@@ -52,7 +56,18 @@ export interface ChangelogVersion {
 // Forward-only — legacy ChangelogVersion entries above keep rendering as-is;
 // see ChangelogEntry.
 
-export type CommitType = 'feat' | 'fix' | 'test' | 'docs' | 'chore' | 'refactor' | 'other';
+export type CommitType =
+  | 'feat'
+  | 'fix'
+  | 'test'
+  | 'docs'
+  | 'chore'
+  | 'refactor'
+  // Pipeline and supply-chain work: workflow pinning, CI gates, release
+  // tooling. Distinct from 'chore' because it is the one category whose
+  // commits change how everything else is built and shipped.
+  | 'ci'
+  | 'other';
 
 export interface ChangelogCommit {
   /** Short SHA, e.g. '9248982'. */

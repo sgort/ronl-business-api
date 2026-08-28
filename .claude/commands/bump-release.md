@@ -248,6 +248,12 @@ entries of the root `package-lock.json`:
   - `packages/backend/package.json` — if scope includes `'backend'`
   - `packages/public-site/package.json` — if scope includes `'public-site'`
   - `packages/pa-demo/package.json` — if scope includes `'pa-demo'`
+  - **nothing** for `'ci'` — it is not a deployable. A `'ci'`-scoped release
+    changes how the pipeline is built and gated (workflow pinning, the audit
+    gate, release tooling) and touches no package, so it bumps the root
+    `package.json` and the lockfile's root entries only. Bumping a package for
+    it would trip that package's path-filtered workflow and deploy code that
+    did not change.
   - `packages/shared/package.json` — only if a `packages/shared/**` change was
     part of the release (there is no `'shared'` scope tag; such a release carries
     `['frontend','backend']`). `shared` is otherwise pinned at `1.0.0`.
