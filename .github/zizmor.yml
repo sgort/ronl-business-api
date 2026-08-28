@@ -1,0 +1,11 @@
+# IOU supply-chain policy: every action reference must be a commit hash,
+# with no exemption for first-party actions/*.
+#
+# zizmor 1.29.0 enforces this by default, so this file changes no findings
+# today. It is committed deliberately: the policy belongs in the repository
+# rather than in a tool default that a future release could relax.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        '*': hash-pin
