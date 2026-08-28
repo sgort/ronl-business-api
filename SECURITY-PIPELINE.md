@@ -41,8 +41,9 @@ pin.
 ## Where this repo is _stronger_ than the ttl-editor pattern
 
 **The deployed artifact is built by our own pipeline, not inside the vendor
-container.** Every Static Web Apps step sets `skip_app_build: true` and points
-`app_location` at an already-built `dist/`. The build runs earlier in the same
+container.** All six Static Web Apps **deploy** steps set `skip_app_build: true` and point
+`app_location` at an already-built `dist/`. (The other three SWA references are
+`action: 'close'` steps, which tear down a preview environment and build nothing.) The build runs earlier in the same
 job, on pinned `actions/setup-node`, installing via `npm ci` against
 `package-lock.json`.
 
@@ -106,25 +107,38 @@ supply-chain defect, but a divergence that belongs on the record — and
 `node-version-file: .nvmrc` would close both issues at once if the two are meant
 to agree.
 
-### The backend deployment package installs without a lockfile
+### The backend is deployed outside CI, and its dependencies are unpinned
 
-`azure-backend-{acc,prod}.yml` builds a deploy bundle and then runs, inside it:
+`azure-backend-{acc,prod}.yml` run build, lint, test, package a zip and call
+`upload-artifact`. **Neither contains a deploy step.** They are build-and-test
+gates; nothing consumes the artifact they produce.
 
-```
-npm pkg delete dependencies.@ronl/shared
-npm install --production --omit=dev
-```
+The backend actually reaches acceptance and production through
+`deploy-backend-to-{acc,prod}.sh`, run from a developer machine. Those scripts
+are deliberately gitignored (`.gitignore`: `deploy-backend-to-*.sh`) and exist
+because a workflow-based App Service deploy could not be made to work. A
+`-portable` variant exists alongside them: the original targets Ubuntu, while the
+portable one falls back to the bsdtar Windows bundles at `System32\tar.exe`,
+because Info-ZIP's `zip` cannot be installed on a managed Windows laptop.
 
-That `npm install` runs in `packages/backend/deploy/`, which has a `package.json`
-but **no lockfile**. Dependency resolution for the artifact that ships to the
-backend App Service therefore happens fresh at CI time, against semver ranges,
-with no integrity pinning — the root `package-lock.json` does not govern it.
+What that means for this document's scope:
 
-This is the widest floating surface in the repository, and unlike the two
-exceptions above it _is_ reachable from our side: copying the lockfile into the
-bundle and using `npm ci --omit=dev` would close it. Deliberately not changed
-here, to keep the pinning change behaviour-preserving. Queued for the CI
-improvement pass.
+- **Nothing here covers the backend deploy path.** Pinning the workflows does not
+  touch it, the `audit` gate never sees it, and the `acc` ruleset cannot gate it.
+  The pinning work covers what CI runs, and CI does not deploy the backend.
+- **The deployed dependency tree is unpinned.** The script runs
+  `npm pkg delete dependencies.@ronl/shared` and then
+  `npm install --production --omit=dev` inside `packages/backend/deploy/` — a
+  directory with a `package.json` but **no lockfile**. Resolution happens against
+  semver ranges, on a developer machine, leaving no CI record of what was
+  installed. The same pattern exists in the CI workflows' "Prepare deployment
+  package" step, but that copy is never deployed.
+- The scripts do carry real safety rails: they refuse to run off `acc`, refuse a
+  dirty working tree, and resolve an archiver before building anything. The gap is
+  structural, not carelessness.
+
+This is the widest floating surface in the repository and, unlike the container
+exception above, it is fixable from our side — see "Queued CI improvements".
 
 ## What the audit cannot see
 
@@ -139,3 +153,46 @@ both is planned.
 change, but GitHub Actions runs the workflow file _from the branch being pushed_.
 `main` still carries unpinned copies and will keep using them until `acc` is
 promoted. Pinning the file is not the same as pinning the branch that runs it.
+
+## Queued CI improvements
+
+Deliberately left out of the pinning work, which was kept behaviour-preserving so
+that a broken deploy would be attributable. Roughly in order of what they buy.
+
+1. **Pin the backend deploy bundle's dependencies.** Copy the lockfile into
+   `packages/backend/deploy/` and use `npm ci --omit=dev` rather than
+   `npm install --production --omit=dev`. Closes the widest floating surface in
+   the repo. Note the wrinkle: `@ronl/shared` is deleted from `package.json`
+   before the install and copied in afterwards, because it is a workspace
+   dependency npm cannot fetch from the registry — a lockfile-based install needs
+   the same treatment, so this is not a one-word change.
+
+2. **Move the backend deploy into a workflow.** The blocker was authentication,
+   not YAML: `az webapp deploy` works locally under `az login`, while
+   `azure/webapps-deploy` authenticates over SCM basic auth, which Azure now
+   disables by default. The likely route is OIDC — an app registration with a
+   federated credential for this repo, `azure/login`, `permissions: id-token:
+write`, then the same `az webapp deploy` the scripts already use. **Confirm
+   against a real failed run before committing to that diagnosis.**
+
+3. **Pin the Node runtime.** The workflows request `node-version: '20'`, which
+   floats across every 20.x release. `.nvmrc` says `22` and `engines.node` says
+   `>= 20.13.0` — three different answers to the same question. Once they are
+   meant to agree, `node-version-file: .nvmrc` settles it in one place.
+
+4. **Make PR previews worth opening.** A preview frontend gets an ephemeral
+   `*.azurestaticapps.net` origin that is not in the backend's `CORS_ORIGIN`
+   allowlist, and `VITE_API_URL` is baked in at build time, so anything touching
+   the API fails. Today a preview only demonstrates that static pages render.
+   Allowing the preview origin (and matching Keycloak redirect URIs) would change
+   that.
+
+5. **Consider `paths:` filters on the frontend workflows.** `frontend-acc`,
+   `pa-demo-acc` and `publicsite-acc` trigger on every PR to `acc` regardless of
+   what changed — a one-file config PR redeploys three sites. The backend
+   workflows already do this correctly.
+
+6. **Action major upgrades.** Renovate offers `checkout`, `setup-node` and
+   `upload-artifact` v7 on the dependency dashboard. Kept separate from pinning
+   on purpose: pinning is behaviour-preserving, upgrading is not, and bundling
+   them would make a failure ambiguous.
