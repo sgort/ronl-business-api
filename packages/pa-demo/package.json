@@ -1,6 +1,6 @@
 {
   "name": "@ronl/pa-demo",
-  "version": "2026.08.24",
+  "version": "2026.08.30",
   "description": "Public mock-only PA Cockpit demo — plato.open-regels.nl",
   "type": "module",
   "scripts": {
