@@ -30,8 +30,14 @@ on:
 # 2026-08-29, two acc deploys 20 seconds apart. The group includes the ref,
 # so pull requests never cancel each other's previews, only their own
 # superseded runs.
+#
+# The key must distinguish the EVENT, not just the ref. Keyed on github.ref
+# alone, the pull_request(closed) teardown and the push deploy that a merge
+# fires simultaneously landed in the same group and cancelled each other —
+# one of each pair died, at random. Seen on 2026-08-29 merging #25: two acc
+# deploys skipped and one preview left un-torn-down.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Default to read-only; jobs opt into more only where required.
