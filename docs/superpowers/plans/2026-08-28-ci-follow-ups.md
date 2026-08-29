@@ -51,15 +51,31 @@ The deploy is the script in item 1, run by hand.
 The blocker was authentication, not workflow YAML. A previous attempt could not be
 made to work.
 
-**Hypothesis, unconfirmed:** `az webapp deploy` works locally because it uses the
-operator's `az login` identity, while `azure/webapps-deploy` authenticates over
-SCM basic auth — which Azure now disables by default. If that is the cause, the
-route is OIDC: an app registration with a federated credential for this repo,
-`azure/login`, `permissions: id-token: write`, then the same `az webapp deploy`
-the scripts already run.
+**The hypothesis this item carried has been disproved.** It read: `azure/webapps-deploy`
+fails because it authenticates over SCM basic auth, which Azure now disables by
+default.
 
-**Confirm against a real failed run before acting on this.** It is a plausible
-diagnosis reasoned from a symptom, not something observed.
+`linked-data-explorer` runs exactly that action against the same subscription and
+deploys its backend successfully. Its `azure-backend-acc.yml` uses
+`azure/webapps-deploy@v3` with a `publish-profile` secret, and it ran green on
+2026-08-29, including a post-deploy health check and endpoint verification. So SCM
+basic auth is **not** disabled subscription-wide, and the blocker here is
+per-App-Service configuration rather than a platform default.
+
+That also changes the recommended route. This item proposed OIDC — an app
+registration with a federated credential, `azure/login`, `permissions: id-token:
+write`. LDE shows a **publish-profile secret is sufficient**, which is materially
+cheaper and needs no app registration at all. Try it in this order:
+
+1. Download the publish profile for the App Service and store it as a repository
+   secret, the way LDE stores `AZURE_WEBAPP_PUBLISH_PROFILE_ACC`.
+2. Add the deploy step: `azure/webapps-deploy` with `publish-profile:` and
+   `package:` pointing at the artifact these workflows already build.
+3. Only if that fails, check whether basic auth is disabled on **that specific App
+   Service** — and reach for OIDC only if it is and cannot be re-enabled.
+
+The original caution still stands for step 3: confirm against a real failed run
+rather than reasoning from a symptom.
 
 Doing this also dissolves item 6 and closes the gap in item 1 at the same time,
 since a workflow-based deploy would install from the lockfile in CI.
