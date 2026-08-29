@@ -127,19 +127,35 @@ The backend actually reaches acceptance and production through
 `deploy-backend-to-{acc,prod}.sh`, run from a developer machine. They exist
 because a workflow-based App Service deploy could not be made to work.
 
-**`.gitignore` lists them, but two of the three are tracked anyway.**
-`.gitignore` carries `deploy-backend-to-*.sh`, which reads as though none of them
-is in the repository. In fact `deploy-backend-to-acc.sh` and
-`deploy-backend-to-prod.sh` are both **tracked** — an ignore rule does not
-untrack a file that was already committed. Only
-`deploy-backend-to-acc-portable.sh` is genuinely ignored. This matters for the
-register's purpose: the deployed dependency tree is resolved by a script whose
-contents are reviewable in git, not by a local file nobody else can see. That is
-better than the ignore rule implies, and worth stating accurately rather than
-repeating the tidier claim. A
-`-portable` variant exists alongside them: the original targets Ubuntu, while the
-portable one falls back to the bsdtar Windows bundles at `System32\tar.exe`,
-because Info-ZIP's `zip` cannot be installed on a managed Windows laptop.
+**Both scripts are tracked and reviewable in git.** `.gitignore` carries a broad
+`deploy-backend-to-*.sh` followed by an explicit `!` negation for each script that
+belongs in the repository. The pattern exists so an ad-hoc local variant is not
+committed by accident; it was never hiding the real ones. That matters for this
+register's purpose - the deployed dependency tree is resolved by these scripts, so
+their contents have to be readable by someone other than the person who runs them.
+
+Until 29 August 2026 that was only half true. An untracked
+`deploy-backend-to-acc-portable.sh` carried an archiver fallback the tracked script
+lacked, and on a managed Windows laptop it was the one that actually ran - so the
+script really performing acceptance deploys was the single one nobody could
+review. It has now replaced `deploy-backend-to-acc.sh` outright. The merged script
+prefers Info-ZIP's `zip` when it is present, leaving Ubuntu behaviour unchanged,
+and falls back to the bsdtar that Windows bundles at `System32	ar.exe` when it is
+not, because `zip` cannot be installed on a managed Windows laptop.
+
+`deploy-backend-to-prod.sh` carries the identical archiver logic, so both scripts
+run from either platform. It was Ubuntu-only until the same day, for no reason
+other than that nobody had needed it from Windows yet - which would have been an
+unwelcome discovery during a production release.
+
+Both scripts now open with an Azure-session preflight. `az account show` is not
+sufficient for this and was the original trap: it reads cached local state and
+succeeds against a refresh token that expired days earlier, so the deploy failed
+only after both builds, the production install and the zip. Only a real ARM call
+proves the session works, so the preflight asks for the target App Service itself
+
+- covering an expired session, the wrong subscription, and a missing app in one
+  request, before the builds rather than after them.
 
 What that means for this document's scope:
 
