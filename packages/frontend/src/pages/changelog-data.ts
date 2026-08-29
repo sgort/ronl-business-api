@@ -108,6 +108,44 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.33',
+      status: 'Released',
+      date: '29 aug 2026',
+      scope: ['ci'],
+      commits: [
+        {
+          sha: 'cfbc8e5',
+          author: 'renovate[bot]',
+          type: 'ci',
+          subject: 'actions/upload-artifact pinned to v7.0.1',
+          details: [
+            'Raised by Renovate and merged under the 14-day cooldown. Two backend workflows move from ea165f8d (v4.6.2) to 043fb46d (v7.0.1). The digest and its version comment move together, which is what the pin-digests helper maintains — a digest without an accurate comment is a pin nobody can read.',
+          ],
+        },
+        {
+          sha: '3355e95',
+          author: 'renovate[bot]',
+          type: 'ci',
+          subject: 'actions/setup-node pinned to v7.0.0',
+          details: [
+            'Eight workflows move from 49933ea5 (v4.4.0) to 820762786 (v7.0.0).',
+            'Together with the checkout upgrade this closes the Node-runtime deprecation: the pinned v4 actions targeted a Node version the runner had begun force-upgrading, and v7 declares node24 natively. Pinning deliberately froze those versions in place; upgrading them was kept as separate work so a broken deploy would be attributable to one change or the other.',
+          ],
+        },
+        {
+          sha: '488d6dd',
+          author: 'renovate[bot]',
+          type: 'ci',
+          subject: 'actions/checkout pinned to v7.0.1',
+          details: [
+            'Nine workflows move from 11d5960a (v4.4.0) to 3d3c42e5 (v7.0.1), including the supply-chain audit gate itself.',
+            'That made this the one upgrade whose failure would have been self-obscuring: a broken checkout inside the gate breaks the thing that would otherwise report it. The gate passed on all three merges, so the upgrade is verified by the mechanism it upgrades.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.32',
       status: 'Released',
       date: '28 aug 2026',
