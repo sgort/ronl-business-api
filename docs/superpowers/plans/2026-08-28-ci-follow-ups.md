@@ -96,6 +96,15 @@ make preview deployments worth the three deploys each PR already costs.
 
 ## 5. The `pull_request` trigger has no `paths:` filter
 
+> **Done.** The push filter is mirrored onto `pull_request` in
+> `azure-frontend-acc.yml`, `azure-pa-demo-acc.yml` and
+> `azure-publicsite-acc.yml` — 4, 4 and 2 paths respectively, copied rather than
+> re-derived, so `packages/pa-cockpit/**` travels with them.
+>
+> `zizmor.yml` deliberately keeps **no** `paths:` filter: the audit must run on
+> every pull request regardless of what changed. The backend workflows have no
+> `pull_request` trigger at all.
+
 `frontend-acc`, `pa-demo-acc` and `publicsite-acc` trigger on every pull request to
 `acc` regardless of what changed — a one-file config PR redeploys three sites, and
 each preview holds a Static Web Apps staging environment. With three apps and a
@@ -186,6 +195,20 @@ One line. It needs a release to ship, so it should ride with the next one rather
 than justify its own.
 
 ## 9. The deploy workflows need a `concurrency:` group
+
+> **Done.** Added to all six workflows that deploy to Azure, keyed
+> `${{ github.workflow }}-${{ github.ref }}` — per workflow file, so acc and prod
+> never cancel each other, and per ref, so pull requests never cancel each other's
+> previews, only their own superseded runs.
+>
+> The three acc workflows use `cancel-in-progress: true`; a superseded acceptance
+> deploy is wasted work. The three prod workflows use **`false`** so runs queue
+> instead: interrupting a live production deployment to start another is worse
+> than waiting for it, and production deploys are rare enough that the wait costs
+> nothing.
+>
+> The backend workflows are untouched — they build and upload an artifact and
+> never reach Azure, so no race exists there.
 
 None of the deploy workflows declares one, so two merges within a few minutes send
 two deployments at the same Azure Static Web Apps environment and **Azure picks a

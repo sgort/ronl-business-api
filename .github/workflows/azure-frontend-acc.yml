@@ -13,7 +13,30 @@ on:
     types: [opened, synchronize, reopened, closed]
     branches:
       - acc
+    # Mirrors the push filter above. Without it every pull request to acc
+    # deployed all three sites, each holding a Static Web Apps staging
+    # environment — three apps against a three-environment ceiling, which
+    # five open pull requests exhausted on 2026-08-28.
+    #
+    # Note this also gates close_pull_request_job, which fires on 'closed'.
+    # A pull request touching none of these paths never created a preview,
+    # so there is nothing for it to tear down.
+    paths:
+      - 'packages/frontend/**'
+      - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
+      - '.github/workflows/azure-frontend-acc.yml'
   workflow_dispatch:
+
+# Serialise deployments to one Azure Static Web Apps environment. Two
+# deployments at the same environment make Azure cancel one and report
+# "Deployment Canceled" on a job that did nothing wrong — seen on
+# 2026-08-29, two acc deploys 20 seconds apart. The group includes the ref,
+# so pull requests never cancel each other's previews, only their own
+# superseded runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Default to read-only; jobs opt into more only where required.
 permissions:
