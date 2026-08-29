@@ -94,14 +94,43 @@ Today a preview only demonstrates that static pages render. Allowing the preview
 origin, and adding matching Keycloak redirect URIs where auth is involved, would
 make preview deployments worth the three deploys each PR already costs.
 
-## 5. Consider `paths:` filters on the frontend workflows
+## 5. The `pull_request` trigger has no `paths:` filter
 
 `frontend-acc`, `pa-demo-acc` and `publicsite-acc` trigger on every pull request to
-`acc` regardless of what changed — a one-file config PR redeploys three sites. The
-backend workflows already filter correctly.
+`acc` regardless of what changed — a one-file config PR redeploys three sites, and
+each preview holds a Static Web Apps staging environment. With three apps and a
+three-environment ceiling, five open PRs exhausted the quota on 2026-08-28 and two
+Renovate PRs failed on `BadRequest … maximum number of staging environments`.
 
-Weigh this against the fact that a path filter is what makes item 6 possible; the
-answer may be narrower filters rather than more of them.
+**This is smaller than it looks.** The `paths:` blocks already exist and are
+correct — on the `push` trigger, including the `packages/pa-cockpit/**` dependency
+that a naive filter would have missed:
+
+```yaml
+on:
+  push:
+    branches: [acc]
+    paths: # ← already here, already right
+      - 'packages/frontend/**'
+      - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
+      - '.github/workflows/azure-frontend-acc.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [acc] # ← no paths: at all
+```
+
+So the work is **mirroring an existing correct filter onto `pull_request`**, not
+designing one.
+
+One wrinkle to think through rather than copy blindly: `close_pull_request_job`
+fires on the `closed` type. Once `pull_request` is filtered, a PR touching no
+frontend files will not run the close job either — which is right, since it never
+created a preview. But a PR that _did_ touch frontend files and then reverted them
+before merging could leave an environment stranded.
+
+Weigh this against item 6: a path filter is what makes that false positive
+possible, so the answer may be narrower filters rather than simply more of them.
 
 ## 6. A `package.json`-only change triggers the backend build
 
@@ -124,6 +153,16 @@ making "did it run" and "was it deployed" the same question.
 
 ## 7. Action major upgrades
 
+> **Done.** Shipped in `2026.08.33` (#21, #22, #23). `actions/checkout` →
+> `3d3c42e5` v7.0.1, `actions/setup-node` → `820762786` v7.0.0,
+> `actions/upload-artifact` → `043fb46d` v7.0.1. The Node-runtime deprecation is
+> closed: v7 declares node24 natively, where the pinned v4 actions targeted a
+> version the runner had begun force-upgrading.
+>
+> The checkout upgrade also covers `zizmor.yml`, so the audit gate now runs on
+> v7 — the one change whose failure would have been self-obscuring. It passed on
+> all three merges, verifying the upgrade by the mechanism it upgrades.
+
 Renovate offers `actions/checkout` v7, `actions/setup-node` v7 and
 `actions/upload-artifact` v7 on its dependency dashboard.
 
@@ -145,6 +184,50 @@ this was all built for.
 
 One line. It needs a release to ship, so it should ride with the next one rather
 than justify its own.
+
+## 9. The deploy workflows need a `concurrency:` group
+
+None of the deploy workflows declares one, so two merges within a few minutes send
+two deployments at the same Azure Static Web Apps environment and **Azure picks a
+loser** — reporting `Deployment Canceled` on a job that did nothing wrong.
+
+Observed while merging #21, #22 and #23 for `2026.08.33`:
+
+```
+35a7b0c  success   start 05:41:41   end 05:45:26
+9fe004c  failure   start 05:42:01   end 05:45:22   ← cancelled by Azure
+```
+
+Twenty seconds apart, same environment. Nothing was actually broken — zero files
+differ in `packages/public-site` between those two commits, so the successful run
+had already published the correct bytes — but the run history carried a red mark
+that reads like a real deployment failure, and clearing it took a manual
+`workflow_dispatch`.
+
+**The fix** is a `concurrency:` block per deploy workflow, so GitHub serialises
+them and cancels the _superseded_ run cleanly rather than letting Azure arbitrate:
+
+```yaml
+concurrency:
+  group: publicsite-acc
+  cancel-in-progress: true
+```
+
+Two things to get right when writing it:
+
+- **The group must be per environment, not per workflow file.** `acc` and `prod`
+  deploy to different Static Web Apps and must not cancel each other.
+- **Think about PR previews.** Each pull request deploys to its own preview
+  environment, so a group keyed only on the workflow would make two PRs cancel
+  each other's previews. The group likely needs the ref or PR number in it —
+  something like `${{ github.workflow }}-${{ github.ref }}`.
+
+This will recur, and more often as the Renovate queue drains: any two PRs merged
+in quick succession can produce a spurious failure on any of the three sites.
+
+**Do this alongside item 5** — it touches exactly the same workflow files, and
+both are about the `pull_request` half of those triggers behaving differently
+from the `push` half.
 
 ---
 
