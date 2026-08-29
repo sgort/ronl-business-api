@@ -209,6 +209,16 @@ than justify its own.
 >
 > The backend workflows are untouched — they build and upload an artifact and
 > never reach Azure, so no race exists there.
+>
+> **Corrected the same day.** The first key was
+> `${{ github.workflow }}-${{ github.ref }}`, which looked like it separated a
+> pull request from a push but did not: merging #25 fired the
+> `pull_request(closed)` teardown and the `push` deploy simultaneously, they
+> landed in one group, and each pair cancelled one of its two members at random —
+> two acc deploys skipped and one preview left standing. The key now reads
+> `${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}`,
+> which keys pull requests on their number and pushes on the ref, so the two can
+> never collide.
 
 None of the deploy workflows declares one, so two merges within a few minutes send
 two deployments at the same Azure Static Web Apps environment and **Azure picks a
