@@ -23,14 +23,18 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 
 ## Pinned
 
+**30 `uses:` references across 9 workflows, all 30 digest-pinned.** Verified on
+`acc` at `570f973`, 29 August 2026.
+
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                        |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
-| `actions/checkout` (×9)             | `11d5960a326750d5838078e36cf38b85af677262`          | v4.4.0            | Renovate                                                                             |
-| `actions/setup-node` (×8)           | `49933ea5288caeca8642d1e84afbd3f7d6820020`          | v4.4.0            | Renovate                                                                             |
+| `actions/checkout` (×9)             | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
+| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                             |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                         |
-| `actions/upload-artifact` (×2)      | `ea165f8d65b6e75b540449e92b4886f43607fa02`          | v4.6.2            | Renovate                                                                             |
+| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                             |
 | `zizmorcore/zizmor-action`          | `3dc1ecc9bcb9e94e9b2c709687979e1298497054`          | v0.6.2            | Renovate                                                                             |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | **manual** — an action input, which Renovate's github-actions manager does not parse |
+| `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                            |
 | npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                             |
 
 The zizmor pin is stronger than it looks: `zizmor-action` resolves the requested
@@ -94,11 +98,17 @@ open a routine-looking digest update reverting **all nine** references to
 old. Updates for this dependency are therefore disabled in `renovate.json`, with
 the reasoning recorded inline there too.
 
-### `node-version: '20'` floats — and disagrees with `.nvmrc`
+### `node-version` floats — and three sources disagree
 
-The workflows request `node-version: '20'`, which resolves to whatever 20.x
-`actions/setup-node` downloads at run time. Under a policy of "nothing a pipeline
-downloads may float", that is an exception.
+Eight of the nine workflows request `node-version: '20'`, which resolves to
+whatever 20.x `actions/setup-node` downloads at run time. Under a policy of
+"nothing a pipeline downloads may float", that is an exception.
+
+The ninth is deliberate and pinned differently: the `renovate-config-validator`
+step in `zizmor.yml` sets `node-version: '24'`, because `renovate@44.50.3`
+declares `engines.node ^24.11.0` and npm accepts a mismatch with an
+`EBADENGINE` **warning** rather than refusing — so the validator had been
+running unsupported and green.
 
 Worth recording alongside it: **`.nvmrc` says `22`** while CI builds on 20, and
 `package.json` declares `engines.node >= 20.13.0`. Developers therefore work on a
@@ -114,9 +124,19 @@ to agree.
 gates; nothing consumes the artifact they produce.
 
 The backend actually reaches acceptance and production through
-`deploy-backend-to-{acc,prod}.sh`, run from a developer machine. Those scripts
-are deliberately gitignored (`.gitignore`: `deploy-backend-to-*.sh`) and exist
-because a workflow-based App Service deploy could not be made to work. A
+`deploy-backend-to-{acc,prod}.sh`, run from a developer machine. They exist
+because a workflow-based App Service deploy could not be made to work.
+
+**`.gitignore` lists them, but two of the three are tracked anyway.**
+`.gitignore` carries `deploy-backend-to-*.sh`, which reads as though none of them
+is in the repository. In fact `deploy-backend-to-acc.sh` and
+`deploy-backend-to-prod.sh` are both **tracked** — an ignore rule does not
+untrack a file that was already committed. Only
+`deploy-backend-to-acc-portable.sh` is genuinely ignored. This matters for the
+register's purpose: the deployed dependency tree is resolved by a script whose
+contents are reviewable in git, not by a local file nobody else can see. That is
+better than the ignore rule implies, and worth stating accurately rather than
+repeating the tidier claim. A
 `-portable` variant exists alongside them: the original targets Ubuntu, while the
 portable one falls back to the bsdtar Windows bundles at `System32\tar.exe`,
 because Info-ZIP's `zip` cannot be installed on a managed Windows laptop.
@@ -149,10 +169,28 @@ nothing checks that this document still matches the workflows — Renovate updat
 pins and never touches it. A `scripts/check-supply-chain.mjs` preflight covering
 both is planned.
 
+**That second gap is not hypothetical — it already bit.** Between the v7 action
+upgrades (`2026.08.33`) and 29 August 2026, this document's Pinned table still
+listed the superseded v4 digests for `actions/checkout`, `actions/setup-node` and
+`actions/upload-artifact`. The workflows had moved; the register had not, and
+every gate stayed green throughout — which is exactly the failure mode described
+above.
+
+A second, quieter drift came with it: `setup-node` had gone from ×8 to ×9 when
+the `renovate-config-validator` step was added, and the `renovate@44.50.3` pin
+that step introduced was absent from the table entirely. A count is as easy to
+falsify as a digest, and neither the audit nor review catches it.
+
+The reconciliation was manual, prompted by a documentation review rather than by
+any check in this repository. Until the planned preflight exists, **treat "the
+register matches the workflows" as an assumption, not a guarantee** — and
+re-derive the table from the workflow files whenever a pin changes.
+
 **Production is not yet protected.** The `*-prod.yml` files are pinned by this
 change, but GitHub Actions runs the workflow file _from the branch being pushed_.
-`main` still carries unpinned copies and will keep using them until `acc` is
-promoted. Pinning the file is not the same as pinning the branch that runs it.
+Measured on `origin/main`, 29 August 2026: **4 workflows, 13 `uses:` references,
+0 digest-pinned.** `main` will keep using those copies until `acc` is promoted.
+Pinning the file is not the same as pinning the branch that runs it.
 
 ## Pending work
 
