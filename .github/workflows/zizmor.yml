@@ -45,3 +45,24 @@ jobs:
           # even with online-audits: false:
           #   error: invalid value '' for '--gh-token <GH_TOKEN>'
           # Learned the hard way in ttl-editor; do not retry it.
+
+      - name: Validate renovate.json
+        # Runs even when zizmor fails, so a single run reports on both halves
+        # of the policy rather than the first failure hiding the second.
+        if: always()
+        # Pinned like everything else here. A supply-chain check that fetched a
+        # floating version of its own tool would be self-defeating. Renovate's
+        # npm manager will NOT maintain this for us -- it is an inline npx
+        # argument, not a manifest entry -- so it is bumped by hand, alongside
+        # the zizmor version above.
+        #
+        # --strict also fails on configuration Renovate would silently
+        # auto-migrate. That is deliberate: it is how `baseBranches`, renamed
+        # upstream to `baseBranchPatterns`, was caught in linked-data-explorer
+        # rather than living on as a deprecated key that still "worked".
+        #
+        # No filename argument. Passing one switches the validator into global
+        # config mode, which applies different rules than the repository config
+        # this file actually is -- it will happily validate and tell you
+        # nothing useful.
+        run: npx --yes --package renovate@44.50.3 renovate-config-validator --strict
