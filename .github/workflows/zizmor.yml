@@ -24,6 +24,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up Node 24 for the config validator
+        # renovate@44.50.3 declares engines.node ^24.11.0; the runner's
+        # default is Node 22. npm accepts that with an EBADENGINE warning
+        # rather than refusing, so the validator ran unsupported and green
+        # -- the kind of mismatch that keeps working until it abruptly
+        # does not. Reuses the setup-node pin this repository already
+        # carries, so Renovate maintains one digest rather than two.
+        #
+        # Placed BEFORE the zizmor step deliberately: a step after a
+        # failing one is skipped, and the validator's `if: always()`
+        # would then run on whatever Node the runner defaulted to.
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
         with:
@@ -45,3 +59,24 @@ jobs:
           # even with online-audits: false:
           #   error: invalid value '' for '--gh-token <GH_TOKEN>'
           # Learned the hard way in ttl-editor; do not retry it.
+
+      - name: Validate renovate.json
+        # Runs even when zizmor fails, so a single run reports on both halves
+        # of the policy rather than the first failure hiding the second.
+        if: always()
+        # Pinned like everything else here. A supply-chain check that fetched a
+        # floating version of its own tool would be self-defeating. Renovate's
+        # npm manager will NOT maintain this for us -- it is an inline npx
+        # argument, not a manifest entry -- so it is bumped by hand, alongside
+        # the zizmor version above.
+        #
+        # --strict also fails on configuration Renovate would silently
+        # auto-migrate. That is deliberate: it is how `baseBranches`, renamed
+        # upstream to `baseBranchPatterns`, was caught in linked-data-explorer
+        # rather than living on as a deprecated key that still "worked".
+        #
+        # No filename argument. Passing one switches the validator into global
+        # config mode, which applies different rules than the repository config
+        # this file actually is -- it will happily validate and tell you
+        # nothing useful.
+        run: npx --yes --package renovate@44.50.3 renovate-config-validator --strict
