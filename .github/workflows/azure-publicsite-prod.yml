@@ -9,6 +9,14 @@ on:
       - '.github/workflows/azure-publicsite-prod.yml'
   workflow_dispatch:
 
+# Same serialisation as the acc workflow, but production runs QUEUE rather
+# than cancel: interrupting a live production deployment to start another
+# is worse than waiting for it. Production deploys are rare enough that
+# the wait costs nothing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Default to read-only; jobs opt into more only where required.
 permissions:
   contents: read
