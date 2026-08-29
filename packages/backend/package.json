@@ -35,7 +35,7 @@
   "author": "RONL Team",
   "license": "EUPL-1.2",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.122.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@ronl/shared": "*",
     "altcha-lib": "^2.2.0",
