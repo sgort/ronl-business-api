@@ -412,6 +412,22 @@ gh pr create --base acc --title "chore: bump release to v<version>" --body "..."
   Use `-d`, not `-D` — it only succeeds when the branch is fully merged. If it
   refuses, stop and investigate rather than forcing it.
 
+- **Confirm the branch is gone from the remote too.** `gh pr merge --delete-branch`
+  removes both copies, and both repositories now have `delete_branch_on_merge`
+  enabled so a merge through the GitHub UI does the same. But a release merged some
+  other way leaves the remote branch behind — `chore/release-2026-08-33` survived
+  exactly that way, and was only noticed later:
+
+  ```bash
+  git fetch origin --prune
+  git ls-remote --heads origin '<working-branch>'   # expect no output
+  git push origin --delete <working-branch>          # only if it survived
+  ```
+
+  A stale merged branch is harmless on its own. They accumulate, and every one of
+  them makes it harder to see which branches are genuinely in flight — which is the
+  question step 0 has to answer at the next release.
+
 ### Why this changed
 
 Through v2026.08.x this step fast-forwarded `acc` locally and asked separately
