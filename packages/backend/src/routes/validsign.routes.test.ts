@@ -351,6 +351,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
       status: 'sent',
       packageId: 'pkg-1',
       signingUrl: '/v1/validsign/stub/ceremony/pkg-1',
+      stubMode: true,
     });
   });
 
@@ -359,7 +360,24 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
     mockGetTaskVariables.mockResolvedValue({});
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ required: true, templateId: 'tpl-1', status: 'none' });
+    expect(res.body.data).toEqual({
+      required: true,
+      templateId: 'tpl-1',
+      status: 'none',
+      stubMode: true,
+    });
+  });
+
+  it('reports stubMode false when the backend is live, so a caller can refuse up front', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
+    mockGetTaskVariables.mockResolvedValue({});
+    mockValidsign.isStub = false;
+    try {
+      const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
+      expect(res.body.data.stubMode).toBe(false);
+    } finally {
+      mockValidsign.isStub = true;
+    }
   });
 
   it('401 without a token', async () => {

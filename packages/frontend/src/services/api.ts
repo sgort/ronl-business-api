@@ -718,6 +718,8 @@ export type SignatureStatus = 'none' | 'sent' | 'completed' | 'declined' | 'fail
 
 export interface SignatureSpec {
   required: boolean;
+  /** True when the backend is in ValidSign stub mode -- signatures are not binding. */
+  stubMode?: boolean;
   templateId?: string;
   status?: SignatureStatus;
   packageId?: string;

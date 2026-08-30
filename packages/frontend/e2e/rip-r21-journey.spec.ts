@@ -426,15 +426,50 @@ async function openInstanceDetail(page: Page) {
  * credentials" from a real signature request into a clean test failure.
  */
 async function signPhaseApproval(page: Page, name: string): Promise<void> {
+  const panel = page.locator('.pb-sign-panel');
+  await expect(panel, `signing panel for "${name}" never rendered`).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // Refuse BEFORE asking for anything. The ceremony-URL check further down
+  // also catches a live backend, but only after POST /task/:id/package has
+  // created a REAL ValidSign package, which then sits unsigned against the
+  // licence -- the guard stopped the signature, not the request. The panel
+  // publishes the backend's mode (SigningPanel, from the spec endpoint) so
+  // this can be settled while nothing has been created yet.
   await expect(
-    page.locator('.pb-sign-panel'),
-    `signing panel for "${name}" never rendered`
-  ).toBeVisible({ timeout: 20_000 });
+    panel,
+    'refusing to request a LIVE ValidSign signature from a test — set ' +
+      'VALIDSIGN_STUB_MODE=true and restart the backend'
+  ).toHaveAttribute('data-validsign-stub', 'true');
 
   await page.getByRole('button', { name: 'Onderteken nu' }).click();
 
   const frame = page.locator('iframe.pb-sign-frame');
-  await expect(frame, 'the ceremony iframe never appeared').toBeVisible({ timeout: 30_000 });
+  // SigningPanel's error state, which replaces the panel entirely.
+  const failure = page.locator('.v2-taken-msg-error');
+
+  // Race the two outcomes rather than waiting only for the iframe. Requesting
+  // a signature can end in an error box instead of a ceremony -- which is what
+  // a LIVE backend produced when this was first run in live mode -- and a
+  // plain wait on the iframe then fails 30s later with "never appeared",
+  // reporting the symptom while hiding both the reason and the message the
+  // signer would have seen on screen.
+  await expect(
+    frame.or(failure),
+    'neither a ceremony iframe nor an error appeared after requesting a signature. ' +
+      'If the backend is running with VALIDSIGN_STUB_MODE=false, set it to true and ' +
+      'restart: this test must never drive a live ValidSign ceremony.'
+  ).toBeVisible({ timeout: 30_000 });
+
+  if (await failure.isVisible().catch(() => false)) {
+    const shown = (await failure.innerText()).replace(/\s+/g, ' ').trim();
+    throw new Error(
+      `the signing panel reported an error instead of opening a ceremony: "${shown}". ` +
+        'If the backend is running with VALIDSIGN_STUB_MODE=false, set it to true and ' +
+        'restart: this test must never drive a live ValidSign ceremony.'
+    );
+  }
 
   expect(
     await frame.getAttribute('src'),

@@ -24,6 +24,34 @@ describe('SigningPanel', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('publishes the backend mode on the panel, so a test can refuse before requesting', () => {
+    const { container, rerender } = render(
+      <SigningPanel taskId="t1" spec={{ ...spec, stubMode: true }} onCompleted={vi.fn()} />
+    );
+    expect(container.querySelector('.pb-sign-panel')).toHaveAttribute(
+      'data-validsign-stub',
+      'true'
+    );
+
+    // The distinction that matters: the E2E journey refuses to click when this
+    // is anything but "true", because by the time a live ceremony URL exists a
+    // real ValidSign package has already been created against the licence.
+    rerender(
+      <SigningPanel taskId="t1" spec={{ ...spec, stubMode: false }} onCompleted={vi.fn()} />
+    );
+    expect(container.querySelector('.pb-sign-panel')).toHaveAttribute(
+      'data-validsign-stub',
+      'false'
+    );
+
+    // An older backend omits the field entirely; that must not read as stub.
+    rerender(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} />);
+    expect(container.querySelector('.pb-sign-panel')).toHaveAttribute(
+      'data-validsign-stub',
+      'false'
+    );
+  });
+
   it('offers both delivery routes before anything is created', () => {
     render(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} />);
     expect(screen.getByRole('button', { name: /Onderteken nu/ })).toBeTruthy();

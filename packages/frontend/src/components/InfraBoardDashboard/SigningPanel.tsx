@@ -160,7 +160,11 @@ export default function SigningPanel({ taskId, spec, onCompleted }: Props) {
 
   if (state === 'idle') {
     return (
-      <div className="pb-sign-panel">
+      // data-validsign-stub is read by the E2E journey, which refuses to
+      // request a signature at all unless the backend is in stub mode --
+      // checked here, in the state where the choice is made, because by the
+      // time a live ceremony URL is visible a real package already exists.
+      <div className="pb-sign-panel" data-validsign-stub={spec.stubMode ? 'true' : 'false'}>
         <p className="pb-sign-intro">Deze taak vereist een digitale handtekening.</p>
         <div className="pb-sign-actions">
           <button type="button" className="v2-btn" onClick={() => start('embedded')}>

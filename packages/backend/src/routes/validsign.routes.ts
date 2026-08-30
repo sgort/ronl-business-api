@@ -608,6 +608,12 @@ router.get('/task/:taskId/spec', async (req, res) => {
         required: true,
         templateId: spec.templateId,
         status,
+        // Reported so a caller can tell a stub signature from a binding one
+        // BEFORE asking for it. The E2E journey refuses to run against a live
+        // backend on the strength of this: its later check on the ceremony
+        // URL catches a live ceremony too, but only after a real ValidSign
+        // package has been created and left unsigned against the licence.
+        stubMode: validsignService.isStub,
         ...(packageId ? { packageId } : {}),
         ...(signingUrl ? { signingUrl } : {}),
       },
