@@ -18,6 +18,8 @@ file is the pending work.
 
 ## 1. Pin the backend deploy bundle's dependencies
 
+> Tracked as [#34](https://github.com/sgort/ronl-business-api/issues/34).
+
 The widest floating surface in the repository, and the only one on this list that
 is both reachable from our side and about what actually ships.
 
@@ -43,6 +45,8 @@ same treatment, or it will fail resolving a package that does not exist on the
 registry.
 
 ## 2. Move the backend deploy into a workflow
+
+> Tracked as [#35](https://github.com/sgort/ronl-business-api/issues/35).
 
 `azure-backend-{acc,prod}.yml` build, test, package a zip and call
 `upload-artifact`. **Neither has a deploy step**; nothing consumes the artifact.
@@ -82,6 +86,8 @@ since a workflow-based deploy would install from the lockfile in CI.
 
 ## 3. Pin the Node runtime
 
+> Tracked as [#36](https://github.com/sgort/ronl-business-api/issues/36).
+
 The workflows request `node-version: '20'`, which resolves to whatever 20.x
 `actions/setup-node` downloads at run time. Under a policy of "nothing a pipeline
 downloads may float", that is an exception.
@@ -99,6 +105,8 @@ artifact. `node-version-file: .nvmrc` would settle it in one place — once the
 three are meant to agree, which is the question to answer first.
 
 ## 4. Make PR previews worth opening
+
+> Tracked as [#37](https://github.com/sgort/ronl-business-api/issues/37).
 
 A preview frontend gets an ephemeral `*.azurestaticapps.net` origin that is not in
 the backend's `CORS_ORIGIN` allowlist, and `VITE_API_URL` is baked in at build
@@ -159,6 +167,8 @@ possible, so the answer may be narrower filters rather than simply more of them.
 
 ## 6. A `package.json`-only change triggers the backend build
 
+> Tracked as [#38](https://github.com/sgort/ronl-business-api/issues/38).
+
 `azure-backend-acc.yml` is path-filtered on `packages/backend/**`, which matches
 `package.json`. Adding a script or bumping `engines` fires a full backend build
 even though no source changed, and — because the habit is to run the deploy script
@@ -197,6 +207,8 @@ what closes the Node-runtime deprecation path — the pilot repo hit a warning t
 its pinned actions target a Node version the runner now force-upgrades.
 
 ## 8. Remove `dependencyDashboardApproval` from `renovate.json`
+
+> Tracked as draft PR [#20](https://github.com/sgort/ronl-business-api/pull/20), open since 2026-08-28.
 
 Set during adoption so Renovate raised nothing while the same workflow files were
 being pinned on a branch — two agents editing the same `uses:` lines would have
