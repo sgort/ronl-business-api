@@ -90,6 +90,7 @@ const ALL_OVERRIDES: Record<string, string> = {
   EDOCS_USER_ID: 'edocs-user',
   EDOCS_PASSWORD: 'edocs-pass',
   EDOCS_STUB_MODE: 'false',
+  EDOCS_DEPARTMENT: 'OTHERAFD',
   EDOCS_MCP_ENABLED: 'true',
   EDOCS_MCP_CLIENT_ID: 'other-mcp-client',
   EDOCS_MCP_CLIENT_SECRET: 'mcp-secret',
@@ -215,6 +216,7 @@ describe('config defaults (empty environment)', () => {
       userId: '',
       password: '',
       stubMode: true,
+      department: 'IVR',
     });
     expect(config.edocsMcp).toEqual({
       enabled: false,
@@ -337,6 +339,7 @@ describe('config overrides (every variable set)', () => {
       userId: 'edocs-user',
       password: 'edocs-pass',
       stubMode: false,
+      department: 'OTHERAFD',
     });
     expect(config.edocsMcp).toEqual({
       enabled: true,

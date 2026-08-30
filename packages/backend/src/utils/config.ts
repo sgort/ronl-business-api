@@ -55,7 +55,19 @@ function resolveDeploymentEnv(): string {
 
 interface Config {
   nodeEnv: string;
-  /** Deployment tier for display/reporting only — never branch on this. */
+  /**
+   * Deployment tier. Display and reporting only — do not branch on this to
+   * change behaviour, or ACC stops behaving like production, which is the
+   * point of an acceptance environment.
+   *
+   * One deliberate exception: VALIDSIGN_LIVE_TIERS gates real ValidSign
+   * package creation on this value. The ValidSign licence is
+   * production-only with no sandbox tenant and its API key is account-wide,
+   * so a tier that has not been explicitly allowlisted must not be able to
+   * fire real signatures. The gate is an allowlist, not a hardcoded ACC
+   * exclusion: add 'acceptance' to VALIDSIGN_LIVE_TIERS and ACC signs for
+   * real like production does.
+   */
   deploymentEnv: string;
   port: number;
   host: string;
@@ -127,6 +139,7 @@ interface Config {
     userId: string;
     password: string;
     stubMode: boolean;
+    department: string;
   };
   edocsMcp: {
     enabled: boolean;
@@ -191,6 +204,15 @@ interface Config {
     cacheTtlAgenda: number;
     cacheTtlStatic: number;
     seedDemoData: boolean;
+  };
+  validsign: {
+    baseUrl: string;
+    apiKey: string;
+    senderEmail: string;
+    stubMode: boolean;
+    callbackSecret: string;
+    liveTiers: string[];
+    pollIntervalMs: number;
   };
 }
 
@@ -297,6 +319,14 @@ export const config: Config = {
     userId: process.env.EDOCS_USER_ID ?? '',
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
+    // UV_AFD_NAAM profile field on the DM server -- a property of the eDOCS
+    // environment, not of the project/instance doing the archiving (see
+    // EDOCS_DEPARTMENT in .env.example for why this must not come from a
+    // process variable). 'IVR' is the value proven to work against the live
+    // test server, so a developer with no extra configuration still gets a
+    // working archive. Not required: an empty value degrades to an upload
+    // failure per document, not a startup failure.
+    department: process.env.EDOCS_DEPARTMENT ?? 'IVR',
   },
 
   edocsMcp: {
@@ -376,6 +406,17 @@ export const config: Config = {
     // SEED_DOSSIERS examples. See pa-dossiers.db.ts.
     seedDemoData: parseEnvBool(process.env.PA_SEED_DEMO_DATA, false),
   },
+
+  validsign: {
+    baseUrl: process.env.VALIDSIGN_BASE_URL || 'https://my.validsign.eu/api',
+    apiKey: process.env.VALIDSIGN_API_KEY ?? '',
+    senderEmail: process.env.VALIDSIGN_SENDER_EMAIL ?? '',
+    stubMode: parseEnvBool(process.env.VALIDSIGN_STUB_MODE, true),
+    callbackSecret: process.env.VALIDSIGN_CALLBACK_SECRET ?? '',
+    // Empty by default: no tier may create real packages until one is named.
+    liveTiers: parseEnvArray(process.env.VALIDSIGN_LIVE_TIERS, []),
+    pollIntervalMs: parseEnvInt(process.env.VALIDSIGN_POLL_INTERVAL_MS, 15000),
+  },
 };
 
 // Validate required configuration
@@ -402,6 +443,23 @@ function validateConfig() {
 
   if (!config.anthropic.apiKey) {
     errors.push('ANTHROPIC_API_KEY is required');
+  }
+
+  // Only when live signing is switched on. Unconditional requirements here
+  // would break every test: validateConfig() runs on import with no test skip.
+  if (!config.validsign.stubMode) {
+    if (!config.validsign.apiKey) {
+      errors.push('VALIDSIGN_API_KEY is required when VALIDSIGN_STUB_MODE=false');
+    }
+    if (!config.validsign.callbackSecret) {
+      errors.push('VALIDSIGN_CALLBACK_SECRET is required when VALIDSIGN_STUB_MODE=false');
+    }
+    if (!config.validsign.liveTiers.includes(config.deploymentEnv)) {
+      errors.push(
+        `DEPLOYMENT_ENV="${config.deploymentEnv}" is not in VALIDSIGN_LIVE_TIERS — ` +
+          'refusing to start with live signing enabled on an unlisted tier'
+      );
+    }
   }
 
   if (errors.length > 0) {

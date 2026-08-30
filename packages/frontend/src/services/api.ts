@@ -259,6 +259,55 @@ export const businessApi = {
     },
   },
 
+  validsign: {
+    taskSpec: async (taskId: string): Promise<ApiResponse<SignatureSpec>> => {
+      try {
+        const response = await api.get<ApiResponse<SignatureSpec>>(
+          `/validsign/task/${taskId}/spec`
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<SignatureSpec>;
+        }
+        throw error;
+      }
+    },
+    createPackage: async (
+      taskId: string,
+      delivery: 'embedded' | 'email'
+    ): Promise<ApiResponse<{ packageId: string; signingUrl?: string; sentTo?: string }>> => {
+      try {
+        const response = await api.post<
+          ApiResponse<{ packageId: string; signingUrl?: string; sentTo?: string }>
+        >(`/validsign/task/${taskId}/package`, { delivery });
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<{
+            packageId: string;
+            signingUrl?: string;
+            sentTo?: string;
+          }>;
+        }
+        throw error;
+      }
+    },
+    status: async (taskId: string): Promise<ApiResponse<{ status: SignatureStatus }>> => {
+      try {
+        const response = await api.get<ApiResponse<{ status: SignatureStatus }>>(
+          `/validsign/task/${taskId}/status`
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<{ status: SignatureStatus }>;
+        }
+        throw error;
+      }
+    },
+  },
+
   rip: {
     phase1Active: async (): Promise<
       ApiResponse<
@@ -663,4 +712,16 @@ export interface ProcessBundle {
   deployedForms: BundleDeployedForm[];
   deployedDocuments: BundleDeployedDocument[];
   subprocesses: BundleSubprocess[];
+}
+
+export type SignatureStatus = 'none' | 'sent' | 'completed' | 'declined' | 'failed';
+
+export interface SignatureSpec {
+  required: boolean;
+  /** True when the backend is in ValidSign stub mode -- signatures are not binding. */
+  stubMode?: boolean;
+  templateId?: string;
+  status?: SignatureStatus;
+  packageId?: string;
+  signingUrl?: string;
 }

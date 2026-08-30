@@ -19,15 +19,28 @@ vi.mock('../../services/infra.api', async (importOriginal) => {
   };
 });
 
+const mockTaskSpec = vi.hoisted(() => vi.fn());
 const mockBusinessApi = vi.hoisted(() => ({
   task: {
     variables: vi.fn().mockResolvedValue({ success: true, data: {} }),
     claim: vi.fn(),
   },
+  validsign: {
+    taskSpec: mockTaskSpec,
+    createPackage: vi.fn(),
+    status: vi.fn(),
+  },
 }));
 vi.mock('../../services/api', () => ({ businessApi: mockBusinessApi }));
 
-vi.mock('../CaseworkerDashboard/TaskFormViewer', () => ({ default: () => <div>task-form</div> }));
+vi.mock('../CaseworkerDashboard/TaskFormViewer', () => ({
+  default: ({ onCompleted }: { onCompleted: () => void }) => (
+    <div data-testid="task-form-viewer">
+      task-form
+      <button onClick={onCompleted}>stub-complete</button>
+    </div>
+  ),
+}));
 vi.mock('../CaseworkerDashboard/ProcessVarsSection', () => ({ default: () => null }));
 
 beforeEach(() => {
@@ -45,6 +58,7 @@ beforeEach(() => {
   });
   mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
   mockBusinessApi.task.claim.mockResolvedValue({ success: true });
+  mockTaskSpec.mockResolvedValue({ success: true, data: { required: false } });
 });
 
 afterEach(() => {
@@ -142,5 +156,114 @@ describe('ProjectDetail — live instance with open tasks', () => {
 
     await waitFor(() => expect(mockBusinessApi.task.claim).toHaveBeenCalledWith('task-1'));
     expect(await screen.findByText('task-form')).toBeInTheDocument();
+  });
+
+  it('keeps the completion confirmation visible after the task panel closes', async () => {
+    // Completing a task unmounts the panel it was worked in. The confirmation
+    // used to be set inside that panel, so it was destroyed in the same tick
+    // and never painted — a user completed a task and saw nothing acknowledge
+    // it. It now lives on the parent, which survives.
+    const user = userEvent.setup();
+    mockUseOpenTasks.mockReturnValue({
+      data: [
+        {
+          id: 'task-1',
+          name: 'Aanleveren Projectplan',
+          created: '2026-01-01T00:00:00Z',
+          executionId: 'e1',
+          processDefinitionId: 'RipR21Process:1:def',
+          processDefinitionKey: 'RipR21Process',
+          processInstanceId: 'pi-1',
+          taskDefinitionKey: 'Task_AanlevrenProjectplan',
+          assignee: 'test-infra-flevoland',
+          suspended: false,
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
+    await user.click(
+      screen.getByText('Aanleveren Projectplan', { selector: '.pb-taken-item-name' })
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'stub-complete' }));
+
+    // The panel is gone...
+    await waitFor(() => expect(screen.queryByText('task-form')).not.toBeInTheDocument());
+    // ...and the confirmation naming the task is not.
+    expect(screen.getByText(/Taak voltooid: Aanleveren Projectplan/)).toBeInTheDocument();
+  });
+
+  it('clears a stale confirmation when another task is opened', async () => {
+    const user = userEvent.setup();
+    mockUseOpenTasks.mockReturnValue({
+      data: [
+        {
+          id: 'task-1',
+          name: 'Aanleveren Projectplan',
+          created: '2026-01-01T00:00:00Z',
+          executionId: 'e1',
+          processDefinitionId: 'RipR21Process:1:def',
+          processDefinitionKey: 'RipR21Process',
+          processInstanceId: 'pi-1',
+          taskDefinitionKey: 'Task_AanlevrenProjectplan',
+          assignee: 'test-infra-flevoland',
+          suspended: false,
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
+    const item = screen.getByText('Aanleveren Projectplan', { selector: '.pb-taken-item-name' });
+
+    await user.click(item);
+    await user.click(await screen.findByRole('button', { name: 'stub-complete' }));
+    expect(screen.getByText(/Taak voltooid:/)).toBeInTheDocument();
+
+    // Reopening leaves the previous task's confirmation standing over the new
+    // one's form, which would read as "this one is done" when it is not.
+    await user.click(item);
+    await waitFor(() => expect(screen.queryByText(/Taak voltooid:/)).not.toBeInTheDocument());
+  });
+
+  it('still renders the ordinary task form when the task needs no signature', async () => {
+    // Every non-signing task in the app flows through this branch — breaking
+    // it breaks the whole board, not just the signing feature.
+    const user = userEvent.setup();
+    mockTaskSpec.mockResolvedValue({ success: true, data: { required: false } });
+    mockUseOpenTasks.mockReturnValue({
+      data: [
+        {
+          id: 'task-1',
+          name: 'Aanleveren Projectplan',
+          created: '2026-01-01T00:00:00Z',
+          executionId: 'e1',
+          processDefinitionId: 'RipR21Process:1:def',
+          processDefinitionKey: 'RipR21Process',
+          processInstanceId: 'pi-1',
+          taskDefinitionKey: 'Task_AanlevrenProjectplan',
+          suspended: false,
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const liveRef = { nr: '99999', instanceId: 'pi-1' };
+
+    render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+    await user.click(
+      screen.getByText('Aanleveren Projectplan', { selector: '.pb-taken-item-name' })
+    );
+    await user.click(await screen.findByRole('button', { name: 'Taak claimen' }));
+
+    await waitFor(() => expect(screen.getByTestId('task-form-viewer')).toBeTruthy());
+    expect(document.querySelector('.pb-sign-frame')).toBeNull();
   });
 });

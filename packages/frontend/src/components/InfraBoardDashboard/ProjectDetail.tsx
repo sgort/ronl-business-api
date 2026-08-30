@@ -10,10 +10,12 @@ import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.c
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
 import { useActivityHistory, usePhase1Documents, useOpenTasks } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
+import type { SignatureSpec } from '../../services/api';
 import type { Task } from '@ronl/shared';
 import Fase1Swimlane from './Fase1Swimlane';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
+import SigningPanel from './SigningPanel';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -52,20 +54,36 @@ function deriveMockStatus(project: PortfolioProject | undefined): Record<string,
 }
 
 /** Inline claim + complete panel for a single Operaton task. */
-function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
+function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task) => void }) {
   const [claiming, setClaiming] = useState(false);
   const [isClaimed, setIsClaimed] = useState(!!task.assignee);
   const [variables, setVariables] = useState<Record<string, unknown> | null>(null);
+  const [sig, setSig] = useState<SignatureSpec | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  // Always fetch process variables on mount so they're visible before claiming.
+  // Always fetch process variables AND the signing spec on mount so they're
+  // visible before claiming — one extra request per OPENED task, never per
+  // listed task. allSettled, not all: a blip in the (new) signature spec
+  // endpoint must not blank the (long-working) variables display for every
+  // ordinary, non-signing task — each result degrades independently, so a
+  // failed spec fetch just falls back to "no signature required" instead of
+  // discarding variables that already came back fine.
   useEffect(() => {
     setDetailLoading(true);
-    businessApi.task.variables(task.id).then((res) => {
-      if (res.success) setVariables(res.data as Record<string, unknown>);
-      setDetailLoading(false);
-    });
+    Promise.allSettled([
+      businessApi.task.variables(task.id),
+      businessApi.validsign.taskSpec(task.id),
+    ])
+      .then(([varsResult, sigResult]) => {
+        if (varsResult.status === 'fulfilled' && varsResult.value.success) {
+          setVariables(varsResult.value.data as Record<string, unknown>);
+        }
+        if (sigResult.status === 'fulfilled' && sigResult.value.success && sigResult.value.data) {
+          setSig(sigResult.value.data);
+        }
+      })
+      .finally(() => setDetailLoading(false));
   }, [task.id]);
 
   const claim = async () => {
@@ -129,14 +147,19 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
           <button type="button" className="v2-btn" onClick={claim} disabled={claiming}>
             {claiming ? 'Claimen…' : 'Taak claimen'}
           </button>
+        ) : sig?.required ? (
+          // No completion message here either, for the same reason as below:
+          // onDone unmounts this panel, so anything set alongside it dies in
+          // the same tick and never paints. The parent owns the confirmation.
+          <SigningPanel taskId={task.id} spec={sig} onCompleted={() => onDone(task)} />
         ) : (
           <TaskFormViewer
             taskId={task.id}
             variables={variables}
-            onCompleted={() => {
-              setMsg({ type: 'ok', text: 'Taak voltooid.' });
-              onDone();
-            }}
+            // No success message here: onDone unmounts this panel, so anything
+            // set alongside it is destroyed in the same tick and never paints.
+            // The parent owns the confirmation instead, because it survives.
+            onCompleted={() => onDone(task)}
             onError={() => setMsg({ type: 'err', text: 'Opslaan mislukt.' })}
           />
         )}
@@ -160,6 +183,8 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
     ? (allTasks ?? []).filter((t) => t.processInstanceId === projectRef.instanceId)
     : [];
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  /** Last completed task, kept so the confirmation outlives the panel. */
+  const [justCompleted, setJustCompleted] = useState<string | null>(null);
   const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
 
   // live instances are always in Fase 1 (R2.1); mock rows carry their own phase.
@@ -312,13 +337,21 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
           <div className="pb-taken-head">
             <h3>Open taken ({instanceTasks.length})</h3>
           </div>
+          {justCompleted && (
+            <div className="v2-taken-msg v2-taken-msg-success" role="status">
+              Taak voltooid: {justCompleted}
+            </div>
+          )}
           <div className="pb-taken-list">
             {instanceTasks.map((t) => (
               <button
                 type="button"
                 key={t.id}
                 className={`pb-taken-item ${selectedTaskId === t.id ? 'active' : ''}`}
-                onClick={() => setSelectedTaskId((prev) => (prev === t.id ? null : t.id))}
+                onClick={() => {
+                  setJustCompleted(null);
+                  setSelectedTaskId((prev) => (prev === t.id ? null : t.id));
+                }}
               >
                 <span className="pb-taken-item-name">{t.name}</span>
                 <span className={`v2-taken-pill ${t.assignee ? 'claimed' : 'open'}`}>
@@ -331,7 +364,8 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
             <TaskWorkPanel
               key={selectedTask.id}
               task={selectedTask}
-              onDone={() => {
+              onDone={(completed) => {
+                setJustCompleted(completed.name);
                 setSelectedTaskId(null);
                 reloadTasks();
                 reloadHistory();

@@ -59,9 +59,44 @@ function validateToken(token: string): Promise<JWTPayload> {
 }
 
 /**
+ * Split a full name into (firstName, remainder) on the FIRST space only.
+ * Splitting on the last space would mangle a Dutch surname with internal
+ * spaces: "Jan van der Berg" must give firstName "Jan", lastName
+ * "van der Berg", not lastName "Berg".
+ */
+function splitName(fullName: string | undefined): { givenName?: string; familyName?: string } {
+  if (!fullName) return {};
+  const trimmed = fullName.trim();
+  if (!trimmed) return {};
+  const spaceIndex = trimmed.indexOf(' ');
+  if (spaceIndex === -1) return { givenName: trimmed };
+  return {
+    givenName: trimmed.slice(0, spaceIndex),
+    familyName: trimmed.slice(spaceIndex + 1).trim(),
+  };
+}
+
+/**
+ * Prefer the real given_name/family_name claims when the realm's protocol
+ * mappers supply BOTH; a token carrying only one of the two is treated as
+ * not having them, so a half-empty name is never sent -- fall back to
+ * splitting displayName/preferred_username on the first space instead. Not
+ * every realm maps these claims (this app's own client did not, until a
+ * real token was checked), so the split must survive as a genuine fallback,
+ * not dead code.
+ */
+function resolveName(payload: JWTPayload): { givenName?: string; familyName?: string } {
+  if (payload.given_name && payload.family_name) {
+    return { givenName: payload.given_name, familyName: payload.family_name };
+  }
+  return splitName(payload.name ?? payload.preferred_username);
+}
+
+/**
  * Extract authenticated user from JWT payload
  */
 function extractUser(payload: JWTPayload): AuthenticatedUser {
+  const { givenName, familyName } = resolveName(payload);
   return {
     userId: payload.sub,
     tenantId: payload.municipality,
@@ -72,6 +107,9 @@ function extractUser(payload: JWTPayload): AuthenticatedUser {
     displayName: payload.name,
     preferredUsername: payload.preferred_username,
     employeeId: payload.employeeId,
+    email: payload.email,
+    givenName,
+    familyName,
   };
 }
 

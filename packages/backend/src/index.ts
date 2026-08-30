@@ -2,6 +2,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { rateLimitKey } from '@utils/client-ip';
 import { config } from '@utils/config';
 import logger, { createLogger } from '@utils/logger';
 import healthRoutes from '@routes/health.routes';
@@ -17,7 +18,12 @@ import capacityRoutes from './routes/capacity.routes';
 import ripRoutes from './routes/rip.routes';
 import edocsRoutes from './routes/edocs.routes';
 import doccleRoutes from './routes/doccle.routes';
+import validsignRoutes, {
+  callbackRouter as validsignCallbackRoutes,
+  isCallbackPath,
+} from './routes/validsign.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
+import { validsignPoller } from '@services/validsignPoller.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { EdocsMcpProvider } from '@services/mcp/EdocsMcpProvider';
 import { OperatonMcpProvider } from '@services/mcp/OperatonMcpProvider';
@@ -91,18 +97,37 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => {
-    if (config.rateLimit.perTenant && req.user) {
-      return `${req.user.tenantId}:${req.ip}`;
-    }
-    return req.ip || 'unknown';
-  },
+  // req.ip is not a client identity on its own: with TRUST_PROXY on, Express
+  // reads it from X-Forwarded-For, and Azure writes that as address:port. The
+  // port is per connection, so keying on it raw handed every new connection a
+  // fresh budget. See utils/client-ip.ts.
+  keyGenerator: (req: Request) =>
+    rateLimitKey(req.ip, config.rateLimit.perTenant ? req.user?.tenantId : undefined),
+  // ValidSign's callback must not share the board's IP bucket. The limiter is
+  // global and IP-keyed, and with TRUST_PROXY=false every client behind one
+  // proxy shares ONE budget — so a busy board could 429 the callback and
+  // silently drop a signature. It gets its own limiter in validsign.routes.ts.
+  skip: (req: Request) => isCallbackPath(req.path),
 });
 
 app.use(limiter);
 
-// Body parsing
-app.use(express.json({ limit: '1mb' }));
+// Body parsing.
+// The ValidSign callback (/v1/validsign/callback) is exempted from the JSON
+// parser here and parses its own body instead, with its own tighter limit
+// and its own error handler that answers 400 rather than the app-wide 500
+// on a malformed/oversized body (see validsign.routes.ts). That only works
+// if the parse failure originates INSIDE that router: Express skips a
+// mounted sub-router entirely once an error has occurred upstream of it, so
+// if this global parser were the one to throw, the router's own error
+// handler would never be reached and the request would fall through to the
+// generic catch-all below -- which returns 500, telling ValidSign to retry
+// forever.
+const jsonParser = express.json({ limit: '1mb' });
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (isCallbackPath(req.path)) return next();
+  jsonParser(req, res, next);
+});
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Request logging
@@ -172,6 +197,10 @@ app.use('/v1/hr-capacity', capacityRoutes);
 app.use('/v1/rip', ripRoutes);
 app.use('/v1/edocs', edocsRoutes);
 app.use('/v1/doccle', doccleRoutes);
+// The callback router mounts on its own, BEFORE any auth: ValidSign carries no
+// token. The authenticated router applies jwtMiddleware internally.
+app.use('/v1/validsign', validsignCallbackRoutes);
+app.use('/v1/validsign', validsignRoutes);
 app.use('/v1/pa', paRoutes);
 app.use('/v1/pa', paDossiersRoutes);
 app.use('/v1/media-aggregator', mediaAggregatorRoutes);
@@ -251,6 +280,17 @@ const startServer = async () => {
 
   externalTaskWorker.start();
 
+  // Unconditional, like externalTaskWorker above: the primary path in local
+  // development (ValidSign's cloud cannot reach localhost, so its webhook
+  // never arrives) and the safety net in production. Gating it on stub mode
+  // or the live-tiers allowlist would risk it silently never starting, which
+  // for this poller means a completed signature can be stranded with nothing
+  // in the logs to explain why. When there is nothing awaiting a signature —
+  // including throughout stub mode, where the ceremony completes signatures
+  // synchronously on its own path — each tick is just a cheap, harmless
+  // empty sweep.
+  validsignPoller.start();
+
   llmRegistry.register(new AnthropicLlmProvider());
   llmRegistry.register(new OpenAILlmProvider());
 
@@ -300,6 +340,7 @@ const startServer = async () => {
 process.on('SIGTERM', () => {
   appLogger.info('SIGTERM received, shutting down gracefully...');
   externalTaskWorker.stop();
+  validsignPoller.stop();
   void mcpRegistry.disconnectAll();
   process.exit(0);
 });
@@ -307,6 +348,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   appLogger.info('SIGINT received, shutting down gracefully...');
   externalTaskWorker.stop();
+  validsignPoller.stop();
   void mcpRegistry.disconnectAll();
   process.exit(0);
 });

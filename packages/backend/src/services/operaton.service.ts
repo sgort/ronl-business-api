@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
+import { getErrorMessage } from '@utils/errors';
 import {
   OperatonVariable,
   ProcessStartRequest,
@@ -8,6 +9,7 @@ import {
   Task,
   ActivityHistoryItem,
 } from '@ronl/shared';
+import type { DocumentTemplate } from '@services/document/documentTemplate.types';
 
 const logger = createLogger('operaton-service');
 
@@ -27,6 +29,13 @@ export class OperatonService {
    * re-fetching BPMN on every archive load. `null` (no tag) is cached too.
    */
   private boardOwnerCache = new Map<string, string | null>();
+
+  /**
+   * Cache of processDefinitionId → BPMN XML. The XML for a given definition
+   * id is immutable in Operaton, so this never needs invalidating. Without it,
+   * every opened task refetches the whole document from the engine.
+   */
+  private bpmnXmlCache = new Map<string, string>();
 
   constructor(baseUrl?: string, username?: string, password?: string) {
     const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
@@ -447,6 +456,47 @@ export class OperatonService {
   }
 
   /**
+   * Resolve a task's process variables from HISTORY rather than the runtime
+   * task API -- for exactly the situation getDecisionDocument's own comment
+   * already describes: Operaton's active /task/{id} 404s the moment a task
+   * completes, because completing it is what removes it from the runtime.
+   *
+   * Unlike /history/process-instance (which DOES have a single-resource
+   * /{id} form -- see getDecisionDocument's histRes call above), Operaton has
+   * NO path-parameter form for a single historic task: /history/task/{id}
+   * 404s unconditionally, regardless of whether the task exists. The only
+   * real lookup is the QUERY endpoint, GET /history/task?taskId=..., which
+   * returns an ARRAY (verified directly against a running engine: the path
+   * form 404s, the query form returns exactly one match). This looks the
+   * task up that way to recover its processInstanceId, then reads that
+   * instance's final historic variables.
+   *
+   * Returns null ONLY when the query genuinely returns zero results -- that
+   * is "no such task", not "Operaton is unreachable". Any other failure
+   * (network error, timeout, 5xx) is logged and rethrown, so a transport
+   * failure can never be mistaken for "there is no such task" by a caller
+   * that only checks for null.
+   */
+  async getHistoricTaskVariables(taskId: string): Promise<Record<string, unknown> | null> {
+    let processInstanceId: string;
+    try {
+      const response = await this.client.get('/history/task', { params: { taskId } });
+      const tasks: Array<{ processInstanceId: string }> = response.data;
+      if (tasks.length === 0) {
+        return null;
+      }
+      processInstanceId = tasks[0].processInstanceId;
+    } catch (error) {
+      logger.error('Failed to get historic task', {
+        taskId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+    return this.getHistoricVariables(processInstanceId);
+  }
+
+  /**
    * Find the most recent completed HrOnboardingProcess for a given employeeId.
    * Returns flattened historic variables, or null if no completed instance found.
    */
@@ -532,10 +582,253 @@ export class OperatonService {
   }
 
   /**
+   * Fetch BPMN XML for a process definition, caching by processDefinitionId.
+   * Operaton's BPMN XML is immutable for a given definition id, so the cache
+   * never needs invalidating.
+   */
+  private async getCachedBpmnXml(processDefinitionId: string): Promise<string> {
+    const cached = this.bpmnXmlCache.get(processDefinitionId);
+    if (cached) return cached;
+    const res = await this.client.get(`/process-definition/${processDefinitionId}/xml`);
+    const xml: string = res.data.bpmn20Xml;
+    this.bpmnXmlCache.set(processDefinitionId, xml);
+    return xml;
+  }
+
+  /**
+   * Reads a ronl:* attribute from ONE user task rather than from the first
+   * match anywhere in the document. Scoping matters: a process can tag several
+   * tasks, and which one carries the attribute is the whole point.
+   */
+  private readTaskRonlAttribute(
+    bpmnXml: string,
+    taskDefinitionKey: string,
+    attribute: string
+  ): string | null {
+    const escaped = taskDefinitionKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const element = new RegExp(`<bpmn:userTask\\b[^>]*\\bid="${escaped}"[^>]*>`).exec(bpmnXml);
+    if (!element) return null;
+    const attr = new RegExp(`\\b${attribute}="([^"]+)"`).exec(element[0]);
+    return attr ? attr[1] : null;
+  }
+
+  /**
+   * Resolves ronl:signatureRef on a single user task to its deployed
+   * DocumentTemplate. Returns null when the task is not signature-bearing,
+   * which is the common case for every ordinary task in the app.
+   */
+  async getTaskSignatureSpec(
+    processInstanceId: string,
+    taskDefinitionKey: string
+  ): Promise<{ templateId: string; template: DocumentTemplate } | null> {
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+
+    const bpmnXml = await this.getCachedBpmnXml(processDefinitionId);
+    const templateId = this.readTaskRonlAttribute(bpmnXml, taskDefinitionKey, 'ronl:signatureRef');
+    if (!templateId) return null;
+
+    const template = await this.fetchDeployedTemplate(
+      processInstanceId,
+      taskDefinitionKey,
+      templateId
+    );
+    return { templateId, template };
+  }
+
+  /**
+   * Fetch a named template's deployed `.document` resource for a process
+   * instance. Used by the document-render path once the template id is
+   * already known (e.g. rip-pdp's `documentTemplateId` process variable),
+   * unlike getTaskSignatureSpec which first has to resolve the template id
+   * from the tagged task's ronl:signatureRef attribute.
+   */
+  async getDeployedTemplate(
+    processInstanceId: string,
+    templateId: string
+  ): Promise<DocumentTemplate> {
+    return this.fetchDeployedTemplate(processInstanceId, undefined, templateId);
+  }
+
+  /**
+   * Shared deployment-resource lookup behind getTaskSignatureSpec and
+   * getDeployedTemplate: process instance -> process definition -> deployment
+   * -> named `.document` resource -> parsed template. taskDefinitionKey is
+   * only used for the not-found log line and is undefined when called from
+   * getDeployedTemplate, which has no task in play.
+   */
+  private async fetchDeployedTemplate(
+    processInstanceId: string,
+    taskDefinitionKey: string | undefined,
+    templateId: string
+  ): Promise<DocumentTemplate> {
+    const histRes = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const processDefinitionId: string = histRes.data.processDefinitionId;
+
+    const procDefRes = await this.client.get(`/process-definition/${processDefinitionId}`);
+    const deploymentId: string = procDefRes.data.deploymentId;
+
+    const resourcesRes = await this.client.get(`/deployment/${deploymentId}/resources`);
+    const resources: Array<{ id: string; name: string; deploymentId: string }> = resourcesRes.data;
+    const resource = resources.find((r) => r.name === `${templateId}.document`);
+    if (!resource) {
+      logger.error('named template has no deployment resource', {
+        processInstanceId,
+        taskDefinitionKey,
+        templateId,
+      });
+      throw new Error('SIGNATURE_TEMPLATE_NOT_FOUND');
+    }
+
+    const dataRes = await this.client.get(
+      `/deployment/${deploymentId}/resources/${resource.id}/data`,
+      {
+        responseType: 'text',
+      }
+    );
+    return JSON.parse(dataRes.data) as DocumentTemplate;
+  }
+
+  /**
+   * Find the running process instance tracking a given ValidSign package, along
+   * with its process variables and its single open user task. Used by the
+   * ValidSign webhook and poller to locate what to complete once a signature
+   * finishes; both look the instance up fresh on every call, since neither can
+   * assume the other hasn't already acted on it.
+   *
+   * Returns null when no running instance carries that validsignPackageId, or
+   * when it has no open task left to complete (the process has already moved
+   * on).
+   */
+  async findInstanceByValidsignPackage(packageId: string): Promise<{
+    processInstanceId: string;
+    taskId: string;
+    status: string;
+    edocsWorkspaceId?: string;
+    department?: string;
+    documentId?: string;
+    projectNumber?: string;
+  } | null> {
+    try {
+      const instancesRes = await this.client.get('/process-instance', {
+        params: { variables: `validsignPackageId_eq_${packageId}` },
+      });
+      const instances: Array<{ id: string }> = instancesRes.data;
+      if (instances.length === 0) return null;
+
+      const processInstanceId = instances[0].id;
+      const [variables, tasksRes] = await Promise.all([
+        this.getProcessVariables(processInstanceId),
+        this.client.get('/task', { params: { processInstanceId } }),
+      ]);
+      const tasks: Array<{ id: string }> = tasksRes.data;
+      if (tasks.length === 0) return null;
+
+      const value = (name: string): unknown => variables[name]?.value;
+      return {
+        processInstanceId,
+        taskId: tasks[0].id,
+        status: String(value('validsignStatus') ?? ''),
+        edocsWorkspaceId: value('edocsWorkspaceId') as string | undefined,
+        department: value('department') as string | undefined,
+        documentId: value('validsignDocumentId') as string | undefined,
+        projectNumber: value('projectNumber') as string | undefined,
+      };
+    } catch (error) {
+      logger.error('Failed to find process instance by ValidSign package', {
+        packageId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List every running instance whose validsignStatus variable is 'sent' —
+   * a package handed to ValidSign but not yet resolved. Used by the poller
+   * (validsignPoller.service.ts) to sweep for signatures whose completion
+   * webhook never arrived: it drives `completeSignature` for each package id
+   * this returns, which is itself a no-op if nothing has actually changed.
+   */
+  async findInstancesAwaitingSignature(): Promise<
+    Array<{ processInstanceId: string; validsignPackageId: string }>
+  > {
+    try {
+      const instancesRes = await this.client.get('/process-instance', {
+        params: { variables: 'validsignStatus_eq_sent' },
+      });
+      const instances: Array<{ id: string }> = instancesRes.data;
+      if (instances.length === 0) return [];
+
+      // allSettled, not all: one instance with a corrupt/unreadable variable
+      // set (or referencing something since deleted) must not take down the
+      // whole sweep. Promise.all would reject on that single row and discard
+      // every other instance's result, and because this poller is the only
+      // completion path in local development, that one poisoned instance
+      // would silently stop every signature -- for every project -- from
+      // ever completing again, with nothing but a generic "sweep failed"
+      // line to show for it. Log the offending instance by id and move on.
+      const settled = await Promise.allSettled(
+        instances.map(async (instance) => {
+          const variables = await this.getProcessVariables(instance.id);
+          const packageId = variables.validsignPackageId?.value;
+          return packageId
+            ? { processInstanceId: instance.id, validsignPackageId: String(packageId) }
+            : null;
+        })
+      );
+
+      const results: Array<{ processInstanceId: string; validsignPackageId: string }> = [];
+      settled.forEach((outcome, index) => {
+        if (outcome.status === 'fulfilled') {
+          if (outcome.value) results.push(outcome.value);
+          return;
+        }
+        logger.warn('Skipping one instance while sweeping for awaited signatures', {
+          processInstanceId: instances[index].id,
+          error: getErrorMessage(outcome.reason),
+        });
+      });
+
+      return results;
+    } catch (error) {
+      logger.error('Failed to find process instances awaiting signature', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Set (merge) process variables on a running instance.
+   */
+  async setProcessVariables(
+    processInstanceId: string,
+    variables: Record<string, OperatonVariable>
+  ): Promise<void> {
+    try {
+      await this.client.post(`/process-instance/${processInstanceId}/variables`, {
+        modifications: variables,
+      });
+    } catch (error) {
+      logger.error('Failed to set process variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Fetch the DocumentTemplate linked via camunda:documentRef on any UserTask in the BPMN
    * associated with the given process instance. Works for completed instances via the history API.
    * Throws Error('DOCUMENT_NOT_FOUND') when no camunda:documentRef is present or the deployment
    * resource is absent.
+   *
+   * NOTE: unlike getTaskSignatureSpec(), this is intentionally NOT scoped to a
+   * single <bpmn:userTask>. It has no task key to scope to (see class docs /
+   * task-5 report for why scoping it would change its return-first-match
+   * contract and break its existing callers/tests).
    */
   async getDecisionDocument(processInstanceId: string): Promise<Record<string, unknown>> {
     // 1. Resolve processDefinitionId via history API (active /process-instance/{id} returns 404 for COMPLETED)

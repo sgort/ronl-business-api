@@ -417,6 +417,55 @@ describe('getHistoricVariables', () => {
   });
 });
 
+describe('getHistoricTaskVariables', () => {
+  // Operaton has NO single-resource path form for a historic task --
+  // /history/task/{id} 404s unconditionally, verified directly against a
+  // running engine. The only real lookup is the QUERY endpoint, which
+  // returns an ARRAY. This is the regression test for that: asserting the
+  // actual URL/params the mock received is what catches a route back to the
+  // wrong (path-parameter) shape.
+  it('queries /history/task with taskId as a query param, resolves processInstanceId, and flattens historic variables', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: [{ id: 't1', processInstanceId: 'pi-9' }] }) // /history/task?taskId=t1
+      .mockResolvedValueOnce({ data: [{ name: 'validsignStatus', value: 'completed' }] }); // /history/variable-instance
+
+    await expect(svc.getHistoricTaskVariables('t1')).resolves.toEqual({
+      validsignStatus: 'completed',
+    });
+    expect(mockClient.get).toHaveBeenNthCalledWith(1, '/history/task', {
+      params: { taskId: 't1' },
+    });
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/history/variable-instance', {
+      params: { processInstanceId: 'pi-9', deserializeValues: true },
+    });
+  });
+
+  it('returns null on an EMPTY result array -- the task id is genuinely unknown to history too', async () => {
+    mockClient.get.mockResolvedValueOnce({ data: [] });
+    await expect(svc.getHistoricTaskVariables('unknown-task')).resolves.toBeNull();
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows a transport failure rather than returning null -- unreachable must never look like "no such task"', async () => {
+    mockClient.get.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(svc.getHistoricTaskVariables('t1')).rejects.toThrow('ECONNREFUSED');
+  });
+
+  it('rethrows a 404 from the query endpoint itself (not the same as an empty result array)', async () => {
+    mockClient.get.mockRejectedValueOnce({ isAxiosError: true, response: { status: 404 } });
+    await expect(svc.getHistoricTaskVariables('t1')).rejects.toMatchObject({
+      response: { status: 404 },
+    });
+  });
+
+  it('rethrows a non-404 axios error (e.g. a 500) rather than returning null', async () => {
+    mockClient.get.mockRejectedValueOnce({ isAxiosError: true, response: { status: 500 } });
+    await expect(svc.getHistoricTaskVariables('t1')).rejects.toMatchObject({
+      response: { status: 500 },
+    });
+  });
+});
+
 describe('getTaskVariables', () => {
   it('resolves the task, fetches its process variables, and flattens .value', async () => {
     mockClient.get
@@ -836,6 +885,222 @@ describe('getDecisionDocument', () => {
   it('throws DOCUMENT_NOT_FOUND when the resource is absent', async () => {
     setup('<bpmn ronl:documentRef="doc1" />', [{ id: 'r9', name: 'other.document' }]);
     await expect(svc.getDecisionDocument('pi1')).rejects.toThrow('DOCUMENT_NOT_FOUND');
+  });
+});
+
+describe('getTaskSignatureSpec', () => {
+  const XML = `<bpmn:definitions>
+    <bpmn:userTask id="Task_A" ronl:documentRef="rip-pdp" />
+    <bpmn:userTask id="Task_AccorderenProjectplan4" ronl:signatureRef="rip-pdp" />
+    <bpmn:userTask id="Task_B" />
+  </bpmn:definitions>`;
+
+  const setupSignature = (xml: string, documentJson: unknown) =>
+    routeGet([
+      [/\/history\/process-instance\/pi-1$/, { data: { processDefinitionId: 'pd-1' } }],
+      ['/process-definition/pd-1/xml', { data: { bpmn20Xml: xml } }],
+      ['/process-definition/pd-1', { data: { deploymentId: 'dep-1' } }],
+      ['/deployment/dep-1/resources', { data: [{ id: 'r1', name: 'rip-pdp.document' }] }],
+      [/\/deployment\/dep-1\/resources\/r1\/data$/, { data: JSON.stringify(documentJson) }],
+    ]);
+
+  it('returns the template named by the tagged task', async () => {
+    setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
+    const spec = await svc.getTaskSignatureSpec('pi-1', 'Task_AccorderenProjectplan4');
+    expect(spec).not.toBeNull();
+    expect(spec!.templateId).toBe('rip-pdp');
+  });
+
+  it('returns null for an untagged task even when another task is tagged', async () => {
+    setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
+    expect(await svc.getTaskSignatureSpec('pi-1', 'Task_B')).toBeNull();
+  });
+
+  it('does not confuse documentRef on one task with signatureRef on another', async () => {
+    setupSignature(XML, { id: 'rip-pdp', zones: {}, bindings: [] });
+    expect(await svc.getTaskSignatureSpec('pi-1', 'Task_A')).toBeNull();
+  });
+
+  it('throws SIGNATURE_TEMPLATE_NOT_FOUND when the attribute names a missing resource', async () => {
+    routeGet([
+      [/\/history\/process-instance\/pi-1$/, { data: { processDefinitionId: 'pd-1' } }],
+      ['/process-definition/pd-1/xml', { data: { bpmn20Xml: XML } }],
+      ['/process-definition/pd-1', { data: { deploymentId: 'dep-1' } }],
+      ['/deployment/dep-1/resources', { data: [{ id: 'r9', name: 'other.document' }] }],
+    ]);
+    await expect(svc.getTaskSignatureSpec('pi-1', 'Task_AccorderenProjectplan4')).rejects.toThrow(
+      'SIGNATURE_TEMPLATE_NOT_FOUND'
+    );
+  });
+});
+
+describe('getDeployedTemplate', () => {
+  const setup = (resources: unknown, documentJson: unknown) =>
+    routeGet([
+      [/\/history\/process-instance\/pi-1$/, { data: { processDefinitionId: 'pd-1' } }],
+      ['/process-definition/pd-1', { data: { deploymentId: 'dep-1' } }],
+      ['/deployment/dep-1/resources', { data: resources }],
+      [/\/deployment\/dep-1\/resources\/r1\/data$/, { data: JSON.stringify(documentJson) }],
+    ]);
+
+  it('fetches and parses the named template, without touching the BPMN xml endpoint', async () => {
+    setup([{ id: 'r1', name: 'rip-pdp.document' }], { id: 'rip-pdp', zones: {}, bindings: [] });
+    await expect(svc.getDeployedTemplate('pi-1', 'rip-pdp')).resolves.toEqual({
+      id: 'rip-pdp',
+      zones: {},
+      bindings: [],
+    });
+    expect(mockClient.get).not.toHaveBeenCalledWith('/process-definition/pd-1/xml');
+  });
+
+  it('throws SIGNATURE_TEMPLATE_NOT_FOUND when the named resource is absent', async () => {
+    setup([{ id: 'r9', name: 'other.document' }], {});
+    await expect(svc.getDeployedTemplate('pi-1', 'rip-pdp')).rejects.toThrow(
+      'SIGNATURE_TEMPLATE_NOT_FOUND'
+    );
+  });
+});
+
+describe('findInstanceByValidsignPackage', () => {
+  it('resolves the matching instance, its variables and its single open task', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        {
+          data: {
+            validsignStatus: { value: 'sent', type: 'String' },
+            edocsWorkspaceId: { value: 'ws-1', type: 'String' },
+            department: { value: 'Infra', type: 'String' },
+            validsignDocumentId: { value: 'doc-9', type: 'String' },
+            projectNumber: { value: '24102', type: 'String' },
+          },
+        },
+      ],
+      ['/task', { data: [{ id: 'task-1' }] }],
+    ]);
+
+    await expect(svc.findInstanceByValidsignPackage('pkg-1')).resolves.toEqual({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+      edocsWorkspaceId: 'ws-1',
+      department: 'Infra',
+      documentId: 'doc-9',
+      projectNumber: '24102',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance', {
+      params: { variables: 'validsignPackageId_eq_pkg-1' },
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/task', {
+      params: { processInstanceId: 'pi-1' },
+    });
+  });
+
+  it('returns null when no running instance carries that package id', async () => {
+    routeGet([['/process-instance', { data: [] }]]);
+    expect(await svc.findInstanceByValidsignPackage('pkg-missing')).toBeNull();
+  });
+
+  it('returns null when the instance has no open task left', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [/\/process-instance\/pi-1\/variables$/, { data: {} }],
+      ['/task', { data: [] }],
+    ]);
+    expect(await svc.findInstanceByValidsignPackage('pkg-1')).toBeNull();
+  });
+
+  it('rethrows on upstream failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+    await expect(svc.findInstanceByValidsignPackage('pkg-1')).rejects.toThrow('boom');
+  });
+});
+
+describe('findInstancesAwaitingSignature', () => {
+  it('resolves processInstanceId + validsignPackageId for each instance awaiting a signature', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }, { id: 'pi-2' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        { data: { validsignPackageId: { value: 'pkg-1', type: 'String' } } },
+      ],
+      [
+        /\/process-instance\/pi-2\/variables$/,
+        { data: { validsignPackageId: { value: 'pkg-2', type: 'String' } } },
+      ],
+    ]);
+
+    await expect(svc.findInstancesAwaitingSignature()).resolves.toEqual([
+      { processInstanceId: 'pi-1', validsignPackageId: 'pkg-1' },
+      { processInstanceId: 'pi-2', validsignPackageId: 'pkg-2' },
+    ]);
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance', {
+      params: { variables: 'validsignStatus_eq_sent' },
+    });
+  });
+
+  it('returns an empty array when no instance is awaiting a signature', async () => {
+    routeGet([['/process-instance', { data: [] }]]);
+    expect(await svc.findInstancesAwaitingSignature()).toEqual([]);
+  });
+
+  it('skips an instance whose validsignPackageId variable is missing', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [/\/process-instance\/pi-1\/variables$/, { data: {} }],
+    ]);
+    expect(await svc.findInstancesAwaitingSignature()).toEqual([]);
+  });
+
+  it('excludes an instance whose variable fetch rejects but keeps the rest, logging the offender', async () => {
+    mockClient.get.mockImplementation((url: string) => {
+      if (url === '/process-instance') {
+        return Promise.resolve({ data: [{ id: 'pi-bad' }, { id: 'pi-good' }] });
+      }
+      if (url === '/process-instance/pi-bad/variables') {
+        return Promise.reject(new Error('variable fetch failed'));
+      }
+      if (url === '/process-instance/pi-good/variables') {
+        return Promise.resolve({
+          data: { validsignPackageId: { value: 'pkg-good', type: 'String' } },
+        });
+      }
+      return Promise.reject(new Error(`unexpected GET ${url}`));
+    });
+
+    await expect(svc.findInstancesAwaitingSignature()).resolves.toEqual([
+      { processInstanceId: 'pi-good', validsignPackageId: 'pkg-good' },
+    ]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Skipping one instance while sweeping for awaited signatures',
+      expect.objectContaining({ processInstanceId: 'pi-bad', error: 'variable fetch failed' })
+    );
+  });
+
+  it('rethrows on upstream failure of the top-level query, not swallowed like a single bad row', async () => {
+    mockClient.get.mockRejectedValue(new Error('boom'));
+    await expect(svc.findInstancesAwaitingSignature()).rejects.toThrow('boom');
+  });
+});
+
+describe('setProcessVariables', () => {
+  it('POSTs modifications to the process instance variables endpoint', async () => {
+    mockClient.post.mockResolvedValue({ data: {} });
+    const variables: Record<string, OperatonVariable> = {
+      validsignStatus: { value: 'completed', type: 'String' },
+    };
+
+    await svc.setProcessVariables('pi-1', variables);
+
+    expect(mockClient.post).toHaveBeenCalledWith('/process-instance/pi-1/variables', {
+      modifications: variables,
+    });
+  });
+
+  it('rethrows on upstream failure', async () => {
+    mockClient.post.mockRejectedValue(new Error('boom'));
+    await expect(svc.setProcessVariables('pi-1', {})).rejects.toThrow('boom');
   });
 });
 
