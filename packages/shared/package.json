@@ -1,6 +1,6 @@
 {
   "name": "@ronl/shared",
-  "version": "1.0.0",
+  "version": "2026.08.36",
   "description": "Shared types and utilities for RONL Business API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

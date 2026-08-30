@@ -108,6 +108,526 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.08.36',
+      status: 'Released',
+      date: '30 aug 2026',
+      scope: ['backend', 'frontend'],
+      commits: [
+        {
+          sha: 'ddd6bdd',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The Keycloak token-claim mapper script tracked',
+          details: [
+            "The signing panel takes the signer's identity entirely from the caller's Keycloak token, so the client needs three protocol mappers. The script that adds them was untracked, putting it in the position the portable deploy script was in until the day before: the thing that actually changes shared infrastructure was the one thing nobody but its author could read. A realm backs authentication for every environment, which makes it a worse file to keep private, not a better one.",
+            'It talks only to the Admin REST protocol-mappers endpoint \u2014 redirect URIs, web origins and the client secret appear in no request it builds. It is idempotent, so re-running it reads state rather than changing it. A partial realm import cannot do this safely: SKIP policy skips an existing client entirely and OVERWRITE replaces the whole client definition.',
+          ],
+        },
+        {
+          sha: 'b5a9c06',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A live signature is refused before one is requested, not after',
+          details: [
+            'The end-to-end guard checked the ceremony URL, which only exists once the package has been created \u2014 so running the journey against a live backend still created a real ValidSign package, which then sat unsigned against the licence. The guard stopped the signature but not the request that costs something.',
+          ],
+        },
+        {
+          sha: 'f8f2a36',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Stub package ids are unguessable, and the ceremony is throttled',
+          details: [
+            "The stub ceremony's GET and POST sit on the pre-auth router by necessity: the page loads in an iframe, which cannot carry a bearer token. The POST completes the Operaton task and writes the approval status.",
+            'Package ids were sequential, so on any internet-reachable deployment someone could enumerate a few values and approve a phase-exit another person was in the middle of signing. They are now random UUIDs, which makes the ceremony URL a capability, and the existing rate limiter now covers both routes. Acceptance may not run stub mode from any commit before this one.',
+          ],
+        },
+        {
+          sha: '1434b9d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'The signature seal lands on the signature lines, and stub documents carry a date',
+          details: [
+            'ValidSign places fields in 96-DPI pixels while the PDF is authored in 72-DPI points, so every coordinate and size arrived at three-quarter scale and the seal covered the body text instead of the signature block.',
+          ],
+        },
+        {
+          sha: 'f188150',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The R2.1 journey signs the phase-exit approval',
+          details: [
+            'Because the approval task carries the signature attribute, the board renders the signing panel where a form used to be. The journey drove every task by filling a form, so it failed on the last one reporting that a form never rendered \u2014 a true statement about a task that no longer has one.',
+          ],
+        },
+        {
+          sha: '457efad',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'resolveSigningUrl moved out of the component file',
+          details: [
+            "The panel exported both a component and a plain helper, which breaks Fast Refresh. The lint rule's own remedy is a separate module, which is what the helper wanted anyway \u2014 it was exported solely to be unit-tested directly.",
+          ],
+        },
+        {
+          sha: '3ec29d7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The eDOCS department asserted in the config tests',
+          details: [
+            'An earlier commit added the department to the config object and left the config tests untouched, so both exhaustive assertions failed on the next full-suite run.',
+          ],
+        },
+        {
+          sha: 'fca158b',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The ValidSign design corrected against what live testing found',
+          details: [
+            'Six claims in the design proved wrong once the feature ran against production ValidSign, live eDOCS and a real browser. Each is marked as a correction rather than quietly rewritten, so the document records what was believed as well as what proved true.',
+          ],
+        },
+        {
+          sha: 'e4f8bbd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The panel can observe success, and the signer lands somewhere useful',
+          details: [
+            'Two fixes from live testing that share a route file and cannot be split without carving it into hunks. The panel polls signature status and could never observe completion, so a successful signature looked like a stalled one.',
+          ],
+        },
+        {
+          sha: '2cebb31',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The stub emits a real PDF, so archived documents open',
+          details: [
+            "The stub's signed document and evidence summary were 27-byte strings beginning with a PDF header. They uploaded to eDOCS perfectly and then could not be opened, with the viewer reporting only that something had gone wrong.",
+          ],
+        },
+        {
+          sha: '0bb86d2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A script drives R2.1 to the approval task without filling twelve forms',
+          details: [
+            "Testing the signature meant working an entire R2.1 instance through eleven user tasks by hand to reach the twelfth, every time. This does it in seconds, through the backend's own start endpoint rather than around it.",
+          ],
+        },
+        {
+          sha: '2e6defc',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Signed documents archive standalone, with a configured department',
+          details: [
+            'The first real signature completed correctly and archived nothing: the status came back failed and the signed PDF never reached eDOCS. Two separate defects, found only by running the feature against the live document server.',
+          ],
+        },
+        {
+          sha: '61b829b',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The board can frame the stub ceremony, and its POST answers in HTML',
+          details: [
+            "With the URL resolved the iframe reached the backend and the browser refused to render it: helmet's global defaults set X-Frame-Options and a frame-ancestors policy, and the board is a different origin from the API.",
+          ],
+        },
+        {
+          sha: '2ba39d0',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The ceremony URL resolves against the API origin',
+          details: [
+            "Clicking through loaded the application's own landing page inside the signing iframe. In stub mode the backend returns a relative path and the panel put it straight into the iframe source, which the browser resolved against the board's origin instead of the API's.",
+          ],
+        },
+        {
+          sha: 'dd7bef3',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: "The ValidSign client's error normalisation covered",
+          details: [
+            "The three signing methods in the frontend API client were entirely uncovered, including every catch block, because the panel's own tests mock the API module wholesale so the real functions never ran. That is a worse gap than the percentage suggests: those catch blocks are what turn a transport failure into something the panel can show a person.",
+          ],
+        },
+        {
+          sha: '452ab9e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A second package is refused for a task that already has one',
+          details: [
+            "Package creation had no guard, so a second call put a second signature request for the same approval into a real person's inbox \u2014 which cannot be recalled \u2014 and left the process holding one of them.",
+          ],
+        },
+        {
+          sha: 'e8787e7',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The phase-exit approval is signed from the task panel',
+          details: [
+            'A project leader signs the approval document without leaving the infra board. The actions section becomes three-way: unclaimed shows the claim button, a claimed signature-bearing task shows the panel, and everything else keeps the form it had.',
+          ],
+        },
+        {
+          sha: '0f6039f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'rip-pdp renders from its deployed template as Markdown',
+          details: [
+            'The worker built documents from a hardcoded switch that restated, as TypeScript string literals, content the deployed templates already define \u2014 two sources of truth for one document. It now renders from the template through the same path the signable PDF uses.',
+          ],
+        },
+        {
+          sha: '32bf208',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Email and name claims mapped, and preferred over splitting a display name',
+          details: [
+            "The signing feature takes the signer's identity from the Keycloak token, and it was not arriving: a real token carried no email claim and no name claim at all, so package creation would have refused for every user \u2014 working exactly as designed, and useless.",
+          ],
+        },
+        {
+          sha: 'fcaaf11',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Signatures whose callback never arrived are polled for',
+          details: [
+            "Sweeps process instances awaiting a signature and drives completion through the same idempotent path the webhook uses. Not belt-and-braces: ValidSign's cloud cannot reach a developer's localhost, so during local work the callback never arrives at all.",
+          ],
+        },
+        {
+          sha: '068e8f2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Signing exposed over HTTP with a secret-verified callback',
+          details: [
+            'Five routes: the three the board calls behind JWT, the webhook ValidSign posts to on completion, and a local stand-in ceremony used only in stub mode.',
+            'Which header carries the configured callback key is still unconfirmed with ValidSign. The route expects one; OneSpan-derived platforms conventionally use another. If it is the latter every callback will 401 silently, because the poller completes the task anyway \u2014 so a completion with no matching callback log line means the webhook never landed.',
+          ],
+        },
+        {
+          sha: '50ab2c4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Signatures complete idempotently from callback or poller',
+          details: [
+            "One completion path with two racing callers. It archives the signed PDF and the evidence summary into the project's eDOCS workspace, then completes the Operaton user task.",
+          ],
+        },
+        {
+          sha: 'a9fa693',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The ValidSign client, its stub, and the live guard',
+          details: [
+            'A thin axios client for the EU-branded OneSpan Sign platform, modelled on the eDOCS service rather than an SDK wrapper, because they ship Java and .NET only.',
+            'The live guard matters more than the client. Live signing needs three locks to hold at once, so a misconfigured environment cannot quietly send a real signature request against a production-only licence.',
+          ],
+        },
+        {
+          sha: 'abe103f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'ronl:signatureRef resolved, scoped to one named user task',
+          details: [
+            'Reads the attribute from a named BPMN user task and resolves it to the document template deployed alongside the process. It returns nothing for a task without the attribute, which is every ordinary task \u2014 making the whole feature opt-in from the model.',
+          ],
+        },
+        {
+          sha: '502aed5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A signable PDF with coordinate-placed signature fields',
+          details: [
+            'Emits the PDF a project leader signs and returns the exact rectangle ValidSign should place the signature box in. pdfkit was chosen over pdf-lib because this generates a document from scratch and needs real text wrapping, where pdf-lib is built for editing existing PDFs.',
+          ],
+        },
+        {
+          sha: '386cf78',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Markdown emitted from the rendered document IR',
+          details: [
+            'The human-readable copy archived in eDOCS and rendered in the board. The PDF emitted from the same intermediate representation is the artifact that actually gets signed, so both come from one source.',
+          ],
+        },
+        {
+          sha: '4f58d17',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'LDE document templates rendered to an intermediate representation',
+          details: [
+            "Turns a template deployed alongside the BPMN, plus that instance's process variables, into a small intermediate representation. Markdown and PDF are emitted from it separately, so the archived document and the signed one cannot drift apart.",
+          ],
+        },
+        {
+          sha: '9b39ae5',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'ValidSign settings with a live-tier allowlist',
+          details: [
+            'The config block and its conditional validation. The allowlist is what keeps every later task away from live signing until deliberately enabled.',
+          ],
+        },
+        {
+          sha: '53d335e',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Implementation plan for ValidSign phase-approval signing',
+          details: [
+            'Thirteen tasks and eighty-four steps. The ordering is deliberate: config comes first because the service reads it, and because the live-tier allowlist is what keeps the rest of the work away from a production-only licence.',
+          ],
+        },
+        {
+          sha: '45d894e',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The Markdown conversion scoped to rip-pdp, open questions closed',
+          details: [
+            'Only rip-pdp migrates off the hardcoded switch. It is the document the signature actually touches, so converting the other two in the same change would alter documents the feature does not need to alter.',
+          ],
+        },
+        {
+          sha: '84f69fe',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Live probe findings folded into the design',
+          details: [
+            'A read-only probe against production confirmed the endpoint shape the design was written against \u2014 the response envelope, working pagination, and the nested signer and approval-field structures.',
+          ],
+        },
+        {
+          sha: 'b9e82ca',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design for ValidSign signing of RIP phase approval documents',
+          details: [
+            "The agreed design, wired initially to R2.1's phase-exit approval. Approach A of three: a single additive BPMN attribute, so a process without it behaves exactly as before.",
+          ],
+        },
+        {
+          sha: '578b89d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The retry path no longer livelocks on its own refetch',
+          details: [
+            'The journey stopped after six tasks and reported a count mismatch. Both facts were true and neither was the fault: the loop had given up with the instance still running, so the count was correct for a process that had not finished.',
+          ],
+        },
+        {
+          sha: '3968122',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'A foreign R2.1 instance skips rather than fails, and cleanup failures are reported',
+          details: [
+            "'This spec cannot run' and 'this journey is broken' are different facts and were reported identically.",
+          ],
+        },
+        {
+          sha: 'c7f65c2',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The ValidSign API key documented in .env.example',
+          details: [
+            'Placed beside the closest sibling third-party integration. The licence is production-only \u2014 there is no sandbox tenant \u2014 which is why the live guard exists.',
+          ],
+        },
+        {
+          sha: '3ad8c7b',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The rate limiter keys on the client, not on its connection',
+          details: [
+            'The limiter bucketed by the request IP verbatim. With proxy trust enabled Express takes that from the forwarded header, and Azure App Service writes it as address and port \u2014 so every new connection from the same person got a fresh bucket, and the limit never applied.',
+          ],
+        },
+        {
+          sha: '8a72d51',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'RIP fase 1 driven end to end, from start to phase complete',
+          details: [
+            'Starts R2.1 from its detail page and works all twelve user tasks through the real UI, with the three gateways answered for the happy path, ending on the assertion that the phase counts moved.',
+          ],
+        },
+        {
+          sha: '158fba7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A completion confirmation that outlives the task panel',
+          details: [
+            'Completing a task acknowledged nothing. The message was set and the panel closed in the same handler, so it was created and destroyed in the same tick and never painted.',
+          ],
+        },
+        {
+          sha: '45f43f0',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The infra board driven end to end',
+          details: [
+            'The board had no end-to-end cover. That was a gap rather than a decision: it has the same shape as the PA cockpit, and so the same exposure to the class of defect that work turned up repeatedly.',
+          ],
+        },
+        {
+          sha: '78e1e09',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'rehype-sanitize restored to the pa-demo lock entry',
+          details: [
+            'An earlier hand-merge of the lockfile on this branch silently dropped it. That is why the final merge from acc was resolved by reinstalling rather than by hand.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.35',
+      status: 'Released',
+      date: '30 aug 2026',
+      scope: ['backend'],
+      commits: [
+        {
+          sha: '583be4a',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'uuid advisory closed',
+          details: [
+            'Raised through the vulnerabilityAlerts fast-lane, which clears the 14-day cooldown for known advisories. The range moves five majors, from ^9.0.1 to ^14.0.0.',
+            'Verified locally before merging, because the backend workflow triggers on push only and no pull-request check runs its tests. Worth recording that uuid is declared in the backend package but imported nowhere, which is why a five-major jump carried no risk \u2014 and why removing the dependency outright would close the advisory permanently rather than tracking its versions.',
+          ],
+        },
+        {
+          sha: 'b74bd3d',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: '@anthropic-ai/sdk advisory closed',
+          details: [
+            'From ^0.80.0 to ^0.122.0 \u2014 forty-two minor releases on a pre-1.0 package, where minors routinely change API surface.',
+            'Unlike uuid this one is genuinely used, by AnthropicLlmProvider, across messages.stream, Tool, MessageParam and six error classes. TypeScript compilation passing across that surface is the meaningful signal, and it did, alongside the full suite.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.08.34',
+      status: 'Released',
+      date: '30 aug 2026',
+      scope: ['ci'],
+      commits: [
+        {
+          sha: '1a1a334',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Each open CI follow-up points at its tracking issue',
+          details: [
+            'The follow-ups plan was the only record of that work, so learning what was outstanding meant reading a planning document. Items 1, 2, 3, 4 and 6 now link to issues; item 8 links to the draft pull request that has covered it since 28 August.',
+          ],
+        },
+        {
+          sha: '1359a92',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Both backend deploy scripts run anywhere, and fail fast on a dead session',
+          details: [
+            "The acceptance script that actually ran was untracked. The tracked one called Info-ZIP's zip and therefore only worked on Ubuntu, while an untracked portable variant carried a bsdtar fallback and was the script really used on a managed Windows laptop. The script performing acceptance deploys was the one nobody could review; it now replaces the original outright, preferring zip when present so Ubuntu behaviour is unchanged.",
+            'The production script had the same limitation and gets the same treatment. Nobody had needed a production deploy from Windows yet, which would have been an unwelcome thing to discover during a release.',
+            'Neither checked the Azure session, so an expired login surfaced only at the final deploy step, after both builds, the production install and the zip. The obvious check does not work: az account show reads cached local state and succeeded against a token that had expired days earlier. Both scripts now ask for the target App Service itself, a real authenticated call covering an expired session, the wrong subscription and a missing app in one request.',
+          ],
+        },
+        {
+          sha: 'b06c6f6',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The SCM basic auth hypothesis is disproved, and OIDC is not needed',
+          details: [
+            'Follow-up item 2 recorded, correctly hedged, that azure/webapps-deploy might fail because Azure disables SCM basic authentication by default, and asked for confirmation against a real failed run before anyone acted.',
+            'Linked Data Explorer answers it: that repository runs the same action with a publish-profile secret against the same subscription and deploys its backend successfully. So basic auth is not disabled subscription-wide and the blocker here is per-App-Service. That also makes the fix far cheaper than the app registration and federated credential the item originally proposed.',
+          ],
+        },
+        {
+          sha: 'efe1ebd',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The supply-chain register reconciled with the workflows',
+          details: [
+            "The Pinned table still listed pre-upgrade v4 digests for checkout, setup-node and upload-artifact. The v7 upgrades landed in 2026.08.33; the register did not move with them, and every gate stayed green throughout \u2014 exactly the drift the document's own 'What the audit cannot see' section predicts.",
+            'Three further claims were wrong rather than merely stale. Eight workflows request Node 20, not all nine: the ninth requests 24 deliberately, because the Renovate config validator declares a Node 24 engine. And the gitignore rule reads as though no deploy script is in the repository when two are tracked \u2014 better than the tidier claim implied, and worth stating accurately.',
+          ],
+        },
+        {
+          sha: 'cba3f68',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The config validator runs on the Node version Renovate requires',
+          details: [
+            'renovate 44.50.3 declares a Node 24 engine and the runner defaults to 22. npm accepts the mismatch with a warning rather than refusing, so the validator ran unsupported and still reported green \u2014 the kind of mismatch that keeps working right up until a release stops tolerating it.',
+            "setup-node is placed before the zizmor step rather than beside the validator it serves, because a step following a failed one is skipped and the validator's always() condition would otherwise run on whatever Node the runner defaulted to.",
+          ],
+        },
+        {
+          sha: 'c613bcf',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'renovate.json validated by the audit gate',
+          details: [
+            'The gate caught every floating action reference and had nothing to say about a malformed renovate.json. Pins without working updates decay into an unpatched tree, so a silently inert Renovate is a supply-chain failure the audit exists to prevent \u2014 and in Linked Data Explorer exactly that happened, five invalid keys stopping it from opening any pull request at all.',
+            'The validator runs in the existing audit job, so it needs no ruleset change. It runs with no filename argument, because passing one switches it into global-config mode and applies different rules, and under always() so a zizmor failure cannot hide a broken configuration behind it.',
+          ],
+        },
+        {
+          sha: '209a746',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The concurrency group keys on the event, not just the ref',
+          details: [
+            'Keyed on the ref alone, the pull_request teardown and the push deploy that a merge fires simultaneously landed in one group and cancelled each other at random. Two acceptance deploys were skipped and one preview environment stranded before the pattern was recognised.',
+            'The key now includes the pull-request number where there is one. Worth knowing that this is only the GitHub layer: Azure cancels overlapping deployments to a single Static Web Apps environment on its own, and reports a cancellation on a job that did nothing wrong.',
+          ],
+        },
+        {
+          sha: 'ba60702',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'pull_request triggers filtered, and Azure deployments serialised',
+          details: [
+            "Every pull request to acc deployed all three sites, each holding a Static Web Apps staging environment against a per-app ceiling of three. Five open pull requests exhausted it. The push filter is now mirrored onto pull_request, so a change that touches none of a site's paths no longer claims a slot it cannot use.",
+            'The filter also gates the teardown job, which is correct: a pull request that never created a preview has nothing to tear down.',
+          ],
+        },
+        {
+          sha: 'd77861d',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'bump-release verifies the branch is gone from the remote too',
+          details: [
+            'Merging with the delete-branch flag removes both copies and the repository setting does the same through the UI, but a release merged some other way leaves the remote branch behind. One survived exactly that way and was noticed only later. Stale merged branches are harmless alone; they accumulate, and each makes it harder to see what is genuinely in flight.',
+          ],
+        },
+        {
+          sha: 'ee4a73a',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The concurrency gap recorded, item 7 closed, item 5 sharpened',
+          details: [
+            'Records what the cancelled-deploy incident actually was, closes the action-majors item shipped in 2026.08.33, and rewrites the staging-environment item against the evidence rather than the initial guess.',
+          ],
+        },
+        {
+          sha: '1c0ba13',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'CI follow-ups moved to where follow-ups live',
+          details: [
+            'They had been appended to SECURITY-PIPELINE.md, which describes what the pipeline is. A list of what it still lacks belongs in the plans directory, so the register stays a description of the current state rather than a mixture of both.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.33',
       status: 'Released',
       date: '29 aug 2026',
