@@ -49,6 +49,7 @@ import type { OperatonVariable } from '@ronl/shared';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { config } from '@utils/config';
+import { formatDutchDateTime } from '@utils/dutch-datetime';
 import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
 import { rateLimitKey } from '@utils/client-ip';
@@ -239,12 +240,18 @@ function stubCeremonyHtml(packageId: string): string {
   const signerName = validsignService.stubSignerName(packageId);
   const escapedName = escapeHtml(signerName);
   const escapedPackageId = escapeHtml(packageId);
+  // The moment the document was put in front of the signer. Not a signing
+  // time -- nothing has been signed yet on this page -- so it is labelled
+  // for what it is; the signing moment appears on the result page and in
+  // the signed document itself.
+  const offeredAt = escapeHtml(formatDutchDateTime());
   return `<!doctype html>
 <html lang="nl">
 <head><meta charset="utf-8"><title>ValidSign stub — ondertekenen</title></head>
 <body>
   <h1>Documentondertekening (stub)</h1>
   <p>Getekend door: ${escapedName}</p>
+  <p>Aangeboden op: ${offeredAt}</p>
   <form method="post" action="/v1/validsign/stub/ceremony/${escapedPackageId}/sign">
     <button type="submit" name="outcome" value="COMPLETED">Onderteken</button>
     <button type="submit" name="outcome" value="DECLINED">Weigeren</button>
@@ -252,7 +259,6 @@ function stubCeremonyHtml(packageId: string): string {
 </body>
 </html>`;
 }
-
 /**
  * What the signer sees after a ceremony finishes -- shared by the stub
  * ceremony's own POST /sign result AND the live completion page below
@@ -267,7 +273,18 @@ function stubCeremonyHtml(packageId: string): string {
  * not a failure, and must not read as one. No inline style or script, so the
  * global CSP's default-src 'self' does not block it.
  */
-function ceremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): string {
+function ceremonyResultHtml(
+  outcome: 'signed' | 'declined' | 'failed',
+  /**
+   * The signing moment, when the caller actually knows it. The stub does --
+   * it records the transition (validsignService.stubSignedAt) -- so it passes
+   * it. The live completion page does not: ValidSign owns that timestamp and
+   * this page is reached by a browser redirect that carries no such fact, and
+   * stamping the page's own render time there would state as the signing
+   * moment something that is merely "when this page loaded".
+   */
+  signedAt?: Date
+): string {
   const body = {
     signed: {
       title: 'Ondertekend',
@@ -282,12 +299,15 @@ function ceremonyResultHtml(outcome: 'signed' | 'declined' | 'failed'): string {
       text: 'De handtekening kon niet worden vastgelegd. Probeer het opnieuw of neem contact op met de beheerder.',
     },
   }[outcome];
+  const stamp = signedAt
+    ? `\n  <p>Ondertekend op: ${escapeHtml(formatDutchDateTime(signedAt))}</p>`
+    : '';
   return `<!doctype html>
 <html lang="nl">
 <head><meta charset="utf-8"><title>Ondertekenen — ${escapeHtml(body.title)}</title></head>
 <body>
   <h1>${escapeHtml(body.title)}</h1>
-  <p>${escapeHtml(body.text)}</p>
+  <p>${escapeHtml(body.text)}</p>${stamp}
 </body>
 </html>`;
 }
@@ -409,7 +429,12 @@ callbackRouter.post('/stub/ceremony/:packageId/sign', async (req, res) => {
     return res
       .status(200)
       .type('html')
-      .send(ceremonyResultHtml(outcome === 'DECLINED' ? 'declined' : 'signed'));
+      .send(
+        ceremonyResultHtml(
+          outcome === 'DECLINED' ? 'declined' : 'signed',
+          validsignService.stubSignedAt(packageId)
+        )
+      );
   } catch (error) {
     logger.error('Stub ceremony sign failed', {
       packageId,

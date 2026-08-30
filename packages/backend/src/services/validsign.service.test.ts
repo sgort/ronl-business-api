@@ -1,3 +1,4 @@
+import { formatDutchDateTime } from '@utils/dutch-datetime';
 /**
  * Unit tests for ValidsignService — the stub state machine and the live guard.
  *
@@ -63,6 +64,34 @@ const input = {
   fileName: 'rip-pdp-24102.pdf',
   signatureFields: [{ name: 'Signature1', page: 1, x: 100, y: 400, width: 200, height: 50 }],
 };
+
+/**
+ * Reads the visible text back out of a stub PDF.
+ *
+ * Needed because a plain substring search over the bytes never matches, even
+ * with compression off: pdfkit writes a line as hex chunks inside a TJ array,
+ * split wherever it applies kerning --
+ *   [<4f6e646572> -40 <74656b> 20 <656e64206f703a> ...] TJ
+ * -- so "Ondertekend op:" is never contiguous in the file. Concatenating the
+ * hex chunks of each TJ array, and dropping the numeric adjustments between
+ * them, reconstructs the line as the signer sees it.
+ *
+ * This exists so the timestamp assertions below check what actually reached
+ * the document, rather than only that the bytes begin with "%PDF-" -- a check
+ * a 27-byte placeholder string once passed.
+ */
+function pdfText(pdf: Buffer): string {
+  const raw = pdf.toString('latin1');
+  const lines: string[] = [];
+  for (const array of raw.matchAll(/\[([^\]]*)\]\s*TJ/g)) {
+    lines.push(
+      [...array[1].matchAll(/<([0-9a-fA-F]+)>/g)]
+        .map((chunk) => Buffer.from(chunk[1], 'hex').toString('latin1'))
+        .join('')
+    );
+  }
+  return lines.join('\n');
+}
 
 describe('ValidsignService in stub mode', () => {
   beforeEach(() => {
@@ -141,6 +170,50 @@ describe('ValidsignService in stub mode', () => {
     expect(evidence.subarray(-6).toString('ascii')).toContain('%%EOF');
   });
 
+  it('stamps the signing moment into the signed PDF, and repeats it on re-download', async () => {
+    const svc = new ValidsignService();
+    const { packageId } = await svc.createPackage(input);
+    await svc.sendPackage(packageId);
+    svc.stubSign(packageId, 'COMPLETED');
+
+    const signedAt = svc.stubSignedAt(packageId);
+    expect(signedAt).toBeInstanceOf(Date);
+    const stamp = formatDutchDateTime(signedAt!);
+
+    // Readable because buildStubPdf writes an uncompressed content stream;
+    // this is the assertion that the timestamp genuinely reached the
+    // document rather than only reaching the array of lines.
+    const first = pdfText(await svc.downloadSignedDocument(packageId, 'doc-1'));
+    expect(first).toContain('Ondertekend op:');
+    expect(first).toContain(stamp);
+
+    // One signature is one moment. A stamp taken at download time would
+    // differ here, which is the bug this guards.
+    const second = pdfText(await svc.downloadSignedDocument(packageId, 'doc-1'));
+    expect(second).toContain(stamp);
+  });
+
+  it('carries both the signing moment and its own generation moment in the evidence summary', async () => {
+    const svc = new ValidsignService();
+    const { packageId } = await svc.createPackage(input);
+    await svc.sendPackage(packageId);
+    svc.stubSign(packageId, 'COMPLETED');
+
+    const evidence = pdfText(await svc.downloadEvidenceSummary(packageId));
+    expect(evidence).toContain('Ondertekend op:');
+    expect(evidence).toContain(formatDutchDateTime(svc.stubSignedAt(packageId)!));
+    expect(evidence).toContain('Samenvatting gegenereerd op:');
+  });
+
+  it('records no signing moment when the signer declines', () => {
+    const svc = new ValidsignService();
+    return svc.createPackage(input).then(async ({ packageId }) => {
+      await svc.sendPackage(packageId);
+      svc.stubSign(packageId, 'DECLINED');
+      expect(svc.stubSignedAt(packageId)).toBeUndefined();
+    });
+  });
+
   it('getSignedDocumentId returns a deterministic stub id without touching the network', async () => {
     const svc = new ValidsignService();
     const { packageId } = await svc.createPackage(input);
@@ -210,12 +283,22 @@ describe('the live REST path', () => {
     // extract:false -- we author this PDF and know the coordinates, so
     // text-anchor extraction would only add a failure mode.
     expect(payload.documents[0].extract).toBe(false);
-    expect(payload.documents[0].approvals[0].fields[0]).toMatchObject({
-      page: 0,
-      width: 200,
-      height: 50,
-      type: 'SIGNATURE',
-    });
+    const field = payload.documents[0].approvals[0].fields[0];
+    expect(field).toMatchObject({ page: 0, type: 'SIGNATURE' });
+    // 96-DPI pixels, not points: every value scaled by 96/72. Established
+    // from two live signatures -- see the mapping in createPackageLive.
+    // toBeCloseTo because 400 * (96/72) and 1600/3 differ in the last bit.
+    expect(field.left).toBeCloseTo(100 * (96 / 72), 6);
+    expect(field.top).toBeCloseTo(400 * (96 / 72), 6);
+    expect(field.width).toBeCloseTo(200 * (96 / 72), 6);
+    expect(field.height).toBeCloseTo(50 * (96 / 72), 6);
+    // The bug this guards: sending raw points renders the seal at 0.75x the
+    // intended offset AND 0.75x the intended size.
+    expect(field.top).not.toBe(400);
+    expect(field.width).not.toBe(200);
+    // intended offset, and 0.75x the intended size.
+    expect(payload.documents[0].approvals[0].fields[0].top).not.toBe(400);
+    expect(payload.documents[0].approvals[0].fields[0].width).not.toBe(200);
   });
 
   it('omits settings.ceremony.handOver when the caller derived no handOverUrl', async () => {

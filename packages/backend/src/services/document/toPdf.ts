@@ -4,7 +4,9 @@ import type { RenderedBlock, RenderedDocument } from './renderTemplate';
 export interface SignatureField {
   name: string;
   page: number;
+  /** Distance from the LEFT edge of the page, in points. */
   x: number;
+  /** Distance from the TOP edge of the page, in points -- pdfkit's own origin. */
   y: number;
   width: number;
   height: number;

@@ -1,3 +1,4 @@
+import { formatDutchDateTime } from '@utils/dutch-datetime';
 /**
  * Route tests for /v1/validsign — the callback (secret-verified, no JWT), the
  * stub signing ceremony (unauthenticated, stub-mode-only), and the
@@ -61,6 +62,7 @@ jest.mock('@services/validsign.service', () => ({
     getSigningUrl: jest.fn(),
     stubSign: jest.fn(),
     stubSignerName: jest.fn(),
+    stubSignedAt: jest.fn(),
   },
 }));
 
@@ -103,6 +105,7 @@ const mockValidsign = validsignService as unknown as {
   getSigningUrl: jest.Mock;
   stubSign: jest.Mock;
   stubSignerName: jest.Mock;
+  stubSignedAt: jest.Mock;
 };
 
 const mockCompleteSignature = completeSignature as jest.Mock;
@@ -738,6 +741,34 @@ describe('the stub ceremony', () => {
       .send({ outcome: 'DECLINED' });
     expect(res.status).toBe(200);
     expect(mockValidsign.stubSign).toHaveBeenCalledWith('pkg-1', 'DECLINED');
+  });
+
+  it('states on the ceremony page when the document was offered for signing', async () => {
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    expect(res.text).toContain('Aangeboden op:');
+    // The year is enough to prove a formatted date rather than an empty
+    // label; the exact clock value would be a race.
+    expect(res.text).toMatch(/Aangeboden op: .*\d{4}/);
+  });
+
+  it('states the recorded signing moment on the result page', async () => {
+    mockCompleteSignature.mockResolvedValue('completed');
+    const signedAt = new Date('2026-08-30T12:23:11Z');
+    mockValidsign.stubSignedAt.mockReturnValue(signedAt);
+    const res = await request(app)
+      .post('/v1/validsign/stub/ceremony/pkg-1/sign')
+      .send({ outcome: 'COMPLETED' });
+    expect(res.text).toContain(`Ondertekend op: ${formatDutchDateTime(signedAt)}`);
+  });
+
+  it('omits the stamp when no signing moment is known, rather than inventing one', async () => {
+    mockCompleteSignature.mockResolvedValue('declined');
+    mockValidsign.stubSignedAt.mockReturnValue(undefined);
+    const res = await request(app)
+      .post('/v1/validsign/stub/ceremony/pkg-1/sign')
+      .send({ outcome: 'DECLINED' });
+    expect(res.text).not.toContain('Ondertekend op:');
   });
 });
 

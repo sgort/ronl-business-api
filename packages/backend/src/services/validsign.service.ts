@@ -3,9 +3,16 @@ import FormData from 'form-data';
 import PDFDocument from 'pdfkit';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
+import { formatDutchDateTime } from '@utils/dutch-datetime';
 import type { SignatureField } from '@services/document/toPdf';
 
 const logger = createLogger('validsign-service');
+
+/**
+ * PDF points (72/inch) -> the 96-DPI pixels ValidSign places fields in.
+ * See the field mapping in createPackageLive for how this was established.
+ */
+const PT_TO_PX96 = 96 / 72;
 
 /**
  * Builds a minimal, well-formed, single-page PDF for stub-mode downloads.
@@ -17,7 +24,11 @@ const logger = createLogger('validsign-service');
  */
 function buildStubPdf(title: string, lines: string[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const pdf = new PDFDocument({ size: 'A4', margin: 56 });
+    // Uncompressed: these are dev-only artefacts, and leaving the content
+    // stream in plain text lets a test assert that a line -- the signing
+    // timestamp especially -- actually reached the PDF, rather than only
+    // that the bytes start with '%PDF-'.
+    const pdf = new PDFDocument({ size: 'A4', margin: 56, compress: false });
     const chunks: Buffer[] = [];
     pdf.on('data', (c: Buffer) => chunks.push(c));
     pdf.on('error', reject);
@@ -73,6 +84,8 @@ interface StubPackage {
   status: PackageStatus;
   roleId: string;
   signerName: string;
+  /** Set when the package reaches COMPLETED; see stubSign. */
+  signedAt?: Date;
 }
 
 /**
@@ -205,11 +218,12 @@ export class ValidsignService {
   async downloadSignedDocument(packageId: string, documentId: string): Promise<Buffer> {
     this.assertLiveAllowed();
     if (this.isStub) {
-      const signerName = this.stubPackages.get(packageId)?.signerName;
+      const pkg = this.stubPackages.get(packageId);
       return buildStubPdf('Stub-ondertekening (ontwikkelomgeving)', [
         `Pakket: ${packageId}`,
         `Document: ${documentId}`,
-        ...(signerName ? [`Ondertekenaar: ${signerName}`] : []),
+        ...(pkg?.signerName ? [`Ondertekenaar: ${pkg.signerName}`] : []),
+        ...(pkg?.signedAt ? [`Ondertekend op: ${formatDutchDateTime(pkg.signedAt)}`] : []),
         '',
         'Dit is een stub-handtekening, gegenereerd in de ontwikkelomgeving.',
         'Dit document heeft geen juridische waarde en is geen echte ValidSign-ondertekening.',
@@ -224,10 +238,15 @@ export class ValidsignService {
   async downloadEvidenceSummary(packageId: string): Promise<Buffer> {
     this.assertLiveAllowed();
     if (this.isStub) {
-      const signerName = this.stubPackages.get(packageId)?.signerName;
+      const pkg = this.stubPackages.get(packageId);
       return buildStubPdf('Stub-bewijssamenvatting (ontwikkelomgeving)', [
         `Pakket: ${packageId}`,
-        ...(signerName ? [`Ondertekenaar: ${signerName}`] : []),
+        ...(pkg?.signerName ? [`Ondertekenaar: ${pkg.signerName}`] : []),
+        ...(pkg?.signedAt ? [`Ondertekend op: ${formatDutchDateTime(pkg.signedAt)}`] : []),
+        // The moment the summary itself was produced, which is a different
+        // fact from the signing moment above and is what a real evidence
+        // summary carries. They differ whenever this is re-downloaded.
+        `Samenvatting gegenereerd op: ${formatDutchDateTime()}`,
         '',
         'Dit is een stub-vervanging voor de evidence summary van ValidSign,',
         'gegenereerd in de ontwikkelomgeving. Dit document heeft geen juridische waarde.',
@@ -245,6 +264,16 @@ export class ValidsignService {
     const pkg = this.requireStub(packageId);
     this.assertLegalTransition(packageId, pkg.status, outcome);
     pkg.status = outcome;
+    // Recorded once, here, rather than stamped at download time: the signed
+    // document and the evidence summary are fetched separately and can be
+    // re-fetched, and a download-time stamp would report a different signing
+    // moment on every call for what is one signature.
+    if (outcome === 'COMPLETED') pkg.signedAt = new Date();
+  }
+
+  /** The moment a stub package was signed, for pages and documents that state it. */
+  stubSignedAt(packageId: string): Date | undefined {
+    return this.stubPackages.get(packageId)?.signedAt;
   }
 
   /**
@@ -407,17 +436,28 @@ export class ValidsignService {
                 type: 'SIGNATURE',
                 subtype: 'FULLNAME',
                 name: f.name,
-                // UNVERIFIED AGAINST LIVE: the sampled package had empty
-                // approvals/fields, so `top`/`left` naming and the
-                // zero-based `page` conversion below are per the ValidSign
-                // docs/plan, not confirmed against a real response. If a
-                // live signature ceremony misplaces a field, check these
-                // three lines first.
-                page: f.page - 1, // ValidSign pages are zero-based; ours are one-based.
-                top: f.y,
-                left: f.x,
-                width: f.width,
-                height: f.height,
+                // `page` is zero-based here and one-based in SignatureField.
+                page: f.page - 1,
+                // ValidSign places fields in 96-DPI PIXELS; the PDF we author
+                // is in 72-DPI points, so every coordinate and size is scaled
+                // by 96/72. `top` is measured from the TOP of the page, same
+                // origin as pdfkit's y -- only the unit differs.
+                //
+                // Derived from two live signatures on 30 Aug 2026 rather than
+                // from the docs. Sending the raw point values put the seal at
+                // 0.75x the intended offset; changing `top` by 120pt between
+                // the two runs moved the rendered seal by only ~92pt, and
+                // 92/120 = 0.766 ~= 72/96. Under the pixel reading the two
+                // runs predict seal centres of 360.8 and 270.7 against ~362
+                // and ~271 measured -- both within 1.5pt, which a wrong
+                // origin or a constant offset does not reproduce.
+                //
+                // Size is scaled too: a 200x50pt box sent unscaled renders as
+                // 150x37.5pt, which is why the seal looked small.
+                top: f.y * PT_TO_PX96,
+                left: f.x * PT_TO_PX96,
+                width: f.width * PT_TO_PX96,
+                height: f.height * PT_TO_PX96,
               })),
             },
           ],
