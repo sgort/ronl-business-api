@@ -5,19 +5,35 @@ on:
     branches:
       - main
     # packages/shared/** is included even though pa-demo's @ronl/shared
-    # imports are type-only (erased before Vite ever sees them — see
-    # src/vendor/services/pa.api.ts:1687). A shared-only change can't alter
-    # the compiled output, but without this filter a breaking type change in
-    # @ronl/shared would never run pa-demo's type-check step here, and would
-    # instead surface later at an unrelated pa-demo PR.
+    # imports are type-only (erased before Vite ever sees them). A
+    # shared-only change can't alter the compiled output, but without this
+    # filter a breaking type change in @ronl/shared would never run
+    # pa-demo's type-check step here, and would instead surface later at an
+    # unrelated pa-demo PR.
     paths:
       - 'packages/pa-demo/**'
       - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
       - '.github/workflows/azure-pa-demo-prod.yml'
   workflow_dispatch:
 
+# Same serialisation as the acc workflow, but production runs QUEUE rather
+# than cancel: interrupting a live production deployment to start another
+# is worse than waiting for it. Production deploys are rare enough that
+# the wait costs nothing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+# Default to read-only; jobs opt into more only where required.
+permissions:
+  contents: read
+
 jobs:
   build_and_deploy_job:
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ubuntu-latest
     name: Build and Deploy Production PA Demo
     environment:
@@ -25,13 +41,14 @@ jobs:
       url: https://plato.open-regels.nl
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           lfs: false
+          persist-credentials: false
 
       - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
 
@@ -53,10 +70,6 @@ jobs:
         working-directory: packages/pa-demo
         run: npm test
 
-      - name: Vendored copy matches packages/frontend
-        working-directory: packages/pa-demo
-        run: npm run vendor:check
-
       - name: Build for production (includes the bundle gate)
         working-directory: packages/pa-demo
         run: |
@@ -67,7 +80,7 @@ jobs:
 
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}

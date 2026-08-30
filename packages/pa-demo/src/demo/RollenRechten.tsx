@@ -1,12 +1,12 @@
 /**
  * Beheer › Rollen & rechten — the PA cockpit's own permission model.
  *
- * Written fresh rather than vendored: the caseworker original
+ * Written fresh rather than reused: the caseworker original
  * (RollenSection) describes caseworker / hr-medewerker / seven rip-* roles
  * and names no pa-* role at all, so it documents a different product. This
- * page is built on the same DB_ROLES / DB_CAPS the vendored Dossierbeheer
- * role bar reads (dossierbeheer.data.ts) — never a hand-written table — so
- * it cannot drift from the real permission model.
+ * page is built on the same DB_ROLES / DB_CAPS the cockpit's own Dossierbeheer
+ * role bar reads (exported by @ronl/pa-cockpit) — never a hand-written table
+ * — so it cannot drift from the real permission model.
  *
  * Unlike Dossierbeheer's role bar (rendered `disabled`, because a real user
  * cannot grant themselves rights), the buttons here are this demo's actual
@@ -14,8 +14,12 @@
  * the synthetic Keycloak token every other section reads — including
  * Dossierbeheer's own capability chips.
  */
-import '../vendor/pages/public-affairs-v2/dossierbeheer.css';
-import { DB_ROLES, DB_CAPS } from '../vendor/pages/public-affairs-v2/dossierbeheer.data';
+// No stylesheet import here: the .pac-db-* classes below come from
+// dossierbeheer.css, which '@ronl/pa-cockpit/styles.css' aggregates and
+// App.tsx imports once for the whole app. The package exposes no per-file CSS
+// entry point, deliberately — one import, one cascade order, no host guessing
+// which of the cockpit's stylesheets a given class needs.
+import { DB_ROLES, DB_CAPS } from '@ronl/pa-cockpit';
 import { DEMO_ROLE_OPTIONS, useDemoRole } from './demo-role';
 
 export default function RollenRechten() {
@@ -44,9 +48,10 @@ export default function RollenRechten() {
             className={`pac-db-roleseg-btn ${roleId === opt.id ? 'active' : ''}`}
             onClick={() => setRoleId(opt.id)}
             // dossierbeheer.css sets cursor: default on this class for the
-            // vendored (deliberately disabled) role bar. Here the buttons
+            // cockpit's (deliberately disabled) role bar. Here the buttons
             // are the demo's actual clickable switcher, so this overrides
-            // it locally rather than editing the vendored stylesheet.
+            // it locally rather than changing a package stylesheet every
+            // other host also reads.
             style={{ cursor: 'pointer' }}
           >
             {opt.label}

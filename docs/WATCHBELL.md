@@ -8,9 +8,9 @@ a personal RSS feed.
 
 Backend: [`notifications.service.ts`](../packages/backend/src/pa-monitoring/notifications.service.ts),
 routes in [`pa.routes.ts`](../packages/backend/src/pa-monitoring/pa.routes.ts).
-Frontend: [`PaDataProvider.tsx`](../packages/frontend/src/pages/public-affairs-v2/PaDataProvider.tsx),
-[`NotificationsPanel.tsx`](../packages/frontend/src/pages/public-affairs-v2/NotificationsPanel.tsx),
-[`WatchBell.tsx`](../packages/frontend/src/components/PADashboardV2/WatchBell.tsx).
+Frontend: [`PaDataProvider.tsx`](../packages/pa-cockpit/src/pages/public-affairs-v2/PaDataProvider.tsx),
+[`NotificationsPanel.tsx`](../packages/pa-cockpit/src/pages/public-affairs-v2/NotificationsPanel.tsx),
+[`WatchBell.tsx`](../packages/pa-cockpit/src/components/PADashboardV2/WatchBell.tsx).
 
 ---
 

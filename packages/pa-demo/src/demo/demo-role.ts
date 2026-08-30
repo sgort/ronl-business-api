@@ -16,7 +16,7 @@
  * component module and reinstate the warning.
  */
 import { createContext, useContext } from 'react';
-import type { DossierRole } from '../vendor/pages/public-affairs-v2/dossierbeheer.data';
+import type { DossierRole } from '@ronl/pa-cockpit';
 
 export type DemoRoleId = 'auteur' | 'redacteur' | 'beheerder' | 'geen';
 

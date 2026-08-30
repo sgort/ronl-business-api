@@ -342,6 +342,7 @@ const COMMIT_TYPE_META: Record<CommitType, { icon: string; color: keyof typeof T
   docs: { icon: '📘', color: 'blue' },
   chore: { icon: '🧹', color: 'gray' },
   refactor: { icon: '♻️', color: 'orange' },
+  ci: { icon: '🔒', color: 'amber' },
   other: { icon: '📄', color: 'gray' },
 };
 
@@ -352,6 +353,7 @@ const TEXT_COLORS = {
   orange: 'text-orange-700',
   red: 'text-red-700',
   gray: 'text-gray-700',
+  amber: 'text-amber-700',
 };
 
 function CommitBlock({ commit }: { commit: ChangelogCommit }) {
@@ -410,6 +412,7 @@ const SCOPE_TAG_LABELS: Record<ScopeTag, string> = {
   backend: 'Backend',
   'public-site': 'Public Site',
   'pa-demo': 'PA Demo',
+  ci: 'CI',
 };
 
 // One colour per deployable, so a single-scope badge identifies its package at
@@ -421,6 +424,7 @@ const SCOPE_TAG_CLASSES: Record<ScopeTag, string> = {
   backend: 'bg-purple-100 text-purple-800',
   'public-site': 'bg-teal-100 text-teal-800',
   'pa-demo': 'bg-amber-100 text-amber-800',
+  ci: 'bg-slate-100 text-slate-800',
 };
 
 // Exported for its own tests: the real changelog carries no 'pa-demo'-scoped

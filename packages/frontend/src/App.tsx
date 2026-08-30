@@ -3,13 +3,14 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AuthCallback from './pages/AuthCallback';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
-import PADashboardV2 from './pages/PADashboardV2';
+import PaCockpitRoute from './pages/PaCockpitRoute';
 import InfraBoardDashboard from './pages/InfraBoardDashboard';
 import WooDashboard from './pages/WooDashboard';
 import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
 import keycloak, { initializeKeycloak } from './services/keycloak';
 import './index.css';
+import '@ronl/pa-cockpit/styles.css';
 
 /**
  * Guards a route by authentication and role.
@@ -89,7 +90,7 @@ function App() {
         />
 
         {/* PA cockpit — public route; role gate lives inside the component */}
-        <Route path="/dashboard/public-affairs" element={<PADashboardV2 />} />
+        <Route path="/dashboard/public-affairs" element={<PaCockpitRoute />} />
 
         {/* Infra project-board — public route; role gate (infra-projectteam) lives inside */}
         <Route path="/dashboard/infra-board" element={<InfraBoardDashboard />} />

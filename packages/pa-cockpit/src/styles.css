@@ -1,0 +1,10 @@
+/*
+ * The cockpit's stylesheet entry. Hosts import '@ronl/pa-cockpit/styles.css'.
+ *
+ * index.css is deliberately NOT here: it is the generic RONL app shell style
+ * (Tailwind entry plus resets), not cockpit code, and it stays in
+ * packages/frontend. Anything the cockpit genuinely needs globally belongs
+ * below, so a host does not have to guess.
+ */
+@import './pages/public-affairs-v2/dashboard-pa.css';
+@import './pages/public-affairs-v2/dossierbeheer.css';

@@ -102,9 +102,9 @@ function railItem(page: Page, label: string) {
  * fresh browser context (Playwright's default) gets its own list.
  *
  * Static images are excluded, not by path but by how the browser itself
- * classified the request (`resourceType() === 'image'`). Since the second
- * vendor root started shipping packages/frontend/public's feiten-icons
- * PNGs (vendor-manifest.mjs's ASSET_FILES), a real, legitimate request —
+ * classified the request (`resourceType() === 'image'`). Since the demo
+ * started shipping packages/frontend/public's feiten-icons
+ * PNGs, a real, legitimate request —
  * `<img src="/pa/feiten-icons/wonen.png">` from FeitenCijfers.tsx — matches
  * the same `/\/(?:pa|v1)\//` path pattern the backend-path check above
  * exists to catch, and would otherwise be a false positive the moment any
@@ -144,9 +144,8 @@ test.beforeEach(async ({ page, baseURL }) => {
   // Dossierbeheer's "↺ Reset demodata" (resetDemo in Dossierbeheer.tsx) is
   // gated on a window.confirm() the old demo-bar reset never had — the bar
   // called resetMockDemoData()/resetMockDossiers() directly. Auto-accepting
-  // here, globally, is safe: it's the only window.confirm() in the app (see
-  // `grep -rn window.confirm src/vendor` — one hit), so this can't mask a
-  // dialog some other flow relies on being dismissed.
+  // here, globally, is safe: it's the only window.confirm() in the app, so
+  // this can't mask a dialog some other flow relies on being dismissed.
   page.on('dialog', (dialog) => dialog.accept());
   await page.goto('/');
   // Every test gets its own browser context (Playwright's default), so
@@ -461,9 +460,9 @@ test('Feiten & cijfers renders its monitor icons and issues no backend request',
 }) => {
   // The interaction the vendored-assets fix (this task) is actually for:
   // FeitenCijfers.tsx's <MonitorIcon> requests /pa/feiten-icons/*.png,
-  // which — before vendor-manifest.mjs grew a second, asset-vendoring root
-  // — 404'd on this app (the PNGs lived only in packages/frontend/public,
-  // never copied here), and matches the same `/pa|v1/` path shape the
+  // which — before those assets were vendored in — 404'd on this app (the
+  // PNGs lived only in packages/frontend/public, never copied here), and
+  // matches the same `/pa|v1/` path shape the
   // network guard above uses to catch a real backend call. This test
   // exercises the real DOM (an actual <img>, actually loaded) rather than
   // reasoning about it from the file list, and doubles as proof the guard's

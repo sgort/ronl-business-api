@@ -15,6 +15,12 @@ merge and told you to go ahead.**
   branch: confirm first.
 - If in doubt, don't merge — ask.
 
-**One exception:** invoking `/bump-release` is itself the approval for that
-command's single fast-forward of the release commit onto `acc` (see
-`.claude/commands/bump-release.md`, step 8). No other merge is covered by it.
+**No exceptions any more.** `/bump-release` used to carry one: invoking it
+pre-approved a single fast-forward of the release commit onto `acc`. The `acc`
+ruleset now requires a pull request and a passing `audit` check, so that
+fast-forward no longer exists — step 8 of `.claude/commands/bump-release.md`
+pushes a branch and opens a PR, which the user merges. The exception is removed
+rather than left standing as authorisation for an operation GitHub would reject.
+
+Releases are therefore merged the same way as everything else: by the user, in
+the moment, with the gate having passed first.

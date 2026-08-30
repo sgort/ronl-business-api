@@ -1,6 +1,6 @@
 {
   "name": "@ronl/backend",
-  "version": "2026.08.23",
+  "version": "2026.08.29",
   "description": "Secure Business API layer for Dutch municipality BPMN services",
   "main": "dist/index.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
     "type-check": "tsc --noEmit",
     "test": "jest --coverage",
+    "test:serial": "jest --coverage --runInBand",
     "test:unit": "jest --testPathPattern=tests/unit",
     "test:integration": "jest --testPathPattern=tests/integration",
     "test:watch": "jest --watch",
@@ -34,7 +35,7 @@
   "author": "RONL Team",
   "license": "EUPL-1.2",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.122.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@ronl/shared": "*",
     "altcha-lib": "^2.2.0",
@@ -61,7 +62,7 @@
     "pg": "^8.11.3",
     "pg-promise": "^11.5.4",
     "redis": "^4.6.12",
-    "uuid": "^9.0.1",
+    "uuid": "^14.0.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1"
   },
@@ -88,7 +89,7 @@
     "typescript-eslint": "^8.0.0"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=20.13.0",
     "npm": ">=10.0.0"
   }
 }

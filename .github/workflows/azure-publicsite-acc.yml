@@ -11,10 +11,44 @@ on:
     types: [opened, synchronize, reopened, closed]
     branches:
       - acc
+    # Mirrors the push filter above. Without it every pull request to acc
+    # deployed all three sites, each holding a Static Web Apps staging
+    # environment — three apps against a three-environment ceiling, which
+    # five open pull requests exhausted on 2026-08-28.
+    #
+    # Note this also gates close_pull_request_job, which fires on 'closed'.
+    # A pull request touching none of these paths never created a preview,
+    # so there is nothing for it to tear down.
+    paths:
+      - 'packages/public-site/**'
+      - '.github/workflows/azure-publicsite-acc.yml'
   workflow_dispatch:
+
+# Serialise deployments to one Azure Static Web Apps environment. Two
+# deployments at the same environment make Azure cancel one and report
+# "Deployment Canceled" on a job that did nothing wrong — seen on
+# 2026-08-29, two acc deploys 20 seconds apart. The group includes the ref,
+# so pull requests never cancel each other's previews, only their own
+# superseded runs.
+#
+# The key must distinguish the EVENT, not just the ref. Keyed on github.ref
+# alone, the pull_request(closed) teardown and the push deploy that a merge
+# fires simultaneously landed in the same group and cancelled each other —
+# one of each pair died, at random. Seen on 2026-08-29 merging #25: two acc
+# deploys skipped and one preview left un-torn-down.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Default to read-only; jobs opt into more only where required.
+permissions:
+  contents: read
 
 jobs:
   build_and_deploy_job:
+    permissions:
+      contents: read
+      pull-requests: write
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy ACC Public Site
@@ -23,13 +57,14 @@ jobs:
       url: https://acc.publiek.open-regels.nl
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           lfs: false
+          persist-credentials: false
 
       - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
 
@@ -59,7 +94,7 @@ jobs:
 
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -68,12 +103,13 @@ jobs:
           skip_app_build: true
 
   close_pull_request_job:
+    permissions: {}
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
     steps:
       - name: Close Pull Request
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC }}
           action: 'close'

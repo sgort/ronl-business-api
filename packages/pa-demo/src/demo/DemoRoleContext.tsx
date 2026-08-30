@@ -8,7 +8,7 @@
  * prospect how the permission model behaves is the point.
  *
  * It is implemented by rewriting the synthetic token rather than by patching
- * components, so the vendored permission UI — caps chips, the 🔒 hints in
+ * components, so the cockpit's own permission UI — caps chips, the 🔒 hints in
  * DossierEditor, every disabled action — follows on its own.
  *
  * This module deliberately exports the provider and nothing else: the role
@@ -18,10 +18,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import {
-  deriveDossierRole,
-  type DossierRole,
-} from '../vendor/pages/public-affairs-v2/dossierbeheer.data';
+import { deriveDossierRole, type DossierRole } from '@ronl/pa-cockpit';
 import { getUser, setDemoRoles } from './shims/keycloak';
 import { DemoRoleCtx, KEYCLOAK_ROLE, type DemoRoleId, type DemoRoleValue } from './demo-role';
 
@@ -33,9 +30,9 @@ export function DemoRoleProvider({ children }: { children: ReactNode }) {
   // The shim is a module-level mirror of "the synthetic token", not React
   // state, so a reducer alone can't keep it in step. This write has to happen
   // in the render body, not in an effect (layout or passive): children render
-  // before any effect fires, in the same commit, and the vendored shell reads
-  // the shim fresh during render in more than one place (a later task's
-  // section router reads getUser() directly, for one) — those reads need to
+  // before any effect fires, in the same commit, and the shim is read fresh
+  // during render in more than one place (DemoSectionRouter passes
+  // getUser() straight through to PaSectionsRouter, for one) — those reads need to
   // see the new value in the same pass that produced it. A write in an
   // effect would still be one render behind for any sibling that reads the
   // shim during its own render. The write is idempotent, so re-running it on

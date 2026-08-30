@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { KeycloakUser } from '@ronl/shared';
-import type { TenantConfig } from '../../services/tenant';
+import type { PaTenantConfig } from '@ronl/pa-cockpit';
 import { useProfielData } from '../../hooks/useProfielData';
 
 const LOA_LABELS: Record<string, string> = {
@@ -12,7 +12,7 @@ const LOA_LABELS: Record<string, string> = {
 
 interface Props {
   user: KeycloakUser | null;
-  tenantConfig: TenantConfig | null;
+  tenantConfig: PaTenantConfig | null;
   showManualFetch?: boolean;
 }
 

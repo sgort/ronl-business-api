@@ -57,8 +57,8 @@ describe('RollenRechten', () => {
     expect(screen.getByTestId('cap-del')).toHaveAttribute('data-on', 'true');
   });
 
-  it('shows a pointer cursor on the switcher, unlike the vendored disabled role bar', () => {
-    // pac-db-roleseg-btn sets cursor: default for the vendored (deliberately
+  it('shows a pointer cursor on the switcher, unlike Dossierbeheer’s disabled role bar', () => {
+    // pac-db-roleseg-btn sets cursor: default for the cockpit's (deliberately
     // disabled) role bar in Dossierbeheer. These buttons are this demo's
     // actual clickable switcher, so they need a local override.
     renderPage();

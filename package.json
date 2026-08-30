@@ -1,13 +1,13 @@
 {
   "name": "ronl-business-api",
-  "version": "2026.08.23",
+  "version": "2026.08.33",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run deps:check && npm run docker:check && concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:public-site\"",
+    "dev": "npm run deps:check && npm run docker:check && concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:public-site\" \"npm run dev:pa-demo\"",
     "deps:check": "bash scripts/check-deps.sh",
     "postinstall": "bash scripts/write-deps-marker.sh",
     "docker:check": "bash scripts/check-docker.sh",
@@ -25,6 +25,7 @@
     "check-format": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "test": "npm run test --workspaces --if-present",
+    "test:serial": "npm run test:serial --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
@@ -56,7 +57,7 @@
     "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=20.13.0",
     "npm": ">=10.0.0"
   },
   "lint-staged": {
@@ -70,6 +71,10 @@
     ],
     "packages/pa-demo/**/*.{ts,tsx}": [
       "npm run lint:fix --workspace=@ronl/pa-demo",
+      "prettier --write"
+    ],
+    "packages/pa-cockpit/**/*.{ts,tsx}": [
+      "npm run lint:fix --workspace=@ronl/pa-cockpit",
       "prettier --write"
     ],
     "packages/backend/**/*.ts": [

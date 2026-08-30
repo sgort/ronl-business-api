@@ -1,17 +1,19 @@
 /**
  * Beheer › Profiel — the PA cockpit's own account page.
  *
- * Written fresh rather than vendored: the caseworker original (ProfielSection)
+ * Written fresh rather than reused: the caseworker original (ProfielSection)
  * fetches HR data through useProfielData(employeeId), a caseworker component
- * that would not become part of the future @ronl/pa-cockpit extraction. plato
- * has no HR backend to call, so block two below is a static stand-in for that
- * fetch rather than a live call.
+ * that stayed in packages/frontend rather than moving into @ronl/pa-cockpit.
+ * plato has no HR backend to call, so block two below is a static stand-in for
+ * that fetch rather than a live call.
  *
  * This is the page on the whole site most likely to be mistaken for a real
  * person's record, so it says plainly, near the top, that the data is
  * fictional demonstration data.
  */
-import '../vendor/pages/public-affairs-v2/dossierbeheer.css';
+// No stylesheet import here: the .pac-* classes below come from the cockpit's
+// dossierbeheer.css, which '@ronl/pa-cockpit/styles.css' aggregates and
+// App.tsx imports once for the whole app.
 import { getUser } from './shims/keycloak';
 import { getTenantConfig } from './shims/tenant';
 
