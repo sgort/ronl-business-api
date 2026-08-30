@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import axios, { AxiosInstance } from 'axios';
 import FormData from 'form-data';
 import PDFDocument from 'pdfkit';
@@ -100,7 +101,6 @@ interface StubPackage {
 export class ValidsignService {
   private client: AxiosInstance;
   private stubPackages = new Map<string, StubPackage>();
-  private stubCounterSeed = 0;
 
   constructor() {
     this.client = axios.create({
@@ -138,9 +138,22 @@ export class ValidsignService {
     }
   }
 
+  /**
+   * Unguessable by design, not merely unique.
+   *
+   * The stub ceremony (GET + POST /stub/ceremony/:packageId) is
+   * UNAUTHENTICATED -- it is loaded in an iframe, which cannot carry a bearer
+   * token -- and its POST completes the Operaton task. On any deployed
+   * environment that is reachable from the internet, a sequential id
+   * (stub-1, stub-3, ...) would let anyone enumerate a handful of values and
+   * approve a phase-exit someone else is in the middle of signing.
+   *
+   * A random id makes the ceremony URL a capability: holding it is the proof
+   * of authorisation, and only the signer is ever given it. This is what
+   * makes VALIDSIGN_STUB_MODE=true safe to deploy beyond localhost.
+   */
   private nextStubId(prefix: string): string {
-    this.stubCounterSeed += 1;
-    return `${prefix}-${this.stubCounterSeed}`;
+    return `${prefix}-${crypto.randomUUID()}`;
   }
 
   async createPackage(input: CreatePackageInput): Promise<{ packageId: string; roleId: string }> {

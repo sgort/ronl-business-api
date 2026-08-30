@@ -380,7 +380,13 @@ function applyCeremonyFramingHeaders(res: express.Response): void {
   res.setHeader('Content-Security-Policy', directives.join('; '));
 }
 
-callbackRouter.get('/stub/ceremony/:packageId', (req, res) => {
+// Rate-limited like the callback: these two routes are unauthenticated and
+// state-changing, so an unthrottled POST would let a caller grind through
+// candidate package ids. Sharing the limiter is safe because it keys on the
+// client IP -- ValidSign's callbacks and a browser's ceremony requests never
+// land in the same bucket -- so ceremony traffic cannot exhaust the budget
+// ValidSign's own callbacks rely on.
+callbackRouter.get('/stub/ceremony/:packageId', callbackLimiter, (req, res) => {
   if (!validsignService.isStub) {
     return res.status(404).json({
       success: false,
@@ -405,7 +411,7 @@ callbackRouter.get('/stub/ceremony/:packageId', (req, res) => {
 // Body parsing (the HTML form-post from the ceremony button) relies on the
 // app-wide express.urlencoded() mounted in index.ts, same reasoning as the
 // callback route above.
-callbackRouter.post('/stub/ceremony/:packageId/sign', async (req, res) => {
+callbackRouter.post('/stub/ceremony/:packageId/sign', callbackLimiter, async (req, res) => {
   if (!validsignService.isStub) {
     return res.status(404).json({
       success: false,

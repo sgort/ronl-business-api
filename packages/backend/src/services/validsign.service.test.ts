@@ -143,6 +143,24 @@ describe('ValidsignService in stub mode', () => {
     expect(await svc.getPackageStatus(packageId)).toBe('DRAFT');
   });
 
+  it('gives stub packages unguessable ids, so the ceremony URL acts as a capability', async () => {
+    const svc = new ValidsignService();
+    const a = await svc.createPackage(input);
+    const b = await svc.createPackage(input);
+    const uuidSuffix = /^stub-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    expect(a.packageId).toMatch(uuidSuffix);
+    expect(b.packageId).toMatch(uuidSuffix);
+    expect(a.packageId).not.toBe(b.packageId);
+    // The defect this guards. The stub ceremony's POST is unauthenticated --
+    // an iframe cannot carry a bearer token -- and completes the Operaton
+    // task, so a sequential id (stub-1, stub-3, ...) would let anyone on a
+    // reachable deployment enumerate a few values and approve a phase-exit
+    // someone else was signing. Unguessable ids are what make
+    // VALIDSIGN_STUB_MODE=true safe beyond localhost.
+    expect(a.packageId).not.toMatch(/^stub-\d+$/);
+    expect(b.packageId).not.toMatch(/^stub-\d+$/);
+  });
+
   it('returns a real, well-formed signed PDF without touching the network', async () => {
     const svc = new ValidsignService();
     const { packageId } = await svc.createPackage(input);
