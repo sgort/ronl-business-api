@@ -24,8 +24,8 @@ export interface AnnotatedPhaseCounts extends PhaseCounts {
 const EMPTY: PhaseCounts = { wip: 0, gereed: 0, geparkeerd: 0 };
 
 /**
- * klaar[N] = max(0, gereed[N-1] - wip[N] - gereed[N]) — projects that
- * finished the previous phase but haven't reached this one yet. The first
+ * klaar[N] = max(0, gereed[prev] - wip[N] - gereed[N]) — projects that
+ * finished the preceding phase but haven't reached this one yet. The first
  * phase in ladder order has no predecessor, so it's always undefined
  * (render "—", not 0 — there's nothing to be ready *for*).
  */
@@ -35,11 +35,17 @@ export function getKlaarCounts(
 ): Record<string, number | undefined> {
   const out: Record<string, number | undefined> = {};
   phases.forEach((phase, i) => {
-    if (i === 0) {
+    // Step back past any `beyond` phase, matching previousModelledPhase in
+    // the catalogue. R5.3 is beyond, so R5.4's klaar figure derives from
+    // R5.2: a beyond phase can never carry a completed instance, so reading
+    // it as the predecessor would peg R5.4 at zero forever.
+    let p = i - 1;
+    while (p >= 0 && phases[p].beyond) p--;
+    if (p < 0) {
       out[phase.code] = undefined;
       return;
     }
-    const prev = counts[phases[i - 1].code] ?? EMPTY;
+    const prev = counts[phases[p].code] ?? EMPTY;
     const cur = counts[phase.code] ?? EMPTY;
     out[phase.code] = Math.max(0, prev.gereed - cur.wip - cur.gereed);
   });

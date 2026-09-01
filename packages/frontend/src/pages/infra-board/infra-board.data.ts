@@ -10,7 +10,7 @@
  */
 
 import { ROLES, type StatusKey, type HealthKey } from './rip-model';
-import { RIP_PHASES, type RipPhase } from './rip-phases.catalog';
+import { previousModelledPhase, RIP_PHASES, type RipPhase } from './rip-phases.catalog';
 import type { PhaseCounts } from './rip-phase-counts';
 
 /** Valid portfolio lead-role keys (rip-model vocabulary). */
@@ -808,11 +808,10 @@ export function getMockGeparkeerdRows(phase: RipPhase): PortfolioProject[] {
  * there is no predecessor to be ready from.
  */
 export function getReadyProjects(phaseCode: string): PortfolioProject[] {
-  const idx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
-  if (idx <= 0) return [];
-  const prevCode = RIP_PHASES[idx - 1].code;
+  const prev = previousModelledPhase(phaseCode);
+  if (!prev) return [];
   return getMockPortfolio().filter(
-    (p) => p.ripPhaseCode === prevCode && p.ripPhaseState === 'wachtend'
+    (p) => p.ripPhaseCode === prev.code && p.ripPhaseState === 'wachtend'
   );
 }
 

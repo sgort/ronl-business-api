@@ -463,3 +463,44 @@ export function getPhaseDeployStatus(
   if (phase.beyond) return 'onbekend';
   return 'ontwerp';
 }
+
+/**
+ * The phase a project must have finished before it can start `code`.
+ *
+ * Not simply `RIP_PHASES[i - 1]`: a `beyond` phase is skipped. R5.3 is the
+ * only one today, and skipping it is a deliberate assertion rather than a
+ * technicality. R5.4's entry criterion reads "Oplevering areaal na R5.3", so
+ * R5.3 genuinely happens — but it has no overzichtsplaat, no process model,
+ * and (decisively) no exit artefact at all, so nothing about its completion
+ * is observable here. Every other transition in the ladder is triggered by a
+ * named deliverable that the previous phase's exit criterion produces.
+ *
+ * Callers that surface a skip to the user should say so; see
+ * `skippedPhasesBefore`.
+ *
+ * Returns undefined for the first phase, which has no predecessor.
+ */
+export function previousModelledPhase(code: string): RipPhase | undefined {
+  const idx = RIP_PHASES.findIndex((p) => p.code === code);
+  if (idx <= 0) return undefined;
+  for (let i = idx - 1; i >= 0; i--) {
+    if (!RIP_PHASES[i].beyond) return RIP_PHASES[i];
+  }
+  return undefined;
+}
+
+/**
+ * Phases between `code` and its effective predecessor that are handled
+ * outside this tool — what `previousModelledPhase` stepped over. Empty for
+ * every phase except R5.4 today.
+ */
+export function skippedPhasesBefore(code: string): RipPhase[] {
+  const idx = RIP_PHASES.findIndex((p) => p.code === code);
+  if (idx <= 0) return [];
+  const skipped: RipPhase[] = [];
+  for (let i = idx - 1; i >= 0; i--) {
+    if (!RIP_PHASES[i].beyond) break;
+    skipped.unshift(RIP_PHASES[i]);
+  }
+  return skipped;
+}

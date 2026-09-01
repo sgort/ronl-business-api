@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PhaseDetail from './PhaseDetail';
 import { ripPhaseByCode, RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
@@ -623,5 +623,146 @@ describe('PhaseDetail — Gereed tab', () => {
         /afgerond · Gemiddelde doorlooptijd \d+ wk · norm 10 wk · \d+ met review-loop/
       )
     ).toBeInTheDocument();
+  });
+});
+
+describe('PhaseDetail — starting the next phase from a finished predecessor', () => {
+  const completedR21 = {
+    id: 'pi-r21',
+    businessKey: 'flevoland-1788277164739',
+    startTime: '2026-01-05T09:00:00Z',
+    endTime: '2026-02-10T15:30:00Z',
+    projectNumber: '24011',
+    projectName: 'Larserweg — ongelijkvloerse aansluiting',
+    edocsWorkspaceId: 'w1',
+  };
+
+  function deployR22() {
+    mockGetPhaseDeployStatus.mockImplementation((phase: { code: string }) =>
+      phase.code === 'R2.1' || phase.code === 'R2.2' ? 'gedeployed' : 'ontwerp'
+    );
+    mockPhaseCompleted.mockImplementation((code: string) =>
+      Promise.resolve({ success: true, data: code === 'R2.1' ? [completedR21] : [] })
+    );
+    mockPhaseActive.mockResolvedValue({ success: true, data: [] });
+  }
+
+  it('lists a project whose R2.1 instance finished as ready to start R2.2', async () => {
+    deployR22();
+    render(<PhaseDetail phaseCode="R2.2" onBack={vi.fn()} />);
+
+    expect(await screen.findByText('24011')).toBeInTheDocument();
+    expect(
+      screen.getByText('Larserweg — ongelijkvloerse aansluiting', { exact: false })
+    ).toBeInTheDocument();
+    expect(mockPhaseCompleted).toHaveBeenCalledWith('R2.1');
+  });
+
+  it('carries the project number and business key into the new instance', async () => {
+    const user = userEvent.setup();
+    deployR22();
+    render(<PhaseDetail phaseCode="R2.2" onBack={vi.fn()} />);
+
+    await screen.findByText('24011');
+    const startButton = screen.getByRole('button', { name: 'R2.2 starten' });
+    expect(startButton).toBeDisabled();
+
+    await user.click(screen.getAllByRole('checkbox')[0]);
+    expect(startButton).not.toBeDisabled();
+    await user.click(startButton);
+
+    // The business key travels with the project, so every phase instance of
+    // one project shares the key its originating R2.1 run minted.
+    expect(mockStart).toHaveBeenCalledWith(
+      'RipR22Process',
+      expect.objectContaining({ projectNumber: '24011' }),
+      'flevoland-1788277164739'
+    );
+  });
+
+  it('does not offer a project that already has a running R2.2 instance', async () => {
+    deployR22();
+    mockPhaseActive.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'pi-r22',
+          businessKey: 'flevoland-1788277164739',
+          startTime: '2026-02-11T08:00:00Z',
+          projectNumber: '24011',
+          projectName: 'Larserweg — ongelijkvloerse aansluiting',
+          edocsWorkspaceId: 'w1',
+          leadRole: '',
+        },
+      ],
+    });
+    render(<PhaseDetail phaseCode="R2.2" onBack={vi.fn()} />);
+
+    await screen.findByRole('button', { name: 'R2.2 starten' });
+    expect(screen.queryByText('24011')).not.toBeInTheDocument();
+  });
+
+  it('counts the same projects in the Starten tab badge as in the list below it', async () => {
+    deployR22();
+    const { container } = render(<PhaseDetail phaseCode="R2.2" onBack={vi.fn()} />);
+
+    await screen.findByText('24011');
+
+    // The badge used to read `klaar`, the Faseladder's arithmetic estimate
+    // (gereed[predecessor] - wip - gereed across mock and live combined),
+    // while the heading counted the rows actually rendered. On R2.2 those
+    // disagreed by one, because the mock fixtures report projects gereed on
+    // R2.1 that getReadyProjects can never return.
+    const startenTab = [...container.querySelectorAll('.pb-tab-badge')][0];
+    expect(startenTab?.textContent).toBe('1');
+    expect(screen.getByText(/Projecten die R2\.2 kunnen starten/)).toHaveTextContent(
+      'Projecten die R2.2 kunnen starten 1'
+    );
+  });
+
+  it('drops the badge to zero once the only candidate has been started', async () => {
+    const user = userEvent.setup();
+    deployR22();
+    const { container } = render(<PhaseDetail phaseCode="R2.2" onBack={vi.fn()} />);
+
+    await screen.findByText('24011');
+    await user.click(screen.getAllByRole('checkbox')[0]);
+
+    // Starting it makes the project's business key taken, so the next read of
+    // the readiness list excludes it.
+    mockPhaseActive.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'pi-r22',
+          businessKey: 'flevoland-1788277164739',
+          startTime: '2026-02-11T08:00:00Z',
+          projectNumber: '24011',
+          projectName: 'Larserweg — ongelijkvloerse aansluiting',
+          edocsWorkspaceId: 'w1',
+          leadRole: '',
+        },
+      ],
+    });
+    await user.click(screen.getByRole('button', { name: 'R2.2 starten' }));
+
+    await waitFor(() => {
+      const startenTab = [...container.querySelectorAll('.pb-tab-badge')][0];
+      expect(startenTab?.textContent).toBe('0');
+    });
+    expect(screen.queryByText('24011')).not.toBeInTheDocument();
+  });
+
+  it('discloses on R5.4 that R5.3 is handled outside the tool', () => {
+    render(<PhaseDetail phaseCode="R5.4" onBack={vi.fn()} />);
+
+    // R5.4's entry criterion is "Oplevering areaal na R5.3", so a project
+    // arriving straight from R5.2 must not imply the board saw the oplevering.
+    expect(screen.getByText(/R5\.3.*buiten deze tool afgehandeld/)).toBeInTheDocument();
+  });
+
+  it('shows no such notice on a phase with an ordinary predecessor', () => {
+    render(<PhaseDetail phaseCode="R2.3" onBack={vi.fn()} />);
+    expect(screen.queryByText(/buiten deze tool afgehandeld/)).not.toBeInTheDocument();
   });
 });
