@@ -1070,7 +1070,13 @@ export class OperatonService {
         return result as { data: T; headers: Record<string, string> };
       } catch (scopedError) {
         const scopedBody = axios.isAxiosError(scopedError) ? scopedError.response?.data : null;
-        const scopedMessage: string = scopedBody?.message ?? '';
+        // `responseType: 'text'` switches axios's JSON parsing off for the
+        // *error* body too, so callers that ask for text (the deployed start
+        // form) get Operaton's 404 as an unparsed string with no `.message`.
+        // Match the raw body in that case, or the fallback never fires and
+        // every untenanted process 404s for any caller carrying a tenant.
+        const scopedMessage: string =
+          typeof scopedBody === 'string' ? scopedBody : (scopedBody?.message ?? '');
         if (!scopedMessage.includes('No matching process definition with key')) {
           throw scopedError;
         }

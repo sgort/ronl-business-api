@@ -847,6 +847,34 @@ describe('deployed forms', () => {
     );
   });
 
+  it('getDeployedStartForm falls back when the error body is still a raw string', async () => {
+    // `responseType: 'text'` switches axios's JSON parsing off for the *error*
+    // body too, so Operaton's 404 arrives as an unparsed string and
+    // `response.data.message` is undefined. Every other tenant-scoped lookup
+    // parses its error body, which is why only the start form regressed:
+    // untenanted processes (AwbShellProcess and friends) 404'd for any citizen.
+    mockClient.get
+      .mockResolvedValueOnce({ data: [{ tenantId: null }] }) // resolveDeployedTenant
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          status: 404,
+          data: '{"type":"RestException","message":"No matching process definition with key: AwbShellProcess and tenant-id: flevoland","code":null}',
+        },
+      })
+      .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } });
+
+    await expect(svc.getDeployedStartForm('AwbShellProcess', 'flevoland')).resolves.toMatchObject({
+      contentType: 'application/json',
+    });
+
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      3,
+      '/process-definition/key/AwbShellProcess/deployed-start-form',
+      { responseType: 'text' }
+    );
+  });
+
   it('getDeployedTaskForm fetches the task deployed-form', async () => {
     mockClient.get.mockResolvedValue({
       data: '{}',
