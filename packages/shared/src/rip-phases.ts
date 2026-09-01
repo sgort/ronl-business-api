@@ -14,7 +14,7 @@ export interface RipPhaseKey {
 
 export const RIP_PHASE_KEYS: RipPhaseKey[] = [
   { code: 'R2.1', stage: 'R2', processDefinitionKey: 'RipR21Process' },
-  { code: 'R2.2', stage: 'R2' },
+  { code: 'R2.2', stage: 'R2', processDefinitionKey: 'RipR22Process' },
   { code: 'R2.3', stage: 'R2' },
   { code: 'R2.4', stage: 'R2' },
   { code: 'R3.1', stage: 'R3' },

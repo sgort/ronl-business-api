@@ -36,6 +36,10 @@ import express from 'express';
 import request from 'supertest';
 import ripRouter from './rip.routes';
 import { operatonService } from '@services/operaton.service';
+import { RIP_PHASE_KEYS } from '@ronl/shared';
+
+/** Every phase modelled as BPMN — the exact list both phase endpoints query. */
+const MODELLED_KEYS = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter(Boolean);
 
 const svc = operatonService as unknown as {
   getRipPhase1ActiveList: jest.Mock;
@@ -98,7 +102,7 @@ describe('GET /phases/deployment-status', () => {
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ deployedKeys: ['RipR21Process'] });
-    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(['RipR21Process'], 'flevoland');
+    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(MODELLED_KEYS, 'flevoland');
   });
 
   it('500 with DEPLOYMENT_STATUS_FAILED on service failure', async () => {
