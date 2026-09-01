@@ -16,6 +16,9 @@ import { RIP_PHASES } from '../pages/infra-board/rip-phases.catalog';
 
 export interface RipPhaseInstance {
   id: string;
+  /** Identifies the project's journey across phases, not just this instance:
+   *  the originating R2.1 run mints it and every later phase inherits it. */
+  businessKey: string | null;
   startTime: string;
   projectNumber: string;
   projectName: string;
@@ -98,6 +101,7 @@ export const useRipPhaseActive = (phaseCode: string | null) =>
 
 export interface RipPhaseCompletedInstance {
   id: string;
+  businessKey: string | null;
   startTime: string;
   endTime: string;
   projectNumber: string;
@@ -146,6 +150,70 @@ async function fetchActiveAcrossPhases(): Promise<{
 /** Running instances portfolio-wide, across every deployed phase. */
 export const useRipActiveAcrossPhases = () =>
   useAsync<RipPhaseInstanceRow[]>(fetchActiveAcrossPhases, []);
+
+/** A project that finished the preceding phase and can start this one. */
+export interface RipPhaseCandidate {
+  /** The completed predecessor instance this candidate came from. */
+  instanceId: string;
+  businessKey: string | null;
+  projectNumber: string;
+  projectName: string;
+  endTime: string;
+}
+
+export interface RipPhaseReadiness {
+  candidates: RipPhaseCandidate[];
+  loading: boolean;
+  error: boolean;
+  reload: () => void;
+}
+
+/**
+ * Projects whose completed predecessor-phase instance makes them ready to
+ * start `phaseCode`, minus those already started.
+ *
+ * "Already started" is decided on businessKey rather than project number: the
+ * key travels with the project from its originating R2.1 run, so an instance
+ * of this phase carrying it is proof the project is past this rung. A
+ * candidate whose predecessor has no businessKey at all (an instance started
+ * before the convention, or by hand) is kept rather than dropped -- offering
+ * a duplicate start is recoverable, silently hiding a project is not.
+ */
+export function useRipPhaseReadiness(
+  phaseCode: string | null,
+  predecessorCode: string | null
+): RipPhaseReadiness {
+  const completed = useRipPhaseCompleted(predecessorCode);
+  const active = useRipPhaseActive(phaseCode);
+  const started = useRipPhaseCompleted(phaseCode);
+
+  const taken = new Set(
+    [...(active.data ?? []), ...(started.data ?? [])]
+      .map((i) => i.businessKey)
+      .filter((k): k is string => !!k)
+  );
+
+  const candidates = (completed.data ?? [])
+    .filter((i) => !(i.businessKey && taken.has(i.businessKey)))
+    .map((i) => ({
+      instanceId: i.id,
+      businessKey: i.businessKey,
+      projectNumber: i.projectNumber,
+      projectName: i.projectName,
+      endTime: i.endTime,
+    }));
+
+  return {
+    candidates,
+    loading: completed.loading || active.loading || started.loading,
+    error: completed.error || active.error || started.error,
+    reload: () => {
+      completed.reload();
+      active.reload();
+      started.reload();
+    },
+  };
+}
 
 /** Activity-history for a process instance — drives swimlane node status. */
 export const useActivityHistory = (instanceId: string | null) =>

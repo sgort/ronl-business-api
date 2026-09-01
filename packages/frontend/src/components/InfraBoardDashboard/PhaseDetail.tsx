@@ -4,7 +4,9 @@ import {
   RIP_STAGES,
   RIP_DEPLOY_META,
   getPhaseDeployStatus,
+  previousModelledPhase,
   ripPhaseByCode,
+  skippedPhasesBefore,
 } from '../../pages/infra-board/rip-phases.catalog';
 import {
   getMockPhaseCounts,
@@ -15,16 +17,13 @@ import {
   getMockGereedRows,
   getMockGeparkeerdRows,
 } from '../../pages/infra-board/infra-board.data';
-import {
-  combinePhaseCounts,
-  getKlaarCounts,
-  normalizeLiveCounts,
-} from '../../pages/infra-board/rip-phase-counts';
+import { combinePhaseCounts, normalizeLiveCounts } from '../../pages/infra-board/rip-phase-counts';
 import {
   useDeployedProcessKeys,
   useLivePhaseCounts,
   useRipPhaseActive,
   useRipPhaseCompleted,
+  useRipPhaseReadiness,
 } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import {
@@ -61,6 +60,10 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   // Null for a phase with no process model: there are no instances to ask
   // for, and the phase endpoints answer 409 rather than an empty list.
   const livePhaseCode = phase?.processDefinitionKey ? phaseCode : null;
+  // The phase whose completed instances feed this one's ready list. Null when
+  // that predecessor has no process model, since it can have no completions.
+  const predecessor = previousModelledPhase(phaseCode);
+  const predecessorLiveCode = predecessor?.processDefinitionKey ? predecessor.code : null;
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
   const [tab, setTab] = useState<'starten' | 'wip' | 'gereed'>('starten');
@@ -85,6 +88,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     error: gereedError,
     reload: reloadGereed,
   } = useRipPhaseCompleted(livePhaseCode);
+  const readiness = useRipPhaseReadiness(livePhaseCode, predecessorLiveCode);
 
   const [wipDerived, setWipDerived] = useState<
     Record<string, { info: WipStepInfo | null; docs: DocProgress }>
@@ -139,13 +143,31 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     liveGereed: 0,
     liveGeparkeerd: 0,
   };
-  const klaarCombined = getKlaarCounts(RIP_PHASES, combined);
-  const klaar = klaarCombined[phase.code];
   const status = getPhaseDeployStatus(phase, deployedKeys);
   const meta = RIP_DEPLOY_META[status];
   const stage = RIP_STAGES.find((s) => s.code === phase.stage);
   const isFirstPhase = RIP_PHASES[0].code === phase.code;
   const canStart = status === 'gedeployed';
+
+  const readyProjects = getReadyProjects(phase.code);
+  const outOfSequenceProjects = getOutOfSequenceProjects(phase.code);
+  const liveCandidates = readiness.candidates;
+  // Phases handled outside this tool that sit between the predecessor and
+  // this one -- R5.3 today. Surfaced so a project appearing here straight
+  // from R5.2 does not imply the board tracked the oplevering.
+  const skipped = skippedPhasesBefore(phase.code);
+
+  // The number of projects this tab actually lists. Deliberately NOT `klaar`,
+  // which the Faseladder derives arithmetically as
+  // gereed[predecessor] - wip[this] - gereed[this] across mock and live
+  // combined. That approximation is right for a twelve-row overview, where
+  // itemising every phase would cost three requests each, but on this screen
+  // it sat in a tab badge directly above a heading counting the rows below
+  // it, and the two disagreed: the mock fixtures report projects as gereed on
+  // R2.1 that getReadyProjects can never return, because no mock project is
+  // ever 'wachtend' at ladder position 1. One screen, one definition of
+  // ready -- the itemised one, since it is the one the user can count.
+  const totalReady = liveCandidates.length + readyProjects.length;
 
   const header = (
     <>
@@ -219,11 +241,27 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     setSubmitting(true);
     try {
       const nrs = [...selected];
-      await Promise.all(nrs.map(() => businessApi.process.start(phase!.processDefinitionKey!, {})));
+      await Promise.all(
+        nrs.map((nr) => {
+          // A live candidate carries the project's businessKey forward, so
+          // every phase instance of one project shares the key its
+          // originating R2.1 run minted. Mock rows have no engine ancestry
+          // and start without one.
+          const candidate = readiness.candidates.find((c) => c.projectNumber === nr);
+          return businessApi.process.start(
+            phase!.processDefinitionKey!,
+            candidate
+              ? { projectNumber: candidate.projectNumber, projectName: candidate.projectName }
+              : { projectNumber: nr },
+            candidate?.businessKey ?? undefined
+          );
+        })
+      );
       setSelected(new Set());
       setReasons({});
       setJustStarted(nrs.length);
       reloadWip();
+      readiness.reload();
     } finally {
       setSubmitting(false);
     }
@@ -246,9 +284,6 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
       setSubmitting(false);
     }
   }
-
-  const readyProjects = getReadyProjects(phase.code);
-  const outOfSequenceProjects = getOutOfSequenceProjects(phase.code);
 
   function toggleReady(nr: string) {
     setSelected((s) => {
@@ -315,7 +350,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
           className={tab === 'starten' ? 'active' : ''}
           onClick={() => setTab('starten')}
         >
-          Starten <span className="pb-tab-badge">{klaar ?? 0}</span>
+          Starten <span className="pb-tab-badge">{totalReady}</span>
         </button>
         <button
           type="button"
@@ -545,8 +580,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
           <div className="pb-starten-main">
             {!canStart && (
               <div className="pb-banner">
-                {meta.label} — {meta.note} Er staan wel {readyProjects.length} projecten klaar voor
-                deze fase.
+                {meta.label} — {meta.note} Er staan wel {totalReady} projecten klaar voor deze fase.
               </div>
             )}
 
@@ -555,10 +589,18 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
             )}
 
             <h2>
-              Projecten die {phase.code} kunnen starten <span>{readyProjects.length}</span>
+              Projecten die {phase.code} kunnen starten <span>{totalReady}</span>
             </h2>
 
-            {isFirstPhase && readyProjects.length === 0 ? (
+            {skipped.length > 0 && (
+              <p className="pb-skip-note">
+                {skipped.map((sp) => `${sp.code} (${sp.name})`).join(', ')} wordt buiten deze tool
+                afgehandeld. Projecten komen hier binnen vanuit{' '}
+                {predecessor ? predecessor.code : '—'}.
+              </p>
+            )}
+
+            {isFirstPhase && totalReady === 0 ? (
               fallbackStarted ? (
                 <div className="pb-banner pb-banner-success">
                   {phase.code} gestart. De intake taak staat klaar in de wachtrij.
@@ -585,6 +627,23 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
             ) : (
               <>
                 <ul className="pb-ready-list">
+                  {liveCandidates.map((c) => (
+                    <li key={c.instanceId}>
+                      <input
+                        type="checkbox"
+                        disabled={!canStart}
+                        checked={selected.has(c.projectNumber)}
+                        onChange={() => toggleReady(c.projectNumber)}
+                      />
+                      <span className="pb-proj-nr">{c.projectNumber}</span> {c.projectName}
+                      <span className="pb-badge-klaar">KLAAR</span>
+                      <span className="pb-live-badge">live</span>
+                      <div className="sub">
+                        {predecessor ? `${predecessor.code} afgerond` : 'Vorige fase afgerond'} ·{' '}
+                        {new Date(c.endTime).toLocaleDateString('nl-NL')}
+                      </div>
+                    </li>
+                  ))}
                   {readyProjects.map((p) => (
                     <li key={p.id}>
                       <input

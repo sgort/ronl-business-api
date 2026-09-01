@@ -9,6 +9,7 @@ import {
   useLivePhaseCounts,
   useOpenTasks,
   useRipActiveAcrossPhases,
+  useRipPhaseReadiness,
   useRipPhaseCompleted,
 } from './infra.api';
 
@@ -308,6 +309,110 @@ describe('useRipActiveAcrossPhases', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe(true);
+  });
+});
+
+describe('useRipPhaseReadiness', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const done = (nr: string, key: string | null) => ({
+    id: 'done-' + nr,
+    businessKey: key,
+    startTime: '2026-01-01T00:00:00Z',
+    endTime: '2026-02-01T00:00:00Z',
+    projectNumber: nr,
+    projectName: 'Project ' + nr,
+    edocsWorkspaceId: 'w1',
+  });
+
+  const running = (key: string | null) => ({
+    id: 'run-' + key,
+    businessKey: key,
+    startTime: '2026-03-01T00:00:00Z',
+    projectNumber: '00000',
+    projectName: 'Running',
+    edocsWorkspaceId: 'w1',
+    leadRole: '',
+  });
+
+  function arrange(opts: {
+    predecessorDone?: ReturnType<typeof done>[];
+    thisActive?: ReturnType<typeof running>[];
+    thisDone?: ReturnType<typeof done>[];
+  }) {
+    mockBusinessApi.rip.phaseCompleted.mockClear();
+    mockBusinessApi.rip.phaseActive.mockClear();
+    mockBusinessApi.rip.phaseCompleted.mockImplementation((code: string) =>
+      Promise.resolve({
+        success: true,
+        data: code === 'R2.1' ? (opts.predecessorDone ?? []) : (opts.thisDone ?? []),
+      })
+    );
+    mockBusinessApi.rip.phaseActive.mockResolvedValue({
+      success: true,
+      data: opts.thisActive ?? [],
+    });
+  }
+
+  it('offers projects whose predecessor instance completed', async () => {
+    arrange({ predecessorDone: [done('24011', 'flevoland-1'), done('24056', 'flevoland-2')] });
+
+    const { result } = renderHook(() => useRipPhaseReadiness('R2.2', 'R2.1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.candidates.map((c) => c.projectNumber)).toEqual(['24011', '24056']);
+    expect(result.current.candidates[0].businessKey).toBe('flevoland-1');
+  });
+
+  it('drops a project whose business key already has a running instance of this phase', async () => {
+    arrange({
+      predecessorDone: [done('24011', 'flevoland-1'), done('24056', 'flevoland-2')],
+      thisActive: [running('flevoland-1')],
+    });
+
+    const { result } = renderHook(() => useRipPhaseReadiness('R2.2', 'R2.1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.candidates.map((c) => c.projectNumber)).toEqual(['24056']);
+  });
+
+  it('drops a project whose business key already has a completed instance of this phase', async () => {
+    arrange({
+      predecessorDone: [done('24011', 'flevoland-1')],
+      thisDone: [done('24011', 'flevoland-1')],
+    });
+
+    const { result } = renderHook(() => useRipPhaseReadiness('R2.2', 'R2.1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.candidates).toEqual([]);
+  });
+
+  it('keeps a candidate that carries no business key rather than hiding it', async () => {
+    // An instance predating the convention, or started by hand. Offering a
+    // possibly-duplicate start is recoverable; silently dropping a project
+    // from the board is not.
+    arrange({
+      predecessorDone: [done('24011', null)],
+      thisActive: [running(null)],
+    });
+
+    const { result } = renderHook(() => useRipPhaseReadiness('R2.2', 'R2.1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.candidates.map((c) => c.projectNumber)).toEqual(['24011']);
+  });
+
+  it('asks for nothing when the predecessor phase has no process model', async () => {
+    arrange({});
+
+    const { result } = renderHook(() => useRipPhaseReadiness('R2.3', null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.candidates).toEqual([]);
+    expect(mockBusinessApi.rip.phaseCompleted).not.toHaveBeenCalledWith(null);
   });
 });
 

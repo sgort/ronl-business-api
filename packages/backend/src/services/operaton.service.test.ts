@@ -1181,7 +1181,9 @@ describe('document bundles', () => {
 
 describe('archive list builders', () => {
   it('getRipPhaseActiveList maps project variables with fallbacks', async () => {
-    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's' }] });
+    mockClient.post.mockResolvedValue({
+      data: [{ id: 'i1', businessKey: 'flevoland-123', startTime: 's' }],
+    });
     mockClient.get.mockResolvedValue({
       data: [
         { processInstanceId: 'i1', name: 'projectNumber', value: 'P1' },
@@ -1192,6 +1194,7 @@ describe('archive list builders', () => {
     const res = await svc.getRipPhaseActiveList('RipR21Process', 'flevoland');
     expect(res[0]).toEqual({
       id: 'i1',
+      businessKey: 'flevoland-123',
       startTime: 's',
       projectNumber: 'P1',
       projectName: 'Road',
@@ -1205,17 +1208,39 @@ describe('archive list builders', () => {
   });
 
   it('getRipPhaseCompletedList maps completed instances', async () => {
-    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
+    mockClient.post.mockResolvedValue({
+      data: [{ id: 'i1', businessKey: 'flevoland-123', startTime: 's', endTime: 'e' }],
+    });
     mockClient.get.mockResolvedValue({
       data: [{ processInstanceId: 'i1', name: 'projectNumber', value: 'P1' }],
     });
 
     const res = await svc.getRipPhaseCompletedList('RipR21Process', 'flevoland');
-    expect(res[0]).toMatchObject({ id: 'i1', endTime: 'e', projectNumber: 'P1', projectName: '—' });
+    expect(res[0]).toMatchObject({
+      id: 'i1',
+      businessKey: 'flevoland-123',
+      endTime: 'e',
+      projectNumber: 'P1',
+      projectName: '—',
+    });
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
       expect.objectContaining({ finished: true })
     );
+  });
+
+  it('maps a missing businessKey to null on both RIP list builders', async () => {
+    // Operaton omits businessKey rather than sending null when an instance
+    // was started without one. The readiness filter treats null as "no key,
+    // keep the candidate", so it must not arrive as undefined.
+    mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
+    mockClient.get.mockResolvedValue({ data: [] });
+
+    const active = await svc.getRipPhaseActiveList('RipR21Process', 'flevoland');
+    expect(active[0].businessKey).toBeNull();
+
+    const completed = await svc.getRipPhaseCompletedList('RipR21Process', 'flevoland');
+    expect(completed[0].businessKey).toBeNull();
   });
 
   it('getCapacityClaimActiveList maps capacity variables', async () => {

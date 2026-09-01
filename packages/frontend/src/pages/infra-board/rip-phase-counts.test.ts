@@ -68,6 +68,26 @@ describe('combinePhaseCounts', () => {
   });
 });
 
+describe('getKlaarCounts and beyond phases', () => {
+  it('derives R5.4 from R5.2, stepping over the beyond phase R5.3', () => {
+    // With R5.3 as the literal predecessor this reads max(0, 0 - 0 - 0) = 0
+    // for any input, because a beyond phase can never carry a completed
+    // instance. Stepping back to R5.2 makes the figure mean something.
+    const counts: Record<string, PhaseCounts> = {
+      'R5.2': { wip: 0, gereed: 9, geparkeerd: 0 },
+      'R5.3': { wip: 0, gereed: 0, geparkeerd: 0 },
+      'R5.4': { wip: 2, gereed: 1, geparkeerd: 0 },
+    };
+    const result = getKlaarCounts(RIP_PHASES, counts);
+    expect(result['R5.4']).toBe(6); // 9 - 2 - 1
+  });
+
+  it('still gives the first phase no klaar figure at all', () => {
+    const result = getKlaarCounts(RIP_PHASES, {});
+    expect(result[RIP_PHASES[0].code]).toBeUndefined();
+  });
+});
+
 describe('normalizeLiveCounts', () => {
   it('maps backend processDefinitionKey counts onto phase codes with geparkeerd: 0', () => {
     const raw = { RipR21Process: { wip: 3, gereed: 7 } };

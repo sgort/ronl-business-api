@@ -315,6 +315,7 @@ export const businessApi = {
       ApiResponse<
         Array<{
           id: string;
+          businessKey: string | null;
           startTime: string;
           projectNumber: string;
           projectName: string;
@@ -359,6 +360,7 @@ export const businessApi = {
       ApiResponse<
         Array<{
           id: string;
+          businessKey: string | null;
           startTime: string;
           endTime: string;
           projectNumber: string;

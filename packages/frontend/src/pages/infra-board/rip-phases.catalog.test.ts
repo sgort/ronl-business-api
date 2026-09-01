@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   getPhaseDeployStatus,
+  previousModelledPhase,
   ripPhaseByCode,
+  skippedPhasesBefore,
   RIP_PHASES,
   RIP_STAGES,
   type RipPhase,
@@ -74,6 +76,48 @@ describe('RIP_PHASES catalogue', () => {
     const stageCodes = new Set(RIP_STAGES.map((s) => s.code));
     for (const phase of RIP_PHASES) {
       expect(stageCodes.has(phase.stage)).toBe(true);
+    }
+  });
+});
+
+describe('previousModelledPhase / skippedPhasesBefore', () => {
+  it('is the immediate predecessor for every ordinary phase', () => {
+    expect(previousModelledPhase('R2.2')?.code).toBe('R2.1');
+    expect(previousModelledPhase('R3.1')?.code).toBe('R2.4');
+    expect(previousModelledPhase('R5.2')?.code).toBe('R5.1');
+    expect(previousModelledPhase('R6.1')?.code).toBe('R5.4');
+  });
+
+  it('is undefined for the first phase, which has nothing to be ready for', () => {
+    expect(previousModelledPhase('R2.1')).toBeUndefined();
+    expect(skippedPhasesBefore('R2.1')).toEqual([]);
+  });
+
+  it('skips R5.3, so R5.4 follows R5.2', () => {
+    // R5.4's entry criterion reads "Oplevering areaal na R5.3", so R5.3 does
+    // happen -- but it is `beyond`: no process model, and no exit artefact at
+    // all, so nothing about its completion is observable here. Reading it as
+    // R5.4's predecessor would peg R5.4 at zero candidates forever.
+    expect(ripPhaseByCode('R5.3')?.beyond).toBe(true);
+    expect(previousModelledPhase('R5.4')?.code).toBe('R5.2');
+  });
+
+  it('names the skipped phase so the UI can disclose it', () => {
+    expect(skippedPhasesBefore('R5.4').map((p) => p.code)).toEqual(['R5.3']);
+  });
+
+  it('reports no skip for any phase other than R5.4', () => {
+    for (const phase of RIP_PHASES) {
+      if (phase.code === 'R5.4') continue;
+      expect(skippedPhasesBefore(phase.code)).toEqual([]);
+    }
+  });
+
+  it('every phase after the first resolves to a predecessor that is not beyond', () => {
+    for (const phase of RIP_PHASES.slice(1)) {
+      const prev = previousModelledPhase(phase.code);
+      expect(prev).toBeDefined();
+      expect(prev?.beyond).toBeUndefined();
     }
   });
 });

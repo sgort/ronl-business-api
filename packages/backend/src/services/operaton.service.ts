@@ -1325,6 +1325,11 @@ export class OperatonService {
   /**
    * List active (unfinished) instances of one RIP phase process for a
    * municipality, enriched with projectNumber, projectName, edocsWorkspaceId.
+   *
+   * businessKey identifies the project's whole journey rather than one
+   * instance: R2.1 mints it and every later phase started for that project
+   * inherits it. It is what lets the board tell whether a project has already
+   * started the next phase.
    * The caller resolves the phase code to its process-definition key via
    * RIP_PHASE_KEYS -- this method takes the key, not the code.
    */
@@ -1334,6 +1339,7 @@ export class OperatonService {
   ): Promise<
     {
       id: string;
+      businessKey: string | null;
       startTime: string;
       projectNumber: string;
       projectName: string;
@@ -1348,7 +1354,8 @@ export class OperatonService {
       sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
     });
 
-    const instances: Array<{ id: string; startTime: string }> = instancesRes.data;
+    const instances: Array<{ id: string; businessKey: string | null; startTime: string }> =
+      instancesRes.data;
     if (instances.length === 0) return [];
 
     const ids = instances.map((i) => i.id).join(',');
@@ -1366,6 +1373,7 @@ export class OperatonService {
 
     return instances.map((i) => ({
       id: i.id,
+      businessKey: i.businessKey ?? null,
       startTime: i.startTime,
       projectNumber: varMap[i.id]?.projectNumber ?? '—',
       projectName: varMap[i.id]?.projectName ?? '—',
@@ -1443,6 +1451,7 @@ export class OperatonService {
   ): Promise<
     {
       id: string;
+      businessKey: string | null;
       startTime: string;
       endTime: string;
       projectNumber: string;
@@ -1457,7 +1466,12 @@ export class OperatonService {
       sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
     });
 
-    const instances: Array<{ id: string; startTime: string; endTime: string }> = instancesRes.data;
+    const instances: Array<{
+      id: string;
+      businessKey: string | null;
+      startTime: string;
+      endTime: string;
+    }> = instancesRes.data;
     if (instances.length === 0) return [];
 
     const ids = instances.map((i) => i.id).join(',');
@@ -1474,6 +1488,7 @@ export class OperatonService {
 
     return instances.map((i) => ({
       id: i.id,
+      businessKey: i.businessKey ?? null,
       startTime: i.startTime,
       endTime: i.endTime,
       projectNumber: varMap[i.id]?.projectNumber ?? '—',

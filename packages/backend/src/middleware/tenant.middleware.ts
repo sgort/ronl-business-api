@@ -112,7 +112,21 @@ export const addTenantToProcessVariables = (req: Request, res: Response, next: N
       req.body.variables = {};
     }
 
-    req.body.businessKey = `${req.user.tenantId}-${Date.now()}`;
+    // Mint a business key only when the caller has none. A caller that
+    // supplies one is asserting a relationship the server cannot
+    // reconstruct: a RIP phase started for a project inherits the key its
+    // originating R2.1 run minted, so every phase instance of one project
+    // shares it and the board can tell which projects are already past a
+    // rung. Overwriting it unconditionally silently broke that -- each
+    // phase got a fresh key and no instance was ever recognisably related
+    // to another.
+    //
+    // Safe to honour: businessKey grants nothing. Tenant isolation runs on
+    // the municipality variable set immediately below, which is always
+    // taken from the token and never from the request body.
+    if (!req.body.businessKey) {
+      req.body.businessKey = `${req.user.tenantId}-${Date.now()}`;
+    }
 
     req.body.variables.municipality = req.user.tenantId;
     req.body.variables.organisationType = req.user.organisationType;
