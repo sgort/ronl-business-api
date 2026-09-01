@@ -127,6 +127,23 @@ describe('addTenantToProcessVariables', () => {
     expect((req.body as Record<string, unknown>).variables).toBeUndefined();
   });
 
+  it('keeps a caller-supplied business key so a phase can inherit it', () => {
+    const req = {
+      user: { tenantId: 'flevoland', organisationType: 'gemeente', userId: 'u1' },
+      body: { businessKey: 'flevoland-1788277164739', variables: {} },
+    } as unknown as Request;
+    const next = jest.fn();
+
+    addTenantToProcessVariables(req, makeRes(), next as NextFunction);
+
+    const body = req.body as { businessKey: string; variables: Record<string, unknown> };
+    expect(body.businessKey).toBe('flevoland-1788277164739');
+    // The tenant context is still applied -- honouring the key does not mean
+    // honouring anything else the caller sent.
+    expect(body.variables.municipality).toBe('flevoland');
+    expect(next).toHaveBeenCalled();
+  });
+
   it('injects businessKey and tenant-scoped variables', () => {
     const req = {
       user: {
