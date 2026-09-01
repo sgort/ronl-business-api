@@ -108,6 +108,76 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.0',
+      status: 'Released',
+      date: '1 sep 2026',
+      scope: ['backend', 'frontend'],
+      commits: [
+        {
+          sha: 'f556444',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Finishing a phase makes its project ready to start the next one',
+          details: [
+            "Completing R2.1 did nothing for R2.2. getReadyProjects read only the mock portfolio, so a completed live instance never entered it — and in the mock data a project at ladder position 1 can never be wachtend, which is what R2.2's ready list requires. Both routes to a ready project were closed.",
+            'The rule, taken from the phase specs: a completed instance of phase N makes its project ready to start the next modelled phase after N. Every phase’s entry criterion names the previous phase’s exit artefact, several verbatim, so the ladder is strictly linear. R5.3 is the exception and the reason previousModelledPhase exists rather than RIP_PHASES[i-1]: R5.4 enters on “Oplevering areaal na R5.3”, so R5.3 happens — but it has no overzichtsplaat, no process model, and no exit artefact at all, so nothing about its completion is observable. Skipping it is an assertion, and skippedPhasesBefore surfaces it so R5.4 can say the oplevering is handled outside the tool.',
+            'businessKey identifies the project’s journey rather than one instance: the originating R2.1 run mints it and every later phase inherits it. It now flows through both RIP list builders, and useRipPhaseReadiness excludes candidates whose key already has an active or completed instance of this phase. A candidate whose predecessor carries no key is kept — offering a possibly-duplicate start is recoverable, silently dropping a project from the board is not.',
+          ],
+        },
+        {
+          sha: '107ab72',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A caller-supplied business key survives instead of being overwritten',
+          details: [
+            'addTenantToProcessVariables minted a fresh businessKey on every process start, unconditionally, discarding anything the caller sent before the service saw it. Invisible, because the key it produced looked exactly like the one it threw away — and harmless while every instance stood alone.',
+            'It stops being harmless once two instances need to be recognisably related: with the overwrite in place each RIP phase got its own key, nothing was related to anything, and the R2.2 Starten tab kept offering projects that were already running. Now minted only when the caller has none. Honouring a supplied key is safe — businessKey grants no access, and tenant isolation runs on the municipality variable taken from the token on the line below, which the added test asserts still holds.',
+          ],
+        },
+        {
+          sha: '262401d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A disabled button on the infra board now looks disabled',
+          details: [
+            '.cwd-v2 .v2-btn set cursor: pointer unconditionally and no :disabled rule existed anywhere in the stylesheet, so a disabled button rendered in full accent pink with a hand cursor — indistinguishable from a live one, on every screen using the shared v2 chrome. Found on Beheer → R2.2 → Starten, where the start button is correctly disabled with nothing selected but read as broken.',
+          ],
+        },
+        {
+          sha: '06b5015',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'RIP phase endpoints take a phase code instead of assuming R2.1',
+          details: [
+            'Deploying RipR22Process exposed how much of the live data path was pinned to R2.1 by a literal. The Faseladder badge and the per-phase counts generalised for free from the catalogue, but the WIP and Gereed lists, the portfolio’s live rows and the command palette read RipR21Process or R2.1 directly, so R2.2 rendered mock data beside a Gedeployed badge. /v1/rip/phase1/active and /completed become /v1/rip/phases/:code/…, and the documents route moves to /v1/rip/instances/:instanceId/documents — instance-keyed, because it resolves the deployment from the instance itself and its three resource names are R2.1’s document set rather than a general RIP convention.',
+            'resolvePhaseKey separates two failure modes an empty list would conflate: 404 UNKNOWN_PHASE for a code the catalogue does not carry, 409 PHASE_NOT_MODELLED for a known phase with no process yet. A caller must be able to tell “no process deployed” from “deployed and idle”. The engine is not consulted, so a phase modelled here but absent from the target environment still answers 200 with an empty list; only deployment-status speaks to what is deployed where.',
+            'The cross-phase portfolio fetch catches per request rather than relying on Promise.all — a non-2xx rejects the axios promise instead of resolving { success: false }, so one failing phase discarded every phase’s rows. PROCESS_DISPLAY_NAMES now derives from the phase catalogue: it feeds INFRA_PROCESS_KEYS, which filters both the infra task list and the Archief split, so the hand-written map would have silently dropped every R2.2 task from Mijn dag.',
+          ],
+        },
+        {
+          sha: '87f84d7',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'R2.2 maps to RipR22Process in the RIP phase catalogue',
+          details: [
+            'RipR22Process was deployed on the engine but RIP_PHASE_KEYS still carried R2.2 with no processDefinitionKey. That single omission broke the chain at both ends: the deployment-status endpoint builds its keysIn query from this list, so the engine was never asked about RipR22Process; and getPhaseDeployStatus requires the field to be set before it can match a returned key. R2.2 rendered as In ontwerp and the Faseladder read 1 / 12 deelprocessen inzetbaar.',
+            'Note for anyone repeating this: @ronl/shared must be rebuilt and packages/frontend/node_modules/.vite deleted before the frontend sees the change. Vite validates its pre-bundle cache against the dependency’s version, not its dist content, so a rebuilt workspace dist is invisible to it — restarting the dev server and hard-refreshing both appear to do nothing.',
+          ],
+        },
+        {
+          sha: '40449fc',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The untenanted start-form fallback sees a text-typed error body',
+          details: [
+            'getByKeyWithTenantFallback decides whether to retry a failed tenant-scoped lookup against the untenanted path by matching Operaton’s “No matching process definition with key” wording in error.response.data.message. getDeployedStartForm is the only caller passing responseType: ‘text’, and axios disables JSON parsing of the error body when responseType is set — so the body arrived as an unparsed string, .message was undefined, the guard rethrew, and the fallback could never fire. Every process deployed without a tenant answered 404 FORM_NOT_FOUND to any caller carrying one: on ACC, 21 of 23 latest-version definitions, including AwbShellProcess behind the citizen Kapvergunning form.',
+            'The raw body is now matched when it has not been parsed. The existing fallback test mocked the error body as an already-parsed object, which is why the suite stayed green while the path was dead; the added test uses the shape axios actually delivers.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.08.36',
       status: 'Released',
       date: '30 aug 2026',

@@ -171,6 +171,7 @@ app.get('/', (req: Request, res: Response) => {
       rip: '/v1/rip',
       edocs: '/v1/edocs',
       doccle: '/v1/doccle',
+      validsign: '/v1/validsign',
       curator: '/v1/pa',
       mediaAggregator: '/v1/media-aggregator',
       admin: '/v1/admin',
