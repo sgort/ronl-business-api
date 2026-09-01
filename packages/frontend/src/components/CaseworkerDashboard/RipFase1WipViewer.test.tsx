@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import RipFase1WipViewer from './RipFase1WipViewer';
 
 const mockBusinessApi = vi.hoisted(() => ({
-  rip: { phase1Documents: vi.fn() },
+  rip: { instanceDocuments: vi.fn() },
 }));
 vi.mock('../../services/api', () => ({ businessApi: mockBusinessApi }));
 
@@ -27,7 +27,7 @@ const intakeTemplate = {
 };
 
 beforeEach(() => {
-  mockBusinessApi.rip.phase1Documents.mockResolvedValue({
+  mockBusinessApi.rip.instanceDocuments.mockResolvedValue({
     success: true,
     data: {
       variables: { projectName: 'Rondweg Noord' },
@@ -44,13 +44,13 @@ afterEach(() => {
 
 describe('RipFase1WipViewer', () => {
   it('shows a loading message before the documents resolve', () => {
-    mockBusinessApi.rip.phase1Documents.mockReturnValue(new Promise(() => {}));
+    mockBusinessApi.rip.instanceDocuments.mockReturnValue(new Promise(() => {}));
     render(<RipFase1WipViewer instanceId="pi-1" />);
     expect(screen.getByText('Documenten laden…')).toBeInTheDocument();
   });
 
   it('shows an error message when loading fails', async () => {
-    mockBusinessApi.rip.phase1Documents.mockResolvedValue({ success: false });
+    mockBusinessApi.rip.instanceDocuments.mockResolvedValue({ success: false });
     render(<RipFase1WipViewer instanceId="pi-1" />);
     expect(await screen.findByText('Documenten konden niet worden geladen.')).toBeInTheDocument();
   });

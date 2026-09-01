@@ -7,8 +7,7 @@ import {
   type RipPhase,
 } from './rip-phases.catalog';
 
-const NON_R21_CODES = [
-  'R2.2',
+const UNMODELLED_CODES = [
   'R2.3',
   'R2.4',
   'R3.1',
@@ -43,9 +42,10 @@ describe('RIP_PHASES catalogue', () => {
     expect(RIP_STAGES.map((s) => s.code)).toEqual(['R2', 'R3', 'R4', 'R5', 'R6']);
   });
 
-  it('only R2.1 carries a processDefinitionKey', () => {
+  it('only the modelled phases carry a processDefinitionKey', () => {
     expect(ripPhaseByCode('R2.1')?.processDefinitionKey).toBe('RipR21Process');
-    for (const code of NON_R21_CODES) {
+    expect(ripPhaseByCode('R2.2')?.processDefinitionKey).toBe('RipR22Process');
+    for (const code of UNMODELLED_CODES) {
       expect(ripPhaseByCode(code)?.processDefinitionKey).toBeUndefined();
     }
   });
@@ -80,7 +80,7 @@ describe('RIP_PHASES catalogue', () => {
 
 describe('getPhaseDeployStatus', () => {
   const withKey: RipPhase = { ...ripPhaseByCode('R2.1')! };
-  const withoutKey: RipPhase = { ...ripPhaseByCode('R2.2')! };
+  const withoutKey: RipPhase = { ...ripPhaseByCode('R2.3')! };
   const beyond: RipPhase = { ...ripPhaseByCode('R5.3')! };
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {

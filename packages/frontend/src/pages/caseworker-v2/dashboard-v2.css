@@ -569,6 +569,10 @@
   cursor: pointer;
   font-family: inherit;
 }
+.cwd-v2 .v2-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .cwd-v2 .v2-btn.v2-btn-ghost {
   background: #fff;
   color: var(--v2-chrome);

@@ -43,7 +43,7 @@ vi.mock('../components/SessionExpiryWarning', () => ({ default: () => null }));
 vi.mock('./ChangelogPanel', () => ({ default: () => null }));
 
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
-const mockUseActivePhase1 = vi.hoisted(() => vi.fn());
+const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
 const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
 const mockUseLivePhaseCounts = vi.hoisted(() => vi.fn());
 vi.mock('../services/infra.api', async (importOriginal) => {
@@ -51,7 +51,7 @@ vi.mock('../services/infra.api', async (importOriginal) => {
   return {
     ...actual,
     useOpenTasks: mockUseOpenTasks,
-    useActivePhase1: mockUseActivePhase1,
+    useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
     useDeployedProcessKeys: mockUseDeployedProcessKeys,
     useLivePhaseCounts: mockUseLivePhaseCounts,
   };
@@ -63,7 +63,7 @@ describe('InfraBoardDashboard', () => {
     mockGetUser.mockReturnValue(null);
     window.sessionStorage.clear();
     mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
-    mockUseActivePhase1.mockReturnValue({
+    mockUseRipActiveAcrossPhases.mockReturnValue({
       data: null,
       loading: false,
       error: false,

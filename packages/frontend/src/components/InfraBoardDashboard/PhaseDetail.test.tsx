@@ -35,17 +35,17 @@ vi.mock('../../pages/infra-board/rip-phases.catalog', async (importOriginal) => 
 });
 
 const mockStart = vi.hoisted(() => vi.fn());
-const mockPhase1Active = vi.hoisted(() => vi.fn());
+const mockPhaseActive = vi.hoisted(() => vi.fn());
 const mockActivityHistory = vi.hoisted(() => vi.fn());
-const mockPhase1Completed = vi.hoisted(() => vi.fn());
-const mockPhase1Documents = vi.hoisted(() => vi.fn());
+const mockPhaseCompleted = vi.hoisted(() => vi.fn());
+const mockInstanceDocuments = vi.hoisted(() => vi.fn());
 vi.mock('../../services/api', () => ({
   businessApi: {
     process: { start: mockStart, activityHistory: mockActivityHistory },
     rip: {
-      phase1Active: mockPhase1Active,
-      phase1Completed: mockPhase1Completed,
-      phase1Documents: mockPhase1Documents,
+      phaseActive: mockPhaseActive,
+      phaseCompleted: mockPhaseCompleted,
+      instanceDocuments: mockInstanceDocuments,
     },
   },
 }));
@@ -67,10 +67,10 @@ beforeEach(() => {
     phase.code === 'R2.1' ? 'gedeployed' : 'ontwerp'
   );
   mockStart.mockResolvedValue({ success: true, data: { processInstanceId: 'pi-1' } });
-  mockPhase1Active.mockResolvedValue({ success: true, data: [] });
+  mockPhaseActive.mockResolvedValue({ success: true, data: [] });
   mockActivityHistory.mockResolvedValue({ success: true, data: [] });
-  mockPhase1Completed.mockResolvedValue({ success: true, data: [] });
-  mockPhase1Documents.mockResolvedValue({
+  mockPhaseCompleted.mockResolvedValue({ success: true, data: [] });
+  mockInstanceDocuments.mockResolvedValue({
     success: true,
     data: { variables: {}, intakeReport: null, psuReport: null, pdp: null },
   });
@@ -187,12 +187,12 @@ describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
     await screen.findByRole('button', { name: 'R2.1 starten' });
-    mockPhase1Active.mockClear();
+    mockPhaseActive.mockClear();
 
     await user.click(screen.getByRole('button', { name: 'R2.1 starten' }));
     await screen.findByText('R2.1 gestart', { exact: false });
 
-    expect(mockPhase1Active).toHaveBeenCalled();
+    expect(mockPhaseActive).toHaveBeenCalled();
   });
 });
 
@@ -266,7 +266,7 @@ describe('PhaseDetail — Starten tab, deployed phase with ready projects', () =
 
 describe('PhaseDetail — WIP tab', () => {
   it('renders a real R2.1 row with a LIVE badge, using the live activity history', async () => {
-    mockPhase1Active.mockResolvedValue({
+    mockPhaseActive.mockResolvedValue({
       success: true,
       data: [
         {
@@ -322,7 +322,7 @@ describe('PhaseDetail — WIP tab', () => {
   });
 
   it('shows a loading indicator while live WIP data is in flight', async () => {
-    mockPhase1Active.mockImplementation(() => new Promise(() => {})); // never resolves
+    mockPhaseActive.mockImplementation(() => new Promise(() => {})); // never resolves
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
@@ -332,7 +332,7 @@ describe('PhaseDetail — WIP tab', () => {
   });
 
   it('shows an error banner with a retry button when live WIP data fails to load', async () => {
-    mockPhase1Active.mockResolvedValue({ success: false });
+    mockPhaseActive.mockResolvedValue({ success: false });
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
@@ -341,13 +341,13 @@ describe('PhaseDetail — WIP tab', () => {
     expect(
       await screen.findByText('Live WIP-gegevens konden niet worden geladen.', { exact: false })
     ).toBeInTheDocument();
-    mockPhase1Active.mockClear();
+    mockPhaseActive.mockClear();
     await user.click(screen.getByRole('button', { name: 'Opnieuw proberen' }));
-    expect(mockPhase1Active).toHaveBeenCalledTimes(1);
+    expect(mockPhaseActive).toHaveBeenCalledTimes(1);
   });
 
   it('computes Producten (docsDone/docsTotal) for a live WIP row from its activity history', async () => {
-    mockPhase1Active.mockResolvedValue({
+    mockPhaseActive.mockResolvedValue({
       success: true,
       data: [
         {
@@ -410,7 +410,7 @@ describe('PhaseDetail — WIP tab', () => {
   });
 
   it('renders a dash for Gezondheid, not a false "Op schema", when a live row has no derivable step info', async () => {
-    mockPhase1Active.mockResolvedValue({
+    mockPhaseActive.mockResolvedValue({
       success: true,
       data: [
         {
@@ -439,7 +439,7 @@ describe('PhaseDetail — WIP tab', () => {
 
 describe('PhaseDetail — Gereed tab', () => {
   it('renders the summary line and a real R2.1 row with a LIVE badge', async () => {
-    mockPhase1Completed.mockResolvedValue({
+    mockPhaseCompleted.mockResolvedValue({
       success: true,
       data: [
         {
@@ -474,7 +474,7 @@ describe('PhaseDetail — Gereed tab', () => {
   });
 
   it('reveals the document viewer when Openen is clicked on a real row', async () => {
-    mockPhase1Completed.mockResolvedValue({
+    mockPhaseCompleted.mockResolvedValue({
       success: true,
       data: [
         {
@@ -494,11 +494,11 @@ describe('PhaseDetail — Gereed tab', () => {
     await user.click(screen.getByRole('button', { name: /Gereed/ }));
     await user.click(await screen.findByRole('button', { name: 'Openen' }));
 
-    expect(mockPhase1Documents).toHaveBeenCalledWith('done-1');
+    expect(mockInstanceDocuments).toHaveBeenCalledWith('done-1');
   });
 
   it('shows the computed rework-loop count for a real completed row', async () => {
-    mockPhase1Completed.mockResolvedValue({
+    mockPhaseCompleted.mockResolvedValue({
       success: true,
       data: [
         {
@@ -574,7 +574,7 @@ describe('PhaseDetail — Gereed tab', () => {
   });
 
   it('shows a loading indicator while live Gereed data is in flight', async () => {
-    mockPhase1Completed.mockImplementation(() => new Promise(() => {})); // never resolves
+    mockPhaseCompleted.mockImplementation(() => new Promise(() => {})); // never resolves
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
@@ -584,7 +584,7 @@ describe('PhaseDetail — Gereed tab', () => {
   });
 
   it('shows an error banner with a retry button when live Gereed data fails to load', async () => {
-    mockPhase1Completed.mockResolvedValue({ success: false });
+    mockPhaseCompleted.mockResolvedValue({ success: false });
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
@@ -593,13 +593,13 @@ describe('PhaseDetail — Gereed tab', () => {
     expect(
       await screen.findByText('Live Gereed-gegevens konden niet worden geladen.', { exact: false })
     ).toBeInTheDocument();
-    mockPhase1Completed.mockClear();
+    mockPhaseCompleted.mockClear();
     await user.click(screen.getByRole('button', { name: 'Opnieuw proberen' }));
-    expect(mockPhase1Completed).toHaveBeenCalledTimes(1);
+    expect(mockPhaseCompleted).toHaveBeenCalledTimes(1);
   });
 
   it('renders the full Gereed summary line with average doorlooptijd, norm, and review-loop count', async () => {
-    mockPhase1Completed.mockResolvedValue({
+    mockPhaseCompleted.mockResolvedValue({
       success: true,
       data: [
         {

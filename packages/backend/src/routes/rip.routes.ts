@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
@@ -11,22 +12,63 @@ const logger = createLogger('rip-routes');
 router.use(jwtMiddleware);
 router.use(tenantMiddleware);
 
+/** Every RIP phase modelled as BPMN, in ladder order. */
+const modelledKeys = () =>
+  RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
+
 /**
- * GET /v1/rip/phase1/active
- * List active RipR21Process instances for the caseworker's municipality.
+ * Resolve a `:code` path param to its process-definition key, answering on
+ * `res` and returning null when it cannot.
+ *
+ * The two failure modes are deliberately distinct. An unknown code is a
+ * client error — a typo or a stale link — and 404s. A known code with no
+ * process model yet (R2.3 today) is a state of the world, not a bad request,
+ * and 409s with the phase echoed back. Neither returns an empty list: a phase
+ * that has no deployed process must not be indistinguishable from a deployed
+ * one that happens to have no instances.
  */
-router.get('/phase1/active', async (req, res) => {
+function resolvePhaseKey(code: string, res: Response): string | null {
+  const phase = RIP_PHASE_KEYS.find((p) => p.code === code);
+  if (!phase) {
+    res.status(404).json({
+      success: false,
+      error: { code: 'UNKNOWN_PHASE', message: `Unknown RIP phase '${code}'` },
+    });
+    return null;
+  }
+  if (!phase.processDefinitionKey) {
+    res.status(409).json({
+      success: false,
+      error: {
+        code: 'PHASE_NOT_MODELLED',
+        message: `RIP phase '${code}' has no process model deployed yet`,
+      },
+    });
+    return null;
+  }
+  return phase.processDefinitionKey;
+}
+
+/**
+ * GET /v1/rip/phases/:code/active
+ * List active instances of one RIP phase for the caseworker's municipality.
+ */
+router.get('/phases/:code/active', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({
       success: false,
       error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
     });
   }
+  const { code } = req.params;
+  const key = resolvePhaseKey(code, res);
+  if (!key) return;
   try {
-    const list = await operatonService.getRipPhase1ActiveList(req.user.tenantId);
+    const list = await operatonService.getRipPhaseActiveList(key, req.user.tenantId);
     res.json({ success: true, data: list });
   } catch (error) {
-    logger.error('Failed to list active RIP Phase 1 instances', {
+    logger.error('Failed to list active RIP phase instances', {
+      phaseCode: code,
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -34,7 +76,40 @@ router.get('/phase1/active', async (req, res) => {
       success: false,
       error: {
         code: 'RIP_LIST_FAILED',
-        message: 'Failed to retrieve active RIP Phase 1 instances',
+        message: 'Failed to retrieve active RIP phase instances',
+      },
+    });
+  }
+});
+
+/**
+ * GET /v1/rip/phases/:code/completed
+ * List completed instances of one RIP phase for the caseworker's municipality.
+ */
+router.get('/phases/:code/completed', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+  const { code } = req.params;
+  const key = resolvePhaseKey(code, res);
+  if (!key) return;
+  try {
+    const list = await operatonService.getRipPhaseCompletedList(key, req.user.tenantId);
+    res.json({ success: true, data: list });
+  } catch (error) {
+    logger.error('Failed to list completed RIP phase instances', {
+      phaseCode: code,
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'RIP_COMPLETED_LIST_FAILED',
+        message: 'Failed to retrieve completed RIP phase instances',
       },
     });
   }
@@ -53,8 +128,10 @@ router.get('/phases/deployment-status', async (req, res) => {
     });
   }
   try {
-    const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
-    const deployedKeys = await operatonService.getDeployedProcessKeys(keys, req.user.tenantId);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(
+      modelledKeys(),
+      req.user.tenantId
+    );
     res.json({ success: true, data: { deployedKeys } });
   } catch (error) {
     logger.error('Failed to fetch RIP phase deployment status', {
@@ -83,8 +160,10 @@ router.get('/phases/counts', async (req, res) => {
     });
   }
   try {
-    const keys = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
-    const deployedKeys = await operatonService.getDeployedProcessKeys(keys, req.user.tenantId);
+    const deployedKeys = await operatonService.getDeployedProcessKeys(
+      modelledKeys(),
+      req.user.tenantId
+    );
     const counts = await operatonService.getPhaseInstanceCounts(deployedKeys, req.user.tenantId);
     res.json({ success: true, data: { counts } });
   } catch (error) {
@@ -103,10 +182,13 @@ router.get('/phases/counts', async (req, res) => {
 });
 
 /**
- * GET /v1/rip/phase1/:instanceId/documents
- * Fetch all three document templates + current process variables for a RIP Phase 1 instance.
+ * GET /v1/rip/instances/:instanceId/documents
+ * Fetch an instance's document templates + current process variables.
+ *
+ * Keyed by instance rather than by phase: the deployment is resolved from the
+ * instance itself, so no phase code is needed and none is asked for.
  */
-router.get('/phase1/:instanceId/documents', async (req, res) => {
+router.get('/instances/:instanceId/documents', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({
       success: false,
@@ -115,7 +197,7 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
   }
   const { instanceId } = req.params;
   try {
-    const result = await operatonService.getRipPhase1Documents(instanceId);
+    const result = await operatonService.getRipInstanceDocuments(instanceId);
 
     // Tenant isolation
     if (result.variables.municipality && result.variables.municipality !== req.user.tenantId) {
@@ -127,7 +209,7 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
 
     res.json({ success: true, data: result });
   } catch (error) {
-    logger.error('Failed to fetch RIP Phase 1 documents', {
+    logger.error('Failed to fetch RIP instance documents', {
       instanceId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -135,36 +217,7 @@ router.get('/phase1/:instanceId/documents', async (req, res) => {
       success: false,
       error: {
         code: 'RIP_DOCUMENTS_FAILED',
-        message: 'Failed to retrieve RIP Phase 1 documents',
-      },
-    });
-  }
-});
-
-/**
- * GET /v1/rip/phase1/completed
- * List completed RipR21Process instances for the caseworker's municipality.
- */
-router.get('/phase1/completed', async (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-    });
-  }
-  try {
-    const list = await operatonService.getRipPhase1CompletedList(req.user.tenantId);
-    res.json({ success: true, data: list });
-  } catch (error) {
-    logger.error('Failed to list completed RIP Phase 1 instances', {
-      tenantId: req.user.tenantId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'RIP_COMPLETED_LIST_FAILED',
-        message: 'Failed to retrieve completed RIP Phase 1 instances',
+        message: 'Failed to retrieve RIP instance documents',
       },
     });
   }

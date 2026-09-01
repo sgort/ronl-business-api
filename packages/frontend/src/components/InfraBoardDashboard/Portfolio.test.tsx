@@ -6,14 +6,14 @@ import Portfolio from './Portfolio';
 import { getMockPortfolio, MIJN_PROJECT_NRS } from '../../pages/infra-board/infra-board.data';
 import { RIP_PHASES, RIP_STAGES } from '../../pages/infra-board/rip-phases.catalog';
 
-const mockUseActivePhase1 = vi.hoisted(() => vi.fn());
+const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
-  return { ...actual, useActivePhase1: mockUseActivePhase1 };
+  return { ...actual, useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases };
 });
 
 beforeEach(() => {
-  mockUseActivePhase1.mockReturnValue({
+  mockUseRipActiveAcrossPhases.mockReturnValue({
     data: null,
     loading: false,
     error: false,
@@ -67,8 +67,8 @@ describe('Portfolio', () => {
     expect(onOpenProject).toHaveBeenCalledWith({ nr: first.nr, instanceId: first.instanceId });
   });
 
-  it('mentions the live RIP Fase 1 instance count when there are live instances', () => {
-    mockUseActivePhase1.mockReturnValue({
+  it('mentions the live RIP instance count when there are live instances', () => {
+    mockUseRipActiveAcrossPhases.mockReturnValue({
       data: [
         {
           id: 'i1',
@@ -77,6 +77,7 @@ describe('Portfolio', () => {
           projectName: 'Live project',
           edocsWorkspaceId: 'w1',
           leadRole: 'projectleider',
+          phaseCode: 'R2.1',
         },
       ],
       loading: false,
@@ -86,7 +87,7 @@ describe('Portfolio', () => {
 
     render(<Portfolio onOpenProject={vi.fn()} />);
 
-    expect(screen.getByText(/actieve RIP Fase 1 instanties/)).toBeInTheDocument();
+    expect(screen.getByText(/actieve RIP-instanties/)).toBeInTheDocument();
     expect(screen.getByText('Live project')).toBeInTheDocument();
   });
 

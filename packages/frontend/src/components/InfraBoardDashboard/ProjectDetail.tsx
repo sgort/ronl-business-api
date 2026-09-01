@@ -8,7 +8,7 @@ import {
 } from '../../pages/infra-board/rip-model';
 import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
-import { useActivityHistory, usePhase1Documents, useOpenTasks } from '../../services/infra.api';
+import { useActivityHistory, useInstanceDocuments, useOpenTasks } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import type { SignatureSpec } from '../../services/api';
 import type { Task } from '@ronl/shared';
@@ -175,7 +175,7 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   const { data: history, reload: reloadHistory } = useActivityHistory(
     projectRef.instanceId ?? null
   );
-  const { data: docs } = usePhase1Documents(projectRef.instanceId ?? null);
+  const { data: docs } = useInstanceDocuments(projectRef.instanceId ?? null);
   const { data: allTasks, reload: reloadTasks } = useOpenTasks();
 
   // Tasks belonging to this process instance.

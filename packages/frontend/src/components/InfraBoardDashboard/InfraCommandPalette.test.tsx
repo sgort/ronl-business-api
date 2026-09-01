@@ -5,14 +5,14 @@ import userEvent from '@testing-library/user-event';
 import InfraCommandPalette from './InfraCommandPalette';
 import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
 
-const mockUseActivePhase1 = vi.hoisted(() => vi.fn());
+const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
-  return { ...actual, useActivePhase1: mockUseActivePhase1 };
+  return { ...actual, useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases };
 });
 
 beforeEach(() => {
-  mockUseActivePhase1.mockReturnValue({
+  mockUseRipActiveAcrossPhases.mockReturnValue({
     data: null,
     loading: false,
     error: false,
@@ -55,7 +55,7 @@ describe('InfraCommandPalette', () => {
   });
 
   it('includes live RIP Fase 1 instances tagged "live"', () => {
-    mockUseActivePhase1.mockReturnValue({
+    mockUseRipActiveAcrossPhases.mockReturnValue({
       data: [
         {
           id: 'i1',
