@@ -23,8 +23,8 @@ import {
 import {
   useDeployedProcessKeys,
   useLivePhaseCounts,
-  useActivePhase1,
-  usePhase1Completed,
+  useRipPhaseActive,
+  useRipPhaseCompleted,
 } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import {
@@ -58,6 +58,9 @@ function computeHealth(blocked: string | null, daysInStep: number): HealthKey {
 
 export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const phase = ripPhaseByCode(phaseCode);
+  // Null for a phase with no process model: there are no instances to ask
+  // for, and the phase endpoints answer 409 rather than an empty list.
+  const livePhaseCode = phase?.processDefinitionKey ? phaseCode : null;
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
   const [tab, setTab] = useState<'starten' | 'wip' | 'gereed'>('starten');
@@ -75,13 +78,13 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     loading: wipLoading,
     error: wipError,
     reload: reloadWip,
-  } = useActivePhase1();
+  } = useRipPhaseActive(livePhaseCode);
   const {
     data: completedInstances,
     loading: gereedLoading,
     error: gereedError,
     reload: reloadGereed,
-  } = usePhase1Completed();
+  } = useRipPhaseCompleted(livePhaseCode);
 
   const [wipDerived, setWipDerived] = useState<
     Record<string, { info: WipStepInfo | null; docs: DocProgress }>
@@ -89,7 +92,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const [gereedDerived, setGereedDerived] = useState<Record<string, { loops: number }>>({});
 
   useEffect(() => {
-    if (phaseCode !== 'R2.1' || !activeInstances) return;
+    if (!livePhaseCode || !activeInstances) return;
     let alive = true;
     Promise.all(
       activeInstances.map(async (inst) => {
@@ -103,10 +106,10 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     return () => {
       alive = false;
     };
-  }, [phaseCode, activeInstances]);
+  }, [livePhaseCode, activeInstances]);
 
   useEffect(() => {
-    if (phaseCode !== 'R2.1' || !completedInstances) return;
+    if (!livePhaseCode || !completedInstances) return;
     let alive = true;
     Promise.all(
       completedInstances.map(async (inst) => {
@@ -120,7 +123,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     return () => {
       alive = false;
     };
-  }, [phaseCode, completedInstances]);
+  }, [livePhaseCode, completedInstances]);
 
   if (!phase) return null;
 
@@ -230,7 +233,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     setSubmitting(true);
     setFallbackError(null);
     try {
-      const res = await businessApi.process.start('RipR21Process', {});
+      const res = await businessApi.process.start(phase!.processDefinitionKey!, {});
       if (res.success) {
         setFallbackStarted(true);
         reloadWip();
@@ -268,13 +271,15 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     }
   }
 
-  const isR21 = phaseCode === 'R2.1';
-  const liveActive = isR21 ? (activeInstances ?? []) : [];
-  const liveCompleted = isR21 ? (completedInstances ?? []) : [];
-  const showWipLoading = isR21 && wipLoading && !activeInstances;
-  const showWipError = isR21 && wipError;
-  const showGereedLoading = isR21 && gereedLoading && !completedInstances;
-  const showGereedError = isR21 && gereedError;
+  // Every modelled phase now serves live rows; an unmodelled one has none
+  // and must not render a loading or error state for a request never made.
+  const isLive = Boolean(livePhaseCode);
+  const liveActive = isLive ? (activeInstances ?? []) : [];
+  const liveCompleted = isLive ? (completedInstances ?? []) : [];
+  const showWipLoading = isLive && wipLoading && !activeInstances;
+  const showWipError = isLive && wipError;
+  const showGereedLoading = isLive && gereedLoading && !completedInstances;
+  const showGereedError = isLive && gereedError;
 
   const mockWipRows = getMockWipRows(phase);
   const mockGereedRows = getMockGereedRows(phase);

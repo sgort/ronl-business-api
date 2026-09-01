@@ -7,14 +7,14 @@ import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
 import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
 
 const mockUseActivityHistory = vi.hoisted(() => vi.fn());
-const mockUsePhase1Documents = vi.hoisted(() => vi.fn());
+const mockUseInstanceDocuments = vi.hoisted(() => vi.fn());
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
   return {
     ...actual,
     useActivityHistory: mockUseActivityHistory,
-    usePhase1Documents: mockUsePhase1Documents,
+    useInstanceDocuments: mockUseInstanceDocuments,
     useOpenTasks: mockUseOpenTasks,
   };
 });
@@ -50,7 +50,7 @@ beforeEach(() => {
     error: false,
     reload: vi.fn(),
   });
-  mockUsePhase1Documents.mockReturnValue({
+  mockUseInstanceDocuments.mockReturnValue({
     data: null,
     loading: false,
     error: false,

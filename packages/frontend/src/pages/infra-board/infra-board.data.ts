@@ -626,33 +626,40 @@ const RAW: Raw[] = [
 ];
 
 /** Build a PortfolioProject row from a live RIP Fase 1 process instance. */
-export function makePhase1Row(inst: {
-  id: string;
-  startTime: string;
-  projectNumber: string;
-  projectName: string;
-  leadRole?: string;
-}): PortfolioProject {
+export function makeLivePhaseRow(
+  inst: {
+    id: string;
+    startTime: string;
+    projectNumber: string;
+    projectName: string;
+    leadRole?: string;
+  },
+  phaseCode: string
+): PortfolioProject {
   const d = new Date(inst.startTime);
   const q = Math.floor(d.getMonth() / 3) + 1;
   const fromIdx = qIdx(d.getFullYear(), q);
-  const statuses: StatusKey[] = RIP_PHASES.map((p) => (p.code === 'R2.1' ? 'active' : 'todo'));
+  // Phases before this one are done, this one is running, later ones are todo.
+  const activeIdx = RIP_PHASES.findIndex((p) => p.code === phaseCode);
+  const statuses: StatusKey[] = RIP_PHASES.map((_, i) =>
+    i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'todo'
+  );
   const segments = buildRipSegments(fromIdx, statuses);
   const last = segments[segments.length - 1];
   return {
     id: 'live-' + inst.id,
     nr: inst.projectNumber || inst.id.slice(0, 8),
-    naam: inst.projectName || 'RIP Fase 1 project',
+    naam: inst.projectName || `RIP ${phaseCode} project`,
     role: normalizeLeadRole(inst.leadRole),
     health: 'groen',
-    milestone: 'Fase 1 lopend',
+    milestone: `${phaseCode} lopend`,
     budget: '—',
     startYear: d.getFullYear(),
     start: fromIdx,
     end: last.from + last.len,
     segments,
     instanceId: inst.id,
-    ripPhaseCode: RIP_PHASES[0].code,
+    ripPhaseCode: phaseCode,
     ripPhaseState: 'wip',
   };
 }

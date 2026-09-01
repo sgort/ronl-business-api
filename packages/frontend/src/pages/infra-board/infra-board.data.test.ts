@@ -10,7 +10,7 @@ import {
   getMockWipRows,
   getOutOfSequenceProjects,
   getReadyProjects,
-  makePhase1Row,
+  makeLivePhaseRow,
   normalizeLeadRole,
   TL,
 } from './infra-board.data';
@@ -30,15 +30,18 @@ describe('normalizeLeadRole', () => {
   });
 });
 
-describe('makePhase1Row', () => {
+describe('makeLivePhaseRow', () => {
   it('builds a live portfolio row anchored on the instance start quarter', () => {
-    const row = makePhase1Row({
-      id: 'abcdefgh-1234',
-      startTime: '2024-04-15T00:00:00Z',
-      projectNumber: '24099',
-      projectName: 'Test project',
-      leadRole: 'manager-pb',
-    });
+    const row = makeLivePhaseRow(
+      {
+        id: 'abcdefgh-1234',
+        startTime: '2024-04-15T00:00:00Z',
+        projectNumber: '24099',
+        projectName: 'Test project',
+        leadRole: 'manager-pb',
+      },
+      'R2.1'
+    );
 
     const expectedStart = (2024 - TL.startYear) * 4 + (2 - 1); // April = Q2
 
@@ -58,16 +61,40 @@ describe('makePhase1Row', () => {
   });
 
   it('falls back to the instance id and a default name when nr/naam are blank', () => {
-    const row = makePhase1Row({
-      id: 'abcdefgh-1234',
-      startTime: '2024-01-01T00:00:00Z',
-      projectNumber: '',
-      projectName: '',
-    });
+    const row = makeLivePhaseRow(
+      {
+        id: 'abcdefgh-1234',
+        startTime: '2024-01-01T00:00:00Z',
+        projectNumber: '',
+        projectName: '',
+      },
+      'R2.1'
+    );
 
     expect(row.nr).toBe('abcdefgh'); // first 8 chars of id
-    expect(row.naam).toBe('RIP Fase 1 project');
+    expect(row.naam).toBe('RIP R2.1 project');
     expect(row.role).toBe('projectleider'); // normalizeLeadRole(undefined)
+  });
+
+  it('marks earlier phases done and later ones todo for a mid-ladder phase', () => {
+    // A live R2.2 instance means R2.1 is behind it -- the row must not claim
+    // the project is still sitting in the first phase.
+    const row = makeLivePhaseRow(
+      {
+        id: 'i-1',
+        startTime: '2024-04-15T00:00:00Z',
+        projectNumber: '24100',
+        projectName: 'VO project',
+      },
+      'R2.2'
+    );
+
+    expect(row.ripPhaseCode).toBe('R2.2');
+    expect(row.naam).toBe('VO project');
+    expect(row.milestone).toBe('R2.2 lopend');
+    expect(row.segments[0].status).toBe('done');
+    expect(row.segments[1].status).toBe('active');
+    expect(row.segments.slice(2).every((seg) => seg.status === 'todo')).toBe(true);
   });
 });
 

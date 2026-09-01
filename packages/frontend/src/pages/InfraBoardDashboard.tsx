@@ -37,7 +37,7 @@ import SessionExpiryWarning from '../components/SessionExpiryWarning';
 import ChangelogPanel from './ChangelogPanel';
 import {
   useOpenTasks,
-  useActivePhase1,
+  useRipActiveAcrossPhases,
   useDeployedProcessKeys,
   useLivePhaseCounts,
 } from '../services/infra.api';
@@ -45,7 +45,7 @@ import {
   getMockPortfolio,
   getMockTodos,
   getMockPhaseCounts,
-  makePhase1Row,
+  makeLivePhaseRow,
   type PortfolioProject,
 } from './infra-board/infra-board.data';
 import { RIP_PHASES } from './infra-board/rip-phases.catalog';
@@ -152,11 +152,13 @@ export default function InfraBoardDashboard() {
   // Portfolio.tsx/FaseladderOverview.tsx already source their own live data
   // rather than lifting it here and threading it down as props.
   const { data: liveTasks } = useOpenTasks();
-  const { data: liveInstances } = useActivePhase1();
+  const { data: liveInstances } = useRipActiveAcrossPhases();
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
 
-  const liveRows: PortfolioProject[] = (liveInstances ?? []).map(makePhase1Row);
+  const liveRows: PortfolioProject[] = (liveInstances ?? []).map((i) =>
+    makeLivePhaseRow(i, i.phaseCode)
+  );
   const liveNrs = new Set(liveRows.map((r) => r.nr));
   const allProjects = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
 

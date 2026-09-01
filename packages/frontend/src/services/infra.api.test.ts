@@ -8,15 +8,16 @@ import {
   useDeployedProcessKeys,
   useLivePhaseCounts,
   useOpenTasks,
-  usePhase1Completed,
+  useRipActiveAcrossPhases,
+  useRipPhaseCompleted,
 } from './infra.api';
 
 const mockBusinessApi = vi.hoisted(() => ({
   task: { list: vi.fn() },
   rip: {
-    phase1Active: vi.fn(),
-    phase1Completed: vi.fn(),
-    phase1Documents: vi.fn(),
+    phaseActive: vi.fn(),
+    phaseCompleted: vi.fn(),
+    instanceDocuments: vi.fn(),
     deploymentStatus: vi.fn(),
     phasesCounts: vi.fn(),
   },
@@ -115,7 +116,7 @@ describe('groupTasksByHorizon', () => {
       makeTask({ id: 'titled-1', due: localDateTime(2026, 0, 8) }),
     ]);
 
-    expect(result.vandaag[0].titel).toBe('RIP Fase 1 — R2.1 Projectplan Planvoorbereiding');
+    expect(result.vandaag[0].titel).toBe('RIP R2.1 — Projectplan planvoorbereiding');
   });
 });
 
@@ -247,7 +248,70 @@ describe('useActivityHistory', () => {
   });
 });
 
-describe('usePhase1Completed', () => {
+describe('useRipActiveAcrossPhases', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const inst = (id: string) => ({
+    id,
+    startTime: '2026-01-01T00:00:00Z',
+    projectNumber: '11111',
+    projectName: 'Live',
+    edocsWorkspaceId: 'w1',
+    leadRole: 'projectleider',
+  });
+
+  it('tags each instance with the phase it came from', async () => {
+    mockBusinessApi.rip.phaseActive.mockClear();
+    mockBusinessApi.rip.phaseActive.mockImplementation((code: string) =>
+      Promise.resolve({ success: true, data: [inst(`i-${code}`)] })
+    );
+
+    const { result } = renderHook(() => useRipActiveAcrossPhases());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual([
+      expect.objectContaining({ id: 'i-R2.1', phaseCode: 'R2.1' }),
+      expect.objectContaining({ id: 'i-R2.2', phaseCode: 'R2.2' }),
+    ]);
+    expect(result.current.error).toBe(false);
+  });
+
+  it('keeps the phases that answered when another one rejects', async () => {
+    // A non-2xx rejects the axios promise, it does not resolve
+    // { success: false } -- so an unguarded Promise.all would reject here and
+    // the portfolio would show no live rows at all. This is the regression
+    // that made R2.1's live project vanish while the backend still served
+    // the old routes.
+    mockBusinessApi.rip.phaseActive.mockClear();
+    mockBusinessApi.rip.phaseActive.mockImplementation((code: string) =>
+      code === 'R2.1'
+        ? Promise.resolve({ success: true, data: [inst('i-1')] })
+        : Promise.reject(new Error('404'))
+    );
+
+    const { result } = renderHook(() => useRipActiveAcrossPhases());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toEqual([
+      expect.objectContaining({ id: 'i-1', phaseCode: 'R2.1' }),
+    ]);
+    expect(result.current.error).toBe(false);
+  });
+
+  it('reports an error only when every phase fails', async () => {
+    mockBusinessApi.rip.phaseActive.mockClear();
+    mockBusinessApi.rip.phaseActive.mockRejectedValue(new Error('backend down'));
+
+    const { result } = renderHook(() => useRipActiveAcrossPhases());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
+  });
+});
+
+describe('useRipPhaseCompleted', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -263,21 +327,36 @@ describe('usePhase1Completed', () => {
         edocsWorkspaceId: 'w2',
       },
     ];
-    mockBusinessApi.rip.phase1Completed.mockResolvedValue({ success: true, data: completed });
+    mockBusinessApi.rip.phaseCompleted.mockResolvedValue({ success: true, data: completed });
 
-    const { result } = renderHook(() => usePhase1Completed());
+    const { result } = renderHook(() => useRipPhaseCompleted('R2.1'));
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.data).toEqual(completed);
     expect(result.current.error).toBe(false);
+    expect(mockBusinessApi.rip.phaseCompleted).toHaveBeenCalledWith('R2.1');
+  });
+
+  it('makes no request at all for a null phase code', async () => {
+    // vi.restoreAllMocks() does not reset a vi.hoisted() vi.fn(), so the
+    // previous test's call would otherwise still be on the record here.
+    mockBusinessApi.rip.phaseCompleted.mockClear();
+
+    const { result } = renderHook(() => useRipPhaseCompleted(null));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(mockBusinessApi.rip.phaseCompleted).not.toHaveBeenCalled();
+    expect(result.current.data).toEqual([]);
+    expect(result.current.error).toBe(false);
   });
 
   it('sets error state when the call rejects', async () => {
-    mockBusinessApi.rip.phase1Completed.mockRejectedValue(new Error('network down'));
+    mockBusinessApi.rip.phaseCompleted.mockRejectedValue(new Error('network down'));
 
-    const { result } = renderHook(() => usePhase1Completed());
+    const { result } = renderHook(() => useRipPhaseCompleted('R2.1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

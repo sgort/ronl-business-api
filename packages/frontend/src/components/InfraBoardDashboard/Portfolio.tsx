@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import {
   getMockPortfolio,
-  makePhase1Row,
+  makeLivePhaseRow,
   MIJN_PROJECT_NRS,
   TL,
   type PortfolioProject,
 } from '../../pages/infra-board/infra-board.data';
 import { STATUS, roleByKey, type StatusKey } from '../../pages/infra-board/rip-model';
 import { RIP_PHASES, RIP_STAGES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
-import { useActivePhase1 } from '../../services/infra.api';
+import { useRipActiveAcrossPhases } from '../../services/infra.api';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -189,11 +189,13 @@ export default function Portfolio({ onOpenProject }: Props) {
   const [scope, setScope] = useState<'alle' | 'mijn' | 'risico'>('alle');
   const [role, setRole] = useState('alle');
 
-  const { data: liveInstances } = useActivePhase1();
+  const { data: liveInstances } = useRipActiveAcrossPhases();
 
   // Convert live instances to portfolio rows and prepend them.
   // Remove any mock row whose project number matches a live instance (avoid duplicates).
-  const liveRows: PortfolioProject[] = (liveInstances ?? []).map(makePhase1Row);
+  const liveRows: PortfolioProject[] = (liveInstances ?? []).map((i) =>
+    makeLivePhaseRow(i, i.phaseCode)
+  );
   const liveNrs = new Set(liveRows.map((r) => r.nr));
   const all = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
   const mijn = new Set(MIJN_PROJECT_NRS);
@@ -229,8 +231,8 @@ export default function Portfolio({ onOpenProject }: Props) {
       <h1 className="pb-h1">Projectenportfolio</h1>
       <p className="pb-lead">
         {counts.total} projecten over de RIP-fasen (venster 2022–2027)
-        {liveInstances ? ` · ${liveInstances.length} actieve RIP Fase 1 instanties` : ''}. Bekijk
-        als tijdlijn of per fase. Klik een project om in te zoomen.
+        {liveInstances ? ` · ${liveInstances.length} actieve RIP-instanties` : ''}. Bekijk als
+        tijdlijn of per fase. Klik een project om in te zoomen.
       </p>
 
       <div className="pb-port-toolbar">

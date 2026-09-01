@@ -309,7 +309,9 @@ export const businessApi = {
   },
 
   rip: {
-    phase1Active: async (): Promise<
+    phaseActive: async (
+      phaseCode: string
+    ): Promise<
       ApiResponse<
         Array<{
           id: string;
@@ -321,11 +323,11 @@ export const businessApi = {
         }>
       >
     > => {
-      const response = await api.get('/rip/phase1/active');
+      const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/active`);
       return response.data;
     },
 
-    phase1Documents: async (
+    instanceDocuments: async (
       instanceId: string
     ): Promise<
       ApiResponse<{
@@ -335,7 +337,7 @@ export const businessApi = {
         pdp: Record<string, unknown> | null;
       }>
     > => {
-      const response = await api.get(`/rip/phase1/${instanceId}/documents`);
+      const response = await api.get(`/rip/instances/${instanceId}/documents`);
       return response.data;
     },
 
@@ -351,7 +353,9 @@ export const businessApi = {
       return response.data;
     },
 
-    phase1Completed: async (): Promise<
+    phaseCompleted: async (
+      phaseCode: string
+    ): Promise<
       ApiResponse<
         Array<{
           id: string;
@@ -363,7 +367,7 @@ export const businessApi = {
         }>
       >
     > => {
-      const response = await api.get('/rip/phase1/completed');
+      const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/completed`);
       return response.data;
     },
   },

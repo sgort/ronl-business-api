@@ -1323,10 +1323,15 @@ export class OperatonService {
   }
 
   /**
-   * List active (unfinished) RipR21Process instances for a municipality,
-   * enriched with projectNumber, projectName, edocsWorkspaceId.
+   * List active (unfinished) instances of one RIP phase process for a
+   * municipality, enriched with projectNumber, projectName, edocsWorkspaceId.
+   * The caller resolves the phase code to its process-definition key via
+   * RIP_PHASE_KEYS -- this method takes the key, not the code.
    */
-  async getRipPhase1ActiveList(tenantId: string): Promise<
+  async getRipPhaseActiveList(
+    processDefinitionKey: string,
+    tenantId: string
+  ): Promise<
     {
       id: string;
       startTime: string;
@@ -1337,7 +1342,7 @@ export class OperatonService {
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
-      processDefinitionKey: 'RipR21Process',
+      processDefinitionKey,
       unfinished: true,
       variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
       sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
@@ -1372,11 +1377,18 @@ export class OperatonService {
   }
 
   /**
-   * Fetch all three RIP Phase 1 document templates from the deployment bundle,
-   * together with the current process variables (via history API — works for active instances).
-   * Documents not yet present in the deployment return null.
+   * Fetch an instance's document templates from its own deployment bundle,
+   * together with the current process variables (via history API — works for
+   * active instances). Documents not present in the deployment return null.
+   *
+   * Instance-keyed rather than phase-keyed on purpose: the deployment is
+   * resolved from the instance itself, so this works for any RIP process.
+   * The three resource names below (intakeReport, psuReport, pdp) are R2.1's
+   * document set, not a general RIP convention — when a later phase ships
+   * documents of its own, this returns null for all three rather than
+   * guessing. Generalising the set is a design question for that moment.
    */
-  async getRipPhase1Documents(processInstanceId: string): Promise<{
+  async getRipInstanceDocuments(processInstanceId: string): Promise<{
     variables: Record<string, unknown>;
     intakeReport: Record<string, unknown> | null;
     psuReport: Record<string, unknown> | null;
@@ -1422,9 +1434,13 @@ export class OperatonService {
   }
 
   /**
-   * Fetch all three RIP Phase 1 documents from the deployment bundle for finished instances.
+   * List completed (finished) instances of one RIP phase process for a
+   * municipality. Takes the process-definition key, not the phase code.
    */
-  async getRipPhase1CompletedList(tenantId: string): Promise<
+  async getRipPhaseCompletedList(
+    processDefinitionKey: string,
+    tenantId: string
+  ): Promise<
     {
       id: string;
       startTime: string;
@@ -1435,7 +1451,7 @@ export class OperatonService {
     }[]
   > {
     const instancesRes = await this.client.post('/history/process-instance', {
-      processDefinitionKey: 'RipR21Process',
+      processDefinitionKey,
       finished: true,
       variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
       sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],

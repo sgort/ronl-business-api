@@ -431,23 +431,28 @@ describe('businessApi.hr', () => {
 });
 
 describe('businessApi.rip', () => {
-  it('phase1Active fetches the active Fase 1 instances', async () => {
+  it('phaseActive fetches the active instances of the phase it is given', async () => {
+    let seen = '';
     server.use(
-      http.get('*/rip/phase1/active', () => HttpResponse.json({ success: true, data: [] }))
+      http.get('*/rip/phases/:code/active', ({ request }) => {
+        seen = new URL(request.url).pathname;
+        return HttpResponse.json({ success: true, data: [] });
+      })
     );
-    expect(await businessApi.rip.phase1Active()).toEqual({ success: true, data: [] });
+    expect(await businessApi.rip.phaseActive('R2.2')).toEqual({ success: true, data: [] });
+    expect(seen).toContain('/rip/phases/R2.2/active');
   });
 
-  it('phase1Documents fetches the Fase 1 document bundle', async () => {
+  it('instanceDocuments fetches an instance document bundle', async () => {
     server.use(
-      http.get('*/rip/phase1/pi-1/documents', () =>
+      http.get('*/rip/instances/pi-1/documents', () =>
         HttpResponse.json({
           success: true,
           data: { variables: {}, intakeReport: null, psuReport: null, pdp: null },
         })
       )
     );
-    expect(await businessApi.rip.phase1Documents('pi-1')).toEqual({
+    expect(await businessApi.rip.instanceDocuments('pi-1')).toEqual({
       success: true,
       data: { variables: {}, intakeReport: null, psuReport: null, pdp: null },
     });
@@ -480,11 +485,16 @@ describe('businessApi.rip', () => {
     });
   });
 
-  it('phase1Completed fetches the completed Fase 1 instances', async () => {
+  it('phaseCompleted fetches the completed instances of the phase it is given', async () => {
+    let seen = '';
     server.use(
-      http.get('*/rip/phase1/completed', () => HttpResponse.json({ success: true, data: [] }))
+      http.get('*/rip/phases/:code/completed', ({ request }) => {
+        seen = new URL(request.url).pathname;
+        return HttpResponse.json({ success: true, data: [] });
+      })
     );
-    expect(await businessApi.rip.phase1Completed()).toEqual({ success: true, data: [] });
+    expect(await businessApi.rip.phaseCompleted('R2.1')).toEqual({ success: true, data: [] });
+    expect(seen).toContain('/rip/phases/R2.1/completed');
   });
 });
 

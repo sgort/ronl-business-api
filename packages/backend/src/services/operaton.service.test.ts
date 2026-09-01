@@ -215,22 +215,27 @@ describe('startProcess', () => {
   });
 });
 
-describe('getRipPhase1ActiveList / getRipPhase1CompletedList', () => {
-  it('getRipPhase1ActiveList filters by the RipR21Process key', async () => {
+describe('getRipPhaseActiveList / getRipPhaseCompletedList', () => {
+  // A key the catalogue does not carry, on purpose: if either method ever
+  // reverts to a hardcoded RipR21Process these assertions fail, which the
+  // old R2.1-keyed versions of these tests could not detect.
+  const KEY = 'RipSomeOtherPhaseProcess';
+
+  it('getRipPhaseActiveList filters by the key it is given', async () => {
     mockClient.post.mockResolvedValue({ data: [] });
-    await svc.getRipPhase1ActiveList('flevoland');
+    await svc.getRipPhaseActiveList(KEY, 'flevoland');
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
-      expect.objectContaining({ processDefinitionKey: 'RipR21Process' })
+      expect.objectContaining({ processDefinitionKey: KEY, unfinished: true })
     );
   });
 
-  it('getRipPhase1CompletedList filters by the RipR21Process key', async () => {
+  it('getRipPhaseCompletedList filters by the key it is given', async () => {
     mockClient.post.mockResolvedValue({ data: [] });
-    await svc.getRipPhase1CompletedList('flevoland');
+    await svc.getRipPhaseCompletedList(KEY, 'flevoland');
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
-      expect.objectContaining({ processDefinitionKey: 'RipR21Process' })
+      expect.objectContaining({ processDefinitionKey: KEY, finished: true })
     );
   });
 });
@@ -1133,7 +1138,7 @@ describe('setProcessVariables', () => {
 });
 
 describe('document bundles', () => {
-  it('getRipPhase1Documents returns variables plus present templates (null for absent)', async () => {
+  it('getRipInstanceDocuments returns variables plus present templates (null for absent)', async () => {
     routeGet([
       [/\/history\/variable-instance$/, { data: [{ name: 'projectNumber', value: 'P1' }] }],
       [/\/history\/process-instance\/pi1$/, { data: { processDefinitionId: 'pd1' } }],
@@ -1142,7 +1147,7 @@ describe('document bundles', () => {
       [/\/deployment\/dep1\/resources\/r1\/data$/, { data: '{"t":"intake"}' }],
     ]);
 
-    const res = await svc.getRipPhase1Documents('pi1');
+    const res = await svc.getRipInstanceDocuments('pi1');
     expect(res.variables).toEqual({ projectNumber: 'P1' });
     expect(res.intakeReport).toEqual({ t: 'intake' });
     expect(res.psuReport).toBeNull();
@@ -1175,7 +1180,7 @@ describe('document bundles', () => {
 });
 
 describe('archive list builders', () => {
-  it('getRipPhase1ActiveList maps project variables with fallbacks', async () => {
+  it('getRipPhaseActiveList maps project variables with fallbacks', async () => {
     mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's' }] });
     mockClient.get.mockResolvedValue({
       data: [
@@ -1184,7 +1189,7 @@ describe('archive list builders', () => {
       ],
     });
 
-    const res = await svc.getRipPhase1ActiveList('flevoland');
+    const res = await svc.getRipPhaseActiveList('RipR21Process', 'flevoland');
     expect(res[0]).toEqual({
       id: 'i1',
       startTime: 's',
@@ -1199,13 +1204,13 @@ describe('archive list builders', () => {
     );
   });
 
-  it('getRipPhase1CompletedList maps completed instances', async () => {
+  it('getRipPhaseCompletedList maps completed instances', async () => {
     mockClient.post.mockResolvedValue({ data: [{ id: 'i1', startTime: 's', endTime: 'e' }] });
     mockClient.get.mockResolvedValue({
       data: [{ processInstanceId: 'i1', name: 'projectNumber', value: 'P1' }],
     });
 
-    const res = await svc.getRipPhase1CompletedList('flevoland');
+    const res = await svc.getRipPhaseCompletedList('RipR21Process', 'flevoland');
     expect(res[0]).toMatchObject({ id: 'i1', endTime: 'e', projectNumber: 'P1', projectName: '—' });
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
@@ -1242,7 +1247,7 @@ describe('archive list builders', () => {
 
   it('list builders return [] when there are no instances', async () => {
     mockClient.post.mockResolvedValue({ data: [] });
-    await expect(svc.getRipPhase1ActiveList('t')).resolves.toEqual([]);
+    await expect(svc.getRipPhaseActiveList('RipR21Process', 't')).resolves.toEqual([]);
     await expect(svc.getCapacityClaimActiveList('t')).resolves.toEqual([]);
   });
 });
@@ -1430,10 +1435,15 @@ describe('list mappers when the history variables are sparse', () => {
   // mappers have to skip variables they do not care about, tolerate a null
   // value, and fall back for an instance that contributed no variables at all.
   const LISTS: Array<[string, () => Promise<Array<Record<string, unknown>>>, string, string]> = [
-    ['getRipPhase1ActiveList', () => svc.getRipPhase1ActiveList('flevoland'), 'projectNumber', '—'],
     [
-      'getRipPhase1CompletedList',
-      () => svc.getRipPhase1CompletedList('flevoland'),
+      'getRipPhaseActiveList',
+      () => svc.getRipPhaseActiveList('RipR21Process', 'flevoland'),
+      'projectNumber',
+      '—',
+    ],
+    [
+      'getRipPhaseCompletedList',
+      () => svc.getRipPhaseCompletedList('RipR21Process', 'flevoland'),
       'projectNumber',
       '—',
     ],
