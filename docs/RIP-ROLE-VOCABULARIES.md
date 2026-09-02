@@ -97,12 +97,37 @@ realm, not a mirror of all of them.** They were restored.
 imported when a local Keycloak is provisioned. ACC and production run their own
 realms, and editing this file does not touch them.
 
-So on ACC the gap is still open: tasks from R2.2 onward addressed to any of the
-28 remain invisible there. Closing it needs the roles added to ACC's realm and
-granted, through the Admin API — `scripts/keycloak-add-token-claim-mappers.sh`
-is the precedent for a surgical, idempotent change of that kind, in preference
-to a realm import (SKIP policy skips an existing client entirely, OVERWRITE
-replaces the whole definition).
+So on ACC the gap stays open until the roles are created there too.
+`scripts/keycloak-add-rip-roles.sh` does that against any Keycloak over the
+Admin API, in preference to a realm import (SKIP policy skips what already
+exists; OVERWRITE replaces whole definitions and would discard whatever ACC
+configured by hand).
+
+```bash
+# Look first - creates nothing.
+KEYCLOAK_URL=https://acc.keycloak.open-regels.nl \
+  ADMIN_USER=<admin> \
+  bash scripts/keycloak-add-rip-roles.sh --dry-run
+
+# Then for real. Omitting ADMIN_PASSWORD makes it prompt, which keeps the
+# password out of shell history.
+KEYCLOAK_URL=https://acc.keycloak.open-regels.nl \
+  ADMIN_USER=<admin> \
+  bash scripts/keycloak-add-rip-roles.sh
+```
+
+It reads the role list from `config/keycloak/ronl-realm.json`, creates the ones
+that are missing, grants them to `GRANT_USER` (default `test-infra-flevoland`;
+set it empty to create roles without granting anyone), and re-reads the realm
+afterwards to verify rather than trusting the status codes. Re-running is a
+no-op.
+
+Two things that will otherwise cost time:
+
+- If the admin account lives in the application realm rather than `master`,
+  pass `ADMIN_REALM=ronl`. The token error message says so explicitly.
+- **A grant only reaches the user on their NEXT token.** Sign out and back in
+  before judging whether the board changed.
 
 **The two open modelling questions are unaffected by any of this.** Both were
 already with the business owners, and both are about what the _candidate
