@@ -61,8 +61,9 @@
 #      why if not — see header above).
 #   2. Confirms RipR21Process is deployed and reports its version.
 #   3. Fetches a Keycloak token for START_USER (password grant) and starts an
-#      instance via POST ${BACKEND_URL}/v1/process/RipR21Process/start — the
-#      backend assigns the businessKey itself (tenantId-timestamp) and stamps
+#      instance via POST ${BACKEND_URL}/v1/process/RipR21Process/start — this
+#      script sends no businessKey, so the backend mints one
+#      (tenantId-timestamp), and it stamps
 #      municipality, organisationType, initiator, assuranceLevel and
 #      applicantId onto the instance. Verifies municipality actually landed
 #      on the instance afterwards and fails loudly if it did not — that is
@@ -298,9 +299,20 @@ section "Starting instance (via backend)"
 # route the board's "R2.1 starten" button uses — instead of Operaton
 # directly, so the instance gets municipality, businessKey and every other
 # tenant-context variable exactly as a real instance would
-# (addTenantToProcessVariables in tenant.middleware.ts sets these; the
-# backend overwrites any businessKey we pass with "<tenantId>-<timestamp>",
-# so we don't bother sending one).
+# (addTenantToProcessVariables in tenant.middleware.ts sets these).
+#
+# This script sends no businessKey and lets the backend mint one, which is
+# right for a standalone R2.1 run: there is no earlier phase to attach to.
+#
+# It did NOT used to be a choice. addTenantToProcessVariables overwrote any
+# businessKey the caller sent, unconditionally, so sending one was pointless —
+# and this comment used to say so. That changed with the RIP phase-progression
+# work: a business key now identifies a project's whole journey across phases,
+# the originating R2.1 run mints it and every later phase inherits it, so the
+# middleware only mints when the caller supplies none. If you want an R2.1
+# instance attached to an existing project, or to walk further than R2.1, use
+# scripts/rip-phase-walkthrough.sh, which takes --business-key and enforces the
+# same start precondition the board's Starten tab applies.
 START_URL="${BACKEND_URL}/v1/process/${PROCESS_KEY}/start"
 START_RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "$START_URL" \
   -H 'Content-Type: application/json' \
