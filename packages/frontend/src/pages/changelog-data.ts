@@ -108,6 +108,84 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.1',
+      status: 'Released',
+      date: '2 sep 2026',
+      scope: ['backend', 'frontend', 'pa-demo', 'public-site'],
+      commits: [
+        {
+          sha: 'c2906dd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The RIP ladder gets the 28 roles its models address work to',
+          details: [
+            'The process models address tasks to 34 candidate groups; the Keycloak realm defined 6. GET /v1/task passes the caller’s realm roles to Operaton as candidateGroups, so a task whose groups all fall outside them is filtered out before it reaches the client — not “cannot claim”, not listed at all. task.routes.ts states the assumption that made this invisible: “Candidate groups in the BPMN map 1:1 to realm role names in this platform.”',
+            'Measured against the roles test-infra-flevoland held, 113 of the ladder’s 201 user tasks were unreachable, and it grew down the ladder — R4.1 onward majority-invisible, R5.2 showing 9 of its 36 tasks. Nothing caught it because the surfaces used most do not take that path: the Faseladder and its WIP/Gereed lists filter on the municipality process variable and never look at candidate groups.',
+            'Only the local seed realm is changed here. ACC and production run their own realms, so the roles have to be created there too.',
+          ],
+        },
+        {
+          sha: 'c614cfb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Rollen & rechten describes roles that exist',
+          details: [
+            'Of seven rip-* entries in the description map, exactly one described something real, while five of the six realm rip roles had no description at all. The map is now maintained additively: an entry for something that appears in no list simply never renders, whereas a missing one degrades the page to a bare identifier.',
+          ],
+        },
+        {
+          sha: '035d393',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The RIP ladder is complete: R5.1, R5.2, R5.4 and R6.1',
+          details: [
+            'Eleven phases modelled. R5.3 is the only one without a process definition and stays that way — a real step, named by R5.4’s own entry criterion, with no design sheet, no BPMN and no observable exit. previousModelledPhase skips it so R5.4 follows R5.2, and that path now runs against live data rather than only a test fixture.',
+            'The withoutKey test fixture is synthesised rather than taken from a real phase: every phase now either carries a processDefinitionKey or is beyond, and beyond short-circuits before the key is consulted, so no real phase can exercise that branch any more.',
+          ],
+        },
+        {
+          sha: '489bdcb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Ongefilterd count reads as a cap, not a total',
+          details: [
+            'The number on the segment was a page size wearing the clothes of an answer. Politiek showed 60 and the other signaalbronnen 30 — not because the feeds hold that many, but because the view asks for 30 per source and politiek has two. fetchFeed returns { items, total } and the total was being discarded. Ongefilterd now follows the convention the Inbox segment already had: 60+ / 30+ when capped, with a banner carrying the real total.',
+            'Two judgements are pinned by tests. A full page counts as capped even when the total is unknown — TK returns total: null for multi-term queries, and a null must never be read as “nothing more”; the page being full is the signal that survives either way. And the total is shown only when every source reported one, because a partial sum across sources would look authoritative without being so.',
+          ],
+        },
+        {
+          sha: 'efd39d6',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Browse each signaalbron’s raw feed unfiltered',
+          details: [
+            'An Ongefilterd segment beside Gecureerd and Inbox, showing the tab’s own sources with no query applied. The data path already existed end to end — GET /pa/feed reads q as string | null, every source client defaults it to null, and that blanco path is what the curation cycle itself runs on. What was missing was any way to reach it: runSearch returned early on an empty string, so a blank search showed nothing rather than everything.',
+            'Where the segment appears is derived rather than listed. paTabFeedSources returns TAB_SOURCES as FeedSource ids, and an empty array is meaningful — it marks a monitoring tab with no feed, which today is agenda. So a future source tab gets the segment for free and agenda never does, without a second list that could drift from TAB_SOURCES.',
+          ],
+        },
+        {
+          sha: 'c561d48',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'R2.3 through R4.1 adopted in the phase catalogue',
+          details: [
+            'Five phases deployed via LDE, verified off the engine before adopting rather than taken from the deploy pull requests. The Faseladder reads 7 / 12 deelprocessen inzetbaar, and no source change was needed beyond the catalogue itself — the endpoints, readiness rule and progression generalised in v2026.09.0 already cover any modelled phase.',
+            'Three test fixtures had pinned a literal phase code as “the one without a process model” and all three broke identically. They now derive it, so the next deployment does not break tests that have nothing to do with the phase being deployed.',
+          ],
+        },
+        {
+          sha: '046a7ab',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'vite 5 → 6 (security)',
+          details: [
+            'Raised across frontend, pa-cockpit, pa-demo and public-site from ^5.0.8 to ^6.4.3, with the lockfile regenerated. Build-time only — nothing vite-related ships in the deployed bundle. Open since 29 August and deferred from the previous two releases.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.0',
       status: 'Released',
       date: '1 sep 2026',
