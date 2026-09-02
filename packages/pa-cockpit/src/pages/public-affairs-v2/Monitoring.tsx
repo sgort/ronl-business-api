@@ -18,6 +18,7 @@ import {
   promoteSearchToTenant,
   promoteToInbox,
   paTabBronnen,
+  paTabFeedSources,
   signalTag,
   signalTagLabel,
   BRON_LABEL,
@@ -557,6 +558,14 @@ function RawHitCard({
   );
 }
 
+/**
+ * Items fetched per source for the Ongefilterd view. The route allows up to 100
+ * and the search band beside this one uses 30, so this matches its neighbour
+ * rather than inventing a second number. It is a ceiling, and rawMeta.capped is
+ * what stops the resulting count from reading as a total.
+ */
+const RAW_PAGE = 30;
+
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
   const {
     confirmSignal,
@@ -572,7 +581,19 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
   const refetchAllSignals = allSignals.refetch;
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
 
-  const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
+  const [view, setView] = useState<'gecureerd' | 'inbox' | 'ongefilterd'>('gecureerd');
+  // The tab's raw feed, unfiltered. Kept separate from feedResults so a typed
+  // search and this view cannot overwrite each other's results.
+  const [raw, setRaw] = useState<FeedItem[] | null>(null);
+  const [rawLoading, setRawLoading] = useState(false);
+  // What the count on the segment actually means. Without this the number is a
+  // page size wearing the clothes of an answer: politiek showed 60 and the rest
+  // 30 because that is RAW_PAGE per source, not because the feeds hold that many.
+  const [rawMeta, setRawMeta] = useState<{
+    total: number | null;
+    capped: boolean;
+    cap: number;
+  } | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
   const [inboxMeta, setInboxMeta] = useState<InboxMeta | null>(null);
@@ -621,6 +642,62 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     refetchAllSignals();
   }, [tab.id, updateInboxCount, refreshInboxCounts, refetchAllSignals]);
 
+  // Which sources this tab reads, as ids. Empty means the tab has no raw feed
+  // behind it, which is what keeps this view off Agenda without a second list
+  // to maintain. Feiten & cijfers never reaches here at all — it is its own
+  // section, not a monitoring tab.
+  const rawSources = paTabFeedSources(tab.id);
+  const hasRawFeed = rawSources.length > 0;
+
+  const loadRaw = useCallback(async () => {
+    const sources = paTabFeedSources(tab.id);
+    if (!sources.length) return;
+    setRawLoading(true);
+    try {
+      // One call per source rather than one widened call. FeedSource is
+      // single-valued and 'both' is not the union this needs: it also pulls
+      // media when that flag is on, and deliberately excludes eu.
+      const results = await Promise.all(
+        sources.map((source) => fetchFeed({ source, top: RAW_PAGE }))
+      );
+      const totals = results.map((r) => r.total);
+      setRawMeta({
+        // Only meaningful if every source reported one; a partial sum would be a
+        // number that looks authoritative and is not.
+        total: totals.every((t) => typeof t === 'number')
+          ? totals.reduce((a: number, b) => a + (b as number), 0)
+          : null,
+        // A full page counts as capped even when the total is unknown. TK returns
+        // null for multi-term queries — a blank feed is not multi-term, so it
+        // should carry a real total, but a null must never be read as "nothing
+        // more". A full page is the signal that survives either way.
+        capped: results.some((r) =>
+          typeof r.total === 'number' ? r.total > r.items.length : r.items.length >= RAW_PAGE
+        ),
+        cap: RAW_PAGE,
+      });
+      const seen = new Set<string>();
+      setRaw(
+        results
+          .flatMap((r) => r.items)
+          .filter((it) => {
+            const key = `${it.source}:${it.id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+      );
+    } catch {
+      setRaw([]);
+      setRawMeta(null);
+    }
+    setRawLoading(false);
+  }, [tab.id]);
+
+  useEffect(() => {
+    if (view === 'ongefilterd') void loadRaw();
+  }, [view, loadRaw]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -648,6 +725,8 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     setFeedQuery('');
     setFeedResults(null);
     setFeedTotal(null);
+    setRaw(null);
+    setRawMeta(null);
     setFeedSource('both');
     setSavedSearch(false);
   }, [tab.id]);
@@ -874,6 +953,23 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           Inbox{' '}
           <span className="pac-seg-count">{inboxMeta?.capped ? '100+' : visibleInbox.length}</span>
         </button>
+        {hasRawFeed && (
+          <button
+            type="button"
+            className={`pac-seg-btn ${view === 'ongefilterd' ? 'active' : ''}`}
+            onClick={() => {
+              setView('ongefilterd');
+              clearSearch();
+            }}
+          >
+            Ongefilterd
+            {raw ? (
+              <span className="pac-seg-count">
+                {rawMeta?.capped ? `${raw.length}+` : raw.length}
+              </span>
+            ) : null}
+          </button>
+        )}
       </div>
 
       {/* Blanco zoekfunctie — cross-source raw search, independent of the tab */}
@@ -977,6 +1073,47 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         </>
       ) : loading ? (
         <p className="pac-page-sub">Signalen ophalen…</p>
+      ) : view === 'ongefilterd' ? (
+        <>
+          {rawMeta?.capped && (
+            <div className="pac-inbox-cap">
+              <span className="pac-inbox-cap-badge">Top {rawMeta.cap} per bron</span>
+              <span>
+                {rawMeta.total !== null
+                  ? `${rawMeta.total} items in deze bronfeeds. `
+                  : 'Deze bronfeeds bevatten meer dan hier past. '}
+                De weergave toont de nieuwste {rawMeta.cap} per bron; de rest valt nu buiten beeld.
+              </span>
+            </div>
+          )}
+          <div className="pac-searchres-head">
+            <div className="pac-searchres-title">
+              <span>Ongefilterd</span>
+              <span className="scope"> · {paTabBronnen(tab.id).join(' + ')}</span>
+            </div>
+            <div className="pac-searchres-count">{rawLoading ? '…' : (raw?.length ?? 0)} items</div>
+          </div>
+          {rawLoading ? (
+            <p className="pac-page-sub">Bronfeeds ophalen…</p>
+          ) : raw && raw.length ? (
+            <div>
+              {raw.map((item) => (
+                <RawHitCard
+                  key={`${item.source}:${item.id}`}
+                  item={item}
+                  done={promotedKeys.has(`${item.source}:${item.id}`)}
+                  onPromote={(x) => void handlePromote(x)}
+                  onHelp={openPipeline}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="pac-page-sub">
+              Niets in de rauwe bronfeeds van deze signaalbron. Een bron die uitstaat levert hier
+              ook niets op — <b>Beheer › Signaalbronnen</b> toont welke aan staan.
+            </p>
+          )}
+        </>
       ) : view === 'inbox' ? (
         <>
           {inboxMeta?.capped && (
