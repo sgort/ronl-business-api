@@ -9,18 +9,9 @@ import {
   type RipPhase,
 } from './rip-phases.catalog';
 
-const UNMODELLED_CODES = [
-  'R2.3',
-  'R2.4',
-  'R3.1',
-  'R3.2',
-  'R4.1',
-  'R5.1',
-  'R5.2',
-  'R5.3',
-  'R5.4',
-  'R6.1',
-];
+// R5.3 is the last phase without a process model, and will stay that way:
+// it is `beyond`, a real step with no design sheet and no observable exit.
+const UNMODELLED_CODES = ['R5.3'];
 
 describe('RIP_PHASES catalogue', () => {
   it('has exactly twelve phases in R2.1…R6.1 order', () => {
@@ -47,6 +38,15 @@ describe('RIP_PHASES catalogue', () => {
   it('only the modelled phases carry a processDefinitionKey', () => {
     expect(ripPhaseByCode('R2.1')?.processDefinitionKey).toBe('RipR21Process');
     expect(ripPhaseByCode('R2.2')?.processDefinitionKey).toBe('RipR22Process');
+    expect(ripPhaseByCode('R2.3')?.processDefinitionKey).toBe('RipR23Process');
+    expect(ripPhaseByCode('R2.4')?.processDefinitionKey).toBe('RipR24Process');
+    expect(ripPhaseByCode('R3.1')?.processDefinitionKey).toBe('RipR31Process');
+    expect(ripPhaseByCode('R3.2')?.processDefinitionKey).toBe('RipR32Process');
+    expect(ripPhaseByCode('R4.1')?.processDefinitionKey).toBe('RipR41Process');
+    expect(ripPhaseByCode('R5.1')?.processDefinitionKey).toBe('RipR51Process');
+    expect(ripPhaseByCode('R5.2')?.processDefinitionKey).toBe('RipR52Process');
+    expect(ripPhaseByCode('R5.4')?.processDefinitionKey).toBe('RipR54Process');
+    expect(ripPhaseByCode('R6.1')?.processDefinitionKey).toBe('RipR61Process');
     for (const code of UNMODELLED_CODES) {
       expect(ripPhaseByCode(code)?.processDefinitionKey).toBeUndefined();
     }
@@ -124,7 +124,13 @@ describe('previousModelledPhase / skippedPhasesBefore', () => {
 
 describe('getPhaseDeployStatus', () => {
   const withKey: RipPhase = { ...ripPhaseByCode('R2.1')! };
-  const withoutKey: RipPhase = { ...ripPhaseByCode('R2.3')! };
+  // Synthesised, because no real phase can play this role any more: every
+  // phase in the catalogue now either carries a processDefinitionKey or is
+  // `beyond` (R5.3), and `beyond` short-circuits to 'onbekend' before the key
+  // is consulted. The branch is still reachable in practice -- a phase
+  // catalogued ahead of its BPMN being deployed sits in exactly this state --
+  // so the fixture is built rather than deleted along with the coverage.
+  const withoutKey: RipPhase = { ...ripPhaseByCode('R6.1')!, processDefinitionKey: undefined };
   const beyond: RipPhase = { ...ripPhaseByCode('R5.3')! };
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {

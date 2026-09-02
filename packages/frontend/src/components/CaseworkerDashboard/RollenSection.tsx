@@ -2,17 +2,82 @@ import { useEffect } from 'react';
 import type { KeycloakUser } from '@ronl/shared';
 import { useProfielData } from '../../hooks/useProfielData';
 
+/**
+ * Describes the roles a signed-in user can hold, keyed by Keycloak role name.
+ * Purely a lookup: an unmatched role renders without a description, and an
+ * unused entry costs nothing.
+ *
+ * That asymmetry decides how this map is maintained: entries are ADDED and not
+ * removed for being absent from any one list, because this component renders
+ * TWO different lists.
+ *
+ * `(onboardingRoles ?? jwtRoles)` below prefers the HR onboarding record over
+ * the token, falling back to the token only when the user has no profile. So
+ * the keys arriving here come from either:
+ *
+ *   - `assignedRoles` on the onboarding profile, produced by the
+ *     EmployeeRoleAssignment DMN. On ACC that is
+ *     "caseworker,rip-verkenner,rip-planner,rip-contractbeheer" -- none of
+ *     which is a Keycloak role anywhere. They are DMN output strings.
+ *   - the caller's Keycloak realm roles, when there is no profile.
+ *
+ * A first pass at this map removed rip-verkenner, rip-planner, rip-inkoop,
+ * rip-contractbeheer and rip-toetser for being absent from
+ * config/keycloak/ronl-realm.json. They are absent from every realm -- and
+ * still rendered on ACC every day, from the onboarding record.
+ *
+ * A candidate group in the RIP models is a third thing again: who a task is
+ * addressed to. It happens to coincide with the realm roles now that both
+ * carry the same 34, but the two are maintained separately. See
+ * docs/RIP-ROLE-VOCABULARIES.md.
+ */
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   caseworker: 'Behandelen van aanvragen en zaken',
   'hr-medewerker': 'Beheren van medewerker onboarding',
+  admin: 'Beheerder',
+
+  // Granted on ACC but absent from the local seed realm. Kept deliberately.
   'rip-verkenner': 'Verkenningsfase van RIP-projecten',
   'rip-planner': 'Planvoorbereiding en contractvorming',
   'rip-inkoop': 'Aanbestedingen en inkoop',
   'rip-contractbeheer': 'Contractbeheersing',
-  'rip-projectleider': 'Projectleiding en decharge',
   'rip-toetser': 'Toetsproces',
+
+  // The RIP ladder's roles, R2.1 through R6.1.
+  'rip-aandrager': 'Aandrager: levert projectplan en intakeformulier aan',
+  'rip-adviseur': 'Adviseur',
+  'rip-adviseur-veiligheid-gezondheid': 'Adviseur veiligheid & gezondheid',
+  'rip-ao': 'Ambtelijk opdrachtgever',
+  'rip-beheerder': 'Beheerder',
+  'rip-beheerder-assetmanagement': 'Beheerder assetmanagement',
+  'rip-communicatieadviseur': 'Communicatieadviseur',
+  'rip-concerndirecteur': 'Concerndirecteur',
+  'rip-databeheerder': 'Databeheerder',
+  'rip-deelnemers-evaluatie': 'Deelnemer evaluatie',
+  'rip-deelnemers-psu': 'Deelnemer project start-up (PSU)',
+  'rip-directievoerder': 'Directievoerder',
+  'rip-financien': 'Financiën',
+  'rip-infra-overleg': 'Infra-overleg',
+  'rip-inkoopadviseur': 'Inkoopadviseur',
+  'rip-inkoopadviseur-werken': 'Inkoopadviseur werken',
+  'rip-kosten-contractdeskundige': 'Kosten- en contractdeskundige',
+  'rip-kostenadviseur': 'Kostenadviseur',
   'rip-kwaliteit': 'Kwaliteitstoetsing',
-  admin: 'Beheerder',
+  'rip-manager-financien': 'Manager financiën',
+  'rip-manager-pb': 'Manager planvoorbereiding',
+  'rip-omgevingsmanager': 'Omgevingsmanager',
+  'rip-ondersteuner': 'Ondersteuner',
+  'rip-ontwerper': 'Ontwerper',
+  'rip-opdrachtnemer': 'Opdrachtnemer (externe partij)',
+  'rip-pkt': 'Projectkwaliteitsteam (PKT)',
+  'rip-projectbeheersing': 'Projectbeheersing',
+  'rip-projectleider': 'Projectleiding en decharge',
+  'rip-projectondersteuner': 'Projectondersteuner',
+  'rip-team': 'RIP-team',
+  'rip-technisch-administratief-medewerker': 'Technisch-administratief medewerker',
+  'rip-technisch-adviseur': 'Technisch adviseur',
+  'rip-toezichthouder': 'Toezichthouder',
+  'rip-vestigingsmanager': 'Vestigingsmanager',
 };
 
 const ACCESS_LEVEL_DESCRIPTIONS: Record<string, string> = {
