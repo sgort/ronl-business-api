@@ -22,7 +22,7 @@
 # Optional overrides (env vars):
 #   OPERATON_URL   engine REST base (default: http://localhost:8081/engine-rest)
 #   RIP_KEYS       comma-separated process-definition keys
-#                  (default: RipR21Process,RipR22Process — extend as phases deploy)
+#                  (default: every deployed RIP phase key — extend as phases deploy)
 #
 # ACC: OPERATON_URL=https://operaton.open-regels.nl/engine-rest bash scripts/rip-purge-instances.sh
 # Think twice before doing that — ACC history is not yours alone.
@@ -35,7 +35,7 @@
 set -uo pipefail
 
 OPERATON_URL="${OPERATON_URL:-http://localhost:8081/engine-rest}"
-RIP_KEYS="${RIP_KEYS:-RipR21Process,RipR22Process}"
+RIP_KEYS="${RIP_KEYS:-RipR21Process,RipR22Process,RipR23Process,RipR24Process,RipR31Process,RipR32Process,RipR41Process}"
 
 ASSUME_YES=0
 DRY_RUN=0
