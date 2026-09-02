@@ -20,9 +20,9 @@ export const RIP_PHASE_KEYS: RipPhaseKey[] = [
   { code: 'R3.1', stage: 'R3', processDefinitionKey: 'RipR31Process' },
   { code: 'R3.2', stage: 'R3', processDefinitionKey: 'RipR32Process' },
   { code: 'R4.1', stage: 'R4', processDefinitionKey: 'RipR41Process' },
-  { code: 'R5.1', stage: 'R5' },
-  { code: 'R5.2', stage: 'R5' },
+  { code: 'R5.1', stage: 'R5', processDefinitionKey: 'RipR51Process' },
+  { code: 'R5.2', stage: 'R5', processDefinitionKey: 'RipR52Process' },
   { code: 'R5.3', stage: 'R5' },
-  { code: 'R5.4', stage: 'R5' },
-  { code: 'R6.1', stage: 'R6' },
+  { code: 'R5.4', stage: 'R5', processDefinitionKey: 'RipR54Process' },
+  { code: 'R6.1', stage: 'R6', processDefinitionKey: 'RipR61Process' },
 ];

@@ -154,7 +154,10 @@ drifted apart by the third phase. `--list` prints the table.
 
 ### Where the phase table comes from
 
-It is read off the **deployed BPMN**, not guessed from task names:
+The ladder runs R2.1 → R6.1. **R5.3 is absent on purpose** — it is a real step
+with no design sheet, no BPMN and no observable exit, so `predecessor_of` skips
+it and R5.4 follows R5.2. Everything else is read off the **deployed BPMN**,
+not guessed from task names:
 
 - _ends at_ — every user task with a path to an end event. Several phases run
   parallel branches and so end in more than one place, which is why "the last
@@ -172,6 +175,10 @@ R2.4   RipR24Process    Task_AccorderenProjectplanDO
 R3.1   RipR31Process    Task_ToetsenBestek Task_ToetsenAanpassingenBestek …
 R3.2   RipR32Process    Task_AccorderenProjectplanContractvorming
 R4.1   RipR41Process    Task_AfrondenInkoopprocedure
+R5.1   RipR51Process    Task_HoudenOverlegVgCoordinator
+R5.2   RipR52Process    Task_AccorderenFactuur Task_InvullenWebformulierAtb …
+R5.4   RipR54Process    Task_GereedmeldenVisi
+R6.1   RipR61Process    Task_LatenAanpassenRechtenRelatics Task_LatenSluitenProjectmap …
 ```
 
 ### The variable bundle
@@ -185,10 +192,18 @@ an extra one is inert.
 The `*Akkoord` values are the happy path. Two are **route choices rather than
 approvals**, where both branches are legitimate and the script simply picks one:
 
-| Variable                | Value used       | The other branch                                     |
-| ----------------------- | ---------------- | ---------------------------------------------------- |
-| `mbviMoment`            | `voorafgaandAan` | `tijdens` — VO-raming outsourced instead of in-house |
-| `projectkredietDekking` | `binnen`         | `buiten` — adds the memo projectkrediet path         |
+| Variable                 | Value used          | The other branch                                          |
+| ------------------------ | ------------------- | --------------------------------------------------------- |
+| `mbviMoment`             | `voorafgaandAan`    | `tijdens` — VO-raming outsourced instead of in-house      |
+| `projectkredietDekking`  | `binnen`            | `buiten` — adds the memo projectkrediet path              |
+| `technischeInstallaties` | `nee`               | `ja` — R5.1/R5.4 gain the installation-handover path      |
+| `notaWaarde`             | `onder`             | `boven` — R5.2 routes the nota through a higher authority |
+| `kredietAanneemsom`      | `binnen-aanneemsom` | `binnen-krediet`, `buiten-krediet`                        |
+
+**`werkGereed` is not a preference.** It gates the exit from R5.2's weekly
+cycle: `nee` keeps the cycle running, so anything other than `ja` drives the
+loop until the completion cap fires. R5.2 is the only phase whose subject is a
+period rather than a deliverable.
 
 ### When it stops early
 

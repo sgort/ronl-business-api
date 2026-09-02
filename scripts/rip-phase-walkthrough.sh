@@ -121,6 +121,30 @@ phase_config() { # $1 = phase code -> sets PROCESS_KEY STOP_KEYS MAX PHASE_NOTE
       MAX=50
       PHASE_NOTE="Task_AfwijzenInschrijving is the reject branch and is not reached on the happy path"
       ;;
+    R5.1)
+      PROCESS_KEY=RipR51Process
+      STOP_KEYS="Task_HoudenOverlegVgCoordinator"
+      MAX=50
+      PHASE_NOTE=""
+      ;;
+    R5.2)
+      PROCESS_KEY=RipR52Process
+      STOP_KEYS="Task_AccorderenFactuur Task_InvullenWebformulierAtb Task_PlaatsenBriefInVisi Task_VersturenOverzichtAwrDv"
+      MAX=90
+      PHASE_NOTE="a PERIOD, not a deliverable: a weekly cycle runs alongside invoicing and delivery, so several tasks are open at once and task definitions recur. werkGereed=ja is what exits the cycle"
+      ;;
+    R5.4)
+      PROCESS_KEY=RipR54Process
+      STOP_KEYS="Task_GereedmeldenVisi"
+      MAX=60
+      PHASE_NOTE="its predecessor is R5.2 — R5.3 is handled outside this tool"
+      ;;
+    R6.1)
+      PROCESS_KEY=RipR61Process
+      STOP_KEYS="Task_LatenAanpassenRechtenRelatics Task_LatenSluitenProjectmap Task_VerwerkenFinancieleEindstand"
+      MAX=60
+      PHASE_NOTE="three parallel close-out streams (A financieel, B overdracht, C evaluatie)"
+      ;;
     *)
       return 1
       ;;
@@ -128,7 +152,9 @@ phase_config() { # $1 = phase code -> sets PROCESS_KEY STOP_KEYS MAX PHASE_NOTE
   return 0
 }
 
-LADDER="R2.1 R2.2 R2.3 R2.4 R3.1 R3.2 R4.1"
+# R5.3 is deliberately absent: it is `beyond`, so predecessor_of skips over
+# it and R5.4 follows R5.2, matching previousModelledPhase in the frontend.
+LADDER="R2.1 R2.2 R2.3 R2.4 R3.1 R3.2 R4.1 R5.1 R5.2 R5.4 R6.1"
 
 # Tenant whose instances count as candidates. The board scopes readiness to the
 # caseworker's municipality; mirroring that keeps the script honest on a
@@ -252,10 +278,14 @@ pass "token obtained for '${START_USER}'"
 # branch, an em-dash in a generated document), an extra one is inert.
 #
 # The Akkoord/dekkings values below are the happy path, read off each deployed
-# BPMN's conditionExpressions. mbviMoment and projectkredietDekking are genuine
-# ROUTE CHOICES rather than approve/reject — both branches are legitimate — so
-# the value picked here is simply the shorter one; override with --var if you
-# want to exercise the other.
+# BPMN's conditionExpressions. Several are genuine ROUTE CHOICES rather than
+# approve/reject -- mbviMoment, projectkredietDekking, technischeInstallaties,
+# notaWaarde, kredietAanneemsom -- where both branches are legitimate and the
+# value here is simply the shorter path.
+#
+# werkGereed is the one that is not a preference. It gates the exit from R5.2's
+# weekly cycle: "nee" keeps the cycle running, so anything other than "ja" here
+# drives the loop until the completion cap fires.
 
 if [[ -z "$PROJECT_NUMBER" ]]; then
   PROJECT_NUMBER="WALK-$(date +%Y%m%d-%H%M%S)"
@@ -306,7 +336,27 @@ VARIABLES_JSON=$(jq -n \
     dossierVolledig:                 {value: "ja",  type: "String"},
     onregelmatigheidNotaInlichtingen: {value: "nee", type: "String"},
     onregelmatigheidEenheidsprijzen:  {value: "nee", type: "String"},
-    dekkingsbronAfwijking:            {value: "nee", type: "String"}
+    dekkingsbronAfwijking:            {value: "nee", type: "String"},
+
+    documentenAkkoord:            {value: "ja",  type: "String"},
+    technischeInstallaties:       {value: "nee", type: "String"},
+
+    weekstaatAkkoord:   {value: "ja",     type: "String"},
+    awrAkkoord:         {value: "ja",     type: "String"},
+    afwijkingAkkoord:   {value: "ja",     type: "String"},
+    kredietPositie:     {value: "binnen", type: "String"},
+    notaWaarde:         {value: "onder",  type: "String"},
+    termijnenContract:  {value: "binnen", type: "String"},
+    werkGereed:         {value: "ja",     type: "String"},
+
+    opleverdossierAkkoordBeheer:    {value: "ja",                type: "String"},
+    opleverdossierAkkoordDv:        {value: "ja",                type: "String"},
+    restpuntenAkkoord:              {value: "ja",                type: "String"},
+    eindafrekeningWaarde:           {value: "onder",             type: "String"},
+    kredietAanneemsom:              {value: "binnen-aanneemsom", type: "String"},
+    technischeInstallatiesAanwezig: {value: "nee",               type: "String"},
+
+    overdrachtsverklaringAkkoord: {value: "ja", type: "String"}
   }')
 
 # ── Precondition: the previous phase must have completed for this project ────

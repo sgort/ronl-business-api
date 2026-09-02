@@ -22,7 +22,7 @@
 # Optional overrides (env vars):
 #   OPERATON_URL   engine REST base (default: http://localhost:8081/engine-rest)
 #   RIP_KEYS       comma-separated process-definition keys
-#                  (default: every deployed RIP phase key — extend as phases deploy)
+#                  (default: every RipR* key deployed on the engine, discovered)
 #
 # ACC: OPERATON_URL=https://operaton.open-regels.nl/engine-rest bash scripts/rip-purge-instances.sh
 # Think twice before doing that — ACC history is not yours alone.
@@ -35,7 +35,11 @@
 set -uo pipefail
 
 OPERATON_URL="${OPERATON_URL:-http://localhost:8081/engine-rest}"
-RIP_KEYS="${RIP_KEYS:-RipR21Process,RipR22Process,RipR23Process,RipR24Process,RipR31Process,RipR32Process,RipR41Process}"
+# Discovered from the engine rather than listed. A hardcoded default lagged the
+# ladder twice -- once at R2.3 and again at R5.1 -- and each time the failure
+# was silent in the worst way: the script reported "Clean." having left the
+# phases it did not know about untouched. Set RIP_KEYS explicitly to narrow it.
+RIP_KEYS="${RIP_KEYS:-}"
 
 ASSUME_YES=0
 DRY_RUN=0
@@ -63,6 +67,15 @@ PY_IDS="import sys,json;sys.stdout.reconfigure(newline='');[print(i['id']) for i
 if ! curl -sf -o /dev/null "$OPERATON_URL/version"; then
   echo "Operaton not reachable at $OPERATON_URL" >&2
   exit 1
+fi
+
+if [ -z "$RIP_KEYS" ]; then
+  RIP_KEYS=$(curl -s "$OPERATON_URL/process-definition?latestVersion=true" | "$PY_BIN" -c \
+    "import sys,json;print(','.join(sorted(d['key'] for d in json.load(sys.stdin) if d['key'].startswith('RipR'))))")
+  if [ -z "$RIP_KEYS" ]; then
+    echo "No RipR* process definitions deployed on $OPERATON_URL -- nothing to purge." >&2
+    exit 0
+  fi
 fi
 
 query_ids() { # $1 = '' for runtime, 'history/' for history
