@@ -2,16 +2,32 @@ import { useEffect } from 'react';
 import type { KeycloakUser } from '@ronl/shared';
 import { useProfielData } from '../../hooks/useProfielData';
 
+/**
+ * Describes the roles a signed-in user can actually HOLD, keyed by Keycloak
+ * role name. The source of truth is config/keycloak/ronl-realm.json, not the
+ * RIP process models: a BPMN candidateGroup is what a task is addressed to,
+ * which is a different vocabulary and a much longer list (34 across the
+ * ladder, against 6 rip-* roles in the realm). Adding a description for a
+ * candidateGroup would describe something no user can be granted.
+ *
+ * Six entries here previously described roles that exist in neither list --
+ * rip-verkenner, rip-planner, rip-inkoop, rip-contractbeheer, rip-toetser and
+ * rip-kwaliteit -- while five of the six real rip roles had no description at
+ * all. Only rip-projectleider was correct.
+ *
+ * Wording follows each role's own realm description, minus its "RIP Fase 1
+ * (R2.1)" prefix: those were written when R2.1 was the only modelled phase,
+ * and these roles now appear across the whole ladder.
+ */
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   caseworker: 'Behandelen van aanvragen en zaken',
   'hr-medewerker': 'Beheren van medewerker onboarding',
-  'rip-verkenner': 'Verkenningsfase van RIP-projecten',
-  'rip-planner': 'Planvoorbereiding en contractvorming',
-  'rip-inkoop': 'Aanbestedingen en inkoop',
-  'rip-contractbeheer': 'Contractbeheersing',
+  'rip-aandrager': 'Aandrager: levert projectplan en intakeformulier aan',
+  'rip-ao': 'Ambtelijk opdrachtgever',
+  'rip-deelnemers-psu': 'Deelnemer project start-up (PSU)',
+  'rip-manager-pb': 'Manager planvoorbereiding',
   'rip-projectleider': 'Projectleiding en decharge',
-  'rip-toetser': 'Toetsproces',
-  'rip-kwaliteit': 'Kwaliteitstoetsing',
+  'rip-team': 'RIP-team',
   admin: 'Beheerder',
 };
 
