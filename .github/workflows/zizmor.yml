@@ -1,10 +1,27 @@
 name: Supply-chain audit
 
 on:
+  # No `branches:` filter here, deliberately, unlike the push trigger below.
+  #
+  # A pull request opened against a FEATURE branch -- a stacked PR -- matches
+  # no filtered trigger, so it accumulates no audit at all. It then reports
+  # mergeStateStatus CLEAN with zero checks: ready-looking, and not ready.
+  # When its parent merges and GitHub retargets it to acc, the required audit
+  # is missing and it blocks permanently, because retargeting emits no
+  # pull_request event either. Closing and reopening the pull request is the
+  # only way out, `reopened` being one of the default trigger types.
+  #
+  # That is not hypothetical: it cost four rounds of manual intervention in
+  # linked-data-explorer and blocked #45 here. The audit is read-only and
+  # cheap, so running it on every pull request regardless of base costs
+  # little and removes the hole entirely.
+  #
+  # Do NOT copy this to azure-frontend-acc.yml. That workflow carries the
+  # same filter for the opposite reason -- it rations Static Web Apps staging
+  # environments against a three-environment ceiling, which five open pull
+  # requests exhausted on 2026-08-28 and again on 2026-09-02. Identical
+  # syntax, opposite consequence when removed.
   pull_request:
-    branches:
-      - acc
-      - main
   push:
     branches:
       - acc
