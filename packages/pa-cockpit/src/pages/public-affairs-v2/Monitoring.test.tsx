@@ -105,6 +105,53 @@ describe('the Ongefilterd view', () => {
     expect('q' in call).toBe(false);
   });
 
+  function rawItems(n: number, source: 'tk' | 'ob' | 'eu' | 'media' = 'eu') {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `r${i}`,
+      title: `Rauw item ${i}`,
+      type: null,
+      number: null,
+      date: null,
+      url: null,
+      source,
+    }));
+  }
+
+  it('marks the count as capped when a source holds more than it returned', async () => {
+    // The number on the segment is a page size, not an answer. Politiek shows
+    // 60 and the others 30 because that is top:30 per source — so a bare count
+    // reads as "this is all there is" when it is "this is all we asked for".
+    paApi.fetchFeed.mockResolvedValue({ items: rawItems(30), total: 500 });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="europa" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Ongefilterd/ }));
+
+    expect(await screen.findByRole('button', { name: /Ongefilterd\s*30\+/ })).toBeInTheDocument();
+    expect(await screen.findByText(/500/)).toBeInTheDocument();
+  });
+
+  it('shows a plain count when the feed fits inside the page', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: rawItems(4), total: 4 });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="europa" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Ongefilterd/ }));
+
+    const seg = await screen.findByRole('button', { name: /Ongefilterd/ });
+    await waitFor(() => expect(seg).toHaveAccessibleName(/Ongefilterd\s*4$/));
+  });
+
+  it('treats a full page with an unknown total as capped', async () => {
+    // TK returns total: null for multi-term queries. A blank feed is not
+    // multi-term so it should carry a real total, but the view must not read a
+    // null as "nothing more" — a full page is the signal that survives either way.
+    paApi.fetchFeed.mockResolvedValue({ items: rawItems(30), total: null });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="europa" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Ongefilterd/ }));
+
+    expect(await screen.findByRole('button', { name: /Ongefilterd\s*30\+/ })).toBeInTheDocument();
+  });
+
   it('issues one call per source when the tab draws from several', async () => {
     const user = userEvent.setup();
     render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);

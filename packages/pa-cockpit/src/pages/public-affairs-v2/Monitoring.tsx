@@ -558,6 +558,14 @@ function RawHitCard({
   );
 }
 
+/**
+ * Items fetched per source for the Ongefilterd view. The route allows up to 100
+ * and the search band beside this one uses 30, so this matches its neighbour
+ * rather than inventing a second number. It is a ceiling, and rawMeta.capped is
+ * what stops the resulting count from reading as a total.
+ */
+const RAW_PAGE = 30;
+
 export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNavigate }: Props) {
   const {
     confirmSignal,
@@ -578,6 +586,14 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
   // search and this view cannot overwrite each other's results.
   const [raw, setRaw] = useState<FeedItem[] | null>(null);
   const [rawLoading, setRawLoading] = useState(false);
+  // What the count on the segment actually means. Without this the number is a
+  // page size wearing the clothes of an answer: politiek showed 60 and the rest
+  // 30 because that is RAW_PAGE per source, not because the feeds hold that many.
+  const [rawMeta, setRawMeta] = useState<{
+    total: number | null;
+    capped: boolean;
+    cap: number;
+  } | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
   const [inboxMeta, setInboxMeta] = useState<InboxMeta | null>(null);
@@ -641,7 +657,25 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
       // One call per source rather than one widened call. FeedSource is
       // single-valued and 'both' is not the union this needs: it also pulls
       // media when that flag is on, and deliberately excludes eu.
-      const results = await Promise.all(sources.map((source) => fetchFeed({ source, top: 30 })));
+      const results = await Promise.all(
+        sources.map((source) => fetchFeed({ source, top: RAW_PAGE }))
+      );
+      const totals = results.map((r) => r.total);
+      setRawMeta({
+        // Only meaningful if every source reported one; a partial sum would be a
+        // number that looks authoritative and is not.
+        total: totals.every((t) => typeof t === 'number')
+          ? totals.reduce((a: number, b) => a + (b as number), 0)
+          : null,
+        // A full page counts as capped even when the total is unknown. TK returns
+        // null for multi-term queries — a blank feed is not multi-term, so it
+        // should carry a real total, but a null must never be read as "nothing
+        // more". A full page is the signal that survives either way.
+        capped: results.some((r) =>
+          typeof r.total === 'number' ? r.total > r.items.length : r.items.length >= RAW_PAGE
+        ),
+        cap: RAW_PAGE,
+      });
       const seen = new Set<string>();
       setRaw(
         results
@@ -655,6 +689,7 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
       );
     } catch {
       setRaw([]);
+      setRawMeta(null);
     }
     setRawLoading(false);
   }, [tab.id]);
@@ -690,6 +725,8 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     setFeedQuery('');
     setFeedResults(null);
     setFeedTotal(null);
+    setRaw(null);
+    setRawMeta(null);
     setFeedSource('both');
     setSavedSearch(false);
   }, [tab.id]);
@@ -926,7 +963,11 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
             }}
           >
             Ongefilterd
-            {raw ? <span className="pac-seg-count">{raw.length}</span> : null}
+            {raw ? (
+              <span className="pac-seg-count">
+                {rawMeta?.capped ? `${raw.length}+` : raw.length}
+              </span>
+            ) : null}
           </button>
         )}
       </div>
@@ -1034,6 +1075,17 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         <p className="pac-page-sub">Signalen ophalen…</p>
       ) : view === 'ongefilterd' ? (
         <>
+          {rawMeta?.capped && (
+            <div className="pac-inbox-cap">
+              <span className="pac-inbox-cap-badge">Top {rawMeta.cap} per bron</span>
+              <span>
+                {rawMeta.total !== null
+                  ? `${rawMeta.total} items in deze bronfeeds. `
+                  : 'Deze bronfeeds bevatten meer dan hier past. '}
+                De weergave toont de nieuwste {rawMeta.cap} per bron; de rest valt nu buiten beeld.
+              </span>
+            </div>
+          )}
           <div className="pac-searchres-head">
             <div className="pac-searchres-title">
               <span>Ongefilterd</span>
