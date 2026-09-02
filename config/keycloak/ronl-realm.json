@@ -404,6 +404,118 @@
       {
         "name": "woo-coordinatie",
         "description": "Woo-coördinator — beheert en verantwoordt Woo-verzoeken (Wet open overheid)"
+      },
+      {
+        "name": "rip-adviseur",
+        "description": "RIP — adviseur"
+      },
+      {
+        "name": "rip-adviseur-veiligheid-gezondheid",
+        "description": "RIP — adviseur veiligheid & gezondheid"
+      },
+      {
+        "name": "rip-beheerder",
+        "description": "RIP — beheerder"
+      },
+      {
+        "name": "rip-beheerder-assetmanagement",
+        "description": "RIP — beheerder assetmanagement"
+      },
+      {
+        "name": "rip-communicatieadviseur",
+        "description": "RIP — communicatieadviseur"
+      },
+      {
+        "name": "rip-concerndirecteur",
+        "description": "RIP — concerndirecteur"
+      },
+      {
+        "name": "rip-databeheerder",
+        "description": "RIP — databeheerder"
+      },
+      {
+        "name": "rip-deelnemers-evaluatie",
+        "description": "RIP — deelnemer evaluatie"
+      },
+      {
+        "name": "rip-directievoerder",
+        "description": "RIP — directievoerder"
+      },
+      {
+        "name": "rip-financien",
+        "description": "RIP — financiën"
+      },
+      {
+        "name": "rip-infra-overleg",
+        "description": "RIP — Infra-overleg"
+      },
+      {
+        "name": "rip-inkoopadviseur",
+        "description": "RIP — inkoopadviseur"
+      },
+      {
+        "name": "rip-inkoopadviseur-werken",
+        "description": "RIP — inkoopadviseur werken"
+      },
+      {
+        "name": "rip-kosten-contractdeskundige",
+        "description": "RIP — kosten- en contractdeskundige"
+      },
+      {
+        "name": "rip-kostenadviseur",
+        "description": "RIP — kostenadviseur"
+      },
+      {
+        "name": "rip-kwaliteit",
+        "description": "RIP — kwaliteitstoetsing"
+      },
+      {
+        "name": "rip-manager-financien",
+        "description": "RIP — manager financiën"
+      },
+      {
+        "name": "rip-omgevingsmanager",
+        "description": "RIP — omgevingsmanager"
+      },
+      {
+        "name": "rip-ondersteuner",
+        "description": "RIP — ondersteuner"
+      },
+      {
+        "name": "rip-ontwerper",
+        "description": "RIP — ontwerper"
+      },
+      {
+        "name": "rip-opdrachtnemer",
+        "description": "RIP — opdrachtnemer (externe partij)"
+      },
+      {
+        "name": "rip-pkt",
+        "description": "RIP — projectkwaliteitsteam (PKT)"
+      },
+      {
+        "name": "rip-projectbeheersing",
+        "description": "RIP — projectbeheersing"
+      },
+      {
+        "name": "rip-projectondersteuner",
+        "description": "RIP — projectondersteuner"
+      },
+      {
+        "name": "rip-technisch-administratief-medewerker",
+        "description": "RIP — technisch-administratief medewerker"
+      },
+      {
+        "name": "rip-technisch-adviseur",
+        "description": "RIP — technisch adviseur"
+      },
+      {
+        "name": "rip-toezichthouder",
+        "description": "RIP — toezichthouder"
+      },
+      {
+        "name": "rip-vestigingsmanager",
+        "description": "RIP — vestigingsmanager"
       }
     ]
   },
@@ -756,7 +868,35 @@
         "rip-ao",
         "rip-deelnemers-psu",
         "rip-manager-pb",
-        "rip-team"
+        "rip-team",
+        "rip-adviseur",
+        "rip-adviseur-veiligheid-gezondheid",
+        "rip-beheerder",
+        "rip-beheerder-assetmanagement",
+        "rip-communicatieadviseur",
+        "rip-concerndirecteur",
+        "rip-databeheerder",
+        "rip-deelnemers-evaluatie",
+        "rip-directievoerder",
+        "rip-financien",
+        "rip-infra-overleg",
+        "rip-inkoopadviseur",
+        "rip-inkoopadviseur-werken",
+        "rip-kosten-contractdeskundige",
+        "rip-kostenadviseur",
+        "rip-kwaliteit",
+        "rip-manager-financien",
+        "rip-omgevingsmanager",
+        "rip-ondersteuner",
+        "rip-ontwerper",
+        "rip-opdrachtnemer",
+        "rip-pkt",
+        "rip-projectbeheersing",
+        "rip-projectondersteuner",
+        "rip-technisch-administratief-medewerker",
+        "rip-technisch-adviseur",
+        "rip-toezichthouder",
+        "rip-vestigingsmanager"
       ]
     },
     {

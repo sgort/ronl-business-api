@@ -3,32 +3,70 @@ import type { KeycloakUser } from '@ronl/shared';
 import { useProfielData } from '../../hooks/useProfielData';
 
 /**
- * Describes the roles a signed-in user can actually HOLD, keyed by Keycloak
- * role name. The source of truth is config/keycloak/ronl-realm.json, not the
- * RIP process models: a BPMN candidateGroup is what a task is addressed to,
- * which is a different vocabulary and a much longer list (34 across the
- * ladder, against 6 rip-* roles in the realm). Adding a description for a
- * candidateGroup would describe something no user can be granted.
+ * Describes the roles a signed-in user can hold, keyed by Keycloak role name.
+ * Purely a lookup: an unmatched role renders without a description, and an
+ * unused entry costs nothing.
  *
- * Six entries here previously described roles that exist in neither list --
- * rip-verkenner, rip-planner, rip-inkoop, rip-contractbeheer, rip-toetser and
- * rip-kwaliteit -- while five of the six real rip roles had no description at
- * all. Only rip-projectleider was correct.
+ * That asymmetry decides how this map is maintained. An entry for a role that
+ * exists in no realm is harmless; a missing entry for one a user actually
+ * holds degrades their Rollen & rechten page to a bare identifier. So entries
+ * are ADDED here and not removed on the strength of one realm file --
+ * config/keycloak/ronl-realm.json is the local seed, not a mirror of every
+ * environment. ACC grants rip-verkenner, rip-planner and rip-contractbeheer,
+ * none of which the seed defines.
  *
- * Wording follows each role's own realm description, minus its "RIP Fase 1
- * (R2.1)" prefix: those were written when R2.1 was the only modelled phase,
- * and these roles now appear across the whole ladder.
+ * A candidate group in the RIP models is NOT the same thing as a role. The
+ * two lists happen to coincide now that the realm carries all 34, but they are
+ * maintained separately: a group says who a task is addressed to, a role says
+ * what a person was granted. See docs/RIP-ROLE-VOCABULARIES.md.
  */
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   caseworker: 'Behandelen van aanvragen en zaken',
   'hr-medewerker': 'Beheren van medewerker onboarding',
-  'rip-aandrager': 'Aandrager: levert projectplan en intakeformulier aan',
-  'rip-ao': 'Ambtelijk opdrachtgever',
-  'rip-deelnemers-psu': 'Deelnemer project start-up (PSU)',
-  'rip-manager-pb': 'Manager planvoorbereiding',
-  'rip-projectleider': 'Projectleiding en decharge',
-  'rip-team': 'RIP-team',
   admin: 'Beheerder',
+
+  // Granted on ACC but absent from the local seed realm. Kept deliberately.
+  'rip-verkenner': 'Verkenningsfase van RIP-projecten',
+  'rip-planner': 'Planvoorbereiding en contractvorming',
+  'rip-inkoop': 'Aanbestedingen en inkoop',
+  'rip-contractbeheer': 'Contractbeheersing',
+  'rip-toetser': 'Toetsproces',
+
+  // The RIP ladder's roles, R2.1 through R6.1.
+  'rip-aandrager': 'Aandrager: levert projectplan en intakeformulier aan',
+  'rip-adviseur': 'Adviseur',
+  'rip-adviseur-veiligheid-gezondheid': 'Adviseur veiligheid & gezondheid',
+  'rip-ao': 'Ambtelijk opdrachtgever',
+  'rip-beheerder': 'Beheerder',
+  'rip-beheerder-assetmanagement': 'Beheerder assetmanagement',
+  'rip-communicatieadviseur': 'Communicatieadviseur',
+  'rip-concerndirecteur': 'Concerndirecteur',
+  'rip-databeheerder': 'Databeheerder',
+  'rip-deelnemers-evaluatie': 'Deelnemer evaluatie',
+  'rip-deelnemers-psu': 'Deelnemer project start-up (PSU)',
+  'rip-directievoerder': 'Directievoerder',
+  'rip-financien': 'Financiën',
+  'rip-infra-overleg': 'Infra-overleg',
+  'rip-inkoopadviseur': 'Inkoopadviseur',
+  'rip-inkoopadviseur-werken': 'Inkoopadviseur werken',
+  'rip-kosten-contractdeskundige': 'Kosten- en contractdeskundige',
+  'rip-kostenadviseur': 'Kostenadviseur',
+  'rip-kwaliteit': 'Kwaliteitstoetsing',
+  'rip-manager-financien': 'Manager financiën',
+  'rip-manager-pb': 'Manager planvoorbereiding',
+  'rip-omgevingsmanager': 'Omgevingsmanager',
+  'rip-ondersteuner': 'Ondersteuner',
+  'rip-ontwerper': 'Ontwerper',
+  'rip-opdrachtnemer': 'Opdrachtnemer (externe partij)',
+  'rip-pkt': 'Projectkwaliteitsteam (PKT)',
+  'rip-projectbeheersing': 'Projectbeheersing',
+  'rip-projectleider': 'Projectleiding en decharge',
+  'rip-projectondersteuner': 'Projectondersteuner',
+  'rip-team': 'RIP-team',
+  'rip-technisch-administratief-medewerker': 'Technisch-administratief medewerker',
+  'rip-technisch-adviseur': 'Technisch adviseur',
+  'rip-toezichthouder': 'Toezichthouder',
+  'rip-vestigingsmanager': 'Vestigingsmanager',
 };
 
 const ACCESS_LEVEL_DESCRIPTIONS: Record<string, string> = {
