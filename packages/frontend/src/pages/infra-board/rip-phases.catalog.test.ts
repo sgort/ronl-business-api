@@ -9,18 +9,7 @@ import {
   type RipPhase,
 } from './rip-phases.catalog';
 
-const UNMODELLED_CODES = [
-  'R2.3',
-  'R2.4',
-  'R3.1',
-  'R3.2',
-  'R4.1',
-  'R5.1',
-  'R5.2',
-  'R5.3',
-  'R5.4',
-  'R6.1',
-];
+const UNMODELLED_CODES = ['R5.1', 'R5.2', 'R5.3', 'R5.4', 'R6.1'];
 
 describe('RIP_PHASES catalogue', () => {
   it('has exactly twelve phases in R2.1…R6.1 order', () => {
@@ -47,6 +36,11 @@ describe('RIP_PHASES catalogue', () => {
   it('only the modelled phases carry a processDefinitionKey', () => {
     expect(ripPhaseByCode('R2.1')?.processDefinitionKey).toBe('RipR21Process');
     expect(ripPhaseByCode('R2.2')?.processDefinitionKey).toBe('RipR22Process');
+    expect(ripPhaseByCode('R2.3')?.processDefinitionKey).toBe('RipR23Process');
+    expect(ripPhaseByCode('R2.4')?.processDefinitionKey).toBe('RipR24Process');
+    expect(ripPhaseByCode('R3.1')?.processDefinitionKey).toBe('RipR31Process');
+    expect(ripPhaseByCode('R3.2')?.processDefinitionKey).toBe('RipR32Process');
+    expect(ripPhaseByCode('R4.1')?.processDefinitionKey).toBe('RipR41Process');
     for (const code of UNMODELLED_CODES) {
       expect(ripPhaseByCode(code)?.processDefinitionKey).toBeUndefined();
     }
@@ -124,7 +118,11 @@ describe('previousModelledPhase / skippedPhasesBefore', () => {
 
 describe('getPhaseDeployStatus', () => {
   const withKey: RipPhase = { ...ripPhaseByCode('R2.1')! };
-  const withoutKey: RipPhase = { ...ripPhaseByCode('R2.3')! };
+  // Must be a phase with no processDefinitionKey that is NOT `beyond` --
+  // `beyond` short-circuits to 'onbekend' before the key is consulted, so a
+  // beyond phase cannot exercise the branch this fixture is for. R5.1 is the
+  // earliest phase that still qualifies now R2.3 through R4.1 are deployed.
+  const withoutKey: RipPhase = { ...ripPhaseByCode('R5.1')! };
   const beyond: RipPhase = { ...ripPhaseByCode('R5.3')! };
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {

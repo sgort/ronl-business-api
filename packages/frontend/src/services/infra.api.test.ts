@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { Task } from '@ronl/shared';
+import { ripPhaseByCode } from '../pages/infra-board/rip-phases.catalog';
 import {
   groupTasksByHorizon,
   useActivityHistory,
@@ -272,10 +273,34 @@ describe('useRipActiveAcrossPhases', () => {
     const { result } = renderHook(() => useRipActiveAcrossPhases());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.data).toEqual([
-      expect.objectContaining({ id: 'i-R2.1', phaseCode: 'R2.1' }),
-      expect.objectContaining({ id: 'i-R2.2', phaseCode: 'R2.2' }),
-    ]);
+    const rows = result.current.data ?? [];
+
+    // Two concrete pairings, so the assertion is not purely derived from the
+    // same catalogue the hook reads.
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'i-R2.1', phaseCode: 'R2.1' }),
+        expect.objectContaining({ id: 'i-R2.2', phaseCode: 'R2.2' }),
+      ])
+    );
+
+    // The invariant that actually matters and does not churn as phases deploy:
+    // every row is tagged with the phase whose request produced it. The mock
+    // ids embed the requested code, so a mis-paired codes[i] shows up here --
+    // which an exact-list assertion could only catch by being rewritten on
+    // every deployment.
+    for (const row of rows) {
+      expect(row.id).toBe(`i-${row.phaseCode}`);
+      expect(ripPhaseByCode(row.phaseCode)?.processDefinitionKey).toBeDefined();
+    }
+
+    // ...and no phase without a process model was asked for at all.
+    const asked = mockBusinessApi.rip.phaseActive.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(asked).toEqual(rows.map((r) => r.phaseCode));
+    for (const code of asked) {
+      expect(ripPhaseByCode(code)?.processDefinitionKey).toBeDefined();
+    }
+
     expect(result.current.error).toBe(false);
   });
 

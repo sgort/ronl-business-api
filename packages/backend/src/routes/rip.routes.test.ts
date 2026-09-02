@@ -43,6 +43,20 @@ import { RIP_PHASE_KEYS } from '@ronl/shared';
 /** Every phase modelled as BPMN — the exact list both phase endpoints query. */
 const MODELLED_KEYS = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter(Boolean);
 
+/**
+ * A phase the catalogue knows but has no process model for, used to exercise
+ * the 409 branch. Derived rather than pinned: R2.3 held this role until it was
+ * deployed, and a literal means every future deployment breaks two tests that
+ * have nothing to do with the phase being deployed.
+ *
+ * When the whole ladder is modelled this becomes undefined and the two tests
+ * below skip visibly. That is the signal to delete them AND the
+ * PHASE_NOT_MODELLED branch they cover, deliberately -- not to leave them
+ * limping.
+ */
+const UNMODELLED_CODE = RIP_PHASE_KEYS.find((p) => !p.processDefinitionKey)?.code;
+const itIfUnmodelled = UNMODELLED_CODE ? it : it.skip;
+
 const svc = operatonService as unknown as {
   getRipPhaseActiveList: jest.Mock;
   getRipPhaseCompletedList: jest.Mock;
@@ -84,14 +98,17 @@ describe('lists', () => {
     expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
   });
 
-  it('GET /phases/:code/active answers 409, not an empty list, for a known but unmodelled phase', async () => {
-    // The distinction that matters: a caller must be able to tell "this phase
-    // has no process yet" from "this phase is deployed and currently idle".
-    const res = await auth(request(app).get('/v1/rip/phases/R2.3/active'));
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
-    expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
-  });
+  itIfUnmodelled(
+    'GET /phases/:code/active answers 409, not an empty list, for a known but unmodelled phase',
+    async () => {
+      // The distinction that matters: a caller must be able to tell "this phase
+      // has no process yet" from "this phase is deployed and currently idle".
+      const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/active`));
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
+      expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
+    }
+  );
 
   it('GET /phases/:code/active → 500 on service failure', async () => {
     svc.getRipPhaseActiveList.mockRejectedValue(new Error('boom'));
@@ -113,11 +130,14 @@ describe('lists', () => {
     expect(res.body.error.code).toBe('UNKNOWN_PHASE');
   });
 
-  it('GET /phases/:code/completed answers 409 for a known but unmodelled phase', async () => {
-    const res = await auth(request(app).get('/v1/rip/phases/R2.3/completed'));
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
-  });
+  itIfUnmodelled(
+    'GET /phases/:code/completed answers 409 for a known but unmodelled phase',
+    async () => {
+      const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/completed`));
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
+    }
+  );
 
   it('the fixed /phases routes are not swallowed by /phases/:code', async () => {
     // deployment-status and counts sit one path segment shorter than
