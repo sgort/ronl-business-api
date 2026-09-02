@@ -1266,6 +1266,23 @@ export function paTabBronnen(tabId: string): string[] {
   return (TAB_SOURCES[tabId] ?? []).map((b) => BRON_LABEL[b]);
 }
 
+/**
+ * The feed sources a monitoring tab draws from, as ids rather than labels.
+ *
+ * paTabBronnen above answers "what do I tell the user this tab reads?"; this
+ * answers "what do I fetch for it?". They differ deliberately — BRON_LABEL
+ * maps 'eu' to 'Europees Parlement', which is not a FeedSource.
+ *
+ * An empty array is meaningful: it identifies a monitoring tab with no raw
+ * feed behind it. `agenda` is that case today — it is fed by fetchAgenda, a
+ * different path entirely. The Ongefilterd view keys its own existence off
+ * this, so it appears on the signaalbronnen and nowhere else without anyone
+ * maintaining a second list that could drift from this one.
+ */
+export function paTabFeedSources(tabId: string): FeedSource[] {
+  return (TAB_SOURCES[tabId] ?? []) as FeedSource[];
+}
+
 const TAG_BY_TAB: Record<string, string> = {
   politiek: 'nl',
   regionaal: 'regio',
@@ -1437,17 +1454,26 @@ export async function fetchSearches(): Promise<SavedSearch[]> {
 export type FeedSource = 'both' | 'tk' | 'ob' | 'eu' | 'media';
 
 export async function fetchFeed(params: {
-  q: string;
+  /**
+   * Free-text query. Omit it entirely for the unfiltered feed: GET /pa/feed
+   * reads `q` as `string | null` and every source client defaults it to null,
+   * which is the "blanco" path the curation cycle itself runs on.
+   *
+   * Absent and '' are not the same thing. '' is what a user leaves behind when
+   * they clear the search box, and runSearch reads that as "show nothing";
+   * absent is a deliberate request for everything.
+   */
+  q?: string;
   source?: FeedSource;
   types?: string[];
   skip?: number;
   top?: number;
 }): Promise<{ items: FeedItem[]; total: number | null }> {
   if (isPaMock()) {
-    const q = params.q.toLowerCase();
+    const q = (params.q ?? '').toLowerCase();
     const src = params.source ?? 'both';
     const items: FeedItem[] = [...MOCK_INBOX, ...MOCK_CONFIRMED]
-      .filter((s) => s.title.toLowerCase().includes(q))
+      .filter((s) => !q || s.title.toLowerCase().includes(q))
       .map((s) => ({
         id: s.id,
         title: s.title,
@@ -1461,10 +1487,13 @@ export async function fetchFeed(params: {
     return { items, total: items.length };
   }
   const qs = new URLSearchParams({
-    q: params.q,
     source: params.source ?? 'both',
     top: String(params.top ?? 30),
   });
+  // Omitted rather than sent empty: the route reads a missing `q` as null and
+  // hands that to the source clients, which is what makes the feed unfiltered.
+  // `q=` would be a search for the empty string.
+  if (params.q) qs.set('q', params.q);
   if (params.types?.length) qs.set('types', params.types.join(','));
   if (params.skip) qs.set('skip', String(params.skip));
   return paGet<{ items: FeedItem[]; total: number | null }>(`/pa/feed?${qs}`);

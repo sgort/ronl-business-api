@@ -18,6 +18,7 @@ import {
   promoteSearchToTenant,
   promoteToInbox,
   paTabBronnen,
+  paTabFeedSources,
   signalTag,
   signalTagLabel,
   BRON_LABEL,
@@ -572,7 +573,11 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
   const refetchAllSignals = allSignals.refetch;
   const tab = MONITORING_TABS.find((t) => t.id === activeTab) ?? MONITORING_TABS[0];
 
-  const [view, setView] = useState<'gecureerd' | 'inbox'>('gecureerd');
+  const [view, setView] = useState<'gecureerd' | 'inbox' | 'ongefilterd'>('gecureerd');
+  // The tab's raw feed, unfiltered. Kept separate from feedResults so a typed
+  // search and this view cannot overwrite each other's results.
+  const [raw, setRaw] = useState<FeedItem[] | null>(null);
+  const [rawLoading, setRawLoading] = useState(false);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [inbox, setInbox] = useState<Signal[]>([]);
   const [inboxMeta, setInboxMeta] = useState<InboxMeta | null>(null);
@@ -620,6 +625,43 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
     // underneath it, still showing signals that no longer existed.
     refetchAllSignals();
   }, [tab.id, updateInboxCount, refreshInboxCounts, refetchAllSignals]);
+
+  // Which sources this tab reads, as ids. Empty means the tab has no raw feed
+  // behind it, which is what keeps this view off Agenda without a second list
+  // to maintain. Feiten & cijfers never reaches here at all — it is its own
+  // section, not a monitoring tab.
+  const rawSources = paTabFeedSources(tab.id);
+  const hasRawFeed = rawSources.length > 0;
+
+  const loadRaw = useCallback(async () => {
+    const sources = paTabFeedSources(tab.id);
+    if (!sources.length) return;
+    setRawLoading(true);
+    try {
+      // One call per source rather than one widened call. FeedSource is
+      // single-valued and 'both' is not the union this needs: it also pulls
+      // media when that flag is on, and deliberately excludes eu.
+      const results = await Promise.all(sources.map((source) => fetchFeed({ source, top: 30 })));
+      const seen = new Set<string>();
+      setRaw(
+        results
+          .flatMap((r) => r.items)
+          .filter((it) => {
+            const key = `${it.source}:${it.id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+      );
+    } catch {
+      setRaw([]);
+    }
+    setRawLoading(false);
+  }, [tab.id]);
+
+  useEffect(() => {
+    if (view === 'ongefilterd') void loadRaw();
+  }, [view, loadRaw]);
 
   useEffect(() => {
     void load();
@@ -874,6 +916,19 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
           Inbox{' '}
           <span className="pac-seg-count">{inboxMeta?.capped ? '100+' : visibleInbox.length}</span>
         </button>
+        {hasRawFeed && (
+          <button
+            type="button"
+            className={`pac-seg-btn ${view === 'ongefilterd' ? 'active' : ''}`}
+            onClick={() => {
+              setView('ongefilterd');
+              clearSearch();
+            }}
+          >
+            Ongefilterd
+            {raw ? <span className="pac-seg-count">{raw.length}</span> : null}
+          </button>
+        )}
       </div>
 
       {/* Blanco zoekfunctie — cross-source raw search, independent of the tab */}
@@ -977,6 +1032,36 @@ export default function Monitoring({ activeTab = 'politiek', onOpenDossier, onNa
         </>
       ) : loading ? (
         <p className="pac-page-sub">Signalen ophalen…</p>
+      ) : view === 'ongefilterd' ? (
+        <>
+          <div className="pac-searchres-head">
+            <div className="pac-searchres-title">
+              <span>Ongefilterd</span>
+              <span className="scope"> · {paTabBronnen(tab.id).join(' + ')}</span>
+            </div>
+            <div className="pac-searchres-count">{rawLoading ? '…' : (raw?.length ?? 0)} items</div>
+          </div>
+          {rawLoading ? (
+            <p className="pac-page-sub">Bronfeeds ophalen…</p>
+          ) : raw && raw.length ? (
+            <div>
+              {raw.map((item) => (
+                <RawHitCard
+                  key={`${item.source}:${item.id}`}
+                  item={item}
+                  done={promotedKeys.has(`${item.source}:${item.id}`)}
+                  onPromote={(x) => void handlePromote(x)}
+                  onHelp={openPipeline}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="pac-page-sub">
+              Niets in de rauwe bronfeeds van deze signaalbron. Een bron die uitstaat levert hier
+              ook niets op — <b>Beheer › Signaalbronnen</b> toont welke aan staan.
+            </p>
+          )}
+        </>
       ) : view === 'inbox' ? (
         <>
           {inboxMeta?.capped && (

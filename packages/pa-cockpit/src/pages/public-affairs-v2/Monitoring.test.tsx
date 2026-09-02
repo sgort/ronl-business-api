@@ -67,6 +67,60 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe('the Ongefilterd view', () => {
+  // Third segment beside Gecureerd and Inbox: the tab's own sources, fetched
+  // raw with no query. The backend has always accepted a null q — the source
+  // clients default to it and the curation cycle uses that "blanco" path — but
+  // runSearch bailed on an empty string, so there was no way to reach it from
+  // the UI without typing something.
+  //
+  // It appears only on the signaalbronnen. Agenda is a monitoring tab with no
+  // TAB_SOURCES entry (it is fed by fetchAgenda, a different path), and Feiten
+  // & cijfers is not a monitoring tab at all — it is its own section and never
+  // renders this control. So the condition is derived from the source map
+  // rather than hardcoded, and a future source tab gets the segment for free.
+
+  it('offers the segment on a signaalbron tab', async () => {
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    expect(await screen.findByRole('button', { name: /Ongefilterd/ })).toBeInTheDocument();
+  });
+
+  it('does not offer it on Agenda, which has no feed sources', async () => {
+    render(<Monitoring activeTab="agenda" onOpenDossier={vi.fn()} />);
+    // Wait for the page to settle so this is not a false pass on an unrendered tree.
+    await screen.findByRole('button', { name: /Gecureerd/ });
+    expect(screen.queryByRole('button', { name: /Ongefilterd/ })).not.toBeInTheDocument();
+  });
+
+  it("fetches the tab's source with no query at all", async () => {
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="europa" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Ongefilterd/ }));
+
+    await waitFor(() => expect(paApi.fetchFeed).toHaveBeenCalled());
+    const call = paApi.fetchFeed.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(call.source).toBe('eu');
+    // Not `q: ''` — absent. An empty string would be indistinguishable from a
+    // user clearing the search box, and the whole point is the unfiltered feed.
+    expect('q' in call).toBe(false);
+  });
+
+  it('issues one call per source when the tab draws from several', async () => {
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Ongefilterd/ }));
+
+    // politiek is ['tk','ob']. FeedSource is single-valued and 'both' is not
+    // equivalent: it also pulls media when that flag is on, and deliberately
+    // excludes eu. So the tab fans out rather than widening its scope.
+    await waitFor(() => {
+      const sources = paApi.fetchFeed.mock.calls.map((c) => (c[0] as { source?: string }).source);
+      expect(sources).toContain('tk');
+      expect(sources).toContain('ob');
+    });
+  });
+});
+
 describe('the pa.api mock', () => {
   it('only names exports the real module has', async () => {
     // Spreading the real module covers a missing member; this covers a renamed
