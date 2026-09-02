@@ -1,4 +1,4 @@
-# RIP roles: three vocabularies, one gap, and what closing it did not cover
+# RIP roles: four vocabularies, one gap, and what closing it did not cover
 
 Found on 2026-09-02 while correcting `RollenSection`'s role descriptions after
 the RIP ladder was completed (R2.1 → R6.1, eleven modelled phases).
@@ -21,17 +21,44 @@ The mapping was 6 of 34.
 
 ---
 
-## The three lists
+## The four lists
 
-| List                  | What it is                                   | Source of truth             |
-| --------------------- | -------------------------------------------- | --------------------------- |
-| Keycloak roles        | What a person was granted                    | the realm — per environment |
-| BPMN candidate groups | Who a task is addressed to                   | the deployed process models |
-| `ROLE_DESCRIPTIONS`   | The line under each role on Rollen & rechten | `RollenSection.tsx`         |
+| List                  | What it is                                    | Source of truth                  |
+| --------------------- | --------------------------------------------- | -------------------------------- |
+| Keycloak realm roles  | What a person was granted                     | the realm — per environment      |
+| BPMN candidate groups | Who a task is addressed to                    | the deployed process models      |
+| `assignedRoles`       | What HR onboarding recorded                   | the `EmployeeRoleAssignment` DMN |
+| `ROLE_DESCRIPTIONS`   | The line under each entry on Rollen & rechten | `RollenSection.tsx`              |
 
-They are easy to conflate because they share the `rip-` prefix. They are not
-the same thing, and they are maintained separately even now that the first two
-coincide.
+They are easy to conflate because they all use the `rip-` prefix. They are not
+the same thing, and they are maintained separately even where they coincide.
+
+### The fourth one is the easiest to miss
+
+`RollenSection` renders `(onboardingRoles ?? jwtRoles)` — the HR onboarding
+record **in preference to** the token, falling back to the token only when the
+user has no profile. So Rollen & rechten does not show Keycloak roles at all
+for a user who has been onboarded.
+
+On ACC, `test-infra-flevoland` has both, and they disagree:
+
+| Surface                              | Shows                                       | Count |
+| ------------------------------------ | ------------------------------------------- | ----- |
+| Profiel → Rollen                     | Keycloak realm roles, from the token        | 37    |
+| Rollen & rechten → Toegewezen rollen | `assignedRoles`, from the onboarding record | 4     |
+
+```
+assignedRoles   : caseworker,rip-verkenner,rip-planner,rip-contractbeheer
+candidateGroups : caseworker,rip-projectleider
+```
+
+`rip-verkenner`, `rip-planner` and `rip-contractbeheer` are not Keycloak roles
+in any environment — they are DMN output strings. Worth stating plainly,
+because the obvious reading of that page is that they are roles the user holds.
+
+This also means granting realm roles does not change that page, which is
+exactly how it presented: the 28 roles landed on ACC and Rollen & rechten went
+on showing four. Nothing was broken; the two pages answer different questions.
 
 ### What it cost, before the fix
 
@@ -80,14 +107,20 @@ many, turning a 28-role addition into a 470-line diff nobody can review.
 
 **`RollenSection.tsx`** — every `rip-*` realm role now has a description.
 
-The map is maintained **additively**, and that is a deliberate correction to a
-first attempt at this change. An entry for a role that exists in no realm is
-harmless — it simply never renders. A missing entry for a role a user _does_
-hold degrades their page to a bare identifier. The first attempt removed
-`rip-verkenner`, `rip-planner`, `rip-inkoop`, `rip-contractbeheer` and
-`rip-toetser` for being absent from the seed file; a screenshot of ACC showed
-`test-infra-flevoland` holding three of them. **The seed is one environment's
-realm, not a mirror of all of them.** They were restored.
+The map is maintained **additively**. An entry for something that appears in no
+list is harmless — it never renders. A missing entry for something that _does_
+appear degrades the page to a bare identifier.
+
+That rule survived two wrong turns, both worth recording. The first attempt
+removed `rip-verkenner`, `rip-planner`, `rip-inkoop`, `rip-contractbeheer` and
+`rip-toetser` for being absent from the realm seed. A screenshot of ACC then
+showed three of them on the page, and the explanation offered was that ACC's
+realm granted them and the seed was merely one environment's view. That was
+**also wrong**: they are absent from every realm. They arrive from the
+onboarding record — the fourth vocabulary — which nothing had looked at yet.
+
+So the map keys on whatever the component might render, not on any single
+source of truth, because there is no single source.
 
 ---
 

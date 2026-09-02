@@ -7,18 +7,29 @@ import { useProfielData } from '../../hooks/useProfielData';
  * Purely a lookup: an unmatched role renders without a description, and an
  * unused entry costs nothing.
  *
- * That asymmetry decides how this map is maintained. An entry for a role that
- * exists in no realm is harmless; a missing entry for one a user actually
- * holds degrades their Rollen & rechten page to a bare identifier. So entries
- * are ADDED here and not removed on the strength of one realm file --
- * config/keycloak/ronl-realm.json is the local seed, not a mirror of every
- * environment. ACC grants rip-verkenner, rip-planner and rip-contractbeheer,
- * none of which the seed defines.
+ * That asymmetry decides how this map is maintained: entries are ADDED and not
+ * removed for being absent from any one list, because this component renders
+ * TWO different lists.
  *
- * A candidate group in the RIP models is NOT the same thing as a role. The
- * two lists happen to coincide now that the realm carries all 34, but they are
- * maintained separately: a group says who a task is addressed to, a role says
- * what a person was granted. See docs/RIP-ROLE-VOCABULARIES.md.
+ * `(onboardingRoles ?? jwtRoles)` below prefers the HR onboarding record over
+ * the token, falling back to the token only when the user has no profile. So
+ * the keys arriving here come from either:
+ *
+ *   - `assignedRoles` on the onboarding profile, produced by the
+ *     EmployeeRoleAssignment DMN. On ACC that is
+ *     "caseworker,rip-verkenner,rip-planner,rip-contractbeheer" -- none of
+ *     which is a Keycloak role anywhere. They are DMN output strings.
+ *   - the caller's Keycloak realm roles, when there is no profile.
+ *
+ * A first pass at this map removed rip-verkenner, rip-planner, rip-inkoop,
+ * rip-contractbeheer and rip-toetser for being absent from
+ * config/keycloak/ronl-realm.json. They are absent from every realm -- and
+ * still rendered on ACC every day, from the onboarding record.
+ *
+ * A candidate group in the RIP models is a third thing again: who a task is
+ * addressed to. It happens to coincide with the realm roles now that both
+ * carry the same 34, but the two are maintained separately. See
+ * docs/RIP-ROLE-VOCABULARIES.md.
  */
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   caseworker: 'Behandelen van aanvragen en zaken',
