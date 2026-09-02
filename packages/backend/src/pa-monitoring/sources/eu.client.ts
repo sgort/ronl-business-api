@@ -1,25 +1,41 @@
 /**
- * European Parliament RSS client — replaces the EP Open Data API v2 approach.
+ * European Parliament client — EP Open Data API v2 (Atom).
  *
- * Data source: EP plenary-documents RSS feed (CC BY 4.0, no auth, fast ~1-2 s).
- *   https://www.europarl.europa.eu/rss/doc/plenary/nl.xml
- *   https://www.europarl.europa.eu/rss/doc/press-releases/nl.xml
+ * Data source: EP plenary-documents feed (CC BY 4.0, no auth).
+ *   https://data.europarl.europa.eu/api/v2/plenary-documents/feed
  *
- * Why RSS instead of the EP Open Data API v2:
- *   The v2 REST list endpoints (/documents, /parliamentary-questions) return only
- *   identifier, work_type URI and document_date — no title field is present.
- *   Without titles the scoring engine cannot match saved-search terms, so rel stays
- *   at 3 and nothing clears the rel ≥ 4 persistence threshold. SPARQL also 404s.
- *   The RSS plenary feed carries the same documents with titles, Dutch document-type
- *   labels in <category domain="type">, and doceo provenance links — all we need.
+ * Why the API rather than the RSS feeds it replaces:
+ *   www.europarl.europa.eu is CDN-fronted with undocumented bot mitigation that
+ *   answers our ACC egress range (20.76.243-246.x) with an empty 202 text/html —
+ *   a soft block that passes res.ok and parses to zero items. Measured from
+ *   inside the App Service: both RSS URLs return 202/0 bytes while this API
+ *   returns 200 with 211 KB of Atom, in the same run, from the same IP. The API
+ *   is also the endpoint the EP publishes for machines: it documents a
+ *   User-Agent contract, where the CDN gates on a UA family it never describes.
+ *   See issues #54 (root cause) and #55 (this migration).
+ *
+ *   The historical objection to the API — that its list endpoints carry no title,
+ *   leaving the scoring engine nothing to match — does not apply to the *feed*
+ *   endpoints, which do carry titles. It was /documents that was title-less.
+ *
+ * What the API gives us that RSS did not:
+ *   A machine vocabulary for the document type (category/@scheme, an
+ *   ep-document-types concept) instead of a free-text label, and parseable
+ *   document references for every entry including older parliamentary terms.
+ *
+ * What it costs us, deliberately accepted (see #55):
+ *   - English only. Entries are xml:lang="en" and Accept-Language is ignored.
+ *   - No press releases. The API has no equivalent endpoint — they are a
+ *     communications product, not legislative data — so that sub-source is gone.
+ *   - No per-entry summary and no committee codes. The Atom entries carry only
+ *     title, id, links, work-type and updated. So description is built from the
+ *     title alone, and commissie is null for this sub-source.
  *
  * Term expansion:
- *   EP plenary documents have English-language titles. Our saved searches use Dutch
- *   terms (netcapaciteit, stikstof, …). The optional FeedItem.description field is
- *   populated with the stripped RSS description PLUS Dutch equivalents of detected
- *   English EU-policy vocabulary (EU_TO_NL_TERMS table). The scoring engine awards
- *   +1 per desc match, which combined with the +2 high-value-type bump makes
- *   Verslagen/Moties about relevant topics reach rel ≥ 4.
+ *   EP documents have English titles; our saved searches use Dutch terms
+ *   (netcapaciteit, stikstof, …). FeedItem.description is the title PLUS Dutch
+ *   equivalents of detected English EU-policy vocabulary (EU_TO_NL_TERMS), so
+ *   the Dutch-query scoring engine in rules.ts can still find a desc match (+1).
  *
  * Provenance: CC BY 4.0 — attribute "Europees Parlement".
  *   Document links follow the doceo pattern: .../document/{REF}_NL.html.
@@ -38,24 +54,26 @@ const logger = createLogger('eu-client');
 // Kept from original: matches the AbortController timeout on the config page
 const HTTP_TIMEOUT_MS = 30_000;
 
-// europarl's CDN gates the RSS feeds on a recognised User-Agent family: a bare
-// product token ("ronl-business-api/1.0") is answered with an empty 202 just as a
-// missing one is, while the conventional "Mozilla/5.0 (compatible; …)" crawler
-// form is served the feed. Identifies us honestly within that form.
-const EU_RSS_USER_AGENT =
-  'Mozilla/5.0 (compatible; ronl-business-api/1.0; +https://open-regels.nl)';
+// The EP Open Data API documents User-Agent as an optional header with the
+// suggested format {user-id}-{environment}-{version}. Identifying ourselves is
+// much of the point of preferring this endpoint, so we send it. The version is
+// this client's own — it changes when the client changes, not on every release.
+const EP_API_USER_AGENT = `ronl-business-api-${config.deploymentEnv}-1.0.0`;
 
-const EP_PLENARY_FEED = 'https://www.europarl.europa.eu/rss/doc/plenary/nl.xml';
-const EP_PRESSREL_FEED = 'https://www.europarl.europa.eu/rss/doc/press-releases/nl.xml';
+// Takes no query parameters: a fixed "published or updated in the last month"
+// window. That is the right shape for a monitoring source, and it means paging
+// stays in-process exactly as it was under RSS.
+const EP_PLENARY_FEED = 'https://data.europarl.europa.eu/api/v2/plenary-documents/feed';
 
-// ── Helpers (kept from original per handoff) ──────────────────────────────────
+// ── Document types ────────────────────────────────────────────────────────────
 
-// Document reference prefix → Dutch document type label
 /**
- * Document types the EU source can yield, for the blanco search's type filter —
- * the values TYPE_BY_PREFIX maps refs onto, plus 'Persbericht', which comes from
- * the RSS category rather than a ref prefix because press releases have no ref.
+ * Document types the EU source can yield, for the blanco search's type filter.
  * Mirrors TK_DOCUMENT_TYPES / OB_PUBLICATION_TYPES.
+ *
+ * 'Persbericht' is gone with the press-release feed (#55). The remaining labels
+ * stay Dutch: they are our own UI vocabulary for the type filter, not source
+ * content, so the English-only decision does not reach them.
  */
 export const EU_DOCUMENT_TYPES = [
   'Verslag',
@@ -64,15 +82,18 @@ export const EU_DOCUMENT_TYPES = [
   'Aangenomen tekst',
   'Schriftelijke vraag',
   'Mondelinge vraag',
-  'Persbericht',
 ] as const;
 
+// Document reference prefix → Dutch document type label. Retained as the
+// fallback for an entry whose work-type concept we do not recognise; the
+// scheme-based map below is the primary route now that the source provides one.
 const TYPE_BY_PREFIX: Record<string, string> = {
   'A-': 'Verslag',
   'B-': 'Motie',
   'RC-': 'Gezamenlijke motie',
   'TA-': 'Aangenomen tekst',
   'E-': 'Schriftelijke vraag',
+  'QOB-': 'Mondelinge vraag',
   'O-': 'Mondelinge vraag',
 };
 
@@ -83,6 +104,24 @@ export function inferType(ref: string): string | null {
   return null;
 }
 
+// EP work-type concept → Dutch label. The concept is the last segment of
+// category/@scheme, e.g. .../def/ep-document-types/REPORT_PLENARY. Preferred
+// over the ref prefix because it is a controlled vocabulary rather than a naming
+// convention: QOB- and O- are both oral-question motions, and a prefix table has
+// to learn each spelling separately.
+const TYPE_BY_WORK_TYPE: Record<string, string> = {
+  REPORT_PLENARY: 'Verslag',
+  RESOLUTION_MOTION: 'Motie',
+  RESOLUTION_MOTION_JOINT: 'Gezamenlijke motie',
+  QUESTION_RESOLUTION_MOTION: 'Mondelinge vraag',
+  ADOPTED_TEXT: 'Aangenomen tekst',
+};
+
+export function workTypeLabel(scheme: string): string | null {
+  const concept = scheme.trim().split('/').pop() ?? '';
+  return TYPE_BY_WORK_TYPE[concept] ?? null;
+}
+
 export function doceoUrl(ref: string): string {
   return `https://www.europarl.europa.eu/doceo/document/${ref}_NL.html`;
 }
@@ -90,8 +129,8 @@ export function doceoUrl(ref: string): string {
 // ── Term expansion ────────────────────────────────────────────────────────────
 
 // Map English EU-policy vocabulary patterns → Dutch monitoring terms.
-// Applied to the combined title + description text so that the Dutch-query
-// scoring engine (rules.ts) can find a desc match (+1) for EP documents.
+// Applied to the title so that the Dutch-query scoring engine (rules.ts) can
+// find a desc match (+1) for EP documents.
 const EU_TO_NL_TERMS: Array<[RegExp, string[]]> = [
   [/\bnitrogen\b/i, ['stikstof', 'stikstofreductie']],
   [
@@ -122,158 +161,137 @@ export function addDutchContext(text: string): string {
   return `${text} [${[...new Set(extras)].join(' ')}]`;
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&[a-z]+;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// ── RSS parsing ───────────────────────────────────────────────────────────────
+// ── Atom parsing ──────────────────────────────────────────────────────────────
 
 const XML_PARSER = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
-  isArray: (name) => name === 'item' || name === 'category',
+  isArray: (name) => name === 'entry' || name === 'category' || name === 'link',
 });
 
-interface RssCategory {
-  '#text': string;
-  '@_domain'?: string;
+/** An Atom text construct: `<title type="text" xml:lang="en">…</title>`. */
+interface AtomText {
+  '#text'?: string | number;
 }
 
-interface RssGuid {
-  '#text': string;
-  '@_isPermaLink'?: string;
+interface AtomCategory {
+  '@_term'?: string;
+  '@_scheme'?: string;
+  '@_label'?: string;
 }
 
-interface RssItem {
-  title?: string;
-  link?: string;
-  description?: string;
-  category?: RssCategory[];
-  pubDate?: string;
-  guid?: RssGuid | string;
+interface AtomEntry {
+  title?: AtomText | string;
+  id?: AtomText | string;
+  updated?: AtomText | string;
+  category?: AtomCategory[];
 }
 
-// Extract the normalised EP ref (e.g. "A-10-2026-0181") from a guid string
-// like "RR_A-10-2026-0181_v02-00_EN", or fall back to parsing the title suffix.
-//
-// No \b around the guid pattern: EP guids wrap the ref in underscores, and _ is
-// a word character, so \b never fires between "RR_" and "A-10-...". That left the
-// guid branch dead and every ref to the title fallback, which only works for
-// titles ending in the "A10-0099/2026" suffix. Half the live plenary feed — joint
-// resolutions, draft decisions, adopted texts — has Dutch prose titles with no
-// such suffix, so those items were dropped outright. The trailing (?!\d) stops a
-// longer digit run being truncated into a false 4-digit match.
-function extractRef(guid: string, title: string): string | null {
-  const m = guid.match(/([A-Z]{1,3}-10-\d{4}-\d{4})(?!\d)/);
-  if (m) return m[1];
-  const t = title.match(/\b([A-Z]{1,3})10-(\d{4})\/(\d{4})\s*$/);
-  if (t) return `${t[1]}-10-${t[3]}-${t[2]}`;
+/**
+ * Read an Atom element's text whether fast-xml-parser gave us a bare string or,
+ * because the element carries attributes, an object with '#text'. <title> has
+ * attributes and <id> does not, so both shapes occur within one entry.
+ */
+function readText(value: AtomText | string | undefined): string | null {
+  if (typeof value === 'string') return value.trim() || null;
+  if (value && typeof value === 'object' && value['#text'] !== undefined) {
+    return String(value['#text']).trim() || null;
+  }
   return null;
 }
 
-// Press releases carry no EP document ref. Their identity is the IPR code EP
-// puts in the public URL — .../press-room/20260716IPR46537/ — which is present
-// on every item in the feed and unique across it. Taken from the link rather
-// than the guid (which spells the same thing as IPR-2026-07-16-46537) because
-// the link form is the one that appears publicly and is recognisable to a human.
-const PRESS_RELEASE_ID = /\/(\d{8}IPR\d+)\//;
+// An EP document reference: prefix, parliamentary term, year, number.
+//
+// The term is NOT always 10. The feed covers documents *updated* in the last
+// month, which pulls in older ones — the live feed carries terms 5, 6, 8 and 9.
+// The RSS-era regex hardcoded -10- and would silently drop those (10 of 325
+// entries when this was written), because an entry with no identity is dropped.
+//
+// Anchored at both ends on purpose, which excludes amendment lists: their refs
+// carry extra segments (A-10-2025-0226-AM-001-002). That is deliberate — an
+// amendment is a fragment of a document rather than one, it has no doceo page of
+// its own, so doceoUrl() would produce a dead link. One of 325 entries. This is
+// the rule the whole client follows: emit an entry only when its reference is a
+// canonical EP document ref, because that is what makes both the signal id and
+// the document URL trustworthy.
+const EP_REF = /^[A-Z]{1,4}-\d{1,2}-\d{4}-\d{4}$/;
 
-function extractPressReleaseId(link: string): string | null {
-  const m = link.match(PRESS_RELEASE_ID);
-  return m ? m[1] : null;
+/**
+ * Take the document reference from an Atom entry's <id>, which is the ELI URI
+ * `https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0204`.
+ *
+ * Reads the last path segment rather than regex-hunting the whole string: the id
+ * is a structured identifier, so its final segment *is* the ref, and matching it
+ * whole means a malformed id is rejected rather than half-parsed.
+ */
+export function refFromEntryId(id: string): string | null {
+  const segment = id.trim().replace(/\/+$/, '').split('/').pop() ?? '';
+  return EP_REF.test(segment) ? segment : null;
 }
 
-function normaliseRssItem(item: RssItem): FeedItem | null {
-  const title = typeof item.title === 'string' ? item.title.trim() : null;
+function normaliseAtomEntry(entry: AtomEntry): FeedItem | null {
+  const title = readText(entry.title);
   if (!title) return null;
 
-  // Extract the Dutch document type from the category with domain="type"
-  const categories = Array.isArray(item.category) ? item.category : [];
-  const typeCat = categories.find((c) => c['@_domain'] === 'type');
-  const rssType = typeCat ? (typeCat['#text']?.trim() ?? null) : null;
+  const id = readText(entry.id);
+  const ref = id ? refFromEntryId(id) : null;
+  // No reference means no stable identity to key a signal on, and the curation
+  // cycle dedupes by id. Drop it rather than invent one.
+  if (!ref) return null;
 
-  // Committee codes come as one category per committee with domain="body". The
-  // first is the responsible one — which is what commissie means elsewhere
-  // (agenda.client reads VoortouwCommissieNaam, ep-texts reads doc.committee) and
-  // what the cockpit's "Bevoegde commissie" chip claims. Co-responsible ones are
-  // appended rather than dropped, so a cross-committee item still shows them:
-  // "AGRI +1". Items like the Irish-Presidency press release carry seventeen.
-  const bodies = categories
-    .filter((c) => c['@_domain'] === 'body')
-    .map((c) => c['#text']?.trim())
-    .filter((c): c is string => !!c);
-  const commissie =
-    bodies.length === 0
-      ? null
-      : bodies.length === 1
-        ? bodies[0]
-        : `${bodies[0]} +${bodies.length - 1}`;
-
-  // Ref from guid (plain string or object with #text)
-  const guidRaw = item.guid;
-  const guidStr = typeof guidRaw === 'object' ? (guidRaw['#text'] ?? '') : String(guidRaw ?? '');
-  const ref = extractRef(guidStr, title);
-
-  const link = typeof item.link === 'string' ? item.link.trim() : '';
-  const pressReleaseId = ref ? null : extractPressReleaseId(link);
-
-  // Everything else — agendas and the like — carries no identity we can key on.
-  const identity = ref ?? pressReleaseId;
-  if (!identity) return null;
+  const categories = Array.isArray(entry.category) ? entry.category : [];
+  const workType = categories.find((c) => c['@_scheme']);
+  const type =
+    (workType?.['@_scheme'] ? workTypeLabel(workType['@_scheme']) : null) ?? inferType(ref);
 
   let date: string | null = null;
-  if (item.pubDate) {
-    try {
-      date = new Date(item.pubDate).toISOString().slice(0, 10);
-    } catch {
-      /* ignore */
-    }
+  const updated = readText(entry.updated);
+  if (updated) {
+    const parsed = new Date(updated);
+    if (!Number.isNaN(parsed.getTime())) date = parsed.toISOString().slice(0, 10);
   }
 
-  const rawDesc = typeof item.description === 'string' ? stripHtml(item.description) : '';
-  const description = addDutchContext(`${title} ${rawDesc}`.trim());
-
   return {
-    id: identity,
+    id: ref,
     title,
-    // A press release has no doc-ref prefix to infer a type from, so its
-    // category ("Persbericht") is the only source; fall back to it explicitly.
-    type: rssType || (ref ? inferType(ref) : 'Persbericht'),
-    number: identity,
+    type,
+    number: ref,
     date,
-    // doceoUrl builds a document URL, which a press release does not have — its
-    // own <link> is the canonical page.
-    url: ref ? doceoUrl(ref) : link,
+    url: doceoUrl(ref),
     source: 'eu' as const,
-    subbron: ref ? 'ep-rss' : 'ep-persbericht',
-    commissie,
-    description,
+    // Kept as 'ep-rss' although the transport is now Atom over the API. The
+    // value is a persisted sub-source key — pa_signals.subbron, backfilled by an
+    // idempotent migration — and it identifies the *stream* (EP plenary
+    // documents), which has not changed. Renaming it would split existing
+    // signals from new ones across two labels for one source and buy nothing.
+    // The display label is what was corrected instead.
+    subbron: 'ep-rss',
+    // The API's Atom entries carry no committee. Under RSS this came from
+    // <category domain="body">, which has no equivalent here; the detail
+    // endpoint would mean one request per entry. ep-teksten still supplies it
+    // for documents that appear in both.
+    commissie: null,
+    description: addDutchContext(title),
   };
 }
 
 /**
- * Parse an EP RSS XML string into FeedItem[].
+ * Parse an EP Atom XML string into FeedItem[].
  * Exported as a pure function so unit tests can call it without network I/O.
  */
-export function parseRssFeed(xml: string): FeedItem[] {
+export function parseAtomFeed(xml: string): FeedItem[] {
   let doc: Record<string, unknown>;
   try {
     doc = XML_PARSER.parse(xml) as Record<string, unknown>;
   } catch {
     return [];
   }
-  const channel = (doc['rss'] as Record<string, unknown> | undefined)?.['channel'] as
-    | Record<string, unknown>
-    | undefined;
-  const items = (channel?.['item'] as RssItem[] | undefined) ?? [];
+  const feed = doc['feed'] as Record<string, unknown> | undefined;
+  const entries = (feed?.['entry'] as AtomEntry[] | undefined) ?? [];
   const result: FeedItem[] = [];
-  for (const item of items) {
-    const fi = normaliseRssItem(item);
-    if (fi) result.push(fi);
+  for (const entry of entries) {
+    const item = normaliseAtomEntry(entry);
+    if (item) result.push(item);
   }
   return result;
 }
@@ -294,33 +312,31 @@ async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
     const res = await fetch(feedUrl, {
       signal: controller.signal,
       headers: {
-        Accept: 'application/rss+xml, application/xml, text/xml',
-        // Required, not cosmetic. Without an explicit User-Agent, europarl.europa.eu
-        // answers node's fetch with an empty 202 text/html body instead of the feed.
-        // 202 passes res.ok, so the empty body parsed to zero items and the source
-        // reported success while contributing nothing.
-        'User-Agent': EU_RSS_USER_AGENT,
+        Accept: 'application/atom+xml, application/xml, text/xml',
+        'User-Agent': EP_API_USER_AGENT,
       },
     });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`EU RSS ${res.status}: ${feedUrl}`);
+    if (!res.ok) throw new Error(`EP API ${res.status}: ${feedUrl}`);
     xml = await res.text();
-    // A 2xx that is not the feed — the bot-protection 202 above, an error page,
-    // a redirect landing — must fail loudly rather than parse to an empty list.
+    // A 2xx that is not the feed — a bot-protection 202, an error page, a
+    // redirect landing — must fail loudly rather than parse to an empty list.
+    // This guard is what made the CDN block visible in the first place; moving
+    // to the API does not make it unnecessary.
     if (!xml.trimStart().startsWith('<')) {
-      throw new Error(`EU RSS ${res.status} returned ${xml.length} bytes of non-XML: ${feedUrl}`);
+      throw new Error(`EP API ${res.status} returned ${xml.length} bytes of non-XML: ${feedUrl}`);
     }
   } catch (err) {
     clearTimeout(timer);
-    logger.warn('EU RSS fetch failed', {
+    logger.warn('EP API fetch failed', {
       feedUrl,
       error: err instanceof Error ? err.message : String(err),
     });
     return [];
   }
 
-  const items = parseRssFeed(xml);
-  logger.info('EU RSS fetched', { feedUrl, count: items.length });
+  const items = parseAtomFeed(xml);
+  logger.info('EP API fetched', { feedUrl, count: items.length });
   await cacheSet(key, items, config.pa.cacheTtlTk);
   return items;
 }
@@ -340,15 +356,14 @@ export async function fetchEuFeed(
   skip = 0,
   top = 20
 ): Promise<EuFeedResult> {
-  // Fetch both feeds in parallel; failures fall through (returns [])
-  const [plenary, pressrel] = await Promise.all([
-    fetchFeed(EP_PLENARY_FEED),
-    fetchFeed(EP_PRESSREL_FEED),
-  ]);
+  const entries = await fetchFeed(EP_PLENARY_FEED);
 
-  // Merge, deduplicate by ref, sort newest first
+  // Deduplicate by ref and sort newest first. Two feeds can no longer collide
+  // now the press-release feed is gone, but a single feed still can: the window
+  // is "published or updated", and a reissued document appears under its
+  // original ref.
   const seen = new Set<string>();
-  const all: FeedItem[] = [...plenary, ...pressrel].filter((item) => {
+  const all: FeedItem[] = entries.filter((item) => {
     if (seen.has(item.id)) return false;
     seen.add(item.id);
     return true;
@@ -362,10 +377,10 @@ export async function fetchEuFeed(
 
 // ── Local fixture helper (used by tests / dev) ────────────────────────────────
 
-/** Parse a local RSS file — useful for development without network access. */
-export function parseRssFile(path: string): FeedItem[] {
+/** Parse a local Atom file — useful for development without network access. */
+export function parseAtomFile(path: string): FeedItem[] {
   try {
-    return parseRssFeed(readFileSync(path, 'utf-8'));
+    return parseAtomFeed(readFileSync(path, 'utf-8'));
   } catch {
     return [];
   }

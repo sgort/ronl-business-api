@@ -723,7 +723,7 @@ describe('PA routes — feed & agenda', () => {
       const res = await request(app).get('/v1/pa/types').set(PA);
       expect(Object.keys(res.body.data)).toContain('eu');
       expect(res.body.data.eu).toEqual(
-        expect.arrayContaining(['Verslag', 'Motie', 'Aangenomen tekst', 'Persbericht'])
+        expect.arrayContaining(['Verslag', 'Motie', 'Aangenomen tekst', 'Mondelinge vraag'])
       );
     });
 

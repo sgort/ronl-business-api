@@ -685,24 +685,25 @@ describe('runCurationCycle — press-release labelling', () => {
   const persistedInsert = () =>
     mockDb.none.mock.calls.find((c) => String(c[0]).includes('INSERT INTO pa_signals'));
 
-  it('labels an EP press release distinctly from a plenary document', async () => {
+  it('does not name the sub-source when it would repeat the document type', async () => {
+    // The ep-persbericht arm is gone with the press-release feed (#55). What the
+    // suppression rule still guards is ep-teksten: an 'Ingediende teksten' item
+    // whose type already says the same thing must not render it twice.
     mockDb.any.mockResolvedValue([savedSearch({ q: 'stikstof', sources: ['eu'] })]);
     mockFetchEuFeed.mockResolvedValue({
       items: [
         feedItem({
-          id: '20260716IPR46531',
+          id: 'A-10-2026-0700',
           source: 'eu',
-          subbron: 'ep-persbericht',
-          type: 'Persbericht',
+          subbron: 'ep-teksten',
+          type: 'Ingediende teksten',
           date: null,
         }),
       ],
       total: 1,
     });
     await runCurationCycle();
-    // The type already reads 'Persbericht', so the sub-source label is suppressed
-    // rather than repeating the word.
-    expect(persistedInsert()![1][4]).toBe('Europees Parlement · Persbericht · onbekend');
+    expect(persistedInsert()![1][4]).toBe('Europees Parlement · Ingediende teksten · onbekend');
   });
 });
 
@@ -782,17 +783,17 @@ describe('runCurationCycle — EP motion collapse', () => {
     expect(ref.nr).toBe('B-10-2026-0346 +2');
   });
 
-  it('leaves distinct motions and press releases alone', async () => {
+  it('leaves motions with distinct titles alone', async () => {
     mockFetchEuFeed.mockResolvedValue({
       items: [
         motion('B-10-2026-0360', TITLE),
         motion('B-10-2026-0301', 'MOTION FOR A RESOLUTION on something else entirely'),
         feedItem({
-          id: '20260716IPR46531',
+          id: 'A-10-2026-0701',
           source: 'eu',
-          subbron: 'ep-persbericht',
-          type: 'Persbericht',
-          title: 'Press release - EU-China relations',
+          subbron: 'ep-rss',
+          type: 'Verslag',
+          title: 'REPORT on an unrelated subject',
           date: null,
         }),
       ],

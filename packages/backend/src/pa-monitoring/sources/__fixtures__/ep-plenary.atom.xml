@@ -1,0 +1,134 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xml:lang="en">
+  <author>
+    <name>European Parliament</name>
+  </author>
+  <title type="text">Plenary Documents</title>
+  <id>https://data.europarl.europa.eu/api/v2/plenary-documents/feed</id>
+  <link href="https://data.europarl.europa.eu"/>
+  <updated>2026-09-02T19:47:44.280Z</updated>
+  <!-- Trimmed from a live response of
+       https://data.europarl.europa.eu/api/v2/plenary-documents/feed
+       (2026-09-02, 325 entries). Entries below the marker are synthetic. -->
+  <entry>
+    <title type="text" xml:lang="en">RECOMMENDATION on the draft Council decision on the conclusion of the Agreement between the European Union and the Swiss Confederation on the transfer of Passenger Name Record (PNR) data for the prevention, detection, investigation and prosecution of terrorist offences and serious crime</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0204</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0204" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/A-10-2026-0204" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/REPORT_PLENARY" label="EP plenary report"/>
+    <updated>2026-09-02T16:24:04.157Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">MOTION FOR A RESOLUTION on the draft Commission implementing decision authorising the placing on the market of products containing, consisting of or produced from genetically modified soybean GMB151 x DAS-44406-6 pursuant to Regulation (EC) No 1829/2003 of the European Parliament and of the Council</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/B-10-2026-0380</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/B-10-2026-0380" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/B-10-2026-0380" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/RESOLUTION_MOTION" label="Motion for a resolution"/>
+    <updated>2026-09-02T14:42:12.410Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">JOINT MOTION FOR A RESOLUTION on shortcomings and deficiencies of the ‘Amnesty Law’ in Venezuela</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/RC-10-2026-0217</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/RC-10-2026-0217" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/RC-10-2026-0217" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/RESOLUTION_MOTION_JOINT" label="Joint motion for a resolution"/>
+    <updated>2026-08-25T09:16:05.147Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">EU governance under pressure – institutional responses to global challenges</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/QOB-10-2026-0012</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/QOB-10-2026-0012" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/QOB-10-2026-0012" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/QUESTION_RESOLUTION_MOTION" label="EP motion for resolution – oral questions"/>
+    <updated>2026-09-02T15:32:04.267Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">A10-0226/1 - Amendment 1 - Thierry Mariani, Sebastian Kruis, Pierre Pimpie, Christophe Bay, Hermann Tertsch, Anna Bryłka, Isabella Tovaglieri, Roberto Vannacci, Enikő Győri, Nikola Bartůšek, António Tânger Corrêa - on behalf of the PfE Group - Report A10-0226/2025 - Thijs Reuten, Nina Carberry - Implementation of the EU-UK Trade and Cooperation Agreement - (2024/2108(INI))</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-10-2025-0226-AM-001-002</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-10-2025-0226-AM-001-002" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/A-10-2025-0226-AM-001-002" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/AMENDMENT_LIST" label="EP's list of amendments"/>
+    <updated>2026-09-02T11:22:03.279Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">REPORT on the proposal for a regulation of the European Parliament and of the Council on applying a generalised scheme of tariff preferences and repealing Regulation (EU) No 978/2012 of the European Parliament and of the Council</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-9-2022-0147</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-9-2022-0147" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/A-9-2022-0147" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/REPORT_PLENARY" label="EP plenary report"/>
+    <updated>2026-09-02T14:02:09.107Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">Report on the joint text approved by the Conciliation Committee for a regulation of the European Parliament and of the Council on common rules in the field of civil aviation security and repealing Regulation (EC) No 2320/2002</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-6-2008-0049</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-6-2008-0049" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/A-6-2008-0049" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/REPORT_PLENARY" label="EP plenary report"/>
+    <updated>2026-08-05T14:06:05.273Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">MOTION FOR A RESOLUTION on the UN Climate Change Conference 2025 in Belém, Brazil (COP30)</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/B-10-2025-0445</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/B-10-2025-0445" rel="self"/>
+    <link href="https://data.europarl.europa.eu/api/v2/plenary-documents/B-10-2025-0445" rel="alternate"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/RESOLUTION_MOTION" label="Motion for a resolution"/>
+    <updated>2026-08-13T12:12:05.824Z</updated>
+  </entry>
+  <!-- Synthetic entries below. The live window happened to contain no item
+       matching the Dutch term-expansion vocabulary beyond "climate", and no
+       malformed entry, so these cover cases real EP output does produce but
+       this month's snapshot does not. Shapes copied exactly from the real
+       entries above. -->
+  <entry>
+    <title type="text" xml:lang="en">REPORT on the proposal for a regulation on nature restoration and nitrogen deposition targets</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0301</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0301" rel="self"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/REPORT_PLENARY" label="EP plenary report"/>
+    <updated>2026-08-30T09:15:00.000Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">MOTION FOR A RESOLUTION on electricity grid capacity and cross-border interconnection</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/B-10-2026-0302</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/B-10-2026-0302" rel="self"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/RESOLUTION_MOTION" label="Motion for a resolution"/>
+    <updated>2026-08-29T11:00:00.000Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">REPORT on the EU-Morocco civil aviation agreement</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0303</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0303" rel="self"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/REPORT_PLENARY" label="EP plenary report"/>
+    <updated>2026-08-28T08:00:00.000Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">WRITTEN QUESTION on PFAS contamination in surface water</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/E-10-2026-0304</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/E-10-2026-0304" rel="self"/>
+    <updated>2026-08-27T08:00:00.000Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">Agenda for the plenary session, no document reference</title>
+    <id>https://data.europarl.europa.eu/eli/dl/agenda/PV-10-2026-09-01</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/agenda/PV-10-2026-09-01" rel="self"/>
+    <updated>2026-08-26T08:00:00.000Z</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">Entry whose updated timestamp is unparseable</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0305</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0305" rel="self"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/REPORT_PLENARY" label="EP plenary report"/>
+    <updated>not a date</updated>
+  </entry>
+  <entry>
+    <title type="text" xml:lang="en">Entry carrying a work-type concept we do not map</title>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/TA-10-2026-0306</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/TA-10-2026-0306" rel="self"/>
+    <category term="work-type" scheme="https://data.europarl.europa.eu/def/ep-document-types/SOMETHING_NEW" label="Newly minted concept"/>
+    <updated>2026-08-25T08:00:00.000Z</updated>
+  </entry>
+  <entry>
+    <id>https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0307</id>
+    <link href="https://data.europarl.europa.eu/eli/dl/doc/A-10-2026-0307" rel="self"/>
+    <updated>2026-08-24T08:00:00.000Z</updated>
+  </entry>
+</feed>
