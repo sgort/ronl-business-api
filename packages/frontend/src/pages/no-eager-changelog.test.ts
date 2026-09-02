@@ -59,14 +59,18 @@ const ALLOWED_VALUE_IMPORTS = new Set(['react']);
 
 const CONTENT_MODULE = './ChangelogPanelContent';
 
-function parseShim(): ts.SourceFile {
+function parse(text: string): ts.SourceFile {
   return ts.createSourceFile(
     SHIM,
-    readFileSync(SHIM, 'utf-8'),
+    text,
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
     ts.ScriptKind.TSX
   );
+}
+
+function parseShim(): ts.SourceFile {
+  return parse(readFileSync(SHIM, 'utf-8'));
 }
 
 /** True when an import contributes nothing at runtime. */
@@ -105,130 +109,258 @@ function isTypeOnlyExport(stmt: ts.ExportDeclaration): boolean {
   return clause.elements.every((el) => el.isTypeOnly);
 }
 
-describe('ChangelogPanel.tsx stays a shim', () => {
-  it('imports or re-exports nothing for its value except the allow-list', () => {
-    const offenders: string[] = [];
-    for (const stmt of parseShim().statements) {
-      if (ts.isImportDeclaration(stmt)) {
-        if (isTypeOnlyImport(stmt)) continue;
-        const spec = stmt.moduleSpecifier;
-        if (!ts.isStringLiteral(spec)) continue;
-        if (!ALLOWED_VALUE_IMPORTS.has(spec.text)) {
-          offenders.push(
-            `${spec.text} is imported for its value; only ${[...ALLOWED_VALUE_IMPORTS].join(', ')} may be. ` +
-              `A static import here pulls the changelog back into the entry chunk.`
-          );
-        }
-        continue;
+/** Modules imported or re-exported for their value, minus the allow-list. */
+function valueImportOffenders(sf: ts.SourceFile): string[] {
+  const offenders: string[] = [];
+  const allowed = [...ALLOWED_VALUE_IMPORTS].join(', ');
+  for (const stmt of sf.statements) {
+    if (ts.isImportDeclaration(stmt)) {
+      if (isTypeOnlyImport(stmt)) continue;
+      const spec = stmt.moduleSpecifier;
+      if (!ts.isStringLiteral(spec)) continue;
+      if (!ALLOWED_VALUE_IMPORTS.has(spec.text)) {
+        offenders.push(
+          `${spec.text} is imported for its value; only ${allowed} may be. ` +
+            `A static import here pulls the changelog back into the entry chunk.`
+        );
       }
-
-      if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier) {
-        if (isTypeOnlyExport(stmt)) continue;
-        const spec = stmt.moduleSpecifier;
-        if (!ts.isStringLiteral(spec)) continue;
-        if (!ALLOWED_VALUE_IMPORTS.has(spec.text)) {
-          offenders.push(
-            `${spec.text} is re-exported for its value; only ${[...ALLOWED_VALUE_IMPORTS].join(', ')} may be. ` +
-              `A static re-export here pulls the changelog back into the entry chunk — even while the ` +
-              `re-exported name has no consumer yet and the bundler tree-shakes it away today. The moment a ` +
-              `consumer appears, the same re-export stops being dead code and merges the chunk back into the ` +
-              `entry, so it is rejected now rather than left to fail silently later.`
-          );
-        }
+      continue;
+    }
+    if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier) {
+      if (isTypeOnlyExport(stmt)) continue;
+      const spec = stmt.moduleSpecifier;
+      if (!ts.isStringLiteral(spec)) continue;
+      if (!ALLOWED_VALUE_IMPORTS.has(spec.text)) {
+        offenders.push(
+          `${spec.text} is re-exported for its value; only ${allowed} may be. ` +
+            `A static re-export here pulls the changelog back into the entry chunk — even while the ` +
+            `re-exported name has no consumer yet and the bundler tree-shakes it away today. The moment a ` +
+            `consumer appears, the same re-export stops being dead code and merges the chunk back into the ` +
+            `entry, so it is rejected now rather than left to fail silently later.`
+        );
       }
     }
+  }
+  return offenders;
+}
+
+/** Names bound, as values, to imports from 'react'. */
+function reactValueImports(sf: ts.SourceFile): Set<string> {
+  const names = new Set<string>();
+  for (const stmt of sf.statements) {
+    if (!ts.isImportDeclaration(stmt)) continue;
+    const spec = stmt.moduleSpecifier;
+    if (!ts.isStringLiteral(spec) || spec.text !== 'react') continue;
+    const clause = stmt.importClause;
+    if (!clause || clause.isTypeOnly) continue;
+    if (clause.name) names.add(clause.name.text);
+    const bindings = clause.namedBindings;
+    if (!bindings) continue;
+    if (ts.isNamespaceImport(bindings)) names.add(bindings.name.text);
+    else for (const el of bindings.elements) if (!el.isTypeOnly) names.add(el.name.text);
+  }
+  return names;
+}
+
+/** The dynamic-import call inside a top-level `const X = lazy(() => import('…'))`. */
+function sanctionedLazyImport(sf: ts.SourceFile): ts.CallExpression | null {
+  const react = reactValueImports(sf);
+  for (const stmt of sf.statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
+      const init = decl.initializer;
+      if (!init || !ts.isCallExpression(init)) continue;
+      if (!ts.isIdentifier(init.expression) || !react.has(init.expression.text)) continue;
+      if (init.arguments.length !== 1) continue;
+      const arrow = init.arguments[0];
+      if (!ts.isArrowFunction(arrow) || !ts.isCallExpression(arrow.body)) continue;
+      const inner = arrow.body;
+      if (
+        inner.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        inner.arguments.length === 1 &&
+        ts.isStringLiteral(inner.arguments[0])
+      ) {
+        return inner;
+      }
+    }
+  }
+  return null;
+}
+
+function lazyTargetOf(sf: ts.SourceFile): string | null {
+  const call = sanctionedLazyImport(sf);
+  if (!call) return null;
+  return (call.arguments[0] as ts.StringLiteral).text;
+}
+
+/**
+ * Dynamic `import()` calls other than the one the lazy() binding owns.
+ *
+ * The three checks above all look at declaration syntax, so none of them sees a
+ * bare `import('./ChangelogPanelContent');` sitting at module scope. That shape
+ * fires the fetch unconditionally at module evaluation — exactly what the split
+ * exists to prevent — while the chunk stays nominally separate, so no other
+ * assertion notices. It also evades noUnusedLocals, having no binding, and this
+ * project's ESLint config carries no no-unused-expressions rule.
+ *
+ * Anything that is not the sanctioned call is reported, whether it is a bare
+ * statement, an eager `void import(…)` prefetch, or an await at module scope.
+ */
+function strayDynamicImports(sf: ts.SourceFile): string[] {
+  const sanctioned = sanctionedLazyImport(sf);
+  const strays: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node !== sanctioned
+    ) {
+      const arg = node.arguments[0];
+      strays.push(arg && ts.isStringLiteral(arg) ? arg.text : '<computed specifier>');
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return strays;
+}
+
+/**
+ * Does the default export return before it can render the lazy element?
+ *
+ * Accepts both `if (!isOpen) return null;` and the braced form. They are
+ * behaviourally identical and the braced one is a common lint preference;
+ * rejecting it made the guard fail correct code, which is how guards get
+ * deleted rather than repaired.
+ */
+function gatesOnIsOpen(sf: ts.SourceFile): boolean {
+  let first: ts.Statement | undefined;
+  for (const stmt of sf.statements) {
+    if (
+      ts.isFunctionDeclaration(stmt) &&
+      stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+    ) {
+      first = stmt.body?.statements[0];
+    }
+  }
+  if (
+    !first ||
+    !ts.isIfStatement(first) ||
+    !ts.isPrefixUnaryExpression(first.expression) ||
+    first.expression.operator !== ts.SyntaxKind.ExclamationToken ||
+    !ts.isIdentifier(first.expression.operand) ||
+    first.expression.operand.text !== 'isOpen'
+  ) {
+    return false;
+  }
+  const then = first.thenStatement;
+  return (
+    ts.isReturnStatement(then) ||
+    (ts.isBlock(then) && then.statements.length === 1 && ts.isReturnStatement(then.statements[0]))
+  );
+}
+
+describe('ChangelogPanel.tsx stays a shim', () => {
+  it('imports or re-exports nothing for its value except the allow-list', () => {
+    const offenders = valueImportOffenders(parseShim());
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
   it('reaches the content module only through a lazy() call assigned at module scope', () => {
-    const sf = parseShim();
-
-    // Names bound, as values, to imports from 'react' — the only source the
-    // lazy() callee below may resolve to. Without this, a locally declared
-    // `function lazy(f) { return f(); }` would satisfy the shape checks that
-    // follow just as well as the real React API does.
-    const reactValueImports = new Set<string>();
-    for (const stmt of sf.statements) {
-      if (!ts.isImportDeclaration(stmt)) continue;
-      const spec = stmt.moduleSpecifier;
-      if (!ts.isStringLiteral(spec) || spec.text !== 'react') continue;
-      const clause = stmt.importClause;
-      if (!clause || clause.isTypeOnly) continue;
-      if (clause.name) reactValueImports.add(clause.name.text); // default import
-      const bindings = clause.namedBindings;
-      if (!bindings) continue;
-      if (ts.isNamespaceImport(bindings)) {
-        reactValueImports.add(bindings.name.text);
-      } else {
-        for (const el of bindings.elements) {
-          if (!el.isTypeOnly) reactValueImports.add(el.name.text);
-        }
-      }
-    }
-
-    // Only a top-level `const X = …` counts. A lazy() call nested inside the
-    // component body would still satisfy a whole-file walk, but it mints a
-    // fresh lazy type on every render and remounts the drawer each time —
-    // see the header note on shape expectations.
-    let lazyTarget: string | null = null;
-    for (const stmt of sf.statements) {
-      if (!ts.isVariableStatement(stmt)) continue;
-      for (const decl of stmt.declarationList.declarations) {
-        const init = decl.initializer;
-        if (!init || !ts.isCallExpression(init)) continue;
-        if (!ts.isIdentifier(init.expression) || !reactValueImports.has(init.expression.text))
-          continue;
-        if (init.arguments.length !== 1) continue;
-        const arrow = init.arguments[0];
-        if (!ts.isArrowFunction(arrow) || !ts.isCallExpression(arrow.body)) continue;
-        const inner = arrow.body;
-        if (
-          inner.expression.kind === ts.SyntaxKind.ImportKeyword &&
-          inner.arguments.length === 1 &&
-          ts.isStringLiteral(inner.arguments[0])
-        ) {
-          lazyTarget = (inner.arguments[0] as ts.StringLiteral).text;
-        }
-      }
-    }
-
     expect(
-      lazyTarget,
+      lazyTargetOf(parseShim()),
       `no top-level \`const X = lazy(() => import('${CONTENT_MODULE}'))\` found — either the panel is not ` +
         `code-split, the lazy() call moved out of module scope, or its callee is not the \`lazy\` imported ` +
         `from 'react'`
     ).toBe(CONTENT_MODULE);
   });
 
-  it('returns before rendering the lazy element when closed', () => {
-    // The gate is what makes the split real. Without it React resolves the
-    // import on mount and the chunk ships on every page load — the component
-    // still behaves correctly, so no other test would fail.
-    const sf = parseShim();
-    let firstStatement: ts.Statement | undefined;
-    for (const stmt of sf.statements) {
-      if (
-        ts.isFunctionDeclaration(stmt) &&
-        stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
-      ) {
-        firstStatement = stmt.body?.statements[0];
-      }
-    }
-
-    const gatesOnIsOpen =
-      !!firstStatement &&
-      ts.isIfStatement(firstStatement) &&
-      ts.isPrefixUnaryExpression(firstStatement.expression) &&
-      firstStatement.expression.operator === ts.SyntaxKind.ExclamationToken &&
-      ts.isIdentifier(firstStatement.expression.operand) &&
-      firstStatement.expression.operand.text === 'isOpen' &&
-      ts.isReturnStatement(firstStatement.thenStatement);
-
+  it('has no dynamic import other than the one lazy() owns', () => {
+    const strays = strayDynamicImports(parseShim());
     expect(
-      gatesOnIsOpen,
+      strays,
+      `dynamic import of ${strays.join(', ')} outside the lazy() binding — it fires at module ` +
+        `evaluation, so the chunk downloads on every page load whether or not the drawer opens`
+    ).toEqual([]);
+  });
+
+  it('returns before rendering the lazy element when closed', () => {
+    expect(
+      gatesOnIsOpen(parseShim()),
       "the default export's first statement must be `if (!isOpen) return null;` — " +
         'without it the lazy chunk downloads on mount and the split saves nothing ' +
         "(or the shim's shape changed — see this file's header)"
     ).toBe(true);
+  });
+});
+
+/**
+ * The checks above run against the real shim, so they can only ever prove it is
+ * currently well-formed. These run the same functions over synthetic sources, to
+ * prove each check would actually reject what it claims to — and, as importantly,
+ * that it accepts the correct variants it must not reject.
+ */
+describe('the checks themselves', () => {
+  const SHIM_SRC = `
+import { lazy, Suspense } from 'react';
+import type { ChangelogPanelProps } from './ChangelogPanelContent';
+const ChangelogPanelContent = lazy(() => import('./ChangelogPanelContent'));
+export default function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps) {
+  if (!isOpen) return null;
+  return <Suspense fallback={null}><ChangelogPanelContent isOpen onClose={onClose} /></Suspense>;
+}
+`;
+
+  const LAZY_LINE = `const ChangelogPanelContent = lazy(() => import('${CONTENT_MODULE}'));`;
+
+  it('accepts the shim shape it is modelled on', () => {
+    const sf = parse(SHIM_SRC);
+    expect(valueImportOffenders(sf)).toEqual([]);
+    expect(lazyTargetOf(sf)).toBe(CONTENT_MODULE);
+    expect(strayDynamicImports(sf)).toEqual([]);
+    expect(gatesOnIsOpen(sf)).toBe(true);
+  });
+
+  it('rejects a bare dynamic import at module scope', () => {
+    const sf = parse(SHIM_SRC.replace(LAZY_LINE, `import('${CONTENT_MODULE}');\n${LAZY_LINE}`));
+    expect(strayDynamicImports(sf)).toEqual([CONTENT_MODULE]);
+    // Nothing else notices — which is why this check had to be added.
+    expect(valueImportOffenders(sf)).toEqual([]);
+    expect(lazyTargetOf(sf)).toBe(CONTENT_MODULE);
+    expect(gatesOnIsOpen(sf)).toBe(true);
+  });
+
+  it('rejects an eager void-prefetch too', () => {
+    const sf = parse(
+      SHIM_SRC.replace(LAZY_LINE, `void import('${CONTENT_MODULE}');\n${LAZY_LINE}`)
+    );
+    expect(strayDynamicImports(sf)).toEqual([CONTENT_MODULE]);
+  });
+
+  it('accepts a braced gate, which is behaviourally identical', () => {
+    const sf = parse(
+      SHIM_SRC.replace('if (!isOpen) return null;', 'if (!isOpen) {\n    return null;\n  }')
+    );
+    expect(gatesOnIsOpen(sf)).toBe(true);
+  });
+
+  it('still rejects a gate that does not return', () => {
+    const sf = parse(SHIM_SRC.replace('if (!isOpen) return null;', 'if (!isOpen) onClose();'));
+    expect(gatesOnIsOpen(sf)).toBe(false);
+  });
+
+  it('still rejects a value re-export and a lazy() moved off module scope', () => {
+    const reexported = parse(SHIM_SRC + "export { ScopeBadge } from './ChangelogPanelContent';\n");
+    expect(valueImportOffenders(reexported)).toHaveLength(1);
+
+    const nested = parse(
+      SHIM_SRC.replace(
+        "const ChangelogPanelContent = lazy(() => import('./ChangelogPanelContent'));",
+        ''
+      ).replace(
+        'if (!isOpen) return null;',
+        "if (!isOpen) return null;\n  const ChangelogPanelContent = lazy(() => import('./ChangelogPanelContent'));"
+      )
+    );
+    expect(lazyTargetOf(nested)).toBeNull();
   });
 });
