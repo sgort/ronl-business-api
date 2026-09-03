@@ -1,9 +1,11 @@
-import { docLabel } from '@ronl/shared';
+import { docLabel } from './doc-label';
 
-// Relocated from packages/shared/src/rip-swimlane.test.ts (Task 1 brief):
-// @ronl/shared has no test script or runner configured (see
-// packages/shared/package.json), so its unit tests live here instead,
-// colocated with the backend code that will consume `docLabel`.
+// `docLabel` lives in the backend, not in @ronl/shared, because shared is not
+// one of the coverage-gated workspaces (no test script, no runner, no branch
+// coverage floor) — see packages/shared/package.json. The BPMN parser
+// resolves document labels server-side and ships the swimlane model with
+// `doc` already filled in, so there is no frontend consumer for this
+// function; only the swimlane *types* remain shared.
 describe('docLabel', () => {
   it('uses the curated label when the slug is known', () => {
     expect(docLabel('rip-intake-report')).toBe('Intake-verslag');
