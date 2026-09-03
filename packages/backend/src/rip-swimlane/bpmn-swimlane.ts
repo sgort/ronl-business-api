@@ -25,11 +25,35 @@ const parser = new XMLParser({
     ['lane', 'flowNodeRef', 'sequenceFlow', 'BPMNShape', 'BPMNEdge'].includes(name),
 });
 
-/** Element name → node kind. Anything unlisted is treated as a task. */
+/**
+ * Element name → node kind. This is an ALLOWLIST of flow-node element types,
+ * not a fallback with a default: the node loop below only visits keys of
+ * this map, so a `process` child element outside it (a `sequenceFlow`, the
+ * `laneSet`, `extensionElements`, `documentation` — or a flow-node type not
+ * yet added here) is omitted from the model rather than defaulted to
+ * `'task'`. Everything currently deployed is covered; if a redeployed or
+ * future phase introduces an element type not listed here, its id would be
+ * silently dropped from `nodes` while still appearing in a lane's
+ * `flowNodeRef` — see the cross-fixture invariant test in
+ * bpmn-swimlane.test.ts that catches exactly that.
+ */
 const KINDS: Record<string, NodeKind> = {
   startEvent: 'start',
   endEvent: 'end',
   userTask: 'task',
+  manualTask: 'task',
+  scriptTask: 'task',
+  businessRuleTask: 'task',
+  receiveTask: 'task',
+  callActivity: 'task',
+  subProcess: 'task',
+  // No dedicated NodeKind exists for an intermediate event (they render as
+  // circles, distinct from both a task box and a start/end circle). 'task'
+  // is the least misleading of the existing kinds: unlike 'start'/'end' it
+  // does not claim this is a process boundary, and it still renders with
+  // the node's own label instead of disappearing.
+  intermediateCatchEvent: 'task',
+  intermediateThrowEvent: 'task',
   serviceTask: 'service',
   sendTask: 'service',
   exclusiveGateway: 'gateway',
