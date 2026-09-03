@@ -35,10 +35,16 @@ function setVersions(versions: unknown[]) {
   mockChangelog.changelog = { versions };
 }
 
+// Every test here awaits findByRole('dialog') straight after render.
+// ChangelogPanel is a lazy() + Suspense shim (e4c9da1) so its content resolves
+// asynchronously; a synchronous getByRole finds an empty DOM. Dropping these
+// awaits does not merely break the file -- the negative assertions would pass
+// against nothing rendered at all, which is worse than a failure.
 describe('ChangelogPanel with an empty changelog', () => {
-  it('opens without expanding anything, rather than throwing on a missing first entry', () => {
+  it('opens without expanding anything, rather than throwing on a missing first entry', async () => {
     setVersions([]);
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
@@ -73,6 +79,7 @@ describe('ChangelogPanel per-commit entries', () => {
     ]);
 
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
 
     expect(screen.getAllByText('Latest')).toHaveLength(1);
     expect(screen.getByText('Released')).toBeInTheDocument();
@@ -88,7 +95,7 @@ describe('ChangelogPanel per-commit entries', () => {
     expect(screen.getByText('Reparatie')).toBeInTheDocument();
   });
 
-  it('gives a commit type it has no icon for the neutral fallback rather than nothing', () => {
+  it('gives a commit type it has no icon for the neutral fallback rather than nothing', async () => {
     setVersions([
       {
         format: 'commits',
@@ -109,12 +116,13 @@ describe('ChangelogPanel per-commit entries', () => {
     ]);
 
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
 
     expect(screen.getByText('Onbekend committype')).toBeInTheDocument();
     expect(screen.getByText('Waarom dit nodig was.')).toBeInTheDocument();
   });
 
-  it('lists resolved work items as chip links, labelled by kind', () => {
+  it('lists resolved work items as chip links, labelled by kind', async () => {
     setVersions([
       {
         format: 'commits',
@@ -128,6 +136,7 @@ describe('ChangelogPanel per-commit entries', () => {
     ]);
 
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
 
     expect(screen.getByText('Feedback / use case handled')).toBeInTheDocument();
     // The chip carries the kind and the work-item number together.
@@ -143,7 +152,7 @@ describe('ChangelogPanel per-commit entries', () => {
     );
   });
 
-  it('omits the work-item block entirely when a release resolved none', () => {
+  it('omits the work-item block entirely when a release resolved none', async () => {
     setVersions([
       {
         format: 'commits',
@@ -157,6 +166,7 @@ describe('ChangelogPanel per-commit entries', () => {
     ]);
 
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
 
     expect(screen.queryByText('Feedback / use case handled')).not.toBeInTheDocument();
     expect(screen.queryByText(/Use Case #/)).not.toBeInTheDocument();
@@ -164,7 +174,7 @@ describe('ChangelogPanel per-commit entries', () => {
 });
 
 describe('ChangelogPanel legacy section entries', () => {
-  it('renders a section with an icon colour it does not recognise', () => {
+  it('renders a section with an icon colour it does not recognise', async () => {
     // iconColor comes from hand-written history entries; an unknown value must
     // fall back to the default rather than dropping the class entirely.
     setVersions([
@@ -186,6 +196,7 @@ describe('ChangelogPanel legacy section entries', () => {
     ]);
 
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
 
     const heading = screen.getByText('Onbekende kleur');
     expect(heading).toBeInTheDocument();
@@ -195,7 +206,7 @@ describe('ChangelogPanel legacy section entries', () => {
     expect(screen.getByRole('link', { name: /Trage takenlijst/ })).toBeInTheDocument();
   });
 
-  it('renders a legacy entry with no scope badge at all', () => {
+  it('renders a legacy entry with no scope badge at all', async () => {
     setVersions([
       {
         version: '9.9.9',
@@ -208,6 +219,7 @@ describe('ChangelogPanel legacy section entries', () => {
     ]);
 
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
 
     const header = screen.getByRole('button', { name: /v9\.9\.9/ });
     expect(within(header).queryByText(/Full-stack|Frontend|Backend/)).not.toBeInTheDocument();
