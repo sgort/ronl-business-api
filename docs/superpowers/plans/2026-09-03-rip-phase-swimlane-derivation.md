@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Never bypass a verification gate.** No `--no-verify`, no `SKIP=`, no `HUSKY=0`. If a hook fails, read it and fix what it names.
-- **Commit each task.** The user has approved per-task commits for this plan specifically, so a task's final step commits rather than asking. This is a deliberate, scoped exception to the repo's usual ask-first rule — it does not extend to merging, pushing, or any other branch-level operation, which still require the user in the moment.
+- **Implementers STAGE; the controller commits.** The user approved per-task commits for this plan, but a subagent cannot verify that approval from inside its own context — and committing mid-task in a shared working tree sweeps up whatever else happens to be staged. So a task's final step stages and reports; the controller verifies and commits. One audit point, no races.
 - **Never merge, push, or force-push.** Those are the user's, always, and are not part of any task here.
 - **Never start, stop or restart dev servers.** If a check needs a running server, hand it to the user.
 - **A parallel-run test failure is not a finding until it fails in isolation.** Backend is Jest (`--runInBand` for serial); frontend is Vitest (`npm run test:serial --workspace=@ronl/frontend`). Check which runner before reaching for a flag.
