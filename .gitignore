@@ -153,3 +153,11 @@ docs/regelsimulatie-handoff/
 # it untracked stops it drifting into a second source of truth, which is the
 # problem deleting docs/TEST*.md set out to solve.
 docs/overview.md
+
+# Semgrep plugin state. Not tidiness: guardian.yml holds a live OAuth access
+# token and refresh token for the Semgrep account, written per working
+# directory (root plus one per workspace), so `git add -A` from a repo root
+# would commit five copies of a credential. Never been tracked; keep it that
+# way. It also kept `deploy-backend-to-acc.sh` from running, since that script
+# requires a clean tree and `git status --porcelain` counts untracked files.
+.semgrep/
