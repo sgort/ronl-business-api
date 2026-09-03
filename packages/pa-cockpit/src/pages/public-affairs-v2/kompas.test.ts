@@ -17,3 +17,12 @@ describe('kompasBand boundaries', () => {
   it('14 → kern', () => expect(kompasBand(14).key).toBe('kern'));
   it('16 → kern', () => expect(kompasBand(16).key).toBe('kern'));
 });
+
+describe('kompasBand outside the scored range', () => {
+  it('falls back to the lowest band for a total below every threshold', () => {
+    // The bands are matched top-down by `total >= b.min`, so nothing matches a
+    // negative total. The fallback keeps a scorer bug from returning undefined
+    // and blanking the advice column instead of showing the mildest advice.
+    expect(kompasBand(-1).key).toBe('niet');
+  });
+});

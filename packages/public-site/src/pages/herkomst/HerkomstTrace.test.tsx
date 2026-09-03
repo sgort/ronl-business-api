@@ -99,4 +99,25 @@ describe('HerkomstTrace', () => {
     leftCells.forEach((cell) => expect(cell.getAttribute('role')).toBe('group'));
     rightCells.forEach((cell) => expect(cell.getAttribute('role')).toBe('group'));
   });
+  it('says so explicitly when a concept has nothing to ask the citizen', () => {
+    // datumberekening is derived inside the process, so its uitvraag list is
+    // empty. An empty column would read as "not filled in yet"; the fallback
+    // states the reason instead.
+    render(
+      <HerkomstTrace id="datumberekening" t={HERKOMST_STRINGS.nl} lang="nl" onOpen={vi.fn()} />
+    );
+    expect(screen.getByText(/dit gegeven ontstaat in het proces zelf/)).toBeInTheDocument();
+  });
+
+  it('translates the nothing-to-ask fallback', () => {
+    render(
+      <HerkomstTrace id="datumberekening" t={HERKOMST_STRINGS.en} lang="en" onOpen={vi.fn()} />
+    );
+    expect(screen.getByText(/this value arises in the process itself/)).toBeInTheDocument();
+  });
+
+  it('labels the provenance link in English when lang=en', () => {
+    render(<HerkomstTrace id="leeftijd" t={HERKOMST_STRINGS.en} lang="en" onOpen={vi.fn()} />);
+    expect(screen.getAllByRole('link', { name: 'provenance' }).length).toBeGreaterThan(0);
+  });
 });

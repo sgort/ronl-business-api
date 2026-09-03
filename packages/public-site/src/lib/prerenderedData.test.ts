@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { readPrerenderedData } from './prerenderedData';
 
 function setBlob(content: string | null) {
@@ -40,5 +40,25 @@ describe('readPrerenderedData', () => {
     setBlob(JSON.stringify({ route: '/regels', data: { ok: true } }));
     expect(readPrerenderedData<{ ok: boolean }>('/regels')).toEqual({ ok: true });
     expect(readPrerenderedData<{ ok: boolean }>('/regels')).toEqual({ ok: true });
+  });
+
+  it('returns null when the blob names the route but carries no data', () => {
+    // The prerender step writes the envelope before it knows whether the route
+    // produced anything; a `data`-less blob must read as "nothing prerendered"
+    // rather than as `undefined` reaching a component's state.
+    setBlob(JSON.stringify({ route: '/regels' }));
+    expect(readPrerenderedData('/regels')).toBeNull();
+  });
+
+  it('returns null when there is no document at all (the prerender runtime)', () => {
+    // scripts/prerender.ts imports the same components this reader serves, in
+    // Node, where there is no DOM. The guard is what keeps that from throwing
+    // a ReferenceError during the build rather than at runtime in a browser.
+    vi.stubGlobal('document', undefined);
+    try {
+      expect(readPrerenderedData('/regels')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

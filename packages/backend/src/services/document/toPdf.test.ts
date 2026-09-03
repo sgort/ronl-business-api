@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { toPdf } from './toPdf';
-import type { RenderedDocument } from './renderTemplate';
+import type { RenderedBlock, RenderedDocument } from './renderTemplate';
 
 // Mirrors the MARGIN constant in toPdf.ts. Not imported (not exported) — kept
 // here so the deterministic-geometry helper below can replicate the emitter's
@@ -124,5 +124,58 @@ describe('toPdf', () => {
     // derived from font metrics, so asserting the exact value is not
     // fragile the way asserting an exact mid-page y would be.
     expect(signatureFields[0].y).toBe(MARGIN);
+  });
+
+  // The signature field's y is the emitter's only externally observable
+  // cursor position, so it doubles as a probe: render `blocks` in a body zone
+  // ahead of a one-line signOff zone and the field's y reports exactly how far
+  // those blocks advanced the cursor. That turns "does a spacer take up
+  // vertical space?" into an assertion about output rather than about a call
+  // count on a mock.
+  const signOffTopAfter = async (blocks: RenderedBlock[]): Promise<number> => {
+    const { signatureFields } = await toPdf({
+      templateId: 'probe',
+      zones: [
+        { id: 'body', blocks },
+        {
+          id: 'signOff',
+          blocks: [{ kind: 'paragraph', runs: [{ text: 'Sign here', bold: false }] }],
+        },
+      ],
+    });
+    return signatureFields[0].y;
+  };
+
+  const heading = (level?: number): RenderedBlock => ({
+    kind: 'heading',
+    ...(level === undefined ? {} : { level }),
+    runs: [{ text: 'Kop', bold: false }],
+  });
+
+  it('advances the cursor for a spacer block', async () => {
+    expect(await signOffTopAfter([{ kind: 'spacer', runs: [] }])).toBeGreaterThan(
+      await signOffTopAfter([])
+    );
+  });
+
+  it('advances the cursor for a separator block', async () => {
+    expect(await signOffTopAfter([{ kind: 'separator', runs: [] }])).toBeGreaterThan(
+      await signOffTopAfter([])
+    );
+  });
+
+  it('sizes headings down by level', async () => {
+    // 18pt / 14pt / 12pt: each level occupies strictly less vertical space
+    // than the one above it, so the following zone starts progressively
+    // higher on the page.
+    const h1 = await signOffTopAfter([heading(1)]);
+    const h2 = await signOffTopAfter([heading(2)]);
+    const h3 = await signOffTopAfter([heading(3)]);
+    expect(h1).toBeGreaterThan(h2);
+    expect(h2).toBeGreaterThan(h3);
+  });
+
+  it('treats a heading with no level as level 1', async () => {
+    expect(await signOffTopAfter([heading()])).toBe(await signOffTopAfter([heading(1)]));
   });
 });

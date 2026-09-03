@@ -126,3 +126,51 @@ describe('FaseladderOverview', () => {
     expect(row?.textContent).toContain(String(mockCounts['R5.3'].geparkeerd));
   });
 });
+
+describe('FaseladderOverview before the live data arrives', () => {
+  it('renders the ladder from mock counts alone while both hooks are still empty', () => {
+    // Both hooks return { data: undefined } on the first render and after a
+    // failed fetch. The ladder is the board's landing view, so it has to draw
+    // itself from the mock baseline rather than blanking or throwing.
+    mockUseDeployedProcessKeys.mockReturnValue({
+      data: undefined,
+      loading: true,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseLivePhaseCounts.mockReturnValue({
+      data: undefined,
+      loading: true,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    render(<FaseladderOverview onOpenPhase={vi.fn()} />);
+
+    for (const stage of RIP_STAGES) {
+      expect(screen.getByText(stage.name)).toBeInTheDocument();
+    }
+    // Nothing is deployed, so no sub-process is deployable yet.
+    expect(kpiValue('Deelprocessen inzetbaar')).toBe(`0 / ${RIP_PHASES.length}`);
+  });
+
+  it('treats a phase the live feed says nothing about as zero, not blank', () => {
+    mockUseDeployedProcessKeys.mockReturnValue({
+      data: { deployedKeys: [] },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseLivePhaseCounts.mockReturnValue({
+      data: { counts: {} },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    const { container } = render(<FaseladderOverview onOpenPhase={vi.fn()} />);
+
+    expect(container.textContent).not.toContain('NaN');
+    expect(container.textContent).not.toContain('undefined');
+  });
+});

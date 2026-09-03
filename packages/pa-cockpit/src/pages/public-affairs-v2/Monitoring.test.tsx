@@ -430,3 +430,279 @@ describe('watchlist signals', () => {
     await waitFor(() => expect(linkSignalDossier).toHaveBeenCalledWith('sig-orphan', 'stikstof'));
   });
 });
+
+describe('Monitoring signal provenance chips', () => {
+  // Every one of these is display-only -- none of it feeds scoring -- but it is
+  // how a curator tells a plenary document from a committee text, or a
+  // provincial news item from a national one, without opening the source.
+  const renderCurated = async (signals: Signal[]) => {
+    paApi.fetchSignals.mockResolvedValue(signals);
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await waitFor(() => expect(paApi.fetchSignals).toHaveBeenCalled());
+  };
+
+  it('names each source, and shows no badge at all when the source is unknown', async () => {
+    await renderCurated([
+      makeSignal({ id: 'a', bron: 'tk' }),
+      makeSignal({ id: 'b', bron: 'ob' }),
+      makeSignal({ id: 'c', bron: 'eu' }),
+      makeSignal({ id: 'd', bron: null }),
+    ]);
+
+    expect((await screen.findAllByText('Tweede Kamer')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Off. Bekendmakingen').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Europees Parlement').length).toBeGreaterThan(0);
+  });
+
+  it('shows a source key verbatim when there is no display name for it', async () => {
+    // Deliberately outside the declared union: the fallback exists for signals
+    // persisted under a source key this build no longer knows about, which is
+    // by definition a value the current type forbids.
+    await renderCurated([
+      makeSignal({ id: 'a', bron: 'nieuwe-bron' } as unknown as Partial<Signal>),
+    ]);
+    expect(await screen.findByText('nieuwe-bron')).toBeInTheDocument();
+  });
+
+  it('labels the EP sub-source and names the responsible committee', async () => {
+    await renderCurated([
+      makeSignal({
+        id: 'a',
+        bron: 'eu',
+        subbron: 'ep-rss',
+        commissie: 'ENVI',
+      } as Partial<Signal>),
+      makeSignal({ id: 'b', bron: 'eu', subbron: 'ep-teksten' } as Partial<Signal>),
+    ]);
+
+    expect(await screen.findByText('Plenaire documenten')).toBeInTheDocument();
+    expect(screen.getByText('Ingediende teksten')).toBeInTheDocument();
+    expect(screen.getByText('ENVI')).toBeInTheDocument();
+  });
+
+  it('still labels a press release, the sub-source nothing produces any more', async () => {
+    // The press-release feed was dropped in f355fce -- the EP Open Data API has
+    // no equivalent endpoint -- but signals persisted under 'ep-persbericht'
+    // before that are still in the inbox and must keep their label. The entry
+    // is deliberate backward compatibility, not a leftover: deleting it would
+    // silently downgrade historical rows to a raw key.
+    await renderCurated([
+      makeSignal({ id: 'a', bron: 'eu', subbron: 'ep-persbericht' } as Partial<Signal>),
+    ]);
+    expect(await screen.findByText('Persbericht')).toBeInTheDocument();
+  });
+
+  it('shows an unrecognised EP sub-source key verbatim', async () => {
+    // Signals persisted before a feed changed keep their old key; showing the
+    // raw key beats showing nothing where a label belongs.
+    await renderCurated([
+      makeSignal({ id: 'a', bron: 'eu', subbron: 'ep-nieuw' } as Partial<Signal>),
+    ]);
+    expect(await screen.findByText('ep-nieuw')).toBeInTheDocument();
+  });
+
+  it('carries region and sentiment on a media signal', async () => {
+    await renderCurated([
+      makeSignal({
+        id: 'a',
+        bron: 'media',
+        subbron: 'nieuws-regionaal',
+        regio: 'Flevoland',
+        sentiment: 'negatief',
+      } as Partial<Signal>),
+      makeSignal({
+        id: 'b',
+        bron: 'media',
+        subbron: 'nieuws-nationaal',
+        sentiment: 'positief',
+      } as Partial<Signal>),
+      makeSignal({
+        id: 'c',
+        bron: 'media',
+        subbron: 'social',
+        sentiment: 'neutraal',
+      } as Partial<Signal>),
+    ]);
+
+    expect(await screen.findByText('Regionaal')).toBeInTheDocument();
+    expect(screen.getByText('Landelijk')).toBeInTheDocument();
+    expect(screen.getByText('Sociaal')).toBeInTheDocument();
+    expect(screen.getByText('◎ Flevoland')).toBeInTheDocument();
+    expect(screen.getByText('Negatief')).toBeInTheDocument();
+    expect(screen.getByText('Positief')).toBeInTheDocument();
+    expect(screen.getByText('Neutraal')).toBeInTheDocument();
+  });
+
+  it('shows unrecognised media sub-source and sentiment keys verbatim', async () => {
+    await renderCurated([
+      makeSignal({
+        id: 'a',
+        bron: 'media',
+        subbron: 'podcast',
+        sentiment: 'gemengd',
+      } as unknown as Partial<Signal>),
+    ]);
+    expect(await screen.findByText('podcast')).toBeInTheDocument();
+    expect(screen.getByText('gemengd')).toBeInTheDocument();
+  });
+
+  it('flags a confirmed signal that has no dossier as watchlist work', async () => {
+    await renderCurated([
+      makeSignal({ id: 'a', routing: 'watchlist', dossierId: null } as Partial<Signal>),
+    ]);
+    expect(await screen.findByText(/staat op de watchlist/)).toBeInTheDocument();
+  });
+
+  it('names the curator who confirmed a signal, and links its source reference', async () => {
+    await renderCurated([
+      makeSignal({
+        id: 'a',
+        confirmedBy: 'Sanne Bakker',
+        confirmedAt: '2 jul 2026',
+        ref: { type: 'Motie', nr: '2026Z001', url: 'https://tk.nl/x' },
+      } as Partial<Signal>),
+    ]);
+
+    expect(await screen.findByText(/Bevestigd door Sanne Bakker/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /2026Z001/ })).toHaveAttribute(
+      'href',
+      'https://tk.nl/x'
+    );
+  });
+});
+
+describe('Monitoring inbox rendering', () => {
+  const renderInbox = async (signals: Signal[]) => {
+    paApi.fetchInbox.mockResolvedValue({
+      data: signals,
+      meta: { total: signals.length, cap: 100, capped: false },
+    });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Inbox/ }));
+    return user;
+  };
+
+  it('separates an AI concept from a rule candidate, and says which needs a human reading', async () => {
+    await renderInbox([
+      makeSignal({
+        id: 'i1',
+        status: 'ai_drafted',
+        duiding: 'AI-duiding',
+        impact: 'risico',
+        impactLabel: 'Risico',
+      }),
+      makeSignal({ id: 'i2', status: 'candidate', duiding: null, impact: null, dossierId: null }),
+    ]);
+
+    expect(await screen.findByText('✦ AI-concept')).toBeInTheDocument();
+    expect(screen.getByText('Regel-kandidaat')).toBeInTheDocument();
+    expect(screen.getByText('AI-duiding')).toBeInTheDocument();
+    expect(screen.getByText('Risico')).toBeInTheDocument();
+    expect(screen.getByText(/Handmatige duiding nodig/)).toBeInTheDocument();
+    // A candidate the rules could not route says so, rather than showing an
+    // empty dossier chip.
+    expect(screen.getByText('⚑ Geen dossier-match')).toBeInTheDocument();
+  });
+
+  it('locks the koppel control while the link is in flight', async () => {
+    // The select and the button both drive one write; leaving either live
+    // during the round trip lets a second pick overwrite the first.
+    const linked = makeSignal({
+      id: 'a',
+      title: 'Zwevend signaal',
+      routing: null,
+      dossierId: 'stikstof',
+    } as Partial<Signal>);
+    let release!: () => void;
+    const linkSignalDossier = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve(linked);
+        })
+    );
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        dossiers: {
+          data: [{ id: 'stikstof', naam: 'Stikstof' }] as never,
+          status: 'ok',
+          refetch: vi.fn(),
+        },
+        linkSignalDossier,
+      })
+    );
+    paApi.fetchSignals.mockResolvedValue([
+      makeSignal({
+        id: 'a',
+        title: 'Zwevend signaal',
+        routing: 'watchlist',
+        dossierId: null,
+      } as Partial<Signal>),
+    ]);
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await screen.findByText('Zwevend signaal');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'stikstof');
+    await user.click(screen.getByRole('button', { name: 'Koppelen' }));
+
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.getByRole('button', { name: '…' })).toBeDisabled();
+
+    release();
+    await waitFor(() => expect(screen.queryByRole('button', { name: '…' })).toBeNull());
+  });
+});
+
+describe('Monitoring raw feed rendering', () => {
+  const rawItem = (over: Partial<FeedItem> = {}): FeedItem =>
+    ({
+      id: 'r1',
+      title: 'Ruwe treffer',
+      type: 'Motie',
+      number: '2026Z001',
+      date: new Date().toISOString(),
+      url: 'https://tk.nl/x',
+      source: 'tk',
+      ...over,
+    }) as FeedItem;
+
+  const openOngefilterd = async (items: FeedItem[]) => {
+    paApi.fetchFeed.mockResolvedValue({ items, total: items.length });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Ongefilterd/ }));
+    return user;
+  };
+
+  it('dates each hit relatively, and copes with an undated or unparseable one', async () => {
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+    await openOngefilterd([
+      rawItem({ id: 'a', date: hoursAgo(0) }),
+      rawItem({ id: 'b', date: hoursAgo(5) }),
+      rawItem({ id: 'c', date: hoursAgo(30) }),
+      rawItem({ id: 'd', date: hoursAgo(24 * 4) }),
+      rawItem({ id: 'e', date: null }),
+      rawItem({ id: 'f', date: 'onbekend' }),
+    ]);
+
+    expect(await screen.findByText(/· nu/)).toBeInTheDocument();
+    expect(screen.getByText(/· 5 u/)).toBeInTheDocument();
+    expect(screen.getByText(/· 1 dg$/)).toBeInTheDocument();
+    expect(screen.getByText(/· 4 dgn/)).toBeInTheDocument();
+    // An unparseable date is shown as-is rather than silently dropped or
+    // rendered as "NaN dgn".
+    expect(screen.getByText(/· onbekend/)).toBeInTheDocument();
+  });
+
+  it('renders a hit with no type and no URL', async () => {
+    await openOngefilterd([rawItem({ id: 'a', type: null, url: null, number: null })]);
+    expect(await screen.findByText('Ruwe treffer')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('falls back to the hit id when it carries no document number', async () => {
+    await openOngefilterd([rawItem({ id: 'zonder-nummer', number: null })]);
+    expect(await screen.findByRole('link', { name: /zonder-nummer/ })).toBeInTheDocument();
+  });
+});

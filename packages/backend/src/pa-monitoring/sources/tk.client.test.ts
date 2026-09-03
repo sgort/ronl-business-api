@@ -194,4 +194,112 @@ describe('fetchTkFeed', () => {
     mockFetch.mockRejectedValue(new Error('ECONNRESET'));
     await expect(fetchTkFeed('q')).rejects.toThrow('ECONNRESET');
   });
+  it('omits the subject clause entirely for a blanco query', async () => {
+    // fetchTkFeed() with no arguments is the shape the search band uses for an
+    // empty query and the curation cycle uses for its unfiltered sweep. The
+    // filter must still exclude deleted documents, but must not carry a
+    // contains() clause -- an empty one matches nothing on TK OData.
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ value: [], '@odata.count': 0 }) });
+
+    await fetchTkFeed();
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('Verwijderd eq false');
+    expect(url).not.toContain('contains(Onderwerp');
+  });
+
+  it('treats a whitespace-only query as blanco', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ value: [], '@odata.count': 0 }) });
+
+    await fetchTkFeed('   ');
+
+    expect(mockFetch.mock.calls[0][0] as string).not.toContain('contains(Onderwerp');
+  });
+
+  it('falls back to an empty id for an item TK returned without one', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: [{ Onderwerp: 'Geen Id' }], '@odata.count': 1 }),
+    });
+
+    const res = await fetchTkFeed('stikstof');
+
+    expect(res.items[0].id).toBe('');
+  });
+
+  it('reports a missing value array and a missing count as empty rather than throwing', async () => {
+    // TK answers a filter that matches nothing with a bare object on some
+    // deployments -- no `value`, no `@odata.count`.
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const res = await fetchTkFeed('stikstof');
+
+    expect(res.items).toEqual([]);
+    expect(res.total).toBeNull();
+  });
+
+  it('rethrows a non-Error rejection from the single-term path unchanged', async () => {
+    // undici rejects with a bare string on some socket failures, so the
+    // `instanceof Error` guard in the catch is not decorative.
+    mockFetch.mockRejectedValue('socket hang up');
+
+    await expect(fetchTkFeed('stikstof')).rejects.toBe('socket hang up');
+  });
+
+  it('aborts a request that outruns the timeout', async () => {
+    jest.useFakeTimers();
+    mockFetch.mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () =>
+            reject(new Error('The operation was aborted'))
+          );
+        })
+    );
+
+    const pending = fetchTkFeed('stikstof');
+    // Assert the rejection before advancing, so an unhandled-rejection warning
+    // cannot race the timer.
+    const assertion = expect(pending).rejects.toThrow('aborted');
+    await jest.advanceTimersByTimeAsync(15_000);
+    await assertion;
+
+    jest.useRealTimers();
+  });
+
+  describe('multi-term OR, further cases', () => {
+    const page = (items: Record<string, unknown>[]) => ({
+      ok: true,
+      json: async () => ({ value: items }),
+    });
+
+    it('wraps a non-Error rejection when every term fails', async () => {
+      mockFetch.mockRejectedValue('socket hang up');
+
+      await expect(fetchTkFeed('a OR b')).rejects.toThrow('TK API error');
+    });
+
+    it('tolerates a fulfilled page that carries no value array', async () => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+        .mockResolvedValueOnce(page([{ Id: 'ok', Onderwerp: 'Survivor' }]));
+
+      const res = await fetchTkFeed('a OR b');
+
+      expect(res.items.map((i) => i.id)).toEqual(['ok']);
+    });
+
+    it('sorts undated items last without throwing', async () => {
+      mockFetch
+        .mockResolvedValueOnce(page([{ Id: 'undated', Onderwerp: 'No date' }]))
+        .mockResolvedValueOnce(
+          page([{ Id: 'dated', Onderwerp: 'Dated', GewijzigdOp: '2026-07-01' }])
+        );
+
+      const res = await fetchTkFeed('a OR b');
+
+      expect(res.items.map((i) => i.id)).toEqual(['dated', 'undated']);
+      expect(res.items[1].date).toBeNull();
+    });
+  });
 });

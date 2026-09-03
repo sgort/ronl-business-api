@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TakenInbox from './TakenInbox';
 import type { Task } from '@ronl/shared';
@@ -164,5 +164,249 @@ describe('TakenInbox', () => {
     await waitFor(() =>
       expect(screen.getByText('Selecteer een taak om de details te bekijken.')).toBeInTheDocument()
     );
+  });
+});
+
+describe('TakenInbox deadline filters', () => {
+  const iso = (ms: number) => new Date(Date.now() + ms).toISOString();
+  const DAY = 24 * 60 * 60 * 1000;
+
+  // Noon today rather than "a minute from now": the latter lands on tomorrow
+  // when the suite happens to run just before midnight, which made the
+  // "Vandaag" case fail on the clock rather than on the code.
+  const noonToday = () => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    return d.toISOString();
+  };
+
+  const dated = () => [
+    makeTask({ id: 'laat', name: 'Al te laat', due: iso(-2 * DAY) }),
+    makeTask({ id: 'vandaag', name: 'Vandaag af', due: noonToday() }),
+    makeTask({ id: 'week', name: 'Deze week af', due: iso(3 * DAY) }),
+    makeTask({ id: 'later', name: 'Volgende maand', due: iso(30 * DAY) }),
+    makeTask({ id: 'geen', name: 'Zonder deadline' }),
+  ];
+
+  // The filter labels also appear on the task rows ("Te laat — <datum>"), so
+  // scope the lookup to the filter rail rather than the whole document.
+  const openFilter = async (label: string) => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({ success: true, data: dated() });
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await screen.findByText('Al te laat');
+    const rail = screen.getByLabelText('Taakfilters');
+    await user.click(within(rail).getByRole('button', { name: new RegExp(label) }));
+    return user;
+  };
+
+  it('"Te laat" holds only tasks whose deadline has passed', async () => {
+    await openFilter('Te laat');
+    expect(screen.getByText('Al te laat')).toBeInTheDocument();
+    expect(screen.queryByText('Deze week af')).not.toBeInTheDocument();
+    expect(screen.queryByText('Volgende maand')).not.toBeInTheDocument();
+    expect(screen.queryByText('Zonder deadline')).not.toBeInTheDocument();
+  });
+
+  it('"Vandaag" holds only tasks due on the current calendar day', async () => {
+    await openFilter('Vandaag');
+    expect(screen.getByText('Vandaag af')).toBeInTheDocument();
+    expect(screen.queryByText('Deze week af')).not.toBeInTheDocument();
+    expect(screen.queryByText('Zonder deadline')).not.toBeInTheDocument();
+  });
+
+  it('"Deze week" spans the next seven days and excludes what is already late', async () => {
+    await openFilter('Deze week');
+    expect(screen.getByText('Deze week af')).toBeInTheDocument();
+    // Whether noon-today is still ahead depends on the time of day, so it is
+    // deliberately not asserted here; what the window must exclude is fixed.
+    expect(screen.queryByText('Al te laat')).not.toBeInTheDocument();
+    expect(screen.queryByText('Volgende maand')).not.toBeInTheDocument();
+  });
+
+  it('sorts by deadline, soonest first, with undated tasks last', async () => {
+    mockBusinessApi.task.list.mockResolvedValue({ success: true, data: dated() });
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await screen.findByText('Al te laat');
+
+    const names = Array.from(document.querySelectorAll('.v2-taken-item-name')).map(
+      (el) => el.textContent
+    );
+    expect(names).toEqual([
+      'Al te laat',
+      'Vandaag af',
+      'Deze week af',
+      'Volgende maand',
+      'Zonder deadline',
+    ]);
+  });
+
+  it('breaks a deadline tie by newest first', async () => {
+    // Two tasks can share a deadline (a batch created by one process); the
+    // list still has to be deterministic rather than following fetch order.
+    const due = iso(2 * DAY);
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({ id: 'oud', name: 'Ouder', due, created: '2026-07-01T00:00:00Z' }),
+        makeTask({ id: 'nieuw', name: 'Nieuwer', due, created: '2026-07-05T00:00:00Z' }),
+      ],
+    });
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await screen.findByText('Nieuwer');
+
+    const names = Array.from(document.querySelectorAll('.v2-taken-item-name')).map(
+      (el) => el.textContent
+    );
+    expect(names).toEqual(['Nieuwer', 'Ouder']);
+  });
+
+  it('says the filter is empty rather than showing a blank column', async () => {
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'geen', name: 'Zonder deadline' })],
+    });
+    const user = userEvent.setup();
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await screen.findByText('Zonder deadline');
+
+    await user.click(
+      within(screen.getByLabelText('Taakfilters')).getByRole('button', { name: /Te laat/ })
+    );
+    expect(screen.getByText('Geen taken in dit filter.')).toBeInTheDocument();
+  });
+});
+
+describe('TakenInbox task rows and detail pane', () => {
+  const iso = (ms: number) => new Date(Date.now() + ms).toISOString();
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('marks a claimed task and an open one differently, and flags a passed deadline', async () => {
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({ id: 'a', name: 'Geclaimde taak', assignee: 'u1', due: iso(-DAY) }),
+        makeTask({ id: 'b', name: 'Open taak', due: iso(DAY) }),
+      ],
+    });
+
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+
+    expect(await screen.findByText('Geclaimd')).toBeInTheDocument();
+    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText(/^Te laat —/)).toBeInTheDocument();
+    expect(screen.getByText(/^Deadline /)).toBeInTheDocument();
+  });
+
+  it('falls back to the process definition id when the task carries no key', async () => {
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', processDefinitionKey: undefined })],
+    });
+
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+
+    expect(await screen.findByText('Proc:1:def')).toBeInTheDocument();
+  });
+
+  it('shows the description and the deadline in the detail pane', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({
+          id: 'a',
+          name: 'Met omschrijving',
+          description: 'Beoordeel de aanvraag binnen de termijn.',
+          due: iso(-DAY),
+        }),
+      ],
+    });
+
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await user.click(await screen.findByText('Met omschrijving'));
+
+    expect(screen.getByText('Beoordeel de aanvraag binnen de termijn.')).toBeInTheDocument();
+    expect(screen.getByText('Deadline')).toBeInTheDocument();
+    expect(document.querySelector('.v2-taken-overdue')).not.toBeNull();
+  });
+
+  it('reports a failed claim rather than pretending it worked', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', name: 'Te claimen' })],
+    });
+    mockBusinessApi.task.claim.mockResolvedValue({ success: false });
+
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await user.click(await screen.findByText('Te claimen'));
+    await user.click(await screen.findByRole('button', { name: 'Taak claimen' }));
+
+    expect(await screen.findByText('Claimen mislukt.')).toBeInTheDocument();
+  });
+
+  it('reports a claim that never reached the backend the same way', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', name: 'Te claimen' })],
+    });
+    mockBusinessApi.task.claim.mockRejectedValue(new Error('network'));
+
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await user.click(await screen.findByText('Te claimen'));
+    await user.click(await screen.findByRole('button', { name: 'Taak claimen' }));
+
+    expect(await screen.findByText('Claimen mislukt.')).toBeInTheDocument();
+  });
+
+  it('marks each process step as running, cancelled or done', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', name: 'Met stappen' })],
+    });
+    mockBusinessApi.process.activityHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'act1',
+          activityId: 'Start',
+          activityName: 'Start',
+          activityType: 'startEvent',
+          startTime: '2026-07-01T09:00:00Z',
+          endTime: '2026-07-01T09:00:01Z',
+          canceled: false,
+        },
+        {
+          id: 'act2',
+          activityId: 'Service',
+          activityName: null,
+          activityType: 'serviceTask',
+          startTime: '2026-07-01T09:00:02Z',
+          endTime: null,
+          canceled: false,
+        },
+        {
+          id: 'act3',
+          activityId: 'Afgebroken',
+          activityName: 'Afgebroken stap',
+          activityType: 'userTask',
+          startTime: '2026-07-01T09:00:03Z',
+          endTime: '2026-07-01T09:00:04Z',
+          canceled: true,
+        },
+      ],
+    });
+
+    render(<TakenInbox user={{ sub: 'u1' } as never} onCountChange={vi.fn()} />);
+    await user.click(await screen.findByText('Met stappen'));
+
+    expect(await screen.findByText('Afgerond')).toBeInTheDocument();
+    expect(screen.getByText('Loopt nog')).toBeInTheDocument();
+    expect(screen.getByText('Afgebroken')).toBeInTheDocument();
+    // A step with no display name falls back to its activity id.
+    expect(screen.getByText('Service')).toBeInTheDocument();
   });
 });

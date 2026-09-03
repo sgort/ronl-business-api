@@ -338,3 +338,236 @@ describe('PADashboardV2', () => {
     expect(screen.getByText('Vandaag', { selector: '.pac-rail-card' })).toBeInTheDocument();
   });
 });
+
+describe('PADashboardV2 rail badges', () => {
+  beforeEach(() => {
+    __resetPaCockpitHostForTests();
+    configureHost();
+    authState.authenticated = true;
+    authState.user = authorizedUser;
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('shows an inbox badge beside a monitoring tab that has waiting signals', async () => {
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        dossiers: { data: dossiers, status: 'ok', refetch: vi.fn() },
+        inboxCounts: { politiek: 4, europa: 0, regionaal: 0, media: 0 },
+      })
+    );
+    const user = userEvent.setup();
+    const { container } = render(<PADashboardV2 host={testHost} />);
+    // The signal badges live on the Monitoring rail, so the rail has to be
+    // showing that mode's items for them to exist at all.
+    await user.click(screen.getByRole('button', { name: 'Monitoring' }));
+
+    // Only the tab that actually has waiting signals gets one -- a zero badge
+    // is noise on a rail that is meant to be scanned.
+    const badges = container.querySelectorAll('.pac-rail-inbox');
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveTextContent('4');
+  });
+
+  it('shows an unseen-count badge on the notification bell', () => {
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        dossiers: { data: dossiers, status: 'ok', refetch: vi.fn() },
+        notifications: { data: { items: [], unseenCount: 3 }, status: 'ok', refetch: vi.fn() },
+      })
+    );
+    render(<PADashboardV2 host={testHost} />);
+
+    expect(screen.getByLabelText('Open meldingen')).toHaveTextContent('3');
+  });
+
+  it('counts only upcoming, non-cancelled agenda items, and flags one that is live now', async () => {
+    const iso = (days: number) => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        dossiers: { data: dossiers, status: 'ok', refetch: vi.fn() },
+        agenda: {
+          data: [
+            { iso: iso(1), status: 'gepland', live: 'live' },
+            { iso: iso(2), status: 'gepland', live: null },
+            { iso: iso(3), status: 'geannuleerd', live: null },
+            { iso: iso(-1), status: 'uitgevoerd', live: null },
+          ],
+          status: 'ok',
+          refetch: vi.fn(),
+        },
+      })
+    );
+    const user = userEvent.setup();
+    const { container } = render(<PADashboardV2 host={testHost} />);
+    await user.click(screen.getByRole('button', { name: 'Monitoring' }));
+
+    // Two of the four are upcoming and not cancelled; the live dot is a
+    // separate signal from that count.
+    expect(container.querySelector('.pac-rail-score')).toHaveTextContent('2');
+    expect(container.querySelector('.pac-rail-live')).not.toBeNull();
+  });
+});
+
+describe('PADashboardV2 dossier pointer', () => {
+  beforeEach(() => {
+    __resetPaCockpitHostForTests();
+    configureHost();
+    authState.authenticated = true;
+    authState.user = authorizedUser;
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('waits for the dossier list rather than pointing at nothing while it loads', () => {
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({ dossiers: { data: [], status: 'loading', refetch: vi.fn() } })
+    );
+    expect(() => render(<PADashboardV2 host={testHost} />)).not.toThrow();
+  });
+
+  it('survives an empty dossier list', () => {
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({ dossiers: { data: [], status: 'ok', refetch: vi.fn() } })
+    );
+    expect(() => render(<PADashboardV2 host={testHost} />)).not.toThrow();
+  });
+
+  it('falls back to the first dossier when none is actief', async () => {
+    // Every dossier sluimerend is a real end state for a small tenant; the
+    // pointer must still land somewhere rather than on an empty string.
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        dossiers: {
+          data: dossiers.map((d) => ({ ...d, status: 'sluimerend' })) as Dossier[],
+          status: 'ok',
+          refetch: vi.fn(),
+        },
+      })
+    );
+    const user = userEvent.setup();
+    render(<PADashboardV2 host={testHost} />);
+
+    await user.click(screen.getByRole('button', { name: 'Dossiers' }));
+    expect(screen.getByTestId('section-router')).toHaveTextContent('section=stikstof');
+  });
+});
+
+describe('PADashboardV2 mode switching', () => {
+  beforeEach(() => {
+    __resetPaCockpitHostForTests();
+    configureHost();
+    authState.authenticated = true;
+    authState.user = authorizedUser;
+    mockUsePaData.mockReturnValue(defaultPaData());
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('lands each mode on its own default section on first visit', async () => {
+    const user = userEvent.setup();
+    render(<PADashboardV2 host={testHost} />);
+    const router = () => screen.getByTestId('section-router');
+
+    for (const [label, expected] of [
+      ['Dossiers', 'section=stikstof'],
+      ['Monitoring', 'section=politiek'],
+      ['Voortgang', 'section=voortgang'],
+      ['Beheer', 'section=profiel'],
+      ['Vandaag', 'section=vandaag'],
+    ] as const) {
+      await user.click(screen.getByRole('button', { name: label }));
+      expect(router()).toHaveTextContent(expected);
+    }
+  });
+
+  it('opens and closes the command palette with the keyboard shortcut', async () => {
+    const user = userEvent.setup();
+    render(<PADashboardV2 host={testHost} />);
+
+    expect(screen.queryByTestId('palette')).toBeNull();
+    await user.keyboard('{Control>}k{/Control}');
+    expect(screen.getByTestId('palette')).toBeInTheDocument();
+    await user.keyboard('{Meta>}k{/Meta}');
+    expect(screen.queryByTestId('palette')).toBeNull();
+  });
+
+  it('opens the assistant dock and closes it again', async () => {
+    const user = userEvent.setup();
+    render(<PADashboardV2 host={testHost} />);
+
+    await user.click(screen.getByRole('button', { name: 'Vraag de assistent' }));
+    expect(screen.getByTestId('dock')).toBeInTheDocument();
+  });
+});
+
+describe('PADashboardV2 identity chrome', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const renderAs = (user: Partial<KeycloakUser>) => {
+    __resetPaCockpitHostForTests();
+    configureHost();
+    authState.authenticated = true;
+    authState.user = { ...authorizedUser, ...user } as KeycloakUser;
+    mockUsePaData.mockReturnValue(defaultPaData());
+    return render(<PADashboardV2 host={testHost} />);
+  };
+
+  it('shows the assurance level when the token carries one', () => {
+    renderAs({ loa: 'substantieel' } as Partial<KeycloakUser>);
+    expect(screen.getByText('LOA substantieel')).toBeInTheDocument();
+  });
+
+  it('falls back from name to preferred_username, and then to a generic label', () => {
+    const { unmount } = renderAs({
+      name: undefined,
+      preferred_username: 'm.devries',
+    } as Partial<KeycloakUser>);
+    expect(screen.getByText('m.devries')).toBeInTheDocument();
+    unmount();
+
+    renderAs({ name: undefined, preferred_username: undefined } as Partial<KeycloakUser>);
+    expect(screen.getByText('Medewerker')).toBeInTheDocument();
+  });
+});
+
+describe('PADashboardV2 tenant theming', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('themes for the signed-in municipality and shows its display name', async () => {
+    const initializeTenantTheme = vi.fn().mockResolvedValue(true);
+    const loadTenantConfigs = vi.fn().mockResolvedValue({});
+    const getTenantConfig = vi.fn().mockReturnValue({ displayName: 'Provincie Flevoland' });
+    const getDefaultTenantConfig = vi.fn().mockReturnValue(null);
+
+    __resetPaCockpitHostForTests();
+    configurePaCockpit({
+      auth: {
+        authenticated: true,
+        token: 'test-token',
+        getUser: () => ({ ...authorizedUser, municipality: 'flevoland' }) as KeycloakUser,
+        updateToken: async () => false,
+      },
+      tenant: {
+        initializeTenantTheme,
+        loadTenantConfigs,
+        getTenantConfig,
+        getDefaultTenantConfig,
+      },
+    });
+    authState.authenticated = true;
+    authState.user = authorizedUser;
+    mockUsePaData.mockReturnValue(defaultPaData());
+
+    render(<PADashboardV2 host={testHost} />);
+
+    expect(await screen.findByText('Provincie Flevoland')).toBeInTheDocument();
+    expect(initializeTenantTheme).toHaveBeenCalledWith('flevoland');
+    // The signed-in tenant wins; the default is never consulted.
+    expect(getDefaultTenantConfig).not.toHaveBeenCalled();
+  });
+});

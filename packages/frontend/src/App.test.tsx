@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ProtectedRoute } from './App';
+import App, { ProtectedRoute } from './App';
 
 const mockKeycloak = vi.hoisted(() => ({
   authenticated: false,
@@ -112,5 +112,83 @@ describe('ProtectedRoute', () => {
 
     expect(screen.queryByText('citizen-dashboard')).not.toBeInTheDocument();
     expect(screen.queryByText('login-choice')).not.toBeInTheDocument();
+  });
+  it('lets a matching role through', async () => {
+    mockInitializeKeycloak.mockResolvedValue(true);
+    mockKeycloak.authenticated = true;
+    mockKeycloak.tokenParsed = { realm_access: { roles: ['caseworker'] } };
+
+    renderAt('/dashboard/caseworker');
+
+    expect(await screen.findByText('caseworker-dashboard')).toBeInTheDocument();
+  });
+
+  it('treats a token with no realm roles as a citizen rather than throwing', async () => {
+    // A token minted by a client with no realm-role mapper has no
+    // realm_access at all; reading .roles off it directly would throw before
+    // any redirect could happen.
+    mockInitializeKeycloak.mockResolvedValue(true);
+    mockKeycloak.authenticated = true;
+    mockKeycloak.tokenParsed = {};
+
+    renderAt('/dashboard/citizen');
+
+    expect(await screen.findByText('citizen-dashboard')).toBeInTheDocument();
+  });
+
+  it('still decides once check-sso itself fails', async () => {
+    // A dead Keycloak must not leave the route rendering nothing forever; the
+    // guard falls through to "not authenticated" and sends the user to /.
+    mockInitializeKeycloak.mockRejectedValue(new Error('keycloak unreachable'));
+
+    renderAt('/dashboard/citizen');
+
+    expect(await screen.findByText('login-choice')).toBeInTheDocument();
+  });
+});
+
+describe('the legacy /dashboard redirect', () => {
+  // Kept for bookmarks and links minted before the role-specific routes
+  // existed. It reads the token directly rather than going through
+  // ProtectedRoute, so it needs its own coverage.
+  const at = (path: string) => {
+    window.history.pushState({}, '', path);
+    render(<App />);
+  };
+
+  beforeEach(() => {
+    mockKeycloak.authenticated = false;
+    mockKeycloak.tokenParsed = null;
+    mockInitializeKeycloak.mockReset().mockResolvedValue(true);
+  });
+
+  it('sends a caseworker to the caseworker dashboard', async () => {
+    mockKeycloak.authenticated = true;
+    mockKeycloak.tokenParsed = { realm_access: { roles: ['caseworker'] } };
+
+    at('/dashboard');
+
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard/caseworker'));
+  });
+
+  it('sends any other signed-in user to the citizen dashboard', async () => {
+    mockKeycloak.authenticated = true;
+    mockKeycloak.tokenParsed = { realm_access: { roles: ['citizen'] } };
+
+    at('/dashboard');
+
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard/citizen'));
+  });
+
+  it('sends an anonymous visitor to the login page', async () => {
+    at('/dashboard');
+
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
+  });
+
+  it('sends an unknown path to the login page too', async () => {
+    at('/geen-idee');
+
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
   });
 });

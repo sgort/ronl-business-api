@@ -8,7 +8,13 @@ import * as api from '../lib/api';
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
-  return { ...actual, getBerichten: vi.fn() };
+  return {
+    ...actual,
+    getBerichten: vi.fn(),
+    getNieuws: vi.fn(),
+    getProducten: vi.fn(),
+    getProcessen: vi.fn(),
+  };
 });
 
 const t = translations.nl;
@@ -149,5 +155,94 @@ describe('SectionIndex — prerendered seeding', () => {
       expect(screen.getByRole('link', { name: /Fetched bericht/ })).toBeInTheDocument()
     );
     expect(api.getBerichten).toHaveBeenCalled();
+  });
+});
+
+describe('SectionIndex, one loader per section type', () => {
+  // loadItems switches on the section type; each arm calls a different endpoint
+  // with its own page size and its own mapper. A wrong arm shows the wrong
+  // list on a route that otherwise looks correct, so each is pinned here.
+  const renderFor = (type: 'nieuws' | 'product' | 'proces' | 'regel') =>
+    render(
+      <MemoryRouter>
+        <SectionIndex t={t} lang="nl" type={type} />
+      </MemoryRouter>
+    );
+
+  it('loads nieuws from getNieuws', async () => {
+    vi.mocked(api.getNieuws).mockResolvedValue({
+      items: [
+        {
+          id: 'n1',
+          title: 'Nieuw beleid',
+          summary: 'Samenvatting',
+          source: { id: 'ro', name: 'Rijksoverheid' },
+          publishedAt: '2026-07-01',
+        },
+      ],
+      total: 1,
+    } as unknown as Awaited<ReturnType<typeof api.getNieuws>>);
+
+    renderFor('nieuws');
+
+    await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
+    expect(api.getNieuws).toHaveBeenCalledWith(200);
+  });
+
+  it('loads producten from getProducten', async () => {
+    vi.mocked(api.getProducten).mockResolvedValue({
+      items: [
+        {
+          id: 'p1',
+          title: 'Paspoort aanvragen',
+          description: 'Beschrijving',
+          modified: '2026-07-01',
+          audience: [],
+        },
+      ],
+      total: 1,
+    } as unknown as Awaited<ReturnType<typeof api.getProducten>>);
+
+    renderFor('product');
+
+    await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
+    expect(api.getProducten).toHaveBeenCalledWith(200);
+  });
+
+  it('loads processen from getProcessen', async () => {
+    vi.mocked(api.getProcessen).mockResolvedValue([
+      {
+        key: 'proc-1',
+        naam: 'Aanvraag behandelen',
+        beschrijving: null,
+        gepubliceerd: '2026-07-01',
+      },
+    ] as unknown as Awaited<ReturnType<typeof api.getProcessen>>);
+
+    renderFor('proces');
+
+    await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
+    expect(api.getProcessen).toHaveBeenCalled();
+  });
+
+  it('renders the regel section empty, because Regelcatalogus owns that type', async () => {
+    renderFor('regel');
+
+    await waitFor(() => expect(screen.getByText('0 items')).toBeInTheDocument());
+    expect(api.getBerichten).not.toHaveBeenCalled();
+    expect(api.getNieuws).not.toHaveBeenCalled();
+    expect(api.getProducten).not.toHaveBeenCalled();
+    expect(api.getProcessen).not.toHaveBeenCalled();
+  });
+
+  it('translates the loading placeholder', () => {
+    // Never resolves, so the placeholder is what is on screen.
+    vi.mocked(api.getBerichten).mockReturnValue(new Promise(() => {}));
+    render(
+      <MemoryRouter>
+        <SectionIndex t={t} lang="en" type="bericht" />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
   });
 });

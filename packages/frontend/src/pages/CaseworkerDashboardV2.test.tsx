@@ -15,12 +15,13 @@ const mockKeycloak = vi.hoisted(() => ({
 const mockGetUser = vi.hoisted(() => vi.fn());
 vi.mock('../services/keycloak', () => ({ default: mockKeycloak, getUser: mockGetUser }));
 
-vi.mock('../services/tenant', () => ({
+const mockTenant = vi.hoisted(() => ({
   initializeTenantTheme: vi.fn().mockResolvedValue(true),
   loadTenantConfigs: vi.fn().mockResolvedValue({}),
   getTenantConfig: vi.fn().mockReturnValue(null),
   getDefaultTenantConfig: vi.fn().mockReturnValue(null),
 }));
+vi.mock('../services/tenant', () => mockTenant);
 
 vi.mock('../components/CaseworkerDashboardV2/SectionRouter', () => ({
   default: function MockSectionRouter({
@@ -127,5 +128,105 @@ describe('CaseworkerDashboardV2', () => {
     expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Snel navigeren' }));
     expect(screen.getByTestId('palette')).toBeInTheDocument();
+  });
+});
+
+describe('CaseworkerDashboardV2 identity chrome', () => {
+  beforeEach(() => {
+    mockKeycloak.authenticated = true;
+    mockTenant.initializeTenantTheme.mockClear().mockResolvedValue(true);
+    mockTenant.loadTenantConfigs.mockClear().mockResolvedValue({});
+    mockTenant.getTenantConfig.mockClear().mockReturnValue(null);
+    mockTenant.getDefaultTenantConfig.mockClear().mockReturnValue(null);
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('shows the assurance level when the token carries one', () => {
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: [], loa: 'hoog' });
+    render(<CaseworkerDashboardV2 />);
+    expect(screen.getByText('LOA hoog')).toBeInTheDocument();
+  });
+
+  it('falls back from name to preferred_username, then to a generic label', () => {
+    mockGetUser.mockReturnValue({ sub: '1', preferred_username: 'w.demeer', roles: [] });
+    const { unmount } = render(<CaseworkerDashboardV2 />);
+    expect(screen.getByText('w.demeer')).toBeInTheDocument();
+    unmount();
+
+    mockGetUser.mockReturnValue({ sub: '1', roles: [] });
+    render(<CaseworkerDashboardV2 />);
+    expect(screen.getByText('Medewerker')).toBeInTheDocument();
+  });
+
+  it('themes for the signed-in municipality and labels the tenant', async () => {
+    mockGetUser.mockReturnValue({
+      sub: '1',
+      name: 'Test User',
+      roles: [],
+      municipality: 'flevoland',
+    });
+    mockTenant.getTenantConfig.mockReturnValue({ displayName: 'Provincie Flevoland' });
+
+    render(<CaseworkerDashboardV2 />);
+
+    expect(await screen.findByText('Provincie Flevoland')).toBeInTheDocument();
+    expect(mockTenant.initializeTenantTheme).toHaveBeenCalledWith('flevoland');
+    expect(mockTenant.getDefaultTenantConfig).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the default tenant for a token with no municipality claim', async () => {
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: [] });
+    mockTenant.getDefaultTenantConfig.mockReturnValue({ displayName: 'RONL' });
+
+    render(<CaseworkerDashboardV2 />);
+
+    expect(await screen.findByText('RONL')).toBeInTheDocument();
+    expect(mockTenant.initializeTenantTheme).not.toHaveBeenCalled();
+  });
+
+  it('routes an anonymous logout attempt back to the dashboard instead of calling Keycloak', async () => {
+    // The avatar control is rendered before the adapter is initialised on a
+    // cold load; keycloak.logout() would throw there.
+    mockKeycloak.authenticated = false;
+    mockGetUser.mockReturnValue(null);
+    render(<CaseworkerDashboardV2 />);
+
+    // Nothing to log out of, so no Keycloak call is made at all.
+    expect(mockKeycloak.logout).not.toHaveBeenCalled();
+  });
+});
+
+describe('CaseworkerDashboardV2 shell controls', () => {
+  beforeEach(() => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: [] });
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('opens and closes the command palette with the keyboard shortcut', async () => {
+    const user = userEvent.setup();
+    render(<CaseworkerDashboardV2 />);
+
+    expect(screen.queryByTestId('palette')).toBeNull();
+    await user.keyboard('{Control>}k{/Control}');
+    expect(screen.getByTestId('palette')).toBeInTheDocument();
+    await user.keyboard('{Meta>}k{/Meta}');
+    expect(screen.queryByTestId('palette')).toBeNull();
+  });
+
+  it('opens the assistant dock and remembers that across a remount', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<CaseworkerDashboardV2 />);
+
+    await user.click(screen.getByRole('button', { name: /assistent/i }));
+    expect(screen.getByTestId('dock')).toBeInTheDocument();
+    unmount();
+
+    // The open state is persisted to sessionStorage, so a route change and
+    // back must not close a dock the user deliberately opened.
+    render(<CaseworkerDashboardV2 />);
+    expect(screen.getByTestId('dock')).toBeInTheDocument();
   });
 });

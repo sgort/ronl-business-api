@@ -28,13 +28,19 @@ jest.mock('@auth/jwt.middleware', () => ({
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+    // Keycloak realms differ in which name claims they map. `x-test-claims`
+    // selects the shape under test: 'full' (the default) is every claim
+    // present, 'username-only' drops given_name so the preferred_username
+    // fallback is what names the signer, and 'nameless' drops all three so
+    // the last-resort empty strings are.
+    const claims = (req.headers['x-test-claims'] as string | undefined) ?? 'full';
     req.user = {
       userId: 'u1',
       tenantId: 'flevoland',
       email: (req.headers['x-test-email'] as string | undefined) ?? 'signer@flevoland.nl',
-      givenName: 'Jan',
-      familyName: 'van der Berg',
-      preferredUsername: 'jvdberg',
+      ...(claims === 'full' ? { givenName: 'Jan' } : {}),
+      ...(claims === 'nameless' ? {} : { familyName: 'van der Berg' }),
+      ...(claims === 'nameless' ? {} : { preferredUsername: 'jvdberg' }),
     } as Request['user'];
     next();
   },
@@ -82,6 +88,7 @@ import helmet from 'helmet';
 import request from 'supertest';
 import validsignRouter, {
   callbackRouter,
+  deriveBoardHandOverUrl,
   isCallbackPath,
   resetCallbackLimiterForTests,
 } from './validsign.routes';
@@ -153,12 +160,20 @@ app.use('/v1/validsign', validsignRouter);
 
 const authHeader = { 'x-test-auth': '1' };
 
-const mockConfig = config as unknown as { corsOrigin: string[] };
+const mockConfig = config as unknown as {
+  // Deliberately `unknown`, not `string[]`: corsOriginList() reads this
+  // defensively because the real config permits a comma-separated string as
+  // well as an array, and the tests below drive both -- plus the
+  // neither-shape case that the normalisation exists to survive.
+  corsOrigin: unknown;
+  validsign: { callbackSecret: string; senderEmail: string };
+};
 
 beforeEach(async () => {
   jest.clearAllMocks();
   mockValidsign.isStub = true;
   mockConfig.corsOrigin = ['http://localhost:5173', 'http://localhost:3000'];
+  mockConfig.validsign.senderEmail = 'sender@flevoland.nl';
   mockGetTask.mockResolvedValue({
     id: 'task-1',
     processInstanceId: 'pi-1',
@@ -872,5 +887,229 @@ describe('stub ceremony framing headers (iframe embed from a different origin)',
     expect(res.status).toBe(200);
     expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
     expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self'");
+  });
+});
+
+describe('corsOrigin normalisation', () => {
+  // corsOriginList() is the single reader of config.corsOrigin for both the
+  // ceremony's frame-ancestors header and deriveBoardHandOverUrl. The real
+  // config permits a comma-separated string as well as an array, and an unset
+  // value reaches here as neither, so all three shapes are exercised through
+  // an observable route rather than against the helper directly.
+  const cspOf = async (): Promise<string> => {
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+    return res.headers['content-security-policy'] as string;
+  };
+
+  it('splits a comma-separated string into separate origins', async () => {
+    mockConfig.corsOrigin = 'https://ronl.flevoland.nl, https://acc.ronl.flevoland.nl';
+    expect(await cspOf()).toContain(
+      'frame-ancestors https://ronl.flevoland.nl https://acc.ronl.flevoland.nl'
+    );
+  });
+
+  it('falls back to self when corsOrigin is neither an array nor a string', async () => {
+    mockConfig.corsOrigin = undefined;
+    expect(await cspOf()).toContain("frame-ancestors 'self'");
+  });
+
+  it('derives the handOver URL from a comma-separated string too', () => {
+    mockConfig.corsOrigin = 'https://ronl.flevoland.nl,https://acc.ronl.flevoland.nl';
+    expect(deriveBoardHandOverUrl()).toBe('https://ronl.flevoland.nl/dashboard/infra-board');
+  });
+
+  it('omits the handOver URL when the first origin is not a parseable URL', () => {
+    mockConfig.corsOrigin = ['not a url'];
+    expect(deriveBoardHandOverUrl()).toBeUndefined();
+  });
+});
+
+describe('deriveBoardHandOverUrl private-network guard', () => {
+  // A real ceremony's handOver link is followed by the signer's own browser on
+  // the public internet, where Private Network Access blocks navigation to any
+  // private address outright -- stranding the signer on a browser error page
+  // immediately after a legally recorded signature. Every private range must
+  // therefore resolve to "omit", not to a URL.
+  const privateOrigins = [
+    ['loopback by name', 'http://localhost:5173'],
+    ['IPv6 loopback', 'http://[::1]:5173'],
+    ['a bare hostname with no dot', 'http://backend:3000'],
+    ['127.0.0.0/8', 'http://127.0.0.1:3000'],
+    ['10.0.0.0/8', 'http://10.1.2.3'],
+    ['172.16.0.0/12, low end', 'http://172.16.0.1'],
+    ['172.16.0.0/12, high end', 'http://172.31.255.254'],
+    ['192.168.0.0/16', 'http://192.168.1.10'],
+    ['169.254.0.0/16 link-local', 'http://169.254.1.1'],
+  ] as const;
+
+  it.each(privateOrigins)('omits the handOver URL for %s', (_label, origin) => {
+    mockConfig.corsOrigin = [origin];
+    expect(deriveBoardHandOverUrl()).toBeUndefined();
+  });
+
+  // Adjacent to, but outside, the private ranges above -- these must NOT be
+  // swept up by the octet checks.
+  const publicOrigins = [
+    [
+      'a public hostname',
+      'https://ronl.flevoland.nl',
+      'https://ronl.flevoland.nl/dashboard/infra-board',
+    ],
+    [
+      '172.15.x, just below the private block',
+      'http://172.15.0.1',
+      'http://172.15.0.1/dashboard/infra-board',
+    ],
+    ['172.32.x, just above it', 'http://172.32.0.1', 'http://172.32.0.1/dashboard/infra-board'],
+    ['192.167.x', 'http://192.167.1.1', 'http://192.167.1.1/dashboard/infra-board'],
+    ['169.253.x', 'http://169.253.1.1', 'http://169.253.1.1/dashboard/infra-board'],
+    ['a public IPv4', 'http://8.8.8.8', 'http://8.8.8.8/dashboard/infra-board'],
+  ] as const;
+
+  it.each(publicOrigins)('derives the handOver URL for %s', (_label, origin, expected) => {
+    mockConfig.corsOrigin = [origin];
+    expect(deriveBoardHandOverUrl()).toBe(expected);
+  });
+});
+
+describe('ceremony framing headers with no CSP already on the response', () => {
+  // index.ts mounts helmet, so in production there is always a CSP string to
+  // rewrite. The header rewriter must not assume that: a deployment that drops
+  // helmet, or any ordering that puts this router first, hands it none.
+  const bareApp = express();
+  bareApp.use(express.json());
+  // The stub ceremony lives on callbackRouter -- it is unauthenticated by
+  // design, so it is registered alongside the callback rather than behind the
+  // jwt/tenant middleware the authenticated router carries.
+  bareApp.use('/v1/validsign', callbackRouter);
+
+  it('sets frame-ancestors even when no CSP header exists yet', async () => {
+    mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
+    const res = await request(bareApp).get('/v1/validsign/stub/ceremony/pkg-1');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-security-policy']).toBe(
+      'frame-ancestors http://localhost:5173 http://localhost:3000'
+    );
+  });
+});
+
+describe('the stub ceremony page escapes what it interpolates', () => {
+  it('escapes a signer name carrying HTML metacharacters', async () => {
+    // stubSignerName comes from the token that created the package, so it is
+    // caller-influenced input rendered into an unauthenticated HTML page.
+    mockValidsign.stubSignerName.mockReturnValue(
+      "Jan <script>alert('x')</script> & co" +
+        String.fromCharCode(34) +
+        'quoted' +
+        String.fromCharCode(34)
+    );
+
+    const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
+
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('<script>alert');
+    expect(res.text).toContain('&lt;script&gt;');
+    expect(res.text).toContain('&amp;');
+    expect(res.text).toContain('&quot;');
+    expect(res.text).toContain('&#39;');
+  });
+});
+
+describe('POST /v1/validsign/task/:taskId/package, further cases', () => {
+  const specStubs = (): void => {
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({});
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-1', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-1');
+  };
+
+  it('401s when the request carries no authenticated user', async () => {
+    const res = await request(app)
+      .post('/v1/validsign/task/task-1/package')
+      .set('x-test-no-user', '1');
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(mockValidsign.createPackage).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the signer as sender when no sender email is configured', async () => {
+    specStubs();
+    mockConfig.validsign.senderEmail = '';
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(200);
+    expect(mockValidsign.createPackage.mock.calls[0][0].senderEmail).toBe('signer@flevoland.nl');
+  });
+
+  it('names the signer from preferred_username when the token has no given_name', async () => {
+    specStubs();
+
+    const res = await request(app)
+      .post('/v1/validsign/task/task-1/package')
+      .set(authHeader)
+      .set('x-test-claims', 'username-only');
+
+    expect(res.status).toBe(200);
+    expect(mockValidsign.createPackage.mock.calls[0][0].signer).toEqual({
+      email: 'signer@flevoland.nl',
+      firstName: 'jvdberg',
+      lastName: 'van der Berg',
+    });
+  });
+
+  it('sends empty name fields rather than undefined when the token carries no name claims', async () => {
+    // ValidSign rejects a role whose signer is missing firstName/lastName
+    // outright; empty strings are accepted and show the email instead.
+    specStubs();
+
+    const res = await request(app)
+      .post('/v1/validsign/task/task-1/package')
+      .set(authHeader)
+      .set('x-test-claims', 'nameless');
+
+    expect(res.status).toBe(200);
+    expect(mockValidsign.createPackage.mock.calls[0][0].signer).toEqual({
+      email: 'signer@flevoland.nl',
+      firstName: '',
+      lastName: '',
+    });
+  });
+});
+
+describe('POST /v1/validsign/callback, body edge cases', () => {
+  it('treats a callback with no packageId as an empty id rather than throwing', async () => {
+    mockCompleteSignature.mockResolvedValue('unknown');
+
+    const res = await request(app)
+      .post('/v1/validsign/callback')
+      .set('x-validsign-secret', 'secret')
+      .send({ name: 'PACKAGE_COMPLETE' });
+
+    expect(res.status).toBe(200);
+    expect(mockCompleteSignature).toHaveBeenCalledWith('');
+  });
+
+  it('rejects a body over the 16kb callback limit in the API envelope', async () => {
+    // The callback is exempted from the app-wide JSON parser precisely so an
+    // oversized body fails inside this router, where its own error handler can
+    // answer in the API envelope instead of Express' default HTML page. It
+    // answers 400 rather than body-parser's own 413 deliberately: a caller
+    // that is not ValidSign learns nothing about the limit from it.
+    const res = await request(app)
+      .post('/v1/validsign/callback')
+      .set('x-validsign-secret', 'secret')
+      .set('content-type', 'application/json')
+      .send(JSON.stringify({ packageId: 'pkg-1', pad: 'x'.repeat(20 * 1024) }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_BODY');
+    expect(mockCompleteSignature).not.toHaveBeenCalled();
   });
 });

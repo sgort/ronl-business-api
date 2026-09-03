@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PADock from './PADock';
 
@@ -68,5 +68,107 @@ describe('PADock', () => {
     await user.click(screen.getByRole('button', { name: 'Sluiten' }));
 
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('PADock storage and drag resize', () => {
+  it('restores a stored conversation', () => {
+    sessionStorage.setItem(
+      'paV2.assistant.messages',
+      JSON.stringify([{ role: 'user', content: 'Hallo' }])
+    );
+    expect(() => render(<PADock user={null} onClose={vi.fn()} />)).not.toThrow();
+  });
+
+  it('starts empty when the stored conversation is not valid JSON', () => {
+    // sessionStorage is shared with anything else on this origin and survives
+    // a deploy; a half-written or stale value must not take the dock down.
+    sessionStorage.setItem('paV2.assistant.messages', 'niet-json');
+    expect(() => render(<PADock user={null} onClose={vi.fn()} />)).not.toThrow();
+  });
+
+  it('falls back to the default width when the stored width is not a number', () => {
+    sessionStorage.setItem('paV2.assistant.width', 'breed');
+    const { container } = render(<PADock user={null} onClose={vi.fn()} />);
+    expect(container.querySelector('.pac-dock')).toHaveStyle({ width: '360px' });
+  });
+
+  it('survives sessionStorage being unavailable entirely', () => {
+    // Private-browsing modes and locked-down enterprise profiles throw on
+    // access rather than returning null.
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    try {
+      const { container } = render(<PADock user={null} onClose={vi.fn()} />);
+      expect(container.querySelector('.pac-dock')).toHaveStyle({ width: '360px' });
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
+  });
+
+  it('resizes by dragging the handle, and stops on pointer release', () => {
+    const { container } = render(<PADock user={null} onClose={vi.fn()} />);
+    const handle = screen.getByRole('separator');
+
+    fireEvent.pointerDown(handle);
+    expect(handle.className).toContain('dragging');
+    // The dock is right-anchored, so its width is the distance from the
+    // pointer to the right edge of the window.
+    fireEvent.pointerMove(window, { clientX: window.innerWidth - 420 });
+    expect(container.querySelector('.pac-dock')).toHaveStyle({ width: '420px' });
+
+    fireEvent.pointerUp(window);
+    expect(handle.className).not.toContain('dragging');
+
+    // After release the handle no longer tracks the pointer.
+    fireEvent.pointerMove(window, { clientX: window.innerWidth - 500 });
+    expect(container.querySelector('.pac-dock')).toHaveStyle({ width: '420px' });
+  });
+
+  it('abandons a drag that the browser cancels', () => {
+    render(<PADock user={null} onClose={vi.fn()} />);
+    const handle = screen.getByRole('separator');
+
+    fireEvent.pointerDown(handle);
+    fireEvent.pointerCancel(window);
+
+    expect(handle.className).not.toContain('dragging');
+  });
+
+  it('clamps a drag to the minimum and maximum width', () => {
+    const { container } = render(<PADock user={null} onClose={vi.fn()} />);
+    fireEvent.pointerDown(screen.getByRole('separator'));
+
+    fireEvent.pointerMove(window, { clientX: window.innerWidth });
+    expect(container.querySelector('.pac-dock')).toHaveStyle({ width: '320px' });
+
+    fireEvent.pointerMove(window, { clientX: -5000 });
+    const max = Math.min(720, Math.round(window.innerWidth * 0.6));
+    expect(container.querySelector('.pac-dock')).toHaveStyle({ width: `${max}px` });
+  });
+
+  it('ignores a key on the handle that is not a horizontal arrow', () => {
+    const { container } = render(<PADock user={null} onClose={vi.fn()} />);
+    const before = (container.querySelector('.pac-dock') as HTMLElement).style.width;
+
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowUp' });
+
+    expect((container.querySelector('.pac-dock') as HTMLElement).style.width).toBe(before);
+  });
+
+  it('restores the document cursor when the dock unmounts mid-drag', () => {
+    const { unmount } = render(<PADock user={null} onClose={vi.fn()} />);
+    fireEvent.pointerDown(screen.getByRole('separator'));
+    expect(document.body.style.cursor).toBe('col-resize');
+
+    unmount();
+
+    expect(document.body.style.cursor).toBe('');
+    expect(document.body.style.userSelect).toBe('');
   });
 });

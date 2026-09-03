@@ -63,4 +63,18 @@ describe('useProfielData', () => {
     expect(result.current.data).toBeNull();
     expect(result.current.loading).toBe(false);
   });
+  it('records an explicit null when the profile succeeds but carries no record', async () => {
+    // `undefined` means "not looked up yet" in this hook's contract, and the
+    // caller renders a placeholder for it. A successful lookup that found
+    // nothing has to collapse to null so the empty state shows instead.
+    mockProfile.mockResolvedValue({ success: true });
+
+    const { result } = renderHook(() => useProfielData('emp-1'));
+    await act(async () => {
+      await result.current.load('emp-1');
+    });
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
 });

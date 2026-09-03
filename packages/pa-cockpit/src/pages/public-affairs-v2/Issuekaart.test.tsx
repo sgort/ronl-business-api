@@ -340,3 +340,201 @@ describe('the other sub-tabs render their content', () => {
     expect(screen.getByText('Events')).toBeInTheDocument();
   });
 });
+
+describe('Issuekaart display variants', () => {
+  it('names an empty ritme column instead of leaving it blank', () => {
+    render(<Issuekaart dossier={makeDossier()} />);
+    // Every column is empty in the base fixture; an empty <ul> would read as a
+    // rendering fault rather than "nothing planned".
+    expect(screen.getAllByText('Geen geplande acties').length).toBeGreaterThan(0);
+  });
+
+  it('labels every stakeholder priority and sentiment', () => {
+    render(
+      <Issuekaart
+        dossier={makeDossier({
+          stakeholders: [
+            { naam: 'A', rol: 'Rol A', prio: 'nu', laatste: '2 dgn', senti: 'pos' },
+            { naam: 'B', rol: 'Rol B', prio: 'kort', laatste: '1 wk', senti: 'neg' },
+            { naam: 'C', rol: 'Rol C', prio: 'warm', laatste: '3 wk', senti: 'neu' },
+          ],
+        } as Partial<Dossier>)}
+      />
+    );
+
+    expect(screen.getByText('Nu spreken')).toBeInTheDocument();
+    expect(screen.getByText('Korte termijn')).toBeInTheDocument();
+    expect(screen.getByText('Warm houden')).toBeInTheDocument();
+    expect(screen.getByText('Positief')).toBeInTheDocument();
+    expect(screen.getByText('Kritisch')).toBeInTheDocument();
+    expect(screen.getByText('Neutraal')).toBeInTheDocument();
+  });
+
+  it('marks a planned timeline event and lists its documents', async () => {
+    const user = userEvent.setup();
+    render(
+      <Issuekaart
+        dossier={makeDossier({
+          timeline: [
+            { date: '1 jul 2026', title: 'Gebeurd', desc: 'Beschrijving', docs: [], future: false },
+            {
+              date: '1 sep 2026',
+              title: 'Gepland',
+              desc: 'Beschrijving',
+              docs: ['Notitie.pdf'],
+              future: true,
+            },
+          ],
+        } as Partial<Dossier>)}
+      />
+    );
+    await openTab(user, 'Tijdlijn');
+
+    expect(screen.getByText(/gepland/)).toBeInTheDocument();
+    expect(screen.getByText('Notitie.pdf')).toBeInTheDocument();
+  });
+});
+
+describe('Issuekaart signal rendering', () => {
+  it('distinguishes an AI concept from a rule candidate in the inbox', async () => {
+    paApi.fetchInbox.mockResolvedValue({
+      data: [
+        makeSignal({
+          id: 'i1',
+          status: 'ai_drafted',
+          bron: 'tk',
+          duiding: 'AI-duiding hier',
+          impact: 'kans',
+          impactLabel: 'Kans',
+          ref: { type: 'Motie', nr: '2026Z001', url: 'https://tk.nl/x' },
+        }),
+        makeSignal({ id: 'i2', status: 'candidate', bron: 'ob', duiding: null, impact: null }),
+      ],
+      meta: { total: 2, cap: 100, capped: false },
+    });
+    const user = userEvent.setup();
+    render(<Issuekaart dossier={makeDossier()} />);
+    await openTab(user, 'Monitoring');
+
+    expect(await screen.findByText('✦ AI-concept')).toBeInTheDocument();
+    expect(screen.getByText('Regel-kandidaat')).toBeInTheDocument();
+    expect(screen.getAllByText('Tweede Kamer').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Off. Bekendmakingen').length).toBeGreaterThan(0);
+    expect(screen.getByText('AI-duiding hier')).toBeInTheDocument();
+    // A rule candidate carries no AI reading, and the panel says so rather than
+    // leaving an empty block that looks like a loading state.
+    expect(screen.getByText(/Handmatige duiding nodig/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /2026Z001/ })).toHaveAttribute(
+      'href',
+      'https://tk.nl/x'
+    );
+    expect(screen.getAllByText('Kans').length).toBeGreaterThan(0);
+  });
+
+  it('leaves the source chip blank for an inbox signal from a source it has no label for', async () => {
+    paApi.fetchInbox.mockResolvedValue({
+      data: [makeSignal({ id: 'i3', status: 'candidate', bron: 'eu' })],
+      meta: { total: 1, cap: 100, capped: false },
+    });
+    const user = userEvent.setup();
+    const { container } = render(<Issuekaart dossier={makeDossier()} />);
+    await openTab(user, 'Monitoring');
+
+    await screen.findByText('Regel-kandidaat');
+    expect(container.querySelector('.pac-bron-eu')).toHaveTextContent('');
+  });
+
+  it('shows the confirming curator and the reference on a curated signal', async () => {
+    paApi.fetchSignals.mockResolvedValue([
+      makeSignal({
+        id: 'c1',
+        bron: 'ob',
+        duiding: 'Handmatige duiding',
+        confirmedBy: 'Sanne Bakker',
+        confirmedAt: '2 jul 2026',
+        ref: { type: 'Besluit', nr: 'stcrt-1', url: 'https://ob.nl/y' },
+      }),
+    ]);
+    const user = userEvent.setup();
+    render(<Issuekaart dossier={makeDossier()} />);
+    await openTab(user, 'Monitoring');
+
+    expect(await screen.findByText(/Bevestigd door Sanne Bakker/)).toBeInTheDocument();
+    expect(screen.getByText('Handmatige duiding')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /stcrt-1/ })).toHaveAttribute(
+      'href',
+      'https://ob.nl/y'
+    );
+  });
+});
+
+describe('Issuekaart overlegbox', () => {
+  it('shows the placeholder until the first message is posted', async () => {
+    const user = userEvent.setup();
+    render(<Issuekaart dossier={makeDossier({ overleg: [] } as Partial<Dossier>)} />);
+    await openTab(user, 'OverlegBox');
+
+    const box = screen.getByPlaceholderText(/Schrijf een bericht/);
+    await user.type(box, 'Eerste bericht{Enter}');
+
+    expect(screen.getByText('Eerste bericht')).toBeInTheDocument();
+  });
+
+  it('ignores an empty or whitespace-only message', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <Issuekaart dossier={makeDossier({ overleg: [] } as Partial<Dossier>)} />
+    );
+    await openTab(user, 'OverlegBox');
+
+    const box = screen.getByPlaceholderText(/Schrijf een bericht/);
+    await user.type(box, '   {Enter}');
+    await user.click(screen.getByRole('button', { name: 'Plaats' }));
+
+    expect(container.querySelectorAll('.pac-msg')).toHaveLength(0);
+  });
+
+  it('posts via the button as well as the Enter key', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <Issuekaart dossier={makeDossier({ overleg: [] } as Partial<Dossier>)} />
+    );
+    await openTab(user, 'OverlegBox');
+
+    await user.type(screen.getByPlaceholderText(/Schrijf een bericht/), 'Via de knop');
+    await user.click(screen.getByRole('button', { name: 'Plaats' }));
+
+    expect(container.querySelectorAll('.pac-msg')).toHaveLength(1);
+    expect(screen.getByText('Via de knop')).toBeInTheDocument();
+  });
+});
+
+describe('Issuekaart watch toggle', () => {
+  it('ignores a second click while the first is still in flight', async () => {
+    // The bell is a single control over a network round trip; a double click
+    // would otherwise fire watch and unwatch and settle on the wrong state.
+    let release!: () => void;
+    const watchDossier = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+    );
+    mockUsePaData.mockReturnValue(
+      makePaDataStub({
+        watchDossier,
+        unwatchDossier: vi.fn().mockResolvedValue(undefined),
+      })
+    );
+    const user = userEvent.setup();
+    render(<Issuekaart dossier={makeDossier()} />);
+
+    const bell = await screen.findByRole('button', { name: 'Volgen' });
+    await user.click(bell);
+    await user.click(bell).catch(() => undefined);
+
+    expect(watchDossier).toHaveBeenCalledTimes(1);
+    release();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Volgend' })).toBeEnabled());
+  });
+});
