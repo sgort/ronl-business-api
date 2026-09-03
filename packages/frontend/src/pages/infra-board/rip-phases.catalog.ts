@@ -340,15 +340,32 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
     stage: 'R5',
     name: '(Vervroegde) ingebruikname / oplevering',
     lead: 'Directievoerder',
-    beyond: true,
-    roles: ['Directievoerder', 'Toezichthouder', 'Opdrachtnemer'],
+    roles: [
+      'Directievoerder',
+      'Toezichthouder',
+      'Opdrachtnemer',
+      'Vestigingsmanager',
+      'Beheerder',
+      'Projectleider',
+    ],
     entry: 'Werk gereed gemeld in R5.2',
-    exit: '—',
-    docs: [],
-    gates: [],
+    exit: 'Oplevering areaal → R5.4; anders terug naar R5.2 (restpunten, of vervroegde ingebruikname naast doorlopend werk)',
+    docs: [
+      'Opleveringschouw',
+      'Bevindingen opleverschouw',
+      'Opleveringschouw vastgesteld',
+      'Ingebruiknameschouw',
+      'Bevindingen ingebruiknameschouw',
+      'Ingebruiknameschouw vastgesteld',
+    ],
+    gates: [
+      'Oplevering of (vervroegde) ingebruikname?',
+      'Oplevering akkoord?',
+      'Akkoord (vervroegde) ingebruikname?',
+    ],
     krediet: false,
     weeks: 4,
-    bron: 'PLACEHOLDER — geen overzichtsplaat aangeleverd. Bekend uit verwijzingen in R5.2 (organiseren interne schouw, restpunten oplossen door ON) en R5.4 (oplevering areaal).',
+    bron: 'Overzichtsplaat R5.3 — (vervroegde) Ingebruikname / Oplevering (3-9-2026). Vier eindgebeurtenissen: één naar R5.4 (oplevering areaal), drie terug naar R5.2 (restpunten, vervroegde ingebruikname, restpunten door ON). Geen lus binnen de fase.',
   },
   {
     code: 'R5.4',
@@ -467,16 +484,13 @@ export function getPhaseDeployStatus(
 /**
  * The phase a project must have finished before it can start `code`.
  *
- * Not simply `RIP_PHASES[i - 1]`: a `beyond` phase is skipped. R5.3 is the
- * only one today, and skipping it is a deliberate assertion rather than a
- * technicality. R5.4's entry criterion reads "Oplevering areaal na R5.3", so
- * R5.3 genuinely happens — but it has no overzichtsplaat, no process model,
- * and (decisively) no exit artefact at all, so nothing about its completion
- * is observable here. Every other transition in the ladder is triggered by a
- * named deliverable that the previous phase's exit criterion produces.
+ * Skips any `beyond` phase. No phase is beyond any more — R5.3 was the last
+ * one and is modelled and deployed as RipR53Process — so this now resolves to
+ * `RIP_PHASES[i - 1]` for every phase, and R5.4 follows R5.3 rather than R5.2.
+ * The skip is kept only until the unused `beyond` machinery is removed.
  *
  * Callers that surface a skip to the user should say so; see
- * `skippedPhasesBefore`.
+ * `skippedPhasesBefore`, which is now empty for every phase.
  *
  * Returns undefined for the first phase, which has no predecessor.
  */

@@ -52,7 +52,9 @@ describe('FaseladderOverview', () => {
   it('renders one row per phase, grouped under five stage headers', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     RIP_PHASES.forEach((p) => {
-      expect(screen.getByText(p.code, { exact: false })).toBeInTheDocument();
+      // getAllByText, not getByText: R5.3 is startable now that it is modelled,
+      // so its code appears in the start control as well as its own row.
+      expect(screen.getAllByText(p.code, { exact: false }).length).toBeGreaterThan(0);
     });
     RIP_STAGES.forEach((s) => {
       expect(screen.getAllByText(s.name, { exact: false }).length).toBeGreaterThan(0);
@@ -117,13 +119,14 @@ describe('FaseladderOverview', () => {
     expect(row?.textContent).toContain('—');
   });
 
-  it('labels the WIP column "WIP / Geparkeerd" and shows R5.3\'s geparkeerd count there', () => {
+  it('shows R5.3 in the WIP column like any other phase', () => {
+    // The column is still labelled "WIP / Geparkeerd" here; R5.3 was the only
+    // phase that could ever produce a geparkeerd figure and no longer does.
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
-    expect(screen.getByText('WIP / Geparkeerd')).toBeInTheDocument();
     const mockCounts = getMockPhaseCounts();
     const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
-    const row = screen.getByText(r53.code, { exact: false }).closest('tr');
-    expect(row?.textContent).toContain(String(mockCounts['R5.3'].geparkeerd));
+    const row = screen.getAllByText(r53.code, { exact: false })[0].closest('tr');
+    expect(row?.textContent).toContain(String(mockCounts['R5.3'].wip));
   });
 });
 

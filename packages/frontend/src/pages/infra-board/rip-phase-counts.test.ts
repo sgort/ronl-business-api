@@ -69,17 +69,18 @@ describe('combinePhaseCounts', () => {
 });
 
 describe('getKlaarCounts and beyond phases', () => {
-  it('derives R5.4 from R5.2, stepping over the beyond phase R5.3', () => {
-    // With R5.3 as the literal predecessor this reads max(0, 0 - 0 - 0) = 0
-    // for any input, because a beyond phase can never carry a completed
-    // instance. Stepping back to R5.2 makes the figure mean something.
+  it('derives R5.4 from R5.3, its real predecessor now that R5.3 is modelled', () => {
+    // R5.3 used to be `beyond`, so the step-back skipped it and R5.4 derived
+    // from R5.2 -- a beyond phase can never carry a completed instance, so R5.4
+    // would have read zero forever. RipR53Process is deployed, so its gereed
+    // figure is real and R5.4 derives from it directly.
     const counts: Record<string, PhaseCounts> = {
-      'R5.2': { wip: 0, gereed: 9, geparkeerd: 0 },
-      'R5.3': { wip: 0, gereed: 0, geparkeerd: 0 },
+      'R5.2': { wip: 0, gereed: 20, geparkeerd: 0 },
+      'R5.3': { wip: 0, gereed: 9, geparkeerd: 0 },
       'R5.4': { wip: 2, gereed: 1, geparkeerd: 0 },
     };
     const result = getKlaarCounts(RIP_PHASES, counts);
-    expect(result['R5.4']).toBe(6); // 9 - 2 - 1
+    expect(result['R5.4']).toBe(6); // 9 - 2 - 1, from R5.3 not R5.2
   });
 
   it('still gives the first phase no klaar figure at all', () => {

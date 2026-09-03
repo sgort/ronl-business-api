@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  getMockGeparkeerdRows,
   getMockGereedRows,
   getMockPhaseCounts,
   getMockPhaseInstanceDetail,
@@ -289,9 +288,10 @@ describe('getMockWipRows / getMockGereedRows / getMockGeparkeerdRows', () => {
     }
   });
 
-  it('never returns wip rows for the beyond (R5.3) phase', () => {
+  it('returns wip rows for R5.3 like any other phase now that it is modelled', () => {
     const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
-    expect(getMockWipRows(r53)).toEqual([]);
+    const counts = getMockPhaseCounts();
+    expect(getMockWipRows(r53).length).toBe(counts['R5.3'].wip);
   });
 
   it('reaches R5.4 and R6.1 — unreachable under the old legacy-bucket derivation', () => {
@@ -300,9 +300,12 @@ describe('getMockWipRows / getMockGereedRows / getMockGeparkeerdRows', () => {
     expect(codes.has('R6.1')).toBe(true);
   });
 
-  it('getMockGeparkeerdRows matches getMockPhaseCounts geparkeerd count for R5.3', () => {
+  it('counts nothing as geparkeerd anywhere, now that no phase is beyond', () => {
+    // geparkeerd only ever accrued in getMockPhaseCounts's phase.beyond branch,
+    // and R5.3 was the only phase that took it.
     const counts = getMockPhaseCounts();
-    const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
-    expect(getMockGeparkeerdRows(r53).length).toBe(counts['R5.3'].geparkeerd);
+    for (const phase of RIP_PHASES) {
+      expect(counts[phase.code].geparkeerd).toBe(0);
+    }
   });
 });

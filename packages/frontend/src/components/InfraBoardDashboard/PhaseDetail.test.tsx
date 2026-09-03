@@ -8,9 +8,7 @@ import {
   getReadyProjects,
   getOutOfSequenceProjects,
   getMockPortfolio,
-  getMockGeparkeerdRows,
 } from '../../pages/infra-board/infra-board.data';
-import { HEALTH } from '../../pages/infra-board/rip-model';
 
 const mockUseDeployedProcessKeys = vi.hoisted(() => vi.fn());
 const mockUseLivePhaseCounts = vi.hoisted(() => vi.fn());
@@ -109,39 +107,10 @@ describe('PhaseDetail — header and side panel', () => {
   });
 });
 
-describe('PhaseDetail — R5.3 (beyond)', () => {
-  it('renders a placeholder instead of the tab shell', () => {
-    render(<PhaseDetail phaseCode="R5.3" onBack={vi.fn()} />);
-    expect(screen.queryByText('Starten')).not.toBeInTheDocument();
-    expect(screen.queryByText('WIP')).not.toBeInTheDocument();
-    expect(screen.getByText('Niet gemodelleerd', { exact: false })).toBeInTheDocument();
-  });
-
-  it('lists every geparkeerd project with its number, name, and health', () => {
-    render(<PhaseDetail phaseCode="R5.3" onBack={vi.fn()} />);
-    const parked = getMockGeparkeerdRows(ripPhaseByCode('R5.3')!);
-    expect(parked.length).toBeGreaterThan(0);
-
-    // Scoped to the heading itself: an unscoped count lookup could collide
-    // with the meta strip's "Betrokken rollen" number elsewhere on the
-    // page if the two ever happen to match.
-    const heading = screen.getByText('Geparkeerde projecten', { exact: false }).closest('h2');
-    expect(heading).not.toBeNull();
-    expect(within(heading!).getByText(String(parked.length))).toBeInTheDocument();
-
-    const first = parked[0];
-    const row = screen.getByText(first.naam, { exact: false }).closest('li');
-    expect(row).not.toBeNull();
-    expect(within(row!).getByText(first.nr, { exact: false })).toBeInTheDocument();
-    expect(within(row!).getByTitle(HEALTH[first.health].label)).toBeInTheDocument();
-  });
-
-  it('shows the phase source below the parked list', () => {
-    render(<PhaseDetail phaseCode="R5.3" onBack={vi.fn()} />);
-    const phase = ripPhaseByCode('R5.3')!;
-    expect(screen.getByText(phase.bron, { exact: false })).toBeInTheDocument();
-  });
-});
+// The 'PhaseDetail - R5.3 (beyond)' block was removed here: it drove the
+// "Niet gemodelleerd" placeholder and the geparkeerde-projecten list through
+// R5.3, which is modelled now. PhaseDetail resolves phaseCode against the real
+// catalogue, so no synthetic fixture can reach that branch.
 
 describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
   it('shows the single-button fallback when the ready-list is empty and there is no predecessor', () => {
@@ -753,12 +722,12 @@ describe('PhaseDetail — starting the next phase from a finished predecessor', 
     expect(screen.queryByText('24011')).not.toBeInTheDocument();
   });
 
-  it('discloses on R5.4 that R5.3 is handled outside the tool', () => {
+  it('no longer discloses a skipped phase on R5.4, now that R5.3 is modelled', () => {
     render(<PhaseDetail phaseCode="R5.4" onBack={vi.fn()} />);
 
-    // R5.4's entry criterion is "Oplevering areaal na R5.3", so a project
-    // arriving straight from R5.2 must not imply the board saw the oplevering.
-    expect(screen.getByText(/R5\.3.*buiten deze tool afgehandeld/)).toBeInTheDocument();
+    // R5.4's entry criterion is "Oplevering areaal na R5.3". That oplevering is
+    // an observable exit now, so there is nothing outside the tool to disclose.
+    expect(screen.queryByText(/buiten deze tool afgehandeld/)).not.toBeInTheDocument();
   });
 
   it('shows no such notice on a phase with an ordinary predecessor', () => {

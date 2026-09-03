@@ -185,14 +185,16 @@ describe('beheerRailPhaseGroups', () => {
       });
   });
 
-  it('gives the one beyond phase (R5.3) a parkedCount and no count', () => {
+  it('gives R5.3 an ordinary wip count now that it is modelled', () => {
+    // R5.3 was the catalogue's only `beyond` phase and carried a geparkeerd
+    // badge instead of a WIP one. It takes the same badge as every other phase.
     const combined: Record<string, AnnotatedPhaseCounts> = {
-      'R5.3': { wip: 0, gereed: 0, geparkeerd: 4, liveWip: 0, liveGereed: 0, liveGeparkeerd: 0 },
+      'R5.3': { wip: 3, gereed: 0, geparkeerd: 0, liveWip: 0, liveGereed: 0, liveGeparkeerd: 0 },
     };
     const groups = beheerRailPhaseGroups(combined, new Set());
     const r53 = groups.flatMap((g) => g.phases).find((p) => p.phase.code === 'R5.3');
-    expect(r53?.count).toBeUndefined();
-    expect(r53?.parkedCount).toBe(4);
+    expect(r53?.count).toBe(3);
+    expect(r53?.parkedCount).toBeUndefined();
   });
 
   it('sources count from the combined map when present', () => {
