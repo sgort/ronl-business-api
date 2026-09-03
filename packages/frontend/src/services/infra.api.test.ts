@@ -530,10 +530,9 @@ describe('usePhaseSwimlane', () => {
     expect(mockBusinessApi.rip.phaseModel).not.toHaveBeenCalled();
     // Pins the ACTUAL resulting state deliberately: "no phase selected" is a
     // clean idle state, not a fetch failure. See the doc comment on
-    // `usePhaseSwimlane` -- a straight delegate to `useAsync` would resolve
-    // this case to `{ success: true, data: undefined }`, which `useAsync`
-    // treats as `error: true`; this hook overrides that outward-facing
-    // result rather than bending `useAsync` itself.
+    // `usePhaseSwimlane` -- the null branch resolves to a genuinely defined
+    // empty model so it lands in `useAsync`'s own success path; only `data`
+    // is then overridden back to `null` here, `error` is never touched.
     expect(result.current.data).toBeNull();
     expect(result.current.error).toBe(false);
   });
@@ -547,5 +546,78 @@ describe('usePhaseSwimlane', () => {
 
     expect(result.current.error).toBe(true);
     expect(result.current.data).toBeNull();
+  });
+
+  // Regression tests for a real, deterministic bug in an earlier version of
+  // this hook: it overrode the *whole* returned object while `phaseCode` was
+  // null, which meant `useAsync`'s internal `error: true` (set for that
+  // branch, since it used to resolve `data: undefined`) stayed masked only
+  // for as long as the code stayed null. On the render that processed the
+  // code turning real, the hook stopped overriding and returned `useAsync`'s
+  // raw state directly -- one render before the re-triggered effect got to
+  // reset `error` -- so every null -> real-code transition produced exactly
+  // one committed render reporting a spurious `error: true`. A test that
+  // only checks the final settled state would never see this: it needs to
+  // inspect every render committed during the transition, not just the last
+  // one.
+  describe('across a phaseCode transition', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('never reports error:true on any committed render, null -> real code', async () => {
+      mockBusinessApi.rip.phaseModel.mockClear();
+      const model = { phaseCode: 'R2.2', lanes: [], nodes: [], edges: [] };
+      mockBusinessApi.rip.phaseModel.mockResolvedValue({ success: true, data: model });
+
+      const seenErrors: boolean[] = [];
+      const { result, rerender } = renderHook(
+        ({ code }: { code: string | null }) => {
+          const state = usePhaseSwimlane(code);
+          seenErrors.push(state.error);
+          return state;
+        },
+        { initialProps: { code: null as string | null } }
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(seenErrors).not.toContain(true);
+
+      rerender({ code: 'R2.2' });
+
+      // Checked synchronously, immediately after the transition commits --
+      // this is exactly the render the earlier implementation got wrong.
+      expect(seenErrors).not.toContain(true);
+
+      await waitFor(() => expect(result.current.data).toEqual(model));
+      expect(seenErrors).not.toContain(true);
+    });
+
+    it('never reports error:true on any committed render, real code -> null', async () => {
+      mockBusinessApi.rip.phaseModel.mockClear();
+      const model = { phaseCode: 'R2.1', lanes: [], nodes: [], edges: [] };
+      mockBusinessApi.rip.phaseModel.mockResolvedValue({ success: true, data: model });
+
+      const seenErrors: boolean[] = [];
+      const { result, rerender } = renderHook(
+        ({ code }: { code: string | null }) => {
+          const state = usePhaseSwimlane(code);
+          seenErrors.push(state.error);
+          return state;
+        },
+        { initialProps: { code: 'R2.1' as string | null } }
+      );
+
+      await waitFor(() => expect(result.current.data).toEqual(model));
+      expect(seenErrors).not.toContain(true);
+
+      rerender({ code: null });
+
+      expect(seenErrors).not.toContain(true);
+      expect(result.current.data).toBeNull();
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(seenErrors).not.toContain(true);
+    });
   });
 });

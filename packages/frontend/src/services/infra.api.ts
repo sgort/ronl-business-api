@@ -216,32 +216,51 @@ export function useRipPhaseReadiness(
 }
 
 /**
+ * A defined, neutral model for the null-code branch below -- it exists ONLY
+ * to land that branch's fetch in `useAsync`'s SUCCESS path (`data !==
+ * undefined`), the same trick every sibling null-skippable hook above plays
+ * with `[]`/`{}`. It is never rendered; `usePhaseSwimlane` overrides `data`
+ * back to `null` for the outward-facing null-code result.
+ */
+const EMPTY_SWIMLANE: PhaseSwimlaneModel = { phaseCode: '', lanes: [], nodes: [], edges: [] };
+
+/**
  * Swimlane model for one RIP phase. Pass null to skip the request -- e.g.
  * while nothing is selected yet.
  *
- * Deliberately does NOT delegate straight to `useAsync` the way the other
- * null-skippable hooks above do: those resolve the null case to a sensible
- * empty array/object default, so `useAsync`'s "data undefined -> error"
- * branch never fires. A swimlane model has no such empty default -- returning
- * a fake half-populated model would be worse than returning nothing -- so the
- * underlying fetch resolves `{ success: true, data: undefined }` for the null
- * case, which *would* land in `useAsync`'s error branch. Rather than bending
- * `useAsync` (other hooks depend on its current behaviour), this hook keeps
- * its own tiny override: for a null code it reports a clean idle state
- * instead of surfacing that internal error. "No phase selected" is not a
- * fetch failure.
+ * The null-code fetch resolves to `EMPTY_SWIMLANE`, a genuinely defined
+ * value, so `useAsync` treats it as a normal success -- its `error` state is
+ * never set for that branch at all. Only `data` is overridden back to `null`
+ * for the outward result; `loading`, `error` and `reload` are `useAsync`'s
+ * own, completely unmodified.
+ *
+ * An earlier version instead overrode the *whole* returned object whenever
+ * `phaseCode` was null, resolving the null branch to `{ success: true, data:
+ * undefined }` -- which *does* land in `useAsync`'s error branch internally.
+ * That internal `error: true` was invisible only for as long as `phaseCode`
+ * stayed null; on the transition to a real code it was NOT masked or
+ * harmless -- it leaked. The render that processes the new prop stops
+ * overriding (since `phaseCode` is now truthy) and returns `useAsync`'s raw
+ * state directly, and it does so one render before the re-triggered effect
+ * (deps `[phaseCode, tick]`) gets to run its own `setError(false)`. So every
+ * null -> real-code transition deterministically produced one committed
+ * render reporting `{ data: null, loading: false, error: true }` before
+ * self-correcting -- a real, visible spurious error a consumer keyed on
+ * `error` (a toast, a boundary) could act on. Landing the null branch in
+ * `useAsync`'s success path instead means there is no stale internal `error:
+ * true` to leak in the first place: nothing needs correcting after a
+ * transition because nothing was ever wrong to begin with. See the
+ * transition tests in infra.api.test.ts.
  */
 export const usePhaseSwimlane = (phaseCode: string | null): AsyncState<PhaseSwimlaneModel> => {
   const asyncState = useAsync<PhaseSwimlaneModel>(
     () =>
       phaseCode
         ? businessApi.rip.phaseModel(phaseCode)
-        : Promise.resolve({ success: true, data: undefined }),
+        : Promise.resolve({ success: true, data: EMPTY_SWIMLANE }),
     [phaseCode]
   );
-  return phaseCode
-    ? asyncState
-    : { data: null, loading: false, error: false, reload: asyncState.reload };
+  return { ...asyncState, data: phaseCode ? asyncState.data : null };
 };
 
 /** Activity-history for a process instance — drives swimlane node status. */
