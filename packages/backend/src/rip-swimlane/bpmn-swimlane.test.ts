@@ -228,24 +228,27 @@ describe('parseSwimlane — edges and layering', () => {
     expect(model.edges.filter((e) => e.back).length).toBe(expected);
   });
 
-  it('flags exactly the two known R2.1 rework loops as back edges', () => {
+  it('flags exactly the two known R2.1 rework loops on their rejection edges', () => {
     // R2.1 has two independent "niet akkoord" gateway loops — Gateway_Akkoord2
     // back to Task_AanvullenProjectplan2, and Gateway_Akkoord4 back to
     // Task_AanvullenProjectplan4. A back edge is one whose target sits in an
     // earlier column — computed structurally by findBackEdges, not
-    // hand-flagged. The DFS closes each cycle at whichever edge it reaches
-    // last while the target is still on the stack, which need not be the
-    // "niet akkoord" flow itself: the Akkoord2 loop actually closes one edge
-    // downstream, at Task_AanvullenProjectplan2 -> Task_AccorderenProjectplan2
-    // (the "niet akkoord" edge into AanvullenProjectplan2 is visited first,
-    // while AccorderenProjectplan2 is already grey from the "Nee" branch).
-    // The Akkoord4 loop closes exactly on its "niet akkoord" edge. This pins
-    // the actual, verified pair rather than assuming which edge closes each
-    // cycle.
+    // hand-flagged. findBackEdges walks each node's branches in that node's
+    // own declared <bpmn:outgoing> order (not the flat sequenceFlow list's
+    // position), matching the order BPMN tooling itself uses — Gateway2's
+    // "niet akkoord" branch is visited before its sibling "Ja"/"Nee" detour
+    // reaches the same target from the other side, so both loops now close
+    // exactly on their rejection edge, matching the hand-authored model this
+    // parser replaces.
     const model = parseSwimlane(xml('RipR21Process'), 'R2.1');
     const backEdges = model.edges.filter((e) => e.back);
     expect(backEdges).toEqual([
-      { from: 'Task_AanvullenProjectplan2', to: 'Task_AccorderenProjectplan2', back: true },
+      {
+        from: 'Gateway_Akkoord2',
+        to: 'Task_AanvullenProjectplan2',
+        label: 'niet akkoord',
+        back: true,
+      },
       {
         from: 'Gateway_Akkoord4',
         to: 'Task_AanvullenProjectplan4',
@@ -253,11 +256,6 @@ describe('parseSwimlane — edges and layering', () => {
         back: true,
       },
     ]);
-    // Both known rework-loop targets are represented among the back edges'
-    // endpoints, even though only one of them is literally an edge's `to`.
-    const touched = new Set(backEdges.flatMap((e) => [e.from, e.to]));
-    expect(touched.has('Task_AanvullenProjectplan2')).toBe(true);
-    expect(touched.has('Task_AanvullenProjectplan4')).toBe(true);
   });
 
   it('carries the condition label on branching edges, with the exact text', () => {
@@ -320,13 +318,114 @@ describe('parseSwimlane — edge/layering defensive parsing', () => {
 
   it('does not crash layering on a sequenceFlow whose target is outside the node set', () => {
     // Flow_Dangling targets an id no KINDS-allowlisted element declares.
-    // assignColumns must skip it (col.get returns undefined for that id)
-    // rather than corrupting or halting the relaxation — the real edge to
-    // EndEvent_1 still lays out one column past Task_1.
+    // assignColumns must skip it (its id→node lookup misses) rather than
+    // corrupting or halting the relaxation — the real edge to EndEvent_1
+    // still lays out one column past Task_1.
     const model = parseSwimlane(FLOW_EDGE_CASE_BPMN, 'X.2');
     expect(model.edges.some((e) => e.to === 'BoundaryEvent_NotAFlowNode')).toBe(true);
     const task = model.nodes.find((n) => n.id === 'Task_1')!;
     const end = model.nodes.find((n) => n.id === 'EndEvent_1')!;
     expect(end.col).toBeGreaterThan(task.col);
+  });
+
+  it("still traverses a sequenceFlow its source's <bpmn:outgoing> omits, appending it after the declared ones", () => {
+    // Gateway_1 declares only Flow_3 ("declared") in its own <bpmn:outgoing>
+    // list; Flow_4 ("undeclared") is a second real sequenceFlow sourced from
+    // Gateway_1 that the declaration leaves out — malformed input, since
+    // real BPMN tooling keeps both in sync, but findBackEdges must not treat
+    // an omission as absence. If Flow_4 were dropped instead of appended,
+    // Task_B (and its own outgoing Flow_5, which closes the cycle back to
+    // Task_A) would never be reached from the main traversal; by the time
+    // the leftover-node sweep reached the orphaned Task_B, Task_A would
+    // already be black, so Flow_5 would go unflagged too and the cycle would
+    // vanish entirely (0 back edges here, instead of the 1 there really is).
+    //
+    // Gateway_1's single declared <bpmn:outgoing> also carries a stray
+    // attribute — mirroring the attribute-bearing <bpmn:flowNodeRef> already
+    // covered above — so fast-xml-parser returns it as an object with
+    // '#text' rather than a bare string, exercising that branch too.
+    const MALFORMED_OUTGOING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Malformed">
+  <bpmn:process id="MalformedProcess">
+    <bpmn:startEvent id="StartEvent_1" name="Start">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_A" name="Task A">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_1" name="Gateway">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing foo="bar">Flow_3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_1" name="End">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_B" name="Task B">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_A" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_A" targetRef="Gateway_1" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Gateway_1" targetRef="EndEvent_1" name="declared" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Gateway_1" targetRef="Task_B" name="undeclared" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_B" targetRef="Task_A" name="closes the cycle" />
+  </bpmn:process>
+</bpmn:definitions>`;
+
+    const model = parseSwimlane(MALFORMED_OUTGOING_BPMN, 'X.4');
+    const backEdges = model.edges.filter((e) => e.back);
+    expect(backEdges).toEqual([
+      { from: 'Task_B', to: 'Task_A', label: 'closes the cycle', back: true },
+    ]);
+  });
+});
+
+// FIX 2: an order-independent correctness check, deliberately NOT built on
+// findBackEdges' own machinery. The per-fixture back-edge counts above are a
+// strong regression lock but weak correctness evidence — they were derived
+// by running the implementation and recording its output, so a systematic
+// flaw present at authoring time would pass silently, and FIX 1 changing
+// traversal order could in principle have changed how many edges a DFS
+// finds. What actually matters for layering is order-invariant: removing
+// the back edges must always leave an acyclic graph. This checks that with
+// a fresh Kahn's-algorithm topological sort over `edges.filter(e => !e.back)`,
+// written independently of findBackEdges.
+function isAcyclic(nodeIds: string[], edges: Array<{ from: string; to: string }>): boolean {
+  const indegree = new Map<string, number>(nodeIds.map((id) => [id, 0]));
+  const adjacency = new Map<string, string[]>(nodeIds.map((id) => [id, []]));
+  for (const e of edges) {
+    if (!indegree.has(e.from) || !indegree.has(e.to)) continue;
+    adjacency.get(e.from)!.push(e.to);
+    indegree.set(e.to, (indegree.get(e.to) ?? 0) + 1);
+  }
+  const queue = nodeIds.filter((id) => indegree.get(id) === 0);
+  let visited = 0;
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    visited += 1;
+    for (const next of adjacency.get(id) ?? []) {
+      const remaining = (indegree.get(next) ?? 0) - 1;
+      indegree.set(next, remaining);
+      if (remaining === 0) queue.push(next);
+    }
+  }
+  return visited === nodeIds.length;
+}
+
+describe('parseSwimlane — back-edge removal always leaves an acyclic graph', () => {
+  it('sanity check: the Kahn topological sort actually detects a cycle when back edges stay in', () => {
+    // Proves isAcyclic is a real check, not a tautology that would pass for
+    // any input — R2.1 with its back edges left in is genuinely cyclic.
+    const model = parseSwimlane(xml('RipR21Process'), 'R2.1');
+    const nodeIds = model.nodes.map((n) => n.id);
+    expect(isAcyclic(nodeIds, model.edges)).toBe(false);
+  });
+
+  it.each(ALL)('%s: edges.filter(e => !e.back) is acyclic', (code, key) => {
+    const model = parseSwimlane(xml(key), code);
+    const nodeIds = model.nodes.map((n) => n.id);
+    const forward = model.edges.filter((e) => !e.back);
+    expect(isAcyclic(nodeIds, forward)).toBe(true);
   });
 });

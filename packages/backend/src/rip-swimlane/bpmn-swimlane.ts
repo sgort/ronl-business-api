@@ -17,9 +17,36 @@ function readFlows(process: Record<string, any>): RawFlow[] {
       id: String(f['@_id']),
       from: String(f['@_sourceRef']),
       to: String(f['@_targetRef']),
-      label: String(f['@_name'] ?? condText ?? '').trim(),
+      // condText is always a string (never nullish — see its own `?? ''`
+      // above), so a trailing `?? ''` here could never fire.
+      label: String(f['@_name'] ?? condText).trim(),
     };
   });
+}
+
+/**
+ * Each flow-node element declares its own outgoing branch order via
+ * repeated <bpmn:outgoing> children — the order BPMN tooling itself uses,
+ * and not necessarily the order its <bpmn:sequenceFlow> siblings happen to
+ * appear in the flat process body (that position is free for a modeller or
+ * formatter to reorder without changing the diagram's meaning). findBackEdges
+ * walks each node's branches in THIS declared order, so which edge closes a
+ * cycle matches the diagram's own branch order rather than an accident of
+ * where each sequenceFlow was typed in the file.
+ */
+function readOutgoingOrder(process: Record<string, any>): Map<string, string[]> {
+  const order = new Map<string, string[]>();
+  for (const elementName of Object.keys(KINDS)) {
+    for (const el of toArray(process[elementName])) {
+      // Every flow node has an `@_id` (required by BPMN, and already assumed
+      // unguarded elsewhere in this file — see the node-building loop below).
+      const declared = toArray(el.outgoing).map((o: any) =>
+        String(typeof o === 'object' ? o['#text'] : o).trim()
+      );
+      if (declared.length > 0) order.set(String(el['@_id']), declared);
+    }
+  }
+  return order;
 }
 
 /**
@@ -33,13 +60,47 @@ function readFlows(process: Record<string, any>): RawFlow[] {
  *
  * Returns the ids of the flows that close a cycle.
  */
-function findBackEdges(nodes: SwimNode[], flows: RawFlow[], seeds: string[]): Set<string> {
-  const outgoing = new Map<string, RawFlow[]>();
+function findBackEdges(
+  nodes: SwimNode[],
+  flows: RawFlow[],
+  seeds: string[],
+  declaredOrder: Map<string, string[]>
+): Set<string> {
+  const byId = new Map<string, RawFlow>();
+  const grouped = new Map<string, RawFlow[]>();
   for (const f of flows) {
-    const arr = outgoing.get(f.from) ?? [];
+    byId.set(f.id, f);
+    const arr = grouped.get(f.from) ?? [];
     arr.push(f);
-    outgoing.set(f.from, arr);
+    grouped.set(f.from, arr);
   }
+
+  // Reorder each node's outgoing flows to match its own declared
+  // <bpmn:outgoing> order. A flow that declaration omits — malformed input,
+  // since real BPMN tooling keeps both in sync — is not dropped: it is
+  // still traversed, appended after the declared ones in the flat list's
+  // original order.
+  const outgoing = new Map<string, RawFlow[]>();
+  for (const [from, group] of grouped) {
+    const declared = declaredOrder.get(from) ?? [];
+    const seen = new Set<string>();
+    const ordered: RawFlow[] = [];
+    for (const flowId of declared) {
+      const f = byId.get(flowId);
+      if (f && f.from === from && !seen.has(flowId)) {
+        ordered.push(f);
+        seen.add(flowId);
+      }
+    }
+    for (const f of group) {
+      if (!seen.has(f.id)) {
+        ordered.push(f);
+        seen.add(f.id);
+      }
+    }
+    outgoing.set(from, ordered);
+  }
+
   const back = new Set<string>();
   const state = new Map<string, 'white' | 'grey' | 'black'>();
   for (const n of nodes) state.set(n.id, 'white');
@@ -74,22 +135,22 @@ function findBackEdges(nodes: SwimNode[], flows: RawFlow[], seeds: string[]): Se
 }
 
 /**
- * Longest-path layering over FORWARD edges only.
+ * Longest-path layering over FORWARD edges only. Mutates each node's `col`
+ * in place — callers rely on nodes already carrying `col: 0` from their
+ * construction, so there is no separate id→column map to fall back through
+ * on a lookup miss; every id this function's own `byId` is built from is a
+ * real node's id by construction.
  *
  * Longest path rather than shortest so a node never sits to the left of its
  * own predecessor. Because the back edges are already removed, the graph is
  * acyclic and the relaxation settles rather than spinning to the cap.
  */
-function assignColumns(
-  nodes: SwimNode[],
-  forward: RawFlow[],
-  seeds: string[]
-): Map<string, number> {
-  const col = new Map<string, number>(nodes.map((n) => [n.id, 0]));
+function assignColumns(nodes: SwimNode[], forward: RawFlow[], seeds: string[]): void {
+  // Every node starts at col 0 already, so a node unreachable from a seed
+  // simply stays there rather than being dropped.
+  if (seeds.length === 0) return;
 
-  // Every node starts at 0, so a node unreachable from a seed simply stays in
-  // column 0 rather than being dropped.
-  if (seeds.length === 0) return col;
+  const byId = new Map<string, SwimNode>(nodes.map((n) => [n.id, n]));
 
   // Relaxation over forward edges only. The graph is acyclic here, so this
   // settles; the pass cap is a belt-and-braces guard, not the terminator.
@@ -99,16 +160,15 @@ function assignColumns(
     changed = false;
     passes += 1;
     for (const f of forward) {
-      const from = col.get(f.from);
-      const to = col.get(f.to);
+      const from = byId.get(f.from);
+      const to = byId.get(f.to);
       if (from === undefined || to === undefined) continue;
-      if (to < from + 1) {
-        col.set(f.to, from + 1);
+      if (to.col < from.col + 1) {
+        to.col = from.col + 1;
         changed = true;
       }
     }
   }
-  return col;
 }
 
 /**
@@ -239,19 +299,19 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
   }
 
   const flows = readFlows(process);
+  const declaredOrder = readOutgoingOrder(process);
 
   const starts = nodes.filter((n) => n.kind === 'start').map((n) => n.id);
   const seeds = starts.length > 0 ? starts : nodes.slice(0, 1).map((n) => n.id);
 
   // Classify first, layer second. Doing it the other way round cannot work:
   // see findBackEdges.
-  const backIds = findBackEdges(nodes, flows, seeds);
-  const col = assignColumns(
+  const backIds = findBackEdges(nodes, flows, seeds, declaredOrder);
+  assignColumns(
     nodes,
     flows.filter((f) => !backIds.has(f.id)),
     seeds
   );
-  for (const n of nodes) n.col = col.get(n.id) ?? 0;
 
   const edges = flows.map((f) => ({
     from: f.from,
