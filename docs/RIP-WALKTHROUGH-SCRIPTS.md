@@ -104,10 +104,11 @@ already has an instance of this phase (running **or** finished).
     bash scripts/rip-phase-walkthrough.sh R3.1 --force
 ```
 
-The predecessor **skips phases with no process model**, matching
-`previousModelledPhase` in the frontend catalogue. R5.3 is the case that
-matters: a real step with no BPMN and no observable exit, so R5.4 will follow
-R5.2.
+The predecessor is the preceding entry in the ladder, matching
+`previousModelledPhase` in the frontend catalogue. Every phase is modelled now.
+R5.3 used to be the exception — a real step with no BPMN and no observable exit,
+skipped so that R5.4 followed R5.2 — but it is deployed as `RipR53Process` and
+its "Ja, oplevering areaal" end event is that exit, so **R5.4 follows R5.3**.
 
 ### Walking the whole ladder
 
@@ -154,10 +155,11 @@ drifted apart by the third phase. `--list` prints the table.
 
 ### Where the phase table comes from
 
-The ladder runs R2.1 → R6.1. **R5.3 is absent on purpose** — it is a real step
-with no design sheet, no BPMN and no observable exit, so `predecessor_of` skips
-it and R5.4 follows R5.2. Everything else is read off the **deployed BPMN**,
-not guessed from task names:
+The ladder runs R2.1 → R6.1, all twelve phases. R5.3 was absent here until its
+design sheet arrived (3-9-2026) and it was modelled and deployed; leaving it out
+after that would have made `--chain` start R5.4 off an R5.2 completion, a state
+the board's Starten tab can no longer produce. Everything is read off the
+**deployed BPMN**, not guessed from task names:
 
 - _ends at_ — every user task with a path to an end event. Several phases run
   parallel branches and so end in more than one place, which is why "the last
@@ -177,6 +179,7 @@ R3.2   RipR32Process    Task_AccorderenProjectplanContractvorming
 R4.1   RipR41Process    Task_AfrondenInkoopprocedure
 R5.1   RipR51Process    Task_HoudenOverlegVgCoordinator
 R5.2   RipR52Process    Task_AccorderenFactuur Task_InvullenWebformulierAtb …
+R5.3   RipR53Process    Task_VaststellenOpleveringschouw Task_VaststellenIngebruiknameschouw
 R5.4   RipR54Process    Task_GereedmeldenVisi
 R6.1   RipR61Process    Task_LatenAanpassenRechtenRelatics Task_LatenSluitenProjectmap …
 ```
@@ -189,21 +192,33 @@ bundle covers every form in the ladder. A missing variable is the failure that
 matters — a wrong gateway branch, an em-dash in a generated document — whereas
 an extra one is inert.
 
-The `*Akkoord` values are the happy path. Two are **route choices rather than
-approvals**, where both branches are legitimate and the script simply picks one:
+The `*Akkoord` values are the happy path. Several are **route choices rather
+than approvals**, where both branches are legitimate and the script simply picks
+one:
 
-| Variable                 | Value used          | The other branch                                          |
-| ------------------------ | ------------------- | --------------------------------------------------------- |
-| `mbviMoment`             | `voorafgaandAan`    | `tijdens` — VO-raming outsourced instead of in-house      |
-| `projectkredietDekking`  | `binnen`            | `buiten` — adds the memo projectkrediet path              |
-| `technischeInstallaties` | `nee`               | `ja` — R5.1/R5.4 gain the installation-handover path      |
-| `notaWaarde`             | `onder`             | `boven` — R5.2 routes the nota through a higher authority |
-| `kredietAanneemsom`      | `binnen-aanneemsom` | `binnen-krediet`, `buiten-krediet`                        |
+| Variable                 | Value used          | The other branch                                            |
+| ------------------------ | ------------------- | ----------------------------------------------------------- |
+| `mbviMoment`             | `voorafgaandAan`    | `tijdens` — VO-raming outsourced instead of in-house        |
+| `projectkredietDekking`  | `binnen`            | `buiten` — adds the memo projectkrediet path                |
+| `technischeInstallaties` | `nee`               | `ja` — R5.1/R5.4 gain the installation-handover path        |
+| `notaWaarde`             | `onder`             | `boven` — R5.2 routes the nota through a higher authority   |
+| `kredietAanneemsom`      | `binnen-aanneemsom` | `binnen-krediet`, `buiten-krediet`                          |
+| `schouwType`             | `oplevering`        | `ingebruikname` — R5.3's mirror path, which returns to R5.2 |
 
 **`werkGereed` is not a preference.** It gates the exit from R5.2's weekly
 cycle: `nee` keeps the cycle running, so anything other than `ja` drives the
 loop until the completion cap fires. R5.2 is the only phase whose subject is a
 period rather than a deliverable.
+
+**`schouwType` and `opleveringAkkoord` decide where R5.3 leaves to.** R5.3 has
+four end events and only one leads onward: `opleveringAkkoord=ja` after
+`schouwType=oplevering`. The other three return to R5.2 — restpunten to execute,
+restpunten by the ON, or a vervroegde ingebruikname where part of the areaal
+goes into use while the work carries on. So these two are not approvals in the
+sense the rest of the table uses: pick differently and `--chain` walks backwards
+and never reaches R5.4. It also makes R5.3 the one phase a project can pass
+through more than once, which is why the Faseladder reports no `klaar` figure
+for R5.4.
 
 ### When it stops early
 

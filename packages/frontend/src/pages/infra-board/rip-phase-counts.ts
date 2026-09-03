@@ -10,24 +10,29 @@ import type { RipPhase } from './rip-phases.catalog';
 export interface PhaseCounts {
   wip: number;
   gereed: number;
-  /** R5.3 only (beyond: true). Always 0 for live counts today — nothing
-   *  can reach R5.3 while only R2.1 is deployed. */
-  geparkeerd: number;
 }
 
 export interface AnnotatedPhaseCounts extends PhaseCounts {
   liveWip: number;
   liveGereed: number;
-  liveGeparkeerd: number;
 }
 
-const EMPTY: PhaseCounts = { wip: 0, gereed: 0, geparkeerd: 0 };
+const EMPTY: PhaseCounts = { wip: 0, gereed: 0 };
 
 /**
  * klaar[N] = max(0, gereed[prev] - wip[N] - gereed[N]) — projects that
  * finished the preceding phase but haven't reached this one yet. The first
  * phase in ladder order has no predecessor, so it's always undefined
  * (render "—", not 0 — there's nothing to be ready *for*).
+ *
+ * Undefined too when the predecessor has `multipleExits`. The subtraction
+ * assumes finishing a phase means advancing to the next one, which holds
+ * everywhere except after R5.3: three of its four end events return to R5.2,
+ * so its `gereed` mixes four outcomes and one project can complete it twice.
+ * Deriving a number from that would overstate R5.4's candidates in a way
+ * nothing on screen could reveal, so it reports "—" instead. Counting only
+ * the R5.4-bound exit is the real fix and needs the counts endpoint, which
+ * returns a flat { wip, gereed } per phase today.
  */
 export function getKlaarCounts(
   phases: RipPhase[],
@@ -35,13 +40,10 @@ export function getKlaarCounts(
 ): Record<string, number | undefined> {
   const out: Record<string, number | undefined> = {};
   phases.forEach((phase, i) => {
-    // Step back past any `beyond` phase, matching previousModelledPhase in
-    // the catalogue. R5.3 is beyond, so R5.4's klaar figure derives from
-    // R5.2: a beyond phase can never carry a completed instance, so reading
-    // it as the predecessor would peg R5.4 at zero forever.
-    let p = i - 1;
-    while (p >= 0 && phases[p].beyond) p--;
-    if (p < 0) {
+    // Every phase is modelled, so the predecessor is simply the preceding
+    // entry -- matching previousModelledPhase in the catalogue.
+    const p = i - 1;
+    if (p < 0 || phases[p].multipleExits) {
       out[phase.code] = undefined;
       return;
     }
@@ -66,10 +68,8 @@ export function combinePhaseCounts(
     out[code] = {
       wip: m.wip + l.wip,
       gereed: m.gereed + l.gereed,
-      geparkeerd: m.geparkeerd + l.geparkeerd,
       liveWip: l.wip,
       liveGereed: l.gereed,
-      liveGeparkeerd: l.geparkeerd,
     };
   }
   return out;
@@ -77,7 +77,7 @@ export function combinePhaseCounts(
 
 /** The backend keys its response by processDefinitionKey (an engine
  *  fact); the UI keys everything else by phase code. Remaps one to the
- *  other, filling geparkeerd: 0 — Operaton has no such concept. */
+ *  other. */
 export function normalizeLiveCounts(
   raw: Record<string, { wip: number; gereed: number }>,
   phases: RipPhase[]
@@ -86,7 +86,7 @@ export function normalizeLiveCounts(
   for (const phase of phases) {
     if (!phase.processDefinitionKey) continue;
     const c = raw[phase.processDefinitionKey];
-    if (c) out[phase.code] = { wip: c.wip, gereed: c.gereed, geparkeerd: 0 };
+    if (c) out[phase.code] = { wip: c.wip, gereed: c.gereed };
   }
   return out;
 }

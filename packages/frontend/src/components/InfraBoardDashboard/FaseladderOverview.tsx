@@ -48,20 +48,13 @@ export default function FaseladderOverview({ onOpenPhase }: Props) {
     (sum, p) => sum + (combined[p.code]?.liveWip ?? 0),
     0
   );
-  // "Klaar om te starten" is the total Klaar across every phase that has a
-  // Starten concept at all (i.e. not `beyond`) — not filtered to deployed
-  // phases. "Wacht op deployment" is the same total restricted to the
-  // undeployed subset; together they partition the non-beyond phases.
-  const startablePhases = RIP_PHASES.filter((p) => !p.beyond);
-  const klaarOmTeStarten = startablePhases.reduce(
-    (sum, p) => sum + (klaarCombined[p.code] ?? 0),
-    0
-  );
-  const klaarOmTeStartenLive = startablePhases.reduce(
-    (sum, p) => sum + (klaarLive[p.code] ?? 0),
-    0
-  );
-  const nietDeployedPhases = startablePhases.filter((p) => !deployedPhases.includes(p));
+  // "Klaar om te starten" is the total Klaar across every phase — not
+  // filtered to deployed phases. "Wacht op deployment" is the same total
+  // restricted to the undeployed subset; together they partition the ladder.
+  // Every phase is startable now that none is `beyond`.
+  const klaarOmTeStarten = RIP_PHASES.reduce((sum, p) => sum + (klaarCombined[p.code] ?? 0), 0);
+  const klaarOmTeStartenLive = RIP_PHASES.reduce((sum, p) => sum + (klaarLive[p.code] ?? 0), 0);
+  const nietDeployedPhases = RIP_PHASES.filter((p) => !deployedPhases.includes(p));
   const wachtOpDeployment = nietDeployedPhases.reduce(
     (sum, p) => sum + (klaarCombined[p.code] ?? 0),
     0
@@ -111,7 +104,7 @@ export default function FaseladderOverview({ onOpenPhase }: Props) {
             <th>Trekker</th>
             <th>Sluit met</th>
             <th>Klaar</th>
-            <th>WIP / Geparkeerd</th>
+            <th>WIP</th>
             <th>Gereed</th>
           </tr>
         </thead>
@@ -125,10 +118,8 @@ export default function FaseladderOverview({ onOpenPhase }: Props) {
                 const c = combined[phase.code] ?? {
                   wip: 0,
                   gereed: 0,
-                  geparkeerd: 0,
                   liveWip: 0,
                   liveGereed: 0,
-                  liveGeparkeerd: 0,
                 };
                 const status = getPhaseDeployStatus(phase, deployedKeys);
                 const meta = RIP_DEPLOY_META[status];
@@ -161,11 +152,7 @@ export default function FaseladderOverview({ onOpenPhase }: Props) {
                       )}
                     </td>
                     <td>
-                      {phase.beyond ? (
-                        <Metric combined={c.geparkeerd} live={c.liveGeparkeerd} />
-                      ) : (
-                        <Metric combined={c.wip} live={c.liveWip} />
-                      )}
+                      <Metric combined={c.wip} live={c.liveWip} />
                     </td>
                     <td>
                       <Metric combined={c.gereed} live={c.liveGereed} />

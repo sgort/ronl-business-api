@@ -724,7 +724,7 @@ export function getMockPortfolio(): PortfolioProject[] {
 }
 
 /**
- * WIP / Gereed / geparkeerd counts per RIP phase, derived from the mock
+ * WIP / Gereed counts per RIP phase, derived from the mock
  * projects' ripPhaseCode/ripPhaseState. Mirrors
  * reference/pb-instances.reference.jsx's status derivation.
  */
@@ -734,7 +734,6 @@ export function getMockPhaseCounts(): Record<string, PhaseCounts> {
   RIP_PHASES.forEach((phase: RipPhase, i) => {
     let wip = 0;
     let gereed = 0;
-    let geparkeerd = 0;
     for (const p of projects) {
       const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
       // gereed = the project's current ladder position is PAST this phase
@@ -743,13 +742,9 @@ export function getMockPhaseCounts(): Record<string, PhaseCounts> {
         gereed++;
         continue;
       }
-      if (phase.beyond) {
-        if (curIdx === i) geparkeerd++;
-        continue;
-      }
       if (curIdx === i && p.ripPhaseState === 'wip') wip++;
     }
-    out[phase.code] = { wip, gereed, geparkeerd };
+    out[phase.code] = { wip, gereed };
   });
   return out;
 }
@@ -757,12 +752,10 @@ export function getMockPhaseCounts(): Record<string, PhaseCounts> {
 /**
  * Mock projects currently WIP at this phase — same classification
  * getMockPhaseCounts uses for its `wip` count (curIdx === i, state ===
- * 'wip', never for a `beyond` phase — the ladder's last rung is always
- * 'wip' by construction but counted as geparkeerd instead). Exposed as
+ * 'wip'). Exposed as
  * rows for the WIP tab.
  */
 export function getMockWipRows(phase: RipPhase): PortfolioProject[] {
-  if (phase.beyond) return [];
   const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
   return getMockPortfolio().filter((p) => {
     const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
@@ -780,24 +773,6 @@ export function getMockGereedRows(phase: RipPhase): PortfolioProject[] {
   return getMockPortfolio().filter((p) => {
     const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
     return curIdx > idx;
-  });
-}
-
-/**
- * Mock projects currently sitting on a `beyond` phase (R5.3) — every
- * project at this ladder position, regardless of ripPhaseState. Unlike
- * getMockWipRows, this does NOT exclude 'wachtend' projects: a project
- * that hasn't "started" R5.3 in the wip sense is still, in the real
- * sense that matters here, sitting there unwatched — matching
- * getMockPhaseCounts's own `geparkeerd` count, which counts both states.
- * Only meaningful for a `beyond` phase; called only from PhaseDetail's
- * beyond branch.
- */
-export function getMockGeparkeerdRows(phase: RipPhase): PortfolioProject[] {
-  const idx = RIP_PHASES.findIndex((p) => p.code === phase.code);
-  return getMockPortfolio().filter((p) => {
-    const curIdx = RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
-    return curIdx === idx;
   });
 }
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  getMockGeparkeerdRows,
   getMockGereedRows,
   getMockPhaseCounts,
   getMockPhaseInstanceDetail,
@@ -182,9 +181,7 @@ describe('getMockPhaseCounts', () => {
     RIP_PHASES.forEach((phase, i) => {
       const atThisPhase = projects.filter((p) => p.ripPhaseCode === phase.code);
       const wipHere = atThisPhase.filter((p) => p.ripPhaseState === 'wip').length;
-      const geparkeerdHere = phase.beyond ? atThisPhase.length : 0;
-      expect(counts[phase.code].wip).toBe(phase.beyond ? 0 : wipHere);
-      expect(counts[phase.code].geparkeerd).toBe(geparkeerdHere);
+      expect(counts[phase.code].wip).toBe(wipHere);
 
       // gereed = projects whose current ladder position is PAST this phase
       // (they've already completed it), not before it.
@@ -289,20 +286,15 @@ describe('getMockWipRows / getMockGereedRows / getMockGeparkeerdRows', () => {
     }
   });
 
-  it('never returns wip rows for the beyond (R5.3) phase', () => {
+  it('returns wip rows for R5.3 like any other phase now that it is modelled', () => {
     const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
-    expect(getMockWipRows(r53)).toEqual([]);
+    const counts = getMockPhaseCounts();
+    expect(getMockWipRows(r53).length).toBe(counts['R5.3'].wip);
   });
 
   it('reaches R5.4 and R6.1 — unreachable under the old legacy-bucket derivation', () => {
     const codes = new Set(getMockPortfolio().map((p) => p.ripPhaseCode));
     expect(codes.has('R5.4')).toBe(true);
     expect(codes.has('R6.1')).toBe(true);
-  });
-
-  it('getMockGeparkeerdRows matches getMockPhaseCounts geparkeerd count for R5.3', () => {
-    const counts = getMockPhaseCounts();
-    const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
-    expect(getMockGeparkeerdRows(r53).length).toBe(counts['R5.3'].geparkeerd);
   });
 });

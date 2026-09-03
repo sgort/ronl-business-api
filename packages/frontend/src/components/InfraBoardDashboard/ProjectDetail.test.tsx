@@ -9,6 +9,7 @@ import { RIP_PHASES } from '../../pages/infra-board/rip-phases.catalog';
 const mockUseActivityHistory = vi.hoisted(() => vi.fn());
 const mockUseInstanceDocuments = vi.hoisted(() => vi.fn());
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
+const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
   return {
@@ -16,6 +17,7 @@ vi.mock('../../services/infra.api', async (importOriginal) => {
     useActivityHistory: mockUseActivityHistory,
     useInstanceDocuments: mockUseInstanceDocuments,
     useOpenTasks: mockUseOpenTasks,
+    useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
   };
 });
 
@@ -57,6 +59,12 @@ beforeEach(() => {
     reload: vi.fn(),
   });
   mockUseOpenTasks.mockReturnValue({ data: null, loading: false, error: false, reload: vi.fn() });
+  mockUseRipActiveAcrossPhases.mockReturnValue({
+    data: null,
+    loading: false,
+    error: false,
+    reload: vi.fn(),
+  });
   mockBusinessApi.task.claim.mockResolvedValue({ success: true });
   mockTaskSpec.mockResolvedValue({ success: true, data: { required: false } });
 });
@@ -265,5 +273,97 @@ describe('ProjectDetail — live instance with open tasks', () => {
 
     await waitFor(() => expect(screen.getByTestId('task-form-viewer')).toBeTruthy());
     expect(document.querySelector('.pb-sign-frame')).toBeNull();
+  });
+});
+
+describe('ProjectDetail — live instance past R2.1', () => {
+  const R22_ROW = {
+    id: 'pi-22',
+    businessKey: 'MANUAL-20260902-222824',
+    startTime: '2026-09-02T22:28:24Z',
+    projectNumber: 'MANUAL-20260902-222824',
+    projectName: 'ValidSign handmatige testrun',
+    edocsWorkspaceId: '',
+    leadRole: 'projectleider',
+    phaseCode: 'R2.2',
+  };
+  const liveRef = { nr: 'MANUAL-20260902-222824', instanceId: 'pi-22' };
+
+  beforeEach(() => {
+    mockUseRipActiveAcrossPhases.mockReturnValue({
+      data: [R22_ROW],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    // The instance's OWN history: R2.2 activity ids, which share nothing
+    // with R2.1's model. Feeding these to the R2.1 swimlane is exactly the
+    // mistake the fix has to avoid.
+    mockUseActivityHistory.mockReturnValue({
+      data: [
+        {
+          id: 'a1',
+          activityId: 'Task_OpstellenVO',
+          activityName: 'Opstellen VO',
+          startTime: '2026-09-02T22:30:00Z',
+          endTime: null,
+          canceled: false,
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+  });
+
+  it('reports the instance own phase in the meta strip, not R2.1', () => {
+    const { container } = render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    const strip = container.querySelector('.pb-proj-meta-strip') as HTMLElement;
+    expect(within(strip).getByText('R2.2')).toBeInTheDocument();
+    expect(within(strip).queryByText('R2.1')).not.toBeInTheDocument();
+  });
+
+  it('marks the passed rung done and the current one active in the ladder', () => {
+    const { container } = render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    const steps = container.querySelectorAll('.pb-stepper .pb-step');
+    expect(steps[0].className).toContain('done');
+    expect(steps[1].className).toContain('active');
+  });
+
+  it('opens on the current phase rather than the R2.1 swimlane', () => {
+    render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
+  });
+
+  it('shows R2.1 as completed when its rung is selected, not as never-started', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    await user.click(
+      screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
+    );
+
+    // Reaching R2.2 is itself proof R2.1 ran to completion. Deriving the
+    // swimlane from THIS instance's (R2.2) history would paint every node
+    // 'todo' and claim the phase never started.
+    const swim = container.querySelector('.pb-swim') as HTMLElement;
+    expect(swim).not.toBeNull();
+    expect(swim.querySelectorAll('.todo').length).toBe(0);
+  });
+
+  it('falls back to R2.1 when the instance is not in the active list', () => {
+    mockUseRipActiveAcrossPhases.mockReturnValue({
+      data: [],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const { container } = render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    const strip = container.querySelector('.pb-proj-meta-strip') as HTMLElement;
+    expect(within(strip).getByText('R2.1')).toBeInTheDocument();
   });
 });

@@ -3,15 +3,16 @@ import {
   getPhaseDeployStatus,
   previousModelledPhase,
   ripPhaseByCode,
-  skippedPhasesBefore,
   RIP_PHASES,
   RIP_STAGES,
   type RipPhase,
 } from './rip-phases.catalog';
 
-// R5.3 is the last phase without a process model, and will stay that way:
-// it is `beyond`, a real step with no design sheet and no observable exit.
-const UNMODELLED_CODES = ['R5.3'];
+// Every phase now carries a process definition key: R5.3 was the last holdout
+// and was modelled and deployed as RipR53Process (sheet 3-9-2026). `beyond`
+// survives as a capability for a future unmodelled phase, but no real phase
+// exercises it, so the tests below synthesise one.
+const UNMODELLED_CODES: string[] = [];
 
 describe('RIP_PHASES catalogue', () => {
   it('has exactly twelve phases in R2.1…R6.1 order', () => {
@@ -52,23 +53,9 @@ describe('RIP_PHASES catalogue', () => {
     }
   });
 
-  it('marks only R5.3 as beyond (no process model even planned)', () => {
-    expect(ripPhaseByCode('R5.3')?.beyond).toBe(true);
-    const notBeyond = [
-      'R2.1',
-      'R2.2',
-      'R2.3',
-      'R2.4',
-      'R3.1',
-      'R3.2',
-      'R4.1',
-      'R5.1',
-      'R5.2',
-      'R5.4',
-      'R6.1',
-    ];
-    for (const code of notBeyond) {
-      expect(ripPhaseByCode(code)?.beyond).toBeUndefined();
+  it('gives every one of the twelve a process definition key', () => {
+    for (const phase of RIP_PHASES) {
+      expect(phase.processDefinitionKey).toBeDefined();
     }
   });
 
@@ -90,35 +77,20 @@ describe('previousModelledPhase / skippedPhasesBefore', () => {
 
   it('is undefined for the first phase, which has nothing to be ready for', () => {
     expect(previousModelledPhase('R2.1')).toBeUndefined();
-    expect(skippedPhasesBefore('R2.1')).toEqual([]);
   });
 
-  it('skips R5.3, so R5.4 follows R5.2', () => {
-    // R5.4's entry criterion reads "Oplevering areaal na R5.3", so R5.3 does
-    // happen -- but it is `beyond`: no process model, and no exit artefact at
-    // all, so nothing about its completion is observable here. Reading it as
-    // R5.4's predecessor would peg R5.4 at zero candidates forever.
-    expect(ripPhaseByCode('R5.3')?.beyond).toBe(true);
-    expect(previousModelledPhase('R5.4')?.code).toBe('R5.2');
+  it('resolves R5.4 to R5.3, which is now modelled', () => {
+    // R5.4's entry criterion reads "Oplevering areaal na R5.3". R5.3 used to be
+    // `beyond` -- no sheet, no BPMN, no observable exit -- so it was stepped
+    // over. RipR53Process is deployed now and its "Ja, oplevering areaal" end
+    // event IS the observable exit, so R5.4 follows R5.3 directly.
+    expect(previousModelledPhase('R5.4')?.code).toBe('R5.3');
   });
 
-  it('names the skipped phase so the UI can disclose it', () => {
-    expect(skippedPhasesBefore('R5.4').map((p) => p.code)).toEqual(['R5.3']);
-  });
-
-  it('reports no skip for any phase other than R5.4', () => {
-    for (const phase of RIP_PHASES) {
-      if (phase.code === 'R5.4') continue;
-      expect(skippedPhasesBefore(phase.code)).toEqual([]);
-    }
-  });
-
-  it('every phase after the first resolves to a predecessor that is not beyond', () => {
-    for (const phase of RIP_PHASES.slice(1)) {
-      const prev = previousModelledPhase(phase.code);
-      expect(prev).toBeDefined();
-      expect(prev?.beyond).toBeUndefined();
-    }
+  it('resolves every phase after the first to its immediate predecessor', () => {
+    RIP_PHASES.slice(1).forEach((phase, i) => {
+      expect(previousModelledPhase(phase.code)?.code).toBe(RIP_PHASES[i].code);
+    });
   });
 });
 
@@ -126,12 +98,10 @@ describe('getPhaseDeployStatus', () => {
   const withKey: RipPhase = { ...ripPhaseByCode('R2.1')! };
   // Synthesised, because no real phase can play this role any more: every
   // phase in the catalogue now either carries a processDefinitionKey or is
-  // `beyond` (R5.3), and `beyond` short-circuits to 'onbekend' before the key
   // is consulted. The branch is still reachable in practice -- a phase
   // catalogued ahead of its BPMN being deployed sits in exactly this state --
   // so the fixture is built rather than deleted along with the coverage.
   const withoutKey: RipPhase = { ...ripPhaseByCode('R6.1')!, processDefinitionKey: undefined };
-  const beyond: RipPhase = { ...ripPhaseByCode('R5.3')! };
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {
     expect(getPhaseDeployStatus(withKey, new Set(['RipR21Process']))).toBe('gedeployed');
@@ -141,12 +111,8 @@ describe('getPhaseDeployStatus', () => {
     expect(getPhaseDeployStatus(withKey, new Set())).toBe('ontwerp');
   });
 
-  it('is ontwerp when the phase has no key and is not beyond', () => {
+  it('is ontwerp when the phase has no key', () => {
     expect(getPhaseDeployStatus(withoutKey, new Set())).toBe('ontwerp');
-  });
-
-  it('is onbekend when the phase is beyond, regardless of the deployed set', () => {
-    expect(getPhaseDeployStatus(beyond, new Set(['RipR21Process']))).toBe('onbekend');
   });
 });
 

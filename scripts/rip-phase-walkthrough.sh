@@ -15,7 +15,7 @@
 # Usage:
 #   bash scripts/rip-phase-walkthrough.sh R2.3              # drive to the last task
 #   bash scripts/rip-phase-walkthrough.sh R2.3 --complete   # finish the phase too
-#   bash scripts/rip-phase-walkthrough.sh --chain           # R2.1 -> R4.1, one project
+#   bash scripts/rip-phase-walkthrough.sh --chain           # R2.1 -> R6.1, one project
 #   bash scripts/rip-phase-walkthrough.sh R2.3 --business-key flevoland-1788…
 #   bash scripts/rip-phase-walkthrough.sh R2.3 --force      # skip the precondition
 #   bash scripts/rip-phase-walkthrough.sh --clean <instanceId>
@@ -133,11 +133,17 @@ phase_config() { # $1 = phase code -> sets PROCESS_KEY STOP_KEYS MAX PHASE_NOTE
       MAX=90
       PHASE_NOTE="a PERIOD, not a deliverable: a weekly cycle runs alongside invoicing and delivery, so several tasks are open at once and task definitions recur. werkGereed=ja is what exits the cycle"
       ;;
+    R5.3)
+      PROCESS_KEY=RipR53Process
+      STOP_KEYS="Task_VaststellenOpleveringschouw Task_VaststellenIngebruiknameschouw"
+      MAX=30
+      PHASE_NOTE="one early choice (schouwType) opens two near-mirror paths that never rejoin; FOUR end events, and only opleveringAkkoord=ja leads to R5.4 — the other three return to R5.2, so the happy path here picks oplevering"
+      ;;
     R5.4)
       PROCESS_KEY=RipR54Process
       STOP_KEYS="Task_GereedmeldenVisi"
       MAX=60
-      PHASE_NOTE="its predecessor is R5.2 — R5.3 is handled outside this tool"
+      PHASE_NOTE="its predecessor is R5.3 — the oplevering areaal exit"
       ;;
     R6.1)
       PROCESS_KEY=RipR61Process
@@ -152,19 +158,21 @@ phase_config() { # $1 = phase code -> sets PROCESS_KEY STOP_KEYS MAX PHASE_NOTE
   return 0
 }
 
-# R5.3 is deliberately absent: it is `beyond`, so predecessor_of skips over
-# it and R5.4 follows R5.2, matching previousModelledPhase in the frontend.
-LADDER="R2.1 R2.2 R2.3 R2.4 R3.1 R3.2 R4.1 R5.1 R5.2 R5.4 R6.1"
+# All twelve phases are modelled and deployed. R5.3 used to be absent here
+# because it was `beyond` -- no BPMN, no observable exit -- so predecessor_of
+# skipped it and R5.4 followed R5.2. RipR53Process is deployed now and its
+# "Ja, oplevering areaal" end event is that exit, so R5.3 takes its place in
+# the ladder and R5.4 follows it.
+LADDER="R2.1 R2.2 R2.3 R2.4 R3.1 R3.2 R4.1 R5.1 R5.2 R5.3 R5.4 R6.1"
 
 # Tenant whose instances count as candidates. The board scopes readiness to the
 # caseworker's municipality; mirroring that keeps the script honest on a
 # multi-tenant engine.
 TENANT="${TENANT:-flevoland}"
 
-# The phase a project must have FINISHED before it can start $1 — skipping any
-# phase with no process model, the same rule previousModelledPhase applies in
-# the frontend catalogue. R5.3 is the one that matters: it is a real step with
-# no BPMN and no observable exit, so R5.4 follows R5.2.
+# The phase a project must have FINISHED before it can start $1 — the entry
+# preceding it in LADDER, the same rule previousModelledPhase applies in the
+# frontend catalogue now that every phase is modelled.
 predecessor_of() {
   local target="$1" prev=""
   for p in $LADDER; do
@@ -348,6 +356,10 @@ VARIABLES_JSON=$(jq -n \
     notaWaarde:         {value: "onder",  type: "String"},
     termijnenContract:  {value: "binnen", type: "String"},
     werkGereed:         {value: "ja",     type: "String"},
+
+    schouwType:           {value: "oplevering", type: "String"},
+    opleveringAkkoord:    {value: "ja",         type: "String"},
+    ingebruiknameAkkoord: {value: "ja",         type: "String"},
 
     opleverdossierAkkoordBeheer:    {value: "ja",                type: "String"},
     opleverdossierAkkoordDv:        {value: "ja",                type: "String"},

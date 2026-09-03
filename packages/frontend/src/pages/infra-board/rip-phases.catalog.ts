@@ -37,8 +37,18 @@ export interface RipPhase {
   weeks: number;
   bron: string;
   processDefinitionKey?: string;
-  /** No process model even planned (R5.3) — never counts as WIP. */
-  beyond?: boolean;
+  /**
+   * True when finishing this phase does not imply moving on to the next one.
+   * R5.3 is the only one: it has four end events and just one leads to R5.4 —
+   * the other three return to R5.2 (restpunten, or a vervroegde ingebruikname
+   * while the work carries on). So `gereed` here counts four different
+   * outcomes, and a project can legitimately complete the phase more than once.
+   *
+   * The successor's `klaar` figure cannot be derived from it; see
+   * getKlaarCounts, which returns undefined rather than a number it cannot
+   * stand behind.
+   */
+  multipleExits?: boolean;
 }
 
 const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
@@ -340,15 +350,33 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
     stage: 'R5',
     name: '(Vervroegde) ingebruikname / oplevering',
     lead: 'Directievoerder',
-    beyond: true,
-    roles: ['Directievoerder', 'Toezichthouder', 'Opdrachtnemer'],
+    roles: [
+      'Directievoerder',
+      'Toezichthouder',
+      'Opdrachtnemer',
+      'Vestigingsmanager',
+      'Beheerder',
+      'Projectleider',
+    ],
     entry: 'Werk gereed gemeld in R5.2',
-    exit: '—',
-    docs: [],
-    gates: [],
+    exit: 'Oplevering areaal → R5.4; anders terug naar R5.2 (restpunten, of vervroegde ingebruikname naast doorlopend werk)',
+    docs: [
+      'Opleveringschouw',
+      'Bevindingen opleverschouw',
+      'Opleveringschouw vastgesteld',
+      'Ingebruiknameschouw',
+      'Bevindingen ingebruiknameschouw',
+      'Ingebruiknameschouw vastgesteld',
+    ],
+    gates: [
+      'Oplevering of (vervroegde) ingebruikname?',
+      'Oplevering akkoord?',
+      'Akkoord (vervroegde) ingebruikname?',
+    ],
     krediet: false,
+    multipleExits: true,
     weeks: 4,
-    bron: 'PLACEHOLDER — geen overzichtsplaat aangeleverd. Bekend uit verwijzingen in R5.2 (organiseren interne schouw, restpunten oplossen door ON) en R5.4 (oplevering areaal).',
+    bron: 'Overzichtsplaat R5.3 — (vervroegde) Ingebruikname / Oplevering (3-9-2026). Vier eindgebeurtenissen: één naar R5.4 (oplevering areaal), drie terug naar R5.2 (restpunten, vervroegde ingebruikname, restpunten door ON). Geen lus binnen de fase.',
   },
   {
     code: 'R5.4',
@@ -424,7 +452,7 @@ export const RIP_PHASES: RipPhase[] = CONTENT.map((c) => ({
 export const ripPhaseByCode = (code: string): RipPhase | undefined =>
   RIP_PHASES.find((p) => p.code === code);
 
-export type RipDeployStatus = 'gedeployed' | 'ontwerp' | 'onbekend';
+export type RipDeployStatus = 'gedeployed' | 'ontwerp';
 
 export const RIP_DEPLOY_META: Record<
   RipDeployStatus,
@@ -444,13 +472,6 @@ export const RIP_DEPLOY_META: Record<
     can: false,
     note: 'Overzichtsplaat bekend, procesmodel nog niet gemodelleerd of nog niet gedeployed op deze omgeving.',
   },
-  onbekend: {
-    label: 'Niet gemodelleerd',
-    short: 'N.V.T.',
-    color: '#9aa1ab',
-    can: false,
-    note: 'Nog geen overzichtsplaat beschikbaar.',
-  },
 };
 
 export function getPhaseDeployStatus(
@@ -460,47 +481,23 @@ export function getPhaseDeployStatus(
   if (phase.processDefinitionKey && deployedKeys.has(phase.processDefinitionKey)) {
     return 'gedeployed';
   }
-  if (phase.beyond) return 'onbekend';
   return 'ontwerp';
 }
 
 /**
  * The phase a project must have finished before it can start `code`.
  *
- * Not simply `RIP_PHASES[i - 1]`: a `beyond` phase is skipped. R5.3 is the
- * only one today, and skipping it is a deliberate assertion rather than a
- * technicality. R5.4's entry criterion reads "Oplevering areaal na R5.3", so
- * R5.3 genuinely happens — but it has no overzichtsplaat, no process model,
- * and (decisively) no exit artefact at all, so nothing about its completion
- * is observable here. Every other transition in the ladder is triggered by a
- * named deliverable that the previous phase's exit criterion produces.
- *
- * Callers that surface a skip to the user should say so; see
- * `skippedPhasesBefore`.
+ * Every phase in the ladder is modelled and deployed, so this is simply the
+ * preceding entry. It used to step over `beyond` phases -- R5.3 was the only
+ * one, kept out because it had no exit artefact and reading it as R5.4's
+ * predecessor would have pegged R5.4 at zero candidates forever. RipR53Process
+ * is deployed now and its "Ja, oplevering areaal" end event is that exit, so
+ * the special case is gone along with `beyond` itself.
  *
  * Returns undefined for the first phase, which has no predecessor.
  */
 export function previousModelledPhase(code: string): RipPhase | undefined {
   const idx = RIP_PHASES.findIndex((p) => p.code === code);
   if (idx <= 0) return undefined;
-  for (let i = idx - 1; i >= 0; i--) {
-    if (!RIP_PHASES[i].beyond) return RIP_PHASES[i];
-  }
-  return undefined;
-}
-
-/**
- * Phases between `code` and its effective predecessor that are handled
- * outside this tool — what `previousModelledPhase` stepped over. Empty for
- * every phase except R5.4 today.
- */
-export function skippedPhasesBefore(code: string): RipPhase[] {
-  const idx = RIP_PHASES.findIndex((p) => p.code === code);
-  if (idx <= 0) return [];
-  const skipped: RipPhase[] = [];
-  for (let i = idx - 1; i >= 0; i--) {
-    if (!RIP_PHASES[i].beyond) break;
-    skipped.unshift(RIP_PHASES[i]);
-  }
-  return skipped;
+  return RIP_PHASES[idx - 1];
 }

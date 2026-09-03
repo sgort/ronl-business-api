@@ -6,7 +6,6 @@ import {
   getPhaseDeployStatus,
   previousModelledPhase,
   ripPhaseByCode,
-  skippedPhasesBefore,
 } from '../../pages/infra-board/rip-phases.catalog';
 import {
   getMockPhaseCounts,
@@ -15,7 +14,6 @@ import {
   getMockPhaseInstanceDetail,
   getMockWipRows,
   getMockGereedRows,
-  getMockGeparkeerdRows,
 } from '../../pages/infra-board/infra-board.data';
 import { combinePhaseCounts, normalizeLiveCounts } from '../../pages/infra-board/rip-phase-counts';
 import {
@@ -138,10 +136,8 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const c = combined[phase.code] ?? {
     wip: 0,
     gereed: 0,
-    geparkeerd: 0,
     liveWip: 0,
     liveGereed: 0,
-    liveGeparkeerd: 0,
   };
   const status = getPhaseDeployStatus(phase, deployedKeys);
   const meta = RIP_DEPLOY_META[status];
@@ -152,10 +148,6 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const readyProjects = getReadyProjects(phase.code);
   const outOfSequenceProjects = getOutOfSequenceProjects(phase.code);
   const liveCandidates = readiness.candidates;
-  // Phases handled outside this tool that sit between the predecessor and
-  // this one -- R5.3 today. Surfaced so a project appearing here straight
-  // from R5.2 does not imply the board tracked the oplevering.
-  const skipped = skippedPhasesBefore(phase.code);
 
   // The number of projects this tab actually lists. Deliberately NOT `klaar`,
   // which the Faseladder derives arithmetically as
@@ -203,39 +195,6 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
       </div>
     </>
   );
-
-  if (phase.beyond) {
-    const geparkeerd = getMockGeparkeerdRows(phase);
-    return (
-      <div className="pb-view">
-        {header}
-        <div className="pb-banner">
-          Niet gemodelleerd — voor {phase.code} is geen overzichtsplaat aangeleverd en dus geen
-          procesmodel opgesteld. Dit deelproces kent daarom geen start, WIP of gereed: projecten die
-          hier staan worden niet bewaakt tot het deelproces is uitgewerkt en gedeployed.
-        </div>
-        <h2>
-          Geparkeerde projecten <span>{geparkeerd.length}</span>
-        </h2>
-        <ul className="pb-parked-list">
-          {geparkeerd.map((p) => (
-            <li key={p.id}>
-              <span className="pb-proj-nr">{p.nr}</span> {p.naam}
-              <div className="sub">
-                Buiten de gemodelleerde workflow — voortgang wordt hier niet bewaakt
-              </div>
-              <span
-                className="pb-health-dot"
-                style={{ background: HEALTH[p.health].color }}
-                title={HEALTH[p.health].label}
-              />
-            </li>
-          ))}
-        </ul>
-        <p className="pb-bron">{phase.bron}</p>
-      </div>
-    );
-  }
 
   async function handleStartSelected() {
     setSubmitting(true);
@@ -591,14 +550,6 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
             <h2>
               Projecten die {phase.code} kunnen starten <span>{totalReady}</span>
             </h2>
-
-            {skipped.length > 0 && (
-              <p className="pb-skip-note">
-                {skipped.map((sp) => `${sp.code} (${sp.name})`).join(', ')} wordt buiten deze tool
-                afgehandeld. Projecten komen hier binnen vanuit{' '}
-                {predecessor ? predecessor.code : '—'}.
-              </p>
-            )}
 
             {isFirstPhase && totalReady === 0 ? (
               fallbackStarted ? (

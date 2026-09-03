@@ -8,7 +8,12 @@ import {
 } from '../../pages/infra-board/rip-model';
 import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
-import { useActivityHistory, useInstanceDocuments, useOpenTasks } from '../../services/infra.api';
+import {
+  useActivityHistory,
+  useInstanceDocuments,
+  useOpenTasks,
+  useRipActiveAcrossPhases,
+} from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import type { SignatureSpec } from '../../services/api';
 import type { Task } from '@ronl/shared';
@@ -187,15 +192,37 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   const [justCompleted, setJustCompleted] = useState<string | null>(null);
   const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
 
-  // live instances are always in Fase 1 (R2.1); mock rows carry their own phase.
-  const currentPhaseCode = isLive ? 'R2.1' : (mock?.ripPhaseCode ?? 'R2.1');
+  // A live instance's phase is the phase whose process it is an instance OF,
+  // so it has to be looked up rather than assumed: this used to hard-code
+  // 'R2.1', which was true only while R2.1 was the sole deployed process.
+  // Once R2.2…R6.1 were deployed, a project sitting in (say) R2.2 still
+  // reported R2.1 here — wrong phase in the meta strip, no rung marked done,
+  // and R2.1's swimlane rendered against an instance that has none of its
+  // activity ids.
+  //
+  // Resolved from the live instance list rather than threaded through
+  // ProjectRef: MijnDag also opens live projects (from a task, which carries
+  // no phase), so a prop would arrive undefined on that path.
+  const { data: liveInstances } = useRipActiveAcrossPhases();
+  const livePhaseCode = isLive
+    ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)?.phaseCode
+    : undefined;
+  const currentPhaseCode = isLive ? (livePhaseCode ?? 'R2.1') : (mock?.ripPhaseCode ?? 'R2.1');
   const [selPhase, setSelPhase] = useState(currentPhaseCode);
   useEffect(() => {
     setSelPhase(currentPhaseCode);
   }, [projectRef.nr, projectRef.instanceId, currentPhaseCode]);
 
-  const statusById: Record<string, StatusKey> =
-    isLive && history ? nodeStatusFromHistory(history) : deriveMockStatus(mock);
+  // A live instance past R2.1 carries ITS OWN phase's history, which shares no
+  // activity ids with R2.1's model — deriving the R2.1 swimlane from it would
+  // mark every node 'todo' and claim the phase never ran. Reaching a later
+  // rung is itself proof R2.1 completed, so say so.
+  const pastFase1 = isLive && currentPhaseCode !== 'R2.1';
+  const statusById: Record<string, StatusKey> = pastFase1
+    ? Object.fromEntries(FASE1_NODES.map((n) => [n.id, 'done' as StatusKey]))
+    : isLive && history
+      ? nodeStatusFromHistory(history)
+      : deriveMockStatus(mock);
 
   // Active tasks (open or claimed) → highlight matching swimlane nodes.
   const activeNodeIds = new Set(
