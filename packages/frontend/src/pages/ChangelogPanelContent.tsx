@@ -342,6 +342,7 @@ const COMMIT_TYPE_META: Record<CommitType, { icon: string; color: keyof typeof T
   docs: { icon: '📘', color: 'blue' },
   chore: { icon: '🧹', color: 'gray' },
   refactor: { icon: '♻️', color: 'orange' },
+  perf: { icon: '⚡', color: 'teal' },
   ci: { icon: '🔒', color: 'amber' },
   other: { icon: '📄', color: 'gray' },
 };
@@ -354,6 +355,7 @@ const TEXT_COLORS = {
   red: 'text-red-700',
   gray: 'text-gray-700',
   amber: 'text-amber-700',
+  teal: 'text-teal-700',
 };
 
 function CommitBlock({ commit }: { commit: ChangelogCommit }) {

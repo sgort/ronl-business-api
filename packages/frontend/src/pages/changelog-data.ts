@@ -63,6 +63,10 @@ export type CommitType =
   | 'docs'
   | 'chore'
   | 'refactor'
+  // A measured change to how much work the product does or how much it ships,
+  // with the behaviour left alone. Distinct from 'refactor', which restructures
+  // without claiming a difference the user could observe.
+  | 'perf'
   // Pipeline and supply-chain work: workflow pinning, CI gates, release
   // tooling. Distinct from 'chore' because it is the one category whose
   // commits change how everything else is built and shipped.
@@ -106,6 +110,125 @@ export interface Changelog {
 
 export const changelog: Changelog = {
   versions: [
+    {
+      format: 'commits',
+      version: '2026.09.3',
+      status: 'Released',
+      date: '3 sep 2026',
+      scope: ['backend', 'frontend'],
+      commits: [
+        {
+          sha: '533c288',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The changelog gained a performance commit type',
+          details: [
+            'CommitType had no perf, so a perf commit could only be filed as other and rendered with the neutral document icon beside genuine miscellany. This release contains one — the drawer’s lazy load — and that is not miscellany. It gets its own icon and colour; every existing colour was already spoken for, so a new one is added rather than doubling up on a substantive type.',
+            'The distinction from refactor is written on the union itself: perf claims a difference the user could observe, refactor explicitly does not.',
+          ],
+        },
+        {
+          sha: '71458eb',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The changelog drawer tests await their lazy content',
+          details: [
+            'ChangelogPanel.variants.test.tsx rendered the panel and queried it synchronously. Splitting the drawer made ChangelogPanel a lazy() + Suspense shim, so its content resolves on a later tick and a synchronous getByRole finds an empty DOM. Six of its seven tests failed.',
+            'The seventh is the one worth recording. It asserts a feedback section is absent, and an empty DOM satisfies that trivially — so it went on passing while testing nothing at all. Both halves are fixed here, and a note above the first describe explains why the awaits are load-bearing: removing them does not merely break the file, it converts its negative assertions into assertions about nothing.',
+            'The two changes never met before landing. The variants file was added after the lazy-load branch had forked, so neither side’s CI ever ran both. Each was green in isolation and the break appeared only once they shared a tree.',
+          ],
+        },
+        {
+          sha: '70a281c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'R5.4 reports no Klaar figure, because it cannot be derived',
+          details: [
+            'Klaar is computed as gereed[predecessor] − wip − gereed, which assumes that finishing a phase means advancing to the next one. That holds for every transition in the ladder except the one out of R5.3.',
+            'R5.3 has four end events and only "Ja, oplevering areaal" leads to R5.4. The other three return to R5.2: restpunten to execute, restpunten by the opdrachtnemer, and a vervroegde ingebruikname where part of the areaal goes into use while the work carries on. So gereed for R5.3 mixes four outcomes, and that last one means one project can legitimately complete the phase more than once. A number there would overstate R5.4’s candidates in a way nothing on the screen could reveal, so R5.4 now shows "—", the same treatment R2.1 gets for having no predecessor.',
+            'Driven by a multipleExits flag on the phase rather than a literal phase code in the arithmetic. Counting only the R5.4-bound exit is the real fix and needs the phase-counts endpoint to report more than a flat wip/gereed pair.',
+          ],
+        },
+        {
+          sha: '63ada7e',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The `beyond` phase concept is gone',
+          details: [
+            'R5.3 was the catalogue’s only beyond phase, and adopting it left the flag with no users. Removed along with it: the onbekend deploy status and its metadata entry, skippedPhasesBefore (which returned an empty list for every phase), parkedCount, getMockGeparkeerdRows, the "Niet gemodelleerd" placeholder view, and the parked badge on the Beheer rail. previousModelledPhase is now simply the preceding entry.',
+            'geparkeerd went with it, and turned out to be entirely a frontend fiction: the live counts endpoint returns wip and gereed only, no backend code mentions the concept, and the mock counter credited it exclusively inside the beyond branch. It existed to give the one unmodelled phase something to show instead of WIP. Net 197 lines removed.',
+          ],
+        },
+        {
+          sha: 'dab1c92',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'R5.3 adopted in the phase catalogue — twelve of twelve deelprocessen inzetbaar',
+          details: [
+            'R5.3 was the last rung with no process model. Its design sheet arrived on 3-9-2026 and it is deployed as RipR53Process on both the local engine and ACC, verified against the engine REST API rather than taken from the deploy pull request: deployment form bindings throughout with no latest bindings, boardOwner and organization set, tenant flevoland, and no form on the start event.',
+            'The catalogue entry was a placeholder — no exit, no documents, no gates, three roles, and a source line reading PLACEHOLDER. All of it now derives from the deployed BPMN, and the six roles match the six candidate groups on the engine exactly, which is an independent check that the entry and the engine agree.',
+            'R5.4’s predecessor changes from R5.2 to R5.3 and nothing is reported as skipped any more, because R5.3 finally has an observable exit. The walkthrough script carried the same assumption and is corrected here: its ladder skipped R5.3, so a chained run would have started R5.4 from an R5.2 completion — a state the board can no longer produce.',
+          ],
+        },
+        {
+          sha: '3674f66',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A live project shows its own RIP phase, not always R2.1',
+          details: [
+            'ProjectDetail hard-coded the current phase for every live instance. That was true when it was written — R2.1 was the only process modelled as BPMN — and deploying R2.2 through R6.1 falsified the premise while the constant stayed. One stale constant produced three wrong things at once for a project sitting in R2.2.',
+          ],
+        },
+        {
+          sha: 'e519902',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'PA cache: a bounded connect, retry after failure, and cache state in /v1/health',
+          details: [
+            'PA caching turned out never to have worked in either environment. The misconfiguration was fixed operationally on ACC; this fixes the three things in code that let a total cache outage run for at least nine days without anyone noticing.',
+            'The root cause of the silence is the important one: connect() was unbounded. The timeout wrapper guarded get() and set() but not the connect itself, and node-redis retries a failing socket internally rather than rejecting — so the await never settled. /v1/health now reports cache state, with a down cache visible without failing the health check.',
+          ],
+        },
+        {
+          sha: 'f4976fc',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The changelog guard sees bare dynamic imports and braced gates',
+          details: [
+            'A bare dynamic import at module scope passed all three of the guard’s assertions while firing the fetch at module evaluation — the chunk downloading on every page load whether or not the drawer opens, which is exactly what the split exists to prevent. All three checks looked at declaration syntax, so none saw a bare expression statement, and it evades noUnusedLocals by having no binding.',
+          ],
+        },
+        {
+          sha: 'e2f65ee',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The changelog guard sees re-exports too',
+          details: [
+            'The guard’s first assertion inspected import declarations and never export declarations, but a re-export with a module specifier is an equally static runtime edge. Confirmed with a real build rather than reasoned about: adding one re-export plus a consumer collapsed the output to a single 709 KB gzipped chunk, where the split produces a 581 KB entry and a separate 129 KB changelog.',
+          ],
+        },
+        {
+          sha: '5343685',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'A guard keeps ChangelogPanel a shim',
+          details: [
+            'Three small edits would each undo the split while every behavioural test stayed green, because none of them change what a user sees — a static value import that reaches the data being the plainest. The unauthenticated login screen renders this panel, so an undetected regression here means the whole changelog ships in the entry chunk again.',
+          ],
+        },
+        {
+          sha: 'e4c9da1',
+          author: 'Steven Gort',
+          type: 'perf',
+          subject: 'The changelog drawer loads its content on demand',
+          details: [
+            'changelog-data.ts is 432 KB raw and 131 KB gzipped across 102 releases, about 19% of what a visitor downloads. The login screen renders this panel, so before the split an unauthenticated visitor downloaded the project’s entire engineering diary before they could log in.',
+            'ChangelogPanel is now a shim over a lazily imported ChangelogPanelContent. The Suspense boundary sits inside the shim rather than at the call sites, because the PA cockpit renders this panel through the host contract and contains no boundary of its own; a bare lazy component would throw the moment the drawer opened there.',
+          ],
+        },
+      ],
+    },
     {
       format: 'commits',
       version: '2026.09.2',

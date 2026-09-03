@@ -1,6 +1,6 @@
 {
   "name": "@ronl/backend",
-  "version": "2026.09.2",
+  "version": "2026.09.3",
   "description": "Secure Business API layer for Dutch municipality BPMN services",
   "main": "dist/index.js",
   "scripts": {
