@@ -180,7 +180,7 @@ feat(shared): swimlane types and documentRef label resolution
 
 **Interfaces:**
 
-- Consumes: `PhaseSwimlaneModel`, `SwimLane`, `SwimNode`, `NodeKind`, `docLabel` from `@ronl/shared`.
+- Consumes: `PhaseSwimlaneModel`, `SwimLane`, `SwimNode`, `NodeKind` (types) from `@ronl/shared`; `docLabel` from `./doc-label` (backend-local — see Task 1).
 - Produces: `parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneModel`. This task returns `lanes` and `nodes` with `row` set and `col` set to `0`; Task 3 fills `col` and `edges`.
 
 - [ ] **Step 1: Copy the fixtures**
@@ -296,13 +296,10 @@ Expected: FAIL — `Cannot find module './bpmn-swimlane'`
 
 ```ts
 import { XMLParser } from 'fast-xml-parser';
-import {
-  docLabel,
-  type NodeKind,
-  type PhaseSwimlaneModel,
-  type SwimLane,
-  type SwimNode,
-} from '@ronl/shared';
+import { type NodeKind, type PhaseSwimlaneModel, type SwimLane, type SwimNode } from '@ronl/shared';
+// docLabel is backend-local, not shared: packages/shared has no test runner
+// and is not coverage-gated, so branching logic cannot be measured there.
+import { docLabel } from './doc-label';
 
 /**
  * Turn deployed BPMN into a swimlane model.
