@@ -79,9 +79,8 @@ function collapseEpMotions(items: FeedItem[]): FeedItem[] {
   const out: FeedItem[] = [];
 
   for (const item of items) {
-    // Only EU documents with a ref — press releases and anything untitled keep
-    // their own identity.
-    if (item.source !== 'eu' || !item.title || item.subbron === 'ep-persbericht') {
+    // Only EU documents with a ref — anything untitled keeps its own identity.
+    if (item.source !== 'eu' || !item.title) {
       out.push(item);
       continue;
     }
@@ -131,14 +130,10 @@ async function persistCandidate(
     srcLabel = `Tweede Kamer · ${item.type ?? 'Document'} · ${formatAge(item.date)}`;
   } else if (item.source === 'eu') {
     // Name the sub-source, but only when it adds something the type does not
-    // already say. A press release arrives with type 'Persbericht' from its RSS
-    // category, so labelling it again would render "· Persbericht · Persbericht".
-    const subbronName =
-      item.subbron === 'ep-teksten'
-        ? 'Ingediende teksten'
-        : item.subbron === 'ep-persbericht'
-          ? 'Persbericht'
-          : null;
+    // already say. The ep-persbericht arm is gone with the press-release feed
+    // (#55); signals already persisted under it keep the srcLabel they were
+    // stored with, which is why nothing needs backfilling here.
+    const subbronName = item.subbron === 'ep-teksten' ? 'Ingediende teksten' : null;
     const subbronLabel = subbronName && subbronName !== item.type ? ` · ${subbronName}` : '';
     srcLabel = `Europees Parlement · ${item.type ?? 'Document'}${subbronLabel} · ${formatAge(item.date)}`;
   } else if (item.source === 'media') {
@@ -301,7 +296,8 @@ export async function runCurationCycle(tenantId = 'flevoland'): Promise<void> {
     allItems.push(...media);
   }
 
-  // Fetch EU plenary RSS — ep-teksten entries already pushed above take priority in dedup.
+  // Fetch EU plenary documents from the EP Open Data API — ep-teksten entries
+  // already pushed above take priority in dedup.
   if (hasEuSearches && config.pa.euSourceEnabled) {
     const result = await fetchEuFeed(null, [], 0, 50).catch((err: unknown) => {
       logger.error('EU feed fetch failed', {

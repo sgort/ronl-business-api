@@ -48,9 +48,14 @@ function BronBadge({ bron }: { bron: string | null }) {
   return <span className={`pac-bron pac-bron-${bron}`}>{BRON_DISPLAY[bron] ?? bron}</span>;
 }
 
+// 'ep-rss' is a persisted key, not a description of the transport: the plenary
+// stream moved from RSS to the EP Open Data API (#55) while keeping its key so
+// existing signals and new ones stay one source. The label is what changed.
+// 'ep-persbericht' is retained for signals persisted before the press-release
+// feed was dropped; nothing produces it any more.
 const EP_SUBBRON_LABEL: Record<string, string> = {
   'ep-teksten': 'Ingediende teksten',
-  'ep-rss': 'Plenaire RSS',
+  'ep-rss': 'Plenaire documenten',
   'ep-persbericht': 'Persbericht',
 };
 

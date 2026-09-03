@@ -200,7 +200,7 @@ describe('scoreItem — high-value type bonus', () => {
 
   it('EU non-high-value type + title match → rel 6', () => {
     const result = scoreItem(
-      item({ source: 'eu', type: 'Persbericht', title: 'stikstof press' }),
+      item({ source: 'eu', type: 'Schriftelijke vraag', title: 'stikstof vraag' }),
       MATCH_SEARCH
     );
     expect(result.rel).toBe(6);

@@ -158,13 +158,13 @@ const BRON_GROEPEN: BronGroep[] = [
     sources: [
       {
         name: 'Europees Parlement · plenaire documenten',
-        provider: 'europarl.europa.eu/rss',
-        protocol: 'RSS · CC BY 4.0',
+        provider: 'data.europarl.europa.eu/api/v2',
+        protocol: 'Atom · CC BY 4.0',
         bron: 'eu · ep-rss',
         file: 'eu.client.ts',
         flagKey: 'eu',
         cadence: 'cron · 6u',
-        note: 'Titeldragende plenaire feed + persberichten, met NL-termexpansie.',
+        note: 'Plenaire documenten (Engelstalig) met NL-termexpansie.',
       },
       {
         name: 'Europees Parlement · Ingediende teksten',
