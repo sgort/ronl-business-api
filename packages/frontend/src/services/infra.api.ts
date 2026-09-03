@@ -219,10 +219,20 @@ export function useRipPhaseReadiness(
  * A defined, neutral model for the null-code branch below -- it exists ONLY
  * to land that branch's fetch in `useAsync`'s SUCCESS path (`data !==
  * undefined`), the same trick every sibling null-skippable hook above plays
- * with `[]`/`{}`. It is never rendered; `usePhaseSwimlane` overrides `data`
- * back to `null` for the outward-facing null-code result.
+ * with `[]`/`{}`. Its `phaseCode` is `''`, a value no real phase code is ever
+ * equal to -- that is what makes it structurally unable to leak through
+ * `usePhaseSwimlane`'s `matches` check below and be rendered as if it were a
+ * real phase's model. Frozen (including its arrays) because it is a shared
+ * singleton stored, by reference, into every null-state hook instance --
+ * freezing removes the whole class of "something mutated the shared empty
+ * model" bug rather than relying on nothing ever doing so.
  */
-const EMPTY_SWIMLANE: PhaseSwimlaneModel = { phaseCode: '', lanes: [], nodes: [], edges: [] };
+const EMPTY_SWIMLANE = Object.freeze({
+  phaseCode: '',
+  lanes: Object.freeze([]),
+  nodes: Object.freeze([]),
+  edges: Object.freeze([]),
+}) as unknown as PhaseSwimlaneModel;
 
 /**
  * Swimlane model for one RIP phase. Pass null to skip the request -- e.g.
@@ -230,27 +240,63 @@ const EMPTY_SWIMLANE: PhaseSwimlaneModel = { phaseCode: '', lanes: [], nodes: []
  *
  * The null-code fetch resolves to `EMPTY_SWIMLANE`, a genuinely defined
  * value, so `useAsync` treats it as a normal success -- its `error` state is
- * never set for that branch at all. Only `data` is overridden back to `null`
- * for the outward result; `loading`, `error` and `reload` are `useAsync`'s
- * own, completely unmodified.
+ * never set for that branch at all.
  *
- * An earlier version instead overrode the *whole* returned object whenever
+ * A first fix stopped there, overriding only `data` back to `null` whenever
+ * `phaseCode` was null and passing `loading`/`error` through unmodified. That
+ * fixed the *error* leak (see the note on the earlier, whole-object-override
+ * version below) but left a second, structurally identical leak in `data`:
+ * `asyncState.data` carries no indication of which phase it is FOR, so
+ * keying the override on `phaseCode` alone cannot tell "the model we were
+ * just given" from "leftover data from whatever the code used to be". On the
+ * render where `phaseCode` first becomes real, `asyncState.data` is still
+ * whatever the null branch last resolved to (`EMPTY_SWIMLANE`) -- or, real
+ * code A -> real code B, still A's model -- and that first-fix override,
+ * keying only on the new `phaseCode`, let it straight through: one committed
+ * render reporting `{ data: EMPTY_SWIMLANE, loading: false, error: false }`,
+ * or A's model under B's code. Read literally that is a *complete-looking*
+ * model for a phase nothing was fetched for -- worse than the error leak it
+ * replaced, since a consumer's ordinary `!loading && !error` check would
+ * accept it as legitimate content.
+ *
+ * The fix: `PhaseSwimlaneModel` already carries `phaseCode`, so the data can
+ * answer "am I for the code currently being asked about?" directly, without
+ * inferring it from `phaseCode` alone. `matches` is that direct check.
+ *  - `data: matches ? asyncState.data : null` -- a mismatched or absent model
+ *    (including `EMPTY_SWIMLANE`, whose `phaseCode` can never equal a real
+ *    code) is reported as `null`, never rendered.
+ *  - `loading` is widened to also be true whenever a real code is requested
+ *    but its data has not arrived yet (and nothing has errored): without
+ *    this, that same render would read `{ data: null, loading: false, error:
+ *    false }` -- "settled, no model" -- which would flash a not-modelled /
+ *    empty-state panel for a phase that is simply still in flight. The `&&
+ *    !asyncState.error` guard stops a failed fetch from being reported as
+ *    perpetually loading.
+ *
+ * A side effect, deliberately kept: this also prevents a real-code-A ->
+ * real-code-B transition from briefly showing A's model while B's fetch is
+ * still in flight, since A's model no longer matches B's code either. That
+ * staleness would otherwise be ordinary, pre-existing `useAsync` behaviour
+ * (every other hook built on it has the same gap), not a regression this fix
+ * was required to close -- but it is a genuine improvement available here for
+ * free, because this hook alone has data that can identify itself.
+ *
+ * An earlier version overrode the *whole* returned object whenever
  * `phaseCode` was null, resolving the null branch to `{ success: true, data:
  * undefined }` -- which *does* land in `useAsync`'s error branch internally.
  * That internal `error: true` was invisible only for as long as `phaseCode`
  * stayed null; on the transition to a real code it was NOT masked or
- * harmless -- it leaked. The render that processes the new prop stops
- * overriding (since `phaseCode` is now truthy) and returns `useAsync`'s raw
- * state directly, and it does so one render before the re-triggered effect
- * (deps `[phaseCode, tick]`) gets to run its own `setError(false)`. So every
- * null -> real-code transition deterministically produced one committed
- * render reporting `{ data: null, loading: false, error: true }` before
+ * harmless -- it leaked. The render that processes the new prop stopped
+ * overriding (since `phaseCode` was now truthy) and returned `useAsync`'s raw
+ * state directly, one render before the re-triggered effect (deps
+ * `[phaseCode, tick]`) got to run its own `setError(false)`. So every null ->
+ * real-code transition deterministically produced one committed render
+ * reporting `{ data: null, loading: false, error: true }` before
  * self-correcting -- a real, visible spurious error a consumer keyed on
- * `error` (a toast, a boundary) could act on. Landing the null branch in
- * `useAsync`'s success path instead means there is no stale internal `error:
- * true` to leak in the first place: nothing needs correcting after a
- * transition because nothing was ever wrong to begin with. See the
- * transition tests in infra.api.test.ts.
+ * `error` (a toast, a boundary) could act on.
+ *
+ * See the transition tests in infra.api.test.ts for both leaks, pinned per
+ * committed render rather than only at the settled end state.
  */
 export const usePhaseSwimlane = (phaseCode: string | null): AsyncState<PhaseSwimlaneModel> => {
   const asyncState = useAsync<PhaseSwimlaneModel>(
@@ -260,7 +306,12 @@ export const usePhaseSwimlane = (phaseCode: string | null): AsyncState<PhaseSwim
         : Promise.resolve({ success: true, data: EMPTY_SWIMLANE }),
     [phaseCode]
   );
-  return { ...asyncState, data: phaseCode ? asyncState.data : null };
+  const matches = !!phaseCode && asyncState.data?.phaseCode === phaseCode;
+  return {
+    ...asyncState,
+    data: matches ? asyncState.data : null,
+    loading: asyncState.loading || (!!phaseCode && !matches && !asyncState.error),
+  };
 };
 
 /** Activity-history for a process instance — drives swimlane node status. */

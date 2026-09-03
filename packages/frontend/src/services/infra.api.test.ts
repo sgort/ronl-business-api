@@ -565,59 +565,125 @@ describe('usePhaseSwimlane', () => {
       vi.restoreAllMocks();
     });
 
-    it('never reports error:true on any committed render, null -> real code', async () => {
+    interface Snapshot {
+      code: string | null;
+      data: { phaseCode: string } | null;
+      loading: boolean;
+      error: boolean;
+    }
+
+    /**
+     * Invariants every single committed render must satisfy, regardless of
+     * which render in a transition it is:
+     *  - asked for nothing (code null) => never hand back a model.
+     *  - asked for a phase and holding a model => it MUST be that phase's
+     *    model, never a previous code's leftover (the round-2 bug: the
+     *    round-1 fix let `EMPTY_SWIMLANE`, or a prior real code's model,
+     *    leak through for one render after `phaseCode` changed but before
+     *    `asyncState.data` caught up).
+     *  - asked for a phase, holding no model, and not errored => must still
+     *    say `loading: true` -- otherwise it reads as "settled, no model",
+     *    which would flash a not-modelled/empty panel for a phase that is
+     *    simply still in flight.
+     */
+    function assertSnapshotValid(s: Snapshot) {
+      if (s.code === null) {
+        expect(s.data).toBeNull();
+        return;
+      }
+      if (s.data !== null) {
+        expect(s.data.phaseCode).toBe(s.code);
+      } else if (!s.error) {
+        expect(s.loading).toBe(true);
+      }
+    }
+
+    function trackedRender(initialCode: string | null) {
+      const snapshots: Snapshot[] = [];
+      const hook = renderHook(
+        ({ code }: { code: string | null }) => {
+          const state = usePhaseSwimlane(code);
+          snapshots.push({ code, data: state.data, loading: state.loading, error: state.error });
+          return state;
+        },
+        { initialProps: { code: initialCode } }
+      );
+      return { ...hook, snapshots };
+    }
+
+    it('never reports error:true, a mismatched model, or a false "settled" on any committed render, null -> real code', async () => {
       mockBusinessApi.rip.phaseModel.mockClear();
       const model = { phaseCode: 'R2.2', lanes: [], nodes: [], edges: [] };
       mockBusinessApi.rip.phaseModel.mockResolvedValue({ success: true, data: model });
 
-      const seenErrors: boolean[] = [];
-      const { result, rerender } = renderHook(
-        ({ code }: { code: string | null }) => {
-          const state = usePhaseSwimlane(code);
-          seenErrors.push(state.error);
-          return state;
-        },
-        { initialProps: { code: null as string | null } }
-      );
+      const { result, rerender, snapshots } = trackedRender(null);
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(seenErrors).not.toContain(true);
+      snapshots.forEach(assertSnapshotValid);
+      expect(snapshots.map((s) => s.error)).not.toContain(true);
 
       rerender({ code: 'R2.2' });
 
       // Checked synchronously, immediately after the transition commits --
-      // this is exactly the render the earlier implementation got wrong.
-      expect(seenErrors).not.toContain(true);
+      // this is exactly the render both earlier implementations got wrong
+      // (round 1: a stale `error: true`; round 2: a stale/mismatched `data`
+      // reported as settled).
+      snapshots.forEach(assertSnapshotValid);
+      expect(snapshots.map((s) => s.error)).not.toContain(true);
 
       await waitFor(() => expect(result.current.data).toEqual(model));
-      expect(seenErrors).not.toContain(true);
+      snapshots.forEach(assertSnapshotValid);
+      expect(snapshots.map((s) => s.error)).not.toContain(true);
     });
 
-    it('never reports error:true on any committed render, real code -> null', async () => {
+    it('never reports error:true, a mismatched model, or a false "settled" on any committed render, real code -> null', async () => {
       mockBusinessApi.rip.phaseModel.mockClear();
       const model = { phaseCode: 'R2.1', lanes: [], nodes: [], edges: [] };
       mockBusinessApi.rip.phaseModel.mockResolvedValue({ success: true, data: model });
 
-      const seenErrors: boolean[] = [];
-      const { result, rerender } = renderHook(
-        ({ code }: { code: string | null }) => {
-          const state = usePhaseSwimlane(code);
-          seenErrors.push(state.error);
-          return state;
-        },
-        { initialProps: { code: 'R2.1' as string | null } }
-      );
+      const { result, rerender, snapshots } = trackedRender('R2.1');
 
       await waitFor(() => expect(result.current.data).toEqual(model));
-      expect(seenErrors).not.toContain(true);
+      snapshots.forEach(assertSnapshotValid);
+      expect(snapshots.map((s) => s.error)).not.toContain(true);
 
       rerender({ code: null });
 
-      expect(seenErrors).not.toContain(true);
+      snapshots.forEach(assertSnapshotValid);
+      expect(snapshots.map((s) => s.error)).not.toContain(true);
       expect(result.current.data).toBeNull();
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(seenErrors).not.toContain(true);
+      snapshots.forEach(assertSnapshotValid);
+      expect(snapshots.map((s) => s.error)).not.toContain(true);
+    });
+
+    it("never exposes phase A's model once phase B has been requested, real code -> different real code", async () => {
+      mockBusinessApi.rip.phaseModel.mockClear();
+      const modelA = { phaseCode: 'R2.1', lanes: [], nodes: [], edges: [] };
+      const modelB = { phaseCode: 'R2.2', lanes: [], nodes: [], edges: [] };
+      mockBusinessApi.rip.phaseModel.mockImplementation((code: string) =>
+        Promise.resolve({ success: true, data: code === 'R2.1' ? modelA : modelB })
+      );
+
+      const { result, rerender, snapshots } = trackedRender('R2.1');
+
+      await waitFor(() => expect(result.current.data).toEqual(modelA));
+      snapshots.forEach(assertSnapshotValid);
+
+      rerender({ code: 'R2.2' });
+
+      snapshots.forEach(assertSnapshotValid);
+      // Explicit, on top of the general invariant above: once R2.2 has been
+      // requested, no render reports R2.1's (A's) model while B loads.
+      expect(
+        snapshots.filter((s) => s.code === 'R2.2').some((s) => s.data?.phaseCode === 'R2.1')
+      ).toBe(false);
+
+      await waitFor(() => expect(result.current.data).toEqual(modelB));
+      snapshots.forEach(assertSnapshotValid);
+      expect(mockBusinessApi.rip.phaseModel).toHaveBeenCalledWith('R2.1');
+      expect(mockBusinessApi.rip.phaseModel).toHaveBeenCalledWith('R2.2');
     });
   });
 });
