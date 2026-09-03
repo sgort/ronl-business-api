@@ -1,6 +1,7 @@
 import express from 'express';
 import { config } from '@utils/config';
 import { operatonService } from '@services/operaton.service';
+import { cacheHealth } from '../pa-monitoring/pa-cache';
 import { createLogger } from '@utils/logger';
 import packageJson from '../../package.json';
 
@@ -37,6 +38,23 @@ router.get('/', async (req, res) => {
       };
     }
 
+    // The PA cache is optional: it is fail-soft by design and every source
+    // client falls through to a live fetch without it, so it is reported but
+    // deliberately excluded from `allUp`. Reporting is the whole point — a
+    // cache that was failing 100% of the time still read "healthy" for at
+    // least nine days (#62), because nothing here looked at it.
+    //
+    // cacheHealth() also drives reconnection, so polling this endpoint is what
+    // recovers the cache after an outage. Its own cooldown means at most one
+    // connect attempt per thirty seconds regardless of how often it is called.
+    // cacheHealth() is written never to reject, but the route does not rely on
+    // that: an optional dependency must not be able to fail the check that
+    // reports it. Without this guard a throwing probe 503s the whole endpoint.
+    const cache = await cacheHealth().catch((err: unknown) => ({
+      status: 'down' as const,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+
     // Overall status
     const allUp = operatonHealth.status === 'up' && keycloakHealth.status === 'up';
     const overallStatus = allUp ? 'healthy' : 'degraded';
@@ -53,11 +71,13 @@ router.get('/', async (req, res) => {
       dependencies: {
         keycloak: keycloakHealth,
         operaton: operatonHealth,
+        cache,
       },
     };
 
     logger.info('Health check completed', {
       status: overallStatus,
+      cache: cache.status,
       duration: healthData.duration,
     });
 
