@@ -63,6 +63,10 @@ export type CommitType =
   | 'docs'
   | 'chore'
   | 'refactor'
+  // A measured change to how much work the product does or how much it ships,
+  // with the behaviour left alone. Distinct from 'refactor', which restructures
+  // without claiming a difference the user could observe.
+  | 'perf'
   // Pipeline and supply-chain work: workflow pinning, CI gates, release
   // tooling. Distinct from 'chore' because it is the one category whose
   // commits change how everything else is built and shipped.
