@@ -1,6 +1,6 @@
 # Swimlane models for every RIP phase, derived from deployed BPMN — design
 
-**Goal:** show a process diagram for all eleven modelled RIP phases, not just
+**Goal:** show a process diagram for all twelve modelled RIP phases, not just
 R2.1, and source it from what Operaton actually has deployed rather than from
 hand-maintained TypeScript.
 
@@ -9,13 +9,13 @@ Prompted by the bug fixed in `3674f66`: `ProjectDetail` hard-coded
 constant was correct when written and became a lie when R2.2–R6.1 were deployed.
 `FASE1_LANES/NODES/EDGES` are the same kind of fact — a hand-kept copy of
 something the engine already knows — so this design removes the category rather
-than adding eleven more instances of it.
+than adding twelve more instances of it.
 
 ---
 
 ## 1. What is already true
 
-Every RIP BPMN carries a complete swimlane. Verified across all eleven files in
+Every RIP BPMN carries a complete swimlane. Verified across all twelve files in
 `linked-data-explorer/examples/organizations/flevoland/rip-phase-*/`:
 
 |             | R2.1 | R2.2 | R4.1 | R6.1 |
@@ -24,9 +24,10 @@ Every RIP BPMN carries a complete swimlane. Verified across all eleven files in
 | `BPMNShape` | 60   | 54   | 70   | 74   |
 | `BPMNEdge`  | 44   | 52   | 58   | 68   |
 
-Totals across the eleven: 201 `userTask`, 51 `exclusiveGateway`, 32
-`parallelGateway`, 16 `endEvent`, 11 `startEvent`, 1 `serviceTask`, 361
-`sequenceFlow`, 73 `conditionExpression`, 312 `flowNodeRef`.
+Totals across the twelve: 208 `userTask`, 54 `exclusiveGateway`, 32
+`parallelGateway`, 20 `endEvent`, 12 `startEvent`, 1 `serviceTask`, 375
+`sequenceFlow`, 79 `conditionExpression`, 327 `flowNodeRef`. Recounted after
+R5.3 was modelled and deployed; the earlier figures in this design predate it.
 
 Two findings that shaped the design:
 
@@ -44,9 +45,11 @@ The backend already reaches BPMN XML: `operaton.service.ts:589`
 matters — it works for a phase with no running instance, so mock portfolio rows
 get a diagram too.
 
-`RIP_PHASE_KEYS` in `packages/shared/src/rip-phases.ts` already maps phase code
-to `processDefinitionKey` for the eleven modelled phases. R5.3 has no key and is
-marked `beyond` — it stays undiagrammed by design.
+`RIP_PHASE_KEYS` in `packages/shared/src/rip-phases.ts` maps phase code to
+`processDefinitionKey` for all twelve phases. R5.3 was the exception when this
+design was written — no key, marked `beyond`, undiagrammed by design — but its
+sheet arrived on 3-9-2026 and it is deployed as `RipR53Process` (`dab1c92`).
+`beyond` is gone entirely (`63ada7e`), so no phase is excluded any more.
 
 ## 2. Why derive at runtime rather than generate files
 
@@ -55,7 +58,7 @@ Three options were weighed.
 **Build-time codegen was rejected.** The `.bpmn` files live in a _different
 repository_ (`linked-data-explorer`), so generation needs a cross-repo step
 someone must remember to run. The first time nobody does, the diagram lies —
-which is the bug this work exists to stop, re-created at eleven times the scale.
+which is the bug this work exists to stop, re-created at twelve times the scale.
 `rip-r21-bpmn-source-in-lde` already records that this repo's own `.bpmn` copy
 went stale against the deployed one.
 
@@ -81,7 +84,7 @@ Operaton ──/process-definition/key/{key}/xml──▶ operaton.service (bpmn
 
 `bpmn-swimlane.ts` is a pure function from XML string to `PhaseSwimlaneModel`.
 It performs no I/O and knows nothing about Operaton, so it is testable directly
-against the eleven real `.bpmn` files as fixtures.
+against the twelve real `.bpmn` files as fixtures.
 
 The model reuses the existing shapes in
 `packages/frontend/src/pages/infra-board/rip-model.ts` — `SwimLane`, `SwimNode`,
@@ -118,8 +121,11 @@ every gateway as an exclusive `×` diamond. R2.1 happens to contain no parallel
 gateway, but the other phases hold 32 of them, which would render as a wrong
 symbol asserting wrong semantics. `parallel` renders `+`.
 
-**Multiple end events must render.** There are 16 across 11 processes; R2.1 has
-one, so the current renderer has never met a second.
+**Multiple end events must render.** There are 20 across 12 processes; R2.1 has
+one, so the current renderer has never met a second. R5.3 alone has four, and
+they are deliberately not merged — three return to R5.2 and one leads to R5.4,
+and which one a project took is the phase's whole meaning. A renderer that
+collapses them would make R5.3 uninformative.
 
 ## 5. Layout
 
@@ -193,7 +199,7 @@ distinct lanes. **The R2.1 swimlane will visibly change.** This is accepted in
 exchange for removing the hand-maintained copy.
 
 `nodeStatusFromHistory` keys on `bpmnId`, which derivation preserves, so live
-done/active/action colouring extends to all eleven phases with no new work.
+done/active/action colouring extends to all twelve phases with no new work.
 
 **`3674f66`'s `pastFase1` branch is deleted.** It marks R2.1's nodes done for an
 instance in a later phase — a workaround that existed only because R2.1 was the
@@ -206,20 +212,22 @@ A phase whose model cannot be produced — engine unreachable, process not
 deployed, XML unparseable — renders today's `nog niet gemodelleerd` panel rather
 than an error state. The feature degrades to exactly the current behaviour.
 
-R5.3 has no `processDefinitionKey`; the endpoint answers 409 for it, consistent
-with the existing phase endpoints, which deliberately distinguish "not deployed"
-from "deployed, no instances".
+Every phase now carries a `processDefinitionKey`, so no phase answers 409 on
+that ground any more. The 409 path stays: it is the documented answer for a
+phase catalogued ahead of its BPMN being deployed, and the phase endpoints
+deliberately distinguish "not deployed" from "deployed, no instances".
 
 ## 9. Testing
 
-- **Parser, against all eleven real `.bpmn` files as fixtures.** Per phase:
+- **Parser, against all twelve real `.bpmn` files as fixtures.** Per phase:
   lane count and order, every `flowNodeRef` assigned, node kinds, edge count,
   `col` monotonic along forward edges, back edges detected. These are the tests
   that would have caught the parallel-gateway and multiple-end-event gaps.
 - **R2.1 characterisation.** Assert the derived model against R2.1's known
   shape, so the one diagram with a human-verified reference stays honest.
-- **Endpoint** — 200 with a model, 409 for R5.3, degradation when the engine
-  fails.
+- **Endpoint** — 200 with a model, 409 for a catalogued-but-undeployed phase
+  (synthesised, since no real phase is in that state), degradation when the
+  engine fails.
 - **`FASE1_DOCS` coupling** — every `produceNode` resolves to a node in the
   derived R2.1 model (§6.1).
 - **`PhaseSwimlane` component** — renders lanes and nodes from a model,
@@ -230,5 +238,4 @@ from "deployed, no instances".
 - Re-drawing using the BPMN's own coordinates. Grid re-flow was chosen.
 - Per-phase lane merging or renaming overrides. Lanes render as the BPMN names
   them.
-- R5.3, which is `beyond` — no process model is planned.
 - Any change to how phases are started, completed, or counted.
