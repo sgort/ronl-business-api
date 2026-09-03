@@ -32,6 +32,15 @@ const EMPTY_MODEL: PhaseSwimlaneModel = {
   edges: [],
 };
 
+// Back-edge `d` shape is `M ax ay V <bandY> H bx V by` — the y-value of the
+// horizontal segment is the number between the first "V" and "H".
+function bandYOf(path: Element): number {
+  const d = path.getAttribute('d') ?? '';
+  const m = d.match(/V\s+(-?[\d.]+)\s+H/);
+  expect(m).not.toBeNull();
+  return Number(m![1]);
+}
+
 // Exercises shapes and edge routings the two models above never touch: an
 // exclusive (non-parallel) gateway, a service task, a doc-carrying task, a
 // same-column edge, a rework (back) edge, and a dangling edge (no matching node).
@@ -167,5 +176,119 @@ describe('PhaseSwimlane', () => {
     );
     expect(container.querySelector('.pb-swim-node-claimed')).not.toBeNull();
     expect(getByTitle('In behandeling')).toBeInTheDocument();
+  });
+
+  it('offsets each back-edge band so overlapping-column back edges get distinct y-values', () => {
+    // R2.1's two back edges sit in disjoint column ranges ([5,7] and [13,16]),
+    // so a single shared band never collided there. A phase with two rework
+    // loops whose column ranges OVERLAP (e.g. R3.1's three, R5.2's four) needs
+    // each back edge's horizontal segment drawn at its own y, or the lines
+    // become visually coincident — not just crowded, indistinguishable.
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'R3.1',
+      lanes: [
+        { key: 'l1', label: 'Lane A' },
+        { key: 'l2', label: 'Lane B' },
+      ],
+      nodes: [
+        { id: 'a0', bpmnId: 'a0', kind: 'task', col: 0, row: 0, label: 'A0' },
+        { id: 'a1', bpmnId: 'a1', kind: 'task', col: 1, row: 0, label: 'A1' },
+        { id: 'a3', bpmnId: 'a3', kind: 'gateway', col: 3, row: 0, label: 'G3' },
+        { id: 'a4', bpmnId: 'a4', kind: 'gateway', col: 4, row: 1, label: 'G4' },
+      ],
+      edges: [
+        { from: 'a4', to: 'a1', back: true }, // column range [1,4]
+        { from: 'a3', to: 'a0', back: true }, // column range [0,3] — overlaps [1,4]
+      ],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} />);
+    const paths = Array.from(container.querySelectorAll('svg.pb-swim-svg > path'));
+    expect(paths).toHaveLength(2);
+    const bandYs = paths.map(bandYOf);
+    expect(bandYs[0]).not.toEqual(bandYs[1]);
+  });
+
+  it('gives four overlapping-column back edges (R5.2 count) distinct bands, all clear of the last node row', () => {
+    // Chain of overlapping column ranges: [1,5], [2,6], [3,7], [4,8].
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'R5.2',
+      lanes: [
+        { key: 'l1', label: 'Lane A' },
+        { key: 'l2', label: 'Lane B' },
+        { key: 'l3', label: 'Lane C' },
+      ],
+      nodes: [
+        { id: 't1', bpmnId: 't1', kind: 'task', col: 1, row: 0, label: 'T1' },
+        { id: 'g1', bpmnId: 'g1', kind: 'gateway', col: 5, row: 0, label: 'G1' },
+        { id: 't2', bpmnId: 't2', kind: 'task', col: 2, row: 1, label: 'T2' },
+        { id: 'g2', bpmnId: 'g2', kind: 'gateway', col: 6, row: 1, label: 'G2' },
+        // Last lane (row 2) carries nodes too — this is the row a squeezed
+        // band would have crossed through before the reserve existed.
+        { id: 't3', bpmnId: 't3', kind: 'task', col: 3, row: 2, label: 'T3' },
+        { id: 'g3', bpmnId: 'g3', kind: 'gateway', col: 7, row: 2, label: 'G3' },
+        { id: 't4', bpmnId: 't4', kind: 'task', col: 4, row: 2, label: 'T4' },
+        { id: 'g4', bpmnId: 'g4', kind: 'gateway', col: 8, row: 2, label: 'G4' },
+      ],
+      edges: [
+        { from: 'g1', to: 't1', back: true },
+        { from: 'g2', to: 't2', back: true },
+        { from: 'g3', to: 't3', back: true },
+        { from: 'g4', to: 't4', back: true },
+      ],
+    };
+    const { container, getByText } = render(<PhaseSwimlane model={model} statusById={{}} />);
+    const paths = Array.from(container.querySelectorAll('svg.pb-swim-svg > path'));
+    expect(paths).toHaveLength(4);
+    const bandYs = paths.map(bandYOf);
+
+    // 1. All four bands are at distinct y-values.
+    expect(new Set(bandYs).size).toBe(4);
+
+    // 2. Every band sits below the last row's node — read the actual
+    //    rendered bottom edge off a last-row task (`T3`) rather than
+    //    recomputing it from the component's own constants, so this is a
+    //    rendered-output assertion, not an implementation-detail one.
+    const lastRowNode = getByText('T3').closest('.pb-swim-node') as HTMLElement;
+    const lastRowNodeBottom =
+      parseFloat(lastRowNode.style.top) + parseFloat(lastRowNode.style.height);
+    for (const y of bandYs) {
+      expect(y).toBeGreaterThan(lastRowNodeBottom);
+    }
+  });
+
+  it('reserves no extra canvas height when a model has no back edges', () => {
+    // MODEL has zero `back: true` edges — H must equal the pre-reserve
+    // lane-only formula exactly: no rework loops, no visual change.
+    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
+    const svg = container.querySelector('svg.pb-swim-svg')!;
+    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 88));
+  });
+
+  it('leaves each lane band and label at exactly ROW_H under the reserve — reserve is empty canvas, nothing stretches', () => {
+    const model: PhaseSwimlaneModel = {
+      phaseCode: 'R3.1',
+      lanes: [
+        { key: 'l1', label: 'Lane A' },
+        { key: 'l2', label: 'Lane B' },
+      ],
+      nodes: [
+        { id: 'g1', bpmnId: 'g1', kind: 'gateway', col: 3, row: 0, label: 'G1' },
+        { id: 't1', bpmnId: 't1', kind: 'task', col: 0, row: 0, label: 'T1' },
+      ],
+      edges: [{ from: 'g1', to: 't1', back: true }],
+    };
+    const { container } = render(<PhaseSwimlane model={model} statusById={{}} />);
+    const svg = container.querySelector('svg.pb-swim-svg')!;
+    const bands = Array.from(container.querySelectorAll('.pb-swim-band')) as HTMLElement[];
+    const labels = Array.from(container.querySelectorAll('.pb-swim-lane-label')) as HTMLElement[];
+
+    // 2 lanes + 1 back edge → reserve = 1*14+10 = 24; H = 2*88 + 24 = 200.
+    expect(svg.getAttribute('height')).toBe('200');
+    // Every band and every label stays exactly ROW_H tall — the reserve
+    // below them is not band/label coverage, so it must be blank canvas.
+    for (const b of bands) expect(b.style.height).toBe('88px');
+    for (const l of labels) expect(l.style.height).toBe('88px');
+    const bandCoverage = bands.reduce((sum, b) => sum + parseFloat(b.style.height), 0);
+    expect(bandCoverage).toBe(176); // lanes.length * ROW_H — strictly less than H (200)
   });
 });

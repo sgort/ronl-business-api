@@ -23,12 +23,20 @@ export default function PhaseSwimlane({
   const nodeById = Object.fromEntries(nodes.map((n) => [n.id, n]));
   const nCols = nodes.length ? Math.max(...nodes.map((n) => n.col)) + 1 : 1;
   const W = nCols * COL_W;
-  const H = lanes.length * ROW_H;
+  // Rework (back) edges route through a dedicated band below every node row
+  // rather than borrowing space from the bottom lane. With no back edges the
+  // reserve is 0 and H is exactly the lane-only height — unchanged from before.
+  const backEdgeCount = edges.filter((e) => e.back).length;
+  const bandReserve = backEdgeCount ? backEdgeCount * 14 + 10 : 0;
+  const H = lanes.length * ROW_H + bandReserve;
   const cx = (n: { col: number }) => n.col * COL_W + COL_W / 2;
   const cy = (n: { row: number }) => n.row * ROW_H + ROW_H / 2;
   const st = (id: string): StatusKey => statusById[id] ?? 'todo';
   const edgeColor = (from: string) => (st(from) === 'done' ? '#3fa535' : '#c2c7d0');
 
+  // Incremented only for back (rework-loop) edges, in edge order — never by
+  // the map's array index, which would also space out non-back edges.
+  let backCount = 0;
   const paths = edges
     .map((e, i) => {
       const a = nodeById[e.from],
@@ -40,7 +48,11 @@ export default function PhaseSwimlane({
         by = cy(b);
       let d: string;
       if (e.back) {
-        const bandY = H - 10;
+        // Each back edge gets its own band, in the reserve below every node
+        // row, so overlapping-column rework loops draw distinct horizontal
+        // segments instead of coinciding — or crossing through node rows.
+        const bandY = lanes.length * ROW_H + 10 + backCount * 14;
+        backCount++;
         d = `M ${ax} ${ay + NODE_H / 2} V ${bandY} H ${bx} V ${by + NODE_H / 2}`;
       } else {
         const aw = a.kind === 'gateway' || a.kind === 'parallel' ? GATE / 2 : NODE_W / 2;
