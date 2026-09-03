@@ -527,39 +527,82 @@ function readFlows(process: Record<string, any>): RawFlow[] {
 }
 
 /**
- * Longest-path layering from the start event.
+ * Back edges, found STRUCTURALLY rather than from columns.
  *
- * Longest path rather than shortest so a node never sits to the left of its
- * own predecessor. Cycles — rework loops, of which several phases have many —
- * are broken by relaxing a node only while its column still grows, which
- * terminates because columns are bounded by the node count.
+ * Order matters and is the whole trick: columns cannot classify an edge,
+ * because a cyclic relaxation pushes both endpoints rightwards until the pass
+ * cap and no edge is left pointing backwards. So detect the cycles first — a
+ * depth-first walk where an edge whose target is already on the current stack
+ * closes one — and layer over the remainder, which is a DAG.
+ *
+ * Returns the ids of the flows that close a cycle.
  */
-function assignColumns(nodes: SwimNode[], flows: RawFlow[]): Map<string, number> {
-  const col = new Map<string, number>(nodes.map((n) => [n.id, 0]));
+function findBackEdges(nodes: SwimNode[], flows: RawFlow[], seeds: string[]): Set<string> {
   const outgoing = new Map<string, RawFlow[]>();
   for (const f of flows) {
     const arr = outgoing.get(f.from) ?? [];
     arr.push(f);
     outgoing.set(f.from, arr);
   }
+  const back = new Set<string>();
+  const state = new Map<string, 'white' | 'grey' | 'black'>();
+  for (const n of nodes) state.set(n.id, 'white');
 
-  const starts = nodes.filter((n) => n.kind === 'start').map((n) => n.id);
-  const seeds = starts.length > 0 ? starts : nodes.slice(0, 1).map((n) => n.id);
+  // Iterative DFS: these graphs are small (max ~74 nodes), but an explicit
+  // stack keeps it obvious that no recursion limit is in play.
+  const visit = (root: string) => {
+    const stack: Array<{ id: string; next: number }> = [{ id: root, next: 0 }];
+    state.set(root, 'grey');
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      const edges = outgoing.get(frame.id) ?? [];
+      if (frame.next >= edges.length) {
+        state.set(frame.id, 'black');
+        stack.pop();
+        continue;
+      }
+      const f = edges[frame.next++];
+      const s = state.get(f.to);
+      if (s === 'grey') back.add(f.id);
+      else if (s === 'white') {
+        state.set(f.to, 'grey');
+        stack.push({ id: f.to, next: 0 });
+      }
+    }
+  };
 
-  // Every node starts at 0, so a node unreachable from a seed simply stays
-  // in column 0 rather than being dropped. `seeds` is asserted non-empty for
-  // that reason, not used to drive the walk.
+  for (const seed of seeds) if (state.get(seed) === 'white') visit(seed);
+  // Anything unreachable from a start event still needs classifying.
+  for (const n of nodes) if (state.get(n.id) === 'white') visit(n.id);
+  return back;
+}
+
+/**
+ * Longest-path layering over FORWARD edges only.
+ *
+ * Longest path rather than shortest so a node never sits to the left of its
+ * own predecessor. Because the back edges are already removed, the graph is
+ * acyclic and the relaxation settles rather than spinning to the cap.
+ */
+function assignColumns(
+  nodes: SwimNode[],
+  forward: RawFlow[],
+  seeds: string[]
+): Map<string, number> {
+  const col = new Map<string, number>(nodes.map((n) => [n.id, 0]));
+
+  // Every node starts at 0, so a node unreachable from a seed simply stays in
+  // column 0 rather than being dropped.
   if (seeds.length === 0) return col;
 
-  // Bellman-Ford style relaxation, capped at nodes.length + 1 passes so a
-  // cycle cannot spin forever. Each pass can only push a column rightwards,
-  // and no column can exceed the node count, so the cap is safe.
+  // Relaxation over forward edges only. The graph is acyclic here, so this
+  // settles; the pass cap is a belt-and-braces guard, not the terminator.
   let changed = true;
   let passes = 0;
   while (changed && passes < nodes.length + 1) {
     changed = false;
     passes += 1;
-    for (const f of flows) {
+    for (const f of forward) {
       const from = col.get(f.from);
       const to = col.get(f.to);
       if (from === undefined || to === undefined) continue;
@@ -577,20 +620,26 @@ Then in `parseSwimlane`, replace the final `return`:
 
 ```ts
 const flows = readFlows(process);
-const col = assignColumns(nodes, flows);
+
+const starts = nodes.filter((n) => n.kind === 'start').map((n) => n.id);
+const seeds = starts.length > 0 ? starts : nodes.slice(0, 1).map((n) => n.id);
+
+// Classify first, layer second. Doing it the other way round cannot work:
+// see findBackEdges.
+const backIds = findBackEdges(nodes, flows, seeds);
+const col = assignColumns(
+  nodes,
+  flows.filter((f) => !backIds.has(f.id)),
+  seeds
+);
 for (const n of nodes) n.col = col.get(n.id) ?? 0;
 
-const edges = flows.map((f) => {
-  const from = col.get(f.from);
-  const to = col.get(f.to);
-  const back = from !== undefined && to !== undefined && to <= from;
-  return {
-    from: f.from,
-    to: f.to,
-    ...(f.label ? { label: f.label } : {}),
-    ...(back ? { back: true } : {}),
-  };
-});
+const edges = flows.map((f) => ({
+  from: f.from,
+  to: f.to,
+  ...(f.label ? { label: f.label } : {}),
+  ...(backIds.has(f.id) ? { back: true } : {}),
+}));
 
 return { phaseCode, lanes, nodes, edges };
 ```
@@ -1147,7 +1196,33 @@ Then delete `FASE1_LANES`, `FASE1_NODES`, `FASE1_EDGES`, `ROW`, `ROW_TO_LANE_KEY
 export type { NodeKind, SwimLane, SwimNode, SwimEdge } from '@ronl/shared';
 ```
 
-`nodeStatusFromHistory`, `getWipStepInfo`, `countReworkLoops` and `getDocProgress` still reference `FASE1_NODES`. `getWipStepInfo` is explicitly out of scope (see Prerequisite) — give it, `countReworkLoops` and `getDocProgress` a local R2.1 bpmn-id list rather than deleting them, and change `nodeStatusFromHistory` to key off the history's own activity ids:
+**Four live consumers outlive the constants.** `PhaseDetail.tsx:103,120` calls `getWipStepInfo`, `getDocProgress` and `countReworkLoops`, and `ProjectDetail.tsx:32` has `deriveMockStatus`. Handle each explicitly — do not leave them dangling:
+
+- **`countReworkLoops`** needs back-edge _targets_, which is the only part of `FASE1_EDGES` still earning its keep. Replace the derivation with the two ids directly:
+
+```ts
+/** R2.1's rework-loop targets, by BPMN id — the surviving remnant of the
+ *  deleted FASE1_EDGES. A task reached more than once means a loop ran. */
+export const FASE1_REWORK_TARGETS = [
+  'Task_AanvullenProjectplan2',
+  'Task_AanvullenProjectplan4',
+] as const;
+
+export function countReworkLoops(history: ActivityHistoryItem[]): number {
+  let loops = 0;
+  for (const bpmnId of FASE1_REWORK_TARGETS) {
+    const count = history.filter((h) => h.activityId === bpmnId).length;
+    loops += Math.max(0, count - 1);
+  }
+  return loops;
+}
+```
+
+- **`getDocProgress`** needs no change beyond §6.1's `produceNode` re-pointing — it reads `FASE1_DOCS` and `nodeStatusFromHistory`, both of which survive.
+- **`getWipStepInfo`** is out of scope (see Prerequisite) and must not gain behaviour here. Take its step label from the history item's own `activityName` instead of a node-map lookup, so it stops depending on `FASE1_NODES` without changing what it returns for R2.1. If `activityName` proves absent in the fixtures, leave it returning null — the WIP tab is then no worse than today, which is the bar.
+- **`deriveMockStatus`** iterates `FASE1_NODES`. Give it the derived nodes instead: `deriveMockStatus(mock, phaseModel?.nodes ?? [])`, iterating that list and keying the result by `bpmnId`.
+
+Then change `nodeStatusFromHistory` to key off the history's own activity ids:
 
 ```ts
 export function nodeStatusFromHistory(
