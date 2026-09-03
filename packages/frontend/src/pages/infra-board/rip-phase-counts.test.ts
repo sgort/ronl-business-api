@@ -65,18 +65,33 @@ describe('combinePhaseCounts', () => {
 });
 
 describe('getKlaarCounts and beyond phases', () => {
-  it('derives R5.4 from R5.3, its real predecessor now that R5.3 is modelled', () => {
-    // R5.3 used to be `beyond`, so the derivation stepped back to R5.2 -- a
-    // beyond phase can never carry a completed instance and R5.4 would have
-    // read zero forever. RipR53Process is deployed now, so its gereed figure
-    // is real and R5.4 derives from it directly.
+  it('gives R5.4 no klaar figure at all, because R5.3 has multiple exits', () => {
+    // The subtraction assumes finishing a phase means advancing to the next.
+    // R5.3 breaks that: three of its four end events return to R5.2, so its
+    // gereed mixes four outcomes and one project can complete it twice.
+    // Reporting "-" is honest; a number here would overstate R5.4 invisibly.
     const counts: Record<string, PhaseCounts> = {
       'R5.2': { wip: 0, gereed: 20 },
       'R5.3': { wip: 0, gereed: 9 },
       'R5.4': { wip: 2, gereed: 1 },
     };
-    const result = getKlaarCounts(RIP_PHASES, counts);
-    expect(result['R5.4']).toBe(6); // 9 - 2 - 1, from R5.3 not R5.2
+    expect(getKlaarCounts(RIP_PHASES, counts)['R5.4']).toBeUndefined();
+  });
+
+  it('drives that off the multipleExits flag, not off the phase code', () => {
+    // A literal 'R5.3' here would break the next time a phase gains or loses
+    // an exit -- the same trap three fixtures fell into before c561d48.
+    const withFlag = RIP_PHASES.map((p) =>
+      p.code === 'R2.2' ? { ...p, multipleExits: true } : { ...p, multipleExits: undefined }
+    );
+    const counts: Record<string, PhaseCounts> = {
+      'R2.2': { wip: 0, gereed: 9 },
+      'R2.3': { wip: 2, gereed: 1 },
+      'R5.4': { wip: 2, gereed: 1 },
+    };
+    const result = getKlaarCounts(withFlag, counts);
+    expect(result['R2.3']).toBeUndefined();
+    expect(result['R5.4']).toBe(0); // R5.3 no longer flagged, so it derives again
   });
 
   it('still gives the first phase no klaar figure at all', () => {

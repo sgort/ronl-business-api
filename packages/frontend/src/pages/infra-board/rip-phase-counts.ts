@@ -24,6 +24,15 @@ const EMPTY: PhaseCounts = { wip: 0, gereed: 0 };
  * finished the preceding phase but haven't reached this one yet. The first
  * phase in ladder order has no predecessor, so it's always undefined
  * (render "—", not 0 — there's nothing to be ready *for*).
+ *
+ * Undefined too when the predecessor has `multipleExits`. The subtraction
+ * assumes finishing a phase means advancing to the next one, which holds
+ * everywhere except after R5.3: three of its four end events return to R5.2,
+ * so its `gereed` mixes four outcomes and one project can complete it twice.
+ * Deriving a number from that would overstate R5.4's candidates in a way
+ * nothing on screen could reveal, so it reports "—" instead. Counting only
+ * the R5.4-bound exit is the real fix and needs the counts endpoint, which
+ * returns a flat { wip, gereed } per phase today.
  */
 export function getKlaarCounts(
   phases: RipPhase[],
@@ -34,7 +43,7 @@ export function getKlaarCounts(
     // Every phase is modelled, so the predecessor is simply the preceding
     // entry -- matching previousModelledPhase in the catalogue.
     const p = i - 1;
-    if (p < 0) {
+    if (p < 0 || phases[p].multipleExits) {
       out[phase.code] = undefined;
       return;
     }

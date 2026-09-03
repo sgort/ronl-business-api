@@ -37,6 +37,18 @@ export interface RipPhase {
   weeks: number;
   bron: string;
   processDefinitionKey?: string;
+  /**
+   * True when finishing this phase does not imply moving on to the next one.
+   * R5.3 is the only one: it has four end events and just one leads to R5.4 —
+   * the other three return to R5.2 (restpunten, or a vervroegde ingebruikname
+   * while the work carries on). So `gereed` here counts four different
+   * outcomes, and a project can legitimately complete the phase more than once.
+   *
+   * The successor's `klaar` figure cannot be derived from it; see
+   * getKlaarCounts, which returns undefined rather than a number it cannot
+   * stand behind.
+   */
+  multipleExits?: boolean;
 }
 
 const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
@@ -362,6 +374,7 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
       'Akkoord (vervroegde) ingebruikname?',
     ],
     krediet: false,
+    multipleExits: true,
     weeks: 4,
     bron: 'Overzichtsplaat R5.3 — (vervroegde) Ingebruikname / Oplevering (3-9-2026). Vier eindgebeurtenissen: één naar R5.4 (oplevering areaal), drie terug naar R5.2 (restpunten, vervroegde ingebruikname, restpunten door ON). Geen lus binnen de fase.',
   },
