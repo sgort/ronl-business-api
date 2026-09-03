@@ -186,3 +186,147 @@ describe('parseSwimlane — defensive parsing', () => {
     expect(orphan?.row).toBe(0);
   });
 });
+
+describe('parseSwimlane — edges and layering', () => {
+  it.each(ALL)('%s reads sequence flows', (code, key) => {
+    expect(parseSwimlane(xml(key), code).edges.length).toBeGreaterThan(0);
+  });
+
+  it.each(ALL)('%s places every forward edge left-to-right', (code, key) => {
+    const model = parseSwimlane(xml(key), code);
+    const col = new Map(model.nodes.map((n) => [n.id, n.col]));
+    for (const e of model.edges) {
+      if (e.back) continue;
+      const from = col.get(e.from);
+      const to = col.get(e.to);
+      if (from === undefined || to === undefined) continue;
+      expect(to).toBeGreaterThan(from);
+    }
+  });
+
+  // Known-answer back-edge counts for all twelve fixtures, verified against
+  // the actual DFS output (not guessed): R2.2, R2.3 and R5.3 are pure DAGs
+  // with no rework loop at all, while R3.1 and R5.2 chain several
+  // independent "niet akkoord" loops. A bare `length > 0` smoke test would
+  // pass identically whether the algorithm found the right number of loops
+  // or just one; this pins the exact count per phase.
+  it.each<[string, string, number]>([
+    ['R2.1', 'RipR21Process', 2],
+    ['R2.2', 'RipR22Process', 0],
+    ['R2.3', 'RipR23Process', 0],
+    ['R2.4', 'RipR24Process', 1],
+    ['R3.1', 'RipR31Process', 3],
+    ['R3.2', 'RipR32Process', 1],
+    ['R4.1', 'RipR41Process', 2],
+    ['R5.1', 'RipR51Process', 1],
+    ['R5.2', 'RipR52Process', 4],
+    ['R5.3', 'RipR53Process', 0],
+    ['R5.4', 'RipR54Process', 2],
+    ['R6.1', 'RipR61Process', 1],
+  ])('%s (%s) detects exactly %i back edge(s)', (code, key, expected) => {
+    const model = parseSwimlane(xml(key), code);
+    expect(model.edges.filter((e) => e.back).length).toBe(expected);
+  });
+
+  it('flags exactly the two known R2.1 rework loops as back edges', () => {
+    // R2.1 has two independent "niet akkoord" gateway loops — Gateway_Akkoord2
+    // back to Task_AanvullenProjectplan2, and Gateway_Akkoord4 back to
+    // Task_AanvullenProjectplan4. A back edge is one whose target sits in an
+    // earlier column — computed structurally by findBackEdges, not
+    // hand-flagged. The DFS closes each cycle at whichever edge it reaches
+    // last while the target is still on the stack, which need not be the
+    // "niet akkoord" flow itself: the Akkoord2 loop actually closes one edge
+    // downstream, at Task_AanvullenProjectplan2 -> Task_AccorderenProjectplan2
+    // (the "niet akkoord" edge into AanvullenProjectplan2 is visited first,
+    // while AccorderenProjectplan2 is already grey from the "Nee" branch).
+    // The Akkoord4 loop closes exactly on its "niet akkoord" edge. This pins
+    // the actual, verified pair rather than assuming which edge closes each
+    // cycle.
+    const model = parseSwimlane(xml('RipR21Process'), 'R2.1');
+    const backEdges = model.edges.filter((e) => e.back);
+    expect(backEdges).toEqual([
+      { from: 'Task_AanvullenProjectplan2', to: 'Task_AccorderenProjectplan2', back: true },
+      {
+        from: 'Gateway_Akkoord4',
+        to: 'Task_AanvullenProjectplan4',
+        label: 'niet akkoord',
+        back: true,
+      },
+    ]);
+    // Both known rework-loop targets are represented among the back edges'
+    // endpoints, even though only one of them is literally an edge's `to`.
+    const touched = new Set(backEdges.flatMap((e) => [e.from, e.to]));
+    expect(touched.has('Task_AanvullenProjectplan2')).toBe(true);
+    expect(touched.has('Task_AanvullenProjectplan4')).toBe(true);
+  });
+
+  it('carries the condition label on branching edges, with the exact text', () => {
+    const model = parseSwimlane(xml('RipR21Process'), 'R2.1');
+    const label = (from: string, to: string) =>
+      model.edges.find((e) => e.from === from && e.to === to)?.label;
+    expect(label('Gateway_IntakeAkkoord', 'Task_VerberenKwaliteit')).toBe('Nee');
+    expect(label('Gateway_IntakeAkkoord', 'Task_AanvullenProjectplan2')).toBe('Ja');
+    expect(label('Gateway_Akkoord2', 'Task_AanvullenProjectplan2')).toBe('niet akkoord');
+    expect(label('Gateway_Akkoord4', 'EndEvent_Phase1Complete')).toBe('akkoord');
+    // A plain, unconditional flow carries no label at all.
+    expect(label('Task_AanlevrenProjectplan', 'Task_OrganiserenIntakeoverleg')).toBeUndefined();
+  });
+
+  it('starts the start event at column 0', () => {
+    const model = parseSwimlane(xml('RipR22Process'), 'R2.2');
+    const start = model.nodes.find((n) => n.kind === 'start')!;
+    expect(start.col).toBe(0);
+  });
+
+  it('handles R5.3, which has exactly four end events', () => {
+    // R5.3 splits on oplevering vs (vervroegde) ingebruikname; three exits
+    // return to R5.2 and one leads to R5.4. The renderer must cope with more
+    // than the single end event R2.1 has.
+    const model = parseSwimlane(xml('RipR53Process'), 'R5.3');
+    expect(model.nodes.filter((n) => n.kind === 'end').length).toBe(4);
+  });
+});
+
+// None of the twelve real fixtures exercise a bare-text conditionExpression
+// (every one carries an xsi:type attribute, making fast-xml-parser return an
+// object rather than a string), and none contains a sequenceFlow whose
+// sourceRef/targetRef names an id outside the KINDS allowlist (no boundary
+// events are deployed today). Both are reachable in principle, so — matching
+// the "defensive parsing" pattern above for lanes/nodes — a synthetic
+// document pins the parser's and layering's behaviour on them.
+describe('parseSwimlane — edge/layering defensive parsing', () => {
+  const FLOW_EDGE_CASE_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_FlowEdge">
+  <bpmn:process id="FlowEdgeProcess">
+    <bpmn:startEvent id="StartEvent_1" name="Start" />
+    <bpmn:userTask id="Task_1" name="Task One" />
+    <bpmn:endEvent id="EndEvent_1" name="End" />
+    <bpmn:sequenceFlow id="Flow_BareCondition" sourceRef="StartEvent_1" targetRef="Task_1">
+      <bpmn:conditionExpression>bare-text-condition</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Dangling" sourceRef="Task_1" targetRef="BoundaryEvent_NotAFlowNode" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>`;
+
+  it('falls back to a bare-text conditionExpression as the label when no name is set', () => {
+    // fast-xml-parser returns a plain string (not an object with '#text')
+    // for an attribute-less, text-only element — the branch none of the
+    // real fixtures' xsi:type-bearing conditions ever take.
+    const model = parseSwimlane(FLOW_EDGE_CASE_BPMN, 'X.2');
+    const flow = model.edges.find((e) => e.from === 'StartEvent_1' && e.to === 'Task_1');
+    expect(flow?.label).toBe('bare-text-condition');
+  });
+
+  it('does not crash layering on a sequenceFlow whose target is outside the node set', () => {
+    // Flow_Dangling targets an id no KINDS-allowlisted element declares.
+    // assignColumns must skip it (col.get returns undefined for that id)
+    // rather than corrupting or halting the relaxation — the real edge to
+    // EndEvent_1 still lays out one column past Task_1.
+    const model = parseSwimlane(FLOW_EDGE_CASE_BPMN, 'X.2');
+    expect(model.edges.some((e) => e.to === 'BoundaryEvent_NotAFlowNode')).toBe(true);
+    const task = model.nodes.find((n) => n.id === 'Task_1')!;
+    const end = model.nodes.find((n) => n.id === 'EndEvent_1')!;
+    expect(end.col).toBeGreaterThan(task.col);
+  });
+});

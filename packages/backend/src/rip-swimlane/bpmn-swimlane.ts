@@ -2,6 +2,115 @@ import { XMLParser } from 'fast-xml-parser';
 import type { NodeKind, PhaseSwimlaneModel, SwimLane, SwimNode } from '@ronl/shared';
 import { docLabel } from './doc-label';
 
+interface RawFlow {
+  id: string;
+  from: string;
+  to: string;
+  label: string;
+}
+
+function readFlows(process: Record<string, any>): RawFlow[] {
+  return toArray(process.sequenceFlow).map((f: any) => {
+    const cond = f.conditionExpression;
+    const condText = typeof cond === 'string' ? cond : (cond?.['#text'] ?? '');
+    return {
+      id: String(f['@_id']),
+      from: String(f['@_sourceRef']),
+      to: String(f['@_targetRef']),
+      label: String(f['@_name'] ?? condText ?? '').trim(),
+    };
+  });
+}
+
+/**
+ * Back edges, found STRUCTURALLY rather than from columns.
+ *
+ * Order matters and is the whole trick: columns cannot classify an edge,
+ * because a cyclic relaxation pushes both endpoints rightwards until the pass
+ * cap and no edge is left pointing backwards. So detect the cycles first — a
+ * depth-first walk where an edge whose target is already on the current stack
+ * closes one — and layer over the remainder, which is a DAG.
+ *
+ * Returns the ids of the flows that close a cycle.
+ */
+function findBackEdges(nodes: SwimNode[], flows: RawFlow[], seeds: string[]): Set<string> {
+  const outgoing = new Map<string, RawFlow[]>();
+  for (const f of flows) {
+    const arr = outgoing.get(f.from) ?? [];
+    arr.push(f);
+    outgoing.set(f.from, arr);
+  }
+  const back = new Set<string>();
+  const state = new Map<string, 'white' | 'grey' | 'black'>();
+  for (const n of nodes) state.set(n.id, 'white');
+
+  // Iterative DFS: these graphs are small (max ~74 nodes), but an explicit
+  // stack keeps it obvious that no recursion limit is in play.
+  const visit = (root: string) => {
+    const stack: Array<{ id: string; next: number }> = [{ id: root, next: 0 }];
+    state.set(root, 'grey');
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      const edges = outgoing.get(frame.id) ?? [];
+      if (frame.next >= edges.length) {
+        state.set(frame.id, 'black');
+        stack.pop();
+        continue;
+      }
+      const f = edges[frame.next++];
+      const s = state.get(f.to);
+      if (s === 'grey') back.add(f.id);
+      else if (s === 'white') {
+        state.set(f.to, 'grey');
+        stack.push({ id: f.to, next: 0 });
+      }
+    }
+  };
+
+  for (const seed of seeds) if (state.get(seed) === 'white') visit(seed);
+  // Anything unreachable from a start event still needs classifying.
+  for (const n of nodes) if (state.get(n.id) === 'white') visit(n.id);
+  return back;
+}
+
+/**
+ * Longest-path layering over FORWARD edges only.
+ *
+ * Longest path rather than shortest so a node never sits to the left of its
+ * own predecessor. Because the back edges are already removed, the graph is
+ * acyclic and the relaxation settles rather than spinning to the cap.
+ */
+function assignColumns(
+  nodes: SwimNode[],
+  forward: RawFlow[],
+  seeds: string[]
+): Map<string, number> {
+  const col = new Map<string, number>(nodes.map((n) => [n.id, 0]));
+
+  // Every node starts at 0, so a node unreachable from a seed simply stays in
+  // column 0 rather than being dropped.
+  if (seeds.length === 0) return col;
+
+  // Relaxation over forward edges only. The graph is acyclic here, so this
+  // settles; the pass cap is a belt-and-braces guard, not the terminator.
+  let changed = true;
+  let passes = 0;
+  while (changed && passes < nodes.length + 1) {
+    changed = false;
+    passes += 1;
+    for (const f of forward) {
+      const from = col.get(f.from);
+      const to = col.get(f.to);
+      if (from === undefined || to === undefined) continue;
+      if (to < from + 1) {
+        col.set(f.to, from + 1);
+        changed = true;
+      }
+    }
+  }
+  return col;
+}
+
 /**
  * Turn deployed BPMN into a swimlane model.
  *
@@ -129,5 +238,27 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
     }
   }
 
-  return { phaseCode, lanes, nodes, edges: [] };
+  const flows = readFlows(process);
+
+  const starts = nodes.filter((n) => n.kind === 'start').map((n) => n.id);
+  const seeds = starts.length > 0 ? starts : nodes.slice(0, 1).map((n) => n.id);
+
+  // Classify first, layer second. Doing it the other way round cannot work:
+  // see findBackEdges.
+  const backIds = findBackEdges(nodes, flows, seeds);
+  const col = assignColumns(
+    nodes,
+    flows.filter((f) => !backIds.has(f.id)),
+    seeds
+  );
+  for (const n of nodes) n.col = col.get(n.id) ?? 0;
+
+  const edges = flows.map((f) => ({
+    from: f.from,
+    to: f.to,
+    ...(f.label ? { label: f.label } : {}),
+    ...(backIds.has(f.id) ? { back: true } : {}),
+  }));
+
+  return { phaseCode, lanes, nodes, edges };
 }
