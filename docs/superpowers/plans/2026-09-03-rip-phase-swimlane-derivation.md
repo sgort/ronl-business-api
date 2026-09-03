@@ -19,6 +19,8 @@
 - **A parallel-run test failure is not a finding until it fails in isolation.** Backend is Jest (`--runInBand` for serial); frontend is Vitest (`npm run test:serial --workspace=@ronl/frontend`). Check which runner before reaching for a flag.
 - **`@ronl/shared` resolves to `dist/`.** After editing `packages/shared/src/**`, run `npm run build --workspace=@ronl/shared` or the change is invisible to backend and frontend. This has already cost one session a baffling test failure.
 - Backend tests are colocated: `testMatch: ['<rootDir>/src/**/*.test.ts']`.
+- **Every file this work touches must end above 80% per-file BRANCH coverage**, matching the repo-wide floor. Check the per-file coverage table after each task, not just the totals — a workspace can sit at 95% overall while a new file sits at 40%.
+- **`packages/shared` has no test runner at all** — no test script, no config, zero existing tests, and it is not one of the five coverage-gated workspaces. Executable logic placed there is therefore unmeasurable and cannot meet the branch floor. Keep `packages/shared/src/rip-swimlane.ts` to **type declarations only** (which have no branches); any branching logic belongs in a workspace whose coverage is gated.
 - Phase codes are derived from `processDefinitionKey`, **never** from a process definition's `name`. R2.1's deployed name is `RIP Fase 1 — R2.1 Projectplan Planvoorbereiding` (em dash, legacy prefix, code mid-string) while the other eleven are `RX.Y - Title` with a plain hyphen. Any regex over names mis-parses R2.1.
 
 ## Prerequisite (not a task)
