@@ -5,6 +5,7 @@ import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
+import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
 const router = express.Router();
 const logger = createLogger('rip-routes');
@@ -111,6 +112,36 @@ router.get('/phases/:code/completed', async (req, res) => {
         code: 'RIP_COMPLETED_LIST_FAILED',
         message: 'Failed to retrieve completed RIP phase instances',
       },
+    });
+  }
+});
+
+/**
+ * GET /v1/rip/phases/:code/model
+ * Swimlane model for one RIP phase, derived from its deployed BPMN.
+ */
+router.get('/phases/:code/model', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+  const code = req.params.code;
+  const key = resolvePhaseKey(code, res);
+  if (!key) return;
+  try {
+    const xml = await operatonService.getPhaseBpmnXml(key, req.user.tenantId);
+    res.json({ success: true, data: parseSwimlane(xml, code) });
+  } catch (error) {
+    logger.error('Failed to build RIP phase swimlane model', {
+      code,
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PHASE_MODEL_FAILED', message: 'Failed to build phase process model' },
     });
   }
 });

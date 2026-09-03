@@ -6,6 +6,8 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
@@ -28,6 +30,7 @@ jest.mock('@services/operaton.service', () => ({
     getRipInstanceDocuments: jest.fn(),
     getDeployedProcessKeys: jest.fn(),
     getPhaseInstanceCounts: jest.fn(),
+    getPhaseBpmnXml: jest.fn(),
   },
 }));
 jest.mock('@utils/logger', () => ({
@@ -63,6 +66,7 @@ const svc = operatonService as unknown as {
   getRipInstanceDocuments: jest.Mock;
   getDeployedProcessKeys: jest.Mock;
   getPhaseInstanceCounts: jest.Mock;
+  getPhaseBpmnXml: jest.Mock;
 };
 
 const app = express();
@@ -249,6 +253,7 @@ describe('handler guards for an authenticated request without a user', () => {
     ['/v1/rip/phases/counts'],
     ['/v1/rip/instances/pi-1/documents'],
     ['/v1/rip/phases/R2.1/completed'],
+    ['/v1/rip/phases/R2.1/model'],
   ])('%s → 401 UNAUTHORIZED', async (path) => {
     const res = await noUser(request(app).get(path));
     expect(res.status).toBe(401);
@@ -294,6 +299,13 @@ describe('non-Error rejections', () => {
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
   });
+
+  it('GET /phases/:code/model still answers 500', async () => {
+    svc.getPhaseBpmnXml.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/model'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
+  });
 });
 
 describe('tenant isolation when the instance has no municipality', () => {
@@ -307,5 +319,60 @@ describe('tenant isolation when the instance has no municipality', () => {
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(200);
     expect(res.body.data.intakeReport).toEqual({ t: 'intake' });
+  });
+});
+
+describe('GET /phases/:code/model', () => {
+  const r22Xml = readFileSync(
+    join(__dirname, '../rip-swimlane/__fixtures__/RipR22Process.bpmn'),
+    'utf-8'
+  );
+
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/R2.2/model');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns a swimlane model derived from the deployed BPMN', async () => {
+    svc.getPhaseBpmnXml.mockResolvedValue(r22Xml);
+
+    const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    // Fixture-verified (bpmn-swimlane.test.ts): R2.2 has these exact 4 lanes,
+    // 17 nodes and 21 edges. Asserting the counts and lane labels, not just
+    // `success: true`, catches wrong-fixture or mis-wired parsing.
+    expect(res.body.data.phaseCode).toBe('R2.2');
+    expect(res.body.data.lanes.map((l: { label: string }) => l.label)).toEqual([
+      'Projectleider',
+      'Ontwerper',
+      'RIP-team, Aandrager, Adviseur',
+      'Omgevingsmanager',
+    ]);
+    expect(res.body.data.nodes).toHaveLength(17);
+    expect(res.body.data.edges).toHaveLength(21);
+    expect(svc.getPhaseBpmnXml).toHaveBeenCalledWith('RipR22Process', 'flevoland');
+  });
+
+  it('404s an unknown phase code without touching the engine', async () => {
+    const res = await auth(request(app).get('/v1/rip/phases/R9.9/model'));
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+    expect(svc.getPhaseBpmnXml).not.toHaveBeenCalled();
+  });
+
+  itIfUnmodelled('409s a known but unmodelled phase without touching the engine', async () => {
+    const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/model`));
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
+    expect(svc.getPhaseBpmnXml).not.toHaveBeenCalled();
+  });
+
+  it('500s with PHASE_MODEL_FAILED rather than half-rendering when the engine is unreachable', async () => {
+    svc.getPhaseBpmnXml.mockRejectedValue(new Error('ECONNREFUSED'));
+    const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
   });
 });

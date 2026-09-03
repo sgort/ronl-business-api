@@ -747,6 +747,62 @@ describe('getBoardOwner', () => {
   });
 });
 
+describe('getPhaseBpmnXml', () => {
+  it('fetches XML by key and caches the result', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<definitions/>' } });
+    await expect(svc.getPhaseBpmnXml('RipR22Process')).resolves.toBe('<definitions/>');
+    expect(mockClient.get).toHaveBeenCalledWith('/process-definition/key/RipR22Process/xml');
+    await svc.getPhaseBpmnXml('RipR22Process'); // cached
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries the tenant-scoped XML lookup first when a tenantId is given', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<definitions tenant="1"/>' } });
+    await expect(svc.getPhaseBpmnXml('RipR22Process', 'flevoland')).resolves.toBe(
+      '<definitions tenant="1"/>'
+    );
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/process-definition/key/RipR22Process/tenant-id/flevoland/xml'
+    );
+  });
+
+  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<definitions/>' } });
+    await svc.getPhaseBpmnXml('RipR22Process'); // caches under '-:RipR22Process'
+    await svc.getPhaseBpmnXml('RipR22Process', 'flevoland'); // caches under 'flevoland:RipR22Process'
+    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the untenanted lookup when the tenant-scoped one reports no matching definition', async () => {
+    mockClient.get
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          data: {
+            message:
+              'No matching process definition with key: RipR22Process and tenant-id: utrecht',
+          },
+        },
+      })
+      .mockResolvedValueOnce({ data: { bpmn20Xml: '<definitions/>' } });
+    await expect(svc.getPhaseBpmnXml('RipR22Process', 'utrecht')).resolves.toBe('<definitions/>');
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/RipR22Process/tenant-id/utrecht/xml'
+    );
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/RipR22Process/xml');
+  });
+
+  it('rethrows on lookup failure rather than caching or swallowing it', async () => {
+    mockClient.get.mockRejectedValue(new Error('xml down'));
+    await expect(svc.getPhaseBpmnXml('RipR22Process')).rejects.toThrow('xml down');
+    // Nothing was cached for the failed call, so a retry hits the client again.
+    mockClient.get.mockResolvedValueOnce({ data: { bpmn20Xml: '<definitions/>' } });
+    await expect(svc.getPhaseBpmnXml('RipR22Process')).resolves.toBe('<definitions/>');
+    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('getCompletedTasks', () => {
   it('joins businessKey and boardOwner into each historic task', async () => {
     routeGet([
