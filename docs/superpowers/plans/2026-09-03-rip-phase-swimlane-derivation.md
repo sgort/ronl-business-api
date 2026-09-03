@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - **Never bypass a verification gate.** No `--no-verify`, no `SKIP=`, no `HUSKY=0`. If a hook fails, read it and fix what it names.
-- **Ask before every `git commit`.** The plan's commit steps mean "stage, report, and ask" — never commit unprompted.
+- **Commit each task.** The user has approved per-task commits for this plan specifically, so a task's final step commits rather than asking. This is a deliberate, scoped exception to the repo's usual ask-first rule — it does not extend to merging, pushing, or any other branch-level operation, which still require the user in the moment.
+- **Never merge, push, or force-push.** Those are the user's, always, and are not part of any task here.
 - **Never start, stop or restart dev servers.** If a check needs a running server, hand it to the user.
 - **A parallel-run test failure is not a finding until it fails in isolation.** Backend is Jest (`--runInBand` for serial); frontend is Vitest (`npm run test:serial --workspace=@ronl/frontend`). Check which runner before reaching for a flag.
 - **`@ronl/shared` resolves to `dist/`.** After editing `packages/shared/src/**`, run `npm run build --workspace=@ronl/shared` or the change is invisible to backend and frontend. This has already cost one session a baffling test failure.
