@@ -141,3 +141,123 @@ describe('ArchiefSection', () => {
     expect(mockBusinessApi.process.historicVariables).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('ArchiefSection task rows', () => {
+  it('keeps every board-tagged task when no board is named', async () => {
+    // The shared archive view (no boardId) is the caseworker's own list: a
+    // task tagged for a board must still show there, not be filtered out.
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({ id: 'a', name: 'Van infra-board', boardOwner: 'infra' }),
+        makeTask({ id: 'b', name: 'Van woo-board', boardOwner: 'woo' }),
+      ],
+    });
+
+    render(<ArchiefSection />);
+
+    expect(await screen.findByText('Van infra-board')).toBeInTheDocument();
+    expect(screen.getByText('Van woo-board')).toBeInTheDocument();
+  });
+
+  it('drops an untagged task whose process key is not on the allow list', async () => {
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({ id: 'a', name: 'Toegestaan', processDefinitionKey: 'ProcA' }),
+        makeTask({ id: 'b', name: 'Niet toegestaan', processDefinitionKey: 'ProcB' }),
+      ],
+    });
+
+    render(<ArchiefSection allowProcessKeys={new Set(['ProcA'])} />);
+
+    expect(await screen.findByText('Toegestaan')).toBeInTheDocument();
+    expect(screen.queryByText('Niet toegestaan')).not.toBeInTheDocument();
+  });
+
+  it('groups an untagged task with no process key under its task key instead', async () => {
+    // Historic tasks from an older engine version carry no
+    // processDefinitionKey; grouping them under `undefined` would collapse
+    // unrelated processes into one card.
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', name: 'Zonder proceskey', processDefinitionKey: null })],
+    });
+
+    render(<ArchiefSection />);
+
+    expect(await screen.findByText('Zonder proceskey')).toBeInTheDocument();
+  });
+
+  it('falls back to the task key when the task has no display name', async () => {
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', name: '', taskDefinitionKey: 'Task_Review' })],
+    });
+
+    render(<ArchiefSection />);
+
+    expect(await screen.findAllByText(/Task_Review/)).not.toHaveLength(0);
+  });
+
+  it('shows a business key when the process has one', async () => {
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', businessKey: 'ZAAK-2026-001' })],
+    });
+
+    render(<ArchiefSection />);
+
+    expect(await screen.findByText('ZAAK-2026-001')).toBeInTheDocument();
+  });
+
+  it('shows a human assignee but hides a raw user id and a worker account', async () => {
+    // A bare Keycloak UUID and the external-task worker account are machine
+    // identities; printing them in the archive tells the reader nothing and
+    // looks like leaked internals.
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [
+        makeTask({ id: 'a', name: 'Mens', assignee: 'w.demeer' }),
+        makeTask({
+          id: 'b',
+          name: 'UUID',
+          assignee: '3f1a2b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b',
+        }),
+        makeTask({ id: 'c', name: 'Worker', assignee: 'ronl-worker-rip' }),
+      ],
+    });
+
+    render(<ArchiefSection />);
+
+    expect(await screen.findByText('w.demeer')).toBeInTheDocument();
+    expect(screen.queryByText('3f1a2b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b')).not.toBeInTheDocument();
+    expect(screen.queryByText('ronl-worker-rip')).not.toBeInTheDocument();
+  });
+
+  it('renders each variable value by its type, with an em dash for an empty one', async () => {
+    mockBusinessApi.task.history.mockResolvedValue({
+      success: true,
+      data: [makeTask({ id: 'a', name: 'Met variabelen' })],
+    });
+    mockBusinessApi.process.historicVariables.mockResolvedValue({
+      success: true,
+      data: {
+        tekst: 'waarde',
+        getal: 42,
+        leeg: null,
+        ontbreekt: undefined,
+        object: { a: 1 },
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ArchiefSection />);
+    await user.click(await screen.findByText('Met variabelen'));
+
+    expect(await screen.findByText('waarde')).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByText('{"a":1}')).toBeInTheDocument();
+  });
+});

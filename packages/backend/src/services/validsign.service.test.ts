@@ -447,3 +447,169 @@ describe('the live REST path', () => {
     expect(serializedCalls).not.toContain('headers');
   });
 });
+
+describe('stub-mode edge cases', () => {
+  beforeEach(() => {
+    mockConfig.validsign.stubMode = true;
+    mockConfig.validsign.liveTiers = [];
+  });
+
+  it('omits the signer lines from a stub PDF for a package it has never seen', async () => {
+    // The stub download deliberately does not requireStub: a ceremony URL is a
+    // capability, and a caller holding an id for a package this process no
+    // longer has (a restart clears the in-memory map) gets a valid placeholder
+    // rather than a 500. It just cannot name a signer or a signing moment.
+    const svc = new ValidsignService();
+
+    const signed = pdfText(await svc.downloadSignedDocument('stub-gone', 'doc-1'));
+    expect(signed).toContain('Pakket: stub-gone');
+    expect(signed).not.toContain('Ondertekenaar:');
+    expect(signed).not.toContain('Ondertekend op:');
+
+    const evidence = pdfText(await svc.downloadEvidenceSummary('stub-gone'));
+    expect(evidence).toContain('Pakket: stub-gone');
+    expect(evidence).not.toContain('Ondertekenaar:');
+    expect(evidence).not.toContain('Ondertekend op:');
+    // Its own generation moment is not conditional, so it is still there.
+    expect(evidence).toContain('Samenvatting gegenereerd op:');
+  });
+
+  it('reports an unknown package id distinguishably', () => {
+    expect(() => new ValidsignService().stubSignerName('stub-nope')).toThrow(
+      /VALIDSIGN_UNKNOWN_PACKAGE: stub-nope/
+    );
+  });
+
+  it('names the signer of a package it does hold', async () => {
+    const svc = new ValidsignService();
+    const { packageId } = await svc.createPackage(input);
+    expect(svc.stubSignerName(packageId)).toContain('Leider');
+  });
+});
+
+describe('stub-only entry points in live mode', () => {
+  beforeEach(() => {
+    mockConfig.validsign.stubMode = false;
+    mockConfig.validsign.apiKey = 'test-key';
+    mockConfig.validsign.liveTiers = ['development'];
+    mockConfig.deploymentEnv = 'development';
+  });
+
+  it('refuses to drive the ceremony from the stub endpoint', () => {
+    // The stub ceremony route is mounted unconditionally; this is the guard
+    // that stops it from mutating a real ValidSign package's status.
+    expect(() => new ValidsignService().stubSign('pkg-1', 'COMPLETED')).toThrow(
+      'stubSign called outside stub mode'
+    );
+  });
+});
+
+describe('the live REST path, further cases', () => {
+  beforeEach(() => {
+    mockConfig.validsign.stubMode = false;
+    mockConfig.validsign.apiKey = 'test-key';
+    mockConfig.validsign.liveTiers = ['development'];
+    mockConfig.deploymentEnv = 'development';
+    mockClient.post.mockReset();
+    mockClient.get.mockReset();
+    mockFormAppend.mockClear();
+    mockLogger.error.mockClear();
+  });
+
+  it('throws a distinguishable error when the readback carries no SIGNER role', async () => {
+    mockClient.post.mockResolvedValue({ data: { id: 'pkg-1' } });
+    mockClient.get.mockResolvedValue({ data: { roles: [{ id: 'role-1', type: 'SENDER' }] } });
+
+    await expect(new ValidsignService().createPackage(input)).rejects.toThrow(
+      /VALIDSIGN_NO_SIGNER_ROLE: pkg-1/
+    );
+  });
+
+  it('rethrows and logs safely when the readback itself fails', async () => {
+    mockClient.post.mockResolvedValue({ data: { id: 'pkg-1' } });
+    const readbackError = {
+      isAxiosError: true,
+      message: 'Request failed with status code 404',
+      response: { status: 404, statusText: 'Not Found', data: { code: 'NOT_FOUND' } },
+      config: { url: '/packages/pkg-1', method: 'get', headers: { Authorization: 'Basic key' } },
+    };
+    mockClient.get.mockRejectedValue(readbackError);
+
+    await expect(new ValidsignService().createPackage(input)).rejects.toBe(readbackError);
+    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain('Authorization');
+  });
+
+  it('logs a transport failure that never produced a response, without its config', async () => {
+    // A timeout or socket reset rejects with no `.response`, so the branch that
+    // reads e.response.status would throw on it. Everything but `.message` is
+    // still unsafe to log: `.config.headers` carries the account-wide key.
+    const transportError = {
+      isAxiosError: true,
+      message: 'socket hang up',
+      config: { url: '/packages', method: 'post', headers: { Authorization: 'Basic secret-key' } },
+    };
+    mockClient.post.mockRejectedValue(transportError);
+
+    await expect(new ValidsignService().createPackage(input)).rejects.toBe(transportError);
+
+    const serialized = JSON.stringify(mockLogger.error.mock.calls);
+    expect(serialized).toContain('socket hang up');
+    expect(serialized).toContain('/packages');
+    expect(serialized).not.toContain('secret-key');
+    expect(serialized).not.toContain('Authorization');
+  });
+  it('sends a package by putting SENT upstream', async () => {
+    mockClient.put.mockResolvedValue({ data: {} });
+
+    await new ValidsignService().sendPackage('pkg-1');
+
+    expect(mockClient.put).toHaveBeenCalledWith('/packages/pkg-1', { status: 'SENT' });
+  });
+
+  it('asks ValidSign for the signing URL rather than composing one', async () => {
+    // The real ceremony URL is a signed, single-use link ValidSign mints; it
+    // cannot be derived from the package and role ids.
+    mockClient.get.mockResolvedValue({ data: { url: 'https://my.validsign.eu/ceremony/abc' } });
+
+    const url = await new ValidsignService().getSigningUrl('pkg-1', 'role-1');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/packages/pkg-1/roles/role-1/signingUrl');
+    expect(url).toBe('https://my.validsign.eu/ceremony/abc');
+  });
+
+  it('reads the package status back from upstream', async () => {
+    mockClient.get.mockResolvedValue({ data: { status: 'COMPLETED' } });
+
+    expect(await new ValidsignService().getPackageStatus('pkg-1')).toBe('COMPLETED');
+  });
+
+  it('returns the signed document as a Buffer of the raw response bytes', async () => {
+    // responseType: 'arraybuffer' means axios hands back an ArrayBuffer, not a
+    // string -- Buffer.from must be given it verbatim or the PDF is corrupted.
+    const bytes = Buffer.from('%PDF-1.7 signed');
+    mockClient.get.mockResolvedValue({
+      data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    });
+
+    const out = await new ValidsignService().downloadSignedDocument('pkg-1', 'doc-1');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/packages/pkg-1/documents/doc-1/pdf', {
+      responseType: 'arraybuffer',
+    });
+    expect(out.toString()).toBe('%PDF-1.7 signed');
+  });
+
+  it('returns the evidence summary as a Buffer of the raw response bytes', async () => {
+    const bytes = Buffer.from('%PDF-1.7 evidence');
+    mockClient.get.mockResolvedValue({
+      data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    });
+
+    const out = await new ValidsignService().downloadEvidenceSummary('pkg-1');
+
+    expect(mockClient.get).toHaveBeenCalledWith('/packages/pkg-1/evidence/summary', {
+      responseType: 'arraybuffer',
+    });
+    expect(out.toString()).toBe('%PDF-1.7 evidence');
+  });
+});

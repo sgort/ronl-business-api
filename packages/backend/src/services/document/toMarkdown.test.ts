@@ -154,4 +154,37 @@ describe('toMarkdown', () => {
     });
     expect(md).toBe('First\n\nSecond\n');
   });
+  it('defaults a heading with no level to a single hash', () => {
+    const md = toMarkdown({
+      templateId: 'test',
+      zones: [
+        {
+          id: 'letterhead',
+          blocks: [{ kind: 'heading', runs: [{ text: 'No level', bold: false }] }],
+        },
+      ],
+    });
+    expect(md).toContain('# No level');
+    expect(md).not.toContain('## No level');
+  });
+
+  it('leaves a multi-line bold run unmarked rather than emitting a broken marker', () => {
+    // The whitespace-relocating regex is single-line: `.` does not cross a
+    // newline and `$` is not multiline, so `exec` returns null for any run
+    // containing one. The `?? []` fallback then leaves core empty and the run
+    // is emitted escaped-but-unbolded. Emphasis is lost, which is the
+    // deliberate trade: a `**` split across a line break renders as literal
+    // asterisks in CommonMark, which is worse than plain text.
+    const md = toMarkdown({
+      templateId: 'test',
+      zones: [
+        {
+          id: 'letterhead',
+          blocks: [{ kind: 'paragraph', runs: [{ text: 'line one\nline two', bold: true }] }],
+        },
+      ],
+    });
+    expect(md).toBe('line one\nline two\n');
+    expect(md).not.toContain('**');
+  });
 });

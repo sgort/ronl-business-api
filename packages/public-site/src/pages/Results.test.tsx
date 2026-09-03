@@ -13,13 +13,19 @@ vi.mock('../lib/api', async () => {
 
 const t = translations.nl;
 
-function renderAt(path: string) {
+function renderAt(path: string, lang: 'nl' | 'en' = 'nl') {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Results t={t} lang="nl" />
+      <Results t={translations[lang]} lang={lang} />
     </MemoryRouter>
   );
 }
+
+const emptyResult = {
+  items: [],
+  total: 0,
+  facets: { soort: [], bron: [], doelgroep: [] },
+} as unknown as Awaited<ReturnType<typeof api.searchPublic>>;
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -105,5 +111,88 @@ describe('Results', () => {
         expect.objectContaining({ q: 'zorg', soort: [], bron: [], doelgroep: [] })
       )
     );
+  });
+  it('reports a failed search in an alert instead of an empty result list', async () => {
+    // A zero here would say "we looked and there is nothing", which is a
+    // different and wrong claim when the backend never answered.
+    vi.mocked(api.searchPublic).mockRejectedValue(new Error('backend down'));
+
+    renderAt('/zoeken?q=zorg');
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Zoeken is mislukt.'));
+  });
+
+  it('translates the failure message', async () => {
+    vi.mocked(api.searchPublic).mockRejectedValue(new Error('backend down'));
+
+    renderAt('/zoeken?q=zorg', 'en');
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Search failed.'));
+  });
+
+  it('reports zero results, not a blank, when a failed search left no data', async () => {
+    vi.mocked(api.searchPublic).mockRejectedValue(new Error('backend down'));
+
+    renderAt('/zoeken?q=zorg');
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByText(/^0 /)).toBeInTheDocument();
+  });
+
+  it('translates the searching placeholder', () => {
+    vi.mocked(api.searchPublic).mockReturnValue(new Promise(() => {}));
+
+    renderAt('/zoeken?q=zorg', 'en');
+
+    expect(screen.getByText('Searching…')).toBeInTheDocument();
+  });
+
+  it('unchecking an already-selected facet removes it from the URL', async () => {
+    vi.mocked(api.searchPublic).mockResolvedValue({
+      ...emptyResult,
+      facets: { soort: [['regel', 3]], bron: [], doelgroep: [] },
+    } as unknown as Awaited<ReturnType<typeof api.searchPublic>>);
+
+    renderAt('/zoeken?q=zorg&soort=regel');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /Regel/ });
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+
+    await waitFor(() =>
+      expect(vi.mocked(api.searchPublic).mock.calls.at(-1)![0].soort).toEqual([])
+    );
+  });
+
+  it('shows a facet value the label table does not know, verbatim', async () => {
+    // The soort facet is built from whatever the backend returns; a new source
+    // type must show up as itself rather than disappear from the filter list.
+    vi.mocked(api.searchPublic).mockResolvedValue({
+      ...emptyResult,
+      facets: { soort: [['verordening', 2]], bron: [], doelgroep: [] },
+    } as unknown as Awaited<ReturnType<typeof api.searchPublic>>);
+
+    renderAt('/zoeken?q=zorg');
+
+    expect(await screen.findByRole('checkbox', { name: /verordening/ })).toBeInTheDocument();
+  });
+
+  it('does not set state after the results page has been navigated away from', async () => {
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args) => errors.push(args));
+    let resolveSearch!: (v: Awaited<ReturnType<typeof api.searchPublic>>) => void;
+    vi.mocked(api.searchPublic).mockReturnValue(
+      new Promise((resolve) => {
+        resolveSearch = resolve;
+      })
+    );
+
+    const { unmount } = renderAt('/zoeken?q=zorg');
+    unmount();
+    resolveSearch(emptyResult);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(errors).toEqual([]);
+    spy.mockRestore();
   });
 });

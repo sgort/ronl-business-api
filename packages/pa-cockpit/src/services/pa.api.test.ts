@@ -842,3 +842,198 @@ describe('host configuration', () => {
     await expect(api.fetchDossiers()).rejects.toThrow(/configurePaCockpit/);
   });
 });
+
+describe('authenticated requests', () => {
+  // Every verb goes through its own private helper (paGet / paGetRaw / paPost /
+  // paPatch / paDelete), each repeating the same two steps: refresh a token
+  // that is about to expire, then attach it. The default test state is
+  // anonymous, so without these the authenticated half of all five is never
+  // executed -- and an unauthenticated PA cockpit is not a thing that ships.
+  beforeEach(() => {
+    authState.authenticated = true;
+    authState.token = 'test-token';
+  });
+
+  const bearerOf = (req: Request) => req.headers.get('authorization');
+
+  it('refreshes and attaches the token on a GET', async () => {
+    let seen: string | null = null;
+    server.use(
+      http.get('*/pa/dossiers', ({ request }) => {
+        seen = bearerOf(request);
+        return HttpResponse.json({ success: true, data: [] });
+      })
+    );
+
+    const api = await freshApi({ dossiersMock: false });
+    await api.fetchDossiers();
+
+    expect(updateTokenMock).toHaveBeenCalledWith(120);
+    expect(seen).toBe('Bearer test-token');
+  });
+
+  it('attaches the token on a raw GET', async () => {
+    let seen: string | null = null;
+    server.use(
+      http.get('*/pa/signals', ({ request }) => {
+        seen = bearerOf(request);
+        return HttpResponse.json({
+          success: true,
+          data: [],
+          meta: { total: 0, cap: 100, capped: false },
+        });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.fetchInbox();
+
+    expect(seen).toBe('Bearer test-token');
+  });
+
+  it('attaches the token on a POST', async () => {
+    let seen: string | null = null;
+    server.use(
+      http.post('*/pa/searches', ({ request }) => {
+        seen = bearerOf(request);
+        return HttpResponse.json({ success: true, data: { id: 'srch-1' } });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.createSavedSearch({ q: 'stikstof' });
+
+    expect(seen).toBe('Bearer test-token');
+  });
+
+  it('attaches the token on a PATCH', async () => {
+    let seen: string | null = null;
+    server.use(
+      http.patch('*/pa/searches/s1', ({ request }) => {
+        seen = bearerOf(request);
+        return HttpResponse.json({ success: true, data: {} });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.updateSearch('s1', { tags: ['x'] });
+
+    expect(seen).toBe('Bearer test-token');
+  });
+
+  it('attaches the token on a DELETE', async () => {
+    let seen: string | null = null;
+    server.use(
+      http.delete('*/pa/searches/s1', ({ request }) => {
+        seen = bearerOf(request);
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.deleteSavedSearch('s1');
+
+    expect(seen).toBe('Bearer test-token');
+  });
+
+  it('sends the request anyway when the token refresh fails', async () => {
+    // A refresh failure means the session is probably gone, but the answer to
+    // that is the backend's 401 and the normal re-auth flow -- not a request
+    // this client silently never made.
+    updateTokenMock.mockRejectedValue(new Error('refresh failed'));
+    let seen: string | null = null;
+    server.use(
+      http.get('*/pa/dossiers', ({ request }) => {
+        seen = bearerOf(request);
+        return HttpResponse.json({ success: true, data: [] });
+      })
+    );
+
+    const api = await freshApi({ dossiersMock: false });
+    await expect(api.fetchDossiers()).resolves.toEqual([]);
+
+    expect(seen).toBe('Bearer test-token');
+  });
+
+  it('sends no Authorization header when there is no token to send', async () => {
+    authState.token = undefined;
+    let seen: string | null = null;
+    server.use(
+      http.get('*/pa/dossiers', ({ request }) => {
+        seen = bearerOf(request);
+        return HttpResponse.json({ success: true, data: [] });
+      })
+    );
+
+    const api = await freshApi({ dossiersMock: false });
+    await api.fetchDossiers();
+
+    expect(seen).toBeNull();
+  });
+});
+
+describe('mock-mode query parameters', () => {
+  it('fetchInbox filters the fixtures by tab and by dossier', async () => {
+    const api = await freshApi({ signalsMock: true });
+
+    const all = await api.fetchInbox();
+    expect(all.data.length).toBeGreaterThan(0);
+
+    const politiek = await api.fetchInbox({ tab: 'politiek' });
+    expect(politiek.data.every((s) => s.tab === 'politiek')).toBe(true);
+    expect(politiek.meta.total).toBe(politiek.data.length);
+
+    const nothing = await api.fetchInbox({ tab: 'politiek', dossierId: 'geen-dossier' });
+    expect(nothing.data).toEqual([]);
+  });
+
+  it('fetchFeed filters the fixtures by query text and by source', async () => {
+    const api = await freshApi({ signalsMock: true });
+
+    const both = await api.fetchFeed({});
+    expect(both.items.length).toBeGreaterThan(0);
+    expect(both.total).toBe(both.items.length);
+
+    const tkOnly = await api.fetchFeed({ source: 'tk' });
+    expect(tkOnly.items.every((i) => i.source === 'tk')).toBe(true);
+
+    const noMatch = await api.fetchFeed({ q: 'zzzzzzzz' });
+    expect(noMatch.items).toEqual([]);
+  });
+
+  it('promoteToInbox routes each source to its own inbox tab', async () => {
+    const api = await freshApi({ signalsMock: true });
+    const item = (over: Partial<FeedItem>): FeedItem =>
+      ({
+        id: 'f1',
+        title: 'Motie',
+        type: 'Motie',
+        number: '1',
+        date: null,
+        url: null,
+        source: 'tk',
+        ...over,
+      }) as FeedItem;
+
+    expect((await api.promoteToInbox(item({ source: 'tk' }))).tab).toBe('politiek');
+    expect((await api.promoteToInbox(item({ source: 'ob' }))).tab).toBe('regionaal');
+    expect((await api.promoteToInbox(item({ source: 'eu' }))).tab).toBe('europa');
+  });
+
+  it('promoteToInbox carries a reference only when the hit has a URL', async () => {
+    const api = await freshApi({ signalsMock: true });
+    const base = {
+      id: 'f1',
+      title: 'Motie',
+      type: 'Motie',
+      number: '1',
+      date: null,
+      source: 'tk' as const,
+    };
+
+    expect((await api.promoteToInbox({ ...base, url: null } as FeedItem)).ref).toBeNull();
+    expect((await api.promoteToInbox({ ...base, url: 'https://tk.nl/x' } as FeedItem)).ref).toEqual(
+      { type: 'Motie', nr: '1', url: 'https://tk.nl/x' }
+    );
+  });
+});

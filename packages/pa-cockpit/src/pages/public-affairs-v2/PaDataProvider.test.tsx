@@ -209,6 +209,75 @@ describe('inboxCounts seeding', () => {
     }
   });
 
+  it('gives up after four retries rather than hammering a dead backend', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.fetchInboxCounts.mockRejectedValue(new Error('backend down'));
+
+      renderHook(() => usePaData(), { wrapper });
+
+      // Backoff is attempt * 2000ms, so the four retries land at 2s, 4s, 6s and
+      // 8s -- 20s covers all of them with room to spare, and anything scheduled
+      // after the cap would fire well inside it.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+
+      // One initial attempt plus MAX_COUNT_RETRIES.
+      expect(mocks.fetchInboxCounts).toHaveBeenCalledTimes(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops retrying once the provider unmounts', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.fetchInboxCounts.mockRejectedValue(new Error('backend down'));
+
+      const { unmount } = renderHook(() => usePaData(), { wrapper });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      unmount();
+
+      const callsAtUnmount = mocks.fetchInboxCounts.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+
+      // The cleanup flips `cancelled`, which is read inside the catch -- it does
+      // not clearTimeout the retry already scheduled before the unmount. So one
+      // in-flight attempt still fires and is then discarded, and the chain stops
+      // there rather than running out the full budget of five.
+      expect(mocks.fetchInboxCounts.mock.calls.length).toBeLessThanOrEqual(callsAtUnmount + 1);
+      expect(mocks.fetchInboxCounts.mock.calls.length).toBeLessThan(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not apply counts that arrive after the provider unmounted', async () => {
+    let resolveCounts!: (v: Record<string, number>) => void;
+    mocks.fetchInboxCounts.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCounts = resolve;
+      })
+    );
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args) => errors.push(args));
+
+    const { unmount } = renderHook(() => usePaData(), { wrapper });
+    unmount();
+    await act(async () => {
+      resolveCounts({ politiek: 3 });
+      await Promise.resolve();
+    });
+
+    expect(errors).toEqual([]);
+    spy.mockRestore();
+  });
+
   it('updateInboxCount sets a single tab count directly', async () => {
     const { result } = renderHook(() => usePaData(), { wrapper });
     await waitFor(() => expect(result.current.signals.status).toBe('ok'));

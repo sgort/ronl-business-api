@@ -58,12 +58,22 @@ beforeEach(() => {
   vi.mocked(api.getRegelcatalogus).mockResolvedValue(DATA);
 });
 
-function renderPage() {
+function renderPage(lang: 'nl' | 'en' = 'nl') {
   return render(
     <MemoryRouter>
-      <Regelcatalogus t={t} lang="nl" />
+      <Regelcatalogus t={translations[lang]} lang={lang} />
     </MemoryRouter>
   );
+}
+
+function setBlob(content: string | null) {
+  document.getElementById('__PUB_DATA__')?.remove();
+  if (content === null) return;
+  const el = document.createElement('script');
+  el.id = '__PUB_DATA__';
+  el.type = 'application/json';
+  el.textContent = content;
+  document.body.appendChild(el);
 }
 
 describe('Regelcatalogus', () => {
@@ -279,5 +289,138 @@ describe('Regelcatalogus', () => {
     expect(dienstSelectAgain).toHaveValue('Kapvergunning');
     expect(screen.queryByText('Toetsingsinkomen')).not.toBeInTheDocument();
     expect(screen.getByText('Vervangingsplicht')).toBeInTheDocument();
+  });
+  it('renders straight from the prerendered blob, without fetching', async () => {
+    // The whole point of the blob is that /regels paints its full catalogue on
+    // the first frame. A fetch here would mean the placeholder is still shown
+    // first, which is the layout shift this page was measured on.
+    setBlob(JSON.stringify({ route: '/regels', data: DATA }));
+    try {
+      renderPage();
+      expect(screen.getByRole('tab', { name: /Organisaties/ })).toBeInTheDocument();
+      expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
+      await waitFor(() => expect(api.getRegelcatalogus).not.toHaveBeenCalled());
+    } finally {
+      setBlob(null);
+    }
+  });
+
+  it('translates the loading placeholder on a cold load', () => {
+    vi.mocked(api.getRegelcatalogus).mockReturnValue(new Promise(() => {}));
+    renderPage('en');
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+
+  it('Diensten tab lists every service, including one with no rules', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /Diensten/ }));
+    expect(screen.getByText('Geen regels dienst')).toBeInTheDocument();
+    expect(screen.getAllByText('Zorgtoeslag').length).toBeGreaterThan(0);
+  });
+
+  it('Rules tab: clicking an open service summary closes it again', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /Regels/ }));
+    const summary = screen.getByText('Zorgtoeslag').closest('summary')!;
+
+    fireEvent.click(summary);
+    expect(summary.closest('details')).toHaveAttribute('open');
+
+    fireEvent.click(summary);
+    expect(summary.closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('Rules tab: an expanded rule description collapses again on a second click', async () => {
+    vi.mocked(api.getRegelcatalogus).mockResolvedValue({
+      ...DATA,
+      rules: [
+        {
+          serviceTitle: 'Zorgtoeslag',
+          ruleTitle: 'Recht op zorgtoeslag',
+          validFrom: '2026-01-01',
+          confidence: 'high',
+          description: 'De verzekerde heeft recht op zorgtoeslag.',
+        },
+      ],
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /Regels/ }));
+    fireEvent.click(screen.getByText('Zorgtoeslag').closest('summary')!);
+
+    const toggle = screen.getByRole('button', { name: /Recht op zorgtoeslag/ });
+    fireEvent.click(toggle);
+    expect(screen.getByText(/De verzekerde heeft recht/)).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByText(/De verzekerde heeft recht/)).not.toBeInTheDocument();
+  });
+
+  it('Rules tab: the filter opens every matching service and hides the rest', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /Regels/ }));
+
+    fireEvent.change(screen.getByLabelText(t.filterRule), { target: { value: 'leeftijd' } });
+
+    // A filtered accordion opens itself -- a hit the reader has to click to see
+    // would defeat the filter.
+    const details = screen.getByText('Zorgtoeslag').closest('details')!;
+    expect(details).toHaveAttribute('open');
+    expect(screen.getByText('Leeftijdseis 18 jaar')).toBeInTheDocument();
+    expect(screen.queryByText('Recht op zorgtoeslag')).not.toBeInTheDocument();
+  });
+
+  it('Rules tab: a service with no matching rule disappears entirely while filtering', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /Regels/ }));
+
+    fireEvent.change(screen.getByLabelText(t.filterRule), { target: { value: 'zzzz' } });
+
+    expect(screen.queryByText('Zorgtoeslag')).not.toBeInTheDocument();
+  });
+
+  it('Rules tab: a rule with no start date shows an em dash, not an empty cell', async () => {
+    vi.mocked(api.getRegelcatalogus).mockResolvedValue({
+      ...DATA,
+      rules: [
+        {
+          serviceTitle: 'Zorgtoeslag',
+          ruleTitle: 'Ongedateerde regel',
+          validFrom: null,
+          confidence: null,
+          description: null,
+        },
+      ],
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /Regels/ }));
+    fireEvent.click(screen.getByText('Zorgtoeslag').closest('summary')!);
+
+    expect(screen.getByRole('cell', { name: '—' })).toBeInTheDocument();
+  });
+
+  it('Rules tab: links on to the service page, in English', async () => {
+    renderPage('en');
+    fireEvent.click(await screen.findByRole('tab', { name: /Rules/ }));
+    fireEvent.click(screen.getByText('Zorgtoeslag').closest('summary')!);
+
+    expect(screen.getByRole('link', { name: /Go to the service/ })).toBeInTheDocument();
+  });
+
+  it('Concepts tab: the text filter narrows the rows, and reports the count in English', async () => {
+    renderPage('en');
+    fireEvent.click(await screen.findByRole('tab', { name: /Concepts/ }));
+
+    expect(screen.getByText(/of 1 concepts/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Data dictionary' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(translations.en.filterConcept), {
+      target: { value: 'zzzz' },
+    });
+    expect(screen.queryByText('Toetsingsinkomen')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(translations.en.filterConcept), {
+      target: { value: 'toetsing' },
+    });
+    expect(screen.getByText('Toetsingsinkomen')).toBeInTheDocument();
   });
 });

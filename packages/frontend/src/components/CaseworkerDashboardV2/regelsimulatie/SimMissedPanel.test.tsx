@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SimMissedPanel from './SimMissedPanel';
 import { run } from './simEngine';
-import type { SimConfig } from './types';
+import type { SimApp, SimConfig, SimResult } from './types';
 
 const DEFAULT_CFG: SimConfig = {
   seed: 20260112,
@@ -80,5 +80,109 @@ describe('SimMissedPanel', () => {
     render(<SimMissedPanel result={result} day={0} />);
     // At day 0 nothing has been decided yet, so nothing has "missed out".
     expect(screen.getByText(/Nog niets misgelopen|In dit scenario/)).toBeInTheDocument();
+  });
+});
+
+describe('SimMissedPanel, why an application went unpaid', () => {
+  // The engine's own output happens not to produce every combination of the
+  // two "why" flags in one run, and the panel's whole job is to name the
+  // reason. Synthesising the applications from a real one keeps every other
+  // field consistent with what the engine actually emits.
+  const template = result.apps.find((a) => a.missedDueToRFI || a.missedDueToBeroep)!;
+  const app = (over: Partial<SimApp>): SimApp => ({ ...template, ...over });
+  const withApps = (apps: SimApp[]): SimResult => ({ ...result, apps });
+  const lastDay = result.days.length - 1;
+
+  it('names both causes when an application lost out to a shift and an appeal', () => {
+    render(
+      <SimMissedPanel
+        result={withApps([
+          app({ id: 9001, missedDueToRFI: true, missedDueToBeroep: true, beroepDisplacerId: 42 }),
+        ])}
+        day={lastDay}
+      />
+    );
+
+    // The cause tag is part of the "Alle onbetaalde" view, where the reason
+    // is what distinguishes one row from the next.
+    fireEvent.click(screen.getByRole('button', { name: /Alle onbetaalde/ }));
+    expect(screen.getAllByText(/RFI \+ beroep/).length).toBeGreaterThan(0);
+  });
+
+  it('names the appeal alone when that is the only cause', () => {
+    render(
+      <SimMissedPanel
+        result={withApps([
+          app({ id: 9002, missedDueToRFI: false, missedDueToBeroep: true, beroepDisplacerId: 43 }),
+        ])}
+        day={lastDay}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Alle onbetaalde/ }));
+    expect(screen.getAllByText(/door beroep/).length).toBeGreaterThan(0);
+  });
+
+  it('falls back to "budget op" when neither cause applies', () => {
+    // A valid application can simply arrive after the pot is empty; that is
+    // not a displacement and must not be reported as one.
+    render(
+      <SimMissedPanel
+        result={withApps([
+          app({
+            id: 9003,
+            missedDueToRFI: false,
+            missedDueToBeroep: false,
+            beroepDisplacerId: null,
+            blockedById: null,
+          }),
+        ])}
+        day={lastDay}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Alle onbetaalde/ }));
+    expect(screen.getAllByText(/budget op/).length).toBeGreaterThan(0);
+  });
+
+  it('says so plainly when a filter matches nothing in the whole scenario', () => {
+    render(
+      <SimMissedPanel
+        result={withApps([app({ id: 9004, missedDueToRFI: false, missedDueToBeroep: false })])}
+        day={lastDay}
+      />
+    );
+
+    // The default RFI filter has no members at all here -- a different message
+    // from "not yet, keep playing".
+    expect(screen.getByText(/verliest geen enkele geldige aanvraag/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Door succesvol beroep/ }));
+    expect(screen.getByText(/verdringt geen enkel succesvol beroep/)).toBeInTheDocument();
+  });
+
+  it('omits an application that has not been decided yet at the current day', () => {
+    render(
+      <SimMissedPanel
+        result={withApps([app({ id: 9005, missedDueToRFI: true, decisionDay: lastDay + 50 })])}
+        day={0}
+      />
+    );
+
+    expect(screen.getByText(/Nog niets misgelopen/)).toBeInTheDocument();
+  });
+
+  it('names the appeal that took the budget', () => {
+    render(
+      <SimMissedPanel
+        result={withApps([
+          app({ id: 9006, missedDueToRFI: false, missedDueToBeroep: true, beroepDisplacerId: 77 }),
+        ])}
+        day={lastDay}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Door succesvol beroep/ }));
+    expect(screen.getAllByText(/#77/).length).toBeGreaterThan(0);
   });
 });

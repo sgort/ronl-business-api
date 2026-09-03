@@ -181,7 +181,17 @@ const SEED_OWNERS: Record<string, string> = {
   oostvaarders: 'Team Omgeving',
 };
 
-function toMarkdown(d: Dossier): DossierMarkdown {
+/**
+ * Renders a dossier's three narrative fields as the Markdown the editor loads.
+ *
+ * Exported only so it can be tested directly. A dossier started from a blank
+ * template has empty strings in all three fields -- that is what the `? :`
+ * arms are for -- but all five MOCK_DOSSIERS carry filled-in text, so those
+ * arms are unreachable through buildSeedAdminDossiers(), the only other
+ * caller. Reaching them by blanking a seed dossier instead would mean editing
+ * shipped fixture data to serve a test.
+ */
+export function toMarkdown(d: Dossier): DossierMarkdown {
   const n = d.narratief ?? { onsVerhaal: '', frames: [], tegenframes: [] };
   let ons = n.onsVerhaal ? `## Ons verhaal\n\n${n.onsVerhaal}\n` : '';
   if (n.frames?.length) {

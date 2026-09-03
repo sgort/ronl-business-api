@@ -70,4 +70,18 @@ describe('Profiel', () => {
     expect(screen.getByText('Gemeente Teststad')).toBeInTheDocument();
     expect(screen.queryByText('Provincie')).toBeNull();
   });
+  it('falls back to a neutral label for an organisation type it does not know', () => {
+    // The vocabulary is not closed -- a waterschap or a shared service centre
+    // would arrive as its own type, and labelling one of those "Gemeente"
+    // is the mismatch this switch exists to avoid.
+    vi.mocked(getTenantConfig).mockReturnValueOnce({
+      id: 'hhnk',
+      displayName: 'Hoogheemraadschap Hollands Noorderkwartier',
+      organisationType: 'waterboard',
+    });
+    renderPage();
+    expect(screen.getByText('Organisatie')).toBeInTheDocument();
+    expect(screen.queryByText('Provincie')).toBeNull();
+    expect(screen.queryByText('Gemeente')).toBeNull();
+  });
 });

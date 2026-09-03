@@ -167,4 +167,131 @@ describe('AgendaView', () => {
 
     expect(onOpenDossier).toHaveBeenCalledWith('stikstof');
   });
+  it('labels a cancelled item and marks its row, under "Alle periodes"', async () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        agenda: {
+          data: [makeItem({ id: 'x', status: 'geannuleerd', titel: 'Afgezegd debat' })],
+          status: 'ok',
+        },
+      })
+    );
+    const user = userEvent.setup();
+    const { container } = render(<AgendaView onOpenDossier={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: /Alle periodes/ }));
+
+    expect(screen.getByText('Geannuleerd')).toBeInTheDocument();
+    expect(container.querySelector('.pac-ag-item.cancelled')).not.toBeNull();
+  });
+
+  it('marks a past item as past', async () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        agenda: {
+          data: [makeItem({ id: 'x', iso: isoOffset(-3), status: 'uitgevoerd' })],
+          status: 'ok',
+        },
+      })
+    );
+    const user = userEvent.setup();
+    const { container } = render(<AgendaView onOpenDossier={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: /Alle periodes/ }));
+
+    expect(container.querySelector('.pac-ag-item.past')).not.toBeNull();
+    expect(screen.getByText('Geweest')).toBeInTheDocument();
+  });
+
+  it('shows a dash rather than a blank slot for an item with no start time', () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({ agenda: { data: [makeItem({ tijd: null })], status: 'ok' } })
+    );
+    render(<AgendaView onOpenDossier={vi.fn()} />);
+    expect(screen.getByText('–')).toBeInTheDocument();
+  });
+
+  it('shows the committee name when the activity has one', () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        agenda: { data: [makeItem({ commissie: 'Commissie LNV' })], status: 'ok' },
+      })
+    );
+    render(<AgendaView onOpenDossier={vi.fn()} />);
+    expect(screen.getByText('Commissie LNV')).toBeInTheDocument();
+  });
+
+  it('links a live activity to its stream', () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        agenda: {
+          data: [makeItem({ live: 'live', stream: 'https://debatgemist.tweedekamer.nl/x' })],
+          status: 'ok',
+        },
+      })
+    );
+    const { container } = render(<AgendaView onOpenDossier={vi.fn()} />);
+
+    expect(screen.getByText('Nu in de zaal')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Nu in de zaal/ })).toHaveAttribute(
+      'href',
+      'https://debatgemist.tweedekamer.nl/x'
+    );
+    expect(container.querySelector('.pac-ag-item.live')).not.toBeNull();
+  });
+
+  it('still renders a live activity that has no stream URL yet', () => {
+    // The Tweede Kamer feed flags an activity live before the stream URL is
+    // published; a missing href must not produce a link to the current page.
+    mockUsePaData.mockReturnValue(
+      defaultPaData({ agenda: { data: [makeItem({ live: 'live', stream: null })], status: 'ok' } })
+    );
+    render(<AgendaView onOpenDossier={vi.fn()} />);
+    expect(screen.getByRole('link', { name: /Nu in de zaal/ })).toHaveAttribute('href', '#');
+  });
+
+  it('marks an activity that is about to start', () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({ agenda: { data: [makeItem({ live: 'binnenkort' })], status: 'ok' } })
+    );
+    render(<AgendaView onOpenDossier={vi.fn()} />);
+    expect(screen.getByText('Straks live')).toBeInTheDocument();
+  });
+
+  it('falls back to the dossier id when the dossier list does not know it', async () => {
+    // The agenda match is computed server-side against dossier ids; a dossier
+    // archived since that run would otherwise render as an empty label.
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        agenda: {
+          data: [makeItem({ dossier: 'verdwenen-dossier', matchTerm: 'stikstof' })],
+          status: 'ok',
+        },
+        dossiers: { data: [] as Dossier[], status: 'ok' },
+      })
+    );
+    render(<AgendaView onOpenDossier={vi.fn()} />);
+    expect(screen.getByText(/verdwenen-dossier/)).toBeInTheDocument();
+  });
+
+  it('groups consecutive activities on the same date under one heading', () => {
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        agenda: {
+          data: [
+            makeItem({ id: 'a', titel: 'Eerste', tijd: '10:00' }),
+            makeItem({ id: 'b', titel: 'Tweede', tijd: '11:00' }),
+            makeItem({ id: 'c', titel: 'Derde', iso: isoOffset(1), tijd: '09:00' }),
+          ],
+          status: 'ok',
+        },
+      })
+    );
+    const { container } = render(<AgendaView onOpenDossier={vi.fn()} />);
+
+    // Three activities, two dates -- the two same-day items must share one day
+    // block rather than each opening its own.
+    const days = container.querySelectorAll('.pac-ag-day');
+    expect(days).toHaveLength(2);
+    expect(days[0].querySelectorAll('.pac-ag-item')).toHaveLength(2);
+    expect(days[1].querySelectorAll('.pac-ag-item')).toHaveLength(1);
+  });
 });

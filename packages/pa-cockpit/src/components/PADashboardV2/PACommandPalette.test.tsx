@@ -108,4 +108,54 @@ describe('PACommandPalette', () => {
     await user.click(container.querySelector('.pac-palette-overlay')!);
     expect(onClose).toHaveBeenCalled();
   });
+  it('walks the list with the arrow keys and opens the highlighted hit with Enter', async () => {
+    // The palette is a keyboard surface first -- a user who reached it with
+    // Cmd+K should never have to move to the mouse to pick a result.
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={onSelect} />);
+
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}');
+    await user.keyboard('{Enter}');
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    const second = allStaticSections()[1];
+    expect(onSelect).toHaveBeenCalledWith(findPaModeForSection(second.id), second.id);
+  });
+
+  it('does not clamp the highlight past the end of the list', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={onSelect} />);
+
+    // Far more presses than there are hits: the highlight must stop at the last
+    // one rather than running off into an undefined entry.
+    await user.keyboard('{ArrowDown>200/}');
+    await user.keyboard('{Enter}');
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not clamp the highlight before the start of the list', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={onSelect} />);
+
+    await user.keyboard('{ArrowUp>5/}');
+    await user.keyboard('{Enter}');
+
+    const first = allStaticSections()[0];
+    expect(onSelect).toHaveBeenCalledWith(findPaModeForSection(first.id), first.id);
+  });
+
+  it('Enter does nothing when the query matches no hit', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    renderPalette(<PACommandPalette open onClose={vi.fn()} onSelect={onSelect} />);
+
+    await user.type(screen.getByRole('textbox'), 'zzzzzzzz');
+    await user.keyboard('{Enter}');
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { DemoRoleProvider } from './DemoRoleContext';
 import { useDemoRole, DEMO_ROLE_OPTIONS, type DemoRoleId } from './demo-role';
@@ -91,5 +91,22 @@ describe('DemoRoleContext', () => {
     );
     act(() => setRole('redacteur'));
     expect(screen.getByTestId('roles')).toHaveTextContent('public-affairs,pa-editor');
+  });
+});
+
+describe('useDemoRole outside a provider', () => {
+  it('names the missing provider instead of returning null', () => {
+    // Without the guard this returns null and the first property read on it
+    // fails somewhere far away from the actual mistake.
+    const Bare = () => {
+      useDemoRole();
+      return null;
+    };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(() => render(<Bare />)).toThrow('useDemoRole must be used inside DemoRoleProvider');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

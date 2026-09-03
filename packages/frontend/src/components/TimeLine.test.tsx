@@ -194,4 +194,54 @@ describe('Timeline', () => {
 
     expect(onDateChange).toHaveBeenCalledWith(events[0].date);
   });
+  it('highlights the "Vandaag" button only while today is the selected date', () => {
+    const { rerender } = render(
+      <Timeline
+        events={[]}
+        minDate={minDate}
+        maxDate={new Date(2100, 0, 1)}
+        selectedDate={new Date()}
+        onDateChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Vandaag' })).toHaveClass('text-white');
+
+    rerender(
+      <Timeline
+        events={[]}
+        minDate={minDate}
+        maxDate={new Date(2100, 0, 1)}
+        selectedDate={new Date(2005, 5, 5)}
+        onDateChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Vandaag' })).toHaveClass('bg-gray-200');
+  });
+
+  it('highlights the jump button of the event the timeline is parked on', () => {
+    // The marker on the track and the jump button below it share the event
+    // label; the jump button is the last one in the document.
+    const jumpButton = () => screen.getAllByRole('button', { name: 'Geboren' }).at(-1)!;
+    const { rerender } = render(
+      <Timeline
+        events={events}
+        minDate={minDate}
+        maxDate={maxDate}
+        selectedDate={events[0].date}
+        onDateChange={vi.fn()}
+      />
+    );
+    expect(jumpButton()).toHaveClass('text-white');
+
+    rerender(
+      <Timeline
+        events={events}
+        minDate={minDate}
+        maxDate={maxDate}
+        selectedDate={new Date(2015, 0, 1)}
+        onDateChange={vi.fn()}
+      />
+    );
+    expect(jumpButton()).toHaveClass('bg-gray-200');
+  });
 });

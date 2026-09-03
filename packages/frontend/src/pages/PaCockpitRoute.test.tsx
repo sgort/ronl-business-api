@@ -99,4 +99,17 @@ describe('PaCockpitRoute', () => {
       redirectUri: window.location.origin + '/',
     });
   });
+  it('does not call Keycloak logout when there is no session to end', () => {
+    // The cockpit renders its avatar control whether or not a session is live
+    // (an anonymous visitor sees the login prompt beside it), so onLogout can
+    // be invoked with nothing to log out of. keycloak.logout() on an
+    // uninitialised adapter throws.
+    keycloakMock.exports.default.authenticated = false;
+    try {
+      hostArg().onLogout();
+      expect(keycloakMock.logout).not.toHaveBeenCalled();
+    } finally {
+      keycloakMock.exports.default.authenticated = true;
+    }
+  });
 });
