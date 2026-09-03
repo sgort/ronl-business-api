@@ -108,6 +108,57 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.2',
+      status: 'Released',
+      date: '3 sep 2026',
+      scope: ['backend', 'frontend', 'pa-demo', 'public-site'],
+      commits: [
+        {
+          sha: 'bed7699',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'bump-release no longer contradicts itself about which sites redeploy',
+          details: [
+            'The release runbook stated the same fact twice and disagreed with itself. Its “Why scope matters” callout lists all four ACC workflows as path-filtered — the stated justification for the entire per-scope versioning scheme — while step 0, fifty-five lines below, said frontend, pa-demo and public-site trigger on push to acc “with no paths: filter”, singling out backend as the only filtered one.',
+            'The callout is right: azure-publicsite-acc watches packages/public-site/** alone, with no shared/** and no backend/**, so public-site redeployed on no backend release at all while the step promised it had. A third of that sentence has been wrong on every backend release since the filters went in, and nothing caught it because the two statements were never read together.',
+            'Deleted rather than corrected. Fixing the wrong copy in place would have left the duplication that produced it, and the same drift would recur. The replacement gives the instruction and sends the reader to the callout for the paths, without enumerating sites — the honest statement is per-scope, and an enumerated one is wrong for every release.',
+          ],
+        },
+        {
+          sha: '5b53700',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Every workspace held to an 80% per-file branch floor',
+          details: [
+            'Extends the backend-only coverage campaign to all five workspaces that have a test runner. 53 files were below 80% branch coverage; none are now. backend 89.97 → 92.17, frontend 80.42 → 89.52, pa-cockpit 76.06 → 88.52, public-site 70.39 → 96.92, pa-demo 86.95 → 95.65. Total 3683 tests, verified serially. @ronl/shared has no test script and needs none: it is types plus two seed modules with no functions and no branches.',
+            'The new tests are behavioural rather than coverage-shaped. Three themes recur: per-type render arms, where DecisionViewer, CapacityClaimDocumentsViewer and RipFase1WipViewer each carry their own copy of the same TipTap renderer and each now gets a document exercising every node type the composer can emit; upstream absence, where a source answering with no value array or a signal from a source this build has no label for each has a fallback that now has a test saying what it is for; and the difference between “we looked and found nothing” and “we could not look”, which Results, GereedschapSection and Home all render distinctly, because a zero in place of a failed fetch is a wrong statement of fact rather than a neutral default.',
+          ],
+        },
+        {
+          sha: 'f355fce',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The EU signaalbron moves to the EP Open Data API',
+          details: [
+            'The EU source returned nothing on ACC, and not for any reason in this repository: www.europarl.europa.eu is CDN-fronted with undocumented bot mitigation that answers ACC’s outbound range with an empty 202 text/html. That passes res.ok, so the empty body parsed to zero items and the source reported success while contributing nothing — starving both the Ongefilterd browse and the six-hourly curation cron. Measured from inside the App Service, egress 20.76.244.212, in one run: both RSS URLs 202 with zero bytes, while data.europarl.europa.eu returned 200 with 211 KB of Atom. The API is also the endpoint the EP publishes for machines, documenting User-Agent as a header with the format {user-id}-{environment}-{version}, where the CDN gates on a UA family it never describes.',
+            'fetchEuFeed’s signature is unchanged, so neither call site moved. The feed endpoint takes no query parameters — a fixed “published or updated in the last month” window — so paging stays in-process exactly as it was under RSS, and one request replaces two. Three things the live feed decided that the specification would not have: the parliamentary term is not always 10, because the window covers documents updated rather than only published, so the RSS-era pattern that hardcoded -10- silently dropped every older-term document; amendment refs carry extra segments and are excluded deliberately, an amendment being a fragment of a document with no doceo page of its own; and the type now comes from the work-type vocabulary rather than the ref prefix, which had never learned QOB.',
+            'Two accepted trade-offs, both recorded rather than discovered later. Entries are English only — they arrive xml:lang="en" and Accept-Language is ignored — while the doceo link stays Dutch, since the document itself is translated even when its metadata is not. Press releases are gone: the API has no equivalent endpoint, they being a communications product rather than legislative data. Committee and per-entry summary are absent from the Atom feed too, so commissie is null for this sub-source and the description is built from the title alone; both are covered by tests so they read as decisions rather than surprises.',
+          ],
+        },
+        {
+          sha: '210fce2',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The supply-chain audit runs on every pull request',
+          details: [
+            'The pull_request trigger was filtered to acc and main, so a pull request opened against a feature branch — a stacked PR — matched no trigger and accumulated no audit at all. It then reported mergeStateStatus CLEAN with zero checks: ready-looking, and not ready.',
+            'The failure arrives later and is worse than it sounds. When the parent merges and GitHub retargets the stacked PR to acc, the required audit is missing and the PR blocks permanently, because retargeting emits no pull_request event and nothing ever runs it. Closing and reopening is the only way out, reopened being one of the default trigger types. The audit is read-only and cheap, so running it on every pull request regardless of base removes the hole rather than working around it; push keeps its filter, there being no reason to audit a push to a feature branch.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.1',
       status: 'Released',
       date: '2 sep 2026',
