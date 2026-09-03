@@ -181,9 +181,7 @@ describe('getMockPhaseCounts', () => {
     RIP_PHASES.forEach((phase, i) => {
       const atThisPhase = projects.filter((p) => p.ripPhaseCode === phase.code);
       const wipHere = atThisPhase.filter((p) => p.ripPhaseState === 'wip').length;
-      const geparkeerdHere = phase.beyond ? atThisPhase.length : 0;
-      expect(counts[phase.code].wip).toBe(phase.beyond ? 0 : wipHere);
-      expect(counts[phase.code].geparkeerd).toBe(geparkeerdHere);
+      expect(counts[phase.code].wip).toBe(wipHere);
 
       // gereed = projects whose current ladder position is PAST this phase
       // (they've already completed it), not before it.
@@ -298,14 +296,5 @@ describe('getMockWipRows / getMockGereedRows / getMockGeparkeerdRows', () => {
     const codes = new Set(getMockPortfolio().map((p) => p.ripPhaseCode));
     expect(codes.has('R5.4')).toBe(true);
     expect(codes.has('R6.1')).toBe(true);
-  });
-
-  it('counts nothing as geparkeerd anywhere, now that no phase is beyond', () => {
-    // geparkeerd only ever accrued in getMockPhaseCounts's phase.beyond branch,
-    // and R5.3 was the only phase that took it.
-    const counts = getMockPhaseCounts();
-    for (const phase of RIP_PHASES) {
-      expect(counts[phase.code].geparkeerd).toBe(0);
-    }
   });
 });

@@ -411,7 +411,7 @@ export default function InfraBoardDashboard() {
                       {stage.code} · {stage.name}
                     </div>
                     <ul className="v2-rail-list">
-                      {phases.map(({ phase, count, parkedCount, muted }) => {
+                      {phases.map(({ phase, count, muted }) => {
                         const sectionId = phaseSectionId(phase.code);
                         return (
                           <li key={phase.code}>
@@ -427,14 +427,7 @@ export default function InfraBoardDashboard() {
                                 <span className="pb-rail-code">{phase.code}</span>
                                 {phase.name}
                               </span>
-                              {count !== undefined && count > 0 && (
-                                <span className="pb-rail-badge">{count}</span>
-                              )}
-                              {parkedCount !== undefined && parkedCount > 0 && (
-                                <span className="pb-rail-badge parked" title="Geparkeerd">
-                                  {parkedCount}
-                                </span>
-                              )}
+                              {count > 0 && <span className="pb-rail-badge">{count}</span>}
                             </button>
                           </li>
                         );

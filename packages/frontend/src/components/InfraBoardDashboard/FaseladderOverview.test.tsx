@@ -10,7 +10,7 @@ import { combinePhaseCounts, getKlaarCounts } from '../../pages/infra-board/rip-
 // Mirrors the mocked useLivePhaseCounts data below, normalized to phase
 // codes the same way the component does — so expected values account for
 // the live contribution, not just mock data.
-const LIVE_COUNTS = { 'R2.1': { wip: 1, gereed: 2, geparkeerd: 0 } };
+const LIVE_COUNTS = { 'R2.1': { wip: 1, gereed: 2 } };
 
 function kpiValue(name: string): string | null {
   const label = screen.getByText(name);
@@ -52,8 +52,8 @@ describe('FaseladderOverview', () => {
   it('renders one row per phase, grouped under five stage headers', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     RIP_PHASES.forEach((p) => {
-      // getAllByText, not getByText: R5.3 is startable now that it is modelled,
-      // so its code appears in the start control as well as its own row.
+      // getAllByText, not getByText: every phase is startable now that none is
+      // `beyond`, so each code appears in the start control as well as its row.
       expect(screen.getAllByText(p.code, { exact: false }).length).toBeGreaterThan(0);
     });
     RIP_STAGES.forEach((s) => {
@@ -95,14 +95,11 @@ describe('FaseladderOverview', () => {
     expect(kpiValue('Deelprocessen inzetbaar')).toBe('1 / 12');
   });
 
-  it('shows Klaar om te starten as the total Klaar across all non-beyond phases, not deployed-only', () => {
+  it('shows Klaar om te starten as the total Klaar across all phases, not deployed-only', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     const combined = combinePhaseCounts(getMockPhaseCounts(), LIVE_COUNTS);
     const klaar = getKlaarCounts(RIP_PHASES, combined);
-    const totalKlaar = RIP_PHASES.filter((p) => !p.beyond).reduce(
-      (sum, p) => sum + (klaar[p.code] ?? 0),
-      0
-    );
+    const totalKlaar = RIP_PHASES.reduce((sum, p) => sum + (klaar[p.code] ?? 0), 0);
     // Only R2.1 is deployed in this test's mock; a deployed-only total would
     // be far smaller than the true portfolio-wide total computed above.
     expect(totalKlaar).toBeGreaterThan(1);
@@ -113,16 +110,19 @@ describe('FaseladderOverview', () => {
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
     const mockCounts = getMockPhaseCounts();
     const klaar = getKlaarCounts(RIP_PHASES, mockCounts);
-    const zeroPhase = RIP_PHASES.find((p, i) => i > 0 && !p.beyond && klaar[p.code] === 0);
+    const zeroPhase = RIP_PHASES.find((p, i) => i > 0 && klaar[p.code] === 0);
     expect(zeroPhase).toBeDefined();
     const row = screen.getByText(zeroPhase!.code, { exact: false }).closest('tr');
     expect(row?.textContent).toContain('—');
   });
 
-  it('shows R5.3 in the WIP column like any other phase', () => {
-    // The column is still labelled "WIP / Geparkeerd" here; R5.3 was the only
-    // phase that could ever produce a geparkeerd figure and no longer does.
+  it('labels the column "WIP" and shows R5.3 wip count like any other phase', () => {
+    // Was "WIP / Geparkeerd": the geparkeerd half existed solely for R5.3, the
+    // catalogue's one `beyond` phase. R5.3 is modelled now, so no phase can
+    // produce a geparkeerd figure and the slash described a dead column.
     render(<FaseladderOverview onOpenPhase={vi.fn()} />);
+    expect(screen.getByText('WIP')).toBeInTheDocument();
+    expect(screen.queryByText('WIP / Geparkeerd')).not.toBeInTheDocument();
     const mockCounts = getMockPhaseCounts();
     const r53 = RIP_PHASES.find((p) => p.code === 'R5.3')!;
     const row = screen.getAllByText(r53.code, { exact: false })[0].closest('tr');

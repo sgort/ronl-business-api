@@ -107,10 +107,12 @@ describe('PhaseDetail — header and side panel', () => {
   });
 });
 
-// The 'PhaseDetail - R5.3 (beyond)' block was removed here: it drove the
-// "Niet gemodelleerd" placeholder and the geparkeerde-projecten list through
-// R5.3, which is modelled now. PhaseDetail resolves phaseCode against the real
-// catalogue, so no synthetic fixture can reach that branch.
+// The 'PhaseDetail - R5.3 (beyond)' block was removed here. It exercised the
+// "Niet gemodelleerd" placeholder and the geparkeerde-projecten list, both
+// reachable only for a `beyond` phase. R5.3 was the only one and is modelled
+// now, and PhaseDetail resolves phaseCode against the real catalogue, so no
+// synthetic fixture can drive that branch. The branch itself is kept in
+// PhaseDetail.tsx for a future phase catalogued ahead of its sheet.
 
 describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
   it('shows the single-button fallback when the ready-list is empty and there is no predecessor', () => {
@@ -726,7 +728,8 @@ describe('PhaseDetail — starting the next phase from a finished predecessor', 
     render(<PhaseDetail phaseCode="R5.4" onBack={vi.fn()} />);
 
     // R5.4's entry criterion is "Oplevering areaal na R5.3". That oplevering is
-    // an observable exit now, so there is nothing outside the tool to disclose.
+    // an observable exit now -- RipR53Process's "Ja, oplevering areaal" end
+    // event -- so there is nothing handled outside the tool to disclose.
     expect(screen.queryByText(/buiten deze tool afgehandeld/)).not.toBeInTheDocument();
   });
 

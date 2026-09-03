@@ -37,8 +37,6 @@ export interface RipPhase {
   weeks: number;
   bron: string;
   processDefinitionKey?: string;
-  /** No process model even planned (R5.3) — never counts as WIP. */
-  beyond?: boolean;
 }
 
 const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
@@ -441,7 +439,7 @@ export const RIP_PHASES: RipPhase[] = CONTENT.map((c) => ({
 export const ripPhaseByCode = (code: string): RipPhase | undefined =>
   RIP_PHASES.find((p) => p.code === code);
 
-export type RipDeployStatus = 'gedeployed' | 'ontwerp' | 'onbekend';
+export type RipDeployStatus = 'gedeployed' | 'ontwerp';
 
 export const RIP_DEPLOY_META: Record<
   RipDeployStatus,
@@ -461,13 +459,6 @@ export const RIP_DEPLOY_META: Record<
     can: false,
     note: 'Overzichtsplaat bekend, procesmodel nog niet gemodelleerd of nog niet gedeployed op deze omgeving.',
   },
-  onbekend: {
-    label: 'Niet gemodelleerd',
-    short: 'N.V.T.',
-    color: '#9aa1ab',
-    can: false,
-    note: 'Nog geen overzichtsplaat beschikbaar.',
-  },
 };
 
 export function getPhaseDeployStatus(
@@ -477,44 +468,23 @@ export function getPhaseDeployStatus(
   if (phase.processDefinitionKey && deployedKeys.has(phase.processDefinitionKey)) {
     return 'gedeployed';
   }
-  if (phase.beyond) return 'onbekend';
   return 'ontwerp';
 }
 
 /**
  * The phase a project must have finished before it can start `code`.
  *
- * Skips any `beyond` phase. No phase is beyond any more — R5.3 was the last
- * one and is modelled and deployed as RipR53Process — so this now resolves to
- * `RIP_PHASES[i - 1]` for every phase, and R5.4 follows R5.3 rather than R5.2.
- * The skip is kept only until the unused `beyond` machinery is removed.
- *
- * Callers that surface a skip to the user should say so; see
- * `skippedPhasesBefore`, which is now empty for every phase.
+ * Every phase in the ladder is modelled and deployed, so this is simply the
+ * preceding entry. It used to step over `beyond` phases -- R5.3 was the only
+ * one, kept out because it had no exit artefact and reading it as R5.4's
+ * predecessor would have pegged R5.4 at zero candidates forever. RipR53Process
+ * is deployed now and its "Ja, oplevering areaal" end event is that exit, so
+ * the special case is gone along with `beyond` itself.
  *
  * Returns undefined for the first phase, which has no predecessor.
  */
 export function previousModelledPhase(code: string): RipPhase | undefined {
   const idx = RIP_PHASES.findIndex((p) => p.code === code);
   if (idx <= 0) return undefined;
-  for (let i = idx - 1; i >= 0; i--) {
-    if (!RIP_PHASES[i].beyond) return RIP_PHASES[i];
-  }
-  return undefined;
-}
-
-/**
- * Phases between `code` and its effective predecessor that are handled
- * outside this tool — what `previousModelledPhase` stepped over. Empty for
- * every phase except R5.4 today.
- */
-export function skippedPhasesBefore(code: string): RipPhase[] {
-  const idx = RIP_PHASES.findIndex((p) => p.code === code);
-  if (idx <= 0) return [];
-  const skipped: RipPhase[] = [];
-  for (let i = idx - 1; i >= 0; i--) {
-    if (!RIP_PHASES[i].beyond) break;
-    skipped.unshift(RIP_PHASES[i]);
-  }
-  return skipped;
+  return RIP_PHASES[idx - 1];
 }
