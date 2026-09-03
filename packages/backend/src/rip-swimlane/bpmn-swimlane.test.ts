@@ -446,4 +446,47 @@ describe('parseSwimlane — FASE1_DOCS coupling (spec §9)', () => {
       expect(ids).toContain(produceNode);
     }
   });
+
+  // FASE1_NODE_ROLE (rip-model.ts, frontend) is the surviving remnant of the
+  // deleted FASE1_NODES kept ONLY for getWipStepInfo's stepRole/blocked
+  // fields on the WIP tab — a small hand-maintained bpmnId -> role table the
+  // reviewer confirmed should stay, since deriving it instead would require
+  // threading the phase model into getWipStepInfo and land in the R5.2/R6.1
+  // redesign this plan explicitly deferred.
+  //
+  // This test guards ONLY that every one of its 19 ids still names a real
+  // node in the deployed R2.1 BPMN — it catches a renamed or deleted task,
+  // turning a silent miss (stepRole/blocked quietly going blank) into a loud
+  // failure. It does NOT check that the role each id maps to still matches
+  // that node's actual BPMN lane: if a task is moved to a different lane,
+  // this test keeps passing while the WIP tab's role column goes stale. That
+  // gap is real and is not covered anywhere else — do not read a passing run
+  // of this test as confirmation the role table is still correct.
+  it('every FASE1_NODE_ROLE id resolves to a node in the derived R2.1 model (existence only, not lane)', () => {
+    const ids = new Set(parseSwimlane(xml('RipR21Process'), 'R2.1').nodes.map((n) => n.bpmnId));
+    const fase1NodeRoleIds = [
+      'StartEvent_RipPhase1',
+      'Task_AanlevrenProjectplan',
+      'Task_OrganiserenIntakeoverleg',
+      'Task_UitvoerenIntakeoverleg',
+      'Gateway_IntakeAkkoord',
+      'Task_VerberenKwaliteit',
+      'Task_AanvullenProjectplan2',
+      'Task_AccorderenProjectplan2',
+      'Gateway_Akkoord2',
+      'Task_InitierenPSU',
+      'Task_AanmakenWorkspaceRelatics',
+      'Task_OpstellenRisicodossier',
+      'Task_UitvoerenPSU',
+      'Task_OpstellenPlanning',
+      'Task_AanvullenProjectplan4',
+      'Task_HoudenOverlegVO',
+      'Task_AccorderenProjectplan4',
+      'Gateway_Akkoord4',
+      'EndEvent_Phase1Complete',
+    ];
+    for (const id of fase1NodeRoleIds) {
+      expect(ids).toContain(id);
+    }
+  });
 });

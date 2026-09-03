@@ -83,6 +83,22 @@ describe('nodeStatusFromHistory', () => {
     expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
   });
 
+  it('does not downgrade an already-"action" activity to done when a later entry for the same id finishes', () => {
+    // Out-of-order defensive test: the function assumes ascending startTime
+    // (guaranteed by operaton.service.ts today), so this history — the
+    // running/claimable entry BEFORE an earlier execution's finished entry —
+    // is not what a real caller passes. It exercises the guard directly
+    // rather than relying on ordering to keep it untested.
+    const statuses = nodeStatusFromHistory(
+      [
+        historyItem({ id: 'h1', endTime: null, canceled: false }),
+        historyItem({ id: 'h2', endTime: '2026-01-03T00:00:00Z', canceled: false }),
+      ],
+      new Set(['Task_AanlevrenProjectplan'])
+    );
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('action');
+  });
+
   it('defaults openTaskBpmnIds to empty when omitted', () => {
     const statuses = nodeStatusFromHistory([historyItem({ endTime: null, canceled: false })]);
     expect(statuses['Task_AanlevrenProjectplan']).toBe('active');

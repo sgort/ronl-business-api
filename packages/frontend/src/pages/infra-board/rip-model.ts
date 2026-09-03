@@ -100,6 +100,16 @@ export type { NodeKind, SwimLane, SwimNode, SwimEdge } from '@ronl/shared';
  * Pass `openTaskBpmnIds` (the taskDefinitionKeys of the user's open tasks,
  * from businessApi.task.list()) to surface "actie nodig" on the node awaiting
  * them.
+ *
+ * Assumes `history` is in ascending `startTime` order, as
+ * `operaton.service.ts`'s activity-history endpoint returns it — a rework
+ * loop's finished FIRST execution and running SECOND execution then share one
+ * `activityId`, and the running (later) entry is processed last, so it always
+ * wins. Given a history out of that order, an already-'active'/'action' id
+ * could be downgraded to 'done' by an earlier execution's finished entry
+ * processed afterwards; the guard below stops that for both statuses, but
+ * only the caller's ordering keeps 'active' vs 'action' itself correct when a
+ * loop is genuinely mid-rework.
  */
 export function nodeStatusFromHistory(
   history: ActivityHistoryItem[],
@@ -109,7 +119,13 @@ export function nodeStatusFromHistory(
   for (const h of history) {
     const running = !h.endTime && !h.canceled;
     if (running) out[h.activityId] = openTaskBpmnIds.has(h.activityId) ? 'action' : 'active';
-    else if (h.endTime && !h.canceled && out[h.activityId] !== 'active') out[h.activityId] = 'done';
+    else if (
+      h.endTime &&
+      !h.canceled &&
+      out[h.activityId] !== 'active' &&
+      out[h.activityId] !== 'action'
+    )
+      out[h.activityId] = 'done';
   }
   return out;
 }
@@ -128,10 +144,13 @@ export interface WipStepInfo {
  * and `blocked` fields need exactly the per-node lane and back-edge data that
  * `FASE1_NODES`/`FASE1_EDGES` used to supply. This is that data's surviving
  * remnant — kept ONLY for this one WIP-tab field, deliberately not reused
- * for the swimlane itself (which is fully derived). Unlike the swimlane, this
- * table is not covered by the `bpmn-swimlane.test.ts` coupling test: if a
- * task is ever moved to a different lane in the BPMN, this goes stale and the
- * WIP tab's role column is wrong until someone notices and updates it here.
+ * for the swimlane itself (which is fully derived). `bpmn-swimlane.test.ts`
+ * has a coupling test asserting every id below still names a real R2.1 node
+ * — but existence only: it does NOT check the role each id maps to still
+ * matches that node's actual BPMN lane. If a task is ever moved to a
+ * different lane, this table goes stale — silently, the coupling test still
+ * passes — and the WIP tab's role column is wrong until someone notices and
+ * updates it here.
  */
 const FASE1_NODE_ROLE: Record<string, string> = {
   StartEvent_RipPhase1: 'aandrager',

@@ -155,7 +155,7 @@ describe('ProjectDetail — mock project', () => {
     expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
   });
 
-  it('derives status across a phase not currently reached, spanning done/active/todo', () => {
+  it('derives status across a phase not currently reached, spanning done/active', () => {
     // deriveMockStatus now walks whatever nodes the derived model for the
     // SELECTED phase supplies (not the fixed 18-node R2.1 layout), so this
     // pins its column-threshold bucketing directly: a project not on R2.1
@@ -245,8 +245,6 @@ describe('ProjectDetail — live instance with open tasks', () => {
     render(<ProjectDetail projectRef={{ nr: '99999', instanceId: 'pi-1' }} onBack={vi.fn()} />);
 
     expect(screen.getByText('Open taken (1)')).toBeInTheDocument();
-    // The swimlane also renders a node labelled "Aanleveren Projectplan", so
-    // scope the click to the task-list item specifically.
     await user.click(
       screen.getByText('Aanleveren Projectplan', { selector: '.pb-taken-item-name' })
     );
@@ -494,7 +492,9 @@ describe('ProjectDetail — live instance past R2.1', () => {
 
     const swim = container.querySelector('.pb-swim') as HTMLElement;
     expect(swim).not.toBeNull();
-    expect(within(swim).getByText('Aanleveren Projectplan')).toBeInTheDocument();
+    expect(within(swim).getByText('Aanleveren Projectplan').closest('.pb-swim-node')).toHaveClass(
+      'todo'
+    );
   });
 
   it('falls back to R2.1 when the instance is not in the active list', () => {
