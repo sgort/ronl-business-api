@@ -62,10 +62,28 @@ or none. Out-of-scope PRs stay open and are gathered by the next release. Then:
 2. **Re-check mergeability between merges** when several PRs touch the same file.
    The `acc` ruleset does not require branches to be up to date, so merging one
    leaves the next based on a stale tree.
-3. **Each merge to `acc` redeploys frontend, pa-demo and public-site** — those
-   workflows trigger on push to `acc` with no `paths:` filter. Say so when
-   proposing to merge several. The backend workflows are path-filtered and will
-   not fire unless `packages/backend/**` or `packages/shared/**` changed.
+3. **Say what a merge will redeploy when proposing to merge several** — derived
+   from the scope, not recited from a list. Every ACC workflow is path-filtered
+   on push, so which ones fire depends entirely on which packages the PRs touch;
+   the "Why scope matters" callout at the top of this file holds the paths, and
+   is the only place they are written down.
+
+   This step used to name frontend, pa-demo and public-site as redeploying on
+   every merge, "with no `paths:` filter" — contradicting that callout 55 lines
+   above it. It was wrong the way a second copy decays, not the way a typo is
+   wrong: whoever wrote it was reasoning about frontend and pa-demo, which do
+   list `packages/shared/**` and so usually do fire, and swept public-site in by
+   association. `azure-publicsite-acc.yml` watches `packages/public-site/**`
+   alone — no `shared/**`, no `backend/**` — so public-site redeployed on no
+   backend release at all, while this step promised it had. A third of the
+   sentence was wrong on every backend release since the filters went in, and
+   nothing caught it because the two statements were never read together.
+
+   Hence one statement of the rule, in the callout, and nothing here that can
+   drift away from it. If this step ever needs a one-liner, "which sites
+   redeploy depends on the scope — see the callout above" is true for every
+   release; the enumerated version is true for none.
+
 4. **Bring the working branch up to date with `acc` afterwards** — rebase if the
    branch is unpushed, merge if it is not. Only then compute the commit range in
    step 1.
