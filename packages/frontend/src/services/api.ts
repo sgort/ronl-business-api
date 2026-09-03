@@ -8,6 +8,7 @@ import type {
   Task,
   HistoricTask,
   ActivityHistoryItem,
+  PhaseSwimlaneModel,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -370,6 +371,11 @@ export const businessApi = {
       >
     > => {
       const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/completed`);
+      return response.data;
+    },
+
+    phaseModel: async (phaseCode: string): Promise<ApiResponse<PhaseSwimlaneModel>> => {
+      const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/model`);
       return response.data;
     },
   },

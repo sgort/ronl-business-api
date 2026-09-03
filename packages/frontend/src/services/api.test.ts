@@ -496,6 +496,21 @@ describe('businessApi.rip', () => {
     expect(await businessApi.rip.phaseCompleted('R2.1')).toEqual({ success: true, data: [] });
     expect(seen).toContain('/rip/phases/R2.1/completed');
   });
+
+  it('phaseModel fetches the swimlane model for the phase it is given, URL-encoded', async () => {
+    let seen = '';
+    const model = { phaseCode: 'R2 X', lanes: [], nodes: [], edges: [] };
+    server.use(
+      http.get('*/rip/phases/:code/model', ({ request }) => {
+        seen = new URL(request.url).pathname;
+        return HttpResponse.json({ success: true, data: model });
+      })
+    );
+    expect(await businessApi.rip.phaseModel('R2 X')).toEqual({ success: true, data: model });
+    // Catches a caller that forgot encodeURIComponent on the phase code.
+    expect(seen).toContain(`/rip/phases/${encodeURIComponent('R2 X')}/model`);
+    expect(seen).not.toContain('/rip/phases/R2 X/model');
+  });
 });
 
 describe('businessApi.admin', () => {

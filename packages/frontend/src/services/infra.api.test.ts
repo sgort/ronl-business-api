@@ -9,6 +9,7 @@ import {
   useDeployedProcessKeys,
   useLivePhaseCounts,
   useOpenTasks,
+  usePhaseSwimlane,
   useRipActiveAcrossPhases,
   useRipPhaseReadiness,
   useRipPhaseCompleted,
@@ -19,6 +20,7 @@ const mockBusinessApi = vi.hoisted(() => ({
   rip: {
     phaseActive: vi.fn(),
     phaseCompleted: vi.fn(),
+    phaseModel: vi.fn(),
     instanceDocuments: vi.fn(),
     deploymentStatus: vi.fn(),
     phasesCounts: vi.fn(),
@@ -491,5 +493,59 @@ describe('useRipPhaseCompleted', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe(true);
+  });
+});
+
+describe('usePhaseSwimlane', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fetches the swimlane model for the phase code it is given', async () => {
+    const model = { phaseCode: 'R2.2', lanes: [], nodes: [], edges: [] };
+    mockBusinessApi.rip.phaseModel.mockResolvedValue({ success: true, data: model });
+
+    const { result } = renderHook(() => usePhaseSwimlane('R2.2'));
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Envelope unwrapped -- data is the model itself, not `{ success, data }`.
+    expect(result.current.data).toEqual(model);
+    expect(result.current.error).toBe(false);
+    // Pins that the exact code passed to the hook is the one forwarded --
+    // catches a swapped argument or a hard-coded phase.
+    expect(mockBusinessApi.rip.phaseModel).toHaveBeenCalledWith('R2.2');
+  });
+
+  it('makes no request and reports a clean idle state for a null phase code', async () => {
+    // vi.restoreAllMocks() does not reset a vi.hoisted() vi.fn(), so the
+    // previous test's call would otherwise still be on the record here.
+    mockBusinessApi.rip.phaseModel.mockClear();
+
+    const { result } = renderHook(() => usePhaseSwimlane(null));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(mockBusinessApi.rip.phaseModel).not.toHaveBeenCalled();
+    // Pins the ACTUAL resulting state deliberately: "no phase selected" is a
+    // clean idle state, not a fetch failure. See the doc comment on
+    // `usePhaseSwimlane` -- a straight delegate to `useAsync` would resolve
+    // this case to `{ success: true, data: undefined }`, which `useAsync`
+    // treats as `error: true`; this hook overrides that outward-facing
+    // result rather than bending `useAsync` itself.
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBe(false);
+  });
+
+  it('sets error state when the call rejects', async () => {
+    mockBusinessApi.rip.phaseModel.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(() => usePhaseSwimlane('R2.1'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe(true);
+    expect(result.current.data).toBeNull();
   });
 });

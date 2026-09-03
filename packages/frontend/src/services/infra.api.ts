@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { businessApi } from './api';
-import type { Task, ActivityHistoryItem } from '@ronl/shared';
+import type { Task, ActivityHistoryItem, PhaseSwimlaneModel } from '@ronl/shared';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
 import type { StatusKey } from '../pages/infra-board/rip-model';
 import { RIP_PHASES } from '../pages/infra-board/rip-phases.catalog';
@@ -214,6 +214,35 @@ export function useRipPhaseReadiness(
     },
   };
 }
+
+/**
+ * Swimlane model for one RIP phase. Pass null to skip the request -- e.g.
+ * while nothing is selected yet.
+ *
+ * Deliberately does NOT delegate straight to `useAsync` the way the other
+ * null-skippable hooks above do: those resolve the null case to a sensible
+ * empty array/object default, so `useAsync`'s "data undefined -> error"
+ * branch never fires. A swimlane model has no such empty default -- returning
+ * a fake half-populated model would be worse than returning nothing -- so the
+ * underlying fetch resolves `{ success: true, data: undefined }` for the null
+ * case, which *would* land in `useAsync`'s error branch. Rather than bending
+ * `useAsync` (other hooks depend on its current behaviour), this hook keeps
+ * its own tiny override: for a null code it reports a clean idle state
+ * instead of surfacing that internal error. "No phase selected" is not a
+ * fetch failure.
+ */
+export const usePhaseSwimlane = (phaseCode: string | null): AsyncState<PhaseSwimlaneModel> => {
+  const asyncState = useAsync<PhaseSwimlaneModel>(
+    () =>
+      phaseCode
+        ? businessApi.rip.phaseModel(phaseCode)
+        : Promise.resolve({ success: true, data: undefined }),
+    [phaseCode]
+  );
+  return phaseCode
+    ? asyncState
+    : { data: null, loading: false, error: false, reload: asyncState.reload };
+};
 
 /** Activity-history for a process instance — drives swimlane node status. */
 export const useActivityHistory = (instanceId: string | null) =>
