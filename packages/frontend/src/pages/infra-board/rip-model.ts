@@ -1,12 +1,18 @@
+import type { ActivityHistoryItem } from '@ronl/shared';
+
 /**
  * RIP domain model for the Infra-board dashboard.
  *
- * The Fase-1 swimlane (lanes, tasks, gateways, sequence flows) mirrors the
- * deployed BPMN `RipR21Process` ("RIP Fase 1 — R2.1 Projectplan
- * Planvoorbereiding"). `bpmnId` on each node is the BPMN flowNode id, so the
- * engine's activity-history can drive node status live.
+ * Every phase's swimlane (lanes, tasks, gateways, sequence flows) is derived
+ * from its deployed BPMN by `parseSwimlane` (backend) and served through
+ * `usePhaseSwimlane` — see `PhaseSwimlaneModel` in `@ronl/shared`. `bpmnId` on
+ * each node is the BPMN flowNode id, and equals the node's own `id` in the
+ * derived model, so the engine's activity-history can drive node status
+ * directly without a separate translation table.
  *
- * NOTE: only Fase 1 (R2.1) is modelled. Fases 2–6 are lifecycle placeholders.
+ * This module keeps only what a derived model cannot supply on its own: the
+ * status/health vocabulary, R2.1's four Projectplan-onderdelen and the
+ * history-derivation helpers that read them.
  */
 
 export type StatusKey = 'done' | 'active' | 'wachtend' | 'risk' | 'overdue' | 'action' | 'todo';
@@ -48,236 +54,34 @@ export const ROLES: RoleDef[] = [
 ];
 export const roleByKey = (k: string): RoleDef => ROLES.find((r) => r.key === k) ?? ROLES[0];
 
-/** The four Projectplan-onderdelen, in order. `produceNode` = swimlane node that finalises it. */
+/** The four Projectplan-onderdelen, in order. `produceNode` = the BPMN task
+ *  id (see `RipR21Process`) whose completion finalises it — a real BPMN id
+ *  now, not a synthetic local one, since `statusById` is keyed by `bpmnId`.
+ *  Covered by the coupling test in `bpmn-swimlane.test.ts`, which asserts
+ *  every one of these ids resolves to a node in the derived R2.1 model. */
 export const FASE1_DOCS = [
-  { key: 'intakeform', nr: '1', label: 'Intake-formulier', produceNode: 't_aanleveren' },
-  { key: 'intake', nr: '2', label: 'Intake-verslag', produceNode: 't_aanvullen2' },
-  { key: 'psu', nr: '3', label: 'PSU-verslag', produceNode: 't_psu' },
-  { key: 'vou', nr: '4', label: 'Uitgangspunten VO-fase', produceNode: 't_aanvullen4' },
+  {
+    key: 'intakeform',
+    nr: '1',
+    label: 'Intake-formulier',
+    produceNode: 'Task_AanlevrenProjectplan',
+  },
+  { key: 'intake', nr: '2', label: 'Intake-verslag', produceNode: 'Task_AanvullenProjectplan2' },
+  { key: 'psu', nr: '3', label: 'PSU-verslag', produceNode: 'Task_UitvoerenPSU' },
+  {
+    key: 'vou',
+    nr: '4',
+    label: 'Uitgangspunten VO-fase',
+    produceNode: 'Task_AanvullenProjectplan4',
+  },
 ] as const;
 
-// ── Swimlane layout ─────────────────────────────────────────────────────────
-export interface SwimLane {
-  key: string;
-  label: string;
-}
-export const FASE1_LANES: SwimLane[] = [
-  { key: 'aandrager', label: 'Aandrager' },
-  { key: 'manager-pb', label: 'Manager Projectbeheersing' },
-  { key: 'gezamenlijk', label: 'Intake-overleg / Accordering' },
-  { key: 'projectleider', label: 'Projectleider' },
-  { key: 'projectondersteuner', label: 'Projectondersteuner' },
-  { key: 'deelnemers-psu', label: 'Deelnemers PSU' },
-  { key: 'rip-team', label: 'RIP-team' },
-];
-const ROW = Object.fromEntries(FASE1_LANES.map((l, i) => [l.key, i]));
-const ROW_TO_LANE_KEY: string[] = FASE1_LANES.map((l) => l.key);
-
-export type NodeKind = 'start' | 'end' | 'task' | 'service' | 'gateway';
-export interface SwimNode {
-  id: string;
-  kind: NodeKind;
-  col: number;
-  row: number;
-  label: string;
-  doc?: string;
-  /** BPMN flowNode id — used to map live activity-history onto the node. */
-  bpmnId: string;
-}
-
-export const FASE1_NODES: SwimNode[] = [
-  {
-    id: 'start',
-    kind: 'start',
-    col: 0,
-    row: ROW['aandrager'],
-    label: 'Start RIP fase 1',
-    bpmnId: 'StartEvent_RipPhase1',
-  },
-  {
-    id: 't_aanleveren',
-    kind: 'task',
-    col: 1,
-    row: ROW['aandrager'],
-    label: 'Aanleveren Projectplan',
-    doc: '1. Intake-formulier',
-    bpmnId: 'Task_AanlevrenProjectplan',
-  },
-  {
-    id: 't_organiseren',
-    kind: 'task',
-    col: 2,
-    row: ROW['manager-pb'],
-    label: 'Organiseren intake-overleg',
-    bpmnId: 'Task_OrganiserenIntakeoverleg',
-  },
-  {
-    id: 't_uitvoeren',
-    kind: 'task',
-    col: 3,
-    row: ROW['gezamenlijk'],
-    label: 'Uitvoeren intake-overleg',
-    bpmnId: 'Task_UitvoerenIntakeoverleg',
-  },
-  {
-    id: 'g_intake',
-    kind: 'gateway',
-    col: 4,
-    row: ROW['gezamenlijk'],
-    label: 'Intake akkoord?',
-    bpmnId: 'Gateway_IntakeAkkoord',
-  },
-  {
-    id: 't_verbeteren',
-    kind: 'task',
-    col: 5,
-    row: ROW['aandrager'],
-    label: 'Verbeteren kwaliteit',
-    doc: '1. Intake-formulier',
-    bpmnId: 'Task_VerberenKwaliteit',
-  },
-  {
-    id: 't_aanvullen2',
-    kind: 'task',
-    col: 5,
-    row: ROW['projectleider'],
-    label: 'Aanvullen Projectplan',
-    doc: '2. Intake-verslag',
-    bpmnId: 'Task_AanvullenProjectplan2',
-  },
-  {
-    id: 't_accorderen2',
-    kind: 'task',
-    col: 6,
-    row: ROW['gezamenlijk'],
-    label: 'Accorderen Projectplan',
-    doc: '2. Intake-verslag',
-    bpmnId: 'Task_AccorderenProjectplan2',
-  },
-  {
-    id: 'g_akkoord2',
-    kind: 'gateway',
-    col: 7,
-    row: ROW['gezamenlijk'],
-    label: 'Akkoord?',
-    bpmnId: 'Gateway_Akkoord2',
-  },
-  {
-    id: 't_psu_init',
-    kind: 'task',
-    col: 8,
-    row: ROW['projectleider'],
-    label: 'Initiëren / organiseren PSU',
-    bpmnId: 'Task_InitierenPSU',
-  },
-  {
-    id: 't_relatics',
-    kind: 'service',
-    col: 9,
-    row: ROW['projectondersteuner'],
-    label: 'Aanmaken workspace Relatics',
-    bpmnId: 'Task_AanmakenWorkspaceRelatics',
-  },
-  {
-    id: 't_risico',
-    kind: 'task',
-    col: 10,
-    row: ROW['manager-pb'],
-    label: 'Opstellen risicodossier',
-    bpmnId: 'Task_OpstellenRisicodossier',
-  },
-  {
-    id: 't_psu',
-    kind: 'task',
-    col: 11,
-    row: ROW['deelnemers-psu'],
-    label: 'Uitvoeren PSU',
-    doc: '3. PSU-verslag',
-    bpmnId: 'Task_UitvoerenPSU',
-  },
-  {
-    id: 't_planning',
-    kind: 'task',
-    col: 12,
-    row: ROW['manager-pb'],
-    label: 'Opstellen planning',
-    bpmnId: 'Task_OpstellenPlanning',
-  },
-  {
-    id: 't_aanvullen4',
-    kind: 'task',
-    col: 13,
-    row: ROW['projectleider'],
-    label: 'Aanvullen Projectplan',
-    doc: '4. Uitgangspunten VO-fase',
-    bpmnId: 'Task_AanvullenProjectplan4',
-  },
-  {
-    id: 't_overlegvo',
-    kind: 'task',
-    col: 14,
-    row: ROW['rip-team'],
-    label: 'Overleg uitgangspunten VO-fase',
-    bpmnId: 'Task_HoudenOverlegVO',
-  },
-  {
-    id: 't_accorderen4',
-    kind: 'task',
-    col: 15,
-    row: ROW['gezamenlijk'],
-    label: 'Accorderen Projectplan',
-    doc: '4. Uitgangspunten VO-fase',
-    bpmnId: 'Task_AccorderenProjectplan4',
-  },
-  {
-    id: 'g_akkoord4',
-    kind: 'gateway',
-    col: 16,
-    row: ROW['gezamenlijk'],
-    label: 'Akkoord?',
-    bpmnId: 'Gateway_Akkoord4',
-  },
-  {
-    id: 'end',
-    kind: 'end',
-    col: 17,
-    row: ROW['aandrager'],
-    label: 'Fase 1 voltooid → R2.2',
-    bpmnId: 'EndEvent_Phase1Complete',
-  },
-];
-
-export interface SwimEdge {
-  from: string;
-  to: string;
-  label?: string;
-  back?: boolean;
-}
-export const FASE1_EDGES: SwimEdge[] = [
-  { from: 'start', to: 't_aanleveren' },
-  { from: 't_aanleveren', to: 't_organiseren' },
-  { from: 't_organiseren', to: 't_uitvoeren' },
-  { from: 't_uitvoeren', to: 'g_intake' },
-  { from: 'g_intake', to: 't_aanvullen2', label: 'Ja' },
-  { from: 'g_intake', to: 't_verbeteren', label: 'Nee' },
-  { from: 't_verbeteren', to: 't_accorderen2' },
-  { from: 't_aanvullen2', to: 't_accorderen2' },
-  { from: 't_accorderen2', to: 'g_akkoord2' },
-  { from: 'g_akkoord2', to: 't_psu_init', label: 'akkoord' },
-  { from: 'g_akkoord2', to: 't_aanvullen2', label: 'niet akkoord', back: true },
-  { from: 't_psu_init', to: 't_relatics' },
-  { from: 't_relatics', to: 't_risico' },
-  { from: 't_risico', to: 't_psu' },
-  { from: 't_psu', to: 't_planning' },
-  { from: 't_planning', to: 't_aanvullen4' },
-  { from: 't_aanvullen4', to: 't_overlegvo' },
-  { from: 't_overlegvo', to: 't_accorderen4' },
-  { from: 't_accorderen4', to: 'g_akkoord4' },
-  { from: 'g_akkoord4', to: 'end', label: 'akkoord' },
-  { from: 'g_akkoord4', to: 't_aanvullen4', label: 'niet akkoord', back: true },
-];
-
-import type { ActivityHistoryItem } from '@ronl/shared';
+// The hand-maintained FASE1_LANES/FASE1_NODES/FASE1_EDGES layout (and its
+// local NodeKind/SwimLane/SwimNode/SwimEdge types) is gone — every phase's
+// layout, including R2.1's, now comes from `usePhaseSwimlane` /
+// `parseSwimlane`. Re-export the shared vocabulary so existing importers of
+// these type names keep working.
+export type { NodeKind, SwimLane, SwimNode, SwimEdge } from '@ronl/shared';
 
 /**
  * Map live engine activity-history onto a status per swimlane node.
@@ -285,36 +89,27 @@ import type { ActivityHistoryItem } from '@ronl/shared';
  * - activity finished (endTime set, not canceled)  → 'done'
  * - activity running (no endTime)                  → 'active' (or 'action' if it
  *   is the user task currently assigned to / claimable by the current user)
- * - never reached                                  → 'todo'
+ * - never reached                                  → 'todo' (the caller need
+ *   not set this explicitly — `PhaseSwimlane`'s renderer already defaults an
+ *   absent id to 'todo')
  *
- * Pass `openTaskDefKeys` (the taskDefinitionKeys of the user's open tasks, from
- * businessApi.task.list()) to surface "actie nodig" on the node awaiting them.
+ * Keys the result by the history's own `activityId` — which is a BPMN flowNode
+ * id, the same id a derived model's nodes use for their own `id`/`bpmnId` — so
+ * this works for any phase's model, not only R2.1's.
+ *
+ * Pass `openTaskBpmnIds` (the taskDefinitionKeys of the user's open tasks,
+ * from businessApi.task.list()) to surface "actie nodig" on the node awaiting
+ * them.
  */
 export function nodeStatusFromHistory(
   history: ActivityHistoryItem[],
   openTaskBpmnIds: ReadonlySet<string> = new Set()
 ): Record<string, StatusKey> {
-  const byActivity = new Map<string, ActivityHistoryItem[]>();
-  for (const h of history) {
-    const arr = byActivity.get(h.activityId) ?? [];
-    arr.push(h);
-    byActivity.set(h.activityId, arr);
-  }
   const out: Record<string, StatusKey> = {};
-  for (const node of FASE1_NODES) {
-    const items = byActivity.get(node.bpmnId) ?? [];
-    if (items.length === 0) {
-      out[node.id] = 'todo';
-      continue;
-    }
-    const running = items.some((i) => !i.endTime && !i.canceled);
-    if (running) {
-      out[node.id] = openTaskBpmnIds.has(node.bpmnId) ? 'action' : 'active';
-    } else if (items.some((i) => i.endTime && !i.canceled)) {
-      out[node.id] = 'done';
-    } else {
-      out[node.id] = 'todo';
-    }
+  for (const h of history) {
+    const running = !h.endTime && !h.canceled;
+    if (running) out[h.activityId] = openTaskBpmnIds.has(h.activityId) ? 'action' : 'active';
+    else if (h.endTime && !h.canceled && out[h.activityId] !== 'active') out[h.activityId] = 'done';
   }
   return out;
 }
@@ -327,35 +122,83 @@ export interface WipStepInfo {
 }
 
 /**
+ * R2.1 node → swimlane-role mapping, by BPMN id. `getWipStepInfo` is out of
+ * scope for the swimlane-derivation plan (see task-7-brief.md / SDD ledger
+ * Ruling 2) and must not change what it returns for R2.1, but its `stepRole`
+ * and `blocked` fields need exactly the per-node lane and back-edge data that
+ * `FASE1_NODES`/`FASE1_EDGES` used to supply. This is that data's surviving
+ * remnant — kept ONLY for this one WIP-tab field, deliberately not reused
+ * for the swimlane itself (which is fully derived). Unlike the swimlane, this
+ * table is not covered by the `bpmn-swimlane.test.ts` coupling test: if a
+ * task is ever moved to a different lane in the BPMN, this goes stale and the
+ * WIP tab's role column is wrong until someone notices and updates it here.
+ */
+const FASE1_NODE_ROLE: Record<string, string> = {
+  StartEvent_RipPhase1: 'aandrager',
+  Task_AanlevrenProjectplan: 'aandrager',
+  Task_OrganiserenIntakeoverleg: 'manager-pb',
+  Task_UitvoerenIntakeoverleg: 'gezamenlijk',
+  Gateway_IntakeAkkoord: 'gezamenlijk',
+  Task_VerberenKwaliteit: 'aandrager',
+  Task_AanvullenProjectplan2: 'projectleider',
+  Task_AccorderenProjectplan2: 'gezamenlijk',
+  Gateway_Akkoord2: 'gezamenlijk',
+  Task_InitierenPSU: 'projectleider',
+  Task_AanmakenWorkspaceRelatics: 'projectondersteuner',
+  Task_OpstellenRisicodossier: 'manager-pb',
+  Task_UitvoerenPSU: 'deelnemers-psu',
+  Task_OpstellenPlanning: 'manager-pb',
+  Task_AanvullenProjectplan4: 'projectleider',
+  Task_HoudenOverlegVO: 'rip-team',
+  Task_AccorderenProjectplan4: 'gezamenlijk',
+  Gateway_Akkoord4: 'gezamenlijk',
+  EndEvent_Phase1Complete: 'aandrager',
+};
+
+/** R2.1's rework-loop targets, by BPMN id — the surviving remnant of the
+ *  deleted FASE1_EDGES. A task reached more than once means a loop ran. */
+export const FASE1_REWORK_TARGETS = [
+  'Task_AanvullenProjectplan2',
+  'Task_AanvullenProjectplan4',
+] as const;
+
+/** The gateway that sends each FASE1_REWORK_TARGETS entry back for rework —
+ *  both of R2.1's rework gateways (Gateway_Akkoord2, Gateway_Akkoord4) are
+ *  named "Akkoord?" in the BPMN, so this collapses to one literal. Used by
+ *  `getWipStepInfo`'s `blocked` field alongside FASE1_NODE_ROLE above. */
+const FASE1_REWORK_ORIGIN_LABEL = 'Akkoord?';
+
+/**
  * Derives the current-step summary for one process instance from its
  * activity history. The running node (no endTime, not canceled) is the
- * current step; if it's the target of a `back: true` edge, the gateway
- * that sent it back is surfaced as `blocked`. R2.1-specific —
- * FASE1_NODES/FASE1_EDGES model only R2.1's BPMN.
+ * current step; if it's one of FASE1_REWORK_TARGETS and this is a repeat
+ * execution, the originating gateway is surfaced as `blocked`. R2.1-specific
+ * — an activity id outside FASE1_NODE_ROLE (i.e. not one of R2.1's own BPMN
+ * nodes) yields null, exactly as it did when this looked nodes up in
+ * FASE1_NODES.
  */
 export function getWipStepInfo(history: ActivityHistoryItem[]): WipStepInfo | null {
   const running = history.find((h) => !h.endTime && !h.canceled);
   if (!running) return null;
-  const node = FASE1_NODES.find((n) => n.bpmnId === running.activityId);
-  if (!node) return null;
-  const backEdge = FASE1_EDGES.find((e) => e.back && e.to === node.id);
-  // A node targeted by a back edge is only "blocked" if this is a
-  // genuine rework re-execution — i.e. this activityId has run before.
-  // Two FASE1 nodes (t_aanvullen2, t_aanvullen4) are ALSO the normal
-  // forward-path target of an earlier task/gateway, so a first-ever
-  // visit must not be reported as blocked just because SOME edge into
-  // the node happens to be a back edge.
+  const roleKey = FASE1_NODE_ROLE[running.activityId];
+  if (!roleKey) return null;
+  const step = running.activityName;
+  if (!step) return null;
+  // A rework-target node is only "blocked" if this is a genuine rework
+  // re-execution — i.e. this activityId has run before. Two FASE1 nodes
+  // (Task_AanvullenProjectplan2, Task_AanvullenProjectplan4) are ALSO the
+  // normal forward-path target of an earlier task/gateway, so a first-ever
+  // visit must not be reported as blocked just because the node is one of
+  // FASE1_REWORK_TARGETS.
   const executionCount = history.filter((h) => h.activityId === running.activityId).length;
-  const blocked =
-    backEdge && executionCount > 1
-      ? (FASE1_NODES.find((n) => n.id === backEdge.from)?.label ?? null)
-      : null;
+  const isReworkTarget = (FASE1_REWORK_TARGETS as readonly string[]).includes(running.activityId);
+  const blocked = isReworkTarget && executionCount > 1 ? FASE1_REWORK_ORIGIN_LABEL : null;
   const daysInStep = Math.floor(
     (Date.now() - new Date(running.startTime).getTime()) / (1000 * 60 * 60 * 24)
   );
   return {
-    step: node.label,
-    stepRole: roleByKey(ROW_TO_LANE_KEY[node.row]).label,
+    step,
+    stepRole: roleByKey(roleKey).label,
     daysInStep,
     blocked,
   };
@@ -363,18 +206,13 @@ export function getWipStepInfo(history: ActivityHistoryItem[]): WipStepInfo | nu
 
 /**
  * Counts rework-loop re-executions in a (typically completed) instance's
- * activity history: for each `back: true` edge in FASE1_EDGES, its target
- * node's bpmnId is counted once per execution beyond the first — the
- * first execution is the normal forward pass, not a loop.
+ * activity history: for each id in FASE1_REWORK_TARGETS, it is counted once
+ * per execution beyond the first — the first execution is the normal
+ * forward pass, not a loop.
  */
 export function countReworkLoops(history: ActivityHistoryItem[]): number {
-  const backTargetBpmnIds = new Set(
-    FASE1_EDGES.filter((e) => e.back)
-      .map((e) => FASE1_NODES.find((n) => n.id === e.to)?.bpmnId)
-      .filter((id): id is string => !!id)
-  );
   let loops = 0;
-  for (const bpmnId of backTargetBpmnIds) {
+  for (const bpmnId of FASE1_REWORK_TARGETS) {
     const count = history.filter((h) => h.activityId === bpmnId).length;
     loops += Math.max(0, count - 1);
   }

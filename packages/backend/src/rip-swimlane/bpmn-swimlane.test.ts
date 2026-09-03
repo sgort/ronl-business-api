@@ -429,3 +429,21 @@ describe('parseSwimlane — back-edge removal always leaves an acyclic graph', (
     expect(isAcyclic(nodeIds, forward)).toBe(true);
   });
 });
+
+describe('parseSwimlane — FASE1_DOCS coupling (spec §9)', () => {
+  it('every FASE1_DOCS produceNode resolves to a node in the derived R2.1 model', () => {
+    // FASE1_DOCS drives the "Projectplan — onderdelen" strip via
+    // docOk(d.produceNode). Its ids used to be synthetic and local to
+    // FASE1_NODES; they are BPMN ids now. If a task is ever renamed in the
+    // BPMN, this fails instead of the strip silently reading "Nog niet".
+    const ids = new Set(parseSwimlane(xml('RipR21Process'), 'R2.1').nodes.map((n) => n.bpmnId));
+    for (const produceNode of [
+      'Task_AanlevrenProjectplan',
+      'Task_AanvullenProjectplan2',
+      'Task_UitvoerenPSU',
+      'Task_AanvullenProjectplan4',
+    ]) {
+      expect(ids).toContain(produceNode);
+    }
+  });
+});

@@ -35,15 +35,14 @@ describe('roleByKey', () => {
 });
 
 describe('nodeStatusFromHistory', () => {
-  it('marks a node with no history entries as todo', () => {
+  it('returns an empty map for no history entries — absent ids default to todo at the call site', () => {
     const statuses = nodeStatusFromHistory([]);
-    expect(statuses['t_aanleveren']).toBe('todo');
-    expect(statuses['start']).toBe('todo');
+    expect(statuses).toEqual({});
   });
 
-  it('marks a node with a running, unclaimed activity as active', () => {
+  it("keys the result by the history entry's own activityId (a BPMN id)", () => {
     const statuses = nodeStatusFromHistory([historyItem({ endTime: null, canceled: false })]);
-    expect(statuses['t_aanleveren']).toBe('active');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
   });
 
   it('marks a running activity as "action" when it is one of the user\'s open tasks', () => {
@@ -51,21 +50,21 @@ describe('nodeStatusFromHistory', () => {
       [historyItem({ endTime: null, canceled: false })],
       new Set(['Task_AanlevrenProjectplan'])
     );
-    expect(statuses['t_aanleveren']).toBe('action');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('action');
   });
 
-  it('marks a node with a completed (non-canceled) activity as done', () => {
+  it('marks a completed (non-canceled) activity as done', () => {
     const statuses = nodeStatusFromHistory([
       historyItem({ endTime: '2026-01-02T00:00:00Z', canceled: false }),
     ]);
-    expect(statuses['t_aanleveren']).toBe('done');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('done');
   });
 
-  it('treats a fully-canceled activity as if it never happened (todo)', () => {
+  it('leaves a fully-canceled activity out of the map (as if it never happened)', () => {
     const statuses = nodeStatusFromHistory([
       historyItem({ endTime: '2026-01-02T00:00:00Z', canceled: true }),
     ]);
-    expect(statuses['t_aanleveren']).toBe('todo');
+    expect(statuses['Task_AanlevrenProjectplan']).toBeUndefined();
   });
 
   it('resolves done when any entry for the activity completed, even if another was canceled', () => {
@@ -73,12 +72,20 @@ describe('nodeStatusFromHistory', () => {
       historyItem({ id: 'h1', endTime: '2026-01-02T00:00:00Z', canceled: true }),
       historyItem({ id: 'h2', endTime: '2026-01-03T00:00:00Z', canceled: false }),
     ]);
-    expect(statuses['t_aanleveren']).toBe('done');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('done');
+  });
+
+  it('does not downgrade an already-active activity to done when a later entry for the same id finishes', () => {
+    const statuses = nodeStatusFromHistory([
+      historyItem({ id: 'h1', endTime: null, canceled: false }),
+      historyItem({ id: 'h2', endTime: '2026-01-03T00:00:00Z', canceled: false }),
+    ]);
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
   });
 
   it('defaults openTaskBpmnIds to empty when omitted', () => {
     const statuses = nodeStatusFromHistory([historyItem({ endTime: null, canceled: false })]);
-    expect(statuses['t_aanleveren']).toBe('active');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
   });
 });
 
@@ -184,6 +191,28 @@ describe('getWipStepInfo', () => {
 
   it('returns null for an empty history', () => {
     expect(getWipStepInfo([])).toBeNull();
+  });
+
+  it('returns null for a running activity outside R2.1 (no local role for it)', () => {
+    // FASE1_NODES is gone; getWipStepInfo now gates on FASE1_NODE_ROLE
+    // instead. An activity id from a DIFFERENT phase's BPMN — e.g. R2.2's
+    // Task_OpstellenVO — must still yield null, exactly as an unmatched
+    // FASE1_NODES lookup used to.
+    const history: ActivityHistoryItem[] = [
+      activity({ activityId: 'Task_OpstellenVO', activityName: 'Opstellen VO', endTime: null }),
+    ];
+    expect(getWipStepInfo(history)).toBeNull();
+  });
+
+  it('returns null when the running R2.1 activity carries no activityName', () => {
+    const history: ActivityHistoryItem[] = [
+      activity({
+        activityId: 'Task_OrganiserenIntakeoverleg',
+        activityName: null,
+        endTime: null,
+      }),
+    ];
+    expect(getWipStepInfo(history)).toBeNull();
   });
 });
 
