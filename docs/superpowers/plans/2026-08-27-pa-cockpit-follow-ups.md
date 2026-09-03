@@ -500,6 +500,79 @@ half of it. Cheap to close.
 
 ## 14. Rotate the changelog out of the app bundle
 
+> **Done — part 1.** `ChangelogPanel.tsx` is now a shim that `lazy()`-loads
+> `ChangelogPanelContent.tsx`, and a guard pins the split. Bundle measurement,
+> taken honestly rather than assumed, changed the answer: lazy-loading beats
+> rotation on its own terms, and part 2 is now a curation question rather than
+> a bundle one.
+>
+> **Measuring first changed the answer.** The entry above proposed rotating
+> pre-CalVer history to the documentation site, on the reasoning that 68 of 93
+> releases are out of scope and only the remaining third needs to ship. That
+> reasoning assumed the panel was already part of the bundle split problem
+> in the ordinary sense — code-split, with the changelog merely too much of
+> what loads. It wasn't: nothing in the frontend was code-split before this
+> work, so the changelog's cost was 100% of its weight, not the ~68% rotation
+> would have removed. Lazy-loading the whole drawer removes all of it, and
+> does so without touching the release procedure, the changelog data, or the
+> documentation site — none of which rotation could have avoided touching.
+>
+> **Before/after, measured, not assumed.** The brief's own before-figure came
+> from a `dist/` built four days before this branch existed, predating a
+> substantial amount of unrelated work, and is not used here. Two builds were
+> taken instead: HEAD (`5343685`) for after, and `743d65d` — the last commit
+> before the split, built in a throwaway `git worktree` and then removed —
+> for before.
+>
+> |                                                  |                    raw |             gzipped |
+> | ------------------------------------------------ | ---------------------: | ------------------: |
+> | Before (`743d65d`), single entry chunk           | 2,277,284 B (2.17 MiB) | 708,748 B (692 KiB) |
+> | After (`5343685`), entry chunk                   | 1,906,966 B (1.82 MiB) | 580,742 B (567 KiB) |
+> | After (`5343685`), `ChangelogPanelContent` chunk |    371,527 B (363 KiB) | 128,553 B (126 KiB) |
+>
+> The changelog chunk's size **is** the amount removed from the entry chunk —
+> the same bytes, relocated, not a subtraction against a stale baseline. The
+> two views agree to within a kilobyte either way: entry shrank by 370,318 B
+> raw / 128,006 B gzipped, and the new chunk is 371,527 B raw / 128,553 B
+> gzipped — the small gap is bundler/gzip overhead at the new split point, not
+> unaccounted bytes.
+>
+> **The Suspense boundary lives in the shim, not the package, because it has
+> to.** `PADashboardV2.tsx:516` renders the host's `ChangelogPanel` through the
+> host contract, and neither `@ronl/pa-cockpit` nor `@ronl/pa-demo` has a
+> Suspense boundary anywhere. A bare `lazy()` export would have thrown the
+> moment the drawer opened on the PA cockpit route. Putting `<Suspense>`
+> inside the package instead would leak this host's implementation choice
+> into a contract `pa-demo` also depends on without needing it.
+>
+> **The guard asserts the import _form_, not just the specifier.** Dropping
+> `type` from `import type { ChangelogPanelProps }` is a four-character edit
+> that turns a type-only import into a real static dependency edge, pulling
+> the changelog straight back into the entry chunk. It reviews cleanly,
+> type-checks identically, and passes every behavioural test — only a bundle
+> measurement would notice. `no-eager-changelog.test.ts` parses the shim with
+> the TypeScript compiler API and checks the import clause's `isTypeOnly`
+> flag rather than grepping for a specifier string, so that edit fails the
+> guard directly instead of slipping through as source-text noise.
+>
+> **A latent test fragility turned up during the split and was fixed, not
+> just noticed.** `ChangelogPanel.tsx`'s `lazy(() => import(...))` call sits
+> at module scope, so its resolved-promise cache is shared by every test in
+> the file. Six of the panel's seven content-asserting tests were passing
+> only because an earlier test in the same file had already warmed that
+> cache — each rendered synchronously and passed regardless of whether it
+> awaited. Run alone with `-t`, against a cold cache, all six failed the same
+> way the one already-awaiting test would have caught first. All seven now
+> `await screen.findByRole(...)` explicitly, so each holds in isolation and
+> under reordering rather than by accident of run order.
+>
+> **Part 2 — curation and a documentation-site archive — remains open and
+> unjudged.** Its case is no longer about bundle weight: lazy-loading has
+> answered that argument in full, for all 102 releases, not just the CalVer
+> two-thirds. Whatever case remains for rotating pre-CalVer history out is a
+> curation argument on its own merits, separate from what this item was
+> opened to fix.
+
 `packages/frontend/src/pages/changelog-data.ts` is **5,061 lines / 353 KB
 carrying 93 releases**, imported by five pages so it lands in the main chunk for
 every visitor of a 2.1 MB bundle. **68 of those 93 are pre-CalVer** — the era

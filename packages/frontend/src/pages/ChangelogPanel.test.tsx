@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ChangelogPanel, { ScopeBadge } from './ChangelogPanel';
+import ChangelogPanel from './ChangelogPanel';
+import { ScopeBadge } from './ChangelogPanelContent';
 import { changelog } from './changelog-data';
 
 // changelog-data.ts carries the project's real, ever-growing release history
@@ -38,10 +39,18 @@ describe('ChangelogPanel', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('when open, shows a version card for every release with the latest one expanded', () => {
+  it('when open, shows a version card for every release with the latest one expanded', async () => {
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // The panel's content is lazy-loaded (see ChangelogPanel.tsx), and
+    // lazy() caches its resolved promise at module scope. Once any test in
+    // this file has resolved that promise, every later test would render the
+    // content synchronously and its assertions would pass whether or not
+    // they await — a pass for a reason unrelated to what it asserts. Every
+    // test below awaits the content itself so it holds on its own, in
+    // isolation, and under reordering, rather than riding an earlier test's
+    // cache warm-up.
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     const latest = changelog.versions[0];
     const latestToggle = screen.getByRole('button', {
       name: versionButtonName(latest.version),
@@ -58,6 +67,8 @@ describe('ChangelogPanel', () => {
   it('clicking a collapsed version expands it, clicking again collapses it', async () => {
     const user = userEvent.setup();
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    // see the note at the first await — this is load-bearing
+    await screen.findByRole('dialog');
 
     const second = changelog.versions[1];
     const toggle = screen.getByRole('button', {
@@ -77,7 +88,7 @@ describe('ChangelogPanel', () => {
     const user = userEvent.setup();
     render(<ChangelogPanel isOpen onClose={onClose} />);
 
-    await user.click(screen.getByRole('button', { name: 'Close changelog' }));
+    await user.click(await screen.findByRole('button', { name: 'Close changelog' }));
 
     expect(onClose).toHaveBeenCalled();
   });
@@ -86,6 +97,7 @@ describe('ChangelogPanel', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     const { container } = render(<ChangelogPanel isOpen onClose={onClose} />);
+    await screen.findByRole('dialog');
 
     await user.click(container.querySelector('[aria-hidden="true"]')!);
 
@@ -96,14 +108,17 @@ describe('ChangelogPanel', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<ChangelogPanel isOpen onClose={onClose} />);
+    // see the note at the first await — this is load-bearing
+    await screen.findByRole('dialog');
 
     await user.keyboard('{Escape}');
 
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('locks body scroll while open and restores it on close', () => {
+  it('locks body scroll while open and restores it on close', async () => {
     const { rerender } = render(<ChangelogPanel isOpen onClose={vi.fn()} />);
+    await screen.findByRole('dialog');
     expect(document.body.style.overflow).toBe('hidden');
 
     rerender(<ChangelogPanel isOpen={false} onClose={vi.fn()} />);
@@ -117,7 +132,7 @@ describe('ChangelogPanel', () => {
     const user = userEvent.setup();
     render(<ChangelogPanel isOpen onClose={vi.fn()} />);
 
-    const toggle = screen.getByRole('button', {
+    const toggle = await screen.findByRole('button', {
       name: versionButtonName(commitVersion.version),
     });
     if (toggle.getAttribute('aria-expanded') === 'false') {
