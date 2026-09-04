@@ -112,6 +112,37 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.5',
+      status: 'Released',
+      date: '4 sep 2026',
+      scope: ['backend', 'frontend'],
+      commits: [
+        {
+          sha: 'f2bf68e',
+          author: 'Steven Gort',
+          type: 'perf',
+          subject: 'The board fetches its live instances once, not forty-eight times',
+          details: [
+            'Rendering one Infra-board screen fired up to 48 HTTP requests. The active-across-phases hook issued one request per modelled phase — twelve — and four components called it independently, since useAsync has no cache or dedup: the page itself, Portfolio, the command palette, and ProjectDetail.',
+            'Browsers allow roughly six connections per host, so those queued about eight deep and the swimlane model request waited behind them. That is the likely reason a diagram sometimes needed a page refresh before it appeared — the request was never lost, it was starved.',
+            'The fan-out now calls the single aggregate endpoint, and a provider at the board root shares one fetch across all four consumers, following the PaDataProvider precedent. useRipActiveAcrossPhases keeps its name and signature and reads context instead, so three of the four call sites do not change at all; InfraBoardDashboard needed a real split, because its own hook call has to sit below the provider it mounts. Calling the hook outside that provider throws rather than quietly issuing a duplicate fetch — a deliberate trade toward loud failure, and one nothing at compile time enforces.',
+          ],
+        },
+        {
+          sha: '4cb0873',
+          author: 'Steven Gort',
+          type: 'perf',
+          subject: 'Active instances come in one call, and the parsed diagram is cached',
+          details: [
+            'The board asked for active instances one phase at a time because only a per-phase endpoint existed. A new aggregate returns every modelled phase in one response, each row tagged with the phase it belongs to so the caller reshapes nothing.',
+            'One phase failing must not blank the rest — the property the frontend’s per-request catch used to provide, now owned by the backend. Promise.allSettled over every modelled phase: a rejected phase is logged and omitted, the response stays 200, and only a total failure answers 500.',
+            'The swimlane model was also rebuilt on every request: the XML was cached but the parse was not, so each diagram view re-read up to 74 shapes and 68 edges, re-ran the depth-first back-edge walk and re-layered the graph before throwing the result away. It is cached now, beside the XML cache and keyed the same tenant-inclusive way — a key without the tenant would reintroduce exactly the cross-tenant leak that convention exists to prevent. A definition’s BPMN is immutable, so it never needs invalidating.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.4',
       status: 'Released',
       date: '4 sep 2026',
