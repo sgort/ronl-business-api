@@ -9,10 +9,42 @@ interface RawFlow {
   label: string;
 }
 
-function readFlows(process: Record<string, any>): RawFlow[] {
-  return toArray(process.sequenceFlow).map((f: any) => {
+/**
+ * What fast-xml-parser hands back: an untyped tree of bags. An element is a
+ * record of `@_`-prefixed attributes, child elements, and `#text` for its text
+ * content, and any value may be a node, a bare string, or an array of either.
+ *
+ * Typed as `unknown` rather than `any` so every read below has to say how it
+ * narrows. That is not ceremony here: the whole file's job is to believe a
+ * document it did not write, and `any` would let a malformed one produce a
+ * confidently wrong model instead of a compile error.
+ */
+type XmlNode = Record<string, unknown>;
+
+const isNode = (v: unknown): v is XmlNode => typeof v === 'object' && v !== null;
+
+/**
+ * Children of `parent` under `name`. fast-xml-parser gives a bare value for a
+ * single occurrence and an array for repeats; anything that is not an element
+ * is dropped rather than coerced into one.
+ */
+function childNodes(parent: XmlNode, name: string): XmlNode[] {
+  return toArray(parent[name]).filter(isNode);
+}
+
+/**
+ * Text of a child that fast-xml-parser may give either way: a bare string for
+ * a text-only element, or a node carrying `#text` when the element also has
+ * attributes.
+ */
+function textOf(v: unknown): string {
+  return (isNode(v) ? String(v['#text'] ?? '') : String(v ?? '')).trim();
+}
+
+function readFlows(process: XmlNode): RawFlow[] {
+  return childNodes(process, 'sequenceFlow').map((f) => {
     const cond = f.conditionExpression;
-    const condText = typeof cond === 'string' ? cond : (cond?.['#text'] ?? '');
+    const condText = textOf(cond);
     return {
       id: String(f['@_id']),
       from: String(f['@_sourceRef']),
@@ -34,15 +66,13 @@ function readFlows(process: Record<string, any>): RawFlow[] {
  * cycle matches the diagram's own branch order rather than an accident of
  * where each sequenceFlow was typed in the file.
  */
-function readOutgoingOrder(process: Record<string, any>): Map<string, string[]> {
+function readOutgoingOrder(process: XmlNode): Map<string, string[]> {
   const order = new Map<string, string[]>();
   for (const elementName of Object.keys(KINDS)) {
-    for (const el of toArray(process[elementName])) {
+    for (const el of childNodes(process, elementName)) {
       // Every flow node has an `@_id` (required by BPMN, and already assumed
       // unguarded elsewhere in this file — see the node-building loop below).
-      const declared = toArray(el.outgoing).map((o: any) =>
-        String(typeof o === 'object' ? o['#text'] : o).trim()
-      );
+      const declared = toArray(el.outgoing).map(textOf);
       if (declared.length > 0) order.set(String(el['@_id']), declared);
     }
   }
@@ -237,14 +267,14 @@ function toArray<T>(v: T | T[] | undefined): T[] {
 }
 
 /** Read every BPMNShape's bpmnElement → y, for lane ordering. */
-function readShapes(definitions: Record<string, any>): Map<string, { y: number }> {
+function readShapes(definitions: XmlNode): Map<string, { y: number }> {
   const out = new Map<string, { y: number }>();
-  const diagrams = toArray(definitions.BPMNDiagram);
-  for (const d of diagrams) {
-    for (const plane of toArray(d?.BPMNPlane)) {
-      for (const shape of toArray(plane?.BPMNShape)) {
-        const el = shape?.['@_bpmnElement'];
-        const y = Number(shape?.Bounds?.['@_y'] ?? 0);
+  for (const d of childNodes(definitions, 'BPMNDiagram')) {
+    for (const plane of childNodes(d, 'BPMNPlane')) {
+      for (const shape of childNodes(plane, 'BPMNShape')) {
+        const el = shape['@_bpmnElement'];
+        const bounds = shape.Bounds;
+        const y = Number((isNode(bounds) ? bounds['@_y'] : undefined) ?? 0);
         if (typeof el === 'string') out.set(el, { y });
       }
     }
@@ -253,16 +283,18 @@ function readShapes(definitions: Record<string, any>): Map<string, { y: number }
 }
 
 export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneModel {
-  const doc = parser.parse(xml);
-  const definitions = doc.definitions ?? {};
-  const process = toArray(definitions.process)[0] ?? {};
+  // parser.parse is typed `any` by the library, so it is narrowed here at the
+  // single point it enters — everything downstream reads through XmlNode.
+  const doc = parser.parse(xml) as XmlNode;
+  const definitions = isNode(doc.definitions) ? doc.definitions : {};
+  const process = childNodes(definitions, 'process')[0] ?? {};
   const shapes = readShapes(definitions);
 
   // ── lanes, ordered by their drawn y ──────────────────────────────────────
-  const laneSet = toArray(process.laneSet)[0] ?? {};
-  const rawLanes = toArray(laneSet.lane);
+  const laneSet = childNodes(process, 'laneSet')[0] ?? {};
+  const rawLanes = childNodes(laneSet, 'lane');
   const lanes: SwimLane[] = rawLanes
-    .map((l: any) => ({
+    .map((l) => ({
       key: String(l['@_id']),
       label: String(l['@_name'] ?? l['@_id']),
       y: shapes.get(String(l['@_id']))?.y ?? 0,
@@ -271,19 +303,18 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
     .map(({ key, label }) => ({ key, label }));
 
   const rowOf = new Map<string, number>();
-  rawLanes.forEach((l: any) => {
+  rawLanes.forEach((l) => {
     const laneId = String(l['@_id']);
     const row = lanes.findIndex((x) => x.key === laneId);
     for (const ref of toArray(l.flowNodeRef)) {
-      // fast-xml-parser gives a bare string for a text-only element.
-      rowOf.set(String(typeof ref === 'object' ? ref['#text'] : ref).trim(), row);
+      rowOf.set(textOf(ref), row);
     }
   });
 
   // ── nodes ────────────────────────────────────────────────────────────────
   const nodes: SwimNode[] = [];
   for (const [elementName, kind] of Object.entries(KINDS)) {
-    for (const el of toArray(process[elementName])) {
+    for (const el of childNodes(process, elementName)) {
       const id = String(el['@_id']);
       const ref = el['@_ronl:documentRef'] ?? el['@_documentRef'];
       nodes.push({

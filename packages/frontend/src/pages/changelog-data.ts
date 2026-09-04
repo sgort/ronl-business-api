@@ -112,6 +112,263 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.4',
+      status: 'Released',
+      date: '4 sep 2026',
+      scope: ['backend', 'frontend'],
+      commits: [
+        {
+          sha: '9f98d41',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The parsed BPMN tree is typed, not cast to any',
+          details: [
+            'The parser reached into fast-xml-parser output through seven any annotations, which put seven eslint warnings into a repo that had none. Warnings do not fail the build, so this would have ended the warning-clean state silently.',
+            'The tree is described once — a bag of attributes, child elements and text content, where any value may be a node, a bare string, or an array of either — and narrowed at the single point it enters. Using unknown rather than any is the point: this file believes a document it did not write, and any would let a malformed one produce a confidently wrong model where unknown produces a compile error. Removing the annotations immediately surfaced a node loop still reading untyped values, which the previous typing had hidden.',
+          ],
+        },
+        {
+          sha: 'f0f8f37',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Nodes sharing a lane and column are no longer hidden',
+          details: [
+            'Nodes were positioned from their column and row alone, so two occupying the same cell drew at identical coordinates and all but the topmost were invisible. The BPMN puts parallel branches in one lane at one depth constantly, so this was not an edge case: across the twelve phases 38 nodes were hidden. R5.2 alone lost twelve, one R5.1 cell held four, an R2.2 cell held three.',
+            'R2.1 is the only phase with no collisions, which is why it survived every review — it is the one phase with a hand-authored predecessor to compare against, and the only one where the bug cannot occur. It was found by noticing R6.1 listed three open tasks while its diagram drew two.',
+            'Colliding nodes now stack within their lane, and lane heights vary with the worst cell occupancy in that row. The missing test is the point: the suite passed with 38 nodes invisible because it asserted that nodes rendered, never that they rendered anywhere distinct. That invariant now exists and fails against the previous code with “expected 5 to be 8”.',
+          ],
+        },
+        {
+          sha: '57769eb',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A finished phase is coloured from its own completed run',
+          details: [
+            'Selecting a finished rung drew every node white. The activity history came from the current phase’s instance while the diagram came from the selected phase, and the selected phase’s BPMN ids appear nowhere in the current instance’s history, so every node fell through to “todo”.',
+            'Instances of one project across phases are linked by businessKey — the originating R2.1 run mints it and every later phase inherits it — so the completed instance of the selected phase is resolved on that key and its real history drives the colouring. Which steps ran, rework included, is visible rather than asserted.',
+            'A null businessKey, an unreached phase, and any unresolvable match all stay deliberately uncoloured. A guard test pins that, because the tempting regression is back toward marking a past phase wholesale done, which cannot show which steps actually ran.',
+          ],
+        },
+        {
+          sha: 'd57e967',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A phase model in flight shows loading, not failure',
+          details: [
+            'The detail page read only data from the swimlane hook and gated the panel on it, so while the fetch was in flight it rendered the failure message on every project open and every rung click. The gate it replaced was synchronous, so the flash was new.',
+            'The hook already reported it: loading is deliberately true whenever a phase is requested but its model is not yet held, precisely so a consumer could tell “still loading” from “no model”. The only consumer discarded it. No test caught this because every mocked hook return set loading to false.',
+            'Also makes the FASE1_DOCS and FASE1_NODE_ROLE coupling guards real. Both existed only as hand-transcribed copies in the backend suite, so editing a table left them green — a copy checked against a copy. A frontend test now imports the real tables, and the two sides triangulate from opposite ends of a boundary neither may cross.',
+          ],
+        },
+        {
+          sha: '3a1ae3b',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Three guards now assert what their comments claim',
+          details: [
+            'One test’s comment said it pinned the accepted rather than fabricated behaviour, but its body asserted only that a swimlane existed and a label rendered — it would have passed whether the node read todo, active or done. That test stands in for a deleted workaround and is the sole guard on the behaviour this work changed.',
+            'Re-reading the rest against the same standard found a second: a test titled “spanning done/active/todo” over a scenario that can only ever produce done or active. Retitled rather than left promising a case it does not cover.',
+            'nodeStatusFromHistory guarded “active” against being downgraded by a later completed execution but not “action”, which is what tells a user a task needs them. It cannot fire today because history arrives sorted by ascending start time, but the assumption was undocumented and the fixtures build history by hand.',
+          ],
+        },
+        {
+          sha: '7c07733',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Every phase swimlane is derived from deployed BPMN',
+          details: [
+            'The detail page renders the model the backend derives from the BPMN Operaton has deployed, for all twelve phases rather than R2.1 alone. FASE1_LANES, FASE1_NODES and FASE1_EDGES are deleted: they were a hand-kept copy of something the engine already knows, and the bug that started this work was exactly that copy going stale.',
+            'Four consumers outlived the constants and each got an explicit disposition rather than being left dangling. FASE1_DOCS.produceNode moves from synthetic ids to BPMN ids, and a backend test asserts every one resolves in the derived R2.1 model — the re-point without that test would leave a coupling free to rot silently, which is the failure class this work exists to remove.',
+            'Deliberate, agreed visible changes: R2.1’s seven curated lanes become the BPMN’s nine and the merged “Intake-overleg / Accordering” lane disappears; R2.1 shows fewer document badges, only on tagged tasks; and mock rows now get a real diagram, so “nog niet gemodelleerd” becomes the failure fallback rather than the normal state.',
+          ],
+        },
+        {
+          sha: '057300f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Rework edges get their own canvas space',
+          details: [
+            'Every back edge routed through one fixed band, so two rework loops whose column ranges overlap drew perfectly coincident lines — indistinguishable rather than merely crowded. R2.1 never showed this because its two loops sit in disjoint column ranges, but R5.2 has four back edges and R3.1 three.',
+            'Offsetting each band by a counter fixed the coincidence and introduced a worse problem: clearance below a last-lane node is only about seven pixels, so from the second back edge onward the band was pushed through the nodes. That traded an invisible collision for a visible one.',
+            'The bands were being squeezed into space belonging to nodes, so they now get their own reserve below the lane rows. With no back edges the reserve is zero and the height is exactly the previous formula, so every phase without rework loops renders unchanged.',
+          ],
+        },
+        {
+          sha: '81c3c95',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'One renderer draws every phase, from a model prop',
+          details: [
+            'The swimlane takes its model as a prop, so a single renderer draws all twelve phases. A generalisation, not a redesign: same CSS classes, same SVG structure, same visual language.',
+            'Four things R2.1 never exercised had to be handled. Parallel gateways: R2.1 contains none, the other phases hold 32, and drawing them as exclusive diamonds asserts the wrong semantics. More than one end event: R2.1 has exactly one, there are twenty across the twelve and R5.3 alone has four. An empty model, where the maximum over no nodes yields negative infinity and poisons every derived dimension. And wide models, which now scroll rather than clip.',
+            'Tests assert rendered output, including that no SVG attribute contains NaN — a NaN in a width or an x silently produces a broken diagram that every existence-check test would pass.',
+          ],
+        },
+        {
+          sha: '6b0f9b6',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The model identifies its own phase, closing a stale leak',
+          details: [
+            'The previous fix moved the defect rather than removing it. On the render where a phase code became real the hook returned an empty model with loading false and error false — a fake success, worse than what it replaced: a consumer keyed on error was wrong for one frame, while one using the ordinary not-loading-and-not-error check rendered bogus content.',
+            'Both that fix and the original inferred whether data was current from the phase code alone, which is precisely the value that has already changed on the render where stale data leaks. Staleness cannot be detected using the variable whose change caused it.',
+            'The model already carries the phase it describes, so the question is answerable directly. An empty model’s blank code can never equal a real one, making the leak structurally impossible rather than guarded against. This also stops one phase’s diagram from briefly showing under another phase’s heading.',
+          ],
+        },
+        {
+          sha: 'ac1e001',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'No spurious error render when a phase is first selected',
+          details: [
+            'The null-code override masked rather than prevented. The underlying async hook’s internal error state was still set by the null branch and persisted while the code stayed null; the instant a real code arrived the wrapper stopped overriding and returned that state directly, before the re-triggered effect could clear it. Every transition from no selection to a real phase returned an error for exactly one committed render.',
+            'The null case now resolves a genuine empty value so it lands in the success branch, which is what the sibling null-skippable hooks already do. Neither existing test could have caught this: both rendered with a fixed prop, so the new ones re-render across the transition and record the error flag on every committed render.',
+          ],
+        },
+        {
+          sha: '2c9f40e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The frontend fetches phase swimlane models',
+          details: [
+            'A client method and a hook over it. A null phase code skips the request and returns a clean idle state rather than an error, because no phase being selected is not an error and every sibling null-skippable hook in the file already avoids that.',
+          ],
+        },
+        {
+          sha: 'bc0fda4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A phase swimlane model is served from deployed BPMN',
+          details: [
+            'A new phase-model endpoint returns lanes, nodes and edges parsed from the BPMN Operaton actually has deployed, so the diagram cannot drift from the process it claims to describe.',
+            'Fetched by process-definition key rather than by definition id, deliberately: a phase with no running instance still resolves, so mock portfolio rows get a diagram too. Reuses the existing tenant-scoped lookup with its untenanted fallback, and the existing resolver that already distinguishes an unknown phase code from a known one with no deployed process.',
+            'The conflict path cannot currently be reached through the public surface — every one of the twelve phases now has a process definition key, R5.3 having been the last exception until it was deployed the day before. The test for it is written and guarded rather than deleted, so it starts running again the moment an unmodelled phase exists.',
+          ],
+        },
+        {
+          sha: '375c248',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Rework loops break on the rejection edge, not an arbitrary one',
+          details: [
+            'Back-edge classification followed the flat sequence-flow document order, but each node declares its own branch order in its outgoing list, and for one R2.1 gateway the two disagree: the approval branch is declared first while the rejection branch appears first in the flat list. The walk took the detour and closed the cycle one edge downstream.',
+            'Layout was never wrong — both edges did point right to left — but the Aanvullen task was pulled several columns right, drawn after the Accorderen step it precedes, with a long edge leaping back past it. The second loop was classified correctly, so two structurally identical loops rendered differently.',
+            'The per-fixture back-edge count table could not verify this: eleven of its twelve counts were recorded from the implementation’s own output, and such counts are not order-invariant, so re-recording would have laundered the change. An order-independent invariant was added instead — removing the back edges must leave an acyclic graph, checked by an independent topological sort.',
+          ],
+        },
+        {
+          sha: '64e11ff',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Swimlane nodes are layered and rework loops detected',
+          details: [
+            'Sequence flows become edges, nodes get columns, and rework loops are marked so the renderer can draw them as returns rather than forward steps.',
+            'The order is the whole trick and it is not the obvious one. Back edges are found structurally first, by a depth-first walk where an edge into a node already on the stack closes a cycle, and only then are columns computed over the forward edges alone. Deriving them from the columns cannot work: a cyclic relaxation pushes both endpoints of a loop rightwards until the pass cap, so nothing is left pointing backwards and columns inflate to roughly the node count.',
+            'Layering is longest-path rather than shortest so a node never sits left of its own predecessor. Tests assert known values — exact back-edge counts for all twelve phases, R5.3’s four end events, specific condition labels — rather than existence.',
+          ],
+        },
+        {
+          sha: 'cf9f900',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Implementers stage, the controller commits',
+          details: [
+            'A subagent cannot verify a per-task commit approval from inside its own context, and one correctly declined to commit on the controller’s word alone. Committing mid-task in a shared working tree also sweeps up whatever else happens to be staged.',
+          ],
+        },
+        {
+          sha: '11b06d8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Unhandled BPMN element types can no longer vanish',
+          details: [
+            'The element map is an allowlist, but a comment claimed anything unlisted was treated as a task. It was not: the loop iterates the map’s own keys, so an element type absent from it was omitted from the model entirely. No fixture contains one, so nothing was broken — the risk was a redeployed or thirteenth phase quietly losing nodes and leaving edges pointing at ids that are not there.',
+            'Deliberately not fixed by iterating every child of the process and defaulting, which would manufacture nodes out of sequence flows and lane sets. The map stays an allowlist, widened to the flow-node types a phase could plausibly acquire.',
+            'The part that actually protects us is the invariant test: every id a lane declares must appear as a node, across all twelve fixtures. It re-derives those ids from the raw XML by regex rather than through the parser, so it cannot share the parser’s blind spot.',
+          ],
+        },
+        {
+          sha: '4d903d2',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The plan points the parser at the backend-local label helper',
+          details: [
+            'Follow-on from moving the helper out of the shared package, so the implementation plan stopped instructing a stale import path.',
+          ],
+        },
+        {
+          sha: 'd5fdb57',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Lanes and nodes are parsed out of deployed BPMN',
+          details: [
+            'A pure function from BPMN XML to a swimlane model: no I/O, no Operaton, no config, so it can be tested directly against the twelve real phase files rather than against a mock of them.',
+            'Lanes come from the drawn vertical position of their diagram shape. Node-to-lane membership comes from the explicit lane references present in all twelve files, so no geometric inference is needed and a shape straddling a boundary cannot be misassigned. The BPMN’s own coordinates are read for lane ordering and otherwise discarded — node positions are recomputed so all twelve share one visual language.',
+            'The tests specified for this work reached only 69% branch coverage. Four more cover what the real fixtures never exercise — a lane with no name, a lane with no bounds, an attributed reference that parses as an object, an orphaned node, and non-BPMN input.',
+          ],
+        },
+        {
+          sha: '58f3309',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Touched files must clear the 80% branch floor',
+          details: [
+            'Recorded as a standing requirement rather than a one-off, with the corollary that caught it out: the shared package is not coverage-gated, so executable logic placed there is unmeasurable by construction.',
+          ],
+        },
+        {
+          sha: '9f0f700',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'The label helper moves to where coverage is measured',
+          details: [
+            'The shared package has no test script, no runner and zero tests, and is not one of the five coverage-gated workspaces. A branching function there cannot meet the repo’s per-file branch floor, which a passing test run had concealed — the test ran fine from the backend against the built output.',
+            'Better placement regardless: the helper has no frontend consumer, because the parser resolves labels server-side and ships the model with them already filled in.',
+          ],
+        },
+        {
+          sha: '359990d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Shared swimlane types and document-label resolution',
+          details: [
+            'The vocabulary a BPMN parser and a swimlane renderer both need, defined once so neither can drift from the other. The node-kind union gains a parallel member, which the frontend’s own copy lacked because R2.1 contains no parallel gateway and the renderer had never met one.',
+            'Only a handful of the 77 document references across the phases have an agreed Dutch label, so the rest are humanised from the slug rather than invented — a plain label is better than a confidently wrong one.',
+          ],
+        },
+        {
+          sha: 'd2effd9',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The per-task commit exception is recorded in the plan',
+          details: [
+            'Scoped to this plan and explicitly not extended to merging or pushing, which stay with the human in the moment.',
+          ],
+        },
+        {
+          sha: 'a921452',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'A pre-flight scan found two defects in the plan itself',
+          details: [
+            'The first derived back edges from computed columns while computing those columns over all flows including the loops, so no edge would have been left pointing backwards and the task’s own test would have failed. The second deleted constants that four live consumers still used, three of them called from the phase-detail page, with an instruction too vague to implement and wrong for one of them.',
+            'Both were caught by scanning the plan for internal contradictions before any code was written, rather than by a test failing later.',
+          ],
+        },
+        {
+          sha: '494e524',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'An implementation plan for BPMN-derived phase swimlanes',
+          details: [
+            'Seven tasks implementing the design: shared types, a pure parser with the twelve real phase files as fixtures, layering and back-edge detection, the model endpoint, the frontend client and hook, a model-driven renderer, then wiring it up and deleting the hand-maintained model.',
+            'Two findings shrank the work — the XML parser was already a backend dependency, and the phase resolver already implemented exactly the semantics the design assumed for unknown and unmodelled phase codes.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.3',
       status: 'Released',
       date: '3 sep 2026',
