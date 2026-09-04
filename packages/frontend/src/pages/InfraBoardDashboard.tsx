@@ -33,6 +33,7 @@ import InfraSectionRouter from '../components/InfraBoardDashboard/InfraSectionRo
 import InfraCommandPalette from '../components/InfraBoardDashboard/InfraCommandPalette';
 import InfraDock from '../components/InfraBoardDashboard/InfraDock';
 import InfraNoAccessPanel from '../components/InfraBoardDashboard/InfraNoAccessPanel';
+import { RipActiveAcrossPhasesProvider } from '../components/InfraBoardDashboard/RipActiveAcrossPhasesProvider';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
 import ChangelogPanel from './ChangelogPanel';
 import {
@@ -69,7 +70,24 @@ export interface ProjectRef {
   instanceId?: string;
 }
 
+/**
+ * Wraps the actual dashboard in `RipActiveAcrossPhasesProvider` so its one
+ * fetch of active RIP instances is shared by the page itself and everything
+ * it renders — Portfolio, InfraCommandPalette and ProjectDetail all call
+ * `useRipActiveAcrossPhases()` too, and without a shared provider each would
+ * fire its own request. The provider has to sit above `InfraBoardDashboardContent`
+ * rather than inside it, since that component's own call to the hook needs
+ * the context already in scope.
+ */
 export default function InfraBoardDashboard() {
+  return (
+    <RipActiveAcrossPhasesProvider>
+      <InfraBoardDashboardContent />
+    </RipActiveAcrossPhasesProvider>
+  );
+}
+
+function InfraBoardDashboardContent() {
   const navigate = useNavigate();
   const [isAuthenticated] = useState<boolean>(() => !!keycloak.authenticated);
   const [user, setUser] = useState<KeycloakUser | null>(null);

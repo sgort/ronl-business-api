@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { Task } from '@ronl/shared';
-import { ripPhaseByCode } from '../pages/infra-board/rip-phases.catalog';
+import { RipActiveAcrossPhasesProvider } from '../components/InfraBoardDashboard/RipActiveAcrossPhasesProvider';
 import {
   groupTasksByHorizon,
   useActivityHistory,
@@ -24,6 +24,7 @@ const mockBusinessApi = vi.hoisted(() => ({
     instanceDocuments: vi.fn(),
     deploymentStatus: vi.fn(),
     phasesCounts: vi.fn(),
+    phasesActive: vi.fn(),
   },
   process: { activityHistory: vi.fn() },
 }));
@@ -257,82 +258,59 @@ describe('useRipActiveAcrossPhases', () => {
     vi.restoreAllMocks();
   });
 
-  const inst = (id: string) => ({
+  const inst = (id: string, phaseCode: string) => ({
     id,
     startTime: '2026-01-01T00:00:00Z',
     projectNumber: '11111',
     projectName: 'Live',
     edocsWorkspaceId: 'w1',
     leadRole: 'projectleider',
+    phaseCode,
   });
 
-  it('tags each instance with the phase it came from', async () => {
-    mockBusinessApi.rip.phaseActive.mockClear();
-    mockBusinessApi.rip.phaseActive.mockImplementation((code: string) =>
-      Promise.resolve({ success: true, data: [inst(`i-${code}`)] })
-    );
+  const renderInProvider = () =>
+    renderHook(() => useRipActiveAcrossPhases(), { wrapper: RipActiveAcrossPhasesProvider });
 
-    const { result } = renderHook(() => useRipActiveAcrossPhases());
+  it('throws when rendered outside RipActiveAcrossPhasesProvider', () => {
+    // Suppress the noisy React error-boundary console.error this triggers --
+    // the throw itself is what the test asserts on.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => renderHook(() => useRipActiveAcrossPhases())).toThrow(
+      'useRipActiveAcrossPhases must be used inside RipActiveAcrossPhasesProvider'
+    );
+    consoleError.mockRestore();
+  });
+
+  it('fetches once, via the aggregate endpoint, and passes the rows through unchanged', async () => {
+    // The backend (GET /v1/rip/phases/active) does the per-phase fan-out and
+    // tagging now -- see rip.routes.ts and its "aggregates active instances
+    // across every modelled phase, tagging each row with its phaseCode" test.
+    // The frontend's job shrinks to one request with no reshaping, which this
+    // pins via reference equality: if anything downstream started mapping the
+    // rows again, this would catch it.
+    mockBusinessApi.rip.phasesActive.mockClear();
+    const rows = [inst('i-1', 'R2.1'), inst('i-2', 'R2.2')];
+    mockBusinessApi.rip.phasesActive.mockResolvedValue({ success: true, data: rows });
+
+    const { result } = renderInProvider();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    const rows = result.current.data ?? [];
-
-    // Two concrete pairings, so the assertion is not purely derived from the
-    // same catalogue the hook reads.
-    expect(rows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'i-R2.1', phaseCode: 'R2.1' }),
-        expect.objectContaining({ id: 'i-R2.2', phaseCode: 'R2.2' }),
-      ])
-    );
-
-    // The invariant that actually matters and does not churn as phases deploy:
-    // every row is tagged with the phase whose request produced it. The mock
-    // ids embed the requested code, so a mis-paired codes[i] shows up here --
-    // which an exact-list assertion could only catch by being rewritten on
-    // every deployment.
-    for (const row of rows) {
-      expect(row.id).toBe(`i-${row.phaseCode}`);
-      expect(ripPhaseByCode(row.phaseCode)?.processDefinitionKey).toBeDefined();
-    }
-
-    // ...and no phase without a process model was asked for at all.
-    const asked = mockBusinessApi.rip.phaseActive.mock.calls.map((c: unknown[]) => c[0] as string);
-    expect(asked).toEqual(rows.map((r) => r.phaseCode));
-    for (const code of asked) {
-      expect(ripPhaseByCode(code)?.processDefinitionKey).toBeDefined();
-    }
-
+    expect(result.current.data).toBe(rows);
     expect(result.current.error).toBe(false);
+    expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(1);
+    expect(mockBusinessApi.rip.phaseActive).not.toHaveBeenCalled();
   });
 
-  it('keeps the phases that answered when another one rejects', async () => {
-    // A non-2xx rejects the axios promise, it does not resolve
-    // { success: false } -- so an unguarded Promise.all would reject here and
-    // the portfolio would show no live rows at all. This is the regression
-    // that made R2.1's live project vanish while the backend still served
-    // the old routes.
-    mockBusinessApi.rip.phaseActive.mockClear();
-    mockBusinessApi.rip.phaseActive.mockImplementation((code: string) =>
-      code === 'R2.1'
-        ? Promise.resolve({ success: true, data: [inst('i-1')] })
-        : Promise.reject(new Error('404'))
-    );
+  it('reports an error when the aggregate request fails', async () => {
+    // One phase failing without blanking the rest is now the backend's
+    // property (rip.routes.ts's Promise.allSettled + anySucceeded), pinned in
+    // rip.routes.test.ts's "omits a failing phase rather than blanking the
+    // rest of the aggregate". This request is a single call: if it fails at
+    // all, there is nothing partial left to keep.
+    mockBusinessApi.rip.phasesActive.mockClear();
+    mockBusinessApi.rip.phasesActive.mockRejectedValue(new Error('backend down'));
 
-    const { result } = renderHook(() => useRipActiveAcrossPhases());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.data).toEqual([
-      expect.objectContaining({ id: 'i-1', phaseCode: 'R2.1' }),
-    ]);
-    expect(result.current.error).toBe(false);
-  });
-
-  it('reports an error only when every phase fails', async () => {
-    mockBusinessApi.rip.phaseActive.mockClear();
-    mockBusinessApi.rip.phaseActive.mockRejectedValue(new Error('backend down'));
-
-    const { result } = renderHook(() => useRipActiveAcrossPhases());
+    const { result } = renderInProvider();
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe(true);
