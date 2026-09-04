@@ -329,6 +329,27 @@ export const businessApi = {
       return response.data;
     },
 
+    /** Active instances of EVERY modelled RIP phase in one request, each row
+     *  already tagged with its `phaseCode` — the aggregate that lets
+     *  useRipActiveAcrossPhases() collapse its former per-phase fan-out. */
+    phasesActive: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          businessKey: string | null;
+          startTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+          leadRole: string;
+          phaseCode: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phases/active');
+      return response.data;
+    },
+
     instanceDocuments: async (
       instanceId: string
     ): Promise<

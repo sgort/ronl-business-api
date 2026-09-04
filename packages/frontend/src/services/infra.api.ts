@@ -7,10 +7,9 @@
  * RipR21Process tasks/instances flow straight in.
  */
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { businessApi } from './api';
 import type { Task, ActivityHistoryItem, PhaseSwimlaneModel } from '@ronl/shared';
-import { RIP_PHASE_KEYS } from '@ronl/shared';
 import type { StatusKey } from '../pages/infra-board/rip-model';
 import { RIP_PHASES } from '../pages/infra-board/rip-phases.catalog';
 
@@ -82,12 +81,6 @@ export const useLivePhaseCounts = () =>
     []
   );
 
-/** Phase codes whose process is modelled as BPMN — the only ones the
- *  phase endpoints accept. An unmodelled code answers 409, deliberately:
- *  callers must not confuse "not deployed" with "deployed, no instances". */
-const modelledPhaseCodes = () =>
-  RIP_PHASE_KEYS.filter((p) => p.processDefinitionKey).map((p) => p.code);
-
 /** Running instances of one RIP phase. Pass null to skip the request —
  *  for a phase with no process model there is nothing to ask for. */
 export const useRipPhaseActive = (phaseCode: string | null) =>
@@ -120,36 +113,74 @@ export const useRipPhaseCompleted = (phaseCode: string | null) =>
   );
 
 /**
- * Running instances across every modelled phase, flattened and tagged.
+ * Running instances across every modelled phase, tagged with the phase each
+ * row belongs to.
  *
  * One phase failing does not blank the others — the portfolio showing R2.1's
- * projects is strictly better than showing none because R2.2's request
- * timed out. Only an across-the-board failure is reported as an error.
+ * projects is strictly better than showing none because R2.2's request timed
+ * out. That property now lives entirely on the backend: GET
+ * /v1/rip/phases/active fans out to every modelled phase itself
+ * (rip.routes.ts), omits a phase that rejects, tags every surviving row with
+ * `phaseCode` and only answers non-2xx when every phase failed. This used to
+ * be twelve requests issued from here, one per phase, each wrapped in its own
+ * `.catch` to keep a single failure from rejecting the whole `Promise.all` —
+ * see rip.routes.test.ts's "omits a failing phase rather than blanking the
+ * rest of the aggregate" for the property's new home. The rows the backend
+ * returns are already `RipPhaseInstanceRow`s, so nothing here reshapes them.
  */
 async function fetchActiveAcrossPhases(): Promise<{
   success: boolean;
   data?: RipPhaseInstanceRow[];
 }> {
-  const codes = modelledPhaseCodes();
-  if (codes.length === 0) return { success: true, data: [] };
-  const results = await Promise.all(
-    codes.map((code) =>
-      // The per-request catch is what actually makes one phase survivable:
-      // a non-2xx rejects the axios promise rather than resolving
-      // { success: false }, so without it a single failing phase rejects the
-      // whole Promise.all and the portfolio renders no live rows at all.
-      businessApi.rip.phaseActive(code).catch(() => ({ success: false as const, data: undefined }))
-    )
-  );
-  const rows = results.flatMap((res, i) =>
-    res.success && res.data ? res.data.map((inst) => ({ ...inst, phaseCode: codes[i] })) : []
-  );
-  return { success: results.some((r) => r.success), data: rows };
+  return businessApi.rip.phasesActive();
 }
 
-/** Running instances portfolio-wide, across every deployed phase. */
-export const useRipActiveAcrossPhases = () =>
+/**
+ * The actual fetch behind `useRipActiveAcrossPhases`, exposed only so
+ * `RipActiveAcrossPhasesProvider` can run it once and publish the result via
+ * `RipActiveAcrossPhasesContext` — not meant to be called directly by a
+ * component, which is why it lives here rather than being exported as a
+ * second public hook name.
+ */
+export const useRipActiveAcrossPhasesResource = () =>
   useAsync<RipPhaseInstanceRow[]>(fetchActiveAcrossPhases, []);
+
+/** Context backing `useRipActiveAcrossPhases` — see
+ *  `RipActiveAcrossPhasesProvider` (components/InfraBoardDashboard) for the
+ *  component that populates it. */
+export const RipActiveAcrossPhasesContext = createContext<AsyncState<RipPhaseInstanceRow[]> | null>(
+  null
+);
+
+/**
+ * Running instances portfolio-wide, across every deployed phase.
+ *
+ * Reads a single shared fetch out of `RipActiveAcrossPhasesContext` rather
+ * than triggering its own request: Portfolio, InfraCommandPalette,
+ * ProjectDetail and the Infra-board page root all called this hook
+ * independently, and since `useAsync` has no cache or dedup that meant four
+ * separate requests for the same data on every render of the board.
+ * `RipActiveAcrossPhasesProvider`, mounted once at the Infra-board root,
+ * fetches once and every one of those four now reads the same result here.
+ *
+ * Called with no provider in scope, this throws rather than silently falling
+ * back to its own fetch — the same choice `usePaData` makes in
+ * `PaDataProvider.tsx`. Every real consumer today is inside the provider (see
+ * `RipActiveAcrossPhasesProvider`'s own comment for how that was checked:
+ * Portfolio/ProjectDetail only ever render via `InfraSectionRouter`, which
+ * only `InfraBoardDashboard` imports, and `InfraCommandPalette` is mounted
+ * directly by it too), so a call outside the provider is a wiring mistake —
+ * a new consumer added somewhere else in the tree — worth failing loudly on
+ * immediately rather than quietly reintroducing the fan-out this hook exists
+ * to remove.
+ */
+export const useRipActiveAcrossPhases = (): AsyncState<RipPhaseInstanceRow[]> => {
+  const ctx = useContext(RipActiveAcrossPhasesContext);
+  if (!ctx) {
+    throw new Error('useRipActiveAcrossPhases must be used inside RipActiveAcrossPhasesProvider');
+  }
+  return ctx;
+};
 
 /** A project that finished the preceding phase and can start this one. */
 export interface RipPhaseCandidate {

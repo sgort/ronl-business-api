@@ -443,6 +443,46 @@ describe('businessApi.rip', () => {
     expect(seen).toContain('/rip/phases/R2.2/active');
   });
 
+  it('phasesActive fetches the aggregate of every modelled phase in one request', async () => {
+    let seen = '';
+    server.use(
+      http.get('*/rip/phases/active', ({ request }) => {
+        seen = new URL(request.url).pathname;
+        return HttpResponse.json({
+          success: true,
+          data: [
+            {
+              id: 'i1',
+              businessKey: null,
+              startTime: '2026-01-01T00:00:00Z',
+              projectNumber: '11111',
+              projectName: 'Live',
+              edocsWorkspaceId: 'w1',
+              leadRole: 'projectleider',
+              phaseCode: 'R2.1',
+            },
+          ],
+        });
+      })
+    );
+    expect(await businessApi.rip.phasesActive()).toEqual({
+      success: true,
+      data: [
+        {
+          id: 'i1',
+          businessKey: null,
+          startTime: '2026-01-01T00:00:00Z',
+          projectNumber: '11111',
+          projectName: 'Live',
+          edocsWorkspaceId: 'w1',
+          leadRole: 'projectleider',
+          phaseCode: 'R2.1',
+        },
+      ],
+    });
+    expect(seen).toBe('/v1/rip/phases/active');
+  });
+
   it('instanceDocuments fetches an instance document bundle', async () => {
     server.use(
       http.get('*/rip/instances/pi-1/documents', () =>

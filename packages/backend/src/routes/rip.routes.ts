@@ -5,7 +5,6 @@ import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
-import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
 const router = express.Router();
 const logger = createLogger('rip-routes');
@@ -49,6 +48,76 @@ function resolvePhaseKey(code: string, res: Response): string | null {
   }
   return phase.processDefinitionKey;
 }
+
+/**
+ * GET /v1/rip/phases/active
+ * Active instances of EVERY modelled RIP phase in one response, each row
+ * tagged with the phase code it belongs to -- the aggregate the Infra-board
+ * needs so `useRipActiveAcrossPhases()` can collapse its twelve per-phase
+ * requests into one. Registered ahead of `/phases/:code/active` below, on the
+ * same "literal before parameterised" principle as `/phases/deployment-status`
+ * and `/phases/counts` further down -- though this pair cannot actually
+ * collide: `/phases/active` is two path segments, `/phases/:code/active` is
+ * three, so Express's own routing already keeps them apart (see the "not
+ * swallowed" test in rip.routes.test.ts, which pins this for all four).
+ *
+ * One phase failing must not blank the rest: each modelled phase is fetched
+ * independently via Promise.allSettled, a rejection is logged and that
+ * phase's rows are simply omitted, and the response still succeeds as long
+ * as at least one phase came back. Only a total failure (every modelled
+ * phase rejected) answers 500 -- mirroring the frontend's own
+ * fetchActiveAcrossPhases, which today does the fan-out and per-request
+ * catch itself (infra.api.ts) and reports success iff at least one phase
+ * succeeded.
+ */
+router.get('/phases/active', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+  const tenantId = req.user.tenantId;
+  const phases = RIP_PHASE_KEYS.filter(
+    (p): p is typeof p & { processDefinitionKey: string } => !!p.processDefinitionKey
+  );
+  const settled = await Promise.allSettled(
+    phases.map((p) => operatonService.getRipPhaseActiveList(p.processDefinitionKey, tenantId))
+  );
+  const rows: Array<
+    Awaited<ReturnType<typeof operatonService.getRipPhaseActiveList>>[number] & {
+      phaseCode: string;
+    }
+  > = [];
+  let anySucceeded = false;
+  settled.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
+      anySucceeded = true;
+      for (const instance of result.value) {
+        rows.push({ ...instance, phaseCode: phases[i].code });
+      }
+    } else {
+      logger.error('Failed to list active RIP phase instances for the aggregate', {
+        phaseCode: phases[i].code,
+        tenantId,
+        error:
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason ?? 'Unknown error'),
+      });
+    }
+  });
+  if (!anySucceeded) {
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'RIP_ACTIVE_AGGREGATE_FAILED',
+        message: 'Failed to retrieve active RIP phase instances for any modelled phase',
+      },
+    });
+  }
+  res.json({ success: true, data: rows });
+});
 
 /**
  * GET /v1/rip/phases/:code/active
@@ -131,8 +200,8 @@ router.get('/phases/:code/model', async (req, res) => {
   const key = resolvePhaseKey(code, res);
   if (!key) return;
   try {
-    const xml = await operatonService.getPhaseBpmnXml(key, req.user.tenantId);
-    res.json({ success: true, data: parseSwimlane(xml, code) });
+    const model = await operatonService.getPhaseSwimlaneModel(key, code, req.user.tenantId);
+    res.json({ success: true, data: model });
   } catch (error) {
     logger.error('Failed to build RIP phase swimlane model', {
       code,
