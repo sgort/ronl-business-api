@@ -23,14 +23,55 @@ export default function PhaseSwimlane({
   const nodeById = Object.fromEntries(nodes.map((n) => [n.id, n]));
   const nCols = nodes.length ? Math.max(...nodes.map((n) => n.col)) + 1 : 1;
   const W = nCols * COL_W;
+
+  // The BPMN legitimately puts parallel branches in the same lane at the same
+  // depth, so more than one node can share a (row, col) cell. Colliding nodes
+  // stack within their lane instead of drawing on top of each other: each
+  // cell's occupants get sequential slots in `nodes` document order (the
+  // parser's stable order), and a lane's slot count is the worst cell
+  // occupancy anywhere in that row. A lane with no collisions keeps slots=1,
+  // so its height stays exactly ROW_H — the arithmetic below collapses to the
+  // original constant-ROW_H formula whenever no cell holds more than one node.
+  const slotsPerRow: number[] = new Array(lanes.length).fill(1);
+  const cellOccupancy = new Map<string, number>();
+  for (const n of nodes) {
+    const key = `${n.row}:${n.col}`;
+    cellOccupancy.set(key, (cellOccupancy.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of cellOccupancy) {
+    const row = Number(key.split(':')[0]);
+    if (row >= 0 && row < slotsPerRow.length) {
+      slotsPerRow[row] = Math.max(slotsPerRow[row], count);
+    }
+  }
+  const slotByNodeId: Record<string, number> = {};
+  const seenInCell = new Map<string, number>();
+  for (const n of nodes) {
+    const key = `${n.row}:${n.col}`;
+    const slot = seenInCell.get(key) ?? 0;
+    slotByNodeId[n.id] = slot;
+    seenInCell.set(key, slot + 1);
+  }
+  const laneHeights = slotsPerRow.map((slots) => slots * ROW_H);
+  const laneTop: number[] = [];
+  {
+    let acc = 0;
+    for (const h of laneHeights) {
+      laneTop.push(acc);
+      acc += h;
+    }
+  }
+  const totalLaneHeight = laneHeights.reduce((sum, h) => sum + h, 0);
+
   // Rework (back) edges route through a dedicated band below every node row
   // rather than borrowing space from the bottom lane. With no back edges the
   // reserve is 0 and H is exactly the lane-only height — unchanged from before.
   const backEdgeCount = edges.filter((e) => e.back).length;
   const bandReserve = backEdgeCount ? backEdgeCount * 14 + 10 : 0;
-  const H = lanes.length * ROW_H + bandReserve;
+  const H = totalLaneHeight + bandReserve;
   const cx = (n: { col: number }) => n.col * COL_W + COL_W / 2;
-  const cy = (n: { row: number }) => n.row * ROW_H + ROW_H / 2;
+  const cy = (n: { id: string; row: number }) =>
+    (laneTop[n.row] ?? n.row * ROW_H) + (slotByNodeId[n.id] ?? 0) * ROW_H + ROW_H / 2;
   const st = (id: string): StatusKey => statusById[id] ?? 'todo';
   const edgeColor = (from: string) => (st(from) === 'done' ? '#3fa535' : '#c2c7d0');
 
@@ -51,7 +92,7 @@ export default function PhaseSwimlane({
         // Each back edge gets its own band, in the reserve below every node
         // row, so overlapping-column rework loops draw distinct horizontal
         // segments instead of coinciding — or crossing through node rows.
-        const bandY = lanes.length * ROW_H + 10 + backCount * 14;
+        const bandY = totalLaneHeight + 10 + backCount * 14;
         backCount++;
         d = `M ${ax} ${ay + NODE_H / 2} V ${bandY} H ${bx} V ${by + NODE_H / 2}`;
       } else {
@@ -86,8 +127,8 @@ export default function PhaseSwimlane({
   return (
     <div className="pb-swim">
       <div className="pb-swim-lanes">
-        {lanes.map((l) => (
-          <div className="pb-swim-lane-label" key={l.key} style={{ height: ROW_H }}>
+        {lanes.map((l, i) => (
+          <div className="pb-swim-lane-label" key={l.key} style={{ height: laneHeights[i] }}>
             {l.label}
           </div>
         ))}
@@ -98,7 +139,7 @@ export default function PhaseSwimlane({
             <div
               key={l.key}
               className={`pb-swim-band ${i % 2 ? 'alt' : ''}`}
-              style={{ top: i * ROW_H, height: ROW_H, width: W }}
+              style={{ top: laneTop[i], height: laneHeights[i], width: W }}
             />
           ))}
           <svg className="pb-swim-svg" width={W} height={H}>

@@ -291,4 +291,92 @@ describe('PhaseSwimlane', () => {
     const bandCoverage = bands.reduce((sum, b) => sum + parseFloat(b.style.height), 0);
     expect(bandCoverage).toBe(176); // lanes.length * ROW_H — strictly less than H (200)
   });
+
+  describe('collision stacking (nodes sharing a row/col cell)', () => {
+    // Two multi-node cells — 3 nodes share (row 0, col 1) and 2 nodes share
+    // (row 1, col 0) — plus single-occupant cells elsewhere, so lane occupancy
+    // is uneven (3, 2, 1) across the three lanes.
+    const COLLISION_MODEL: PhaseSwimlaneModel = {
+      phaseCode: 'R5.1',
+      lanes: [
+        { key: 'l0', label: 'Lane 0' },
+        { key: 'l1', label: 'Lane 1' },
+        { key: 'l2', label: 'Lane 2' },
+      ],
+      nodes: [
+        { id: 'a', bpmnId: 'a', kind: 'task', col: 0, row: 0, label: 'A' },
+        { id: 'b1', bpmnId: 'b1', kind: 'task', col: 1, row: 0, label: 'B1' },
+        { id: 'b2', bpmnId: 'b2', kind: 'task', col: 1, row: 0, label: 'B2' },
+        { id: 'b3', bpmnId: 'b3', kind: 'task', col: 1, row: 0, label: 'B3' },
+        { id: 'c1', bpmnId: 'c1', kind: 'task', col: 0, row: 1, label: 'C1' },
+        { id: 'c2', bpmnId: 'c2', kind: 'task', col: 0, row: 1, label: 'C2' },
+        { id: 'd', bpmnId: 'd', kind: 'task', col: 1, row: 1, label: 'D' },
+        { id: 'e', bpmnId: 'e', kind: 'task', col: 0, row: 2, label: 'E' },
+      ],
+      edges: [{ from: 'e', to: 'a', back: true }],
+    };
+
+    it('renders every node at a unique position (no two nodes share left+top)', () => {
+      const { container } = render(<PhaseSwimlane model={COLLISION_MODEL} statusById={{}} />);
+      const drawn = Array.from(
+        container.querySelectorAll<HTMLElement>('.pb-swim-node, .pb-swim-event, .pb-swim-gate')
+      );
+      expect(drawn).toHaveLength(COLLISION_MODEL.nodes.length);
+      const positions = drawn.map((el) => `${el.style.left}|${el.style.top}`);
+      expect(new Set(positions).size).toBe(positions.length);
+    });
+
+    it('stacks a three-node cell into three distinct positions within their own lane span', () => {
+      const { getByText } = render(<PhaseSwimlane model={COLLISION_MODEL} statusById={{}} />);
+      const tops = ['B1', 'B2', 'B3'].map((label) => {
+        const el = getByText(label).closest('.pb-swim-node') as HTMLElement;
+        return parseFloat(el.style.top);
+      });
+      expect(new Set(tops).size).toBe(3);
+      // Lane 0 holds the worst cell in the model (3 nodes) so it spans [0, 3*ROW_H).
+      for (const top of tops) {
+        expect(top).toBeGreaterThanOrEqual(0);
+        expect(top).toBeLessThan(3 * 88);
+      }
+      // None of the three may spill into lane 1, which starts at 3*ROW_H.
+      const laneOneNode = getByText('D').closest('.pb-swim-node') as HTMLElement;
+      expect(parseFloat(laneOneNode.style.top)).toBeGreaterThanOrEqual(3 * 88);
+    });
+
+    it('keeps lane label heights equal to their band heights when lane occupancy is uneven', () => {
+      const { container } = render(<PhaseSwimlane model={COLLISION_MODEL} statusById={{}} />);
+      const labels = Array.from(container.querySelectorAll('.pb-swim-lane-label')) as HTMLElement[];
+      const bands = Array.from(container.querySelectorAll('.pb-swim-band')) as HTMLElement[];
+      expect(labels).toHaveLength(3);
+      expect(bands).toHaveLength(3);
+      for (let i = 0; i < labels.length; i++) {
+        expect(labels[i].style.height).toBe(bands[i].style.height);
+      }
+      // Occupancy differs across lanes (3, 2, 1), so heights must not all be identical.
+      const heights = new Set(bands.map((b) => b.style.height));
+      expect(heights.size).toBeGreaterThan(1);
+    });
+
+    it('keeps back-edge bands below every lane even when lane heights vary', () => {
+      const { container } = render(<PhaseSwimlane model={COLLISION_MODEL} statusById={{}} />);
+      const paths = Array.from(container.querySelectorAll('svg.pb-swim-svg > path'));
+      expect(paths).toHaveLength(1);
+      const bandY = bandYOf(paths[0]);
+      // Total lane height = 3*88 + 2*88 + 1*88 = 528; the band must sit below that.
+      expect(bandY).toBeGreaterThanOrEqual(528);
+    });
+  });
+
+  it('renders a no-collision model at exactly the pre-fix height (regression property)', () => {
+    // MODEL has no cell holding more than one node, so every slots[row] === 1:
+    // the collision-stacking arithmetic must collapse to the original
+    // constant-ROW_H formula, bit-identical to before this change.
+    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
+    const svg = container.querySelector('svg.pb-swim-svg')!;
+    const bands = Array.from(container.querySelectorAll('.pb-swim-band')) as HTMLElement[];
+    const labels = Array.from(container.querySelectorAll('.pb-swim-lane-label')) as HTMLElement[];
+    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 88));
+    for (const b of bands) expect(b.style.height).toBe('88px');
+    for (const l of labels) expect(l.style.height).toBe('88px');
+  });
 });
