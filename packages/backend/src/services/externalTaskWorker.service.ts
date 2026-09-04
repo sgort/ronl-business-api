@@ -430,6 +430,13 @@ export class ExternalTaskWorker {
     }
   }
 
+  // Deliberately English and deliberately a separate table from
+  // `rip-swimlane/doc-label.ts`'s DOC_LABELS, which maps these same three
+  // slugs to Dutch names: this one names the rendered eDOCS document itself
+  // (folding it into DOC_LABELS would change live eDOCS document names),
+  // while doc-label.ts drives on-screen labels for the RIP UI. Two maps
+  // keying the same slugs to different values on purpose — if you're
+  // reconciling them, don't.
   private templateIdToLabel(templateId: string): string {
     const labels: Record<string, string> = {
       'rip-intake-report': 'Intake Report',

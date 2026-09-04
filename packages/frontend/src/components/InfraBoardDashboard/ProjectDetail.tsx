@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import {
-  FASE1_NODES,
   FASE1_DOCS,
   HEALTH,
   nodeStatusFromHistory,
@@ -13,11 +12,13 @@ import {
   useInstanceDocuments,
   useOpenTasks,
   useRipActiveAcrossPhases,
+  useRipPhaseCompleted,
+  usePhaseSwimlane,
 } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
 import type { SignatureSpec } from '../../services/api';
-import type { Task } from '@ronl/shared';
-import Fase1Swimlane from './Fase1Swimlane';
+import type { SwimNode, Task } from '@ronl/shared';
+import PhaseSwimlane from './PhaseSwimlane';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
 import SigningPanel from './SigningPanel';
@@ -28,8 +29,14 @@ interface Props {
   onBack: () => void;
 }
 
-/** Derive a node-status map for a MOCK project (no live instance). */
-function deriveMockStatus(project: PortfolioProject | undefined): Record<string, StatusKey> {
+/** Derive a node-status map for a MOCK project (no live instance), from the
+ *  derived model's own nodes for whichever phase is currently on screen —
+ *  keyed by `bpmnId` like every other status map, now that a swimlane node's
+ *  `id` and `bpmnId` are the same value. */
+function deriveMockStatus(
+  project: PortfolioProject | undefined,
+  nodes: SwimNode[]
+): Record<string, StatusKey> {
   const out: Record<string, StatusKey> = {};
   const curIdx = project ? RIP_PHASES.findIndex((p) => p.code === project.ripPhaseCode) : -1;
   const isOnR21 = curIdx === 0;
@@ -46,14 +53,14 @@ function deriveMockStatus(project: PortfolioProject | undefined): Record<string,
         : flag === 'action'
           ? 10
           : 14;
-  for (const n of FASE1_NODES) {
-    if (n.col < reached) out[n.id] = 'done';
+  for (const n of nodes) {
+    if (n.col < reached) out[n.bpmnId] = 'done';
     else if (n.col === reached)
-      out[n.id] =
+      out[n.bpmnId] =
         isOnR21 && flag && (['risk', 'overdue', 'action'] as StatusKey[]).includes(flag)
           ? flag
           : 'active';
-    else out[n.id] = !isOnR21 && project ? 'done' : 'todo';
+    else out[n.bpmnId] = !isOnR21 && project ? 'done' : 'todo';
   }
   return out;
 }
@@ -204,32 +211,62 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   // ProjectRef: MijnDag also opens live projects (from a task, which carries
   // no phase), so a prop would arrive undefined on that path.
   const { data: liveInstances } = useRipActiveAcrossPhases();
-  const livePhaseCode = isLive
-    ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)?.phaseCode
+  const currentRow = isLive
+    ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)
     : undefined;
+  const livePhaseCode = currentRow?.phaseCode;
   const currentPhaseCode = isLive ? (livePhaseCode ?? 'R2.1') : (mock?.ripPhaseCode ?? 'R2.1');
   const [selPhase, setSelPhase] = useState(currentPhaseCode);
   useEffect(() => {
     setSelPhase(currentPhaseCode);
   }, [projectRef.nr, projectRef.instanceId, currentPhaseCode]);
 
-  // A live instance past R2.1 carries ITS OWN phase's history, which shares no
-  // activity ids with R2.1's model — deriving the R2.1 swimlane from it would
-  // mark every node 'todo' and claim the phase never ran. Reaching a later
-  // rung is itself proof R2.1 completed, so say so.
-  const pastFase1 = isLive && currentPhaseCode !== 'R2.1';
-  const statusById: Record<string, StatusKey> = pastFase1
-    ? Object.fromEntries(FASE1_NODES.map((n) => [n.id, 'done' as StatusKey]))
+  const { data: phaseModel, loading: phaseModelLoading } = usePhaseSwimlane(selPhase);
+
+  // Selecting a FINISHED phase's rung (e.g. R2.1 while the project is on
+  // R2.2) must show THAT phase's own run, not the current instance's — the
+  // current instance's history never contains the selected phase's BPMN ids,
+  // which is exactly the bug this branch fixes (every node fell through to
+  // 'todo'). Instances of the same project across phases are linked by
+  // businessKey (see infra.api.ts) rather than project number, so the join
+  // is done on that; a null businessKey (an instance started before the
+  // convention, or by hand) cannot be joined and is left unresolved rather
+  // than guessed.
+  const isOtherPhaseSelected = isLive && selPhase !== currentPhaseCode;
+  const businessKey = currentRow?.businessKey ?? null;
+  // Unmodelled phase codes 409 the completed-instances endpoint on purpose
+  // (see infra.api.ts) — only ask for phases that actually have a process.
+  const selPhaseModelled = !!ripPhaseByCode(selPhase)?.processDefinitionKey;
+  const { data: selPhaseCompleted } = useRipPhaseCompleted(
+    isOtherPhaseSelected && selPhaseModelled ? selPhase : null
+  );
+  // R5.3 is legitimately re-enterable — it splits on oplevering vs
+  // (vervroegde) ingebruikname, and three of its four exits loop back to
+  // R5.2 — so more than one completed instance can carry this businessKey.
+  // The most recently finished one is this project's current standing in
+  // that phase, so ties resolve to the latest endTime rather than silently
+  // taking whichever the backend happened to list first.
+  const matchingPastInstances = (businessKey ? (selPhaseCompleted ?? []) : []).filter(
+    (i) => i.businessKey === businessKey
+  );
+  const pastInstance =
+    matchingPastInstances.length > 0
+      ? matchingPastInstances.reduce((latest, cur) => (cur.endTime > latest.endTime ? cur : latest))
+      : null;
+  const { data: pastHistory } = useActivityHistory(
+    isOtherPhaseSelected ? (pastInstance?.id ?? null) : null
+  );
+
+  const statusById: Record<string, StatusKey> = isOtherPhaseSelected
+    ? nodeStatusFromHistory(pastHistory ?? [])
     : isLive && history
       ? nodeStatusFromHistory(history)
-      : deriveMockStatus(mock);
+      : deriveMockStatus(mock, phaseModel?.nodes ?? []);
 
-  // Active tasks (open or claimed) → highlight matching swimlane nodes.
-  const activeNodeIds = new Set(
-    instanceTasks.flatMap((t) =>
-      FASE1_NODES.filter((n) => n.bpmnId === t.taskDefinitionKey).map((n) => n.id)
-    )
-  );
+  // Active tasks (open or claimed) → highlight matching swimlane nodes. A
+  // node's id IS its bpmnId in a derived model, so a task's taskDefinitionKey
+  // needs no translation through the model to become a node id.
+  const activeNodeIds = new Set(instanceTasks.map((t) => t.taskDefinitionKey));
 
   const naam = mock?.naam ?? (docs?.variables?.projectName as string) ?? `Project ${projectRef.nr}`;
   const health = mock?.health ?? 'groen';
@@ -313,47 +350,56 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
         })}
       </div>
 
-      {selPhase === 'R2.1' ? (
+      {phaseModel ? (
         <>
           <div className="pb-phase-titlebar">
             <h3>
               {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
             </h3>
             <span className="meta">
-              Processtappen &amp; rollen — RIP Fase 1 procesmodel{isLive ? ' (live)' : ''}
+              Processtappen &amp; rollen — procesmodel{isLive ? ' (live)' : ''}
             </span>
           </div>
-          <Fase1Swimlane statusById={statusById} claimedNodeIds={activeNodeIds} />
-          <div className="pb-deliverables">
-            <div className="pb-deliverables-head">Projectplan — onderdelen</div>
-            <div className="pb-docrow">
-              {FASE1_DOCS.map((d) => {
-                const ok = docOk(d.produceNode);
-                return (
-                  <div className={`pb-doc4 ${ok ? 'ok' : 'na'}`} key={d.key}>
-                    <span className="num">{d.nr}</span>
-                    <span className="info">
-                      <span className="nm">{d.label}</span>
-                      <span className="st">{ok ? 'Beschikbaar' : 'Nog niet'}</span>
-                    </span>
-                  </div>
-                );
-              })}
+          <PhaseSwimlane
+            model={phaseModel}
+            statusById={statusById}
+            claimedNodeIds={activeNodeIds}
+          />
+          {selPhase === 'R2.1' && (
+            <div className="pb-deliverables">
+              <div className="pb-deliverables-head">Projectplan — onderdelen</div>
+              <div className="pb-docrow">
+                {FASE1_DOCS.map((d) => {
+                  const ok = docOk(d.produceNode);
+                  return (
+                    <div className={`pb-doc4 ${ok ? 'ok' : 'na'}`} key={d.key}>
+                      <span className="num">{d.nr}</span>
+                      <span className="info">
+                        <span className="nm">{d.label}</span>
+                        <span className="st">{ok ? 'Beschikbaar' : 'Nog niet'}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </>
+      ) : phaseModelLoading ? (
+        <div className="pb-phase-empty">
+          <h3>
+            {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+          </h3>
+          <p className="pb-placeholder">Bezig met laden…</p>
+        </div>
       ) : (
         <div className="pb-phase-empty">
           <h3>
             {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
           </h3>
           <p>
-            Het processtappen-model voor deze fase is nog niet gemodelleerd. Alleen{' '}
-            <b>
-              {RIP_PHASES[0].name} ({RIP_PHASES[0].code})
-            </b>{' '}
-            is volledig uitgewerkt — selecteer {RIP_PHASES[0].code} hierboven voor de swimlane met
-            rollen, taken en deliverables.
+            Het processtappen-model voor deze fase is nog niet gemodelleerd, of kon niet worden
+            opgehaald. Probeer het later opnieuw.
           </p>
         </div>
       )}

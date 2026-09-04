@@ -37,6 +37,13 @@ export class OperatonService {
    */
   private bpmnXmlCache = new Map<string, string>();
 
+  /**
+   * Cache of `${tenantId}:${processKey}` → BPMN XML for phase swimlane
+   * models, fetched by process-definition key (see getPhaseBpmnXml). Keyed
+   * separately from bpmnXmlCache, which is keyed by definition id.
+   */
+  private phaseBpmnCache = new Map<string, string>();
+
   constructor(baseUrl?: string, username?: string, password?: string) {
     const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
     const resolvedUsername = username ?? config.operaton.username;
@@ -1495,6 +1502,27 @@ export class OperatonService {
       projectName: varMap[i.id]?.projectName ?? '—',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
     }));
+  }
+
+  /**
+   * BPMN XML for a phase's process definition, fetched BY KEY so a phase with
+   * no running instance still resolves — mock portfolio rows need a diagram
+   * too. Cached per key+tenant: Operaton's XML is immutable for a definition,
+   * and a redeploy produces a new definition id under the same key, so the
+   * cache is refreshed by restart rather than invalidated.
+   */
+  async getPhaseBpmnXml(processKey: string, tenantId?: string): Promise<string> {
+    const cacheKey = `${tenantId ?? ''}::${processKey}`;
+    const cached = this.phaseBpmnCache.get(cacheKey);
+    if (cached) return cached;
+    const res = await this.getByKeyWithTenantFallback<{ bpmn20Xml: string }>(
+      processKey,
+      tenantId,
+      '/xml'
+    );
+    const xml = res.data.bpmn20Xml;
+    this.phaseBpmnCache.set(cacheKey, xml);
+    return xml;
   }
 
   /**

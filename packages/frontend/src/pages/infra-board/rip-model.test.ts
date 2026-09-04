@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ActivityHistoryItem } from '@ronl/shared';
 import {
   countReworkLoops,
+  FASE1_DOCS,
+  FASE1_NODE_ROLE,
   getDocProgress,
   getWipStepInfo,
   nodeStatusFromHistory,
@@ -35,15 +37,14 @@ describe('roleByKey', () => {
 });
 
 describe('nodeStatusFromHistory', () => {
-  it('marks a node with no history entries as todo', () => {
+  it('returns an empty map for no history entries — absent ids default to todo at the call site', () => {
     const statuses = nodeStatusFromHistory([]);
-    expect(statuses['t_aanleveren']).toBe('todo');
-    expect(statuses['start']).toBe('todo');
+    expect(statuses).toEqual({});
   });
 
-  it('marks a node with a running, unclaimed activity as active', () => {
+  it("keys the result by the history entry's own activityId (a BPMN id)", () => {
     const statuses = nodeStatusFromHistory([historyItem({ endTime: null, canceled: false })]);
-    expect(statuses['t_aanleveren']).toBe('active');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
   });
 
   it('marks a running activity as "action" when it is one of the user\'s open tasks', () => {
@@ -51,21 +52,21 @@ describe('nodeStatusFromHistory', () => {
       [historyItem({ endTime: null, canceled: false })],
       new Set(['Task_AanlevrenProjectplan'])
     );
-    expect(statuses['t_aanleveren']).toBe('action');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('action');
   });
 
-  it('marks a node with a completed (non-canceled) activity as done', () => {
+  it('marks a completed (non-canceled) activity as done', () => {
     const statuses = nodeStatusFromHistory([
       historyItem({ endTime: '2026-01-02T00:00:00Z', canceled: false }),
     ]);
-    expect(statuses['t_aanleveren']).toBe('done');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('done');
   });
 
-  it('treats a fully-canceled activity as if it never happened (todo)', () => {
+  it('leaves a fully-canceled activity out of the map (as if it never happened)', () => {
     const statuses = nodeStatusFromHistory([
       historyItem({ endTime: '2026-01-02T00:00:00Z', canceled: true }),
     ]);
-    expect(statuses['t_aanleveren']).toBe('todo');
+    expect(statuses['Task_AanlevrenProjectplan']).toBeUndefined();
   });
 
   it('resolves done when any entry for the activity completed, even if another was canceled', () => {
@@ -73,12 +74,36 @@ describe('nodeStatusFromHistory', () => {
       historyItem({ id: 'h1', endTime: '2026-01-02T00:00:00Z', canceled: true }),
       historyItem({ id: 'h2', endTime: '2026-01-03T00:00:00Z', canceled: false }),
     ]);
-    expect(statuses['t_aanleveren']).toBe('done');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('done');
+  });
+
+  it('does not downgrade an already-active activity to done when a later entry for the same id finishes', () => {
+    const statuses = nodeStatusFromHistory([
+      historyItem({ id: 'h1', endTime: null, canceled: false }),
+      historyItem({ id: 'h2', endTime: '2026-01-03T00:00:00Z', canceled: false }),
+    ]);
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
+  });
+
+  it('does not downgrade an already-"action" activity to done when a later entry for the same id finishes', () => {
+    // Out-of-order defensive test: the function assumes ascending startTime
+    // (guaranteed by operaton.service.ts today), so this history — the
+    // running/claimable entry BEFORE an earlier execution's finished entry —
+    // is not what a real caller passes. It exercises the guard directly
+    // rather than relying on ordering to keep it untested.
+    const statuses = nodeStatusFromHistory(
+      [
+        historyItem({ id: 'h1', endTime: null, canceled: false }),
+        historyItem({ id: 'h2', endTime: '2026-01-03T00:00:00Z', canceled: false }),
+      ],
+      new Set(['Task_AanlevrenProjectplan'])
+    );
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('action');
   });
 
   it('defaults openTaskBpmnIds to empty when omitted', () => {
     const statuses = nodeStatusFromHistory([historyItem({ endTime: null, canceled: false })]);
-    expect(statuses['t_aanleveren']).toBe('active');
+    expect(statuses['Task_AanlevrenProjectplan']).toBe('active');
   });
 });
 
@@ -185,6 +210,28 @@ describe('getWipStepInfo', () => {
   it('returns null for an empty history', () => {
     expect(getWipStepInfo([])).toBeNull();
   });
+
+  it('returns null for a running activity outside R2.1 (no local role for it)', () => {
+    // FASE1_NODES is gone; getWipStepInfo now gates on FASE1_NODE_ROLE
+    // instead. An activity id from a DIFFERENT phase's BPMN — e.g. R2.2's
+    // Task_OpstellenVO — must still yield null, exactly as an unmatched
+    // FASE1_NODES lookup used to.
+    const history: ActivityHistoryItem[] = [
+      activity({ activityId: 'Task_OpstellenVO', activityName: 'Opstellen VO', endTime: null }),
+    ];
+    expect(getWipStepInfo(history)).toBeNull();
+  });
+
+  it('returns null when the running R2.1 activity carries no activityName', () => {
+    const history: ActivityHistoryItem[] = [
+      activity({
+        activityId: 'Task_OrganiserenIntakeoverleg',
+        activityName: null,
+        endTime: null,
+      }),
+    ];
+    expect(getWipStepInfo(history)).toBeNull();
+  });
 });
 
 describe('countReworkLoops', () => {
@@ -252,5 +299,53 @@ describe('getDocProgress', () => {
       activity({ activityId: 'Task_AanvullenProjectplan4', endTime: '2026-08-04T00:00:00Z' }),
     ];
     expect(getDocProgress(history).docsDone).toBe(4);
+  });
+});
+
+// These two guard the coupling between this module's hand-maintained tables
+// and the real, deployed R2.1 BPMN (design spec §6.1: "so this coupling
+// cannot rot silently"). Unlike `bpmn-swimlane.test.ts`'s backend version —
+// which checks a hand-copied TRANSCRIPTION of these ids against the actual
+// parsed BPMN, and so cannot see an edit made to the tables below — these
+// tests import FASE1_DOCS/FASE1_NODE_ROLE themselves, so editing either
+// table without updating the expected id set here fails immediately. The
+// expected sets are transcriptions in the other direction: hand-derived
+// from the same deployed R2.1 BPMN the backend test parses, not read from
+// it directly (this package has no BPMN parser). Together the two suites
+// triangulate the coupling from both ends; neither alone can.
+describe('rip-model — coupling with the deployed R2.1 BPMN (spec §6.1)', () => {
+  it('every FASE1_DOCS produceNode is one of the expected R2.1 BPMN ids', () => {
+    const expectedIds = new Set([
+      'Task_AanlevrenProjectplan',
+      'Task_AanvullenProjectplan2',
+      'Task_UitvoerenPSU',
+      'Task_AanvullenProjectplan4',
+    ]);
+    expect(FASE1_DOCS.map((d) => d.produceNode)).toEqual([...expectedIds]);
+  });
+
+  it('FASE1_NODE_ROLE has exactly the 19 expected R2.1 BPMN ids as keys', () => {
+    const expectedIds = [
+      'StartEvent_RipPhase1',
+      'Task_AanlevrenProjectplan',
+      'Task_OrganiserenIntakeoverleg',
+      'Task_UitvoerenIntakeoverleg',
+      'Gateway_IntakeAkkoord',
+      'Task_VerberenKwaliteit',
+      'Task_AanvullenProjectplan2',
+      'Task_AccorderenProjectplan2',
+      'Gateway_Akkoord2',
+      'Task_InitierenPSU',
+      'Task_AanmakenWorkspaceRelatics',
+      'Task_OpstellenRisicodossier',
+      'Task_UitvoerenPSU',
+      'Task_OpstellenPlanning',
+      'Task_AanvullenProjectplan4',
+      'Task_HoudenOverlegVO',
+      'Task_AccorderenProjectplan4',
+      'Gateway_Akkoord4',
+      'EndEvent_Phase1Complete',
+    ];
+    expect(Object.keys(FASE1_NODE_ROLE).sort()).toEqual([...expectedIds].sort());
   });
 });

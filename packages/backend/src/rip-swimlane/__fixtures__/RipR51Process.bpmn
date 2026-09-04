@@ -1,0 +1,534 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR51Process" targetNamespace="http://example.com/rip-phase-51" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR51Process">
+    <bpmn:participant id="Participant_RipR51Process" name="R5.1 - Voorbereiding op uitvoering" processRef="RipR51Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR51Process" name="R5.1 - Voorbereiding op uitvoering" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR51Process">
+      <bpmn:lane id="Lane_KostenContractdeskundige" name="Kosten- en contractdeskundige">
+        <bpmn:flowNodeRef>StartEvent_R51</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenWerkbestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InrichtenVisi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InrichtenBetterPerformance</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_UitgangspuntenOverleg" name="RIP-team, Omgevingsmanager, Toezichthouder, Communicatieadviseur">
+        <bpmn:flowNodeRef>Task_HoudenOverlegUitgangspunten</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ManagerPB" name="Manager Projectbeheersing">
+        <bpmn:flowNodeRef>Task_UpdatenRisicodossier</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ToezichtsplanOverleg" name="Directievoerder, Toezichthouder, Vestigingsmanager">
+        <bpmn:flowNodeRef>Task_BesprekenToezichtsplan</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Directievoerder" name="Directievoerder">
+        <bpmn:flowNodeRef>Gateway_VoorbereidingSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenVerzoekVisi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenVerzoekBetterPerformance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UpdatenToezichtsplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenToezichtsplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InrichtenBesteksadministratie</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VoorbereidingJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TechnischeInstallaties</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CommunicerenOverdrachtInstallatiedeel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ControlerenDocumentenON</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenDocumentVG</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AkkoordDocumenten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenAanpassenDocumentenON</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>Task_InitierenStartoverleg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HoudenOverlegVgCoordinator</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_StartWerkBuiten</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Startoverleg" name="Directievoerder, Toezichthouder, Projectleider, Omgevingsmanager, Technisch administratief medewerker, ON">
+        <bpmn:flowNodeRef>Task_HoudenStartoverleg</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AdviseurVG" name="Adviseur B&amp;O Infra Veiligheid en gezondheid">
+        <bpmn:flowNodeRef>Task_BeoordelenDocumentVG</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R51" name="Start R5.1 - Voorbereiding op uitvoering&#10;(vanuit R4.1 / IN1. Inkoopprocedure)">
+      <bpmn:outgoing>Flow_StartEvent_R51_Task_OpstellenWerkbestek</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_OpstellenWerkbestek" name="Opstellen&#10;werkbestek" camunda:formRef="rip-opstellen-werkbestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:documentRef="rip-werkbestek">
+      <bpmn:incoming>Flow_StartEvent_R51_Task_OpstellenWerkbestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenWerkbestek_Task_HoudenOverlegUitgangspunten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_HoudenOverlegUitgangspunten" name="Houden overleg uitgangspunten&#10;uitvoeringsfase" camunda:formRef="rip-overleg-uitgangspunten-uitvoering" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-team,rip-omgevingsmanager,rip-toezichthouder,rip-communicatieadviseur" ronl:documentRef="rip-uitgangspunten-uitvoering">
+      <bpmn:incoming>Flow_Task_OpstellenWerkbestek_Task_HoudenOverlegUitgangspunten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_HoudenOverlegUitgangspunten_Task_UpdatenRisicodossier</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_UpdatenRisicodossier" name="Updaten risicodossier&#10;(t.b.v. contractbeheersing)" camunda:formRef="rip-updaten-risicodossier-uitvoering" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-manager-pb" ronl:documentRef="rip-risicodossier-contractbeheersing">
+      <bpmn:incoming>Flow_Task_HoudenOverlegUitgangspunten_Task_UpdatenRisicodossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UpdatenRisicodossier_Gateway_VoorbereidingSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_VoorbereidingSplit">
+      <bpmn:incoming>Flow_Task_UpdatenRisicodossier_Gateway_VoorbereidingSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekVisi</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekBetterPerformance</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_VoorbereidingSplit_Task_UpdatenToezichtsplan</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_VoorbereidingSplit_Task_InrichtenBesteksadministratie</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_VoorbereidingSplit_Task_InitierenStartoverleg</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_VersturenVerzoekVisi" name="Versturen verzoek&#10;inrichten VISI" camunda:formRef="rip-verzoek-inrichten-visi" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-aanmeldformulier-visi">
+      <bpmn:incoming>Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekVisi</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenVerzoekVisi_Task_InrichtenVisi</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InrichtenVisi" name="Inrichten&#10;VISI" camunda:formRef="rip-inrichten-visi" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Task_VersturenVerzoekVisi_Task_InrichtenVisi</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InrichtenVisi_Gateway_VoorbereidingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenVerzoekBetterPerformance" name="Versturen verzoek inrichten&#10;Better performance" camunda:formRef="rip-verzoek-inrichten-better-performance" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekBetterPerformance</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenVerzoekBetterPerformance_Task_InrichtenBetterPerformance</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InrichtenBetterPerformance" name="Inrichten&#10;Better performance" camunda:formRef="rip-inrichten-better-performance" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Task_VersturenVerzoekBetterPerformance_Task_InrichtenBetterPerformance</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InrichtenBetterPerformance_Gateway_VoorbereidingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_UpdatenToezichtsplan" name="Updaten&#10;toezichtsplan" camunda:formRef="rip-updaten-toezichtsplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-definitief-toezichtsplan">
+      <bpmn:incoming>Flow_Gateway_VoorbereidingSplit_Task_UpdatenToezichtsplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UpdatenToezichtsplan_Task_VersturenToezichtsplan</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenToezichtsplan" name="Versturen toezichtsplan&#10;aan VM en TZH" camunda:formRef="rip-versturen-toezichtsplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_UpdatenToezichtsplan_Task_VersturenToezichtsplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenToezichtsplan_Task_BesprekenToezichtsplan</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BesprekenToezichtsplan" name="Bespreken&#10;toezichtsplan" camunda:formRef="rip-bespreken-toezichtsplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-toezichthouder,rip-vestigingsmanager" ronl:documentRef="rip-vastgesteld-toezichtsplan">
+      <bpmn:incoming>Flow_Task_VersturenToezichtsplan_Task_BesprekenToezichtsplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BesprekenToezichtsplan_Gateway_VoorbereidingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InrichtenBesteksadministratie" name="Inrichten&#10;besteksadministratie" camunda:formRef="rip-inrichten-besteksadministratie" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_VoorbereidingSplit_Task_InrichtenBesteksadministratie</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InrichtenBesteksadministratie_Gateway_VoorbereidingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InitierenStartoverleg" name="Initiëren&#10;startoverleg" camunda:formRef="rip-initieren-startoverleg" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-agenda-startoverleg">
+      <bpmn:incoming>Flow_Gateway_VoorbereidingSplit_Task_InitierenStartoverleg</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InitierenStartoverleg_Task_HoudenStartoverleg</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_HoudenStartoverleg" name="Houden&#10;startoverleg" camunda:formRef="rip-houden-startoverleg" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-toezichthouder,rip-projectleider,rip-omgevingsmanager,rip-technisch-administratief-medewerker,rip-opdrachtnemer" ronl:documentRef="rip-verslag-startoverleg">
+      <bpmn:incoming>Flow_Task_InitierenStartoverleg_Task_HoudenStartoverleg</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_HoudenStartoverleg_Gateway_VoorbereidingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_VoorbereidingJoin">
+      <bpmn:incoming>Flow_Task_InrichtenVisi_Gateway_VoorbereidingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_InrichtenBetterPerformance_Gateway_VoorbereidingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_BesprekenToezichtsplan_Gateway_VoorbereidingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_InrichtenBesteksadministratie_Gateway_VoorbereidingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_HoudenStartoverleg_Gateway_VoorbereidingJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_VoorbereidingJoin_Gateway_TechnischeInstallaties</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="Gateway_TechnischeInstallaties" name="Zijn er technische&#10;installatie(s) in project?">
+      <bpmn:incoming>Flow_Gateway_VoorbereidingJoin_Gateway_TechnischeInstallaties</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_TechnischeInstallaties_Task_CommunicerenOverdrachtInstallatiedeel</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_TechnischeInstallaties_Task_ControlerenDocumentenON</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_CommunicerenOverdrachtInstallatiedeel" name="Communiceren overdracht&#10;installatiedeel aan OvD en DV" camunda:formRef="rip-communiceren-overdracht-installatiedeel" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_TechnischeInstallaties_Task_CommunicerenOverdrachtInstallatiedeel</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_CommunicerenOverdrachtInstallatiedeel_Task_ControlerenDocumentenON</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControlerenDocumentenON" name="Controleren&#10;documenten ON" camunda:formRef="rip-controleren-documenten-on" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_TechnischeInstallaties_Task_ControlerenDocumentenON</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_CommunicerenOverdrachtInstallatiedeel_Task_ControlerenDocumentenON</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_LatenAanpassenDocumentenON_Task_ControlerenDocumentenON</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenDocumentenON_Task_VersturenDocumentVG</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenDocumentVG" name="Versturen document&#10;V&amp;G (ON) ter controle" camunda:formRef="rip-versturen-document-vg" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_ControlerenDocumentenON_Task_VersturenDocumentVG</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenDocumentVG_Task_BeoordelenDocumentVG</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenDocumentVG" name="Beoordelen&#10;document V&amp;G (ON)" camunda:formRef="rip-beoordelen-document-vg" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-adviseur-veiligheid-gezondheid" ronl:documentRef="rip-vg-plan-beoordeling">
+      <bpmn:incoming>Flow_Task_VersturenDocumentVG_Task_BeoordelenDocumentVG</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenDocumentVG_Gateway_AkkoordDocumenten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AkkoordDocumenten" name="Akkoord alle&#10;documenten?">
+      <bpmn:incoming>Flow_Task_BeoordelenDocumentVG_Gateway_AkkoordDocumenten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AkkoordDocumenten_Task_LatenAanpassenDocumentenON</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AkkoordDocumenten_Task_HoudenOverlegVgCoordinator</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_LatenAanpassenDocumentenON" name="Laten aanpassen&#10;documenten door ON" camunda:formRef="rip-laten-aanpassen-documenten-on" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_AkkoordDocumenten_Task_LatenAanpassenDocumentenON</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenAanpassenDocumentenON_Task_ControlerenDocumentenON</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_HoudenOverlegVgCoordinator" name="Houden overleg met V&amp;G-coördinator&#10;uitvoering (ON)" camunda:formRef="rip-overleg-vg-coordinator" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-vg-uitvoeringsafspraken">
+      <bpmn:incoming>Flow_Gateway_AkkoordDocumenten_Task_HoudenOverlegVgCoordinator</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_HoudenOverlegVgCoordinator_EndEvent_StartWerkBuiten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_StartWerkBuiten" name="Start werk &quot;buiten&quot;&#10;→ R5.2 Directievoering en toezicht UAV">
+      <bpmn:incoming>Flow_Task_HoudenOverlegVgCoordinator_EndEvent_StartWerkBuiten</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R51_Task_OpstellenWerkbestek" sourceRef="StartEvent_R51" targetRef="Task_OpstellenWerkbestek" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenWerkbestek_Task_HoudenOverlegUitgangspunten" sourceRef="Task_OpstellenWerkbestek" targetRef="Task_HoudenOverlegUitgangspunten" />
+    <bpmn:sequenceFlow id="Flow_Task_HoudenOverlegUitgangspunten_Task_UpdatenRisicodossier" sourceRef="Task_HoudenOverlegUitgangspunten" targetRef="Task_UpdatenRisicodossier" />
+    <bpmn:sequenceFlow id="Flow_Task_UpdatenRisicodossier_Gateway_VoorbereidingSplit" sourceRef="Task_UpdatenRisicodossier" targetRef="Gateway_VoorbereidingSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekVisi" sourceRef="Gateway_VoorbereidingSplit" targetRef="Task_VersturenVerzoekVisi" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenVerzoekVisi_Task_InrichtenVisi" sourceRef="Task_VersturenVerzoekVisi" targetRef="Task_InrichtenVisi" />
+    <bpmn:sequenceFlow id="Flow_Task_InrichtenVisi_Gateway_VoorbereidingJoin" sourceRef="Task_InrichtenVisi" targetRef="Gateway_VoorbereidingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekBetterPerformance" sourceRef="Gateway_VoorbereidingSplit" targetRef="Task_VersturenVerzoekBetterPerformance" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenVerzoekBetterPerformance_Task_InrichtenBetterPerformance" sourceRef="Task_VersturenVerzoekBetterPerformance" targetRef="Task_InrichtenBetterPerformance" />
+    <bpmn:sequenceFlow id="Flow_Task_InrichtenBetterPerformance_Gateway_VoorbereidingJoin" sourceRef="Task_InrichtenBetterPerformance" targetRef="Gateway_VoorbereidingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VoorbereidingSplit_Task_UpdatenToezichtsplan" sourceRef="Gateway_VoorbereidingSplit" targetRef="Task_UpdatenToezichtsplan" />
+    <bpmn:sequenceFlow id="Flow_Task_UpdatenToezichtsplan_Task_VersturenToezichtsplan" sourceRef="Task_UpdatenToezichtsplan" targetRef="Task_VersturenToezichtsplan" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenToezichtsplan_Task_BesprekenToezichtsplan" sourceRef="Task_VersturenToezichtsplan" targetRef="Task_BesprekenToezichtsplan" />
+    <bpmn:sequenceFlow id="Flow_Task_BesprekenToezichtsplan_Gateway_VoorbereidingJoin" sourceRef="Task_BesprekenToezichtsplan" targetRef="Gateway_VoorbereidingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VoorbereidingSplit_Task_InrichtenBesteksadministratie" sourceRef="Gateway_VoorbereidingSplit" targetRef="Task_InrichtenBesteksadministratie" />
+    <bpmn:sequenceFlow id="Flow_Task_InrichtenBesteksadministratie_Gateway_VoorbereidingJoin" sourceRef="Task_InrichtenBesteksadministratie" targetRef="Gateway_VoorbereidingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VoorbereidingSplit_Task_InitierenStartoverleg" sourceRef="Gateway_VoorbereidingSplit" targetRef="Task_InitierenStartoverleg" />
+    <bpmn:sequenceFlow id="Flow_Task_InitierenStartoverleg_Task_HoudenStartoverleg" sourceRef="Task_InitierenStartoverleg" targetRef="Task_HoudenStartoverleg" />
+    <bpmn:sequenceFlow id="Flow_Task_HoudenStartoverleg_Gateway_VoorbereidingJoin" sourceRef="Task_HoudenStartoverleg" targetRef="Gateway_VoorbereidingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VoorbereidingJoin_Gateway_TechnischeInstallaties" sourceRef="Gateway_VoorbereidingJoin" targetRef="Gateway_TechnischeInstallaties" />
+    <bpmn:sequenceFlow id="Flow_Gateway_TechnischeInstallaties_Task_CommunicerenOverdrachtInstallatiedeel" name="ja" sourceRef="Gateway_TechnischeInstallaties" targetRef="Task_CommunicerenOverdrachtInstallatiedeel">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${technischeInstallaties == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_TechnischeInstallaties_Task_ControlerenDocumentenON" name="nee" sourceRef="Gateway_TechnischeInstallaties" targetRef="Task_ControlerenDocumentenON">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${technischeInstallaties == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_CommunicerenOverdrachtInstallatiedeel_Task_ControlerenDocumentenON" sourceRef="Task_CommunicerenOverdrachtInstallatiedeel" targetRef="Task_ControlerenDocumentenON" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenDocumentenON_Task_VersturenDocumentVG" sourceRef="Task_ControlerenDocumentenON" targetRef="Task_VersturenDocumentVG" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenDocumentVG_Task_BeoordelenDocumentVG" sourceRef="Task_VersturenDocumentVG" targetRef="Task_BeoordelenDocumentVG" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenDocumentVG_Gateway_AkkoordDocumenten" sourceRef="Task_BeoordelenDocumentVG" targetRef="Gateway_AkkoordDocumenten" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AkkoordDocumenten_Task_LatenAanpassenDocumentenON" name="nee" sourceRef="Gateway_AkkoordDocumenten" targetRef="Task_LatenAanpassenDocumentenON">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${documentenAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AkkoordDocumenten_Task_HoudenOverlegVgCoordinator" name="ja" sourceRef="Gateway_AkkoordDocumenten" targetRef="Task_HoudenOverlegVgCoordinator">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${documentenAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_LatenAanpassenDocumentenON_Task_ControlerenDocumentenON" sourceRef="Task_LatenAanpassenDocumentenON" targetRef="Task_ControlerenDocumentenON" />
+    <bpmn:sequenceFlow id="Flow_Task_HoudenOverlegVgCoordinator_EndEvent_StartWerkBuiten" sourceRef="Task_HoudenOverlegVgCoordinator" targetRef="EndEvent_StartWerkBuiten" />
+
+    <bpmn:textAnnotation id="Annotation_IN1_Inkoopprocedure">
+      <bpmn:text>IN1. Uitvoeren inkoopprocedure</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_IN1_Inkoopprocedure" sourceRef="Task_OpstellenWerkbestek" targetRef="Annotation_IN1_Inkoopprocedure" />
+    <bpmn:textAnnotation id="Annotation_BO13_Overdracht">
+      <bpmn:text>BO13.1 Start overdracht — het installatiedeel gaat over naar Beheer &amp; Onderhoud, dat de overdracht terugkoppelt aan de OvD en de directievoerder</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_BO13_Overdracht" sourceRef="Task_CommunicerenOverdrachtInstallatiedeel" targetRef="Annotation_BO13_Overdracht" />
+    <bpmn:textAnnotation id="Annotation_R52_StartWerk">
+      <bpmn:text>R5.2 Directievoering en toezicht UAV</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_R52_StartWerk" sourceRef="Task_HoudenOverlegVgCoordinator" targetRef="Annotation_R52_StartWerk" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR51Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR51Process" bpmnElement="Collaboration_RipR51Process">
+      <bpmndi:BPMNShape id="Participant_RipR51Process_di" bpmnElement="Participant_RipR51Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2346" height="1380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_KostenContractdeskundige_di" bpmnElement="Lane_KostenContractdeskundige" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="2316" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_UitgangspuntenOverleg_di" bpmnElement="Lane_UitgangspuntenOverleg" isHorizontal="true">
+        <dc:Bounds x="190" y="280" width="2316" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ManagerPB_di" bpmnElement="Lane_ManagerPB" isHorizontal="true">
+        <dc:Bounds x="190" y="400" width="2316" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ToezichtsplanOverleg_di" bpmnElement="Lane_ToezichtsplanOverleg" isHorizontal="true">
+        <dc:Bounds x="190" y="520" width="2316" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Directievoerder_di" bpmnElement="Lane_Directievoerder" isHorizontal="true">
+        <dc:Bounds x="190" y="640" width="2316" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="1020" width="2316" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Startoverleg_di" bpmnElement="Lane_Startoverleg" isHorizontal="true">
+        <dc:Bounds x="190" y="1220" width="2316" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AdviseurVG_di" bpmnElement="Lane_AdviseurVG" isHorizontal="true">
+        <dc:Bounds x="190" y="1340" width="2316" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R51_di" bpmnElement="StartEvent_R51">
+        <dc:Bounds x="240" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="98" y="163" width="320" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenWerkbestek_di" bpmnElement="Task_OpstellenWerkbestek">
+        <dc:Bounds x="300" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HoudenOverlegUitgangspunten_di" bpmnElement="Task_HoudenOverlegUitgangspunten">
+        <dc:Bounds x="460" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdatenRisicodossier_di" bpmnElement="Task_UpdatenRisicodossier">
+        <dc:Bounds x="620" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_VoorbereidingSplit_di" bpmnElement="Gateway_VoorbereidingSplit">
+        <dc:Bounds x="780" y="765" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenVerzoekVisi_di" bpmnElement="Task_VersturenVerzoekVisi">
+        <dc:Bounds x="860" y="660" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InrichtenVisi_di" bpmnElement="Task_InrichtenVisi">
+        <dc:Bounds x="1020" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenVerzoekBetterPerformance_di" bpmnElement="Task_VersturenVerzoekBetterPerformance">
+        <dc:Bounds x="860" y="750" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InrichtenBetterPerformance_di" bpmnElement="Task_InrichtenBetterPerformance">
+        <dc:Bounds x="1020" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdatenToezichtsplan_di" bpmnElement="Task_UpdatenToezichtsplan">
+        <dc:Bounds x="860" y="840" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenToezichtsplan_di" bpmnElement="Task_VersturenToezichtsplan">
+        <dc:Bounds x="1020" y="840" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BesprekenToezichtsplan_di" bpmnElement="Task_BesprekenToezichtsplan">
+        <dc:Bounds x="1180" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InrichtenBesteksadministratie_di" bpmnElement="Task_InrichtenBesteksadministratie">
+        <dc:Bounds x="860" y="930" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InitierenStartoverleg_di" bpmnElement="Task_InitierenStartoverleg">
+        <dc:Bounds x="860" y="1040" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HoudenStartoverleg_di" bpmnElement="Task_HoudenStartoverleg">
+        <dc:Bounds x="1020" y="1240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_VoorbereidingJoin_di" bpmnElement="Gateway_VoorbereidingJoin">
+        <dc:Bounds x="1360" y="765" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_TechnischeInstallaties_di" bpmnElement="Gateway_TechnischeInstallaties" isMarkerVisible="true">
+        <dc:Bounds x="1440" y="765" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1361" y="820" width="208" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CommunicerenOverdrachtInstallatiedeel_di" bpmnElement="Task_CommunicerenOverdrachtInstallatiedeel">
+        <dc:Bounds x="1520" y="660" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenDocumentenON_di" bpmnElement="Task_ControlerenDocumentenON">
+        <dc:Bounds x="1680" y="750" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenDocumentVG_di" bpmnElement="Task_VersturenDocumentVG">
+        <dc:Bounds x="1840" y="840" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenDocumentVG_di" bpmnElement="Task_BeoordelenDocumentVG">
+        <dc:Bounds x="2000" y="1360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AkkoordDocumenten_di" bpmnElement="Gateway_AkkoordDocumenten" isMarkerVisible="true">
+        <dc:Bounds x="2160" y="765" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2137" y="820" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenAanpassenDocumentenON_di" bpmnElement="Task_LatenAanpassenDocumentenON">
+        <dc:Bounds x="2240" y="660" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HoudenOverlegVgCoordinator_di" bpmnElement="Task_HoudenOverlegVgCoordinator">
+        <dc:Bounds x="2240" y="1130" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_StartWerkBuiten_di" bpmnElement="EndEvent_StartWerkBuiten">
+        <dc:Bounds x="2400" y="1152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2266" y="1193" width="304" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_IN1_Inkoopprocedure_di" bpmnElement="Annotation_IN1_Inkoopprocedure">
+        <dc:Bounds x="480" y="100" width="240" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_BO13_Overdracht_di" bpmnElement="Annotation_BO13_Overdracht">
+        <dc:Bounds x="1500" y="540" width="300" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_R52_StartWerk_di" bpmnElement="Annotation_R52_StartWerk">
+        <dc:Bounds x="2200" y="1240" width="260" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R51_Task_OpstellenWerkbestek_di" bpmnElement="Flow_StartEvent_R51_Task_OpstellenWerkbestek">
+        <di:waypoint x="276" y="140" />
+        <di:waypoint x="300" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenWerkbestek_Task_HoudenOverlegUitgangspunten_di" bpmnElement="Flow_Task_OpstellenWerkbestek_Task_HoudenOverlegUitgangspunten">
+        <di:waypoint x="400" y="140" />
+        <di:waypoint x="430" y="140" />
+        <di:waypoint x="430" y="340" />
+        <di:waypoint x="460" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_HoudenOverlegUitgangspunten_Task_UpdatenRisicodossier_di" bpmnElement="Flow_Task_HoudenOverlegUitgangspunten_Task_UpdatenRisicodossier">
+        <di:waypoint x="560" y="340" />
+        <di:waypoint x="590" y="340" />
+        <di:waypoint x="590" y="460" />
+        <di:waypoint x="620" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UpdatenRisicodossier_Gateway_VoorbereidingSplit_di" bpmnElement="Flow_Task_UpdatenRisicodossier_Gateway_VoorbereidingSplit">
+        <di:waypoint x="720" y="460" />
+        <di:waypoint x="750" y="460" />
+        <di:waypoint x="750" y="790" />
+        <di:waypoint x="780" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekVisi_di" bpmnElement="Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekVisi">
+        <di:waypoint x="830" y="790" />
+        <di:waypoint x="845" y="790" />
+        <di:waypoint x="845" y="700" />
+        <di:waypoint x="860" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenVerzoekVisi_Task_InrichtenVisi_di" bpmnElement="Flow_Task_VersturenVerzoekVisi_Task_InrichtenVisi">
+        <di:waypoint x="960" y="700" />
+        <di:waypoint x="990" y="700" />
+        <di:waypoint x="990" y="140" />
+        <di:waypoint x="1020" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InrichtenVisi_Gateway_VoorbereidingJoin_di" bpmnElement="Flow_Task_InrichtenVisi_Gateway_VoorbereidingJoin">
+        <di:waypoint x="1120" y="140" />
+        <di:waypoint x="1240" y="140" />
+        <di:waypoint x="1240" y="790" />
+        <di:waypoint x="1360" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekBetterPerformance_di" bpmnElement="Flow_Gateway_VoorbereidingSplit_Task_VersturenVerzoekBetterPerformance">
+        <di:waypoint x="830" y="790" />
+        <di:waypoint x="860" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenVerzoekBetterPerformance_Task_InrichtenBetterPerformance_di" bpmnElement="Flow_Task_VersturenVerzoekBetterPerformance_Task_InrichtenBetterPerformance">
+        <di:waypoint x="960" y="790" />
+        <di:waypoint x="990" y="790" />
+        <di:waypoint x="990" y="230" />
+        <di:waypoint x="1020" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InrichtenBetterPerformance_Gateway_VoorbereidingJoin_di" bpmnElement="Flow_Task_InrichtenBetterPerformance_Gateway_VoorbereidingJoin">
+        <di:waypoint x="1120" y="230" />
+        <di:waypoint x="1240" y="230" />
+        <di:waypoint x="1240" y="790" />
+        <di:waypoint x="1360" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VoorbereidingSplit_Task_UpdatenToezichtsplan_di" bpmnElement="Flow_Gateway_VoorbereidingSplit_Task_UpdatenToezichtsplan">
+        <di:waypoint x="830" y="790" />
+        <di:waypoint x="845" y="790" />
+        <di:waypoint x="845" y="880" />
+        <di:waypoint x="860" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UpdatenToezichtsplan_Task_VersturenToezichtsplan_di" bpmnElement="Flow_Task_UpdatenToezichtsplan_Task_VersturenToezichtsplan">
+        <di:waypoint x="960" y="880" />
+        <di:waypoint x="1020" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenToezichtsplan_Task_BesprekenToezichtsplan_di" bpmnElement="Flow_Task_VersturenToezichtsplan_Task_BesprekenToezichtsplan">
+        <di:waypoint x="1120" y="880" />
+        <di:waypoint x="1150" y="880" />
+        <di:waypoint x="1150" y="580" />
+        <di:waypoint x="1180" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BesprekenToezichtsplan_Gateway_VoorbereidingJoin_di" bpmnElement="Flow_Task_BesprekenToezichtsplan_Gateway_VoorbereidingJoin">
+        <di:waypoint x="1280" y="580" />
+        <di:waypoint x="1320" y="580" />
+        <di:waypoint x="1320" y="790" />
+        <di:waypoint x="1360" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VoorbereidingSplit_Task_InrichtenBesteksadministratie_di" bpmnElement="Flow_Gateway_VoorbereidingSplit_Task_InrichtenBesteksadministratie">
+        <di:waypoint x="830" y="790" />
+        <di:waypoint x="845" y="790" />
+        <di:waypoint x="845" y="970" />
+        <di:waypoint x="860" y="970" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InrichtenBesteksadministratie_Gateway_VoorbereidingJoin_di" bpmnElement="Flow_Task_InrichtenBesteksadministratie_Gateway_VoorbereidingJoin">
+        <di:waypoint x="960" y="970" />
+        <di:waypoint x="1160" y="970" />
+        <di:waypoint x="1160" y="790" />
+        <di:waypoint x="1360" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VoorbereidingSplit_Task_InitierenStartoverleg_di" bpmnElement="Flow_Gateway_VoorbereidingSplit_Task_InitierenStartoverleg">
+        <di:waypoint x="830" y="790" />
+        <di:waypoint x="845" y="790" />
+        <di:waypoint x="845" y="1080" />
+        <di:waypoint x="860" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InitierenStartoverleg_Task_HoudenStartoverleg_di" bpmnElement="Flow_Task_InitierenStartoverleg_Task_HoudenStartoverleg">
+        <di:waypoint x="960" y="1080" />
+        <di:waypoint x="990" y="1080" />
+        <di:waypoint x="990" y="1280" />
+        <di:waypoint x="1020" y="1280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_HoudenStartoverleg_Gateway_VoorbereidingJoin_di" bpmnElement="Flow_Task_HoudenStartoverleg_Gateway_VoorbereidingJoin">
+        <di:waypoint x="1120" y="1280" />
+        <di:waypoint x="1240" y="1280" />
+        <di:waypoint x="1240" y="790" />
+        <di:waypoint x="1360" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VoorbereidingJoin_Gateway_TechnischeInstallaties_di" bpmnElement="Flow_Gateway_VoorbereidingJoin_Gateway_TechnischeInstallaties">
+        <di:waypoint x="1410" y="790" />
+        <di:waypoint x="1440" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_TechnischeInstallaties_Task_CommunicerenOverdrachtInstallatiedeel_di" bpmnElement="Flow_Gateway_TechnischeInstallaties_Task_CommunicerenOverdrachtInstallatiedeel">
+        <di:waypoint x="1490" y="790" />
+        <di:waypoint x="1505" y="790" />
+        <di:waypoint x="1505" y="700" />
+        <di:waypoint x="1520" y="700" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1496" y="770" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_TechnischeInstallaties_Task_ControlerenDocumentenON_di" bpmnElement="Flow_Gateway_TechnischeInstallaties_Task_ControlerenDocumentenON">
+        <di:waypoint x="1490" y="790" />
+        <di:waypoint x="1680" y="790" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1496" y="770" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_CommunicerenOverdrachtInstallatiedeel_Task_ControlerenDocumentenON_di" bpmnElement="Flow_Task_CommunicerenOverdrachtInstallatiedeel_Task_ControlerenDocumentenON">
+        <di:waypoint x="1620" y="700" />
+        <di:waypoint x="1650" y="700" />
+        <di:waypoint x="1650" y="790" />
+        <di:waypoint x="1680" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenDocumentenON_Task_VersturenDocumentVG_di" bpmnElement="Flow_Task_ControlerenDocumentenON_Task_VersturenDocumentVG">
+        <di:waypoint x="1780" y="790" />
+        <di:waypoint x="1810" y="790" />
+        <di:waypoint x="1810" y="880" />
+        <di:waypoint x="1840" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenDocumentVG_Task_BeoordelenDocumentVG_di" bpmnElement="Flow_Task_VersturenDocumentVG_Task_BeoordelenDocumentVG">
+        <di:waypoint x="1940" y="880" />
+        <di:waypoint x="1970" y="880" />
+        <di:waypoint x="1970" y="1400" />
+        <di:waypoint x="2000" y="1400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenDocumentVG_Gateway_AkkoordDocumenten_di" bpmnElement="Flow_Task_BeoordelenDocumentVG_Gateway_AkkoordDocumenten">
+        <di:waypoint x="2100" y="1400" />
+        <di:waypoint x="2130" y="1400" />
+        <di:waypoint x="2130" y="790" />
+        <di:waypoint x="2160" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AkkoordDocumenten_Task_LatenAanpassenDocumentenON_di" bpmnElement="Flow_Gateway_AkkoordDocumenten_Task_LatenAanpassenDocumentenON">
+        <di:waypoint x="2210" y="790" />
+        <di:waypoint x="2225" y="790" />
+        <di:waypoint x="2225" y="700" />
+        <di:waypoint x="2240" y="700" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2216" y="770" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AkkoordDocumenten_Task_HoudenOverlegVgCoordinator_di" bpmnElement="Flow_Gateway_AkkoordDocumenten_Task_HoudenOverlegVgCoordinator">
+        <di:waypoint x="2210" y="790" />
+        <di:waypoint x="2225" y="790" />
+        <di:waypoint x="2225" y="1170" />
+        <di:waypoint x="2240" y="1170" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2216" y="770" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenAanpassenDocumentenON_Task_ControlerenDocumentenON_di" bpmnElement="Flow_Task_LatenAanpassenDocumentenON_Task_ControlerenDocumentenON">
+        <di:waypoint x="2290" y="740" />
+        <di:waypoint x="2290" y="1010" />
+        <di:waypoint x="1730" y="1010" />
+        <di:waypoint x="1730" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_HoudenOverlegVgCoordinator_EndEvent_StartWerkBuiten_di" bpmnElement="Flow_Task_HoudenOverlegVgCoordinator_EndEvent_StartWerkBuiten">
+        <di:waypoint x="2340" y="1170" />
+        <di:waypoint x="2400" y="1170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_IN1_Inkoopprocedure_di" bpmnElement="Assoc_Annotation_IN1_Inkoopprocedure">
+        <di:waypoint x="350" y="100" />
+        <di:waypoint x="600" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_BO13_Overdracht_di" bpmnElement="Assoc_Annotation_BO13_Overdracht">
+        <di:waypoint x="1570" y="660" />
+        <di:waypoint x="1650" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_R52_StartWerk_di" bpmnElement="Assoc_Annotation_R52_StartWerk">
+        <di:waypoint x="2290" y="1130" />
+        <di:waypoint x="2330" y="1285" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

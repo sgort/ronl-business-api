@@ -48,6 +48,10 @@ get a diagram too.
 to `processDefinitionKey` for the eleven modelled phases. R5.3 has no key and is
 marked `beyond` — it stays undiagrammed by design.
 
+**Update, post-implementation:** R5.3 has since been modelled and deployed.
+`RIP_PHASE_KEYS` now carries a `processDefinitionKey` for all twelve phases,
+and R5.3's `beyond` special-case is gone from `rip-phases.catalog.ts`. See §8.
+
 ## 2. Why derive at runtime rather than generate files
 
 Three options were weighed.
@@ -210,6 +214,12 @@ R5.3 has no `processDefinitionKey`; the endpoint answers 409 for it, consistent
 with the existing phase endpoints, which deliberately distinguish "not deployed"
 from "deployed, no instances".
 
+**Update, post-implementation:** R5.3 was subsequently modelled and deployed
+like the other eleven phases. All twelve phases now carry a
+`processDefinitionKey`, so the 409 path described above is unreached for any
+of them today — it remains correct behaviour for a genuinely undeployed phase,
+should one ever exist again, but there is currently no phase it applies to.
+
 ## 9. Testing
 
 - **Parser, against all eleven real `.bpmn` files as fixtures.** Per phase:
@@ -218,8 +228,10 @@ from "deployed, no instances".
   that would have caught the parallel-gateway and multiple-end-event gaps.
 - **R2.1 characterisation.** Assert the derived model against R2.1's known
   shape, so the one diagram with a human-verified reference stays honest.
-- **Endpoint** — 200 with a model, 409 for R5.3, degradation when the engine
-  fails.
+- **Endpoint** — 200 with a model, 409 for an undeployed phase (no phase is
+  currently in that state — R5.3, the one phase this applied to at design
+  time, has since been modelled and deployed like the rest; see §8),
+  degradation when the engine fails.
 - **`FASE1_DOCS` coupling** — every `produceNode` resolves to a node in the
   derived R2.1 model (§6.1).
 - **`PhaseSwimlane` component** — renders lanes and nodes from a model,
@@ -230,5 +242,6 @@ from "deployed, no instances".
 - Re-drawing using the BPMN's own coordinates. Grid re-flow was chosen.
 - Per-phase lane merging or renaming overrides. Lanes render as the BPMN names
   them.
-- R5.3, which is `beyond` — no process model is planned.
+- ~~R5.3, which is `beyond` — no process model is planned.~~ Superseded: R5.3
+  was subsequently modelled and deployed like the other eleven phases (see §8).
 - Any change to how phases are started, completed, or counted.

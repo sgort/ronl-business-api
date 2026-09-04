@@ -1,0 +1,497 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR32Process" targetNamespace="http://example.com/rip-phase-32" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR32Process">
+    <bpmn:participant id="Participant_RipR32Process" name="R3.2 - Afronding bestek en tekeningen" processRef="RipR32Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR32Process" name="R3.2 - Afronding bestek en tekeningen" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR32Process">
+      <bpmn:lane id="Lane_DirectievoerderVestigingsmanager" name="Directievoerder, Vestigingsmanager">
+        <bpmn:flowNodeRef>Task_BeoordelenConceptToezichtplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ToezichtplanAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AccorderenVersturenConceptToezichtplan</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>StartEvent_R32</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerzamelenDocumenten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_StrandSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenVersturenConceptToezichtplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanpassenConceptToezichtplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OntvangenGeaccordeerdToezichtplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OntvangenProjectramingBestekPl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenGeaccordeerdeProjectraming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenMemoProjectkredietBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_StrandJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenGetoetsteDocumenten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AccorderenProjectplanContractvorming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R41</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AO" name="AO">
+        <bpmn:flowNodeRef>Task_AccorderenProjectramingBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ProjectramingAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_KredietJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_KostenContractdeskundige" name="Kosten- en contractdeskundige">
+        <bpmn:flowNodeRef>Task_OpstellenProjectramingBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OntvangstSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OntvangenProjectramingBestekKcd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OntvangstJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_InfraOverleg" name="Infra-overleg">
+        <bpmn:flowNodeRef>Task_BesluitenOverProjectkredietBestek</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Financien" name="Financiën">
+        <bpmn:flowNodeRef>Task_AccorderenBeschikbaarKrediet</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerwerkenProjectramingBestek</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DeelnemersEvaluatie" name="Deelnemers evaluatie">
+        <bpmn:flowNodeRef>Task_EvaluerenContractvorming</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R32" name="Start R3.2 - Afronding bestek&#10;en tekeningen (vanuit R3.1)">
+      <bpmn:outgoing>Flow_StartEvent_R32_Task_VerzamelenDocumenten</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_VerzamelenDocumenten" name="Verzamelen getoetste contract-&#10;en aanbestedingsdocumenten" camunda:formRef="rip-verzamelen-contractdocumenten" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-contractdocumenten">
+      <bpmn:incoming>Flow_StartEvent_R32_Task_VerzamelenDocumenten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerzamelenDocumenten_Gateway_StrandSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_StrandSplit">
+      <bpmn:incoming>Flow_Task_VerzamelenDocumenten_Gateway_StrandSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_StrandSplit_Task_OpstellenVersturenConceptToezichtplan</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_StrandSplit_Task_OpstellenProjectramingBestek</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_OpstellenVersturenConceptToezichtplan" name="Opstellen en versturen&#10;concept toezichtplan" camunda:formRef="rip-opstellen-concept-toezichtplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-concept-toezichtplan">
+      <bpmn:incoming>Flow_Gateway_StrandSplit_Task_OpstellenVersturenConceptToezichtplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenVersturenConceptToezichtplan_Task_BeoordelenConceptToezichtplan</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenConceptToezichtplan" name="Beoordelen&#10;concept toezichtplan" camunda:formRef="rip-beoordelen-concept-toezichtplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-vestigingsmanager">
+      <bpmn:incoming>Flow_Task_OpstellenVersturenConceptToezichtplan_Task_BeoordelenConceptToezichtplan</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_AanpassenConceptToezichtplan_Task_BeoordelenConceptToezichtplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenConceptToezichtplan_Gateway_ToezichtplanAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_ToezichtplanAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_BeoordelenConceptToezichtplan_Gateway_ToezichtplanAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_ToezichtplanAkkoord_Task_AanpassenConceptToezichtplan</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_ToezichtplanAkkoord_Task_AccorderenVersturenConceptToezichtplan</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AanpassenConceptToezichtplan" name="Aanpassen&#10;concept toezichtplan" camunda:formRef="rip-aanpassen-concept-toezichtplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_ToezichtplanAkkoord_Task_AanpassenConceptToezichtplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AanpassenConceptToezichtplan_Task_BeoordelenConceptToezichtplan</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenVersturenConceptToezichtplan" name="Accorderen en versturen&#10;concept toezichtplan" camunda:formRef="rip-accorderen-concept-toezichtplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-vestigingsmanager">
+      <bpmn:incoming>Flow_Gateway_ToezichtplanAkkoord_Task_AccorderenVersturenConceptToezichtplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenVersturenConceptToezichtplan_Task_OntvangenGeaccordeerdToezichtplan</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OntvangenGeaccordeerdToezichtplan" name="Ontvangen geaccordeerd&#10;concept toezichtplan" camunda:formRef="rip-ontvangen-geaccordeerd-toezichtplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_AccorderenVersturenConceptToezichtplan_Task_OntvangenGeaccordeerdToezichtplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OntvangenGeaccordeerdToezichtplan_Gateway_StrandJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenProjectramingBestek" name="Opstellen&#10;projectraming bestek" camunda:formRef="rip-opstellen-projectraming-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:documentRef="rip-projectraming-bestek">
+      <bpmn:incoming>Flow_Gateway_StrandSplit_Task_OpstellenProjectramingBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenProjectramingBestek_Task_AccorderenBeschikbaarKrediet</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenBeschikbaarKrediet" name="Accorderen beschikbaar krediet&#10;en versturen naar PL en KCD" camunda:formRef="rip-accorderen-beschikbaar-krediet-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-financien">
+      <bpmn:incoming>Flow_Task_OpstellenProjectramingBestek_Task_AccorderenBeschikbaarKrediet</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenBeschikbaarKrediet_Gateway_OntvangstSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_OntvangstSplit">
+      <bpmn:incoming>Flow_Task_AccorderenBeschikbaarKrediet_Gateway_OntvangstSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekKcd</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekPl</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_OntvangenProjectramingBestekKcd" name="Ontvangen&#10;projectraming bestek" camunda:formRef="rip-ontvangen-projectraming-bestek-kcd" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekKcd</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OntvangenProjectramingBestekKcd_Gateway_OntvangstJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OntvangenProjectramingBestekPl" name="Ontvangen&#10;projectraming bestek" camunda:formRef="rip-ontvangen-projectraming-bestek-pl" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekPl</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OntvangenProjectramingBestekPl_Task_VersturenGeaccordeerdeProjectraming</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenGeaccordeerdeProjectraming" name="Versturen geaccordeerde&#10;projectraming bestek" camunda:formRef="rip-versturen-geaccordeerde-projectraming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_OntvangenProjectramingBestekPl_Task_VersturenGeaccordeerdeProjectraming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenGeaccordeerdeProjectraming_Gateway_OntvangstJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_OntvangstJoin">
+      <bpmn:incoming>Flow_Task_OntvangenProjectramingBestekKcd_Gateway_OntvangstJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_VersturenGeaccordeerdeProjectraming_Gateway_OntvangstJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_OntvangstJoin_Task_AccorderenProjectramingBestek</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_AccorderenProjectramingBestek" name="Accorderen&#10;projectraming bestek" camunda:formRef="rip-accorderen-projectraming-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao">
+      <bpmn:incoming>Flow_Gateway_OntvangstJoin_Task_AccorderenProjectramingBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenProjectramingBestek_Gateway_ProjectramingAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_ProjectramingAkkoord" name="Akkoord&#10;projectraming bestek?">
+      <bpmn:incoming>Flow_Task_AccorderenProjectramingBestek_Gateway_ProjectramingAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_ProjectramingAkkoord_Task_OpstellenMemoProjectkredietBestek</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_ProjectramingAkkoord_Gateway_KredietJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_OpstellenMemoProjectkredietBestek" name="Opstellen memo projectkrediet&#10;(zachte claim)" camunda:formRef="rip-memo-projectkrediet-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-memo-projectkrediet-bestek">
+      <bpmn:incoming>Flow_Gateway_ProjectramingAkkoord_Task_OpstellenMemoProjectkredietBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenMemoProjectkredietBestek_Task_BesluitenOverProjectkredietBestek</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BesluitenOverProjectkredietBestek" name="Besluiten over&#10;projectkrediet" camunda:formRef="rip-besluiten-projectkrediet-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-infra-overleg" ronl:documentRef="rip-besluit-projectkrediet-bestek">
+      <bpmn:incoming>Flow_Task_OpstellenMemoProjectkredietBestek_Task_BesluitenOverProjectkredietBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BesluitenOverProjectkredietBestek_Task_VerwerkenProjectramingBestek</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VerwerkenProjectramingBestek" name="Verwerken projectraming&#10;en raamkrediet Infra" camunda:formRef="rip-verwerken-projectraming-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-financien">
+      <bpmn:incoming>Flow_Task_BesluitenOverProjectkredietBestek_Task_VerwerkenProjectramingBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerwerkenProjectramingBestek_Gateway_KredietJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_KredietJoin">
+      <bpmn:incoming>Flow_Gateway_ProjectramingAkkoord_Gateway_KredietJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_VerwerkenProjectramingBestek_Gateway_KredietJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_KredietJoin_Gateway_StrandJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_StrandJoin">
+      <bpmn:incoming>Flow_Task_OntvangenGeaccordeerdToezichtplan_Gateway_StrandJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_KredietJoin_Gateway_StrandJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_StrandJoin_Task_VersturenGetoetsteDocumenten</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_VersturenGetoetsteDocumenten" name="Versturen getoetste contract-&#10;en aanbestedingsdocumenten" camunda:formRef="rip-versturen-contractdocumenten" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_StrandJoin_Task_VersturenGetoetsteDocumenten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenGetoetsteDocumenten_Task_EvaluerenContractvorming</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_EvaluerenContractvorming" name="Evalueren&#10;contractvorming" camunda:formRef="rip-evalueren-contractvorming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-deelnemers-evaluatie" ronl:documentRef="rip-evaluatie-contractvorming">
+      <bpmn:incoming>Flow_Task_VersturenGetoetsteDocumenten_Task_EvaluerenContractvorming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_EvaluerenContractvorming_Task_AccorderenProjectplanContractvorming</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenProjectplanContractvorming" name="Accorderen Projectplan&#10;7. Afronden contractvormingsfase" camunda:formRef="rip-accorderen-projectplan-contractvorming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-projectplan-contractvorming">
+      <bpmn:incoming>Flow_Task_EvaluerenContractvorming_Task_AccorderenProjectplanContractvorming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenProjectplanContractvorming_EndEvent_R41</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_R41" name="Vastgesteld Projectplan (contractvorming)&#10;→ R4.1 Verzoeken tot aanbesteden">
+      <bpmn:incoming>Flow_Task_AccorderenProjectplanContractvorming_EndEvent_R41</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R32_Task_VerzamelenDocumenten" sourceRef="StartEvent_R32" targetRef="Task_VerzamelenDocumenten" />
+    <bpmn:sequenceFlow id="Flow_Task_VerzamelenDocumenten_Gateway_StrandSplit" sourceRef="Task_VerzamelenDocumenten" targetRef="Gateway_StrandSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_StrandSplit_Task_OpstellenVersturenConceptToezichtplan" sourceRef="Gateway_StrandSplit" targetRef="Task_OpstellenVersturenConceptToezichtplan" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenVersturenConceptToezichtplan_Task_BeoordelenConceptToezichtplan" sourceRef="Task_OpstellenVersturenConceptToezichtplan" targetRef="Task_BeoordelenConceptToezichtplan" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenConceptToezichtplan_Gateway_ToezichtplanAkkoord" sourceRef="Task_BeoordelenConceptToezichtplan" targetRef="Gateway_ToezichtplanAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_ToezichtplanAkkoord_Task_AanpassenConceptToezichtplan" name="nee" sourceRef="Gateway_ToezichtplanAkkoord" targetRef="Task_AanpassenConceptToezichtplan">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${toezichtplanAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_ToezichtplanAkkoord_Task_AccorderenVersturenConceptToezichtplan" name="ja" sourceRef="Gateway_ToezichtplanAkkoord" targetRef="Task_AccorderenVersturenConceptToezichtplan">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${toezichtplanAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_AanpassenConceptToezichtplan_Task_BeoordelenConceptToezichtplan" sourceRef="Task_AanpassenConceptToezichtplan" targetRef="Task_BeoordelenConceptToezichtplan" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenVersturenConceptToezichtplan_Task_OntvangenGeaccordeerdToezichtplan" sourceRef="Task_AccorderenVersturenConceptToezichtplan" targetRef="Task_OntvangenGeaccordeerdToezichtplan" />
+    <bpmn:sequenceFlow id="Flow_Task_OntvangenGeaccordeerdToezichtplan_Gateway_StrandJoin" sourceRef="Task_OntvangenGeaccordeerdToezichtplan" targetRef="Gateway_StrandJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_StrandSplit_Task_OpstellenProjectramingBestek" sourceRef="Gateway_StrandSplit" targetRef="Task_OpstellenProjectramingBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenProjectramingBestek_Task_AccorderenBeschikbaarKrediet" sourceRef="Task_OpstellenProjectramingBestek" targetRef="Task_AccorderenBeschikbaarKrediet" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenBeschikbaarKrediet_Gateway_OntvangstSplit" sourceRef="Task_AccorderenBeschikbaarKrediet" targetRef="Gateway_OntvangstSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekKcd" sourceRef="Gateway_OntvangstSplit" targetRef="Task_OntvangenProjectramingBestekKcd" />
+    <bpmn:sequenceFlow id="Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekPl" sourceRef="Gateway_OntvangstSplit" targetRef="Task_OntvangenProjectramingBestekPl" />
+    <bpmn:sequenceFlow id="Flow_Task_OntvangenProjectramingBestekKcd_Gateway_OntvangstJoin" sourceRef="Task_OntvangenProjectramingBestekKcd" targetRef="Gateway_OntvangstJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_OntvangenProjectramingBestekPl_Task_VersturenGeaccordeerdeProjectraming" sourceRef="Task_OntvangenProjectramingBestekPl" targetRef="Task_VersturenGeaccordeerdeProjectraming" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenGeaccordeerdeProjectraming_Gateway_OntvangstJoin" sourceRef="Task_VersturenGeaccordeerdeProjectraming" targetRef="Gateway_OntvangstJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_OntvangstJoin_Task_AccorderenProjectramingBestek" sourceRef="Gateway_OntvangstJoin" targetRef="Task_AccorderenProjectramingBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenProjectramingBestek_Gateway_ProjectramingAkkoord" sourceRef="Task_AccorderenProjectramingBestek" targetRef="Gateway_ProjectramingAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_ProjectramingAkkoord_Task_OpstellenMemoProjectkredietBestek" name="nee" sourceRef="Gateway_ProjectramingAkkoord" targetRef="Task_OpstellenMemoProjectkredietBestek">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${projectramingBestekAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_ProjectramingAkkoord_Gateway_KredietJoin" name="ja" sourceRef="Gateway_ProjectramingAkkoord" targetRef="Gateway_KredietJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${projectramingBestekAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenMemoProjectkredietBestek_Task_BesluitenOverProjectkredietBestek" sourceRef="Task_OpstellenMemoProjectkredietBestek" targetRef="Task_BesluitenOverProjectkredietBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_BesluitenOverProjectkredietBestek_Task_VerwerkenProjectramingBestek" sourceRef="Task_BesluitenOverProjectkredietBestek" targetRef="Task_VerwerkenProjectramingBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_VerwerkenProjectramingBestek_Gateway_KredietJoin" sourceRef="Task_VerwerkenProjectramingBestek" targetRef="Gateway_KredietJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_KredietJoin_Gateway_StrandJoin" sourceRef="Gateway_KredietJoin" targetRef="Gateway_StrandJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_StrandJoin_Task_VersturenGetoetsteDocumenten" sourceRef="Gateway_StrandJoin" targetRef="Task_VersturenGetoetsteDocumenten" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenGetoetsteDocumenten_Task_EvaluerenContractvorming" sourceRef="Task_VersturenGetoetsteDocumenten" targetRef="Task_EvaluerenContractvorming" />
+    <bpmn:sequenceFlow id="Flow_Task_EvaluerenContractvorming_Task_AccorderenProjectplanContractvorming" sourceRef="Task_EvaluerenContractvorming" targetRef="Task_AccorderenProjectplanContractvorming" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenProjectplanContractvorming_EndEvent_R41" sourceRef="Task_AccorderenProjectplanContractvorming" targetRef="EndEvent_R41" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR32Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR32Process" bpmnElement="Collaboration_RipR32Process">
+      <bpmndi:BPMNShape id="Participant_RipR32Process_di" bpmnElement="Participant_RipR32Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2806" height="1000" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_DirectievoerderVestigingsmanager_di" bpmnElement="Lane_DirectievoerderVestigingsmanager" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="2776" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="200" width="2776" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AO_di" bpmnElement="Lane_AO" isHorizontal="true">
+        <dc:Bounds x="190" y="400" width="2776" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_KostenContractdeskundige_di" bpmnElement="Lane_KostenContractdeskundige" isHorizontal="true">
+        <dc:Bounds x="190" y="520" width="2776" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_InfraOverleg_di" bpmnElement="Lane_InfraOverleg" isHorizontal="true">
+        <dc:Bounds x="190" y="720" width="2776" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Financien_di" bpmnElement="Lane_Financien" isHorizontal="true">
+        <dc:Bounds x="190" y="840" width="2776" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_DeelnemersEvaluatie_di" bpmnElement="Lane_DeelnemersEvaluatie" isHorizontal="true">
+        <dc:Bounds x="190" y="960" width="2776" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R32_di" bpmnElement="StartEvent_R32">
+        <dc:Bounds x="232" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="134" y="283" width="232" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerzamelenDocumenten_di" bpmnElement="Task_VerzamelenDocumenten">
+        <dc:Bounds x="300" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_StrandSplit_di" bpmnElement="Gateway_StrandSplit">
+        <dc:Bounds x="460" y="235" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenVersturenConceptToezichtplan_di" bpmnElement="Task_OpstellenVersturenConceptToezichtplan">
+        <dc:Bounds x="540" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenConceptToezichtplan_di" bpmnElement="Task_BeoordelenConceptToezichtplan">
+        <dc:Bounds x="700" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ToezichtplanAkkoord_di" bpmnElement="Gateway_ToezichtplanAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="860" y="115" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="840" y="170" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanpassenConceptToezichtplan_di" bpmnElement="Task_AanpassenConceptToezichtplan">
+        <dc:Bounds x="940" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenVersturenConceptToezichtplan_di" bpmnElement="Task_AccorderenVersturenConceptToezichtplan">
+        <dc:Bounds x="1020" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OntvangenGeaccordeerdToezichtplan_di" bpmnElement="Task_OntvangenGeaccordeerdToezichtplan">
+        <dc:Bounds x="1180" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenProjectramingBestek_di" bpmnElement="Task_OpstellenProjectramingBestek">
+        <dc:Bounds x="540" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenBeschikbaarKrediet_di" bpmnElement="Task_AccorderenBeschikbaarKrediet">
+        <dc:Bounds x="700" y="860" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OntvangstSplit_di" bpmnElement="Gateway_OntvangstSplit">
+        <dc:Bounds x="860" y="555" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OntvangenProjectramingBestekKcd_di" bpmnElement="Task_OntvangenProjectramingBestekKcd">
+        <dc:Bounds x="1020" y="630" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OntvangenProjectramingBestekPl_di" bpmnElement="Task_OntvangenProjectramingBestekPl">
+        <dc:Bounds x="1100" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenGeaccordeerdeProjectraming_di" bpmnElement="Task_VersturenGeaccordeerdeProjectraming">
+        <dc:Bounds x="1260" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OntvangstJoin_di" bpmnElement="Gateway_OntvangstJoin">
+        <dc:Bounds x="1420" y="555" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenProjectramingBestek_di" bpmnElement="Task_AccorderenProjectramingBestek">
+        <dc:Bounds x="1500" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ProjectramingAkkoord_di" bpmnElement="Gateway_ProjectramingAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1660" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1601" y="490" width="168" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenMemoProjectkredietBestek_di" bpmnElement="Task_OpstellenMemoProjectkredietBestek">
+        <dc:Bounds x="1740" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BesluitenOverProjectkredietBestek_di" bpmnElement="Task_BesluitenOverProjectkredietBestek">
+        <dc:Bounds x="1900" y="740" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerwerkenProjectramingBestek_di" bpmnElement="Task_VerwerkenProjectramingBestek">
+        <dc:Bounds x="2060" y="860" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_KredietJoin_di" bpmnElement="Gateway_KredietJoin" isMarkerVisible="true">
+        <dc:Bounds x="2220" y="435" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_StrandJoin_di" bpmnElement="Gateway_StrandJoin">
+        <dc:Bounds x="2300" y="235" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenGetoetsteDocumenten_di" bpmnElement="Task_VersturenGetoetsteDocumenten">
+        <dc:Bounds x="2380" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EvaluerenContractvorming_di" bpmnElement="Task_EvaluerenContractvorming">
+        <dc:Bounds x="2540" y="980" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenProjectplanContractvorming_di" bpmnElement="Task_AccorderenProjectplanContractvorming">
+        <dc:Bounds x="2700" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R41_di" bpmnElement="EndEvent_R41">
+        <dc:Bounds x="2860" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2714" y="283" width="328" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R32_Task_VerzamelenDocumenten_di" bpmnElement="Flow_StartEvent_R32_Task_VerzamelenDocumenten">
+        <di:waypoint x="268" y="260" />
+        <di:waypoint x="300" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerzamelenDocumenten_Gateway_StrandSplit_di" bpmnElement="Flow_Task_VerzamelenDocumenten_Gateway_StrandSplit">
+        <di:waypoint x="400" y="260" />
+        <di:waypoint x="460" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_StrandSplit_Task_OpstellenVersturenConceptToezichtplan_di" bpmnElement="Flow_Gateway_StrandSplit_Task_OpstellenVersturenConceptToezichtplan">
+        <di:waypoint x="510" y="260" />
+        <di:waypoint x="540" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenVersturenConceptToezichtplan_Task_BeoordelenConceptToezichtplan_di" bpmnElement="Flow_Task_OpstellenVersturenConceptToezichtplan_Task_BeoordelenConceptToezichtplan">
+        <di:waypoint x="640" y="260" />
+        <di:waypoint x="670" y="260" />
+        <di:waypoint x="670" y="140" />
+        <di:waypoint x="700" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenConceptToezichtplan_Gateway_ToezichtplanAkkoord_di" bpmnElement="Flow_Task_BeoordelenConceptToezichtplan_Gateway_ToezichtplanAkkoord">
+        <di:waypoint x="800" y="140" />
+        <di:waypoint x="860" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ToezichtplanAkkoord_Task_AanpassenConceptToezichtplan_di" bpmnElement="Flow_Gateway_ToezichtplanAkkoord_Task_AanpassenConceptToezichtplan">
+        <di:waypoint x="910" y="140" />
+        <di:waypoint x="925" y="140" />
+        <di:waypoint x="925" y="350" />
+        <di:waypoint x="940" y="350" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="916" y="120" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ToezichtplanAkkoord_Task_AccorderenVersturenConceptToezichtplan_di" bpmnElement="Flow_Gateway_ToezichtplanAkkoord_Task_AccorderenVersturenConceptToezichtplan">
+        <di:waypoint x="910" y="140" />
+        <di:waypoint x="1020" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="916" y="120" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AanpassenConceptToezichtplan_Task_BeoordelenConceptToezichtplan_di" bpmnElement="Flow_Task_AanpassenConceptToezichtplan_Task_BeoordelenConceptToezichtplan">
+        <di:waypoint x="990" y="390" />
+        <di:waypoint x="990" y="190" />
+        <di:waypoint x="750" y="190" />
+        <di:waypoint x="750" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenVersturenConceptToezichtplan_Task_OntvangenGeaccordeerdToezichtplan_di" bpmnElement="Flow_Task_AccorderenVersturenConceptToezichtplan_Task_OntvangenGeaccordeerdToezichtplan">
+        <di:waypoint x="1120" y="140" />
+        <di:waypoint x="1150" y="140" />
+        <di:waypoint x="1150" y="260" />
+        <di:waypoint x="1180" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OntvangenGeaccordeerdToezichtplan_Gateway_StrandJoin_di" bpmnElement="Flow_Task_OntvangenGeaccordeerdToezichtplan_Gateway_StrandJoin">
+        <di:waypoint x="1280" y="260" />
+        <di:waypoint x="2300" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_StrandSplit_Task_OpstellenProjectramingBestek_di" bpmnElement="Flow_Gateway_StrandSplit_Task_OpstellenProjectramingBestek">
+        <di:waypoint x="510" y="260" />
+        <di:waypoint x="525" y="260" />
+        <di:waypoint x="525" y="580" />
+        <di:waypoint x="540" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenProjectramingBestek_Task_AccorderenBeschikbaarKrediet_di" bpmnElement="Flow_Task_OpstellenProjectramingBestek_Task_AccorderenBeschikbaarKrediet">
+        <di:waypoint x="640" y="580" />
+        <di:waypoint x="670" y="580" />
+        <di:waypoint x="670" y="900" />
+        <di:waypoint x="700" y="900" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenBeschikbaarKrediet_Gateway_OntvangstSplit_di" bpmnElement="Flow_Task_AccorderenBeschikbaarKrediet_Gateway_OntvangstSplit">
+        <di:waypoint x="800" y="900" />
+        <di:waypoint x="830" y="900" />
+        <di:waypoint x="830" y="580" />
+        <di:waypoint x="860" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekKcd_di" bpmnElement="Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekKcd">
+        <di:waypoint x="910" y="580" />
+        <di:waypoint x="965" y="580" />
+        <di:waypoint x="965" y="670" />
+        <di:waypoint x="1020" y="670" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekPl_di" bpmnElement="Flow_Gateway_OntvangstSplit_Task_OntvangenProjectramingBestekPl">
+        <di:waypoint x="910" y="580" />
+        <di:waypoint x="1005" y="580" />
+        <di:waypoint x="1005" y="350" />
+        <di:waypoint x="1100" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OntvangenProjectramingBestekKcd_Gateway_OntvangstJoin_di" bpmnElement="Flow_Task_OntvangenProjectramingBestekKcd_Gateway_OntvangstJoin">
+        <di:waypoint x="1120" y="670" />
+        <di:waypoint x="1270" y="670" />
+        <di:waypoint x="1270" y="580" />
+        <di:waypoint x="1420" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OntvangenProjectramingBestekPl_Task_VersturenGeaccordeerdeProjectraming_di" bpmnElement="Flow_Task_OntvangenProjectramingBestekPl_Task_VersturenGeaccordeerdeProjectraming">
+        <di:waypoint x="1200" y="350" />
+        <di:waypoint x="1260" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenGeaccordeerdeProjectraming_Gateway_OntvangstJoin_di" bpmnElement="Flow_Task_VersturenGeaccordeerdeProjectraming_Gateway_OntvangstJoin">
+        <di:waypoint x="1360" y="350" />
+        <di:waypoint x="1390" y="350" />
+        <di:waypoint x="1390" y="580" />
+        <di:waypoint x="1420" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OntvangstJoin_Task_AccorderenProjectramingBestek_di" bpmnElement="Flow_Gateway_OntvangstJoin_Task_AccorderenProjectramingBestek">
+        <di:waypoint x="1470" y="580" />
+        <di:waypoint x="1485" y="580" />
+        <di:waypoint x="1485" y="460" />
+        <di:waypoint x="1500" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenProjectramingBestek_Gateway_ProjectramingAkkoord_di" bpmnElement="Flow_Task_AccorderenProjectramingBestek_Gateway_ProjectramingAkkoord">
+        <di:waypoint x="1600" y="460" />
+        <di:waypoint x="1660" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ProjectramingAkkoord_Task_OpstellenMemoProjectkredietBestek_di" bpmnElement="Flow_Gateway_ProjectramingAkkoord_Task_OpstellenMemoProjectkredietBestek">
+        <di:waypoint x="1710" y="460" />
+        <di:waypoint x="1725" y="460" />
+        <di:waypoint x="1725" y="350" />
+        <di:waypoint x="1740" y="350" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1716" y="440" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ProjectramingAkkoord_Gateway_KredietJoin_di" bpmnElement="Flow_Gateway_ProjectramingAkkoord_Gateway_KredietJoin">
+        <di:waypoint x="1710" y="460" />
+        <di:waypoint x="2220" y="460" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1716" y="440" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenMemoProjectkredietBestek_Task_BesluitenOverProjectkredietBestek_di" bpmnElement="Flow_Task_OpstellenMemoProjectkredietBestek_Task_BesluitenOverProjectkredietBestek">
+        <di:waypoint x="1840" y="350" />
+        <di:waypoint x="1870" y="350" />
+        <di:waypoint x="1870" y="780" />
+        <di:waypoint x="1900" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BesluitenOverProjectkredietBestek_Task_VerwerkenProjectramingBestek_di" bpmnElement="Flow_Task_BesluitenOverProjectkredietBestek_Task_VerwerkenProjectramingBestek">
+        <di:waypoint x="2000" y="780" />
+        <di:waypoint x="2030" y="780" />
+        <di:waypoint x="2030" y="900" />
+        <di:waypoint x="2060" y="900" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerwerkenProjectramingBestek_Gateway_KredietJoin_di" bpmnElement="Flow_Task_VerwerkenProjectramingBestek_Gateway_KredietJoin">
+        <di:waypoint x="2160" y="900" />
+        <di:waypoint x="2190" y="900" />
+        <di:waypoint x="2190" y="460" />
+        <di:waypoint x="2220" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_KredietJoin_Gateway_StrandJoin_di" bpmnElement="Flow_Gateway_KredietJoin_Gateway_StrandJoin">
+        <di:waypoint x="2270" y="460" />
+        <di:waypoint x="2285" y="460" />
+        <di:waypoint x="2285" y="260" />
+        <di:waypoint x="2300" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_StrandJoin_Task_VersturenGetoetsteDocumenten_di" bpmnElement="Flow_Gateway_StrandJoin_Task_VersturenGetoetsteDocumenten">
+        <di:waypoint x="2350" y="260" />
+        <di:waypoint x="2380" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenGetoetsteDocumenten_Task_EvaluerenContractvorming_di" bpmnElement="Flow_Task_VersturenGetoetsteDocumenten_Task_EvaluerenContractvorming">
+        <di:waypoint x="2480" y="260" />
+        <di:waypoint x="2510" y="260" />
+        <di:waypoint x="2510" y="1020" />
+        <di:waypoint x="2540" y="1020" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_EvaluerenContractvorming_Task_AccorderenProjectplanContractvorming_di" bpmnElement="Flow_Task_EvaluerenContractvorming_Task_AccorderenProjectplanContractvorming">
+        <di:waypoint x="2640" y="1020" />
+        <di:waypoint x="2670" y="1020" />
+        <di:waypoint x="2670" y="260" />
+        <di:waypoint x="2700" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenProjectplanContractvorming_EndEvent_R41_di" bpmnElement="Flow_Task_AccorderenProjectplanContractvorming_EndEvent_R41">
+        <di:waypoint x="2800" y="260" />
+        <di:waypoint x="2860" y="260" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

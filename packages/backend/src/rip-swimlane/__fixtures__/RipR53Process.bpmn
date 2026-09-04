@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR53Process" targetNamespace="http://example.com/rip-phase-53" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR53Process">
+    <bpmn:participant id="Participant_RipR53Process" name="R5.3 - (vervroegde) Ingebruikname / Oplevering" processRef="RipR53Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR53Process" name="R5.3 - (vervroegde) Ingebruikname / Oplevering" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR53Process">
+      <bpmn:lane id="Lane_Directievoerder" name="Directievoerder">
+        <bpmn:flowNodeRef>StartEvent_R53</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OrganiserenInterneSchouw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SchouwType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpleverschouwMetAannemer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VaststellenOpleveringschouw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OpleveringAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R54_Oplevering</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R52_RestpuntenOplevering</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IngebruiknameschouwMetAannemer</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_VaststellenIngebruikname" name="Directievoerder, Toezichthouder, Aannemer">
+        <bpmn:flowNodeRef>Task_VaststellenIngebruiknameschouw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IngebruiknameAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R52_VervroegdeIngebruikname</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R52_RestpuntenIngebruikname</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_InterneSchouw" name="Directievoerder, Toezichthouder, Vestigingsmanager, Beheerder, Projectleider">
+        <bpmn:flowNodeRef>Task_UitvoerenOpleverschouwIntern</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UitvoerenIngebruiknameschouwIntern</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R53" name="Start R5.3 - (vervroegde) Ingebruikname / Oplevering&#10;(vanuit R5.2 Werk gereed?)">
+      <bpmn:outgoing>Flow_StartEvent_R53_Task_OrganiserenInterneSchouw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_OrganiserenInterneSchouw" name="Organiseren&#10;interne schouw" camunda:formRef="rip-organiseren-interne-schouw" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_StartEvent_R53_Task_OrganiserenInterneSchouw</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OrganiserenInterneSchouw_Gateway_SchouwType</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_SchouwType" name="Oplevering of (vervroegde)&#10;ingebruikname?">
+      <bpmn:incoming>Flow_Task_OrganiserenInterneSchouw_Gateway_SchouwType</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_SchouwType_Task_UitvoerenOpleverschouwIntern</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_SchouwType_Task_UitvoerenIngebruiknameschouwIntern</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_UitvoerenOpleverschouwIntern" name="Uitvoeren&#10;opleverschouw intern" camunda:formRef="rip-uitvoeren-opleverschouw-intern" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-toezichthouder,rip-vestigingsmanager,rip-beheerder,rip-projectleider" ronl:documentRef="rip-bevindingen-opleverschouw">
+      <bpmn:incoming>Flow_Gateway_SchouwType_Task_UitvoerenOpleverschouwIntern</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UitvoerenOpleverschouwIntern_Task_OpleverschouwMetAannemer</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpleverschouwMetAannemer" name="Organiseren en uitvoeren opleverschouw&#10;met aannemer en tzh" camunda:formRef="rip-opleverschouw-aannemer" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-opleveringschouw">
+      <bpmn:incoming>Flow_Task_UitvoerenOpleverschouwIntern_Task_OpleverschouwMetAannemer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpleverschouwMetAannemer_Task_VaststellenOpleveringschouw</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VaststellenOpleveringschouw" name="Vaststellen Opleveringschouw&#10;door dv en aannemer" camunda:formRef="rip-vaststellen-opleveringschouw" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-opleveringschouw-vastgesteld">
+      <bpmn:incoming>Flow_Task_OpleverschouwMetAannemer_Task_VaststellenOpleveringschouw</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VaststellenOpleveringschouw_Gateway_OpleveringAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_OpleveringAkkoord" name="Oplevering&#10;akkoord?">
+      <bpmn:incoming>Flow_Task_VaststellenOpleveringschouw_Gateway_OpleveringAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_OpleveringAkkoord_EndEvent_R54_Oplevering</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_OpleveringAkkoord_EndEvent_R52_RestpuntenOplevering</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_R54_Oplevering" name="Ja, oplevering areaal&#10;→ R5.4 Oplevering en onderhoudsperiode">
+      <bpmn:incoming>Flow_Gateway_OpleveringAkkoord_EndEvent_R54_Oplevering</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_R52_RestpuntenOplevering" name="Nee, restpunten uitvoeren&#10;→ R5.2 Start werk &quot;buiten&quot;">
+      <bpmn:incoming>Flow_Gateway_OpleveringAkkoord_EndEvent_R52_RestpuntenOplevering</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_UitvoerenIngebruiknameschouwIntern" name="Uitvoeren&#10;ingebruiknameschouw intern" camunda:formRef="rip-uitvoeren-ingebruiknameschouw-intern" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-toezichthouder,rip-vestigingsmanager,rip-beheerder,rip-projectleider" ronl:documentRef="rip-bevindingen-ingebruiknameschouw">
+      <bpmn:incoming>Flow_Gateway_SchouwType_Task_UitvoerenIngebruiknameschouwIntern</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UitvoerenIngebruiknameschouwIntern_Task_IngebruiknameschouwMetAannemer</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_IngebruiknameschouwMetAannemer" name="Organiseren en uitvoeren ingebruikname-&#10;schouw met aannemer en tzh" camunda:formRef="rip-ingebruiknameschouw-aannemer" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-ingebruiknameschouw">
+      <bpmn:incoming>Flow_Task_UitvoerenIngebruiknameschouwIntern_Task_IngebruiknameschouwMetAannemer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_IngebruiknameschouwMetAannemer_Task_VaststellenIngebruiknameschouw</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VaststellenIngebruiknameschouw" name="Vaststellen Ingebruiknameschouw&#10;incl. restpuntenlijst" camunda:formRef="rip-vaststellen-ingebruiknameschouw" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-toezichthouder,rip-opdrachtnemer" ronl:documentRef="rip-ingebruiknameschouw-vastgesteld">
+      <bpmn:incoming>Flow_Task_IngebruiknameschouwMetAannemer_Task_VaststellenIngebruiknameschouw</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VaststellenIngebruiknameschouw_Gateway_IngebruiknameAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_IngebruiknameAkkoord" name="Akkoord (vervroegde)&#10;ingebruikname?">
+      <bpmn:incoming>Flow_Task_VaststellenIngebruiknameschouw_Gateway_IngebruiknameAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_VervroegdeIngebruikname</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_RestpuntenIngebruikname</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_R52_VervroegdeIngebruikname" name="Ja, vervroegde ingebruikname&#10;→ R5.2 Start werk &quot;buiten&quot;">
+      <bpmn:incoming>Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_VervroegdeIngebruikname</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_R52_RestpuntenIngebruikname" name="Nee, restpunten uitvoeren door ON&#10;→ R5.2 Start werk &quot;buiten&quot;">
+      <bpmn:incoming>Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_RestpuntenIngebruikname</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R53_Task_OrganiserenInterneSchouw" sourceRef="StartEvent_R53" targetRef="Task_OrganiserenInterneSchouw" />
+    <bpmn:sequenceFlow id="Flow_Task_OrganiserenInterneSchouw_Gateway_SchouwType" sourceRef="Task_OrganiserenInterneSchouw" targetRef="Gateway_SchouwType" />
+    <bpmn:sequenceFlow id="Flow_Gateway_SchouwType_Task_UitvoerenOpleverschouwIntern" name="Oplevering" sourceRef="Gateway_SchouwType" targetRef="Task_UitvoerenOpleverschouwIntern">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${schouwType == "oplevering"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_SchouwType_Task_UitvoerenIngebruiknameschouwIntern" name="(vervroegde) Ingebruikname" sourceRef="Gateway_SchouwType" targetRef="Task_UitvoerenIngebruiknameschouwIntern">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${schouwType == "ingebruikname"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_UitvoerenOpleverschouwIntern_Task_OpleverschouwMetAannemer" sourceRef="Task_UitvoerenOpleverschouwIntern" targetRef="Task_OpleverschouwMetAannemer" />
+    <bpmn:sequenceFlow id="Flow_Task_OpleverschouwMetAannemer_Task_VaststellenOpleveringschouw" sourceRef="Task_OpleverschouwMetAannemer" targetRef="Task_VaststellenOpleveringschouw" />
+    <bpmn:sequenceFlow id="Flow_Task_VaststellenOpleveringschouw_Gateway_OpleveringAkkoord" sourceRef="Task_VaststellenOpleveringschouw" targetRef="Gateway_OpleveringAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_OpleveringAkkoord_EndEvent_R54_Oplevering" name="ja, oplevering areaal" sourceRef="Gateway_OpleveringAkkoord" targetRef="EndEvent_R54_Oplevering">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${opleveringAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_OpleveringAkkoord_EndEvent_R52_RestpuntenOplevering" name="nee, restpunten uitvoeren" sourceRef="Gateway_OpleveringAkkoord" targetRef="EndEvent_R52_RestpuntenOplevering">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${opleveringAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_UitvoerenIngebruiknameschouwIntern_Task_IngebruiknameschouwMetAannemer" sourceRef="Task_UitvoerenIngebruiknameschouwIntern" targetRef="Task_IngebruiknameschouwMetAannemer" />
+    <bpmn:sequenceFlow id="Flow_Task_IngebruiknameschouwMetAannemer_Task_VaststellenIngebruiknameschouw" sourceRef="Task_IngebruiknameschouwMetAannemer" targetRef="Task_VaststellenIngebruiknameschouw" />
+    <bpmn:sequenceFlow id="Flow_Task_VaststellenIngebruiknameschouw_Gateway_IngebruiknameAkkoord" sourceRef="Task_VaststellenIngebruiknameschouw" targetRef="Gateway_IngebruiknameAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_VervroegdeIngebruikname" name="ja, vervroegde ingebruikname" sourceRef="Gateway_IngebruiknameAkkoord" targetRef="EndEvent_R52_VervroegdeIngebruikname">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${ingebruiknameAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_RestpuntenIngebruikname" name="nee, restpunten door ON" sourceRef="Gateway_IngebruiknameAkkoord" targetRef="EndEvent_R52_RestpuntenIngebruikname">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${ingebruiknameAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:textAnnotation id="Annotation_R52_Entry">
+      <bpmn:text>R5.2 Werk gereed? — R5.3 begint zodra de directievoerder het werk gereed meldt</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_R52_Entry" sourceRef="Task_OrganiserenInterneSchouw" targetRef="Annotation_R52_Entry" />
+    <bpmn:textAnnotation id="Annotation_Bestek">
+      <bpmn:text>Beide interne schouwen toetsen tegen het bestek (incl. bijlagen) en leggen hun bevindingen vast op het sjabloon schouwrapport.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_Bestek" sourceRef="Task_UitvoerenOpleverschouwIntern" targetRef="Annotation_Bestek" />
+    <bpmn:textAnnotation id="Annotation_Exits">
+      <bpmn:text>Drie van de vier uitgangen keren terug naar R5.2, om drie verschillende redenen. Alleen een akkoord bevonden oplevering gaat door naar R5.4.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_Exits" sourceRef="Gateway_IngebruiknameAkkoord" targetRef="Annotation_Exits" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR53Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR53Process" bpmnElement="Collaboration_RipR53Process">
+      <bpmndi:BPMNShape id="Participant_RipR53Process_di" bpmnElement="Participant_RipR53Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1046" height="780" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Directievoerder_di" bpmnElement="Lane_Directievoerder" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="1016" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_VaststellenIngebruikname_di" bpmnElement="Lane_VaststellenIngebruikname" isHorizontal="true">
+        <dc:Bounds x="190" y="460" width="1016" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_InterneSchouw_di" bpmnElement="Lane_InterneSchouw" isHorizontal="true">
+        <dc:Bounds x="190" y="660" width="1016" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R53_di" bpmnElement="StartEvent_R53">
+        <dc:Bounds x="240" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="50" y="343" width="416" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OrganiserenInterneSchouw_di" bpmnElement="Task_OrganiserenInterneSchouw">
+        <dc:Bounds x="300" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SchouwType_di" bpmnElement="Gateway_SchouwType" isMarkerVisible="true">
+        <dc:Bounds x="460" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="381" y="350" width="208" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UitvoerenOpleverschouwIntern_di" bpmnElement="Task_UitvoerenOpleverschouwIntern">
+        <dc:Bounds x="540" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpleverschouwMetAannemer_di" bpmnElement="Task_OpleverschouwMetAannemer">
+        <dc:Bounds x="700" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VaststellenOpleveringschouw_di" bpmnElement="Task_VaststellenOpleveringschouw">
+        <dc:Bounds x="860" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OpleveringAkkoord_di" bpmnElement="Gateway_OpleveringAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1020" y="115" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1000" y="170" width="90" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R54_Oplevering_di" bpmnElement="EndEvent_R54_Oplevering">
+        <dc:Bounds x="1100" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="966" y="163" width="304" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R52_RestpuntenOplevering_di" bpmnElement="EndEvent_R52_RestpuntenOplevering">
+        <dc:Bounds x="1100" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1014" y="253" width="208" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UitvoerenIngebruiknameschouwIntern_di" bpmnElement="Task_UitvoerenIngebruiknameschouwIntern">
+        <dc:Bounds x="540" y="770" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_IngebruiknameschouwMetAannemer_di" bpmnElement="Task_IngebruiknameschouwMetAannemer">
+        <dc:Bounds x="700" y="370" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VaststellenIngebruiknameschouw_di" bpmnElement="Task_VaststellenIngebruiknameschouw">
+        <dc:Bounds x="860" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_IngebruiknameAkkoord_di" bpmnElement="Gateway_IngebruiknameAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1020" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="965" y="550" width="160" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R52_VervroegdeIngebruikname_di" bpmnElement="EndEvent_R52_VervroegdeIngebruikname">
+        <dc:Bounds x="1100" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1006" y="543" width="224" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R52_RestpuntenIngebruikname_di" bpmnElement="EndEvent_R52_RestpuntenIngebruikname">
+        <dc:Bounds x="1100" y="592" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="986" y="633" width="264" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_R52_Entry_di" bpmnElement="Annotation_R52_Entry">
+        <dc:Bounds x="240" y="660" width="280" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_Bestek_di" bpmnElement="Annotation_Bestek">
+        <dc:Bounds x="300" y="770" width="300" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_Exits_di" bpmnElement="Annotation_Exits">
+        <dc:Bounds x="700" y="570" width="300" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R53_Task_OrganiserenInterneSchouw_di" bpmnElement="Flow_StartEvent_R53_Task_OrganiserenInterneSchouw">
+        <di:waypoint x="276" y="320" />
+        <di:waypoint x="300" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OrganiserenInterneSchouw_Gateway_SchouwType_di" bpmnElement="Flow_Task_OrganiserenInterneSchouw_Gateway_SchouwType">
+        <di:waypoint x="400" y="320" />
+        <di:waypoint x="460" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_SchouwType_Task_UitvoerenOpleverschouwIntern_di" bpmnElement="Flow_Gateway_SchouwType_Task_UitvoerenOpleverschouwIntern">
+        <di:waypoint x="510" y="320" />
+        <di:waypoint x="525" y="320" />
+        <di:waypoint x="525" y="720" />
+        <di:waypoint x="540" y="720" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="516" y="300" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_SchouwType_Task_UitvoerenIngebruiknameschouwIntern_di" bpmnElement="Flow_Gateway_SchouwType_Task_UitvoerenIngebruiknameschouwIntern">
+        <di:waypoint x="510" y="320" />
+        <di:waypoint x="525" y="320" />
+        <di:waypoint x="525" y="810" />
+        <di:waypoint x="540" y="810" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="516" y="300" width="208" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UitvoerenOpleverschouwIntern_Task_OpleverschouwMetAannemer_di" bpmnElement="Flow_Task_UitvoerenOpleverschouwIntern_Task_OpleverschouwMetAannemer">
+        <di:waypoint x="640" y="720" />
+        <di:waypoint x="670" y="720" />
+        <di:waypoint x="670" y="140" />
+        <di:waypoint x="700" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpleverschouwMetAannemer_Task_VaststellenOpleveringschouw_di" bpmnElement="Flow_Task_OpleverschouwMetAannemer_Task_VaststellenOpleveringschouw">
+        <di:waypoint x="800" y="140" />
+        <di:waypoint x="860" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VaststellenOpleveringschouw_Gateway_OpleveringAkkoord_di" bpmnElement="Flow_Task_VaststellenOpleveringschouw_Gateway_OpleveringAkkoord">
+        <di:waypoint x="960" y="140" />
+        <di:waypoint x="1020" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OpleveringAkkoord_EndEvent_R54_Oplevering_di" bpmnElement="Flow_Gateway_OpleveringAkkoord_EndEvent_R54_Oplevering">
+        <di:waypoint x="1070" y="140" />
+        <di:waypoint x="1100" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1076" y="120" width="168" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OpleveringAkkoord_EndEvent_R52_RestpuntenOplevering_di" bpmnElement="Flow_Gateway_OpleveringAkkoord_EndEvent_R52_RestpuntenOplevering">
+        <di:waypoint x="1070" y="140" />
+        <di:waypoint x="1085" y="140" />
+        <di:waypoint x="1085" y="230" />
+        <di:waypoint x="1100" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1076" y="120" width="200" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UitvoerenIngebruiknameschouwIntern_Task_IngebruiknameschouwMetAannemer_di" bpmnElement="Flow_Task_UitvoerenIngebruiknameschouwIntern_Task_IngebruiknameschouwMetAannemer">
+        <di:waypoint x="640" y="810" />
+        <di:waypoint x="670" y="810" />
+        <di:waypoint x="670" y="410" />
+        <di:waypoint x="700" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_IngebruiknameschouwMetAannemer_Task_VaststellenIngebruiknameschouw_di" bpmnElement="Flow_Task_IngebruiknameschouwMetAannemer_Task_VaststellenIngebruiknameschouw">
+        <di:waypoint x="800" y="410" />
+        <di:waypoint x="830" y="410" />
+        <di:waypoint x="830" y="520" />
+        <di:waypoint x="860" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VaststellenIngebruiknameschouw_Gateway_IngebruiknameAkkoord_di" bpmnElement="Flow_Task_VaststellenIngebruiknameschouw_Gateway_IngebruiknameAkkoord">
+        <di:waypoint x="960" y="520" />
+        <di:waypoint x="1020" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_VervroegdeIngebruikname_di" bpmnElement="Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_VervroegdeIngebruikname">
+        <di:waypoint x="1070" y="520" />
+        <di:waypoint x="1100" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1076" y="500" width="224" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_RestpuntenIngebruikname_di" bpmnElement="Flow_Gateway_IngebruiknameAkkoord_EndEvent_R52_RestpuntenIngebruikname">
+        <di:waypoint x="1070" y="520" />
+        <di:waypoint x="1085" y="520" />
+        <di:waypoint x="1085" y="610" />
+        <di:waypoint x="1100" y="610" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1076" y="500" width="184" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_R52_Entry_di" bpmnElement="Assoc_Annotation_R52_Entry">
+        <di:waypoint x="350" y="280" />
+        <di:waypoint x="380" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_Bestek_di" bpmnElement="Assoc_Annotation_Bestek">
+        <di:waypoint x="590" y="680" />
+        <di:waypoint x="450" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_Exits_di" bpmnElement="Assoc_Annotation_Exits">
+        <di:waypoint x="1045" y="495" />
+        <di:waypoint x="850" y="630" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR61Process" targetNamespace="http://example.com/rip-phase-61" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR61Process">
+    <bpmn:participant id="Participant_RipR61Process" name="R6.1 - Projectdecharge" processRef="RipR61Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR61Process" name="R6.1 - Projectdecharge" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR61Process">
+      <bpmn:lane id="Lane_RipTeam" name="RIP-team">
+        <bpmn:flowNodeRef>Task_BesprekenEindevaluatie</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_BeheerderVestigingsmanager" name="Beheerder, Vestigingsmanager">
+        <bpmn:flowNodeRef>Task_BeoordelenOndertekenenOverdrachtsverklaring</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OverdrachtsverklaringAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenOndertekendeOverdrachtsverklaring</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectondersteuner" name="Projectondersteuner">
+        <bpmn:flowNodeRef>Task_AanmakenFinancieelOverzicht</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenOverdrachtsverklaringTerOndertekening</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformerenPlOverOndertekening</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlannenAfspraakEindevaluatie</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UpdatenEindevaluatie</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenGeaccordeerdDechargedossier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AfsluitenSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenSluitenProjectmap</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenAanpassenRechtenRelatics</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AfsluitenJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_EindeProces</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>StartEvent_R61</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstartenDecharge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DechargeSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ControlerenOndertekenenFinancieelOverzicht</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenOverdrachtsverklaring</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenOverdrachtsverklaring</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenVersturenEindevaluatie</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DechargeJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenDechargedossier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformerenPoOverAkkoord</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Financien" name="Financiën">
+        <bpmn:flowNodeRef>Task_InvullenFinancieelOverzicht</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerwerkenFinancieleEindstand</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AO" name="AO">
+        <bpmn:flowNodeRef>Task_AccorderenDechargedossier</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R61" name="Start R6.1 - Projectdecharge&#10;(vanuit R5.4 Gereedmelden VISI)">
+      <bpmn:outgoing>Flow_StartEvent_R61_Task_OpstartenDecharge</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_OpstartenDecharge" name="Opstarten&#10;decharge" camunda:formRef="rip-opstarten-decharge" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_StartEvent_R61_Task_OpstartenDecharge</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstartenDecharge_Gateway_DechargeSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_DechargeSplit">
+      <bpmn:incoming>Flow_Task_OpstartenDecharge_Gateway_DechargeSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_DechargeSplit_Task_AanmakenFinancieelOverzicht</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_DechargeSplit_Task_OpstellenOverdrachtsverklaring</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_DechargeSplit_Task_OpstellenVersturenEindevaluatie</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_AanmakenFinancieelOverzicht" name="A. Aanmaken financieel overzicht voor decharge,&#10;opslaan in zaakmap DMS en versturen naar Financiën (cc PL)" camunda:formRef="rip-aanmaken-financieel-overzicht" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner" ronl:documentRef="rip-financieel-overzicht-decharge">
+      <bpmn:incoming>Flow_Gateway_DechargeSplit_Task_AanmakenFinancieelOverzicht</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AanmakenFinancieelOverzicht_Task_InvullenFinancieelOverzicht</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InvullenFinancieelOverzicht" name="Invullen financieel overzicht voor decharge&#10;en versturen ter ondertekening naar PL" camunda:formRef="rip-invullen-financieel-overzicht" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-financien">
+      <bpmn:incoming>Flow_Task_AanmakenFinancieelOverzicht_Task_InvullenFinancieelOverzicht</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InvullenFinancieelOverzicht_Task_ControlerenOndertekenenFinancieelOverzicht</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControlerenOndertekenenFinancieelOverzicht" name="Controleren en ondertekenen&#10;financieel overzicht voor decharge" camunda:formRef="rip-controleren-ondertekenen-financieel-overzicht" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_InvullenFinancieelOverzicht_Task_ControlerenOndertekenenFinancieelOverzicht</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenOndertekenenFinancieelOverzicht_Gateway_DechargeJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenOverdrachtsverklaring" name="B. Opstellen&#10;overdrachtsverklaring" camunda:formRef="rip-opstellen-overdrachtsverklaring" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-overdrachtsverklaring">
+      <bpmn:incoming>Flow_Gateway_DechargeSplit_Task_OpstellenOverdrachtsverklaring</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_OverdrachtsverklaringAkkoord_Task_OpstellenOverdrachtsverklaring</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaring</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenOverdrachtsverklaring" name="Versturen&#10;overdrachtsverklaring" camunda:formRef="rip-versturen-overdrachtsverklaring" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_OpstellenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaring</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaringTerOndertekening</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenOverdrachtsverklaringTerOndertekening" name="Versturen overdrachtsverklaring aan&#10;Beheerder en VM ter ondertekening" camunda:formRef="rip-versturen-overdrachtsverklaring-ondertekening" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Task_VersturenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaringTerOndertekening</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenOverdrachtsverklaringTerOndertekening_Task_BeoordelenOndertekenenOverdrachtsverklaring</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenOndertekenenOverdrachtsverklaring" name="Beoordelen en ondertekenen&#10;overdrachtsverklaring" camunda:formRef="rip-beoordelen-ondertekenen-overdrachtsverklaring" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-beheerder,rip-vestigingsmanager">
+      <bpmn:incoming>Flow_Task_VersturenOverdrachtsverklaringTerOndertekening_Task_BeoordelenOndertekenenOverdrachtsverklaring</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenOndertekenenOverdrachtsverklaring_Gateway_OverdrachtsverklaringAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_OverdrachtsverklaringAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_BeoordelenOndertekenenOverdrachtsverklaring_Gateway_OverdrachtsverklaringAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_OverdrachtsverklaringAkkoord_Task_OpstellenOverdrachtsverklaring</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_OverdrachtsverklaringAkkoord_Task_VersturenOndertekendeOverdrachtsverklaring</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_VersturenOndertekendeOverdrachtsverklaring" name="Versturen ondertekende&#10;overdrachtsverklaring naar PO" camunda:formRef="rip-versturen-ondertekende-overdrachtsverklaring" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-beheerder,rip-vestigingsmanager">
+      <bpmn:incoming>Flow_Gateway_OverdrachtsverklaringAkkoord_Task_VersturenOndertekendeOverdrachtsverklaring</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenOndertekendeOverdrachtsverklaring_Task_InformerenPlOverOndertekening</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InformerenPlOverOndertekening" name="Informeren PL over ondertekenen&#10;overdrachtsverklaring" camunda:formRef="rip-informeren-pl-ondertekening" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Task_VersturenOndertekendeOverdrachtsverklaring_Task_InformerenPlOverOndertekening</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InformerenPlOverOndertekening_Gateway_DechargeJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenVersturenEindevaluatie" name="C. Opstellen en&#10;versturen eindevaluatie" camunda:formRef="rip-opstellen-versturen-eindevaluatie" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-eindevaluatie">
+      <bpmn:incoming>Flow_Gateway_DechargeSplit_Task_OpstellenVersturenEindevaluatie</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenVersturenEindevaluatie_Task_PlannenAfspraakEindevaluatie</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_PlannenAfspraakEindevaluatie" name="Plannen afspraak RIP-team&#10;bespreken eindevaluatie" camunda:formRef="rip-plannen-afspraak-eindevaluatie" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Task_OpstellenVersturenEindevaluatie_Task_PlannenAfspraakEindevaluatie</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_PlannenAfspraakEindevaluatie_Task_BesprekenEindevaluatie</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BesprekenEindevaluatie" name="Bespreken&#10;eindevaluatie" camunda:formRef="rip-bespreken-eindevaluatie" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-team">
+      <bpmn:incoming>Flow_Task_PlannenAfspraakEindevaluatie_Task_BesprekenEindevaluatie</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BesprekenEindevaluatie_Task_UpdatenEindevaluatie</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_UpdatenEindevaluatie" name="Updaten eindevaluatie n.a.v.&#10;bespreking RIP-team" camunda:formRef="rip-updaten-eindevaluatie" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Task_BesprekenEindevaluatie_Task_UpdatenEindevaluatie</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UpdatenEindevaluatie_Gateway_DechargeJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_DechargeJoin">
+      <bpmn:incoming>Flow_Task_ControlerenOndertekenenFinancieelOverzicht_Gateway_DechargeJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_InformerenPlOverOndertekening_Gateway_DechargeJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_UpdatenEindevaluatie_Gateway_DechargeJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_DechargeJoin_Task_OpstellenDechargedossier</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_OpstellenDechargedossier" name="Opstellen dechargedossier&#10;en versturen naar AO" camunda:formRef="rip-opstellen-dechargedossier" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-dechargedossier">
+      <bpmn:incoming>Flow_Gateway_DechargeJoin_Task_OpstellenDechargedossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenDechargedossier_Task_AccorderenDechargedossier</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenDechargedossier" name="Accorderen dechargedossier&#10;en informeren PL" camunda:formRef="rip-accorderen-dechargedossier" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao">
+      <bpmn:incoming>Flow_Task_OpstellenDechargedossier_Task_AccorderenDechargedossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenDechargedossier_Task_InformerenPoOverAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InformerenPoOverAkkoord" name="Informeren PO&#10;over akkoord AO" camunda:formRef="rip-informeren-po-akkoord" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_AccorderenDechargedossier_Task_InformerenPoOverAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InformerenPoOverAkkoord_Task_VersturenGeaccordeerdDechargedossier</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenGeaccordeerdDechargedossier" name="Versturen geaccordeerd&#10;dechargedossier aan Financiën" camunda:formRef="rip-versturen-geaccordeerd-dechargedossier" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Task_InformerenPoOverAkkoord_Task_VersturenGeaccordeerdDechargedossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenGeaccordeerdDechargedossier_Gateway_AfsluitenSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_AfsluitenSplit">
+      <bpmn:incoming>Flow_Task_VersturenGeaccordeerdDechargedossier_Gateway_AfsluitenSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AfsluitenSplit_Task_VerwerkenFinancieleEindstand</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AfsluitenSplit_Task_LatenSluitenProjectmap</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AfsluitenSplit_Task_LatenAanpassenRechtenRelatics</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_VerwerkenFinancieleEindstand" name="Verwerken financiële eindstand uit&#10;dechargedossier in raamkrediet Infra" camunda:formRef="rip-verwerken-financiele-eindstand" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-financien">
+      <bpmn:incoming>Flow_Gateway_AfsluitenSplit_Task_VerwerkenFinancieleEindstand</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerwerkenFinancieleEindstand_Gateway_AfsluitenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_LatenSluitenProjectmap" name="Laten sluiten projectmap in DMS&#10;via TopDeskmelding" camunda:formRef="rip-laten-sluiten-projectmap" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Gateway_AfsluitenSplit_Task_LatenSluitenProjectmap</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenSluitenProjectmap_Gateway_AfsluitenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_LatenAanpassenRechtenRelatics" name="Laten aanpassen rechten&#10;workspace Relatics" camunda:formRef="rip-laten-aanpassen-rechten-relatics" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Gateway_AfsluitenSplit_Task_LatenAanpassenRechtenRelatics</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenAanpassenRechtenRelatics_Gateway_AfsluitenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_AfsluitenJoin">
+      <bpmn:incoming>Flow_Task_VerwerkenFinancieleEindstand_Gateway_AfsluitenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_LatenSluitenProjectmap_Gateway_AfsluitenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_LatenAanpassenRechtenRelatics_Gateway_AfsluitenJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AfsluitenJoin_EndEvent_EindeProces</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="EndEvent_EindeProces" name="Einde proces&#10;(project gedechargeerd)">
+      <bpmn:incoming>Flow_Gateway_AfsluitenJoin_EndEvent_EindeProces</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R61_Task_OpstartenDecharge" sourceRef="StartEvent_R61" targetRef="Task_OpstartenDecharge" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstartenDecharge_Gateway_DechargeSplit" sourceRef="Task_OpstartenDecharge" targetRef="Gateway_DechargeSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_DechargeSplit_Task_AanmakenFinancieelOverzicht" name="A. Fin. overzicht decharge" sourceRef="Gateway_DechargeSplit" targetRef="Task_AanmakenFinancieelOverzicht" />
+    <bpmn:sequenceFlow id="Flow_Gateway_DechargeSplit_Task_OpstellenOverdrachtsverklaring" name="B. Overdrachtsverklaring" sourceRef="Gateway_DechargeSplit" targetRef="Task_OpstellenOverdrachtsverklaring" />
+    <bpmn:sequenceFlow id="Flow_Gateway_DechargeSplit_Task_OpstellenVersturenEindevaluatie" name="C. Eindevaluatie" sourceRef="Gateway_DechargeSplit" targetRef="Task_OpstellenVersturenEindevaluatie" />
+    <bpmn:sequenceFlow id="Flow_Task_AanmakenFinancieelOverzicht_Task_InvullenFinancieelOverzicht" sourceRef="Task_AanmakenFinancieelOverzicht" targetRef="Task_InvullenFinancieelOverzicht" />
+    <bpmn:sequenceFlow id="Flow_Task_InvullenFinancieelOverzicht_Task_ControlerenOndertekenenFinancieelOverzicht" sourceRef="Task_InvullenFinancieelOverzicht" targetRef="Task_ControlerenOndertekenenFinancieelOverzicht" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenOndertekenenFinancieelOverzicht_Gateway_DechargeJoin" sourceRef="Task_ControlerenOndertekenenFinancieelOverzicht" targetRef="Gateway_DechargeJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaring" sourceRef="Task_OpstellenOverdrachtsverklaring" targetRef="Task_VersturenOverdrachtsverklaring" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaringTerOndertekening" sourceRef="Task_VersturenOverdrachtsverklaring" targetRef="Task_VersturenOverdrachtsverklaringTerOndertekening" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenOverdrachtsverklaringTerOndertekening_Task_BeoordelenOndertekenenOverdrachtsverklaring" sourceRef="Task_VersturenOverdrachtsverklaringTerOndertekening" targetRef="Task_BeoordelenOndertekenenOverdrachtsverklaring" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenOndertekenenOverdrachtsverklaring_Gateway_OverdrachtsverklaringAkkoord" sourceRef="Task_BeoordelenOndertekenenOverdrachtsverklaring" targetRef="Gateway_OverdrachtsverklaringAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_OverdrachtsverklaringAkkoord_Task_OpstellenOverdrachtsverklaring" name="nee" sourceRef="Gateway_OverdrachtsverklaringAkkoord" targetRef="Task_OpstellenOverdrachtsverklaring">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${overdrachtsverklaringAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_OverdrachtsverklaringAkkoord_Task_VersturenOndertekendeOverdrachtsverklaring" name="ja" sourceRef="Gateway_OverdrachtsverklaringAkkoord" targetRef="Task_VersturenOndertekendeOverdrachtsverklaring">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${overdrachtsverklaringAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_VersturenOndertekendeOverdrachtsverklaring_Task_InformerenPlOverOndertekening" sourceRef="Task_VersturenOndertekendeOverdrachtsverklaring" targetRef="Task_InformerenPlOverOndertekening" />
+    <bpmn:sequenceFlow id="Flow_Task_InformerenPlOverOndertekening_Gateway_DechargeJoin" sourceRef="Task_InformerenPlOverOndertekening" targetRef="Gateway_DechargeJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenVersturenEindevaluatie_Task_PlannenAfspraakEindevaluatie" sourceRef="Task_OpstellenVersturenEindevaluatie" targetRef="Task_PlannenAfspraakEindevaluatie" />
+    <bpmn:sequenceFlow id="Flow_Task_PlannenAfspraakEindevaluatie_Task_BesprekenEindevaluatie" sourceRef="Task_PlannenAfspraakEindevaluatie" targetRef="Task_BesprekenEindevaluatie" />
+    <bpmn:sequenceFlow id="Flow_Task_BesprekenEindevaluatie_Task_UpdatenEindevaluatie" sourceRef="Task_BesprekenEindevaluatie" targetRef="Task_UpdatenEindevaluatie" />
+    <bpmn:sequenceFlow id="Flow_Task_UpdatenEindevaluatie_Gateway_DechargeJoin" sourceRef="Task_UpdatenEindevaluatie" targetRef="Gateway_DechargeJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_DechargeJoin_Task_OpstellenDechargedossier" sourceRef="Gateway_DechargeJoin" targetRef="Task_OpstellenDechargedossier" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenDechargedossier_Task_AccorderenDechargedossier" sourceRef="Task_OpstellenDechargedossier" targetRef="Task_AccorderenDechargedossier" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenDechargedossier_Task_InformerenPoOverAkkoord" sourceRef="Task_AccorderenDechargedossier" targetRef="Task_InformerenPoOverAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Task_InformerenPoOverAkkoord_Task_VersturenGeaccordeerdDechargedossier" sourceRef="Task_InformerenPoOverAkkoord" targetRef="Task_VersturenGeaccordeerdDechargedossier" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenGeaccordeerdDechargedossier_Gateway_AfsluitenSplit" sourceRef="Task_VersturenGeaccordeerdDechargedossier" targetRef="Gateway_AfsluitenSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfsluitenSplit_Task_VerwerkenFinancieleEindstand" sourceRef="Gateway_AfsluitenSplit" targetRef="Task_VerwerkenFinancieleEindstand" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfsluitenSplit_Task_LatenSluitenProjectmap" sourceRef="Gateway_AfsluitenSplit" targetRef="Task_LatenSluitenProjectmap" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfsluitenSplit_Task_LatenAanpassenRechtenRelatics" sourceRef="Gateway_AfsluitenSplit" targetRef="Task_LatenAanpassenRechtenRelatics" />
+    <bpmn:sequenceFlow id="Flow_Task_VerwerkenFinancieleEindstand_Gateway_AfsluitenJoin" sourceRef="Task_VerwerkenFinancieleEindstand" targetRef="Gateway_AfsluitenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_LatenSluitenProjectmap_Gateway_AfsluitenJoin" sourceRef="Task_LatenSluitenProjectmap" targetRef="Gateway_AfsluitenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_LatenAanpassenRechtenRelatics_Gateway_AfsluitenJoin" sourceRef="Task_LatenAanpassenRechtenRelatics" targetRef="Gateway_AfsluitenJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfsluitenJoin_EndEvent_EindeProces" sourceRef="Gateway_AfsluitenJoin" targetRef="EndEvent_EindeProces" />
+
+    <bpmn:textAnnotation id="Annotation_R54_Entry">
+      <bpmn:text>R5.4 Gereedmelden VISI — de decharge start zodra het werk in VISI gereed is gemeld</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_R54_Entry" sourceRef="Task_OpstartenDecharge" targetRef="Annotation_R54_Entry" />
+    <bpmn:textAnnotation id="Annotation_EindeProces">
+      <bpmn:text>De sheet tekent twee markers "Einde proces", één per afsluitende PO-actie. Ze betekenen dezelfde afronding en zijn hier samengevoegd tot één eindgebeurtenis achter de join.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_EindeProces" sourceRef="Gateway_AfsluitenJoin" targetRef="Annotation_EindeProces" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR61Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR61Process" bpmnElement="Collaboration_RipR61Process">
+      <bpmndi:BPMNShape id="Participant_RipR61Process_di" bpmnElement="Participant_RipR61Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2566" height="1220" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_RipTeam_di" bpmnElement="Lane_RipTeam" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="2536" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_BeheerderVestigingsmanager_di" bpmnElement="Lane_BeheerderVestigingsmanager" isHorizontal="true">
+        <dc:Bounds x="190" y="200" width="2536" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectondersteuner_di" bpmnElement="Lane_Projectondersteuner" isHorizontal="true">
+        <dc:Bounds x="190" y="400" width="2536" height="290" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="690" width="2536" height="290" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Financien_di" bpmnElement="Lane_Financien" isHorizontal="true">
+        <dc:Bounds x="190" y="980" width="2536" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AO_di" bpmnElement="Lane_AO" isHorizontal="true">
+        <dc:Bounds x="190" y="1180" width="2536" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R61_di" bpmnElement="StartEvent_R61">
+        <dc:Bounds x="240" y="732" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="134" y="773" width="248" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstartenDecharge_di" bpmnElement="Task_OpstartenDecharge">
+        <dc:Bounds x="300" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_DechargeSplit_di" bpmnElement="Gateway_DechargeSplit">
+        <dc:Bounds x="460" y="725" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanmakenFinancieelOverzicht_di" bpmnElement="Task_AanmakenFinancieelOverzicht">
+        <dc:Bounds x="540" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InvullenFinancieelOverzicht_di" bpmnElement="Task_InvullenFinancieelOverzicht">
+        <dc:Bounds x="700" y="1000" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenOndertekenenFinancieelOverzicht_di" bpmnElement="Task_ControlerenOndertekenenFinancieelOverzicht">
+        <dc:Bounds x="860" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenOverdrachtsverklaring_di" bpmnElement="Task_OpstellenOverdrachtsverklaring">
+        <dc:Bounds x="540" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenOverdrachtsverklaring_di" bpmnElement="Task_VersturenOverdrachtsverklaring">
+        <dc:Bounds x="700" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenOverdrachtsverklaringTerOndertekening_di" bpmnElement="Task_VersturenOverdrachtsverklaringTerOndertekening">
+        <dc:Bounds x="860" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenOndertekenenOverdrachtsverklaring_di" bpmnElement="Task_BeoordelenOndertekenenOverdrachtsverklaring">
+        <dc:Bounds x="1020" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OverdrachtsverklaringAkkoord_di" bpmnElement="Gateway_OverdrachtsverklaringAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1180" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1160" y="290" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenOndertekendeOverdrachtsverklaring_di" bpmnElement="Task_VersturenOndertekendeOverdrachtsverklaring">
+        <dc:Bounds x="1260" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InformerenPlOverOndertekening_di" bpmnElement="Task_InformerenPlOverOndertekening">
+        <dc:Bounds x="1420" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenVersturenEindevaluatie_di" bpmnElement="Task_OpstellenVersturenEindevaluatie">
+        <dc:Bounds x="540" y="890" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PlannenAfspraakEindevaluatie_di" bpmnElement="Task_PlannenAfspraakEindevaluatie">
+        <dc:Bounds x="700" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BesprekenEindevaluatie_di" bpmnElement="Task_BesprekenEindevaluatie">
+        <dc:Bounds x="860" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdatenEindevaluatie_di" bpmnElement="Task_UpdatenEindevaluatie">
+        <dc:Bounds x="1020" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_DechargeJoin_di" bpmnElement="Gateway_DechargeJoin">
+        <dc:Bounds x="1580" y="725" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenDechargedossier_di" bpmnElement="Task_OpstellenDechargedossier">
+        <dc:Bounds x="1660" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenDechargedossier_di" bpmnElement="Task_AccorderenDechargedossier">
+        <dc:Bounds x="1820" y="1200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InformerenPoOverAkkoord_di" bpmnElement="Task_InformerenPoOverAkkoord">
+        <dc:Bounds x="1980" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenGeaccordeerdDechargedossier_di" bpmnElement="Task_VersturenGeaccordeerdDechargedossier">
+        <dc:Bounds x="2140" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AfsluitenSplit_di" bpmnElement="Gateway_AfsluitenSplit">
+        <dc:Bounds x="2300" y="435" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerwerkenFinancieleEindstand_di" bpmnElement="Task_VerwerkenFinancieleEindstand">
+        <dc:Bounds x="2380" y="1090" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenSluitenProjectmap_di" bpmnElement="Task_LatenSluitenProjectmap">
+        <dc:Bounds x="2380" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenAanpassenRechtenRelatics_di" bpmnElement="Task_LatenAanpassenRechtenRelatics">
+        <dc:Bounds x="2380" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AfsluitenJoin_di" bpmnElement="Gateway_AfsluitenJoin">
+        <dc:Bounds x="2540" y="435" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_EindeProces_di" bpmnElement="EndEvent_EindeProces">
+        <dc:Bounds x="2620" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2546" y="483" width="184" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_R54_Entry_di" bpmnElement="Annotation_R54_Entry">
+        <dc:Bounds x="240" y="890" width="280" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_EindeProces_di" bpmnElement="Annotation_EindeProces">
+        <dc:Bounds x="2300" y="600" width="320" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R61_Task_OpstartenDecharge_di" bpmnElement="Flow_StartEvent_R61_Task_OpstartenDecharge">
+        <di:waypoint x="276" y="750" />
+        <di:waypoint x="300" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstartenDecharge_Gateway_DechargeSplit_di" bpmnElement="Flow_Task_OpstartenDecharge_Gateway_DechargeSplit">
+        <di:waypoint x="400" y="750" />
+        <di:waypoint x="460" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_DechargeSplit_Task_AanmakenFinancieelOverzicht_di" bpmnElement="Flow_Gateway_DechargeSplit_Task_AanmakenFinancieelOverzicht">
+        <di:waypoint x="510" y="750" />
+        <di:waypoint x="525" y="750" />
+        <di:waypoint x="525" y="460" />
+        <di:waypoint x="540" y="460" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="516" y="730" width="208" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_DechargeSplit_Task_OpstellenOverdrachtsverklaring_di" bpmnElement="Flow_Gateway_DechargeSplit_Task_OpstellenOverdrachtsverklaring">
+        <di:waypoint x="510" y="750" />
+        <di:waypoint x="525" y="750" />
+        <di:waypoint x="525" y="840" />
+        <di:waypoint x="540" y="840" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="516" y="730" width="192" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_DechargeSplit_Task_OpstellenVersturenEindevaluatie_di" bpmnElement="Flow_Gateway_DechargeSplit_Task_OpstellenVersturenEindevaluatie">
+        <di:waypoint x="510" y="750" />
+        <di:waypoint x="525" y="750" />
+        <di:waypoint x="525" y="930" />
+        <di:waypoint x="540" y="930" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="516" y="730" width="128" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AanmakenFinancieelOverzicht_Task_InvullenFinancieelOverzicht_di" bpmnElement="Flow_Task_AanmakenFinancieelOverzicht_Task_InvullenFinancieelOverzicht">
+        <di:waypoint x="640" y="460" />
+        <di:waypoint x="670" y="460" />
+        <di:waypoint x="670" y="1040" />
+        <di:waypoint x="700" y="1040" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InvullenFinancieelOverzicht_Task_ControlerenOndertekenenFinancieelOverzicht_di" bpmnElement="Flow_Task_InvullenFinancieelOverzicht_Task_ControlerenOndertekenenFinancieelOverzicht">
+        <di:waypoint x="800" y="1040" />
+        <di:waypoint x="830" y="1040" />
+        <di:waypoint x="830" y="750" />
+        <di:waypoint x="860" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenOndertekenenFinancieelOverzicht_Gateway_DechargeJoin_di" bpmnElement="Flow_Task_ControlerenOndertekenenFinancieelOverzicht_Gateway_DechargeJoin">
+        <di:waypoint x="960" y="750" />
+        <di:waypoint x="1580" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaring_di" bpmnElement="Flow_Task_OpstellenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaring">
+        <di:waypoint x="640" y="840" />
+        <di:waypoint x="700" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaringTerOndertekening_di" bpmnElement="Flow_Task_VersturenOverdrachtsverklaring_Task_VersturenOverdrachtsverklaringTerOndertekening">
+        <di:waypoint x="800" y="840" />
+        <di:waypoint x="830" y="840" />
+        <di:waypoint x="830" y="550" />
+        <di:waypoint x="860" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenOverdrachtsverklaringTerOndertekening_Task_BeoordelenOndertekenenOverdrachtsverklaring_di" bpmnElement="Flow_Task_VersturenOverdrachtsverklaringTerOndertekening_Task_BeoordelenOndertekenenOverdrachtsverklaring">
+        <di:waypoint x="960" y="550" />
+        <di:waypoint x="990" y="550" />
+        <di:waypoint x="990" y="260" />
+        <di:waypoint x="1020" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenOndertekenenOverdrachtsverklaring_Gateway_OverdrachtsverklaringAkkoord_di" bpmnElement="Flow_Task_BeoordelenOndertekenenOverdrachtsverklaring_Gateway_OverdrachtsverklaringAkkoord">
+        <di:waypoint x="1120" y="260" />
+        <di:waypoint x="1180" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OverdrachtsverklaringAkkoord_Task_OpstellenOverdrachtsverklaring_di" bpmnElement="Flow_Gateway_OverdrachtsverklaringAkkoord_Task_OpstellenOverdrachtsverklaring">
+        <di:waypoint x="1205" y="285" />
+        <di:waypoint x="1205" y="975" />
+        <di:waypoint x="590" y="975" />
+        <di:waypoint x="590" y="880" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1211" y="265" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OverdrachtsverklaringAkkoord_Task_VersturenOndertekendeOverdrachtsverklaring_di" bpmnElement="Flow_Gateway_OverdrachtsverklaringAkkoord_Task_VersturenOndertekendeOverdrachtsverklaring">
+        <di:waypoint x="1230" y="260" />
+        <di:waypoint x="1260" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1236" y="240" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenOndertekendeOverdrachtsverklaring_Task_InformerenPlOverOndertekening_di" bpmnElement="Flow_Task_VersturenOndertekendeOverdrachtsverklaring_Task_InformerenPlOverOndertekening">
+        <di:waypoint x="1360" y="260" />
+        <di:waypoint x="1390" y="260" />
+        <di:waypoint x="1390" y="460" />
+        <di:waypoint x="1420" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InformerenPlOverOndertekening_Gateway_DechargeJoin_di" bpmnElement="Flow_Task_InformerenPlOverOndertekening_Gateway_DechargeJoin">
+        <di:waypoint x="1520" y="460" />
+        <di:waypoint x="1550" y="460" />
+        <di:waypoint x="1550" y="750" />
+        <di:waypoint x="1580" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenVersturenEindevaluatie_Task_PlannenAfspraakEindevaluatie_di" bpmnElement="Flow_Task_OpstellenVersturenEindevaluatie_Task_PlannenAfspraakEindevaluatie">
+        <di:waypoint x="640" y="930" />
+        <di:waypoint x="670" y="930" />
+        <di:waypoint x="670" y="640" />
+        <di:waypoint x="700" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_PlannenAfspraakEindevaluatie_Task_BesprekenEindevaluatie_di" bpmnElement="Flow_Task_PlannenAfspraakEindevaluatie_Task_BesprekenEindevaluatie">
+        <di:waypoint x="800" y="640" />
+        <di:waypoint x="830" y="640" />
+        <di:waypoint x="830" y="140" />
+        <di:waypoint x="860" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BesprekenEindevaluatie_Task_UpdatenEindevaluatie_di" bpmnElement="Flow_Task_BesprekenEindevaluatie_Task_UpdatenEindevaluatie">
+        <di:waypoint x="960" y="140" />
+        <di:waypoint x="990" y="140" />
+        <di:waypoint x="990" y="640" />
+        <di:waypoint x="1020" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UpdatenEindevaluatie_Gateway_DechargeJoin_di" bpmnElement="Flow_Task_UpdatenEindevaluatie_Gateway_DechargeJoin">
+        <di:waypoint x="1120" y="640" />
+        <di:waypoint x="1350" y="640" />
+        <di:waypoint x="1350" y="750" />
+        <di:waypoint x="1580" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_DechargeJoin_Task_OpstellenDechargedossier_di" bpmnElement="Flow_Gateway_DechargeJoin_Task_OpstellenDechargedossier">
+        <di:waypoint x="1630" y="750" />
+        <di:waypoint x="1660" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenDechargedossier_Task_AccorderenDechargedossier_di" bpmnElement="Flow_Task_OpstellenDechargedossier_Task_AccorderenDechargedossier">
+        <di:waypoint x="1760" y="750" />
+        <di:waypoint x="1790" y="750" />
+        <di:waypoint x="1790" y="1240" />
+        <di:waypoint x="1820" y="1240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenDechargedossier_Task_InformerenPoOverAkkoord_di" bpmnElement="Flow_Task_AccorderenDechargedossier_Task_InformerenPoOverAkkoord">
+        <di:waypoint x="1920" y="1240" />
+        <di:waypoint x="1950" y="1240" />
+        <di:waypoint x="1950" y="750" />
+        <di:waypoint x="1980" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InformerenPoOverAkkoord_Task_VersturenGeaccordeerdDechargedossier_di" bpmnElement="Flow_Task_InformerenPoOverAkkoord_Task_VersturenGeaccordeerdDechargedossier">
+        <di:waypoint x="2080" y="750" />
+        <di:waypoint x="2110" y="750" />
+        <di:waypoint x="2110" y="460" />
+        <di:waypoint x="2140" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenGeaccordeerdDechargedossier_Gateway_AfsluitenSplit_di" bpmnElement="Flow_Task_VersturenGeaccordeerdDechargedossier_Gateway_AfsluitenSplit">
+        <di:waypoint x="2240" y="460" />
+        <di:waypoint x="2300" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfsluitenSplit_Task_VerwerkenFinancieleEindstand_di" bpmnElement="Flow_Gateway_AfsluitenSplit_Task_VerwerkenFinancieleEindstand">
+        <di:waypoint x="2350" y="460" />
+        <di:waypoint x="2365" y="460" />
+        <di:waypoint x="2365" y="1130" />
+        <di:waypoint x="2380" y="1130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfsluitenSplit_Task_LatenSluitenProjectmap_di" bpmnElement="Flow_Gateway_AfsluitenSplit_Task_LatenSluitenProjectmap">
+        <di:waypoint x="2350" y="460" />
+        <di:waypoint x="2380" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfsluitenSplit_Task_LatenAanpassenRechtenRelatics_di" bpmnElement="Flow_Gateway_AfsluitenSplit_Task_LatenAanpassenRechtenRelatics">
+        <di:waypoint x="2350" y="460" />
+        <di:waypoint x="2365" y="460" />
+        <di:waypoint x="2365" y="550" />
+        <di:waypoint x="2380" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerwerkenFinancieleEindstand_Gateway_AfsluitenJoin_di" bpmnElement="Flow_Task_VerwerkenFinancieleEindstand_Gateway_AfsluitenJoin">
+        <di:waypoint x="2480" y="1130" />
+        <di:waypoint x="2510" y="1130" />
+        <di:waypoint x="2510" y="460" />
+        <di:waypoint x="2540" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenSluitenProjectmap_Gateway_AfsluitenJoin_di" bpmnElement="Flow_Task_LatenSluitenProjectmap_Gateway_AfsluitenJoin">
+        <di:waypoint x="2480" y="460" />
+        <di:waypoint x="2540" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenAanpassenRechtenRelatics_Gateway_AfsluitenJoin_di" bpmnElement="Flow_Task_LatenAanpassenRechtenRelatics_Gateway_AfsluitenJoin">
+        <di:waypoint x="2480" y="550" />
+        <di:waypoint x="2510" y="550" />
+        <di:waypoint x="2510" y="460" />
+        <di:waypoint x="2540" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfsluitenJoin_EndEvent_EindeProces_di" bpmnElement="Flow_Gateway_AfsluitenJoin_EndEvent_EindeProces">
+        <di:waypoint x="2590" y="460" />
+        <di:waypoint x="2620" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_R54_Entry_di" bpmnElement="Assoc_Annotation_R54_Entry">
+        <di:waypoint x="350" y="710" />
+        <di:waypoint x="380" y="950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_EindeProces_di" bpmnElement="Assoc_Annotation_EindeProces">
+        <di:waypoint x="2565" y="435" />
+        <di:waypoint x="2460" y="680" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

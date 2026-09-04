@@ -1,0 +1,796 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR54Process" targetNamespace="http://example.com/rip-phase-54" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR54Process">
+    <bpmn:participant id="Participant_RipR54Process" name="R5.4 - Oplevering en onderhoudsperiode" processRef="RipR54Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR54Process" name="R5.4 - Oplevering en onderhoudsperiode" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR54Process">
+      <bpmn:lane id="Lane_Ondersteuner" name="Ondersteuner">
+        <bpmn:flowNodeRef>Task_OpstellenBriefBesluitvorming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenBriefBesluitvormingAtb</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenBriefBesluitvormingAtbBuiten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BriefJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenBriefEindafrekening</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>Gateway_KredietAanneemsom</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BriefBinnenAanneemsom</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_EindafrekeningWaarde</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotaAoEindafrekening</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BriefBinnenKrediet</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotaConcerndirecteurEindafrekening</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BriefBuitenKrediet</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Databeheerder" name="Databeheerder">
+        <bpmn:flowNodeRef>Task_ControlerenOpleverdossierDatabeheerder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerwerkenOpleverdossierInBeheersysteem</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Beheerder" name="Beheerder">
+        <bpmn:flowNodeRef>Task_ControlerenOpleverdossierBeheerder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AkkoordBeheerderDatabeheerder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReagerenNaarAannemer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TechnischeInstallaties</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OverdragenIvSchap</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InstallatiesJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SchouwOverleg" name="Directievoerder, Vestigingsmanager, Toezichthouder, Beheerder">
+        <bpmn:flowNodeRef>Task_HoudenOverlegOnderhoudsperiode</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Directievoerder" name="Directievoerder">
+        <bpmn:flowNodeRef>StartEvent_R54</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OntvangenOpleverdossier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ToetsenEnVersturenOpleverdossier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OpleverdossierAkkoordDv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenOpleverdossierNaarBeheerder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InitierenOverlegOnderhoudsperiode</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenVerslagSchouw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BeoordelenRestpunten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RestpuntenAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenKennisgevingSchorsing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RestpuntenJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenEindafrekening</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AfrondingSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TerugsturenBankgarantie</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaatsenBriefEindafrekeningVisi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AfrondingJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GereedmeldenVisi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R61</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R54" name="Start R5.4 - Oplevering en onderhoudsperiode&#10;(vanuit R5.3 Oplevering areaal)">
+      <bpmn:outgoing>Flow_StartEvent_R54_Task_OntvangenOpleverdossier</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_OntvangenOpleverdossier" name="Ontvangen&#10;opleverdossier" camunda:formRef="rip-ontvangen-opleverdossier" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-opleverdossier">
+      <bpmn:incoming>Flow_StartEvent_R54_Task_OntvangenOpleverdossier</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_OpleverdossierAkkoordDv_Task_OntvangenOpleverdossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OntvangenOpleverdossier_Task_ToetsenEnVersturenOpleverdossier</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ToetsenEnVersturenOpleverdossier" name="Toetsen en versturen&#10;opleverdossier" camunda:formRef="rip-toetsen-opleverdossier" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_OntvangenOpleverdossier_Task_ToetsenEnVersturenOpleverdossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenEnVersturenOpleverdossier_Gateway_OpleverdossierAkkoordDv</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_OpleverdossierAkkoordDv" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenEnVersturenOpleverdossier_Gateway_OpleverdossierAkkoordDv</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_OpleverdossierAkkoordDv_Task_OntvangenOpleverdossier</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_OpleverdossierAkkoordDv_Task_VersturenOpleverdossierNaarBeheerder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_VersturenOpleverdossierNaarBeheerder" name="Versturen opleverdossier naar&#10;Beheerder met cc aan PL" camunda:formRef="rip-versturen-opleverdossier-beheerder" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_OpleverdossierAkkoordDv_Task_VersturenOpleverdossierNaarBeheerder</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenOpleverdossierNaarBeheerder_Task_ControlerenOpleverdossierBeheerder</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControlerenOpleverdossierBeheerder" name="Controleren opleverdossier en&#10;sturen naar Databeheerder" camunda:formRef="rip-controleren-opleverdossier-beheerder" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-beheerder">
+      <bpmn:incoming>Flow_Task_VersturenOpleverdossierNaarBeheerder_Task_ControlerenOpleverdossierBeheerder</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_ReagerenNaarAannemer_Task_ControlerenOpleverdossierBeheerder</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenOpleverdossierBeheerder_Task_ControlerenOpleverdossierDatabeheerder</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControlerenOpleverdossierDatabeheerder" name="Controleren&#10;opleverdossier" camunda:formRef="rip-controleren-opleverdossier-databeheerder" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-databeheerder">
+      <bpmn:incoming>Flow_Task_ControlerenOpleverdossierBeheerder_Task_ControlerenOpleverdossierDatabeheerder</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenOpleverdossierDatabeheerder_Gateway_AkkoordBeheerderDatabeheerder</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AkkoordBeheerderDatabeheerder" name="Akkoord Beheerder&#10;en Databeheerder?">
+      <bpmn:incoming>Flow_Task_ControlerenOpleverdossierDatabeheerder_Gateway_AkkoordBeheerderDatabeheerder</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_ReagerenNaarAannemer</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_VerwerkenOpleverdossierInBeheersysteem</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_ReagerenNaarAannemer" name="Reageren naar&#10;aannemer" camunda:formRef="rip-reageren-naar-aannemer" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-beheerder">
+      <bpmn:incoming>Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_ReagerenNaarAannemer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ReagerenNaarAannemer_Task_ControlerenOpleverdossierBeheerder</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VerwerkenOpleverdossierInBeheersysteem" name="Verwerken opleverdossier&#10;in beheersysteem" camunda:formRef="rip-verwerken-opleverdossier-beheersysteem" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-databeheerder">
+      <bpmn:incoming>Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_VerwerkenOpleverdossierInBeheersysteem</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerwerkenOpleverdossierInBeheersysteem_Gateway_TechnischeInstallaties</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_TechnischeInstallaties" name="Is er sprake van&#10;technische installaties?">
+      <bpmn:incoming>Flow_Task_VerwerkenOpleverdossierInBeheersysteem_Gateway_TechnischeInstallaties</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_TechnischeInstallaties_Task_OverdragenIvSchap</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_TechnischeInstallaties_Gateway_InstallatiesJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_OverdragenIvSchap" name="Overdragen IV-schap en NEN1010&#10;deel 6-rapportages aan B&amp;O" camunda:formRef="rip-overdragen-iv-schap" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-beheerder">
+      <bpmn:incoming>Flow_Gateway_TechnischeInstallaties_Task_OverdragenIvSchap</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OverdragenIvSchap_Gateway_InstallatiesJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_InstallatiesJoin">
+      <bpmn:incoming>Flow_Gateway_TechnischeInstallaties_Gateway_InstallatiesJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_OverdragenIvSchap_Gateway_InstallatiesJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_InstallatiesJoin_Task_InitierenOverlegOnderhoudsperiode</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_InitierenOverlegOnderhoudsperiode" name="Initiëren overleg uiterlijk 2 wkn&#10;voor einde onderhoudsperiode" camunda:formRef="rip-initieren-overleg-onderhoudsperiode" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_InstallatiesJoin_Task_InitierenOverlegOnderhoudsperiode</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InitierenOverlegOnderhoudsperiode_Task_HoudenOverlegOnderhoudsperiode</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_HoudenOverlegOnderhoudsperiode" name="Houden overleg uiterlijk 2 wkn&#10;voor einde onderhoudsperiode" camunda:formRef="rip-houden-overleg-onderhoudsperiode" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder,rip-vestigingsmanager,rip-toezichthouder,rip-beheerder" ronl:documentRef="rip-verslag-schouw">
+      <bpmn:incoming>Flow_Task_InitierenOverlegOnderhoudsperiode_Task_HoudenOverlegOnderhoudsperiode</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_HoudenOverlegOnderhoudsperiode_Task_VersturenVerslagSchouw</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenVerslagSchouw" name="Versturen verslag&#10;naar Projectleider" camunda:formRef="rip-versturen-verslag-schouw" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_HoudenOverlegOnderhoudsperiode_Task_VersturenVerslagSchouw</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenVerslagSchouw_Task_BeoordelenRestpunten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenRestpunten" name="Beoordelen gereedgekomen restpunten&#10;en afronden onderhoudsperiode" camunda:formRef="rip-beoordelen-restpunten" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-intern-schouwrapport">
+      <bpmn:incoming>Flow_Task_VersturenVerslagSchouw_Task_BeoordelenRestpunten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenRestpunten_Gateway_RestpuntenAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_RestpuntenAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_BeoordelenRestpunten_Gateway_RestpuntenAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_RestpuntenAkkoord_Task_VersturenKennisgevingSchorsing</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_RestpuntenAkkoord_Gateway_RestpuntenJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_VersturenKennisgevingSchorsing" name="Versturen brief Kennisgeving&#10;tijdelijke schorsing" camunda:formRef="rip-versturen-kennisgeving-schorsing" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-kennisgeving-schorsing">
+      <bpmn:incoming>Flow_Gateway_RestpuntenAkkoord_Task_VersturenKennisgevingSchorsing</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenKennisgevingSchorsing_Gateway_RestpuntenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_RestpuntenJoin">
+      <bpmn:incoming>Flow_Gateway_RestpuntenAkkoord_Gateway_RestpuntenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_VersturenKennisgevingSchorsing_Gateway_RestpuntenJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_RestpuntenJoin_Task_OpstellenEindafrekening</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_OpstellenEindafrekening" name="Opstellen&#10;eindafrekening" camunda:formRef="rip-opstellen-eindafrekening" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-eindafrekening">
+      <bpmn:incoming>Flow_Gateway_RestpuntenJoin_Task_OpstellenEindafrekening</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenEindafrekening_Gateway_KredietAanneemsom</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_KredietAanneemsom" name="Binnen of buiten krediet&#10;en aanneemsom?">
+      <bpmn:incoming>Flow_Task_OpstellenEindafrekening_Gateway_KredietAanneemsom</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_KredietAanneemsom_Task_BriefBinnenAanneemsom</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_KredietAanneemsom_Gateway_EindafrekeningWaarde</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_KredietAanneemsom_Task_NotaConcerndirecteurEindafrekening</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_BriefBinnenAanneemsom" name="Laten opstellen brief&#10;eindafrekening" camunda:formRef="rip-brief-binnen-aanneemsom" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_KredietAanneemsom_Task_BriefBinnenAanneemsom</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BriefBinnenAanneemsom_Task_OpstellenBriefBesluitvorming</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_EindafrekeningWaarde" name="&lt; 50.000,- of&#10;=&gt; 50.000,-?">
+      <bpmn:incoming>Flow_Gateway_KredietAanneemsom_Gateway_EindafrekeningWaarde</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_EindafrekeningWaarde_Task_NotaAoEindafrekening</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_EindafrekeningWaarde_Task_BriefBinnenKrediet</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_NotaAoEindafrekening" name="Opstellen nota&#10;besluitvorming AO" camunda:formRef="rip-nota-ao-eindafrekening" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-nota-besluitvorming-ao-eindafrekening">
+      <bpmn:incoming>Flow_Gateway_EindafrekeningWaarde_Task_NotaAoEindafrekening</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_NotaAoEindafrekening_Task_BriefBinnenKrediet</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BriefBinnenKrediet" name="Laten opstellen brief&#10;eindafrekening" camunda:formRef="rip-brief-binnen-krediet" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_EindafrekeningWaarde_Task_BriefBinnenKrediet</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_NotaAoEindafrekening_Task_BriefBinnenKrediet</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BriefBinnenKrediet_Task_OpstellenBriefBesluitvormingAtb</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_NotaConcerndirecteurEindafrekening" name="Opstellen nota besluitvorming&#10;Concerndirecteur" camunda:formRef="rip-nota-concerndirecteur-eindafrekening" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-nota-besluitvorming-concerndirecteur-eindafrekening">
+      <bpmn:incoming>Flow_Gateway_KredietAanneemsom_Task_NotaConcerndirecteurEindafrekening</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_NotaConcerndirecteurEindafrekening_Task_BriefBuitenKrediet</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BriefBuitenKrediet" name="Laten opstellen brief&#10;eindafrekening" camunda:formRef="rip-brief-buiten-krediet" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_NotaConcerndirecteurEindafrekening_Task_BriefBuitenKrediet</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BriefBuitenKrediet_Task_OpstellenBriefBesluitvormingAtbBuiten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenBriefBesluitvorming" name="Opstellen brief eindafrekening&#10;en indienen bij besluitvorming" camunda:formRef="rip-opstellen-brief-besluitvorming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ondersteuner" ronl:documentRef="rip-brief-eindafrekening">
+      <bpmn:incoming>Flow_Task_BriefBinnenAanneemsom_Task_OpstellenBriefBesluitvorming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenBriefBesluitvorming_Gateway_BriefJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenBriefBesluitvormingAtb" name="Opstellen brief eindafrekening, indienen bij&#10;besluitvorming en invullen webformulier ATB" camunda:formRef="rip-opstellen-brief-besluitvorming-atb" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ondersteuner">
+      <bpmn:incoming>Flow_Task_BriefBinnenKrediet_Task_OpstellenBriefBesluitvormingAtb</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenBriefBesluitvormingAtb_Gateway_BriefJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenBriefBesluitvormingAtbBuiten" name="Opstellen brief eindafrekening, indienen bij&#10;besluitvorming en invullen webformulier ATB" camunda:formRef="rip-opstellen-brief-besluitvorming-atb-buiten" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ondersteuner">
+      <bpmn:incoming>Flow_Task_BriefBuitenKrediet_Task_OpstellenBriefBesluitvormingAtbBuiten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenBriefBesluitvormingAtbBuiten_Gateway_BriefJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_BriefJoin">
+      <bpmn:incoming>Flow_Task_OpstellenBriefBesluitvorming_Gateway_BriefJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_OpstellenBriefBesluitvormingAtb_Gateway_BriefJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_OpstellenBriefBesluitvormingAtbBuiten_Gateway_BriefJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BriefJoin_Task_VersturenBriefEindafrekening</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_VersturenBriefEindafrekening" name="Versturen brief eindafrekening&#10;naar DV en PL" camunda:formRef="rip-versturen-brief-eindafrekening" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ondersteuner">
+      <bpmn:incoming>Flow_Gateway_BriefJoin_Task_VersturenBriefEindafrekening</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenBriefEindafrekening_Gateway_AfrondingSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_AfrondingSplit">
+      <bpmn:incoming>Flow_Task_VersturenBriefEindafrekening_Gateway_AfrondingSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AfrondingSplit_Task_TerugsturenBankgarantie</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AfrondingSplit_Task_PlaatsenBriefEindafrekeningVisi</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_TerugsturenBankgarantie" name="Laten terugsturen bankgarantie&#10;(indien van toepassing)" camunda:formRef="rip-terugsturen-bankgarantie" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_AfrondingSplit_Task_TerugsturenBankgarantie</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_TerugsturenBankgarantie_Gateway_AfrondingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_PlaatsenBriefEindafrekeningVisi" name="Laten plaatsen brief&#10;eindafrekening in VISI" camunda:formRef="rip-plaatsen-brief-eindafrekening-visi" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_AfrondingSplit_Task_PlaatsenBriefEindafrekeningVisi</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_PlaatsenBriefEindafrekeningVisi_Gateway_AfrondingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_AfrondingJoin">
+      <bpmn:incoming>Flow_Task_TerugsturenBankgarantie_Gateway_AfrondingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_PlaatsenBriefEindafrekeningVisi_Gateway_AfrondingJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AfrondingJoin_Task_GereedmeldenVisi</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_GereedmeldenVisi" name="Gereedmelden&#10;VISI" camunda:formRef="rip-gereedmelden-visi" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_AfrondingJoin_Task_GereedmeldenVisi</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_GereedmeldenVisi_EndEvent_R61</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_R61" name="Onderhoudsperiode afgerond&#10;→ R6.1 Opstellen Overdrachtsverklaring">
+      <bpmn:incoming>Flow_Task_GereedmeldenVisi_EndEvent_R61</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R54_Task_OntvangenOpleverdossier" sourceRef="StartEvent_R54" targetRef="Task_OntvangenOpleverdossier" />
+    <bpmn:sequenceFlow id="Flow_Task_OntvangenOpleverdossier_Task_ToetsenEnVersturenOpleverdossier" sourceRef="Task_OntvangenOpleverdossier" targetRef="Task_ToetsenEnVersturenOpleverdossier" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenEnVersturenOpleverdossier_Gateway_OpleverdossierAkkoordDv" sourceRef="Task_ToetsenEnVersturenOpleverdossier" targetRef="Gateway_OpleverdossierAkkoordDv" />
+    <bpmn:sequenceFlow id="Flow_Gateway_OpleverdossierAkkoordDv_Task_OntvangenOpleverdossier" name="nee" sourceRef="Gateway_OpleverdossierAkkoordDv" targetRef="Task_OntvangenOpleverdossier">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${opleverdossierAkkoordDv == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_OpleverdossierAkkoordDv_Task_VersturenOpleverdossierNaarBeheerder" name="ja" sourceRef="Gateway_OpleverdossierAkkoordDv" targetRef="Task_VersturenOpleverdossierNaarBeheerder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${opleverdossierAkkoordDv == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_VersturenOpleverdossierNaarBeheerder_Task_ControlerenOpleverdossierBeheerder" sourceRef="Task_VersturenOpleverdossierNaarBeheerder" targetRef="Task_ControlerenOpleverdossierBeheerder" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenOpleverdossierBeheerder_Task_ControlerenOpleverdossierDatabeheerder" sourceRef="Task_ControlerenOpleverdossierBeheerder" targetRef="Task_ControlerenOpleverdossierDatabeheerder" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenOpleverdossierDatabeheerder_Gateway_AkkoordBeheerderDatabeheerder" sourceRef="Task_ControlerenOpleverdossierDatabeheerder" targetRef="Gateway_AkkoordBeheerderDatabeheerder" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_ReagerenNaarAannemer" name="nee" sourceRef="Gateway_AkkoordBeheerderDatabeheerder" targetRef="Task_ReagerenNaarAannemer">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${opleverdossierAkkoordBeheer == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_VerwerkenOpleverdossierInBeheersysteem" name="ja" sourceRef="Gateway_AkkoordBeheerderDatabeheerder" targetRef="Task_VerwerkenOpleverdossierInBeheersysteem">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${opleverdossierAkkoordBeheer == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_ReagerenNaarAannemer_Task_ControlerenOpleverdossierBeheerder" sourceRef="Task_ReagerenNaarAannemer" targetRef="Task_ControlerenOpleverdossierBeheerder" />
+    <bpmn:sequenceFlow id="Flow_Task_VerwerkenOpleverdossierInBeheersysteem_Gateway_TechnischeInstallaties" sourceRef="Task_VerwerkenOpleverdossierInBeheersysteem" targetRef="Gateway_TechnischeInstallaties" />
+    <bpmn:sequenceFlow id="Flow_Gateway_TechnischeInstallaties_Task_OverdragenIvSchap" name="ja" sourceRef="Gateway_TechnischeInstallaties" targetRef="Task_OverdragenIvSchap">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${technischeInstallatiesAanwezig == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_TechnischeInstallaties_Gateway_InstallatiesJoin" name="nee" sourceRef="Gateway_TechnischeInstallaties" targetRef="Gateway_InstallatiesJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${technischeInstallatiesAanwezig == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_OverdragenIvSchap_Gateway_InstallatiesJoin" sourceRef="Task_OverdragenIvSchap" targetRef="Gateway_InstallatiesJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_InstallatiesJoin_Task_InitierenOverlegOnderhoudsperiode" sourceRef="Gateway_InstallatiesJoin" targetRef="Task_InitierenOverlegOnderhoudsperiode" />
+    <bpmn:sequenceFlow id="Flow_Task_InitierenOverlegOnderhoudsperiode_Task_HoudenOverlegOnderhoudsperiode" sourceRef="Task_InitierenOverlegOnderhoudsperiode" targetRef="Task_HoudenOverlegOnderhoudsperiode" />
+    <bpmn:sequenceFlow id="Flow_Task_HoudenOverlegOnderhoudsperiode_Task_VersturenVerslagSchouw" sourceRef="Task_HoudenOverlegOnderhoudsperiode" targetRef="Task_VersturenVerslagSchouw" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenVerslagSchouw_Task_BeoordelenRestpunten" sourceRef="Task_VersturenVerslagSchouw" targetRef="Task_BeoordelenRestpunten" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenRestpunten_Gateway_RestpuntenAkkoord" sourceRef="Task_BeoordelenRestpunten" targetRef="Gateway_RestpuntenAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_RestpuntenAkkoord_Task_VersturenKennisgevingSchorsing" name="nee" sourceRef="Gateway_RestpuntenAkkoord" targetRef="Task_VersturenKennisgevingSchorsing">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${restpuntenAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_RestpuntenAkkoord_Gateway_RestpuntenJoin" name="ja" sourceRef="Gateway_RestpuntenAkkoord" targetRef="Gateway_RestpuntenJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${restpuntenAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_VersturenKennisgevingSchorsing_Gateway_RestpuntenJoin" sourceRef="Task_VersturenKennisgevingSchorsing" targetRef="Gateway_RestpuntenJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_RestpuntenJoin_Task_OpstellenEindafrekening" sourceRef="Gateway_RestpuntenJoin" targetRef="Task_OpstellenEindafrekening" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenEindafrekening_Gateway_KredietAanneemsom" sourceRef="Task_OpstellenEindafrekening" targetRef="Gateway_KredietAanneemsom" />
+    <bpmn:sequenceFlow id="Flow_Gateway_KredietAanneemsom_Task_BriefBinnenAanneemsom" name="binnen aanneemsom" sourceRef="Gateway_KredietAanneemsom" targetRef="Task_BriefBinnenAanneemsom">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${kredietAanneemsom == "binnen-aanneemsom"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_KredietAanneemsom_Gateway_EindafrekeningWaarde" name="binnen krediet, buiten aanneemsom" sourceRef="Gateway_KredietAanneemsom" targetRef="Gateway_EindafrekeningWaarde">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${kredietAanneemsom == "binnen-krediet"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_KredietAanneemsom_Task_NotaConcerndirecteurEindafrekening" name="buiten krediet, buiten aanneemsom" sourceRef="Gateway_KredietAanneemsom" targetRef="Task_NotaConcerndirecteurEindafrekening">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${kredietAanneemsom == "buiten-krediet"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_EindafrekeningWaarde_Task_NotaAoEindafrekening" name="=&gt; 50.000,-" sourceRef="Gateway_EindafrekeningWaarde" targetRef="Task_NotaAoEindafrekening">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${eindafrekeningWaarde == "boven"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_EindafrekeningWaarde_Task_BriefBinnenKrediet" name="&lt; 50.000,-" sourceRef="Gateway_EindafrekeningWaarde" targetRef="Task_BriefBinnenKrediet">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${eindafrekeningWaarde == "onder"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_NotaAoEindafrekening_Task_BriefBinnenKrediet" sourceRef="Task_NotaAoEindafrekening" targetRef="Task_BriefBinnenKrediet" />
+    <bpmn:sequenceFlow id="Flow_Task_NotaConcerndirecteurEindafrekening_Task_BriefBuitenKrediet" sourceRef="Task_NotaConcerndirecteurEindafrekening" targetRef="Task_BriefBuitenKrediet" />
+    <bpmn:sequenceFlow id="Flow_Task_BriefBinnenAanneemsom_Task_OpstellenBriefBesluitvorming" sourceRef="Task_BriefBinnenAanneemsom" targetRef="Task_OpstellenBriefBesluitvorming" />
+    <bpmn:sequenceFlow id="Flow_Task_BriefBinnenKrediet_Task_OpstellenBriefBesluitvormingAtb" sourceRef="Task_BriefBinnenKrediet" targetRef="Task_OpstellenBriefBesluitvormingAtb" />
+    <bpmn:sequenceFlow id="Flow_Task_BriefBuitenKrediet_Task_OpstellenBriefBesluitvormingAtbBuiten" sourceRef="Task_BriefBuitenKrediet" targetRef="Task_OpstellenBriefBesluitvormingAtbBuiten" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenBriefBesluitvorming_Gateway_BriefJoin" sourceRef="Task_OpstellenBriefBesluitvorming" targetRef="Gateway_BriefJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenBriefBesluitvormingAtb_Gateway_BriefJoin" sourceRef="Task_OpstellenBriefBesluitvormingAtb" targetRef="Gateway_BriefJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenBriefBesluitvormingAtbBuiten_Gateway_BriefJoin" sourceRef="Task_OpstellenBriefBesluitvormingAtbBuiten" targetRef="Gateway_BriefJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_BriefJoin_Task_VersturenBriefEindafrekening" sourceRef="Gateway_BriefJoin" targetRef="Task_VersturenBriefEindafrekening" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenBriefEindafrekening_Gateway_AfrondingSplit" sourceRef="Task_VersturenBriefEindafrekening" targetRef="Gateway_AfrondingSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfrondingSplit_Task_TerugsturenBankgarantie" sourceRef="Gateway_AfrondingSplit" targetRef="Task_TerugsturenBankgarantie" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfrondingSplit_Task_PlaatsenBriefEindafrekeningVisi" sourceRef="Gateway_AfrondingSplit" targetRef="Task_PlaatsenBriefEindafrekeningVisi" />
+    <bpmn:sequenceFlow id="Flow_Task_TerugsturenBankgarantie_Gateway_AfrondingJoin" sourceRef="Task_TerugsturenBankgarantie" targetRef="Gateway_AfrondingJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_PlaatsenBriefEindafrekeningVisi_Gateway_AfrondingJoin" sourceRef="Task_PlaatsenBriefEindafrekeningVisi" targetRef="Gateway_AfrondingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfrondingJoin_Task_GereedmeldenVisi" sourceRef="Gateway_AfrondingJoin" targetRef="Task_GereedmeldenVisi" />
+    <bpmn:sequenceFlow id="Flow_Task_GereedmeldenVisi_EndEvent_R61" sourceRef="Task_GereedmeldenVisi" targetRef="EndEvent_R61" />
+
+    <bpmn:textAnnotation id="Annotation_BO11_Liggingsgegevens">
+      <bpmn:text>BO11.6 Doorgeven nieuwe/gewijzigde liggingsgegevens ter controle — en BO1. Aanpassen jaarplanning</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_BO11_Liggingsgegevens" sourceRef="Task_VerwerkenOpleverdossierInBeheersysteem" targetRef="Annotation_BO11_Liggingsgegevens" />
+    <bpmn:textAnnotation id="Annotation_BO13_IvSchap">
+      <bpmn:text>BO13.5 Overnemen IV-schap en Controleren NEN1010 deel 6-rapportages</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_BO13_IvSchap" sourceRef="Task_OverdragenIvSchap" targetRef="Annotation_BO13_IvSchap" />
+    <bpmn:textAnnotation id="Annotation_KV2_Notas">
+      <bpmn:text>KV2. Input nota's en KV2. Versturen documenten — de nota's besluitvorming en de brief eindafrekening gaan naar het proces besluitvorming en ATB</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_KV2_Notas" sourceRef="Gateway_BriefJoin" targetRef="Annotation_KV2_Notas" />
+    <bpmn:textAnnotation id="Annotation_Aannemer">
+      <bpmn:text>De sheet tekent een lege baan "Aannemer": de aannemer levert het opleverdossier en ontvangt de reactie, maar voert in R5.4 zelf geen activiteit uit.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_Aannemer" sourceRef="Task_ReagerenNaarAannemer" targetRef="Annotation_Aannemer" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR54Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR54Process" bpmnElement="Collaboration_RipR54Process">
+      <bpmndi:BPMNShape id="Participant_RipR54Process_di" bpmnElement="Participant_RipR54Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="4326" height="1660" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Ondersteuner_di" bpmnElement="Lane_Ondersteuner" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="4296" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="280" width="4296" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Databeheerder_di" bpmnElement="Lane_Databeheerder" isHorizontal="true">
+        <dc:Bounds x="190" y="660" width="4296" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Beheerder_di" bpmnElement="Lane_Beheerder" isHorizontal="true">
+        <dc:Bounds x="190" y="860" width="4296" height="290" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_SchouwOverleg_di" bpmnElement="Lane_SchouwOverleg" isHorizontal="true">
+        <dc:Bounds x="190" y="1150" width="4296" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Directievoerder_di" bpmnElement="Lane_Directievoerder" isHorizontal="true">
+        <dc:Bounds x="190" y="1270" width="4296" height="470" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R54_di" bpmnElement="StartEvent_R54">
+        <dc:Bounds x="240" y="1312" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="82" y="1353" width="352" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OntvangenOpleverdossier_di" bpmnElement="Task_OntvangenOpleverdossier">
+        <dc:Bounds x="300" y="1290" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenEnVersturenOpleverdossier_di" bpmnElement="Task_ToetsenEnVersturenOpleverdossier">
+        <dc:Bounds x="460" y="1290" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OpleverdossierAkkoordDv_di" bpmnElement="Gateway_OpleverdossierAkkoordDv" isMarkerVisible="true">
+        <dc:Bounds x="620" y="1305" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="600" y="1360" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenOpleverdossierNaarBeheerder_di" bpmnElement="Task_VersturenOpleverdossierNaarBeheerder">
+        <dc:Bounds x="700" y="1290" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenOpleverdossierBeheerder_di" bpmnElement="Task_ControlerenOpleverdossierBeheerder">
+        <dc:Bounds x="860" y="880" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenOpleverdossierDatabeheerder_di" bpmnElement="Task_ControlerenOpleverdossierDatabeheerder">
+        <dc:Bounds x="1020" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AkkoordBeheerderDatabeheerder_di" bpmnElement="Gateway_AkkoordBeheerderDatabeheerder" isMarkerVisible="true">
+        <dc:Bounds x="1180" y="895" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1137" y="950" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReagerenNaarAannemer_di" bpmnElement="Task_ReagerenNaarAannemer">
+        <dc:Bounds x="1260" y="970" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerwerkenOpleverdossierInBeheersysteem_di" bpmnElement="Task_VerwerkenOpleverdossierInBeheersysteem">
+        <dc:Bounds x="1260" y="770" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_TechnischeInstallaties_di" bpmnElement="Gateway_TechnischeInstallaties" isMarkerVisible="true">
+        <dc:Bounds x="1420" y="895" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1349" y="950" width="192" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OverdragenIvSchap_di" bpmnElement="Task_OverdragenIvSchap">
+        <dc:Bounds x="1500" y="1060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_InstallatiesJoin_di" bpmnElement="Gateway_InstallatiesJoin" isMarkerVisible="true">
+        <dc:Bounds x="1660" y="895" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InitierenOverlegOnderhoudsperiode_di" bpmnElement="Task_InitierenOverlegOnderhoudsperiode">
+        <dc:Bounds x="1740" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HoudenOverlegOnderhoudsperiode_di" bpmnElement="Task_HoudenOverlegOnderhoudsperiode">
+        <dc:Bounds x="1900" y="1170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenVerslagSchouw_di" bpmnElement="Task_VersturenVerslagSchouw">
+        <dc:Bounds x="2060" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenRestpunten_di" bpmnElement="Task_BeoordelenRestpunten">
+        <dc:Bounds x="2220" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RestpuntenAkkoord_di" bpmnElement="Gateway_RestpuntenAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="2380" y="1395" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2360" y="1450" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenKennisgevingSchorsing_di" bpmnElement="Task_VersturenKennisgevingSchorsing">
+        <dc:Bounds x="2460" y="1470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RestpuntenJoin_di" bpmnElement="Gateway_RestpuntenJoin" isMarkerVisible="true">
+        <dc:Bounds x="2620" y="1395" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenEindafrekening_di" bpmnElement="Task_OpstellenEindafrekening">
+        <dc:Bounds x="2700" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_KredietAanneemsom_di" bpmnElement="Gateway_KredietAanneemsom" isMarkerVisible="true">
+        <dc:Bounds x="2860" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2789" y="550" width="192" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BriefBinnenAanneemsom_di" bpmnElement="Task_BriefBinnenAanneemsom">
+        <dc:Bounds x="2940" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_EindafrekeningWaarde_di" bpmnElement="Gateway_EindafrekeningWaarde" isMarkerVisible="true">
+        <dc:Bounds x="2940" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2913" y="550" width="104" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotaAoEindafrekening_di" bpmnElement="Task_NotaAoEindafrekening">
+        <dc:Bounds x="3020" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BriefBinnenKrediet_di" bpmnElement="Task_BriefBinnenKrediet">
+        <dc:Bounds x="3180" y="390" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotaConcerndirecteurEindafrekening_di" bpmnElement="Task_NotaConcerndirecteurEindafrekening">
+        <dc:Bounds x="3020" y="570" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BriefBuitenKrediet_di" bpmnElement="Task_BriefBuitenKrediet">
+        <dc:Bounds x="3180" y="570" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenBriefBesluitvorming_di" bpmnElement="Task_OpstellenBriefBesluitvorming">
+        <dc:Bounds x="3340" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenBriefBesluitvormingAtb_di" bpmnElement="Task_OpstellenBriefBesluitvormingAtb">
+        <dc:Bounds x="3340" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenBriefBesluitvormingAtbBuiten_di" bpmnElement="Task_OpstellenBriefBesluitvormingAtbBuiten">
+        <dc:Bounds x="3500" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BriefJoin_di" bpmnElement="Gateway_BriefJoin" isMarkerVisible="true">
+        <dc:Bounds x="3660" y="115" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenBriefEindafrekening_di" bpmnElement="Task_VersturenBriefEindafrekening">
+        <dc:Bounds x="3740" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AfrondingSplit_di" bpmnElement="Gateway_AfrondingSplit">
+        <dc:Bounds x="3900" y="1395" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TerugsturenBankgarantie_di" bpmnElement="Task_TerugsturenBankgarantie">
+        <dc:Bounds x="3980" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PlaatsenBriefEindafrekeningVisi_di" bpmnElement="Task_PlaatsenBriefEindafrekeningVisi">
+        <dc:Bounds x="3980" y="1470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AfrondingJoin_di" bpmnElement="Gateway_AfrondingJoin">
+        <dc:Bounds x="4140" y="1395" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GereedmeldenVisi_di" bpmnElement="Task_GereedmeldenVisi">
+        <dc:Bounds x="4220" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R61_di" bpmnElement="EndEvent_R61">
+        <dc:Bounds x="4380" y="1402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4246" y="1443" width="304" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_BO11_Liggingsgegevens_di" bpmnElement="Annotation_BO11_Liggingsgegevens">
+        <dc:Bounds x="1240" y="680" width="300" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_BO13_IvSchap_di" bpmnElement="Annotation_BO13_IvSchap">
+        <dc:Bounds x="1660" y="1060" width="300" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_KV2_Notas_di" bpmnElement="Annotation_KV2_Notas">
+        <dc:Bounds x="3340" y="480" width="300" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_Aannemer_di" bpmnElement="Annotation_Aannemer">
+        <dc:Bounds x="1000" y="970" width="300" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R54_Task_OntvangenOpleverdossier_di" bpmnElement="Flow_StartEvent_R54_Task_OntvangenOpleverdossier">
+        <di:waypoint x="276" y="1330" />
+        <di:waypoint x="300" y="1330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OntvangenOpleverdossier_Task_ToetsenEnVersturenOpleverdossier_di" bpmnElement="Flow_Task_OntvangenOpleverdossier_Task_ToetsenEnVersturenOpleverdossier">
+        <di:waypoint x="400" y="1330" />
+        <di:waypoint x="460" y="1330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenEnVersturenOpleverdossier_Gateway_OpleverdossierAkkoordDv_di" bpmnElement="Flow_Task_ToetsenEnVersturenOpleverdossier_Gateway_OpleverdossierAkkoordDv">
+        <di:waypoint x="560" y="1330" />
+        <di:waypoint x="620" y="1330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OpleverdossierAkkoordDv_Task_OntvangenOpleverdossier_di" bpmnElement="Flow_Gateway_OpleverdossierAkkoordDv_Task_OntvangenOpleverdossier">
+        <di:waypoint x="645" y="1355" />
+        <di:waypoint x="645" y="1465" />
+        <di:waypoint x="350" y="1465" />
+        <di:waypoint x="350" y="1370" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="651" y="1335" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_OpleverdossierAkkoordDv_Task_VersturenOpleverdossierNaarBeheerder_di" bpmnElement="Flow_Gateway_OpleverdossierAkkoordDv_Task_VersturenOpleverdossierNaarBeheerder">
+        <di:waypoint x="670" y="1330" />
+        <di:waypoint x="700" y="1330" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="1310" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenOpleverdossierNaarBeheerder_Task_ControlerenOpleverdossierBeheerder_di" bpmnElement="Flow_Task_VersturenOpleverdossierNaarBeheerder_Task_ControlerenOpleverdossierBeheerder">
+        <di:waypoint x="800" y="1330" />
+        <di:waypoint x="830" y="1330" />
+        <di:waypoint x="830" y="920" />
+        <di:waypoint x="860" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenOpleverdossierBeheerder_Task_ControlerenOpleverdossierDatabeheerder_di" bpmnElement="Flow_Task_ControlerenOpleverdossierBeheerder_Task_ControlerenOpleverdossierDatabeheerder">
+        <di:waypoint x="960" y="920" />
+        <di:waypoint x="990" y="920" />
+        <di:waypoint x="990" y="720" />
+        <di:waypoint x="1020" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenOpleverdossierDatabeheerder_Gateway_AkkoordBeheerderDatabeheerder_di" bpmnElement="Flow_Task_ControlerenOpleverdossierDatabeheerder_Gateway_AkkoordBeheerderDatabeheerder">
+        <di:waypoint x="1120" y="720" />
+        <di:waypoint x="1150" y="720" />
+        <di:waypoint x="1150" y="920" />
+        <di:waypoint x="1180" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_ReagerenNaarAannemer_di" bpmnElement="Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_ReagerenNaarAannemer">
+        <di:waypoint x="1230" y="920" />
+        <di:waypoint x="1245" y="920" />
+        <di:waypoint x="1245" y="1010" />
+        <di:waypoint x="1260" y="1010" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1236" y="900" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_VerwerkenOpleverdossierInBeheersysteem_di" bpmnElement="Flow_Gateway_AkkoordBeheerderDatabeheerder_Task_VerwerkenOpleverdossierInBeheersysteem">
+        <di:waypoint x="1230" y="920" />
+        <di:waypoint x="1245" y="920" />
+        <di:waypoint x="1245" y="810" />
+        <di:waypoint x="1260" y="810" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1236" y="900" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ReagerenNaarAannemer_Task_ControlerenOpleverdossierBeheerder_di" bpmnElement="Flow_Task_ReagerenNaarAannemer_Task_ControlerenOpleverdossierBeheerder">
+        <di:waypoint x="1310" y="1050" />
+        <di:waypoint x="1310" y="1145" />
+        <di:waypoint x="910" y="1145" />
+        <di:waypoint x="910" y="960" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerwerkenOpleverdossierInBeheersysteem_Gateway_TechnischeInstallaties_di" bpmnElement="Flow_Task_VerwerkenOpleverdossierInBeheersysteem_Gateway_TechnischeInstallaties">
+        <di:waypoint x="1360" y="810" />
+        <di:waypoint x="1390" y="810" />
+        <di:waypoint x="1390" y="920" />
+        <di:waypoint x="1420" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_TechnischeInstallaties_Task_OverdragenIvSchap_di" bpmnElement="Flow_Gateway_TechnischeInstallaties_Task_OverdragenIvSchap">
+        <di:waypoint x="1470" y="920" />
+        <di:waypoint x="1485" y="920" />
+        <di:waypoint x="1485" y="1100" />
+        <di:waypoint x="1500" y="1100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1476" y="900" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_TechnischeInstallaties_Gateway_InstallatiesJoin_di" bpmnElement="Flow_Gateway_TechnischeInstallaties_Gateway_InstallatiesJoin">
+        <di:waypoint x="1470" y="920" />
+        <di:waypoint x="1660" y="920" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1476" y="900" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OverdragenIvSchap_Gateway_InstallatiesJoin_di" bpmnElement="Flow_Task_OverdragenIvSchap_Gateway_InstallatiesJoin">
+        <di:waypoint x="1600" y="1100" />
+        <di:waypoint x="1630" y="1100" />
+        <di:waypoint x="1630" y="920" />
+        <di:waypoint x="1660" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_InstallatiesJoin_Task_InitierenOverlegOnderhoudsperiode_di" bpmnElement="Flow_Gateway_InstallatiesJoin_Task_InitierenOverlegOnderhoudsperiode">
+        <di:waypoint x="1710" y="920" />
+        <di:waypoint x="1725" y="920" />
+        <di:waypoint x="1725" y="1420" />
+        <di:waypoint x="1740" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InitierenOverlegOnderhoudsperiode_Task_HoudenOverlegOnderhoudsperiode_di" bpmnElement="Flow_Task_InitierenOverlegOnderhoudsperiode_Task_HoudenOverlegOnderhoudsperiode">
+        <di:waypoint x="1840" y="1420" />
+        <di:waypoint x="1870" y="1420" />
+        <di:waypoint x="1870" y="1210" />
+        <di:waypoint x="1900" y="1210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_HoudenOverlegOnderhoudsperiode_Task_VersturenVerslagSchouw_di" bpmnElement="Flow_Task_HoudenOverlegOnderhoudsperiode_Task_VersturenVerslagSchouw">
+        <di:waypoint x="2000" y="1210" />
+        <di:waypoint x="2030" y="1210" />
+        <di:waypoint x="2030" y="1420" />
+        <di:waypoint x="2060" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenVerslagSchouw_Task_BeoordelenRestpunten_di" bpmnElement="Flow_Task_VersturenVerslagSchouw_Task_BeoordelenRestpunten">
+        <di:waypoint x="2160" y="1420" />
+        <di:waypoint x="2220" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenRestpunten_Gateway_RestpuntenAkkoord_di" bpmnElement="Flow_Task_BeoordelenRestpunten_Gateway_RestpuntenAkkoord">
+        <di:waypoint x="2320" y="1420" />
+        <di:waypoint x="2380" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_RestpuntenAkkoord_Task_VersturenKennisgevingSchorsing_di" bpmnElement="Flow_Gateway_RestpuntenAkkoord_Task_VersturenKennisgevingSchorsing">
+        <di:waypoint x="2430" y="1420" />
+        <di:waypoint x="2445" y="1420" />
+        <di:waypoint x="2445" y="1510" />
+        <di:waypoint x="2460" y="1510" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2436" y="1400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_RestpuntenAkkoord_Gateway_RestpuntenJoin_di" bpmnElement="Flow_Gateway_RestpuntenAkkoord_Gateway_RestpuntenJoin">
+        <di:waypoint x="2430" y="1420" />
+        <di:waypoint x="2620" y="1420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2436" y="1400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenKennisgevingSchorsing_Gateway_RestpuntenJoin_di" bpmnElement="Flow_Task_VersturenKennisgevingSchorsing_Gateway_RestpuntenJoin">
+        <di:waypoint x="2560" y="1510" />
+        <di:waypoint x="2590" y="1510" />
+        <di:waypoint x="2590" y="1420" />
+        <di:waypoint x="2620" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_RestpuntenJoin_Task_OpstellenEindafrekening_di" bpmnElement="Flow_Gateway_RestpuntenJoin_Task_OpstellenEindafrekening">
+        <di:waypoint x="2670" y="1420" />
+        <di:waypoint x="2700" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenEindafrekening_Gateway_KredietAanneemsom_di" bpmnElement="Flow_Task_OpstellenEindafrekening_Gateway_KredietAanneemsom">
+        <di:waypoint x="2800" y="1420" />
+        <di:waypoint x="2830" y="1420" />
+        <di:waypoint x="2830" y="520" />
+        <di:waypoint x="2860" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_KredietAanneemsom_Task_BriefBinnenAanneemsom_di" bpmnElement="Flow_Gateway_KredietAanneemsom_Task_BriefBinnenAanneemsom">
+        <di:waypoint x="2910" y="520" />
+        <di:waypoint x="2925" y="520" />
+        <di:waypoint x="2925" y="340" />
+        <di:waypoint x="2940" y="340" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2916" y="500" width="136" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_KredietAanneemsom_Gateway_EindafrekeningWaarde_di" bpmnElement="Flow_Gateway_KredietAanneemsom_Gateway_EindafrekeningWaarde">
+        <di:waypoint x="2910" y="520" />
+        <di:waypoint x="2940" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2916" y="500" width="264" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_KredietAanneemsom_Task_NotaConcerndirecteurEindafrekening_di" bpmnElement="Flow_Gateway_KredietAanneemsom_Task_NotaConcerndirecteurEindafrekening">
+        <di:waypoint x="2910" y="520" />
+        <di:waypoint x="2965" y="520" />
+        <di:waypoint x="2965" y="610" />
+        <di:waypoint x="3020" y="610" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2916" y="500" width="264" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_EindafrekeningWaarde_Task_NotaAoEindafrekening_di" bpmnElement="Flow_Gateway_EindafrekeningWaarde_Task_NotaAoEindafrekening">
+        <di:waypoint x="2990" y="520" />
+        <di:waypoint x="3020" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2996" y="500" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_EindafrekeningWaarde_Task_BriefBinnenKrediet_di" bpmnElement="Flow_Gateway_EindafrekeningWaarde_Task_BriefBinnenKrediet">
+        <di:waypoint x="2990" y="520" />
+        <di:waypoint x="3085" y="520" />
+        <di:waypoint x="3085" y="430" />
+        <di:waypoint x="3180" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2996" y="500" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_NotaAoEindafrekening_Task_BriefBinnenKrediet_di" bpmnElement="Flow_Task_NotaAoEindafrekening_Task_BriefBinnenKrediet">
+        <di:waypoint x="3120" y="520" />
+        <di:waypoint x="3150" y="520" />
+        <di:waypoint x="3150" y="430" />
+        <di:waypoint x="3180" y="430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_NotaConcerndirecteurEindafrekening_Task_BriefBuitenKrediet_di" bpmnElement="Flow_Task_NotaConcerndirecteurEindafrekening_Task_BriefBuitenKrediet">
+        <di:waypoint x="3120" y="610" />
+        <di:waypoint x="3180" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BriefBinnenAanneemsom_Task_OpstellenBriefBesluitvorming_di" bpmnElement="Flow_Task_BriefBinnenAanneemsom_Task_OpstellenBriefBesluitvorming">
+        <di:waypoint x="3040" y="340" />
+        <di:waypoint x="3190" y="340" />
+        <di:waypoint x="3190" y="140" />
+        <di:waypoint x="3340" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BriefBinnenKrediet_Task_OpstellenBriefBesluitvormingAtb_di" bpmnElement="Flow_Task_BriefBinnenKrediet_Task_OpstellenBriefBesluitvormingAtb">
+        <di:waypoint x="3280" y="430" />
+        <di:waypoint x="3310" y="430" />
+        <di:waypoint x="3310" y="230" />
+        <di:waypoint x="3340" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BriefBuitenKrediet_Task_OpstellenBriefBesluitvormingAtbBuiten_di" bpmnElement="Flow_Task_BriefBuitenKrediet_Task_OpstellenBriefBesluitvormingAtbBuiten">
+        <di:waypoint x="3280" y="610" />
+        <di:waypoint x="3390" y="610" />
+        <di:waypoint x="3390" y="230" />
+        <di:waypoint x="3500" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenBriefBesluitvorming_Gateway_BriefJoin_di" bpmnElement="Flow_Task_OpstellenBriefBesluitvorming_Gateway_BriefJoin">
+        <di:waypoint x="3440" y="140" />
+        <di:waypoint x="3660" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenBriefBesluitvormingAtb_Gateway_BriefJoin_di" bpmnElement="Flow_Task_OpstellenBriefBesluitvormingAtb_Gateway_BriefJoin">
+        <di:waypoint x="3440" y="230" />
+        <di:waypoint x="3550" y="230" />
+        <di:waypoint x="3550" y="140" />
+        <di:waypoint x="3660" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenBriefBesluitvormingAtbBuiten_Gateway_BriefJoin_di" bpmnElement="Flow_Task_OpstellenBriefBesluitvormingAtbBuiten_Gateway_BriefJoin">
+        <di:waypoint x="3600" y="230" />
+        <di:waypoint x="3630" y="230" />
+        <di:waypoint x="3630" y="140" />
+        <di:waypoint x="3660" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BriefJoin_Task_VersturenBriefEindafrekening_di" bpmnElement="Flow_Gateway_BriefJoin_Task_VersturenBriefEindafrekening">
+        <di:waypoint x="3710" y="140" />
+        <di:waypoint x="3740" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenBriefEindafrekening_Gateway_AfrondingSplit_di" bpmnElement="Flow_Task_VersturenBriefEindafrekening_Gateway_AfrondingSplit">
+        <di:waypoint x="3840" y="140" />
+        <di:waypoint x="3870" y="140" />
+        <di:waypoint x="3870" y="1420" />
+        <di:waypoint x="3900" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfrondingSplit_Task_TerugsturenBankgarantie_di" bpmnElement="Flow_Gateway_AfrondingSplit_Task_TerugsturenBankgarantie">
+        <di:waypoint x="3950" y="1420" />
+        <di:waypoint x="3980" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfrondingSplit_Task_PlaatsenBriefEindafrekeningVisi_di" bpmnElement="Flow_Gateway_AfrondingSplit_Task_PlaatsenBriefEindafrekeningVisi">
+        <di:waypoint x="3950" y="1420" />
+        <di:waypoint x="3965" y="1420" />
+        <di:waypoint x="3965" y="1510" />
+        <di:waypoint x="3980" y="1510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_TerugsturenBankgarantie_Gateway_AfrondingJoin_di" bpmnElement="Flow_Task_TerugsturenBankgarantie_Gateway_AfrondingJoin">
+        <di:waypoint x="4080" y="1420" />
+        <di:waypoint x="4140" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_PlaatsenBriefEindafrekeningVisi_Gateway_AfrondingJoin_di" bpmnElement="Flow_Task_PlaatsenBriefEindafrekeningVisi_Gateway_AfrondingJoin">
+        <di:waypoint x="4080" y="1510" />
+        <di:waypoint x="4110" y="1510" />
+        <di:waypoint x="4110" y="1420" />
+        <di:waypoint x="4140" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfrondingJoin_Task_GereedmeldenVisi_di" bpmnElement="Flow_Gateway_AfrondingJoin_Task_GereedmeldenVisi">
+        <di:waypoint x="4190" y="1420" />
+        <di:waypoint x="4220" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_GereedmeldenVisi_EndEvent_R61_di" bpmnElement="Flow_Task_GereedmeldenVisi_EndEvent_R61">
+        <di:waypoint x="4320" y="1420" />
+        <di:waypoint x="4380" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_BO11_Liggingsgegevens_di" bpmnElement="Assoc_Annotation_BO11_Liggingsgegevens">
+        <di:waypoint x="1310" y="770" />
+        <di:waypoint x="1390" y="740" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_BO13_IvSchap_di" bpmnElement="Assoc_Annotation_BO13_IvSchap">
+        <di:waypoint x="1550" y="1060" />
+        <di:waypoint x="1810" y="1120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_KV2_Notas_di" bpmnElement="Assoc_Annotation_KV2_Notas">
+        <di:waypoint x="3685" y="115" />
+        <di:waypoint x="3490" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_Aannemer_di" bpmnElement="Assoc_Annotation_Aannemer">
+        <di:waypoint x="1310" y="970" />
+        <di:waypoint x="1150" y="1050" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
