@@ -3,13 +3,11 @@
   "description": [
     "Supply-chain policy for ronl-business-api. Companion to .github/zizmor.yml",
     "and the Supply-chain audit workflow: zizmor enforces that every action",
-    "reference is a commit digest, Renovate keeps those digests current.",
-    "dependencyDashboardApproval is TEMPORARY - see the note on that key."
+    "reference is a commit digest, Renovate keeps those digests current."
   ],
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "minimumReleaseAge": "14 days",
   "internalChecksFilter": "strict",
-  "dependencyDashboardApproval": true,
   "vulnerabilityAlerts": {
     "description": [
       "Security advisories bypass the cooldown. Without this override the",
