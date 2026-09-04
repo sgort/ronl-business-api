@@ -66,6 +66,12 @@ jobs:
 
       - name: Build frontend for production
         working-directory: packages/frontend
+        # See azure-frontend-acc.yml for why these are injected rather than
+        # derived from git at build time. PROD deploys from a push, so
+        # github.sha is a real commit here, never a synthesised merge commit.
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_RUN: ${{ github.run_number }}
         run: |
           npm run build:prod
 
