@@ -34,6 +34,8 @@ jest.mock('@utils/config', () => ({
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { OperatonService } from './operaton.service';
 import type { OperatonVariable, ProcessStartRequest } from '@ronl/shared';
 
@@ -800,6 +802,62 @@ describe('getPhaseBpmnXml', () => {
     mockClient.get.mockResolvedValueOnce({ data: { bpmn20Xml: '<definitions/>' } });
     await expect(svc.getPhaseBpmnXml('RipR22Process')).resolves.toBe('<definitions/>');
     expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('getPhaseSwimlaneModel', () => {
+  const r22Xml = readFileSync(
+    join(__dirname, '../rip-swimlane/__fixtures__/RipR22Process.bpmn'),
+    'utf-8'
+  );
+
+  it('parses the phase XML (fetched via getPhaseBpmnXml) into a swimlane model', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: r22Xml } });
+    const model = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    // Fixture-verified (bpmn-swimlane.test.ts): same counts pinned in
+    // rip.routes.test.ts for the route that calls this method.
+    expect(model.phaseCode).toBe('R2.2');
+    expect(model.lanes.map((l) => l.label)).toEqual([
+      'Projectleider',
+      'Ontwerper',
+      'RIP-team, Aandrager, Adviseur',
+      'Omgevingsmanager',
+    ]);
+    expect(model.nodes).toHaveLength(17);
+    expect(model.edges).toHaveLength(21);
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '/process-definition/key/RipR22Process/tenant-id/flevoland/xml'
+    );
+  });
+
+  it('caches the parsed model, short-circuiting even the XML fetch on a repeat call', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: r22Xml } });
+    const xmlSpy = jest.spyOn(svc, 'getPhaseBpmnXml');
+    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland'); // cache hit
+    // Not just "the network wasn't hit again" (getPhaseBpmnXml's own cache
+    // already gives that) -- getPhaseBpmnXml itself is never called the
+    // second time, proving the swimlane-model cache is checked first.
+    expect(xmlSpy).toHaveBeenCalledTimes(1);
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
+    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: r22Xml } });
+    const xmlSpy = jest.spyOn(svc, 'getPhaseBpmnXml');
+    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2'); // caches under '::RipR22Process'
+    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland'); // 'flevoland::RipR22Process'
+    expect(xmlSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('rethrows on lookup failure rather than caching or swallowing it', async () => {
+    mockClient.get.mockRejectedValue(new Error('xml down'));
+    await expect(svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2')).rejects.toThrow('xml down');
+    // Nothing was cached for the failed call, so a retry re-fetches and re-parses.
+    mockClient.get.mockResolvedValueOnce({ data: { bpmn20Xml: r22Xml } });
+    await expect(svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2')).resolves.toMatchObject({
+      phaseCode: 'R2.2',
+    });
   });
 });
 

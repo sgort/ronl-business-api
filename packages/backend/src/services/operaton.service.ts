@@ -9,7 +9,9 @@ import {
   Task,
   ActivityHistoryItem,
 } from '@ronl/shared';
+import type { PhaseSwimlaneModel } from '@ronl/shared';
 import type { DocumentTemplate } from '@services/document/documentTemplate.types';
+import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
 const logger = createLogger('operaton-service');
 
@@ -43,6 +45,16 @@ export class OperatonService {
    * separately from bpmnXmlCache, which is keyed by definition id.
    */
   private phaseBpmnCache = new Map<string, string>();
+
+  /**
+   * Cache of `${tenantId}::${processKey}` → parsed swimlane model (see
+   * getPhaseSwimlaneModel), keyed identically to phaseBpmnCache above. The
+   * model derived from a definition's XML is exactly as immutable as the XML
+   * itself, so this cache never needs invalidating either -- it just saves
+   * re-running parseSwimlane's shape/edge parsing, back-edge walk and
+   * layering (up to 74 shapes and 68 edges) on every diagram view.
+   */
+  private phaseSwimlaneCache = new Map<string, PhaseSwimlaneModel>();
 
   constructor(baseUrl?: string, username?: string, password?: string) {
     const resolvedBaseUrl = baseUrl ?? config.operaton.baseUrl;
@@ -1523,6 +1535,26 @@ export class OperatonService {
     const xml = res.data.bpmn20Xml;
     this.phaseBpmnCache.set(cacheKey, xml);
     return xml;
+  }
+
+  /**
+   * Swimlane model for a phase, parsed from its deployed BPMN (getPhaseBpmnXml)
+   * and cached under the same `${tenantId}::${processKey}` key. Checked before
+   * the XML fetch, not after: on a hit this returns without ever calling
+   * getPhaseBpmnXml, so a diagram view neither re-fetches nor re-parses.
+   */
+  async getPhaseSwimlaneModel(
+    processKey: string,
+    phaseCode: string,
+    tenantId?: string
+  ): Promise<PhaseSwimlaneModel> {
+    const cacheKey = `${tenantId ?? ''}::${processKey}`;
+    const cached = this.phaseSwimlaneCache.get(cacheKey);
+    if (cached) return cached;
+    const xml = await this.getPhaseBpmnXml(processKey, tenantId);
+    const model = parseSwimlane(xml, phaseCode);
+    this.phaseSwimlaneCache.set(cacheKey, model);
+    return model;
   }
 
   /**

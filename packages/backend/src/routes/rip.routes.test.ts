@@ -30,7 +30,7 @@ jest.mock('@services/operaton.service', () => ({
     getRipInstanceDocuments: jest.fn(),
     getDeployedProcessKeys: jest.fn(),
     getPhaseInstanceCounts: jest.fn(),
-    getPhaseBpmnXml: jest.fn(),
+    getPhaseSwimlaneModel: jest.fn(),
   },
 }));
 jest.mock('@utils/logger', () => ({
@@ -42,6 +42,7 @@ import request from 'supertest';
 import ripRouter from './rip.routes';
 import { operatonService } from '@services/operaton.service';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
+import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
 /** Every phase modelled as BPMN — the exact list both phase endpoints query. */
 const MODELLED_KEYS = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter(Boolean);
@@ -66,7 +67,7 @@ const svc = operatonService as unknown as {
   getRipInstanceDocuments: jest.Mock;
   getDeployedProcessKeys: jest.Mock;
   getPhaseInstanceCounts: jest.Mock;
-  getPhaseBpmnXml: jest.Mock;
+  getPhaseSwimlaneModel: jest.Mock;
 };
 
 const app = express();
@@ -144,13 +145,21 @@ describe('lists', () => {
   );
 
   it('the fixed /phases routes are not swallowed by /phases/:code', async () => {
-    // deployment-status and counts sit one path segment shorter than
+    // deployment-status, counts and active sit one path segment shorter than
     // /phases/:code/active so they cannot collide, but the arrangement is
     // load-bearing enough to pin.
     svc.getDeployedProcessKeys.mockResolvedValue([]);
     svc.getPhaseInstanceCounts.mockResolvedValue({});
+    svc.getRipPhaseActiveList.mockResolvedValue([]);
     expect((await auth(request(app).get('/v1/rip/phases/deployment-status'))).status).toBe(200);
     expect((await auth(request(app).get('/v1/rip/phases/counts'))).status).toBe(200);
+    const activeRes = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(activeRes.status).toBe(200);
+    // The tell-tale sign of being swallowed by /phases/:code/active would be a
+    // 404 UNKNOWN_PHASE (code="active" is not in the catalogue) — the aggregate
+    // shape below is proof this hit the literal route instead.
+    expect(activeRes.body.error).toBeUndefined();
+    expect(activeRes.body.data).toEqual([]);
   });
 
   it('GET /phases/:code/completed → 500 on service failure', async () => {
@@ -158,6 +167,47 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
+  });
+});
+
+describe('GET /phases/active', () => {
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/active');
+    expect(res.status).toBe(401);
+  });
+
+  it('aggregates active instances across every modelled phase, tagging each row with its phaseCode', async () => {
+    svc.getRipPhaseActiveList.mockImplementation((key: string) =>
+      Promise.resolve(key === 'RipR21Process' ? [{ id: 'i1' }] : [])
+    );
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([{ id: 'i1', phaseCode: 'R2.1' }]);
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledTimes(MODELLED_KEYS.length);
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR22Process', 'flevoland');
+  });
+
+  it('omits a failing phase rather than blanking the rest of the aggregate', async () => {
+    svc.getRipPhaseActiveList.mockImplementation((key: string) => {
+      if (key === 'RipR22Process') return Promise.reject('socket hang up'); // non-Error rejection
+      return Promise.resolve(key === 'RipR21Process' ? [{ id: 'i1' }] : []);
+    });
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([{ id: 'i1', phaseCode: 'R2.1' }]);
+    expect(
+      (res.body.data as Array<{ phaseCode: string }>).some((r) => r.phaseCode === 'R2.2')
+    ).toBe(false);
+  });
+
+  it('500s with RIP_ACTIVE_AGGREGATE_FAILED when every modelled phase fails', async () => {
+    svc.getRipPhaseActiveList.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
   });
 });
 
@@ -248,6 +298,7 @@ describe('handler guards for an authenticated request without a user', () => {
   const noUser = (r: request.Test) => r.set('x-test-no-user', '1');
 
   it.each([
+    ['/v1/rip/phases/active'],
     ['/v1/rip/phases/R2.1/active'],
     ['/v1/rip/phases/deployment-status'],
     ['/v1/rip/phases/counts'],
@@ -269,6 +320,13 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_LIST_FAILED');
+  });
+
+  it('GET /phases/active still answers 500 when every phase rejects without an Error', async () => {
+    svc.getRipPhaseActiveList.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
   });
 
   it('GET /phases/deployment-status still answers 500', async () => {
@@ -301,7 +359,7 @@ describe('non-Error rejections', () => {
   });
 
   it('GET /phases/:code/model still answers 500', async () => {
-    svc.getPhaseBpmnXml.mockRejectedValue('socket hang up');
+    svc.getPhaseSwimlaneModel.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/model'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
@@ -323,10 +381,15 @@ describe('tenant isolation when the instance has no municipality', () => {
 });
 
 describe('GET /phases/:code/model', () => {
+  // The route now delegates fetch+parse+cache to operatonService.getPhaseSwimlaneModel
+  // (operaton.service.test.ts covers that pipeline against this same fixture,
+  // including the cache itself); here the mock resolves with the real parsed
+  // model so the route-layer assertions below still catch wrong-shape wiring.
   const r22Xml = readFileSync(
     join(__dirname, '../rip-swimlane/__fixtures__/RipR22Process.bpmn'),
     'utf-8'
   );
+  const r22Model = parseSwimlane(r22Xml, 'R2.2');
 
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/R2.2/model');
@@ -334,7 +397,7 @@ describe('GET /phases/:code/model', () => {
   });
 
   it('returns a swimlane model derived from the deployed BPMN', async () => {
-    svc.getPhaseBpmnXml.mockResolvedValue(r22Xml);
+    svc.getPhaseSwimlaneModel.mockResolvedValue(r22Model);
 
     const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
 
@@ -352,25 +415,25 @@ describe('GET /phases/:code/model', () => {
     ]);
     expect(res.body.data.nodes).toHaveLength(17);
     expect(res.body.data.edges).toHaveLength(21);
-    expect(svc.getPhaseBpmnXml).toHaveBeenCalledWith('RipR22Process', 'flevoland');
+    expect(svc.getPhaseSwimlaneModel).toHaveBeenCalledWith('RipR22Process', 'R2.2', 'flevoland');
   });
 
   it('404s an unknown phase code without touching the engine', async () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/model'));
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('UNKNOWN_PHASE');
-    expect(svc.getPhaseBpmnXml).not.toHaveBeenCalled();
+    expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
   });
 
   itIfUnmodelled('409s a known but unmodelled phase without touching the engine', async () => {
     const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/model`));
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
-    expect(svc.getPhaseBpmnXml).not.toHaveBeenCalled();
+    expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
   });
 
   it('500s with PHASE_MODEL_FAILED rather than half-rendering when the engine is unreachable', async () => {
-    svc.getPhaseBpmnXml.mockRejectedValue(new Error('ECONNREFUSED'));
+    svc.getPhaseSwimlaneModel.mockRejectedValue(new Error('ECONNREFUSED'));
     const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
