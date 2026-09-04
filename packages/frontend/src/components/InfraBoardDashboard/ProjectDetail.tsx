@@ -219,7 +219,7 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
     setSelPhase(currentPhaseCode);
   }, [projectRef.nr, projectRef.instanceId, currentPhaseCode]);
 
-  const { data: phaseModel } = usePhaseSwimlane(selPhase);
+  const { data: phaseModel, loading: phaseModelLoading } = usePhaseSwimlane(selPhase);
 
   const statusById: Record<string, StatusKey> =
     isLive && history
@@ -348,6 +348,13 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
             </div>
           )}
         </>
+      ) : phaseModelLoading ? (
+        <div className="pb-phase-empty">
+          <h3>
+            {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+          </h3>
+          <p className="pb-placeholder">Bezig met laden…</p>
+        </div>
       ) : (
         <div className="pb-phase-empty">
           <h3>

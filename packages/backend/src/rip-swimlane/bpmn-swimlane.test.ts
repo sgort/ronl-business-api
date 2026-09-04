@@ -430,8 +430,21 @@ describe('parseSwimlane — back-edge removal always leaves an acyclic graph', (
   });
 });
 
+// Both tests below check a HAND-COPIED TRANSCRIPTION of rip-model.ts's
+// FASE1_DOCS/FASE1_NODE_ROLE ids against the real, deployed R2.1 BPMN — they
+// exist because the backend cannot import the frontend module to check its
+// real, live tables directly. A copy checked against a copy would rot
+// silently (edit rip-model.ts's table, both hardcoded lists here keep
+// passing since neither reads the table itself), so `rip-model.test.ts`
+// (frontend) carries the other half: it imports FASE1_DOCS/FASE1_NODE_ROLE
+// themselves and checks THEM against a checked-in expected id set derived
+// from this same BPMN. Together the two suites triangulate the coupling
+// from both ends — this file confirms the transcribed ids are real BPMN
+// nodes, the frontend file confirms the real tables match the transcription
+// — and editing either the BPMN or the tables without updating the other
+// side breaks one of them. Neither file alone can catch every drift.
 describe('parseSwimlane — FASE1_DOCS coupling (spec §9)', () => {
-  it('every FASE1_DOCS produceNode resolves to a node in the derived R2.1 model', () => {
+  it('every FASE1_DOCS produceNode (transcribed) resolves to a node in the derived R2.1 model', () => {
     // FASE1_DOCS drives the "Projectplan — onderdelen" strip via
     // docOk(d.produceNode). Its ids used to be synthetic and local to
     // FASE1_NODES; they are BPMN ids now. If a task is ever renamed in the
@@ -454,15 +467,19 @@ describe('parseSwimlane — FASE1_DOCS coupling (spec §9)', () => {
   // threading the phase model into getWipStepInfo and land in the R5.2/R6.1
   // redesign this plan explicitly deferred.
   //
-  // This test guards ONLY that every one of its 19 ids still names a real
-  // node in the deployed R2.1 BPMN — it catches a renamed or deleted task,
-  // turning a silent miss (stepRole/blocked quietly going blank) into a loud
-  // failure. It does NOT check that the role each id maps to still matches
-  // that node's actual BPMN lane: if a task is moved to a different lane,
-  // this test keeps passing while the WIP tab's role column goes stale. That
-  // gap is real and is not covered anywhere else — do not read a passing run
-  // of this test as confirmation the role table is still correct.
-  it('every FASE1_NODE_ROLE id resolves to a node in the derived R2.1 model (existence only, not lane)', () => {
+  // This test guards ONLY that every one of its 19 TRANSCRIBED ids still
+  // names a real node in the deployed R2.1 BPMN — it catches a renamed or
+  // deleted task, turning a silent miss (stepRole/blocked quietly going
+  // blank) into a loud failure. It does NOT read FASE1_NODE_ROLE itself (see
+  // the file-level comment above), so it cannot catch an id edited in that
+  // table without this list being updated to match — that half is
+  // `rip-model.test.ts`'s job. It also does NOT check that the role each id
+  // maps to still matches that node's actual BPMN lane: if a task is moved
+  // to a different lane, this test keeps passing while the WIP tab's role
+  // column goes stale. That gap is real and is not covered anywhere else —
+  // do not read a passing run of this test as confirmation the role table
+  // is still correct.
+  it('every FASE1_NODE_ROLE id (transcribed) resolves to a node in the derived R2.1 model (existence only, not lane)', () => {
     const ids = new Set(parseSwimlane(xml('RipR21Process'), 'R2.1').nodes.map((n) => n.bpmnId));
     const fase1NodeRoleIds = [
       'StartEvent_RipPhase1',

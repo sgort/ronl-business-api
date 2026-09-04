@@ -79,9 +79,8 @@ export const FASE1_DOCS = [
 // The hand-maintained FASE1_LANES/FASE1_NODES/FASE1_EDGES layout (and its
 // local NodeKind/SwimLane/SwimNode/SwimEdge types) is gone — every phase's
 // layout, including R2.1's, now comes from `usePhaseSwimlane` /
-// `parseSwimlane`. Re-export the shared vocabulary so existing importers of
-// these type names keep working.
-export type { NodeKind, SwimLane, SwimNode, SwimEdge } from '@ronl/shared';
+// `parseSwimlane`, and consumers (e.g. ProjectDetail.tsx) import those type
+// names from `@ronl/shared` directly.
 
 /**
  * Map live engine activity-history onto a status per swimlane node.
@@ -151,8 +150,15 @@ export interface WipStepInfo {
  * different lane, this table goes stale — silently, the coupling test still
  * passes — and the WIP tab's role column is wrong until someone notices and
  * updates it here.
+ *
+ * Exported (only) so `rip-model.test.ts` can import the real table and
+ * check it against a checked-in expected id set derived from the R2.1 BPMN
+ * — the backend's `bpmn-swimlane.test.ts` guard works from a hand-copied
+ * transcription of these ids, not this table itself, so on its own it
+ * cannot detect an edit made here. See that file's coupling-test comments
+ * for the full split of what each side actually checks.
  */
-const FASE1_NODE_ROLE: Record<string, string> = {
+export const FASE1_NODE_ROLE: Record<string, string> = {
   StartEvent_RipPhase1: 'aandrager',
   Task_AanlevrenProjectplan: 'aandrager',
   Task_OrganiserenIntakeoverleg: 'manager-pb',
@@ -176,10 +182,7 @@ const FASE1_NODE_ROLE: Record<string, string> = {
 
 /** R2.1's rework-loop targets, by BPMN id — the surviving remnant of the
  *  deleted FASE1_EDGES. A task reached more than once means a loop ran. */
-export const FASE1_REWORK_TARGETS = [
-  'Task_AanvullenProjectplan2',
-  'Task_AanvullenProjectplan4',
-] as const;
+const FASE1_REWORK_TARGETS = ['Task_AanvullenProjectplan2', 'Task_AanvullenProjectplan4'] as const;
 
 /** The gateway that sends each FASE1_REWORK_TARGETS entry back for rework —
  *  both of R2.1's rework gateways (Gateway_Akkoord2, Gateway_Akkoord4) are

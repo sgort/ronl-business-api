@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ActivityHistoryItem } from '@ronl/shared';
 import {
   countReworkLoops,
+  FASE1_DOCS,
+  FASE1_NODE_ROLE,
   getDocProgress,
   getWipStepInfo,
   nodeStatusFromHistory,
@@ -297,5 +299,53 @@ describe('getDocProgress', () => {
       activity({ activityId: 'Task_AanvullenProjectplan4', endTime: '2026-08-04T00:00:00Z' }),
     ];
     expect(getDocProgress(history).docsDone).toBe(4);
+  });
+});
+
+// These two guard the coupling between this module's hand-maintained tables
+// and the real, deployed R2.1 BPMN (design spec §6.1: "so this coupling
+// cannot rot silently"). Unlike `bpmn-swimlane.test.ts`'s backend version —
+// which checks a hand-copied TRANSCRIPTION of these ids against the actual
+// parsed BPMN, and so cannot see an edit made to the tables below — these
+// tests import FASE1_DOCS/FASE1_NODE_ROLE themselves, so editing either
+// table without updating the expected id set here fails immediately. The
+// expected sets are transcriptions in the other direction: hand-derived
+// from the same deployed R2.1 BPMN the backend test parses, not read from
+// it directly (this package has no BPMN parser). Together the two suites
+// triangulate the coupling from both ends; neither alone can.
+describe('rip-model — coupling with the deployed R2.1 BPMN (spec §6.1)', () => {
+  it('every FASE1_DOCS produceNode is one of the expected R2.1 BPMN ids', () => {
+    const expectedIds = new Set([
+      'Task_AanlevrenProjectplan',
+      'Task_AanvullenProjectplan2',
+      'Task_UitvoerenPSU',
+      'Task_AanvullenProjectplan4',
+    ]);
+    expect(FASE1_DOCS.map((d) => d.produceNode)).toEqual([...expectedIds]);
+  });
+
+  it('FASE1_NODE_ROLE has exactly the 19 expected R2.1 BPMN ids as keys', () => {
+    const expectedIds = [
+      'StartEvent_RipPhase1',
+      'Task_AanlevrenProjectplan',
+      'Task_OrganiserenIntakeoverleg',
+      'Task_UitvoerenIntakeoverleg',
+      'Gateway_IntakeAkkoord',
+      'Task_VerberenKwaliteit',
+      'Task_AanvullenProjectplan2',
+      'Task_AccorderenProjectplan2',
+      'Gateway_Akkoord2',
+      'Task_InitierenPSU',
+      'Task_AanmakenWorkspaceRelatics',
+      'Task_OpstellenRisicodossier',
+      'Task_UitvoerenPSU',
+      'Task_OpstellenPlanning',
+      'Task_AanvullenProjectplan4',
+      'Task_HoudenOverlegVO',
+      'Task_AccorderenProjectplan4',
+      'Gateway_Akkoord4',
+      'EndEvent_Phase1Complete',
+    ];
+    expect(Object.keys(FASE1_NODE_ROLE).sort()).toEqual([...expectedIds].sort());
   });
 });

@@ -155,6 +155,25 @@ describe('ProjectDetail — mock project', () => {
     expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
   });
 
+  it('shows a loading affordance, not the "not modelled" failure panel, while the phase model fetch is in flight', () => {
+    // usePhaseSwimlane reports loading:true whenever a phase is requested
+    // but its model isn't held yet -- including the very first render after
+    // opening a project, and every phase-rung click, before the response
+    // arrives. Only once the fetch has actually settled without a usable
+    // model should the failure panel appear.
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: null,
+      loading: true,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    render(<ProjectDetail projectRef={{ nr: getMockPortfolio()[0].nr }} onBack={vi.fn()} />);
+
+    expect(screen.queryByText(/nog niet gemodelleerd/)).not.toBeInTheDocument();
+    expect(screen.getByText('Bezig met laden…')).toBeInTheDocument();
+  });
+
   it('derives status across a phase not currently reached, spanning done/active', () => {
     // deriveMockStatus now walks whatever nodes the derived model for the
     // SELECTED phase supplies (not the fixed 18-node R2.1 layout), so this

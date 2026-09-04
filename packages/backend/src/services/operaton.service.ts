@@ -1512,7 +1512,7 @@ export class OperatonService {
    * cache is refreshed by restart rather than invalidated.
    */
   async getPhaseBpmnXml(processKey: string, tenantId?: string): Promise<string> {
-    const cacheKey = `${tenantId ?? '-'}:${processKey}`;
+    const cacheKey = `${tenantId ?? ''}::${processKey}`;
     const cached = this.phaseBpmnCache.get(cacheKey);
     if (cached) return cached;
     const res = await this.getByKeyWithTenantFallback<{ bpmn20Xml: string }>(
