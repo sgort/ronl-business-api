@@ -92,6 +92,19 @@ jobs:
 
       - name: Build frontend for ACC
         working-directory: packages/frontend
+        # Stamps the bundle with which BUILD it is, not just which release —
+        # the changelog version comes from package.json and is bumped by hand,
+        # so ACC and PROD can serve different builds of the same version. Vite
+        # merges VITE_-prefixed process.env over .env.acceptance, so these
+        # reach import.meta.env without touching the mode file. Absent (local
+        # builds, forks), src/utils/buildInfo.ts renders 'local build'.
+        #
+        # On a pull request github.sha is the merge commit GitHub synthesises,
+        # so a preview's SHA matches no commit in the branch. That is the
+        # commit that was built, and is expected — not a bug to chase.
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_RUN: ${{ github.run_number }}
         run: |
           npm run build:acc
 

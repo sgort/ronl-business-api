@@ -10,6 +10,7 @@ import {
   type FeedbackItem,
   type ScopeTag,
 } from './changelog-data';
+import { getBuildInfo } from '../utils/buildInfo';
 
 export interface ChangelogPanelProps {
   isOpen: boolean;
@@ -19,6 +20,11 @@ export interface ChangelogPanelProps {
 export default function ChangelogPanelContent({ isOpen, onClose }: ChangelogPanelProps) {
   // Only the latest (first) entry starts expanded — matches the Regeleditor/
   // LDE/CPSV Editor changelog pattern of one open card, the rest collapsed.
+  // Which build is being served, as opposed to which release the version
+  // strings below name. Cheap and synchronous — see utils/buildInfo.ts for why
+  // it is a call rather than a module-scope constant.
+  const buildInfo = getBuildInfo();
+
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(changelog.versions[0] ? [changelog.versions[0].version] : [])
   );
@@ -91,6 +97,15 @@ export default function ChangelogPanelContent({ isOpen, onClose }: ChangelogPane
                 </h2>
                 <p className="text-sm" style={{ color: 'rgba(255,255,255,0.78)' }}>
                   RONL Business API Updates
+                </p>
+                {/* title carries the full 40-char SHA so it can be copied for a
+                    lookup; the visible label stays short. */}
+                <p
+                  className="text-xs font-mono mt-0.5"
+                  style={{ color: 'rgba(255,255,255,0.65)' }}
+                  title={buildInfo.sha || undefined}
+                >
+                  {buildInfo.label}
                 </p>
               </div>
             </div>
