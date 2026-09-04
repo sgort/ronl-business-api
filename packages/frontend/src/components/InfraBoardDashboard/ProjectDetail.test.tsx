@@ -11,6 +11,7 @@ const mockUseInstanceDocuments = vi.hoisted(() => vi.fn());
 const mockUseOpenTasks = vi.hoisted(() => vi.fn());
 const mockUseRipActiveAcrossPhases = vi.hoisted(() => vi.fn());
 const mockUsePhaseSwimlane = vi.hoisted(() => vi.fn());
+const mockUseRipPhaseCompleted = vi.hoisted(() => vi.fn());
 vi.mock('../../services/infra.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/infra.api')>();
   return {
@@ -20,6 +21,7 @@ vi.mock('../../services/infra.api', async (importOriginal) => {
     useOpenTasks: mockUseOpenTasks,
     useRipActiveAcrossPhases: mockUseRipActiveAcrossPhases,
     usePhaseSwimlane: mockUsePhaseSwimlane,
+    useRipPhaseCompleted: mockUseRipPhaseCompleted,
   };
 });
 
@@ -68,6 +70,12 @@ beforeEach(() => {
     reload: vi.fn(),
   });
   mockUsePhaseSwimlane.mockReturnValue({
+    data: null,
+    loading: false,
+    error: false,
+    reload: vi.fn(),
+  });
+  mockUseRipPhaseCompleted.mockReturnValue({
     data: null,
     loading: false,
     error: false,
@@ -398,6 +406,18 @@ describe('ProjectDetail — live instance past R2.1', () => {
   };
   const liveRef = { nr: 'MANUAL-20260902-222824', instanceId: 'pi-22' };
 
+  /** The CURRENT instance's own activity history (R2.2 ids). */
+  const R22_HISTORY = [
+    {
+      id: 'a1',
+      activityId: 'Task_OpstellenVO',
+      activityName: 'Opstellen VO',
+      startTime: '2026-09-02T22:30:00Z',
+      endTime: null,
+      canceled: false,
+    },
+  ];
+
   beforeEach(() => {
     mockUseRipActiveAcrossPhases.mockReturnValue({
       data: [R22_ROW],
@@ -405,24 +425,17 @@ describe('ProjectDetail — live instance past R2.1', () => {
       error: false,
       reload: vi.fn(),
     });
-    // The instance's OWN history: R2.2 activity ids, which share nothing
-    // with R2.1's model. Feeding these to the R2.1 swimlane is exactly the
-    // mistake the fix has to avoid.
-    mockUseActivityHistory.mockReturnValue({
-      data: [
-        {
-          id: 'a1',
-          activityId: 'Task_OpstellenVO',
-          activityName: 'Opstellen VO',
-          startTime: '2026-09-02T22:30:00Z',
-          endTime: null,
-          canceled: false,
-        },
-      ],
-      loading: false,
-      error: false,
-      reload: vi.fn(),
-    });
+    // ProjectDetail now calls useActivityHistory twice — once for the
+    // CURRENT instance (R2.2) and once for whatever past-phase instance the
+    // fix resolves (or null, when there is none) — both routed through this
+    // one mock, so it has to answer per instanceId rather than statically.
+    // Anything other than the current instance's own id (including null)
+    // gets an empty history, matching the real hook's null-skip behaviour.
+    mockUseActivityHistory.mockImplementation((instanceId: string | null) =>
+      instanceId === R22_ROW.id
+        ? { data: R22_HISTORY, loading: false, error: false, reload: vi.fn() }
+        : { data: [], loading: false, error: false, reload: vi.fn() }
+    );
   });
 
   it('reports the instance own phase in the meta strip, not R2.1', () => {
@@ -473,15 +486,101 @@ describe('ProjectDetail — live instance past R2.1', () => {
     expect(screen.getByText(/nog niet gemodelleerd/)).toBeInTheDocument();
   });
 
-  it('shows the R2.1 swimlane when its rung is selected, driven by the current instance history', async () => {
-    // pastFase1 special-casing is gone: with every phase modelled, a past
-    // rung's swimlane is now driven by the SAME instance history this
-    // component already has (for its CURRENT phase, R2.2) — which shares no
-    // activity ids with R2.1's model, so R2.1's nodes read 'todo' here
-    // rather than a fabricated 'done'. Fetching a DIFFERENT phase's own
-    // instance history to back-fill a past rung is out of scope for this
-    // task; this test pins the accepted (not fabricated) behaviour instead
-    // of the deleted workaround's claim that R2.1 has no todo nodes.
+  it("derives the R2.1 rung's status from R2.1's OWN completed instance when its businessKey matches this project's", async () => {
+    // The fix: R2.1's swimlane, selected while the project is on R2.2, is no
+    // longer read off the CURRENT (R2.2) instance's history — it never
+    // contains R2.1's activity ids, which is the bug. It is read off the
+    // completed R2.1 instance that shares this project's businessKey.
+    const r21Completed = {
+      id: 'pi-21-done',
+      businessKey: R22_ROW.businessKey,
+      startTime: '2026-08-20T09:00:00Z',
+      endTime: '2026-08-25T09:00:00Z',
+      projectNumber: R22_ROW.projectNumber,
+      projectName: R22_ROW.projectName,
+      edocsWorkspaceId: '',
+    };
+    mockUseRipPhaseCompleted.mockReturnValue({
+      data: [r21Completed],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseActivityHistory.mockImplementation((instanceId: string | null) => {
+      if (instanceId === R22_ROW.id)
+        return { data: R22_HISTORY, loading: false, error: false, reload: vi.fn() };
+      if (instanceId === r21Completed.id)
+        return {
+          data: [
+            {
+              id: 'h1',
+              activityId: 'Task_AanlevrenProjectplan',
+              activityName: 'Aanleveren Projectplan',
+              startTime: '2026-08-20T09:05:00Z',
+              endTime: '2026-08-20T10:00:00Z',
+              canceled: false,
+            },
+          ],
+          loading: false,
+          error: false,
+          reload: vi.fn(),
+        };
+      return { data: [], loading: false, error: false, reload: vi.fn() };
+    });
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: {
+        phaseCode: 'R2.1',
+        lanes: [{ key: 'l1', label: 'Aandrager' }],
+        nodes: [
+          {
+            id: 'Task_AanlevrenProjectplan',
+            bpmnId: 'Task_AanlevrenProjectplan',
+            kind: 'task',
+            col: 0,
+            row: 0,
+            label: 'Aanleveren Projectplan',
+          },
+        ],
+        edges: [],
+      },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const user = userEvent.setup();
+    const { container } = render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    await user.click(
+      screen.getByRole('button', { name: (name) => name.includes(RIP_PHASES[0].name) })
+    );
+
+    const swim = container.querySelector('.pb-swim') as HTMLElement;
+    expect(swim).not.toBeNull();
+    expect(within(swim).getByText('Aanleveren Projectplan').closest('.pb-swim-node')).toHaveClass(
+      'done'
+    );
+  });
+
+  it('shows an uncoloured R2.1 diagram, not a fabricated green one, when no completed instance shares this businessKey', async () => {
+    // Guards against resurrecting `pastFase1`'s blanket-'done': a completed
+    // R2.1 instance exists, but for a DIFFERENT project (different
+    // businessKey), so it must not be treated as this project's own R2.1 run.
+    mockUseRipPhaseCompleted.mockReturnValue({
+      data: [
+        {
+          id: 'pi-someone-elses-r21',
+          businessKey: 'SOME-OTHER-BUSINESS-KEY',
+          startTime: '2026-08-20T09:00:00Z',
+          endTime: '2026-08-25T09:00:00Z',
+          projectNumber: '00001',
+          projectName: 'Ander project',
+          edocsWorkspaceId: '',
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
     mockUsePhaseSwimlane.mockReturnValue({
       data: {
         phaseCode: 'R2.1',
@@ -514,6 +613,37 @@ describe('ProjectDetail — live instance past R2.1', () => {
     expect(within(swim).getByText('Aanleveren Projectplan').closest('.pb-swim-node')).toHaveClass(
       'todo'
     );
+  });
+
+  it("still derives the CURRENT phase's status from the live instance's own history (regression guard)", () => {
+    // The fix must not disturb the ordinary, already-working path: the
+    // CURRENT phase (R2.2, selected by default here) keeps deriving from
+    // projectRef.instanceId's own history exactly as before.
+    mockUsePhaseSwimlane.mockReturnValue({
+      data: {
+        phaseCode: 'R2.2',
+        lanes: [{ key: 'l1', label: 'Ontwerper' }],
+        nodes: [
+          {
+            id: 'Task_OpstellenVO',
+            bpmnId: 'Task_OpstellenVO',
+            kind: 'task',
+            col: 0,
+            row: 0,
+            label: 'Opstellen VO',
+          },
+        ],
+        edges: [],
+      },
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    const { container } = render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+
+    const swim = container.querySelector('.pb-swim') as HTMLElement;
+    expect(within(swim).getByText('Opstellen VO').closest('.pb-swim-node')).toHaveClass('active');
   });
 
   it('falls back to R2.1 when the instance is not in the active list', () => {

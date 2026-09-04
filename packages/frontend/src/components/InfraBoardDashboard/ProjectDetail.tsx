@@ -12,6 +12,7 @@ import {
   useInstanceDocuments,
   useOpenTasks,
   useRipActiveAcrossPhases,
+  useRipPhaseCompleted,
   usePhaseSwimlane,
 } from '../../services/infra.api';
 import { businessApi } from '../../services/api';
@@ -210,9 +211,10 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   // ProjectRef: MijnDag also opens live projects (from a task, which carries
   // no phase), so a prop would arrive undefined on that path.
   const { data: liveInstances } = useRipActiveAcrossPhases();
-  const livePhaseCode = isLive
-    ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)?.phaseCode
+  const currentRow = isLive
+    ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)
     : undefined;
+  const livePhaseCode = currentRow?.phaseCode;
   const currentPhaseCode = isLive ? (livePhaseCode ?? 'R2.1') : (mock?.ripPhaseCode ?? 'R2.1');
   const [selPhase, setSelPhase] = useState(currentPhaseCode);
   useEffect(() => {
@@ -221,8 +223,43 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
 
   const { data: phaseModel, loading: phaseModelLoading } = usePhaseSwimlane(selPhase);
 
-  const statusById: Record<string, StatusKey> =
-    isLive && history
+  // Selecting a FINISHED phase's rung (e.g. R2.1 while the project is on
+  // R2.2) must show THAT phase's own run, not the current instance's — the
+  // current instance's history never contains the selected phase's BPMN ids,
+  // which is exactly the bug this branch fixes (every node fell through to
+  // 'todo'). Instances of the same project across phases are linked by
+  // businessKey (see infra.api.ts) rather than project number, so the join
+  // is done on that; a null businessKey (an instance started before the
+  // convention, or by hand) cannot be joined and is left unresolved rather
+  // than guessed.
+  const isOtherPhaseSelected = isLive && selPhase !== currentPhaseCode;
+  const businessKey = currentRow?.businessKey ?? null;
+  // Unmodelled phase codes 409 the completed-instances endpoint on purpose
+  // (see infra.api.ts) — only ask for phases that actually have a process.
+  const selPhaseModelled = !!ripPhaseByCode(selPhase)?.processDefinitionKey;
+  const { data: selPhaseCompleted } = useRipPhaseCompleted(
+    isOtherPhaseSelected && selPhaseModelled ? selPhase : null
+  );
+  // R5.3 is legitimately re-enterable — it splits on oplevering vs
+  // (vervroegde) ingebruikname, and three of its four exits loop back to
+  // R5.2 — so more than one completed instance can carry this businessKey.
+  // The most recently finished one is this project's current standing in
+  // that phase, so ties resolve to the latest endTime rather than silently
+  // taking whichever the backend happened to list first.
+  const matchingPastInstances = (businessKey ? (selPhaseCompleted ?? []) : []).filter(
+    (i) => i.businessKey === businessKey
+  );
+  const pastInstance =
+    matchingPastInstances.length > 0
+      ? matchingPastInstances.reduce((latest, cur) => (cur.endTime > latest.endTime ? cur : latest))
+      : null;
+  const { data: pastHistory } = useActivityHistory(
+    isOtherPhaseSelected ? (pastInstance?.id ?? null) : null
+  );
+
+  const statusById: Record<string, StatusKey> = isOtherPhaseSelected
+    ? nodeStatusFromHistory(pastHistory ?? [])
+    : isLive && history
       ? nodeStatusFromHistory(history)
       : deriveMockStatus(mock, phaseModel?.nodes ?? []);
 
