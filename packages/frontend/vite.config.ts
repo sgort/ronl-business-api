@@ -73,6 +73,21 @@ export default defineConfig({
       reportOnFailure: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx', 'src/vite-env.d.ts', 'src/test/**'],
+      // The per-file 80% branch floor, enforced rather than remembered.
+      // v2026.09.2 took 53 files below the line to none, and nothing
+      // mechanical held it afterwards. Issue #80.
+      //
+      // perFile is the whole point: without it the threshold applies to the
+      // package average, which is 89.78% here — one file dropping to 40%
+      // barely moves that, and the regression this exists to catch passes.
+      //
+      // BRANCHES ONLY, deliberately. A functions floor at 80 would fail 11
+      // files in this package today. Do not add `functions: 80` on the
+      // assumption it is equally safe; measure first.
+      thresholds: {
+        branches: 80,
+        perFile: true,
+      },
     },
   },
 });

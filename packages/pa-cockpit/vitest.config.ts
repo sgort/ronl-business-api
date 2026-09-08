@@ -24,6 +24,19 @@ export default defineConfig({
       reportOnFailure: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/index.ts'],
+      // The per-file 80% branch floor. See issue #80 and the fuller note in
+      // packages/frontend/vite.config.ts.
+      //
+      // perFile matters most here: the package average is 88.52%, comfortably
+      // clear, while this package's suite runs in CI only because
+      // azure-frontend-{acc,prod}.yml were given an explicit step for it —
+      // it has no deploy workflow of its own.
+      //
+      // BRANCHES ONLY. A functions floor at 80 would fail 10 files here today.
+      thresholds: {
+        branches: 80,
+        perFile: true,
+      },
     },
   },
 });
