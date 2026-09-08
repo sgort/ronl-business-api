@@ -12,6 +12,29 @@ module.exports = {
     '!src/types/**',
     '!src/index.ts',
   ],
+  // The per-file 80% branch floor, enforced rather than remembered.
+  //
+  // v2026.09.2 took 53 files below the line to none across all five tested
+  // workspaces, and nothing mechanical held it afterwards: a file could drop
+  // to 40% branches and fail no run, no hook and no pipeline. Issue #80.
+  //
+  // A GLOB key, not `global`. Jest applies a glob threshold to each matching
+  // file individually, which is the unit the campaign was measured in — a
+  // package-wide average hides exactly the regression this is for, since one
+  // file falling to 40% barely moves 92%.
+  //
+  // BRANCHES ONLY, deliberately. A functions floor at 80 would fail 31 files
+  // across the other four workspaces today (frontend 11, pa-cockpit 10,
+  // pa-demo 7, public-site 3; backend happens to be 0). Adding `functions: 80`
+  // here would pass and mislead the next person into adding it there.
+  //
+  // `npm test` is `jest --coverage`, and both backend deploy workflows run it,
+  // so this gates CI as well as local runs without a separate coverage job.
+  coverageThreshold: {
+    './src/**/*.ts': {
+      branches: 80,
+    },
+  },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {

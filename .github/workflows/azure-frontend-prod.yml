@@ -56,6 +56,13 @@ jobs:
         working-directory: packages/frontend
         run: npm run lint
 
+      # See azure-frontend-acc.yml for why pa-cockpit's suite runs here: it is
+      # a library with no deploy workflow of its own, already inside this
+      # workflow's paths filter, and its tests ran nowhere in CI before this.
+      - name: Unit tests (pa-cockpit)
+        working-directory: packages/pa-cockpit
+        run: npm test
+
       - name: Unit tests
         working-directory: packages/frontend
         run: npm test

@@ -82,6 +82,20 @@ jobs:
         working-directory: packages/frontend
         run: npm run lint
 
+      # @ronl/pa-cockpit has no deploy workflow of its own — it is a library
+      # this frontend consumes — so until now its 476 tests ran nowhere in CI.
+      # This workflow's paths filter already includes packages/pa-cockpit/**,
+      # so a change there triggers this run; it just did not test it. Placed
+      # before the frontend's own suite because the frontend imports it: a
+      # break here explains a break there.
+      #
+      # It also makes the per-file 80% branch floor mean the same thing in
+      # every workspace. A threshold that only fires on someone's laptop is a
+      # convention wearing a gate's clothes. See issue #80.
+      - name: Unit tests (pa-cockpit)
+        working-directory: packages/pa-cockpit
+        run: npm test
+
       - name: Unit tests
         working-directory: packages/frontend
         run: npm test
