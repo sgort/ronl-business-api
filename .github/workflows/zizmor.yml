@@ -97,3 +97,52 @@ jobs:
         # this file actually is -- it will happily validate and tell you
         # nothing useful.
         run: npx --yes --package renovate@44.50.3 renovate-config-validator --strict
+
+      - name: Verify pin truth and register agreement
+        # zizmor validates pin FORMAT — that `uses:` names a 40-character SHA.
+        # It cannot say the SHA is the RIGHT one, so a wrong or hostile digest
+        # carrying a plausible "# v7.0.1" comment passes zizmor, Prettier and
+        # review alike. This resolves every digest against the GitHub API and
+        # compares SECURITY-PIPELINE.md's register with the workflows —
+        # digests, versions, the (×N) multiplicities, and the totals headline.
+        #
+        # The multiplicities are not decoration here: setup-node silently went
+        # from ×8 to ×9 when the config-validator step above was added, and the
+        # register still said ×8 with every gate green. That is the drift this
+        # step now catches.
+        #
+        # if: always() for the same reason as the validator above — one run
+        # should report on every half of the policy, not stop at the first.
+        if: always()
+        # NON-BLOCKING to start with, and not merely out of caution.
+        #
+        # Renovate rewrites workflow pins and never touches
+        # SECURITY-PIPELINE.md, so every action-bump pull request fails the
+        # register half until the register is updated by hand. Blocking on
+        # that would fail a required check on routine dependency updates,
+        # which is how gates get resented and then bypassed.
+        #
+        # The answer, proven in linked-data-explorer over two bumps
+        # (sgort/linked-data-explorer#66 and #67): update the register ON the
+        # bump's branch, before merging, so the check is green on the pull
+        # request rather than only on acc afterwards. Promote to blocking once
+        # that habit holds here too — see issue #81.
+        #
+        # Do not leave it non-blocking indefinitely. continue-on-error does
+        # not merely keep the job green: it rewrites the STEP's reported
+        # conclusion too, and the honest result (outcome: failure) is not
+        # exposed by the REST API. A finding is then visible ONLY in this
+        # step's log — the checks list, the job and the step all read
+        # "success". Observed on sgort/linked-data-explorer#66.
+        #
+        # The other reason to start non-blocking: this makes a network call
+        # inside a job the ruleset requires, so an API outage or rate limit
+        # could fail a gate unrelated to the change under review. If that
+        # proves to be a problem, add --offline rather than restoring
+        # continue-on-error: it keeps the register half blocking and drops
+        # only the network-dependent half.
+        continue-on-error: true
+        env:
+          # contents: read suffices — this only resolves public refs.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run check-supply-chain
