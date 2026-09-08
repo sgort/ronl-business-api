@@ -179,34 +179,67 @@ exception above, it is fixable from our side — see "Queued CI improvements".
 ## What the audit cannot see
 
 zizmor validates pin **format**, never pin **truth**. A wrong or hostile digest
-carrying a plausible `# v4.4.0` comment passes the gate, Prettier and review
-alike. Nothing here re-checks that a digest resolves to the tag it claims, and
-nothing checks that this document still matches the workflows — Renovate updates
-pins and never touches it. A `scripts/check-supply-chain.mjs` preflight covering
-both is planned.
+carrying a plausible `# v7.0.1` comment passes zizmor, Prettier and review alike,
+because nothing in that gate re-resolves the reference. Nor does zizmor check
+that this document still matches the workflows.
 
-**That second gap is not hypothetical — it already bit.** Between the v7 action
-upgrades (`2026.08.33`) and 29 August 2026, this document's Pinned table still
-listed the superseded v4 digests for `actions/checkout`, `actions/setup-node` and
-`actions/upload-artifact`. The workflows had moved; the register had not, and
-every gate stayed green throughout — which is exactly the failure mode described
-above.
-
-A second, quieter drift came with it: `setup-node` had gone from ×8 to ×9 when
-the `renovate-config-validator` step was added, and the `renovate@44.50.3` pin
-that step introduced was absent from the table entirely. A count is as easy to
-falsify as a digest, and neither the audit nor review catches it.
-
-The reconciliation was manual, prompted by a documentation review rather than by
-any check in this repository. Until the planned preflight exists, **treat "the
-register matches the workflows" as an assumption, not a guarantee** — and
-re-derive the table from the workflow files whenever a pin changes.
+Both of those gaps are now covered by `scripts/check-supply-chain.mjs` — see
+[Keeping this register true](#keeping-this-register-true) below. What follows
+here is what remains outside any check.
 
 **Production is not yet protected.** The `*-prod.yml` files are pinned by this
 change, but GitHub Actions runs the workflow file _from the branch being pushed_.
 Measured on `origin/main`, 29 August 2026: **4 workflows, 13 `uses:` references,
 0 digest-pinned.** `main` will keep using those copies until `acc` is promoted.
 Pinning the file is not the same as pinning the branch that runs it.
+
+## Keeping this register true
+
+The Pinned table is the only part of this document a machine reads.
+`scripts/check-supply-chain.mjs` runs in the `audit` job and compares it with
+the workflows — digests, versions, the `(×N)` multiplicities, and the
+`30 uses: references across 9 workflows` headline — then resolves every digest
+against the GitHub API to confirm it is the version its comment claims. Run it
+by hand with `npm run check-supply-chain`; `--offline` skips the API and checks
+format and register agreement only.
+
+**This repository is why the count half exists.** Between the v7 upgrades
+(`2026.08.33`) and 29 August 2026 the table still listed superseded v4 digests
+for `actions/checkout`, `actions/setup-node` and `actions/upload-artifact`: the
+workflows had moved, the register had not, and every gate stayed green
+throughout. A quieter drift came with it — `setup-node` had gone from ×8 to ×9
+when the `renovate-config-validator` step was added, and the `renovate@44.50.3`
+pin that step introduced was missing from the table entirely. A count is as easy
+to falsify as a digest, and neither the audit nor review caught it. That
+reconciliation was manual, prompted by a documentation review rather than by any
+check here. It is no longer an assumption.
+
+**Renovate does not maintain this table.** It rewrites workflow pins and their
+version comments together, honestly and correctly, and never touches this file.
+So an action-bump pull request leaves the register describing a policy the
+workflows no longer follow — the same drift as above, arriving by the most
+routine route there is.
+
+**So: when a Renovate pull request bumps an action, update this table on that
+pull request's branch, before merging it.** Not afterwards. The check runs on the
+pull request, so a register fixed after the merge leaves the check red for that
+pull request's entire life — and makes the step impossible to promote to
+blocking, because no bump could ever show a green result to merge on.
+
+Adding or removing a workflow step that carries a `uses:` line also moves the
+`(×N)` count and the totals headline. That is the ×8→×9 case above, and the check
+now fails on it rather than leaving it to a reader.
+
+The step is `continue-on-error: true` for now. It was proven in
+linked-data-explorer over two bumps
+([#66](https://github.com/sgort/linked-data-explorer/pull/66),
+[#67](https://github.com/sgort/linked-data-explorer/pull/67)) and promoted to
+blocking there; promote it here once the same habit holds. Do not leave it
+non-blocking indefinitely: `continue-on-error` rewrites the _step's_ reported
+conclusion as well as the job's, and the honest result is not exposed by the REST
+API — so a finding is visible only in the step's log while the checks list, the
+job and the step all read "success". See issue
+[#81](https://github.com/sgort/ronl-business-api/issues/81).
 
 ## Pending work
 
