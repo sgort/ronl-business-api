@@ -4,7 +4,7 @@ import type { Translations, Lang } from '../i18n';
 import { sectionForType, sectionLabel, sectionSub, type PubType } from '../lib/sections';
 import { getBerichten, getNieuws, getProducten, getProcessen, type PublicHit } from '../lib/api';
 import { mapToHits } from '../lib/sectionHits';
-import { readPrerenderedData } from '../lib/prerenderedData';
+import { readPrerenderedData, isSamePayload } from '../lib/prerenderedData';
 import SearchForm from '../components/SearchForm';
 import Hit from '../components/Hit';
 import Crumbs from '../components/Crumbs';
@@ -48,19 +48,27 @@ export default function SectionIndex({
 
   useEffect(() => {
     const seed = readPrerenderedData<PublicHit[]>(sectionForType(type).path);
-    if (seed) {
-      setAll(seed);
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
-    setLoading(true);
-    loadItems(type).then((items) => {
-      if (!cancelled) {
-        setAll(items);
+    if (seed) {
+      // Paint the seed, then revalidate underneath it — the blob is a snapshot
+      // of the last build, so without this the section froze at deploy time
+      // (issue #88). Never flip back to the placeholder once there is content.
+      setAll((current) => (isSamePayload(current, seed) ? current : seed));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    loadItems(type)
+      .then((items) => {
+        if (cancelled) return;
+        setAll((current) => (isSamePayload(current, items) ? current : items));
         setLoading(false);
-      }
-    });
+      })
+      .catch(() => {
+        // A failed revalidation must not blank a seeded list; a cold load falls
+        // through to the empty state rather than spinning forever.
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };

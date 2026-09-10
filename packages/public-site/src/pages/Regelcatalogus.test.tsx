@@ -290,16 +290,79 @@ describe('Regelcatalogus', () => {
     expect(screen.queryByText('Toetsingsinkomen')).not.toBeInTheDocument();
     expect(screen.getByText('Vervangingsplicht')).toBeInTheDocument();
   });
-  it('renders straight from the prerendered blob, without fetching', async () => {
+  it('paints from the prerendered blob on the first frame, then revalidates', async () => {
     // The whole point of the blob is that /regels paints its full catalogue on
-    // the first frame. A fetch here would mean the placeholder is still shown
-    // first, which is the layout shift this page was measured on.
+    // the first frame. A placeholder here would mean the layout shift this page
+    // was measured on is back. The revalidation runs underneath it, so the blob
+    // stops being the last word — see issue #88.
     setBlob(JSON.stringify({ route: '/regels', data: DATA }));
     try {
       renderPage();
       expect(screen.getByRole('tab', { name: /Organisaties/ })).toBeInTheDocument();
       expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
-      await waitFor(() => expect(api.getRegelcatalogus).not.toHaveBeenCalled());
+      await waitFor(() => expect(api.getRegelcatalogus).toHaveBeenCalled());
+    } finally {
+      setBlob(null);
+    }
+  });
+
+  it('replaces a seed that the graph has moved on from', async () => {
+    // The shipped bug: the blob was baked when SZW still had two separate
+    // services that happened to share a title, and both had since been retired
+    // in favour of one. Without revalidation the page showed them forever.
+    const STALE = {
+      ...DATA,
+      services: [
+        ...DATA.services,
+        {
+          uri: 'normbedragen-dh',
+          title: 'Normenbrief - Informatie voor gemeenten',
+          description: '',
+        },
+      ],
+    };
+    setBlob(JSON.stringify({ route: '/regels', data: STALE }));
+    try {
+      renderPage();
+      // First frame still shows the stale count — that is the seed doing its job.
+      expect(screen.getByRole('tab', { name: /Diensten/ })).toHaveTextContent('3');
+      await waitFor(() =>
+        expect(screen.getByRole('tab', { name: /Diensten/ })).toHaveTextContent('2')
+      );
+      fireEvent.click(screen.getByRole('tab', { name: /Diensten/ }));
+      expect(screen.queryByText('Normenbrief - Informatie voor gemeenten')).not.toBeInTheDocument();
+    } finally {
+      setBlob(null);
+    }
+  });
+
+  it('leaves the view untouched when the revalidation matches the seed', async () => {
+    // An unchanged response must not swap state: a re-render here is exactly the
+    // layout shift the seed exists to prevent. The fetch resolves with a distinct
+    // object that is structurally equal, so only a value comparison can tell.
+    vi.mocked(api.getRegelcatalogus).mockResolvedValue(JSON.parse(JSON.stringify(DATA)));
+    setBlob(JSON.stringify({ route: '/regels', data: DATA }));
+    try {
+      renderPage();
+      const tabsBefore = screen.getByRole('tab', { name: /Diensten/ }).textContent;
+      await waitFor(() => expect(api.getRegelcatalogus).toHaveBeenCalled());
+      expect(screen.getByRole('tab', { name: /Diensten/ }).textContent).toBe(tabsBefore);
+      expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
+    } finally {
+      setBlob(null);
+    }
+  });
+
+  it('keeps the seed on screen when the revalidation fails', async () => {
+    // A backend blip must not blank a page that already has content. Before the
+    // fetch existed this could not happen; now it can, so it is pinned.
+    vi.mocked(api.getRegelcatalogus).mockRejectedValue(new Error('backend down'));
+    setBlob(JSON.stringify({ route: '/regels', data: DATA }));
+    try {
+      renderPage();
+      await waitFor(() => expect(api.getRegelcatalogus).toHaveBeenCalled());
+      expect(screen.getByRole('tab', { name: /Diensten/ })).toHaveTextContent('2');
+      expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
     } finally {
       setBlob(null);
     }
