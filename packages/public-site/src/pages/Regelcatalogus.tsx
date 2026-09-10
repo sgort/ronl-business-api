@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Translations, Lang } from '../i18n';
 import { sectionForType, sectionLabel, sectionSub } from '../lib/sections';
 import { getRegelcatalogus, type RegelcatalogusData, type CatalogService } from '../lib/api';
-import { readPrerenderedData } from '../lib/prerenderedData';
+import { readPrerenderedData, isSamePayload } from '../lib/prerenderedData';
 import { slugify, hrefFor } from '../lib/slug';
 import Crumbs from '../components/Crumbs';
 import Tabs from '../components/Tabs';
@@ -32,11 +32,27 @@ export default function Regelcatalogus({ t, lang }: { t: Translations; lang: Lan
   const [begrippenService, setBegrippenService] = useState('');
 
   useEffect(() => {
-    // Already seeded from the prerendered blob (initial load) — skip the fetch.
-    if (data) return;
-    getRegelcatalogus().then(setData);
-    // Runs once on mount; `data` here is the seed value, intentionally not a dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Revalidate even when the blob seeded us: it was baked when the site was
+    // last built, and the RONL graph moves independently of deploys — that is
+    // how /regels kept showing two services SZW had already retired (#88).
+    // The seed still paints the first frame; the swap only happens when the
+    // API disagrees with it, so an unchanged catalogue causes no re-render and
+    // the no-layout-shift guarantee the seed exists for survives.
+    let cancelled = false;
+    getRegelcatalogus()
+      .then((fresh) => {
+        if (cancelled) return;
+        setData((current) => (isSamePayload(current, fresh) ? current : fresh));
+      })
+      .catch(() => {
+        // Keep whatever is on screen. With a seed that is the full catalogue,
+        // slightly stale but correct-looking; without one the placeholder
+        // stays, exactly as before this revalidation existed.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount.
   }, []);
 
   if (!data) {

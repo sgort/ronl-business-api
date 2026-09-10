@@ -126,10 +126,82 @@ describe('SectionIndex — prerendered seeding', () => {
         <SectionIndex t={t} lang="nl" type="bericht" />
       </MemoryRouter>
     );
-    // Present synchronously — seeded during render, no "Laden…" then fetch.
+    // Present synchronously — seeded during render, no "Laden…" first.
     expect(screen.getByRole('link', { name: /Seeded bericht/ })).toBeInTheDocument();
     expect(screen.getByText('1 items')).toBeInTheDocument();
-    expect(api.getBerichten).not.toHaveBeenCalled();
+  });
+
+  it('revalidates the seed and replaces it when the section has moved on', async () => {
+    // Same defect as the Regelcatalogus one in issue #88: the blob is baked at
+    // build time, so every section route froze at the last deploy.
+    vi.mocked(api.getBerichten).mockResolvedValue({
+      items: [
+        {
+          id: 'b9',
+          subject: 'Fresh bericht',
+          preview: '',
+          content: null,
+          publishedAt: '2026-07-02',
+          sender: { id: 'x', name: 'X' },
+        },
+      ],
+      total: 1,
+    });
+    setBlob('/berichten', [
+      {
+        id: 'b1',
+        slug: 'b1',
+        type: 'bericht',
+        title: 'Stale bericht',
+        summary: 'x',
+        org: 'Provincie Flevoland',
+        date: '2026-07-01',
+        audience: [],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    // The seed paints first, with no loading placeholder in between.
+    expect(screen.getByRole('link', { name: /Stale bericht/ })).toBeInTheDocument();
+    expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Fresh bericht/ })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('link', { name: /Stale bericht/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the seed on screen when the revalidation fails', async () => {
+    vi.mocked(api.getBerichten).mockRejectedValue(new Error('backend down'));
+    setBlob('/berichten', [
+      {
+        id: 'b1',
+        slug: 'b1',
+        type: 'bericht',
+        title: 'Seeded bericht',
+        summary: 'x',
+        org: 'Provincie Flevoland',
+        date: '2026-07-01',
+        audience: [],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(api.getBerichten).toHaveBeenCalled());
+    expect(screen.getByRole('link', { name: /Seeded bericht/ })).toBeInTheDocument();
+    expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
   });
 
   it('still fetches when no blob is present (cold load)', async () => {

@@ -21,3 +21,20 @@ export function readPrerenderedData<T>(route: string): T | null {
     return null;
   }
 }
+
+/**
+ * Whether a freshly fetched payload is the same as what is already on screen.
+ *
+ * The seed above is only a build-time snapshot: the RONL graph moves under it,
+ * so every page that seeds from the blob has to revalidate against the API
+ * (issue #88). Swapping state unconditionally would undo the reason the seed
+ * exists — an unchanged response would still re-render and shift the layout —
+ * so the swap is gated on this comparison.
+ *
+ * Both sides originate as JSON from the same backend serialisation, so key
+ * order is stable and comparing the serialised form is a sound equality test
+ * here. A spurious mismatch would cost one extra render, not correctness.
+ */
+export function isSamePayload(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}

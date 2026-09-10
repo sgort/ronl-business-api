@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { readPrerenderedData } from './prerenderedData';
+import { readPrerenderedData, isSamePayload } from './prerenderedData';
 
 function setBlob(content: string | null) {
   document.getElementById('__PUB_DATA__')?.remove();
@@ -60,5 +60,25 @@ describe('readPrerenderedData', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('isSamePayload', () => {
+  it('treats structurally identical payloads as the same', () => {
+    expect(isSamePayload({ services: [{ uri: 's1' }] }, { services: [{ uri: 's1' }] })).toBe(true);
+  });
+
+  it('spots an extra entry — the retired service the stale seed still carried', () => {
+    const seed = { services: [{ uri: 'normbedragen' }, { uri: 'normbedragen-dh' }] };
+    const fresh = { services: [{ uri: 'normbedragen-jul26-041' }] };
+    expect(isSamePayload(seed, fresh)).toBe(false);
+  });
+
+  it('spots a changed value inside an otherwise identical shape', () => {
+    expect(isSamePayload({ n: 196 }, { n: 204 })).toBe(false);
+  });
+
+  it('treats a null seed as different from any payload', () => {
+    expect(isSamePayload(null, { services: [] })).toBe(false);
   });
 });
