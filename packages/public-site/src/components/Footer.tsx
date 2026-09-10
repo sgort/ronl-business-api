@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import type { Translations, Lang } from '../i18n';
 import { PUB_SECTIONS, WOORDENBOEK_PATH, sectionLabel } from '../lib/sections';
+import { getBuildInfo } from '../lib/buildInfo';
 
 export default function Footer({ t, lang }: { t: Translations; lang: Lang }) {
   // The site's own origin (per environment — ACC shows the ACC URL, not prod) and
@@ -9,6 +10,9 @@ export default function Footer({ t, lang }: { t: Translations; lang: Lang }) {
   // VITE_SITE_URL is ever unset in a build.
   const siteUrl = import.meta.env.VITE_SITE_URL || 'https://publiek.open-regels.nl';
   const siteHost = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  // The version beside it names a release, which ACC and PROD can both be
+  // serving different builds of. Cheap and synchronous — see lib/buildInfo.ts.
+  const buildInfo = getBuildInfo();
   return (
     <footer className="pub-footer">
       <div className="pub-wrap">
@@ -50,6 +54,11 @@ export default function Footer({ t, lang }: { t: Translations; lang: Lang }) {
             <a href={siteUrl}>{siteHost}</a>
             {' · '}
             <span>v{__APP_VERSION__}</span>
+            {' · '}
+            {/* Full 40-char SHA on the title so it can be copied for a lookup
+                without cluttering the line. Never blank: an untracked bundle
+                reads 'local build' rather than resembling a deployed one. */}
+            <span title={buildInfo.sha || undefined}>{buildInfo.label}</span>
           </span>
         </div>
       </div>
