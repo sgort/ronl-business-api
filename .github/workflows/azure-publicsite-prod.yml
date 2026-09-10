@@ -61,6 +61,12 @@ jobs:
 
       - name: Build for production (includes prerender + bundle-cleanliness gate)
         working-directory: packages/public-site
+        # Build provenance — see the fuller note in azure-publicsite-acc.yml.
+        # On the BUILD step because the runner builds; the deploy action gets
+        # skip_app_build: true and only uploads dist/.
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_RUN: ${{ github.run_number }}
         run: |
           npm run build:prod
           test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)

@@ -85,6 +85,14 @@ jobs:
 
       - name: Build for ACC (includes prerender + bundle-cleanliness gate)
         working-directory: packages/public-site
+        # Build provenance: the footer answers "which build am I looking at?",
+        # which the hand-bumped version cannot. These belong on the BUILD step
+        # rather than the deploy step because the runner builds this package —
+        # the deploy action gets skip_app_build: true and only uploads dist/.
+        # Nothing is derived from git; a build id that fails to resolve lies.
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_RUN: ${{ github.run_number }}
         run: |
           npm run build:acc
           test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
