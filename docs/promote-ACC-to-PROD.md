@@ -43,11 +43,11 @@ two minutes and tells you whether anything moved overnight.
   PROD. This has to be decided explicitly (**D1**).
 - **PROD's App Service runs Node 20; the code needs 22.** `operaton-mcp` 1.1.0
   declares `engines.node >=22.0.0`, and ACC has run `NODE|22-lts` since March.
-- **Two of the four deploy targets do not exist in production yet.** Public site
-  and PA demo have no production Static Web App, no deploy token secret and no
-  DNS. **`plato.open-regels.nl` already points at an unrelated app** (a
-  "Parlementair Dashboard", last modified 15 April, in neither of our two
-  subscriptions).
+- **Two of the four deploy targets do not exist in production yet — and both
+  are in scope (D2).** Public site and PA demo have no production Static Web
+  App, no deploy token secret and no DNS. `plato.open-regels.nl` currently
+  points at your own older "Parlementair Dashboard" SWA, in a subscription this
+  Azure login does not list; the hostname moves in Phase 2B.
 - **The backend must go first.** It still deploys through the manual
   `deploy-backend-to-prod.sh` from a clean local `main`. The public site's build
   prerenders against the production API, which returns 404 on `/v1/public/*`
@@ -60,16 +60,19 @@ two minutes and tells you whether anything moved overnight.
   **and `https://publiek.open-regels.nl` in `CORS_ORIGIN`.**
 - **`main` has no ruleset.** It has classic protection with 0 approvals, no
   required checks, and force-push **allowed**.
-- **GitLab mirror:** both branches are strict ancestors of GitHub's, so two plain
-  fast-forward pushes afterwards.
+- **GitLab mirror:** re-synced on 11 September — both heads match GitHub — so
+  Phase 8 is two small fast-forwards.
+- **All six decisions are recorded (§1):** live PA cockpit, all four surfaces,
+  release cut first, `main` ruleset first, `CORS_ORIGIN` = `mijn` + `publiek`,
+  and `test-infra-flevoland` gets every RIP role, as on ACC.
 
 ### Time budget (estimates)
 
 | Phase                                    | Estimate                               |
 | ---------------------------------------- | -------------------------------------- |
 | 0 Prep                                   | 20 min                                 |
-| 1 Release cut (optional, D3)             | 30–45 min, mostly waiting on ACC       |
-| 2 Provision SWAs, secrets, ruleset       | 30–45 min; TLS validation async, ≤ 1 h |
+| 1 Release cut (D3)                       | 30–45 min, mostly waiting on ACC       |
+| 2 Provision SWAs, secrets, ruleset       | 45–60 min; TLS validation async, ≤ 1 h |
 | 3 PROD App Service prep                  | 15 min                                 |
 | 4 PROD Keycloak                          | 15 min                                 |
 | 5 Promotion branch and PR                | 15 min                                 |
@@ -81,7 +84,19 @@ two minutes and tells you whether anything moved overnight.
 
 ## 1. Decisions to make before starting
 
-Record each answer here before Phase 5; the runbook branches on them.
+Recorded on 11 September 2026. The runbook page keeps the live record, and the
+runbook below already follows these choices.
+
+|     | Decision                                              | Where it lands         |
+| --- | ----------------------------------------------------- | ---------------------- |
+| D1  | Live — flip `VITE_PA_DOSSIERS_MOCK` to `false`        | Phase 5.2              |
+| D2  | All four surfaces                                     | Phases 2A, 2B, 6.6–6.8 |
+| D3  | Cut v2026.09.6 first                                  | Phase 1                |
+| D4  | Create the `main promotion gate` first                | Phase 2C               |
+| D5  | `mijn` + `publiek`; `localhost:5173` removed          | Phase 3.3              |
+| D6  | `test-infra-flevoland` gets every RIP role, as on ACC | Phase 4                |
+
+The reasoning behind each follows.
 
 ### D1 — PA cockpit on PROD: live or mock? (**blocking**)
 
@@ -112,7 +127,7 @@ In either case a browser can override the default through the Dossierbeheer
 banner (`paV2.mock` in localStorage). The old `paV2.dossiers.mock` key is dead,
 so existing overrides reset once.
 
-**Recommendation: flip to live (`false`).** That matches ACC, where it has been
+**Decided: live (`false`).** That matches ACC, where it has been
 validated, keeps signals live as they are today, and leaves the banner for
 anyone demonstrating. If PROD is meant to show fixtures, the purpose-built
 surface for that is `plato` (pa-demo), not the caseworker app. A live cockpit
@@ -122,15 +137,16 @@ How each choice is implemented: [Phase 5](#phase-5--promotion-branch-and-pr).
 
 ### D2 — Scope: which surfaces go live tomorrow
 
-| Surface                            | Prerequisites                                                    | Recommendation                                                                               |
-| ---------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Backend (`api.open-regels.nl`)     | Phase 3, Phase 4                                                 | **in**                                                                                       |
-| Caseworker (`mijn.open-regels.nl`) | none beyond the backend                                          | **in** — it depends on the new backend, so they ship together                                |
-| Public site (`publiek.…`)          | new SWA + token secret + CNAME + CORS (Phase 2A)                 | **in**, if 2A is done in the morning; the domain can bind after the deploy                   |
-| PA demo (`plato.…`)                | new SWA + token + OG card recapture + the `plato` hostname freed | **deploy optional; the domain waits** until the owner of the current `plato` target is known |
+| Surface                            | Prerequisites                                                           | Decision                                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Backend (`api.open-regels.nl`)     | Phase 3, Phase 4                                                        | **in**                                                                           |
+| Caseworker (`mijn.open-regels.nl`) | none beyond the backend                                                 | **in** — it depends on the new backend, so they ship together                    |
+| Public site (`publiek.…`)          | new SWA + token secret + CNAME + CORS (Phase 2A)                        | **in**; the domain can bind after the deploy                                     |
+| PA demo (`plato.…`)                | new SWA + token + OG card recapture + `plato` freed from your older SWA | **in** — you own the current `plato` target, so the hostname can move (Phase 2B) |
 
-Whatever is out of scope keeps its production workflow **disabled** after the
-merge (Phase 6.1), so it neither fails red nor deploys half-finished.
+**Decided: all four.** Phase 6.1 still disables the three SWA workflows before
+the merge — that is about order, not scope — and Phase 6 re-enables each one in
+turn.
 
 ### D3 — Cut a release first?
 
@@ -139,11 +155,11 @@ changelog), `e352614` (#82, check-supply-chain), `04e38c8` (#86, branch floor +
 pa-cockpit in CI), `11d1e49` (#89, prerender seed revalidation) and `0068444`
 (#90, build id in the public-site footer).
 
-**Recommendation: yes — `/bump-release` to v2026.09.6 before promoting.** The
-version string and the changelog then describe what PROD actually serves. The
-cost is one PR cycle on `acc`. If you skip it, PROD reports 2026.09.5 while
-serving five more commits. The build id still tells the builds apart, but the
-changelog will not list #79, #89 or #90.
+**Decided: yes — `/bump-release` to v2026.09.6 before promoting, as Phase 1 of
+this runbook.** The version string and the changelog then describe what PROD
+actually serves. Since this was written, `acc` has also gained #91 (this
+runbook) and its decisions update; the release picks those up too, and the Open
+Graph card from Phase 2B should land before it as well.
 
 ### D4 — Protect `main` with a ruleset before opening the PR?
 
@@ -153,7 +169,7 @@ required status checks**, `allow_force_pushes: true`, `enforce_admins: false`
 2026-09-09 by creating a `main promotion gate` ruleset **before** its promotion
 PR, and let the PR itself prove the gate bites.
 
-**Recommendation: yes** — [Phase 2C](#2c--main-promotion-gate-ruleset-d4). Two
+**Decided: yes** — [Phase 2C](#2c--main-promotion-gate-ruleset-d4). Two
 consequences to accept knowingly:
 
 - With no bypass actors, you can no longer push to `main` directly either. A
@@ -166,23 +182,36 @@ consequences to accept knowingly:
 ### D5 — `CORS_ORIGIN` on PROD
 
 - Today: `https://mijn.open-regels.nl,http://localhost:5173`.
-- Must add: `https://publiek.open-regels.nl`. Its CSP `connect-src` already names
-  `https://api.open-regels.nl`, and `/zoeken` searches client-side.
-- **Open question:** ACC also allows `https://iou-architectuur.open-regels.nl`;
-  PROD does not. Should the architecture site reach the production API?
-- **Open question:** PROD allows `http://localhost:5173`. Keep it?
+- `https://publiek.open-regels.nl` must be added: its CSP `connect-src` already
+  names `https://api.open-regels.nl`, and `/zoeken` searches client-side.
+- ACC also allows `https://iou-architectuur.open-regels.nl`; PROD does not.
 
-Recommendation: add `publiek` only and leave the two questions for another day.
-Tomorrow is not the day to widen scope.
+**Decided:** add `publiek`, **remove** `http://localhost:5173`, and keep
+`iou-architectuur` off PROD. PROD's value becomes
+`https://mijn.open-regels.nl,https://publiek.open-regels.nl` (Phase 3.3).
+Dropping `localhost:5173` only affects someone pointing a local frontend at the
+production API; the default local setup talks to the local backend.
 
 ### D6 — Who receives the RIP roles on PROD?
 
-`keycloak-add-rip-roles.sh` grants to `GRANT_USER`, default
-`test-infra-flevoland`. If that user does not exist in PROD's realm, the script
-creates the roles and grants nothing (verified in the script: "roles created,
-nothing granted"). So running it is safe either way. Decide which real PROD
-accounts should see the Infra board, and grant them by re-running with
-`GRANT_USER=<username>`.
+`keycloak-add-rip-roles.sh` creates any `rip-*` role missing from the realm file,
+then grants **all** of them to `GRANT_USER` (default `test-infra-flevoland`). If
+that user does not exist, it creates the roles and grants nothing.
+
+Compared in the Keycloak admin console on 11 September (Users →
+`test-infra-flevoland` → Role mapping, inherited roles hidden):
+
+|                   | ACC                                                   | PROD                                                                                                   |
+| ----------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `rip-*` roles     | 34                                                    | 6 — `rip-aandrager`, `rip-ao`, `rip-deelnemers-psu`, `rip-manager-pb`, `rip-projectleider`, `rip-team` |
+| other realm roles | `caseworker`, `infra-medewerker`, `infra-projectteam` | the same three                                                                                         |
+| total             | 37                                                    | 9                                                                                                      |
+
+The difference is exactly the 28 roles the script adds, and the user exists on
+PROD.
+
+**Decided: grant them to `test-infra-flevoland`, as on ACC** — the script's
+default. One run brings PROD to the same 37 roles; Phase 4 checks it.
 
 ---
 
@@ -228,13 +257,13 @@ Two subscriptions, and the split matters for which commands take
 | **PDR – C1380** (default)                            | `ronl-business-api-{acc,prod}` App Services; `ronl-business-frontend-{acc,prod}` SWAs (**Free**)                                                      |
 | **Platform Regelbeheer 2025 – C1427** (`24eac314-…`) | `ronl-business-public-site-acc`, `ronl-business-pademo-site-acc` SWAs (Standard); the **`open-regels.nl` DNS zone** (RG `RG_PlatformRegelbeheer2025`) |
 
-| Hostname                     | DNS                                               | Serves                                                                                                            |
-| ---------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mijn.open-regels.nl`        | CNAME → `gray-glacier-07cf98403…` (frontend-prod) | 3.8.2 caseworker app ✅                                                                                           |
-| `acc.publiek.open-regels.nl` | CNAME → `calm-water-068f8b303…`                   | ACC public site ✅                                                                                                |
-| `publiek.open-regels.nl`     | **no record**                                     | nothing — PROD SWA does not exist                                                                                 |
-| `acc.plato.open-regels.nl`   | CNAME → `red-river-0ce4c9803…`                    | ACC PA demo ✅                                                                                                    |
-| `plato.open-regels.nl`       | **CNAME → `red-meadow-0e67bf103…`**               | ⚠️ "Parlementair Dashboard" (`index-ZA87jyV-.js`, last-modified 15 Apr 2026) — an SWA in **neither** subscription |
+| Hostname                     | DNS                                               | Serves                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mijn.open-regels.nl`        | CNAME → `gray-glacier-07cf98403…` (frontend-prod) | 3.8.2 caseworker app ✅                                                                                                                                                |
+| `acc.publiek.open-regels.nl` | CNAME → `calm-water-068f8b303…`                   | ACC public site ✅                                                                                                                                                     |
+| `publiek.open-regels.nl`     | **no record**                                     | nothing — PROD SWA does not exist                                                                                                                                      |
+| `acc.plato.open-regels.nl`   | CNAME → `red-river-0ce4c9803…`                    | ACC PA demo ✅                                                                                                                                                         |
+| `plato.open-regels.nl`       | **CNAME → `red-meadow-0e67bf103…`**               | your older "Parlementair Dashboard" (`index-ZA87jyV-.js`, last-modified 15 Apr 2026), in a subscription this `az` login does not list — the hostname moves in Phase 2B |
 
 `skosmos.open-regels.nl` already sends the new `frame-ancestors` CSP naming both
 `mijn` and `publiek` (header observed live). The Caddy change in this delta is
@@ -273,14 +302,16 @@ is what makes the disable → dispatch ordering in Phase 6 possible.
 
 ### 2.5 GitLab mirror
 
-|        | GitHub    | GitLab    | relation                                    |
-| ------ | --------- | --------- | ------------------------------------------- |
-| `acc`  | `0068444` | `66940d9` | GitLab is an ancestor — 8 behind, 0 ahead   |
-| `main` | `d6a3cee` | `53a4c0a` | GitLab is an ancestor — 184 behind, 0 ahead |
+|        | GitHub    | GitLab    | relation                              |
+| ------ | --------- | --------- | ------------------------------------- |
+| `acc`  | `6257df9` | `6257df9` | in sync (fast-forward from `66940d9`) |
+| `main` | `d6a3cee` | `d6a3cee` | in sync (fast-forward from `53a4c0a`) |
 
-Both sync as plain fast-forwards. GitLab also still carries
-`feat/public-pa-cockpit` (`c421cdf`), which is fully merged into `origin/acc`.
-The repository has no `.gitlab-ci.yml`, so a push starts no pipeline.
+Re-synced on 11 September after #91 merged: both were strict ancestors, so two
+plain fast-forwards from GitHub's refs, confirmed with `git ls-remote`. GitLab
+still carries `feat/public-pa-cockpit` (`c421cdf`), fully merged into
+`origin/acc`; deleting it is a separate decision. The repository has no
+`.gitlab-ci.yml`, so a push starts no pipeline.
 
 ---
 
@@ -399,7 +430,7 @@ pa-cockpit's suite (#86).
 | Caseworker app | Infra board with the full twelve-phase RIP ladder (**needs the roles**, §4.3); Regelsimulatie; PA cockpit reworked (Ongefilterd, notifications, dossier authoring); ValidSign signing panel (stub); Rollen & rechten; changelog drawer showing a build id |
 | AI assistant   | eDOCS source present in code, **off** on PROD (`EDOCS_MCP_ENABLED` unset)                                                                                                                                                                                 |
 | Public site    | new — `publiek.open-regels.nl`                                                                                                                                                                                                                            |
-| PA demo        | new — `plato.open-regels.nl` (domain blocked, §2.3)                                                                                                                                                                                                       |
+| PA demo        | new — `plato.open-regels.nl` (the hostname moves from your older SWA, Phase 2B)                                                                                                                                                                           |
 | API            | root advertises 17 endpoint groups instead of 15; `/v1/public/*`, `/v1/doccle`, `/v1/rip/phases/*`, signing routes; `/v1/health` gains `cache`                                                                                                            |
 
 ### 3.3 Expected behaviour changes — not regressions
@@ -435,7 +466,7 @@ for non-secret keys.
 | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | runtime (`linuxFxVersion`)                                                                                               | `NODE\|20-lts`                          | `NODE\|22-lts`                                | **set `NODE\|22-lts`** — `operaton-mcp` 1.1.0 requires Node ≥ 22                                                                                                                                    |
 | `LDE_API_URL`                                                                                                            | unset                                   | unset (ACC is happy with the ACC default)     | **set `https://backend.linkeddata.open-regels.nl/v1`** — the default is the _ACC_ LDE, so PROD's process library would silently proxy ACC data. Target verified live: LDE `2026.09.4`, `production` |
-| `CORS_ORIGIN`                                                                                                            | `mijn`, `localhost:5173`                | `acc.mijn`, `iou-architectuur`, `acc.publiek` | **append `https://publiek.open-regels.nl`** (D5)                                                                                                                                                    |
+| `CORS_ORIGIN`                                                                                                            | `mijn`, `localhost:5173`                | `acc.mijn`, `iou-architectuur`, `acc.publiek` | **set to `mijn` + `publiek`, dropping `localhost:5173`** (D5)                                                                                                                                       |
 | `DEPLOYMENT_ENV`                                                                                                         | `production` ✅                         | `acceptance`                                  | none                                                                                                                                                                                                |
 | `DATABASE_URL`, `OPERATON_BASE_URL`, `KEYCLOAK_CLIENT_SECRET`, `ANTHROPIC_API_KEY`                                       | present ✅                              | present                                       | none — `validateConfig()` throws at import without them                                                                                                                                             |
 | `CPRMV_URL`                                                                                                              | `https://cprmv.open-regels.nl/mcp` ✅   | unset (default is `acc.cprmv`)                | none                                                                                                                                                                                                |
@@ -521,12 +552,11 @@ export ZONE_RG=RG_PlatformRegelbeheer2025
 
 ### Phase 0 — Prep (no production impact)
 
-- [ ] **0.1** Record D1–D6 in §1.
-- [ ] **0.2 Get this document out of the working tree before 6.4.**
-      `deploy-backend-to-prod.sh` aborts on _any_ `git status --porcelain` output,
-      untracked files included. Either merge it into `acc` through a PR (it then
-      ships with the promotion), or keep a copy outside the repository and remove
-      it from the checkout.
+- [ ] **0.1** D1–D6 on the runbook page still read as recorded in §1.
+- [ ] **0.2 A clean working tree before 6.4.** `deploy-backend-to-prod.sh` aborts
+      on _any_ `git status --porcelain` output, untracked files included. This
+      document now lives in `acc` (#91), so it no longer counts — but any other
+      stray file does.
 - [ ] **0.3 A working Azure session.** `az account show` is not proof; the deploy
       script's own preflight explains why.
 
@@ -545,8 +575,10 @@ az staticwebapp list --subscription $C1427 -o none && echo "C1427 ok"
 - [ ] **0.6** Run [§10](#10-t-0-re-verification). If any head moved, re-run the
       trial merge before continuing.
 
-### Phase 1 — Release cut on `acc` (D3, optional)
+### Phase 1 — Release cut on `acc` (D3)
 
+- [ ] **1.0** Merge the pending `acc` PRs first — the Open Graph card (2B) and
+      the decisions update to this document — so v2026.09.6 carries both.
 - [ ] **1.1** `/bump-release` → it reconciles open PRs, writes the changelog
       entry, pushes a branch and opens a PR against `acc`.
 - [ ] **1.2** Merge that PR (you). Wait for the ACC workflows to finish green.
@@ -556,7 +588,7 @@ az staticwebapp list --subscription $C1427 -o none && echo "C1427 ok"
 
 ### Phase 2 — Provision what must exist before the merge
 
-#### 2A — Public site, production (if in scope, D2)
+#### 2A — Public site, production (D2: in scope)
 
 Names follow the ACC pattern (`ronl-public-site-acc` /
 `ronl-business-public-site-acc`). Confirm them before creating anything. Create
@@ -600,20 +632,45 @@ az staticwebapp hostname set --subscription $C1427 \
   --hostname publiek.open-regels.nl
 ```
 
-#### 2B — PA demo, production (if in scope, D2)
+#### 2B — PA demo, production (D2: in scope)
 
 - [ ] **Re-capture the Open Graph card first.** The shipped
       `packages/pa-demo/public/og-pa-demo.png` has **ACCEPTATIEOMGEVING** and
       `acc.plato.open-regels.nl` baked into its pixels (checked by viewing the
-      file). Follow `PA-DEMO-GO-LIVE.md` §3b, land it on `acc` through a PR
-      _before_ Phase 5, and it rides along with the promotion.
-- [ ] SWA and token, same pattern as 2A: RG `ronl-pademo-site-prod`, SWA
-      `ronl-business-pademo-site-prod`, secret
-      `AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD`.
-- [ ] **Do not repoint `plato`.** It currently serves a different application
-      from an SWA we cannot see. Changing the CNAME takes that application
-      offline. Find its owner first; until then the demo runs on its
-      `*.azurestaticapps.net` hostname.
+      file). Follow `PA-DEMO-GO-LIVE.md` §3b and land it on `acc` through a PR
+      _before_ Phase 1, so v2026.09.6 carries it.
+- [ ] Resource group, Static Web App and deploy token — the same pattern as 2A:
+
+```bash
+az group create --subscription $C1427 -n ronl-pademo-site-prod -l westeurope
+az staticwebapp create --subscription $C1427 \
+  -n ronl-business-pademo-site-prod -g ronl-pademo-site-prod \
+  -l westeurope --sku Standard
+az staticwebapp secrets list --subscription $C1427 \
+  -n ronl-business-pademo-site-prod -g ronl-pademo-site-prod \
+  --query properties.apiKey -o tsv \
+  | gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD
+gh secret list | grep PA_DEMO_PROD
+```
+
+- [ ] **Move `plato` only after 6.8 has verified the new site on its default
+      hostname.** Three steps, in this order: take the hostname off your older
+      "Parlementair Dashboard" SWA (it lives in a subscription this `az` login
+      does not list — use the portal, or `az staticwebapp hostname delete` from
+      the account that owns it), then repoint the CNAME, then register the
+      hostname on the new SWA. Azure will not bind a hostname another SWA still
+      holds, and `plato` is unavailable from the first step until the new
+      certificate is issued.
+
+```bash
+HOST=$(az staticwebapp show --subscription $C1427 -n ronl-business-pademo-site-prod \
+         -g ronl-pademo-site-prod --query defaultHostname -o tsv)
+az network dns record-set cname set-record --subscription $C1427 \
+  -g $ZONE_RG -z open-regels.nl -n plato -c "$HOST"
+az staticwebapp hostname set --subscription $C1427 \
+  -n ronl-business-pademo-site-prod -g ronl-pademo-site-prod \
+  --hostname plato.open-regels.nl
+```
 
 #### 2C — `main promotion gate` ruleset (D4)
 
@@ -702,18 +759,19 @@ curl -s https://api.open-regels.nl/v1/health | jq '.data | {version, status}'   
 
 #### 3.3 Settings
 
-This restarts the app. Both settings are additive, and 3.8.2 does not read
-`LDE_API_URL`.
+This restarts the app. `LDE_API_URL` is new and 3.8.2 does not read it;
+`CORS_ORIGIN` gains `publiek` and loses `http://localhost:5173` (D5).
 
 ```bash
 az webapp config appsettings set -n ronl-business-api-prod -g rg-ronl-prod -o none --settings \
   LDE_API_URL=https://backend.linkeddata.open-regels.nl/v1 \
-  "CORS_ORIGIN=https://mijn.open-regels.nl,http://localhost:5173,https://publiek.open-regels.nl"
+  "CORS_ORIGIN=https://mijn.open-regels.nl,https://publiek.open-regels.nl"
 az webapp config appsettings list -n ronl-business-api-prod -g rg-ronl-prod \
   --query "[?name=='CORS_ORIGIN' || name=='LDE_API_URL'].{n:name,v:value}" -o table
 ```
 
-- [ ] Both read back correctly (adjust `CORS_ORIGIN` to the D5 decision).
+- [ ] Both read back correctly: `CORS_ORIGIN` is exactly
+      `https://mijn.open-regels.nl,https://publiek.open-regels.nl`.
 
 #### 3.4 Boot-blocking names present
 
@@ -727,19 +785,22 @@ az webapp config appsettings list -n ronl-business-api-prod -g rg-ronl-prod --qu
 ### Phase 4 — PROD Keycloak (additive; do before anyone tests)
 
 ```bash
-# Look first — creates nothing:
-KEYCLOAK_URL=https://keycloak.open-regels.nl ADMIN_USER=<admin> GRANT_USER=<D6 user or empty> \
+# GRANT_USER defaults to test-infra-flevoland (D6). Look first — creates nothing:
+KEYCLOAK_URL=https://keycloak.open-regels.nl ADMIN_USER=<admin> \
   bash scripts/keycloak-add-rip-roles.sh --dry-run
 # Then for real (omitting ADMIN_PASSWORD makes it prompt — keeps it out of history):
-KEYCLOAK_URL=https://keycloak.open-regels.nl ADMIN_USER=<admin> GRANT_USER=<D6 user or empty> \
+KEYCLOAK_URL=https://keycloak.open-regels.nl ADMIN_USER=<admin> \
   bash scripts/keycloak-add-rip-roles.sh
 # Token-claim mappers (no --dry-run flag; idempotent, touches only the three mappers):
 KEYCLOAK_URL=https://keycloak.open-regels.nl ADMIN_USER=<admin> \
   bash scripts/keycloak-add-token-claim-mappers.sh
 ```
 
-- [ ] Roles created. If the admin account lives in `ronl` rather than `master`,
-      add `ADMIN_REALM=ronl`.
+- [ ] The dry run should report 28 roles to create and 28 to grant to
+      `test-infra-flevoland`. If the admin account lives in `ronl` rather than
+      `master`, add `ADMIN_REALM=ronl`.
+- [ ] Roles created and granted: `test-infra-flevoland`'s Role mapping on PROD
+      reads **1–37**, as on ACC.
 - [ ] Mappers added.
 - [ ] Grants only reach a user on their **next** token: sign out and back in
       before judging the Infra board.
@@ -766,12 +827,11 @@ git merge --no-ff origin/main -m "chore: merge main into the promotion branch"
       branch: confirm each one when it comes up.
 
 ```bash
-# D1 = live:
+# D1 = live (decided):
 sed -i 's/^VITE_PA_DOSSIERS_MOCK=true$/VITE_PA_DOSSIERS_MOCK=false/' packages/frontend/.env.production
 git diff                                   # exactly one line
 git commit -am "fix(frontend): PROD reads live PA data by default"
-# D1 = keep mock: no commit.
-git diff --stat origin/acc                 # D1=live → empty; D1=keep → that one line
+git diff --stat origin/acc                 # expect empty: the branch's tree now equals acc
 ```
 
 - [ ] **5.3** Push and open the PR. The title becomes the merge commit's subject
@@ -885,7 +945,7 @@ gh run watch <id>
       **`local build`** would mean the block never reached the artifact; a green
       run proves nothing about it.
 
-#### 6.7 Public site (if 2A is done)
+#### 6.7 Public site
 
 ```bash
 gh workflow enable azure-publicsite-prod.yml
@@ -899,12 +959,14 @@ gh workflow run azure-publicsite-prod.yml --ref main
 - [ ] Bind the domain (2A DNS step), then repeat the e2e run against
       `https://publiek.open-regels.nl`.
 
-#### 6.8 PA demo (if 2B is done)
+#### 6.8 PA demo
 
 - [ ] Same as 6.7 with `azure-pa-demo-prod.yml`, then
       `E2E_BASE_URL=https://<default-host> npm run test:e2e --workspace=@ronl/pa-demo`.
-- [ ] Otherwise leave it **disabled** and note that here and in
-      `PA-DEMO-GO-LIVE.md`.
+- [ ] Move the `plato` hostname (the three 2B steps), then repeat the e2e run
+      against `https://plato.open-regels.nl`.
+- [ ] The link preview for `plato.open-regels.nl` reads production, not
+      ACCEPTATIEOMGEVING.
 
 ### Phase 7 — Functional verification on PROD (by eye)
 
@@ -923,8 +985,8 @@ gh workflow run azure-publicsite-prod.yml --ref main
 
 ### Phase 8 — Close-out
 
-- [ ] Workflows for any surface not deployed stay disabled; this is recorded in
-      the respective go-live doc.
+- [ ] All four production workflows are enabled again
+      (`gh workflow list --all` shows nothing `disabled_manually`).
 - [ ] **Housekeeping** (per the global rules):
 
 ```bash
@@ -985,11 +1047,11 @@ travels as a PR like everything else.
 | --- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | 1   | The clean merge keeps `VITE_PA_DOSSIERS_MOCK=true` → the whole cockpit mock                                                 | D1, Phase 5.2                                                       |
 | 2   | PROD on Node 20; `operaton-mcp` needs ≥ 22                                                                                  | Phase 3.2                                                           |
-| 3   | Dirty tree (this document, untracked) aborts the deploy script                                                              | Phase 0.2                                                           |
+| 3   | Dirty tree (any untracked file) aborts the deploy script                                                                    | Phase 0.2                                                           |
 | 4   | Frontends deploy before the backend on the merge push                                                                       | Phase 6.1                                                           |
 | 5   | Public-site prerender vs PROD API 404                                                                                       | Backend first (6.4 before 6.7)                                      |
 | 6   | Missing SWA token secrets → red deploy steps                                                                                | Phase 2A/2B, or keep disabled                                       |
-| 7   | `plato.open-regels.nl` belongs to another app                                                                               | Do not repoint until its owner is known                             |
+| 7   | `plato.open-regels.nl` is still bound to your older SWA                                                                     | Remove it there first, after 6.8 checks out (Phase 2B)              |
 | 8   | PA-demo OG card reads ACCEPTATIEOMGEVING                                                                                    | Phase 2B recapture                                                  |
 | 9   | `LDE_API_URL` default is the ACC LDE → PROD silently proxies ACC data                                                       | Phase 3.3                                                           |
 | 10  | RIP roles missing → tasks invisible; mappers missing → `MISSING_SIGNER_EMAIL`                                               | Phase 4                                                             |
@@ -1021,7 +1083,7 @@ re-checked against its `acc` today:
 | Semgrep Code + Supply Chain      | ✅         | ✅     | ❌ no workflow, no token                                           | C5                 |
 | Renovate lock-file maintenance   | ❌         | ✅     | ❌ none; global `dependencyDashboardApproval: true`                | C6                 |
 | One Node version                 | —          | ⚠️ #80 | ❌ workflows 20, `.nvmrc` 22, App Services 22 after tomorrow (#36) | C7                 |
-| Mirror in sync                   | ✅         | ✅     | ⚠️ synced in Phase 8; nothing keeps it so                          | C8                 |
+| Mirror in sync                   | ✅         | ✅     | ⚠️ synced 11 Sep and in Phase 8; nothing keeps it so               | C8                 |
 | Per-file 80 % branch floor       | ✅         | ✅     | ✅ five runners                                                    | C10 loose ends     |
 
 Order of work, cheapest and highest-leverage first. Each item follows the
@@ -1200,18 +1262,20 @@ and what already exists, and scope #13 first.
 
 ## 10. T-0 re-verification
 
-Run these first thing tomorrow. The expected values are the 11 September state
-this document was written against. A difference is not necessarily a problem, but
-it must be understood before Phase 5.
+Run these first thing tomorrow. The expected values are the state at the end of
+11 September, after #91 and the mirror sync. `origin/acc` moves with every merged
+PR (the decisions update, the Open Graph card, the release cut), so for `acc` the
+checks that matter are the merge base and the trial merge, not the SHA. Any other
+difference is not necessarily a problem, but it must be understood before Phase 5.
 
 ```bash
 cd ~/Development/ronl-business-api
 git fetch --prune origin && git fetch gitlab
 
-git rev-parse --short origin/acc origin/main          # 0068444, d6a3cee
+git rev-parse --short origin/acc origin/main          # <last merged PR>, d6a3cee
 git merge-base origin/acc origin/main                 # f7de4cf…
-git log --oneline origin/acc ^origin/main | wc -l     # 638
-git ls-remote gitlab refs/heads/acc refs/heads/main   # 66940d9…, 53a4c0a…
+git log --oneline origin/acc ^origin/main | wc -l     # ≥ 640
+git ls-remote gitlab refs/heads/acc refs/heads/main   # 6257df9… (until the next sync), d6a3cee…
 
 curl -s https://api.open-regels.nl/ | jq -r .version       # 3.8.2
 curl -s https://acc.api.open-regels.nl/ | jq -r .version   # 2026.09.5
