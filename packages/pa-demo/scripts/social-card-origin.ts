@@ -19,11 +19,11 @@
  * build tooling, and nothing in the app's module graph should be able to import
  * a table of deploy origins.
  *
- * NOTE — this rewrites text, not pixels. The shipped og-pa-demo.png has its
- * environment baked in: an "ACCEPTATIEOMGEVING" badge and the acc. hostname in
- * its footer. Producing the production card is a manual re-capture, documented
- * in docs/pa-demo-social-handoff/reference/README.md, and must happen before
- * the first PROD deploy or the card will read ACC while og:url reads PROD.
+ * NOTE — this rewrites text, not pixels. og-pa-demo.png is the production card
+ * (no environment badge, plato.open-regels.nl in its footer) and ships to every
+ * tier, so an ACC link preview shows the production hostname in the image while
+ * og:url reads ACC. That is the accepted trade for one sitewide asset. The
+ * re-capture procedure is in docs/pa-demo-social-handoff/reference/README.md.
  */
 
 export type BuildMode = 'development' | 'acceptance' | 'production';
