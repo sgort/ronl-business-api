@@ -95,11 +95,12 @@ origin and `vite.config.ts`'s `transformIndexHtml` plugin rewrites `og:url` and
 covered by unit tests and by an E2E test that compares them against the run's own
 base origin).
 
-**The image is not.** The shipped PNG has acceptance baked into its pixels: an
-`ACCEPTATIEOMGEVING` badge and `acc.plato.open-regels.nl` in its footer. Deploying
-it to production unchanged yields a card reading ACC while `og:url` reads PROD.
+**The image is not.** It is one asset for every tier. It first shipped with
+acceptance baked into its pixels — an `ACCEPTATIEOMGEVING` badge and
+`acc.plato.open-regels.nl` in its footer — and deploying that to production would
+have yielded a card reading ACC while `og:url` read PROD.
 
-- [ ] Re-capture the production card before the first PROD deploy. Two edits in
+- [x] Re-capture the production card before the first PROD deploy. Two edits in
       `docs/pa-demo-social-handoff/reference/social-card-pa-demo.html` — drop the
       `<p class="badge">` and change the `<span class="url">` to
       `plato.open-regels.nl` — then capture `#card` at exactly 1× (1200×630) and
@@ -182,8 +183,9 @@ Quick manual checks that catch the common deploy faults:
 - [ ] Beheer shows **nine** sections, with no IOU group and no Hulpmiddelen.
 - [ ] Paste the site URL into a link-preview validator (or Slack) and confirm the
       card renders. The E2E test proves `og:image` resolves to a real PNG on this
-      origin; only a scraper proves the preview itself composes. On ACC the card
-      should read `ACCEPTATIEOMGEVING` — on PROD it must not (§3b).
+      origin; only a scraper proves the preview itself composes. Since the §3b
+      re-capture the card reads production on every tier, ACC included;
+      `ACCEPTATIEOMGEVING` must not appear anywhere.
 
 Note that a 404-shaped URL returns **200 serving the SPA shell**, because `.json`
 and most extensions are not in `navigationFallback`'s exclude list. Check the
