@@ -230,16 +230,41 @@ Adding or removing a workflow step that carries a `uses:` line also moves the
 `(×N)` count and the totals headline. That is the ×8→×9 case above, and the check
 now fails on it rather than leaving it to a reader.
 
-The step is `continue-on-error: true` for now. It was proven in
-linked-data-explorer over two bumps
+**The step blocks.** It ran `continue-on-error: true` from its adoption
+([#81](https://github.com/sgort/ronl-business-api/issues/81)) until
+[#83](https://github.com/sgort/ronl-business-api/issues/83) promoted it, waiting
+on exactly one thing: evidence that the paragraph above — update the register on
+the bump's own branch — is a habit that holds _here_, and not only in
+linked-data-explorer, where it was proven over two bumps
 ([#66](https://github.com/sgort/linked-data-explorer/pull/66),
-[#67](https://github.com/sgort/linked-data-explorer/pull/67)) and promoted to
-blocking there; promote it here once the same habit holds. Do not leave it
-non-blocking indefinitely: `continue-on-error` rewrites the _step's_ reported
-conclusion as well as the job's, and the honest result is not exposed by the REST
-API — so a finding is visible only in the step's log while the checks list, the
-job and the step all read "success". See issue
-[#81](https://github.com/sgort/ronl-business-api/issues/81).
+[#67](https://github.com/sgort/linked-data-explorer/pull/67)).
+
+[#101](https://github.com/sgort/ronl-business-api/pull/101) supplied it.
+Renovate bumped `zizmorcore/zizmor-action` from v0.6.2 to v0.6.4 and, as
+described above, left this register behind; the register was then updated on
+Renovate's branch and the check went green there, before any merge.
+
+That same pull request is also the argument against waiting any longer. Before
+the register was fixed, the check reported:
+
+```
+1 finding(s):
+  [register] zizmorcore/zizmor-action: workflow pins cc914d7f3750… (v0.6.4)
+             but SECURITY-PIPELINE.md records only 3dc1ecc9bcb9… (v0.6.2)
+```
+
+— while the step, the job and the pull request's checks list **all read
+"success"**. `continue-on-error` rewrites the _step's_ reported conclusion as
+well as the job's, and the honest result (`outcome: failure`) is not exposed by
+the REST API at all, so nothing outside that one log knew. A check nobody can
+see fail is not protecting anything; it is a check that has to be remembered,
+which is the condition this register drifted in to begin with.
+
+The cost, stated plainly: a network call now sits inside a required check, so a
+GitHub API outage or rate limit can fail a gate unrelated to the change under
+review. `--offline` is the answer if that ever bites — it keeps the register
+half blocking and drops only the half that needs the network. Restoring
+`continue-on-error` is not, because it restores the invisibility above.
 
 ## Pending work
 

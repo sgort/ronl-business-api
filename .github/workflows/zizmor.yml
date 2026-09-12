@@ -154,34 +154,46 @@ jobs:
         # if: always() for the same reason as the validator above — one run
         # should report on every half of the policy, not stop at the first.
         if: always()
-        # NON-BLOCKING to start with, and not merely out of caution.
+        # BLOCKING. It ran with continue-on-error: true from its adoption in
+        # #81 until #83 promoted it, once the thing it was waiting on had been
+        # shown to work here rather than only in linked-data-explorer.
         #
-        # Renovate rewrites workflow pins and never touches
-        # SECURITY-PIPELINE.md, so every action-bump pull request fails the
-        # register half until the register is updated by hand. Blocking on
-        # that would fail a required check on routine dependency updates,
-        # which is how gates get resented and then bypassed.
+        # What it was waiting on: Renovate rewrites workflow pins and their
+        # version comments together, and never touches SECURITY-PIPELINE.md, so
+        # every action-bump pull request fails the register half until the
+        # register is updated by hand. Blocking on that would fail a required
+        # check on routine dependency updates, which is how gates get resented
+        # and then bypassed.
         #
-        # The answer, proven in linked-data-explorer over two bumps
-        # (sgort/linked-data-explorer#66 and #67): update the register ON the
-        # bump's branch, before merging, so the check is green on the pull
-        # request rather than only on acc afterwards. Promote to blocking once
-        # that habit holds here too — see issue #81.
+        # What resolved it: the register is updated ON the bump's branch,
+        # before merging, so the check is green on the pull request rather than
+        # only on acc afterwards. Exercised here on #101 (zizmor-action v0.6.2
+        # -> v0.6.4), which is also this repository's own drift mode rather
+        # than a borrowed one.
         #
-        # Do not leave it non-blocking indefinitely. continue-on-error does
-        # not merely keep the job green: it rewrites the STEP's reported
-        # conclusion too, and the honest result (outcome: failure) is not
-        # exposed by the REST API. A finding is then visible ONLY in this
-        # step's log — the checks list, the job and the step all read
-        # "success". Observed on sgort/linked-data-explorer#66.
+        # Why NOT staying non-blocking, which is the part that is easy to get
+        # wrong: continue-on-error does not merely keep the job green, it
+        # rewrites the STEP's reported conclusion too, and the honest result
+        # (outcome: failure) is not exposed by the REST API at all. Observed on
+        # #101 before its register was fixed -- the step, the job and the pull
+        # request's checks list ALL read "success" while this step's own log
+        # carried:
         #
-        # The other reason to start non-blocking: this makes a network call
-        # inside a job the ruleset requires, so an API outage or rate limit
-        # could fail a gate unrelated to the change under review. If that
-        # proves to be a problem, add --offline rather than restoring
-        # continue-on-error: it keeps the register half blocking and drops
-        # only the network-dependent half.
-        continue-on-error: true
+        #   1 finding(s):
+        #     [register] zizmorcore/zizmor-action: workflow pins cc914d7f3750…
+        #                (v0.6.4) but SECURITY-PIPELINE.md records only
+        #                3dc1ecc9bcb9… (v0.6.2)
+        #
+        # A check nobody can see fail is not protecting anything; it is a check
+        # that has to be remembered, which is the condition the register
+        # drifted in to begin with.
+        #
+        # This does put a network call inside a job the ruleset requires, so a
+        # GitHub API outage or rate limit can now fail a gate unrelated to the
+        # change under review. If that proves to be a problem, add --offline:
+        # it keeps the register half blocking and drops only the
+        # network-dependent half. Do NOT restore continue-on-error, which
+        # reinstates the invisibility above.
         env:
           # contents: read suffices — this only resolves public refs.
           GITHUB_TOKEN: ${{ github.token }}
