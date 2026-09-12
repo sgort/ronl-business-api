@@ -36,7 +36,17 @@ export interface RipPhase {
   kredietBeslisser?: string;
   weeks: number;
   bron: string;
-  processDefinitionKey?: string;
+  /**
+   * Required, mirroring `RipPhaseKey` in `@ronl/shared` since #85. Every phase
+   * in the ladder is modelled and deployed, so a phase without a process is
+   * unrepresentable rather than merely absent — the guards that used to test
+   * for one are gone from here and from the backend's 409 branch alike.
+   *
+   * Note this is a SECOND declaration of the same fact, populated from
+   * RIP_PHASE_KEYS below. Narrowing the shared type does not narrow this one;
+   * they have to be kept in step by hand.
+   */
+  processDefinitionKey: string;
   /**
    * True when finishing this phase does not imply moving on to the next one.
    * R5.3 is the only one: it has four end events and just one leads to R5.4 —
@@ -444,10 +454,26 @@ const CONTENT: Omit<RipPhase, 'processDefinitionKey'>[] = [
   },
 ];
 
-export const RIP_PHASES: RipPhase[] = CONTENT.map((c) => ({
-  ...c,
-  processDefinitionKey: RIP_PHASE_KEYS.find((k) => k.code === c.code)?.processDefinitionKey,
-}));
+export const RIP_PHASES: RipPhase[] = CONTENT.map((c) => {
+  const key = RIP_PHASE_KEYS.find((k) => k.code === c.code)?.processDefinitionKey;
+  // CONTENT and RIP_PHASE_KEYS must cover the same twelve codes. They are two
+  // hand-maintained lists of the same ladder -- this file holds the editorial
+  // content, @ronl/shared holds the engine fact -- and nothing but this join
+  // relates them.
+  //
+  // Before #85 a miss yielded `undefined` and the phase rendered as "ontwerp"
+  // forever: a silent wrong answer, which is how R2.2 once read "In ontwerp"
+  // while RipR22Process was deployed and running. Throwing is louder and
+  // cheaper: both lists are static, so this fires at module load in the first
+  // test that imports the catalogue, not in front of a user.
+  if (!key) {
+    throw new Error(
+      `RIP phase '${c.code}' is in the catalogue but has no processDefinitionKey in @ronl/shared. ` +
+        `Add it to RIP_PHASE_KEYS, or remove the phase from CONTENT.`
+    );
+  }
+  return { ...c, processDefinitionKey: key };
+});
 
 export const ripPhaseByCode = (code: string): RipPhase | undefined =>
   RIP_PHASES.find((p) => p.code === code);
@@ -478,10 +504,11 @@ export function getPhaseDeployStatus(
   phase: RipPhase,
   deployedKeys: ReadonlySet<string>
 ): RipDeployStatus {
-  if (phase.processDefinitionKey && deployedKeys.has(phase.processDefinitionKey)) {
-    return 'gedeployed';
-  }
-  return 'ontwerp';
+  // Modelled is not deployed. Every phase carries a process-definition key
+  // since #85, so the `phase.processDefinitionKey &&` half of this guard is
+  // gone -- but "ontwerp" is very much alive: it is what a phase reads when its
+  // process is modelled and simply not on this environment yet.
+  return deployedKeys.has(phase.processDefinitionKey) ? 'gedeployed' : 'ontwerp';
 }
 
 /**
