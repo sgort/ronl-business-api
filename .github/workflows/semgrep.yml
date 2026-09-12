@@ -1,0 +1,140 @@
+name: Semgrep
+
+# Semgrep Code and Supply Chain, on every pull request and on every push to acc
+# and main. Supply Chain covers what check-supply-chain structurally cannot:
+# check-supply-chain verifies that GitHub Actions digest pins resolve to the
+# versions their comments claim, and says nothing at all about the packages in
+# package-lock.json. Renovate remediates that tree; this is what verifies it.
+#
+# One job covers the whole monorepo. All six workspaces -- backend, frontend,
+# pa-cockpit, pa-demo, public-site, shared -- resolve through the single root
+# package-lock.json, so there is one lockfile for Supply Chain to read and no
+# per-workspace fan-out to keep in step with the workspace list.
+#
+# Ported from linked-data-explorer, which ported it from ttl-editor, where it
+# was introduced and triaged (ttl-editor#112, #113). Section 2 of
+# linked-data-explorer's docs/ci-posture-across-repos.md, "The other supply
+# chain", records why each decision below was taken; this file repeats only the
+# reasoning that is TRUE HERE, and says where this repository differs.
+#
+# Same trigger shape as zizmor.yml, and for the same reason documented at length
+# there: no branches filter and no paths filter on pull_request, so a pull
+# request cannot skip the scan by targeting an unwatched base or by touching
+# nothing watched. push stays filtered to the two branches that deploy.
+#
+# `scan` is NOT a required check on the day this lands, unlike in the two
+# repositories upstream of it. Both rulesets here -- "acc supply-chain gate" and
+# "main promotion gate" -- require `audit` and nothing else. That is deliberate:
+# the baseline has never been scanned in CI, and requiring a check before
+# knowing what it reports is how a gate ends up bypassed in its first week.
+# Promotion is a ruleset change, reversible without touching this file, which is
+# also why nothing here will move when it happens.
+#
+# `continue-on-error` is the obvious alternative to that staging and is the
+# wrong tool, for the reason zizmor.yml now spells out at length: it rewrites the
+# STEP's reported conclusion as well as the job's, and the honest result is not
+# exposed by the REST API, so a finding shows up only in the log while every
+# check reads "success". A separate un-required workflow reports honestly and
+# gates nothing; that is the shape to use while triaging.
+#
+# No fork caveat here, and none is needed: this repository has no forks, so no
+# pull request arrives without SEMGREP_APP_TOKEN. If one ever does, `semgrep ci`
+# cannot start and --no-suppress-errors fails the step -- harmless while the
+# check is not required, and a blocker the day it is. ttl-editor#128 has the
+# fork-safe shape; do that before promoting this to required if a fork exists by
+# then.
+on:
+  pull_request:
+  push:
+    branches:
+      - acc
+      - main
+
+# Same group key as every other workflow here, but NOT their unconditional
+# cancel-in-progress: true -- the one deliberate divergence in this file.
+#
+# The push runs on acc and main are what write the Semgrep Cloud baseline.
+# Cancelling one mid-upload leaves the dashboard describing a scan that never
+# finished, and nothing is queued to correct it. Pull-request runs write nothing
+# durable, so superseding a stale one is free. Hence: cancel on pull_request,
+# never on push. Do not "tidy" this into line with the siblings.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Read-only. Findings go to Semgrep Cloud over the API, not to the GitHub
+# security tab, so security-events: write is not needed. If SARIF upload is ever
+# added, that permission comes with it -- and zizmor.yml sets
+# advanced-security: false for precisely this reason.
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # semgrep ci is diff-aware on a pull request: it scans the merge base
+          # against the head and reports only what the pull request introduces.
+          # It cannot compute that from a shallow clone, and degrades quietly to
+          # a full scan rather than failing -- which would put the whole backlog
+          # on every pull request and train everyone to ignore it.
+          fetch-depth: 0
+
+      # No actions/setup-node here, unlike every other workflow in this
+      # repository. Semgrep is a Python tool and this job runs no npm script, so
+      # a Node setup would be a pin to maintain for nothing. That is also why
+      # this workflow adds exactly one `uses:` reference to the register --
+      # actions/checkout, taking it from x9 to x10.
+      - name: Install Semgrep
+        # Hand-pinned, like zizmor's `version:` input and the renovate@44.50.3
+        # argument in the audit workflow. Renovate's managers do not parse a
+        # version out of a run: block, so this is bumped by hand; it is recorded
+        # in SECURITY-PIPELINE.md's Pinned table as a manual row, alongside those
+        # two.
+        #
+        # The venv is required, not stylistic: ubuntu-latest marks its system
+        # Python as externally-managed (PEP 668), so a bare `pip install` exits
+        # 1 with error: externally-managed-environment.
+        run: |
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+          "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet semgrep==1.176.1
+          echo "$RUNNER_TEMP/semgrep-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Verify the pinned version installed
+        # Cheap, and it makes the log state which Semgrep produced the findings
+        # below it. A scan whose tool version is not in its own output is how
+        # ttl-editor's first triage became ambiguous.
+        run: semgrep --version
+
+      - name: Scan
+        env:
+          # Required. Without it `semgrep ci` refuses to run, and an
+          # unauthenticated `semgrep scan` silently drops Supply Chain -- the
+          # half of this job nothing else in the repository covers. Agent (CI)
+          # scope only; this job never calls the Web API.
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        # No --dry-run: results go to the Semgrep Cloud dashboard so the count
+        # is tracked over time rather than living in a run log that expires.
+        #
+        # The push runs must be what establish the baseline. Semgrep derives the
+        # project identity from its environment: inside Actions it reads
+        # GITHUB_REPOSITORY and registers sgort/ronl-business-api, while a
+        # workstation run registers local_scan/ronl-business-api. Seeding the
+        # baseline from a laptop would split the history across two projects.
+        #
+        # Exit status is policy-driven: semgrep ci exits non-zero only on
+        # findings the Semgrep Cloud policy marks BLOCKING. Tighten the policy to
+        # make it bite, not this file.
+        #
+        # --no-suppress-errors is deliberate. By default semgrep ci prints
+        # "There were errors during analysis but Semgrep will succeed" and exits
+        # 0, which is how a broken install once went unnoticed upstream: the scan
+        # crashed and still reported success. Warn-level PartialParsing notices
+        # do not fail the job; a tool that cannot run does.
+        run: semgrep ci --no-suppress-errors

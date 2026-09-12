@@ -23,18 +23,19 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 
 ## Pinned
 
-**30 `uses:` references across 9 workflows, all 30 digest-pinned.** Verified on
-`acc` at `570f973`, 29 August 2026.
+**31 `uses:` references across 10 workflows, all 31 digest-pinned.** Verified on
+`acc` at `bdad286`, 12 September 2026.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                        |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
-| `actions/checkout` (×9)             | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
+| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
 | `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                             |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                         |
 | `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                             |
 | `zizmorcore/zizmor-action`          | `3dc1ecc9bcb9e94e9b2c709687979e1298497054`          | v0.6.2            | Renovate                                                                             |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | **manual** — an action input, which Renovate's github-actions manager does not parse |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                            |
+| Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses       |
 | npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                             |
 
 The zizmor pin is stronger than it looks: `zizmor-action` resolves the requested
