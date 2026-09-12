@@ -32,7 +32,7 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 | `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                             |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                         |
 | `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                             |
-| `zizmorcore/zizmor-action`          | `3dc1ecc9bcb9e94e9b2c709687979e1298497054`          | v0.6.2            | Renovate                                                                             |
+| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                             |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | **manual** — an action input, which Renovate's github-actions manager does not parse |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                            |
 | npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                             |
