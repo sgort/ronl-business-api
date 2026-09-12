@@ -430,6 +430,27 @@ gh pr create --base acc --title "chore: bump release to v<version>" --body "..."
   Use `-d`, not `-D` — it only succeeds when the branch is fully merged. If it
   refuses, stop and investigate rather than forcing it.
 
+- **Then check the GitLab mirror**, which the merge has just left behind:
+
+  ```bash
+  npm run check-mirror
+  ```
+
+  Every gate in `SECURITY-PIPELINE.md` runs on GitHub Actions. The `gitlab`
+  remote is outside all of them and is pushed by hand, so it drifts on every
+  merge — and a mirror nothing checks is not a backup, it is a second place for
+  content to be. A release is the point where that is worth reconciling.
+
+  The check never pushes. It prints the exact command, which is a human's to
+  run — the same rule that governs every other write to a shared branch. It
+  also distinguishes **behind** from **diverged**, which a commit count cannot:
+  behind is one fast-forward, diverged means the mirror holds commits GitHub has
+  never seen and needs archiving first, as `ttl-editor`'s did in September 2026.
+
+  It cannot run in CI, and that is a property of the mirror rather than a gap
+  here: the `gitlab` remote lives in `.git/config`, so an Actions runner has no
+  such remote, no key for it and no route to it. Run where the push happens.
+
 - **Confirm the branch is gone from the remote too.** `gh pr merge --delete-branch`
   removes both copies, and both repositories now have `delete_branch_on_merge`
   enabled so a merge through the GitHub UI does the same. But a release merged some
