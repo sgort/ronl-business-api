@@ -230,18 +230,52 @@ no manifest change.
 
 ### 3.7 The rulesets — what makes it _enforcement_
 
-A workflow that runs but cannot block is advice. **Two** rulesets exist, and both
-require a pull request and a passing `audit`:
+A workflow that runs but cannot block is advice. **Two** rulesets exist, and
+since 12 September 2026 they carry the same four rules:
 
-| Ruleset                 | Branch | Requires               |
-| ----------------------- | ------ | ---------------------- |
-| `acc supply-chain gate` | `acc`  | pull request + `audit` |
-| `main promotion gate`   | `main` | pull request + `audit` |
+| Ruleset                 | Branch | Rules                                                                             |
+| ----------------------- | ------ | --------------------------------------------------------------------------------- |
+| `acc supply-chain gate` | `acc`  | `pull_request`, `required_status_checks: [audit]`, `deletion`, `non_fast_forward` |
+| `main promotion gate`   | `main` | the same four                                                                     |
 
-Both are needed together: the check alone still lets a direct push bypass the
-gate. Neither sets `strict_required_status_checks_policy`, so a branch need not
-be up to date with its base to merge — which is why a stale red check on an
-un-rebased branch is not always a real failure.
+`deletion` and `non_fast_forward` reached `acc` last. `main` got them when it was
+created, during the promotion; `acc` went without for a month because the
+alignment work that was supposed to add them started at the item after and never
+came back. Two rulesets in one repository differed in a way nobody had decided —
+worth recording, because that is how the difference would have been read next
+time somebody compared them.
+
+**The two differ in exactly one parameter, deliberately:**
+
+|        | `require_extra_approval_for_unattributed_changes` |
+| ------ | ------------------------------------------------- |
+| `acc`  | `true`                                            |
+| `main` | **`false`**                                       |
+
+`main`'s was set false on purpose. Its promotion pull request carried commits
+under three author identities and the ruleset requires **zero** approvals, so
+with the flag on there would have been nobody able to give the extra approval it
+demanded — the gate would have deadlocked the merge it existed to protect. On
+`acc`, ordinary pull requests do not hit that shape, so the stricter default
+stays.
+
+Do not "tidy" them into agreement in either direction, and **read a ruleset back
+after writing it**. Omitting that parameter is not the same as setting it false:
+GitHub stores it as `true`, invisibly, and the create call that made `main`'s
+ruleset did exactly that before it was caught.
+
+Both rules are needed together with the check: `audit` alone still lets a direct
+push bypass the gate. Neither ruleset sets
+`strict_required_status_checks_policy`, so a branch need not be up to date with
+its base to merge — which is why a stale red check on an un-rebased branch is not
+always a real failure.
+
+**Classic branch protection still reports `allow_force_pushes: true` on both
+branches, and that is not a hole.** It is a second, older layer; the ruleset's
+`non_fast_forward` is what actually refuses the push. Read
+`gh api repos/…/rules/branches/<branch>` rather than the classic protection
+endpoint — it reports the **effective** rules from every ruleset at once, which is
+the only view that answers "what would actually stop me".
 
 Squash and rebase merging are **disabled repo-wide**, leaving merge commits only.
 Changelog entries name commits by SHA, and both alternatives rewrite those hashes
