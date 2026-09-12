@@ -55,13 +55,13 @@ function computeHealth(blocked: string | null, daysInStep: number): HealthKey {
 
 export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const phase = ripPhaseByCode(phaseCode);
-  // Null for a phase with no process model: there are no instances to ask
-  // for, and the phase endpoints answer 409 rather than an empty list.
-  const livePhaseCode = phase?.processDefinitionKey ? phaseCode : null;
-  // The phase whose completed instances feed this one's ready list. Null when
-  // that predecessor has no process model, since it can have no completions.
+  // Null for a code the catalogue does not know — there are no instances to ask
+  // for. Since #85 every catalogued phase has a process model, so this no
+  // longer tests for a missing key, only for a missing phase.
+  const livePhaseCode = phase ? phaseCode : null;
+  // The phase whose completed instances feed this one's ready list.
   const predecessor = previousModelledPhase(phaseCode);
-  const predecessorLiveCode = predecessor?.processDefinitionKey ? predecessor.code : null;
+  const predecessorLiveCode = predecessor ? predecessor.code : null;
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
   const [tab, setTab] = useState<'starten' | 'wip' | 'gereed'>('starten');
@@ -208,7 +208,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
           // and start without one.
           const candidate = readiness.candidates.find((c) => c.projectNumber === nr);
           return businessApi.process.start(
-            phase!.processDefinitionKey!,
+            phase!.processDefinitionKey,
             candidate
               ? { projectNumber: candidate.projectNumber, projectName: candidate.projectName }
               : { projectNumber: nr },
@@ -230,7 +230,7 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     setSubmitting(true);
     setFallbackError(null);
     try {
-      const res = await businessApi.process.start(phase!.processDefinitionKey!, {});
+      const res = await businessApi.process.start(phase!.processDefinitionKey, {});
       if (res.success) {
         setFallbackStarted(true);
         reloadWip();

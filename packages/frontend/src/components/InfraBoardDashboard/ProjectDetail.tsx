@@ -234,9 +234,10 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
   // than guessed.
   const isOtherPhaseSelected = isLive && selPhase !== currentPhaseCode;
   const businessKey = currentRow?.businessKey ?? null;
-  // Unmodelled phase codes 409 the completed-instances endpoint on purpose
-  // (see infra.api.ts) — only ask for phases that actually have a process.
-  const selPhaseModelled = !!ripPhaseByCode(selPhase)?.processDefinitionKey;
+  // Every catalogued phase has a process since #85, so this now only asks
+  // whether the code is one the catalogue knows — an unknown code still 404s
+  // rather than being sent to the engine.
+  const selPhaseModelled = !!ripPhaseByCode(selPhase);
   const { data: selPhaseCompleted } = useRipPhaseCompleted(
     isOtherPhaseSelected && selPhaseModelled ? selPhase : null
   );
