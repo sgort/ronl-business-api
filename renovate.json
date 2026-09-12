@@ -3,25 +3,52 @@
   "description": [
     "Supply-chain policy for ronl-business-api. Companion to .github/zizmor.yml",
     "and the Supply-chain audit workflow: zizmor enforces that every action",
-    "reference is a commit digest, Renovate keeps those digests current.",
-    "dependencyDashboardApproval is TEMPORARY - see the note on that key."
+    "reference is a commit digest, Renovate keeps those digests current. Pinning",
+    "without automated updates decays into an unpatched tree, which is worse",
+    "than floating. See SECURITY-PIPELINE.md.",
+    "baseBranchPatterns targets acc, this repository's integration and default",
+    "branch. main is promoted from acc and must never receive dependency pull",
+    "requests directly.",
+    "prConcurrentLimit 5 is a sized cap, and what sizes it here is REVIEWER",
+    "ATTENTION, not Static Web Apps staging environments. That is the opposite",
+    "of linked-data-explorer, and the reasoning does not transfer: the three acc",
+    "SWA workflows carry paths: filters on pull_request as well as push, and",
+    "none of those filters watches the root lockfile or package.json. So a",
+    "dependency pull request -- lock-file maintenance above all -- consumes NO",
+    "preview environment at all. The frontend app is Free (3 environments) while",
+    "pa-demo and public-site are Standard (10) in a different subscription, but",
+    "none of that binds on this key. What does cost previews: a change under",
+    "packages/shared/** or packages/pa-cockpit/**, which both frontend-acc and",
+    "pa-demo-acc watch, so it holds two at once."
   ],
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "extends": ["config:recommended", ":dependencyDashboard", "helpers:pinGitHubActionDigests"],
   "minimumReleaseAge": "14 days",
   "internalChecksFilter": "strict",
-  "dependencyDashboardApproval": true,
   "vulnerabilityAlerts": {
     "description": [
       "Security advisories bypass the cooldown. Without this override the",
       "14-day wait would delay exactly the updates that must not wait, which",
       "is why such policies get disabled mid-incident. Requires GitHub",
       "Dependabot ALERTS to be enabled on the repository; Dependabot security",
-      "UPDATES must stay off, or it opens competing PRs that ignore the cooldown."
+      "UPDATES must stay off, or it opens competing PRs that ignore the cooldown.",
+      "dependencyDashboardApproval is set false here explicitly, because major",
+      "updates below need approval: a security fix that happens to be a major",
+      "version must not wait on a checkbox."
     ],
     "minimumReleaseAge": null,
-    "labels": ["security"]
+    "labels": ["security"],
+    "dependencyDashboardApproval": false
   },
   "packageRules": [
+    {
+      "description": [
+        "Actions land across all ten workflows at once, so they are grouped",
+        "separately from the workspace dependencies below."
+      ],
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "matchUpdateTypes": ["minor", "patch", "digest"]
+    },
     {
       "description": [
         "Azure/static-web-apps-deploy publishes v1 as BOTH a 2021 tag",
@@ -30,11 +57,139 @@
         "branch head; Renovate's github-tags datasource resolves the tag, so it",
         "would open a routine-looking digest update that reverts nine deploy",
         "steps to 3.5-year-old code. minimumReleaseAge gives no protection - the",
-        "target commit is years old. See SECURITY-PIPELINE.md."
+        "target commit is years old. Re-resolve by hand if this action ever",
+        "needs to move. See SECURITY-PIPELINE.md."
       ],
       "matchManagers": ["github-actions"],
       "matchDepNames": ["Azure/static-web-apps-deploy"],
       "enabled": false
+    },
+    {
+      "description": [
+        "Four deployables, four groups. An update that breaks one workspace",
+        "should not be entangled with the others in a single pull request -",
+        "each has its own deploy workflow and its own acceptance site.",
+        "There are six packages but only four groups: pa-cockpit is",
+        "private: true and compiled into both frontend and pa-demo, and shared",
+        "feeds both frontend and backend. Neither deploys on its own, so an",
+        "update under either stays ungrouped and arrives as its own pull",
+        "request - which is also the honest shape, because it is the one case",
+        "that redeploys two sites at once.",
+        "matchUpdateTypes lists every update type EXCEPT lockFileMaintenance.",
+        "Without it these rules stamp a group name onto lock-file maintenance",
+        "too, and one refresh arrives as several identical pull requests with",
+        "byte-identical lockfiles, multiplying its share of prConcurrentLimit.",
+        "Its own default is groupName null. Learned in linked-data-explorer",
+        "(#92, #93, #94); see linked-data-explorer#97."
+      ],
+      "matchFileNames": ["packages/backend/**"],
+      "groupName": "backend dependencies",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest",
+        "rollback",
+        "bump",
+        "replacement"
+      ]
+    },
+    {
+      "matchFileNames": ["packages/frontend/**"],
+      "groupName": "frontend dependencies",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest",
+        "rollback",
+        "bump",
+        "replacement"
+      ]
+    },
+    {
+      "matchFileNames": ["packages/pa-demo/**"],
+      "groupName": "pa-demo dependencies",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest",
+        "rollback",
+        "bump",
+        "replacement"
+      ]
+    },
+    {
+      "matchFileNames": ["packages/public-site/**"],
+      "groupName": "public-site dependencies",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest",
+        "rollback",
+        "bump",
+        "replacement"
+      ]
+    },
+    {
+      "description": [
+        "Major updates wait in the Dependency Dashboard (#16) as checkboxes and",
+        "hold no slot in prConcurrentLimit until someone ticks one. This is what",
+        "replaces the global dependencyDashboardApproval that governed every",
+        "update until now (#20, superseded): that key was set during adoption so",
+        "Renovate raised nothing while the same workflow files were being pinned",
+        "by hand on a branch. That race ended when pinning finished, but removing",
+        "the key outright would release the whole queue at once.",
+        "The queue is why the replacement is scoped to majors rather than dropped",
+        "entirely: of 35 entries pending approval on 2026-09-12, all but four are",
+        "majors - express 5, react 19, typescript 7, vite 8, jest 30, eslint 10,",
+        "tailwindcss 4, node 24, postgres 18 - which nobody merges on autopilot",
+        "anyway. Behind this rule they stay checkboxes; the four genuine",
+        "minor/patch updates flow normally under the 14-day cooldown."
+      ],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": [
+        "Lock-file maintenance is the ONLY thing that moves the transitive tree.",
+        "Nothing has ever refreshed this one: the key was absent entirely until",
+        "now, and the first authenticated Semgrep scan of this repository, on",
+        "2026-09-12, found 435 findings of which 419 are Supply Chain (249",
+        "reachable) across 1266 npm dependencies.",
+        "In linked-data-explorer a single refresh closed 63 of 66 Supply Chain",
+        "findings with no manifest change, which is the specific reason this key",
+        "is here rather than in a later pass: triaging those findings by hand",
+        "before refreshing the lockfile would be work thrown away.",
+        "prPriority makes it the first branch created when a slot frees - but",
+        "only against branches eligible in the same run, and lock-file",
+        "maintenance is only eligible inside its Monday schedule. During the week,",
+        "updates eligible any time fill every free slot first, so priority alone",
+        "cannot hold one for it; majors needing approval, above, is what does.",
+        "See linked-data-explorer#97."
+      ],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "prPriority": 10
     }
-  ]
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "baseBranchPatterns": ["acc"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "postUpdateOptions": ["npmDedupe"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on monday"]
+  }
 }
