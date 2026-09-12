@@ -62,7 +62,8 @@ const logger = winston.createLogger({
   format: prodFormat,
   defaultMeta: {
     service: 'ronl-business-api',
-    environment: config.nodeEnv,
+    // The tier, not the runtime mode: log queries want to know ACC from PROD.
+    environment: config.deploymentEnv,
   },
   transports,
   exitOnError: false,

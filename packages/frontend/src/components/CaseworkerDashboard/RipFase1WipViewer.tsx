@@ -244,7 +244,7 @@ export default function RipFase1WipViewer({ instanceId }: RipFase1WipViewerProps
     setLoading(true);
     setError(false);
     businessApi.rip
-      .phase1Documents(instanceId)
+      .instanceDocuments(instanceId)
       .then((res) => {
         if (res.success && res.data) setData(res.data);
         else setError(true);

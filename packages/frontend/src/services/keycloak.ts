@@ -21,6 +21,38 @@ export default keycloak;
 export { KeycloakUser };
 
 /**
+ * A `Keycloak` instance can only be `.init()`d once ever — calling it twice
+ * throws. `AuthCallback` and `ProtectedRoute` can each be the first thing to
+ * touch it in a given page load (AuthCallback on the normal login flow;
+ * ProtectedRoute on a direct/bookmarked/refreshed dashboard URL), so this
+ * memoizes the first call's promise and hands the same one to everyone
+ * after it.
+ *
+ * Deliberately takes no options and always uses passive `check-sso` —
+ * an earlier version accepted caller-supplied options, which meant whichever
+ * caller happened to init() first silently decided them for everyone, for
+ * the lifetime of the page. In practice: visiting a protected route while
+ * unauthenticated (ProtectedRoute's check-sso, resolves `false`) followed by
+ * clicking "Login met DigiD" (which wanted `onLoad: 'login-required',
+ * idpHint: 'digid'`) got AuthCallback back the *already-resolved* `false`
+ * from ProtectedRoute's call instead — DigiD's real init never happened, no
+ * redirect ever fired, and the citizen flow reported "Authenticatie
+ * mislukt" even though nothing had actually gone wrong yet. Every real
+ * login (medewerker or citizen) must now go through this same passive
+ * check, then trigger the actual redirect via `keycloak.login(...)`
+ * explicitly if it comes back unauthenticated — that method has no
+ * "only once" restriction, unlike `.init()`.
+ */
+let initPromise: Promise<boolean> | null = null;
+
+export const initializeKeycloak = (): Promise<boolean> => {
+  if (!initPromise) {
+    initPromise = keycloak.init({ onLoad: 'check-sso', checkLoginIframe: false });
+  }
+  return initPromise;
+};
+
+/**
  * Extract user information from Keycloak token
  */
 export const getUser = (): KeycloakUser | null => {

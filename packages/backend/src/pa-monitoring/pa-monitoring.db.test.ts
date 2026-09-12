@@ -4,12 +4,14 @@
  * both the init and per-seed error paths. The pg db is mocked.
  */
 
+const mockConfig = { pa: { seedDemoData: true } };
+jest.mock('@utils/config', () => ({ config: mockConfig }));
 jest.mock('@services/audit.service', () => ({ db: { none: jest.fn() } }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
 
-import { initPaDb } from './pa-monitoring.db';
+import { initPaDb, DEMO_SEARCH_IDS } from './pa-monitoring.db';
 import { db } from '@services/audit.service';
 
 const mockNone = (db as unknown as { none: jest.Mock }).none;
@@ -17,7 +19,11 @@ const mockNone = (db as unknown as { none: jest.Mock }).none;
 const seedCalls = () =>
   mockNone.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO pa_saved_searches'));
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Most of this file exercises the seed itself, so it runs with the opt-in on.
+  mockConfig.pa.seedDemoData = true;
+});
 
 describe('initPaDb', () => {
   it('creates the tables, backfills, and seeds the taxonomy', async () => {
@@ -72,6 +78,66 @@ describe('initPaDb', () => {
 
     await expect(initPaDb()).resolves.toBeUndefined();
     // all seeds were still attempted despite each failing
+    expect(seedCalls().length).toBeGreaterThan(15);
+  });
+});
+
+describe('initPaDb — demo taxonomy is opt-in', () => {
+  it('seeds no searches by default, so curation has nothing fixture-driven to run on', async () => {
+    mockConfig.pa.seedDemoData = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initPaDb();
+
+    // These criteria are what curation retrieves against, so seeding them into a
+    // live database produced signals no real zoekvraag had asked for.
+    expect(seedCalls()).toHaveLength(0);
+  });
+
+  it('still creates the tables when demo seeding is off', async () => {
+    mockConfig.pa.seedDemoData = false;
+    mockNone.mockResolvedValue(undefined);
+
+    await initPaDb();
+
+    expect(String(mockNone.mock.calls[0][0])).toContain('CREATE TABLE IF NOT EXISTS pa_signals');
+  });
+});
+
+describe('DEMO_SEARCH_IDS', () => {
+  it('lists exactly the ids the taxonomy seed writes', async () => {
+    mockConfig.pa.seedDemoData = true;
+    mockNone.mockResolvedValue(undefined);
+
+    await initPaDb();
+
+    // Tooling deletes demo criteria by this list, so an entry added to the seed
+    // without appearing here would survive a --drop-demo.
+    const seeded = seedCalls().map((c) => c[1][0] as string);
+    expect([...DEMO_SEARCH_IDS].sort()).toEqual(seeded.sort());
+  });
+
+  it('prefixes every id with seed-', () => {
+    for (const id of DEMO_SEARCH_IDS) expect(id.startsWith('seed-')).toBe(true);
+  });
+});
+
+describe('initPaDb — failures that are not Error instances', () => {
+  // node-postgres can reject with a bare string on a connection-level failure;
+  // both catches have a String(err) fallback so the log line still says something.
+  it('is fail-soft when table creation rejects with a string', async () => {
+    mockNone.mockRejectedValue('connection terminated');
+    await expect(initPaDb()).resolves.toBeUndefined();
+    expect(seedCalls()).toHaveLength(0);
+  });
+
+  it('continues seeding when an individual upsert rejects with a string', async () => {
+    mockNone
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValue('connection terminated');
+
+    await expect(initPaDb()).resolves.toBeUndefined();
     expect(seedCalls().length).toBeGreaterThan(15);
   });
 });

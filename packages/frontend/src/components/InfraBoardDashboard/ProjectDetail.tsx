@@ -1,70 +1,101 @@
 import { useState, useEffect } from 'react';
 import {
-  PHASES,
-  FASE1_NODES,
   FASE1_DOCS,
   HEALTH,
   nodeStatusFromHistory,
   type StatusKey,
 } from '../../pages/infra-board/rip-model';
+import { RIP_PHASES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 import { getMockPortfolio, type PortfolioProject } from '../../pages/infra-board/infra-board.data';
-import { useActivityHistory, usePhase1Documents, useOpenTasks } from '../../services/infra.api';
+import {
+  useActivityHistory,
+  useInstanceDocuments,
+  useOpenTasks,
+  useRipActiveAcrossPhases,
+  useRipPhaseCompleted,
+  usePhaseSwimlane,
+} from '../../services/infra.api';
 import { businessApi } from '../../services/api';
-import type { Task } from '@ronl/shared';
-import Fase1Swimlane from './Fase1Swimlane';
+import type { SignatureSpec } from '../../services/api';
+import type { SwimNode, Task } from '@ronl/shared';
+import PhaseSwimlane from './PhaseSwimlane';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
+import SigningPanel from './SigningPanel';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
   projectRef: ProjectRef;
-  phaseLabels: string[];
   onBack: () => void;
 }
 
-/** Derive a node-status map for a MOCK project (no live instance). */
-function deriveMockStatus(project: PortfolioProject | undefined): Record<string, StatusKey> {
+/** Derive a node-status map for a MOCK project (no live instance), from the
+ *  derived model's own nodes for whichever phase is currently on screen —
+ *  keyed by `bpmnId` like every other status map, now that a swimlane node's
+ *  `id` and `bpmnId` are the same value. */
+function deriveMockStatus(
+  project: PortfolioProject | undefined,
+  nodes: SwimNode[]
+): Record<string, StatusKey> {
   const out: Record<string, StatusKey> = {};
-  const flag = project?.phaseStatuses[0];
+  const curIdx = project ? RIP_PHASES.findIndex((p) => p.code === project.ripPhaseCode) : -1;
+  const isOnR21 = curIdx === 0;
+  // A mock project can never be 'wachtend' AT R2.1 (the ladder's first
+  // rung — there's no predecessor to await), so when isOnR21 is true
+  // this is always the illustrative wip-status the mock model gives it.
+  const flag = isOnR21 ? project!.segments[0].status : undefined;
   const reached = !project
     ? 0
-    : project.phase > 1
+    : !isOnR21
       ? 99
       : flag === 'active'
         ? 5
         : flag === 'action'
           ? 10
           : 14;
-  for (const n of FASE1_NODES) {
-    if (n.col < reached) out[n.id] = 'done';
+  for (const n of nodes) {
+    if (n.col < reached) out[n.bpmnId] = 'done';
     else if (n.col === reached)
-      out[n.id] =
-        project &&
-        project.phase === 1 &&
-        flag &&
-        (['risk', 'overdue', 'action'] as StatusKey[]).includes(flag)
+      out[n.bpmnId] =
+        isOnR21 && flag && (['risk', 'overdue', 'action'] as StatusKey[]).includes(flag)
           ? flag
           : 'active';
-    else out[n.id] = project && project.phase > 1 ? 'done' : 'todo';
+    else out[n.bpmnId] = !isOnR21 && project ? 'done' : 'todo';
   }
   return out;
 }
 
 /** Inline claim + complete panel for a single Operaton task. */
-function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
+function TaskWorkPanel({ task, onDone }: { task: Task; onDone: (completed: Task) => void }) {
   const [claiming, setClaiming] = useState(false);
   const [isClaimed, setIsClaimed] = useState(!!task.assignee);
   const [variables, setVariables] = useState<Record<string, unknown> | null>(null);
+  const [sig, setSig] = useState<SignatureSpec | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  // Always fetch process variables on mount so they're visible before claiming.
+  // Always fetch process variables AND the signing spec on mount so they're
+  // visible before claiming — one extra request per OPENED task, never per
+  // listed task. allSettled, not all: a blip in the (new) signature spec
+  // endpoint must not blank the (long-working) variables display for every
+  // ordinary, non-signing task — each result degrades independently, so a
+  // failed spec fetch just falls back to "no signature required" instead of
+  // discarding variables that already came back fine.
   useEffect(() => {
     setDetailLoading(true);
-    businessApi.task.variables(task.id).then((res) => {
-      if (res.success) setVariables(res.data as Record<string, unknown>);
-      setDetailLoading(false);
-    });
+    Promise.allSettled([
+      businessApi.task.variables(task.id),
+      businessApi.validsign.taskSpec(task.id),
+    ])
+      .then(([varsResult, sigResult]) => {
+        if (varsResult.status === 'fulfilled' && varsResult.value.success) {
+          setVariables(varsResult.value.data as Record<string, unknown>);
+        }
+        if (sigResult.status === 'fulfilled' && sigResult.value.success && sigResult.value.data) {
+          setSig(sigResult.value.data);
+        }
+      })
+      .finally(() => setDetailLoading(false));
   }, [task.id]);
 
   const claim = async () => {
@@ -128,14 +159,19 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
           <button type="button" className="v2-btn" onClick={claim} disabled={claiming}>
             {claiming ? 'Claimen…' : 'Taak claimen'}
           </button>
+        ) : sig?.required ? (
+          // No completion message here either, for the same reason as below:
+          // onDone unmounts this panel, so anything set alongside it dies in
+          // the same tick and never paints. The parent owns the confirmation.
+          <SigningPanel taskId={task.id} spec={sig} onCompleted={() => onDone(task)} />
         ) : (
           <TaskFormViewer
             taskId={task.id}
             variables={variables}
-            onCompleted={() => {
-              setMsg({ type: 'ok', text: 'Taak voltooid.' });
-              onDone();
-            }}
+            // No success message here: onDone unmounts this panel, so anything
+            // set alongside it is destroyed in the same tick and never paints.
+            // The parent owns the confirmation instead, because it survives.
+            onCompleted={() => onDone(task)}
             onError={() => setMsg({ type: 'err', text: 'Opslaan mislukt.' })}
           />
         )}
@@ -144,14 +180,14 @@ function TaskWorkPanel({ task, onDone }: { task: Task; onDone: () => void }) {
   );
 }
 
-export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props) {
+export default function ProjectDetail({ projectRef, onBack }: Props) {
   const mock = getMockPortfolio().find((p) => p.nr === projectRef.nr);
   const isLive = !!projectRef.instanceId;
 
   const { data: history, reload: reloadHistory } = useActivityHistory(
     projectRef.instanceId ?? null
   );
-  const { data: docs } = usePhase1Documents(projectRef.instanceId ?? null);
+  const { data: docs } = useInstanceDocuments(projectRef.instanceId ?? null);
   const { data: allTasks, reload: reloadTasks } = useOpenTasks();
 
   // Tasks belonging to this process instance.
@@ -159,24 +195,78 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
     ? (allTasks ?? []).filter((t) => t.processInstanceId === projectRef.instanceId)
     : [];
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  /** Last completed task, kept so the confirmation outlives the panel. */
+  const [justCompleted, setJustCompleted] = useState<string | null>(null);
   const selectedTask = instanceTasks.find((t) => t.id === selectedTaskId) ?? null;
 
-  // live instances are always in Fase 1 (R2.1); mock rows carry their own phase.
-  const currentPhase = isLive ? 1 : (mock?.phase ?? 1);
-  const [selPhase, setSelPhase] = useState(currentPhase);
+  // A live instance's phase is the phase whose process it is an instance OF,
+  // so it has to be looked up rather than assumed: this used to hard-code
+  // 'R2.1', which was true only while R2.1 was the sole deployed process.
+  // Once R2.2…R6.1 were deployed, a project sitting in (say) R2.2 still
+  // reported R2.1 here — wrong phase in the meta strip, no rung marked done,
+  // and R2.1's swimlane rendered against an instance that has none of its
+  // activity ids.
+  //
+  // Resolved from the live instance list rather than threaded through
+  // ProjectRef: MijnDag also opens live projects (from a task, which carries
+  // no phase), so a prop would arrive undefined on that path.
+  const { data: liveInstances } = useRipActiveAcrossPhases();
+  const currentRow = isLive
+    ? (liveInstances ?? []).find((i) => i.id === projectRef.instanceId)
+    : undefined;
+  const livePhaseCode = currentRow?.phaseCode;
+  const currentPhaseCode = isLive ? (livePhaseCode ?? 'R2.1') : (mock?.ripPhaseCode ?? 'R2.1');
+  const [selPhase, setSelPhase] = useState(currentPhaseCode);
   useEffect(() => {
-    setSelPhase(currentPhase);
-  }, [projectRef.nr, projectRef.instanceId, currentPhase]);
+    setSelPhase(currentPhaseCode);
+  }, [projectRef.nr, projectRef.instanceId, currentPhaseCode]);
 
-  const statusById: Record<string, StatusKey> =
-    isLive && history ? nodeStatusFromHistory(history) : deriveMockStatus(mock);
+  const { data: phaseModel, loading: phaseModelLoading } = usePhaseSwimlane(selPhase);
 
-  // Active tasks (open or claimed) → highlight matching swimlane nodes.
-  const activeNodeIds = new Set(
-    instanceTasks.flatMap((t) =>
-      FASE1_NODES.filter((n) => n.bpmnId === t.taskDefinitionKey).map((n) => n.id)
-    )
+  // Selecting a FINISHED phase's rung (e.g. R2.1 while the project is on
+  // R2.2) must show THAT phase's own run, not the current instance's — the
+  // current instance's history never contains the selected phase's BPMN ids,
+  // which is exactly the bug this branch fixes (every node fell through to
+  // 'todo'). Instances of the same project across phases are linked by
+  // businessKey (see infra.api.ts) rather than project number, so the join
+  // is done on that; a null businessKey (an instance started before the
+  // convention, or by hand) cannot be joined and is left unresolved rather
+  // than guessed.
+  const isOtherPhaseSelected = isLive && selPhase !== currentPhaseCode;
+  const businessKey = currentRow?.businessKey ?? null;
+  // Unmodelled phase codes 409 the completed-instances endpoint on purpose
+  // (see infra.api.ts) — only ask for phases that actually have a process.
+  const selPhaseModelled = !!ripPhaseByCode(selPhase)?.processDefinitionKey;
+  const { data: selPhaseCompleted } = useRipPhaseCompleted(
+    isOtherPhaseSelected && selPhaseModelled ? selPhase : null
   );
+  // R5.3 is legitimately re-enterable — it splits on oplevering vs
+  // (vervroegde) ingebruikname, and three of its four exits loop back to
+  // R5.2 — so more than one completed instance can carry this businessKey.
+  // The most recently finished one is this project's current standing in
+  // that phase, so ties resolve to the latest endTime rather than silently
+  // taking whichever the backend happened to list first.
+  const matchingPastInstances = (businessKey ? (selPhaseCompleted ?? []) : []).filter(
+    (i) => i.businessKey === businessKey
+  );
+  const pastInstance =
+    matchingPastInstances.length > 0
+      ? matchingPastInstances.reduce((latest, cur) => (cur.endTime > latest.endTime ? cur : latest))
+      : null;
+  const { data: pastHistory } = useActivityHistory(
+    isOtherPhaseSelected ? (pastInstance?.id ?? null) : null
+  );
+
+  const statusById: Record<string, StatusKey> = isOtherPhaseSelected
+    ? nodeStatusFromHistory(pastHistory ?? [])
+    : isLive && history
+      ? nodeStatusFromHistory(history)
+      : deriveMockStatus(mock, phaseModel?.nodes ?? []);
+
+  // Active tasks (open or claimed) → highlight matching swimlane nodes. A
+  // node's id IS its bpmnId in a derived model, so a task's taskDefinitionKey
+  // needs no translation through the model to become a node id.
+  const activeNodeIds = new Set(instanceTasks.map((t) => t.taskDefinitionKey));
 
   const naam = mock?.naam ?? (docs?.variables?.projectName as string) ?? `Project ${projectRef.nr}`;
   const health = mock?.health ?? 'groen';
@@ -184,10 +274,12 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
   const milestone = mock?.milestone ?? 'Lopende processtap';
   const startYear = mock?.startYear ?? new Date().getFullYear();
 
-  const stepClass = (n: number) => {
-    if (n < currentPhase) return 'done';
-    if (n === currentPhase) {
-      const f = mock?.phaseStatuses[n - 1];
+  const stepClass = (code: string) => {
+    const idx = RIP_PHASES.findIndex((p) => p.code === code);
+    const curIdx = RIP_PHASES.findIndex((p) => p.code === currentPhaseCode);
+    if (idx < curIdx) return 'done';
+    if (idx === curIdx) {
+      const f = mock?.segments[idx]?.status;
       return f && (['risk', 'overdue', 'action'] as StatusKey[]).includes(f)
         ? `active ${f}`
         : 'active';
@@ -196,8 +288,8 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
   };
 
   const docOk = (produceNode: string) => statusById[produceNode] === 'done';
-  const phaseInfo = PHASES.find((p) => p.n === selPhase)!;
-  const curInfo = PHASES.find((p) => p.n === currentPhase)!;
+  const phaseInfo = ripPhaseByCode(selPhase)!;
+  const curInfo = ripPhaseByCode(currentPhaseCode)!;
 
   return (
     <div className="pb-view">
@@ -220,7 +312,7 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
         <div>
           <dt>Huidige fase</dt>
           <dd>
-            F{currentPhase} · {curInfo.name}
+            {curInfo.name}
             <span className="rcode">{curInfo.code}</span>
           </dd>
         </div>
@@ -239,18 +331,18 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
       </div>
 
       <div className="pb-stepper">
-        {PHASES.map((p) => {
-          const base = stepClass(p.n);
+        {RIP_PHASES.map((p, i) => {
+          const base = stepClass(p.code);
           return (
             <button
               type="button"
-              key={p.n}
-              className={`pb-step ${base} ${p.n === selPhase ? 'selected' : ''}`}
-              onClick={() => setSelPhase(p.n)}
+              key={p.code}
+              className={`pb-step ${base} ${p.code === selPhase ? 'selected' : ''}`}
+              onClick={() => setSelPhase(p.code)}
             >
-              <span className="pb-step-dot">{base.includes('done') ? '✓' : p.n}</span>
+              <span className="pb-step-dot">{base.includes('done') ? '✓' : i + 1}</span>
               <span className="pb-step-name">
-                {phaseLabels[p.n - 1]}
+                {p.name}
                 <span className="pb-step-code">{p.code}</span>
               </span>
             </button>
@@ -258,44 +350,56 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
         })}
       </div>
 
-      {selPhase === 1 ? (
+      {phaseModel ? (
         <>
           <div className="pb-phase-titlebar">
             <h3>
-              Fase 1 · {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+              {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
             </h3>
             <span className="meta">
-              Processtappen &amp; rollen — RIP Fase 1 procesmodel{isLive ? ' (live)' : ''}
+              Processtappen &amp; rollen — procesmodel{isLive ? ' (live)' : ''}
             </span>
           </div>
-          <Fase1Swimlane statusById={statusById} claimedNodeIds={activeNodeIds} />
-          <div className="pb-deliverables">
-            <div className="pb-deliverables-head">Projectplan — onderdelen</div>
-            <div className="pb-docrow">
-              {FASE1_DOCS.map((d) => {
-                const ok = docOk(d.produceNode);
-                return (
-                  <div className={`pb-doc4 ${ok ? 'ok' : 'na'}`} key={d.key}>
-                    <span className="num">{d.nr}</span>
-                    <span className="info">
-                      <span className="nm">{d.label}</span>
-                      <span className="st">{ok ? 'Beschikbaar' : 'Nog niet'}</span>
-                    </span>
-                  </div>
-                );
-              })}
+          <PhaseSwimlane
+            model={phaseModel}
+            statusById={statusById}
+            claimedNodeIds={activeNodeIds}
+          />
+          {selPhase === 'R2.1' && (
+            <div className="pb-deliverables">
+              <div className="pb-deliverables-head">Projectplan — onderdelen</div>
+              <div className="pb-docrow">
+                {FASE1_DOCS.map((d) => {
+                  const ok = docOk(d.produceNode);
+                  return (
+                    <div className={`pb-doc4 ${ok ? 'ok' : 'na'}`} key={d.key}>
+                      <span className="num">{d.nr}</span>
+                      <span className="info">
+                        <span className="nm">{d.label}</span>
+                        <span className="st">{ok ? 'Beschikbaar' : 'Nog niet'}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </>
+      ) : phaseModelLoading ? (
+        <div className="pb-phase-empty">
+          <h3>
+            {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+          </h3>
+          <p className="pb-placeholder">Bezig met laden…</p>
+        </div>
       ) : (
         <div className="pb-phase-empty">
           <h3>
-            Fase {selPhase} · {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
+            {phaseInfo.name} <span className="rcode">{phaseInfo.code}</span>
           </h3>
           <p>
-            Het processtappen-model voor deze fase is nog niet gemodelleerd. Alleen{' '}
-            <b>Fase 1 ({PHASES[0].code})</b> is volledig uitgewerkt — selecteer Fase 1 hierboven
-            voor de swimlane met rollen, taken en deliverables.
+            Het processtappen-model voor deze fase is nog niet gemodelleerd, of kon niet worden
+            opgehaald. Probeer het later opnieuw.
           </p>
         </div>
       )}
@@ -306,13 +410,21 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
           <div className="pb-taken-head">
             <h3>Open taken ({instanceTasks.length})</h3>
           </div>
+          {justCompleted && (
+            <div className="v2-taken-msg v2-taken-msg-success" role="status">
+              Taak voltooid: {justCompleted}
+            </div>
+          )}
           <div className="pb-taken-list">
             {instanceTasks.map((t) => (
               <button
                 type="button"
                 key={t.id}
                 className={`pb-taken-item ${selectedTaskId === t.id ? 'active' : ''}`}
-                onClick={() => setSelectedTaskId((prev) => (prev === t.id ? null : t.id))}
+                onClick={() => {
+                  setJustCompleted(null);
+                  setSelectedTaskId((prev) => (prev === t.id ? null : t.id));
+                }}
               >
                 <span className="pb-taken-item-name">{t.name}</span>
                 <span className={`v2-taken-pill ${t.assignee ? 'claimed' : 'open'}`}>
@@ -325,7 +437,8 @@ export default function ProjectDetail({ projectRef, phaseLabels, onBack }: Props
             <TaskWorkPanel
               key={selectedTask.id}
               task={selectedTask}
-              onDone={() => {
+              onDone={(completed) => {
+                setJustCompleted(completed.name);
                 setSelectedTaskId(null);
                 reloadTasks();
                 reloadHistory();

@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import FormData from 'form-data';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
 import { getErrorMessage } from '@utils/errors';
@@ -17,14 +18,30 @@ export interface EdocsWorkspaceResult {
 export interface EdocsDocumentResult {
   documentId: string;
   documentNumber: string;
-  workspaceId: string;
+  workspaceId: string | null;
 }
 
 export interface EdocsDocumentMetadata {
   docName: string;
+  /**
+   * eDOCS UV_AFD_NAAM ("Behandelgroep" in InfoCenter) — a mandatory profile
+   * field on this DM server; document creation is rejected without it.
+   */
+  department: string;
   appId?: string;
   formName?: string;
   extra?: Record<string, string>;
+}
+
+export interface EdocsDocumentVersion {
+  /** VERSION_ID — the real identifier `downloadDocumentVersion()` needs. */
+  id: string;
+  /** VERSION — the human-facing label ("1", "2", ...), not usable for download. */
+  version: string;
+}
+
+export interface EdocsDownloadResult {
+  contentBase64: string;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -206,8 +223,10 @@ export class EdocsService {
         },
       });
 
-      const list: Array<{ id: string; data: { DOCNAME: string } }> =
-        searchResponse.data?.data?.list ?? [];
+      // List items are flat (DOCNAME/id directly on the item), not nested under
+      // a `.data` property — confirmed live; the previous `existing.data.DOCNAME`
+      // read threw "Cannot read properties of undefined" on every real match.
+      const list: Array<{ id: string; DOCNAME: string }> = searchResponse.data?.data?.list ?? [];
 
       if (list.length > 0) {
         const existing = list[0];
@@ -215,7 +234,7 @@ export class EdocsService {
           projectNumber,
           workspaceId: existing.id,
         });
-        return { workspaceId: existing.id, workspaceName: existing.data.DOCNAME, created: false };
+        return { workspaceId: existing.id, workspaceName: existing.DOCNAME, created: false };
       }
 
       logger.info('Creating new eDOCS workspace', { workspaceName });
@@ -231,7 +250,15 @@ export class EdocsService {
         { params: { library: config.edocs.library } }
       );
 
-      const newWorkspaceId: string = createResponse.data?.data?.id ?? createResponse.data?.id;
+      // Unverified: POST /workspaces still 500s server-side (see EDOCS-GO-LIVE.md
+      // Known issues), so the success shape has never been observed live. The
+      // `data.list[0].id` fallback matches the confirmed flat-list pattern used
+      // by both the search above and document creation; kept alongside the
+      // original guesses in case the real shape differs once that 500 is fixed.
+      const newWorkspaceId: string =
+        createResponse.data?.data?.list?.[0]?.id ??
+        createResponse.data?.data?.id ??
+        createResponse.data?.id;
 
       logger.info('eDOCS workspace created', { workspaceName, newWorkspaceId });
       return { workspaceId: newWorkspaceId, workspaceName, created: true };
@@ -240,8 +267,15 @@ export class EdocsService {
 
   // ─── Documents ───────────────────────────────────────────────────────────────
 
+  /**
+   * Uploads a document. `workspaceId: null` uploads standalone (no workspace
+   * reference) — this is the only path confirmed working live (see
+   * EDOCS-GO-LIVE.md § Known issues). Passing a `workspaceId` uses the
+   * workspace-ref path, which is still broken on the DM server; kept for when
+   * that's resolved rather than removed.
+   */
   async uploadDocument(
-    workspaceId: string,
+    workspaceId: string | null,
     filename: string,
     contentBase64: string,
     metadata: EdocsDocumentMetadata
@@ -264,43 +298,65 @@ export class EdocsService {
         docName: metadata.docName,
       });
 
-      const response = await this.client.post(
-        'documents',
-        {
-          file: contentBase64,
-          data: {
-            DOCNAME: metadata.docName,
-            AUTHOR_ID: config.edocs.userId,
-            TYPIST_ID: config.edocs.userId,
-            APP_ID: metadata.appId ?? 'INFRA',
-            ...(metadata.formName
-              ? {
-                  _restapi: {
-                    form_name: metadata.formName,
-                    ref: {
-                      type: 'workspace',
-                      id: parseInt(workspaceId, 10),
-                      lib: config.edocs.library,
-                    },
-                  },
-                }
-              : {
-                  _restapi: {
-                    ref: {
-                      type: 'workspace',
-                      id: parseInt(workspaceId, 10),
-                      lib: config.edocs.library,
-                    },
-                  },
-                }),
-            ...(metadata.extra ?? {}),
-          },
-        },
-        { params: { library: config.edocs.library } }
-      );
+      // Standalone (no workspace ref) uploads need an explicit form to select a
+      // profile, or the DM server can't determine an object type. "D_INTERN_NIEUW"
+      // is the confirmed-working default on this server; override via formName.
+      const formName = metadata.formName ?? (workspaceId ? undefined : 'D_INTERN_NIEUW');
 
-      const documentId: string = response.data?.data?.id ?? response.data?.id;
-      const documentNumber: string = response.data?.data?.DOCNUMBER ?? documentId;
+      // The DM server rejects this endpoint's JSON-with-base64-file shape (it
+      // 400s expecting a "copy" source); it only accepts a true multipart body,
+      // matching the OpenAPI spec's declared content-type.
+      const profileData = {
+        DOCNAME: metadata.docName,
+        AUTHOR_ID: config.edocs.userId,
+        TYPIST_ID: config.edocs.userId,
+        APP_ID: metadata.appId ?? 'DEFAULT',
+        UV_AFD_NAAM: metadata.department,
+        _restapi: {
+          ...(formName ? { form_name: formName } : {}),
+          ...(workspaceId
+            ? {
+                ref: {
+                  type: 'workspace',
+                  id: parseInt(workspaceId, 10),
+                  lib: config.edocs.library,
+                },
+              }
+            : {}),
+        },
+        ...(metadata.extra ?? {}),
+      };
+
+      const form = new FormData();
+      form.append('data', JSON.stringify(profileData), { contentType: 'application/json' });
+      form.append('file', Buffer.from(contentBase64, 'base64'), {
+        filename,
+        contentType: 'application/octet-stream',
+      });
+
+      const response = await this.client.post('documents', form, {
+        params: { library: config.edocs.library },
+        headers: form.getHeaders(),
+      });
+
+      // The DM server answers per-part validation with HTTP 206 (a "success"
+      // status to axios) and an error_list body instead of an HTTP error —
+      // it must be checked explicitly or a rejected upload looks like success.
+      const errorList: Array<{ object?: string; message?: string; code?: string }> =
+        response.data?.data?.error_list ?? [];
+      if (errorList.length > 0) {
+        const detail = errorList
+          .map((e) => e.message)
+          .filter(Boolean)
+          .join('; ');
+        throw new Error(
+          `eDOCS rejected the document upload: ${detail || 'unknown validation error'}`
+        );
+      }
+
+      const created: { id?: string; DOCNUM?: string } = response.data?.data?.list?.[0] ?? {};
+      const documentId: string = created.id ?? response.data?.data?.id ?? response.data?.id;
+      const documentNumber: string = created.DOCNUM ?? response.data?.data?.DOCNUMBER ?? documentId;
 
       logger.info('Document uploaded to eDOCS', { documentId, documentNumber, workspaceId });
       return { documentId, documentNumber, workspaceId };
@@ -327,19 +383,109 @@ export class EdocsService {
     }
 
     return this.withAuth(async () => {
-      const response = await this.client.get(`workspaces/${workspaceId}/documents`, {
+      // There is no `.../documents` sub-resource on this API — the OpenAPI spec
+      // (and a live GET confirmed 200) shows workspace content is retrieved from
+      // the workspace resource itself. It returns all content (documents and any
+      // sub-items), not documents only — this API has no documents-only filter.
+      const response = await this.client.get(`workspaces/${workspaceId}`, {
         params: { library: config.edocs.library },
       });
 
-      const list: Array<{ id: string; data: { DOCNAME: string; DOCNUMBER: string } }> =
+      // Flat list item shape (DOCNAME/DOCNUM directly on the item), same as the
+      // workspace-search list confirmed live — not nested under `.data`.
+      const list: Array<{ id: string; DOCNAME: string; DOCNUM: string }> =
         response.data?.data?.list ?? [];
 
       return list.map((item) => ({
         id: item.id,
-        name: item.data.DOCNAME,
-        documentNumber: item.data.DOCNUMBER,
+        name: item.DOCNAME,
+        documentNumber: item.DOCNUM,
       }));
     });
+  }
+
+  async getDocumentProfile(documentId: string): Promise<Record<string, unknown>> {
+    if (this.stubMode) {
+      logger.info('[stub] getDocumentProfile()', { documentId });
+      return { DOCNAME: 'Stub document', DOCNUMBER: `STUB-${documentId}`, APP_ID: 'INFRA' };
+    }
+
+    return this.withAuth(async () => {
+      const response = await this.client.get(`documents/${documentId}/profile`, {
+        params: { library: config.edocs.library },
+      });
+      return response.data?.data ?? response.data ?? {};
+    });
+  }
+
+  async getDocumentVersions(documentId: string): Promise<EdocsDocumentVersion[]> {
+    if (this.stubMode) {
+      logger.info('[stub] getDocumentVersions()', { documentId });
+      return [{ id: `${documentId}-v1`, version: '1' }];
+    }
+
+    return this.withAuth(async () => {
+      const response = await this.client.get(`documents/${documentId}/versions`, {
+        params: { library: config.edocs.library },
+      });
+      // Flat list item shape, confirmed live — no nested `.data`, and no `id`
+      // field at all. VERSION_ID is the real identifier the download endpoint
+      // needs; VERSION is just the human-facing label ("1", "2", ...).
+      const list: Array<{ VERSION_ID: string; VERSION: string }> = response.data?.data?.list ?? [];
+      return list.map((item) => ({ id: item.VERSION_ID, version: item.VERSION }));
+    });
+  }
+
+  async downloadDocumentVersion(documentId: string, version: string): Promise<EdocsDownloadResult> {
+    if (this.stubMode) {
+      logger.info('[stub] downloadDocumentVersion()', { documentId, version });
+      return {
+        contentBase64: Buffer.from(`stub content for ${documentId} v${version}`).toString('base64'),
+      };
+    }
+
+    return this.withAuth(async () => {
+      // Confirmed live: this endpoint returns the raw file bytes directly (not
+      // JSON with a base64 field, despite the sibling endpoints' convention) —
+      // arraybuffer avoids axios's default JSON/string decoding, which would
+      // corrupt real binary content. "0" is a confirmed-working version
+      // sentinel; the versions list's VERSION/VERSION_ID both 400 here
+      // ("Kan documentversie niet vinden met opgegeven versie-id").
+      const response = await this.client.get(`documents/${documentId}/versions/${version}`, {
+        params: { library: config.edocs.library },
+        responseType: 'arraybuffer',
+      });
+      const contentBase64 = Buffer.from(response.data as ArrayBuffer).toString('base64');
+      return { contentBase64 };
+    });
+  }
+
+  async deleteDocument(documentId: string): Promise<void> {
+    if (this.stubMode) {
+      logger.info('[stub] deleteDocument()', { documentId });
+      return;
+    }
+
+    await this.withAuth(async () => {
+      await this.client.delete(`documents/${documentId}`, {
+        params: { library: config.edocs.library },
+      });
+    });
+    logger.info('Document deleted from eDOCS', { documentId });
+  }
+
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    if (this.stubMode) {
+      logger.info('[stub] deleteWorkspace()', { workspaceId });
+      return;
+    }
+
+    await this.withAuth(async () => {
+      await this.client.delete(`workspaces/${workspaceId}`, {
+        params: { library: config.edocs.library },
+      });
+    });
+    logger.info('Workspace deleted from eDOCS', { workspaceId });
   }
 
   // ─── Health ──────────────────────────────────────────────────────────────────

@@ -136,3 +136,61 @@ describe('CprmvMcpProvider — session reconnect', () => {
     expect(client2.callTool).toHaveBeenCalledWith({ name: RULE_TOOL, arguments: {} });
   });
 });
+
+describe('CprmvMcpProvider — edge cases', () => {
+  it('connect is a no-op once a client already exists', async () => {
+    const p = new CprmvMcpProvider();
+    inject(p, { close: jest.fn() });
+    await p.connect();
+    expect(mockClientCtor).not.toHaveBeenCalled();
+  });
+
+  it('describes a tool that ships without a description as an empty string', async () => {
+    const p = new CprmvMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockResolvedValue({
+        tools: [{ name: RULE_TOOL, inputSchema: { type: 'object' } }],
+      }),
+    });
+    await expect(p.getToolDefinitions()).resolves.toEqual([
+      { name: RULE_TOOL, description: '', input_schema: { type: 'object' } },
+    ]);
+  });
+
+  it('rethrows a non-Error rejection from getToolDefinitions rather than reconnecting', async () => {
+    // A transport that rejects with a bare string still has to reach the caller;
+    // String(err) is what decides it is not a lost session.
+    const p = new CprmvMcpProvider();
+    inject(p, { listTools: jest.fn().mockRejectedValue('socket hang up'), close: jest.fn() });
+    await expect(p.getToolDefinitions()).rejects.toBe('socket hang up');
+    expect(mockClientCtor).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a non-Error rejection from callTool rather than reconnecting', async () => {
+    const p = new CprmvMcpProvider();
+    inject(p, { callTool: jest.fn().mockRejectedValue('socket hang up'), close: jest.fn() });
+    await expect(p.callTool(RULE_TOOL, {})).rejects.toBe('socket hang up');
+    expect(mockClientCtor).not.toHaveBeenCalled();
+  });
+});
+
+describe('CprmvMcpProvider — reconnect keeps mapping tools without a description', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('maps a description-less tool after reconnecting on a lost session', async () => {
+    const p = new CprmvMcpProvider();
+    inject(p, {
+      listTools: jest.fn().mockRejectedValue(new Error('Session not found')),
+      close: jest.fn().mockResolvedValue(undefined),
+    });
+    mockClientCtor.mockImplementation(() => ({
+      connect: jest.fn().mockResolvedValue(undefined),
+      listTools: jest.fn().mockResolvedValue({ tools: [{ name: RULE_TOOL, inputSchema: {} }] }),
+    }));
+
+    await expect(p.getToolDefinitions()).resolves.toEqual([
+      { name: RULE_TOOL, description: '', input_schema: {} },
+    ]);
+  });
+});

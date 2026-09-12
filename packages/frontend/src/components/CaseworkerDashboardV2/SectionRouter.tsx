@@ -16,6 +16,7 @@ import type { KeycloakUser } from '@ronl/shared';
 import type { TenantConfig } from '../../services/tenant';
 import TakenInbox from './TakenInbox';
 import NoAccessPanel from './NoAccessPanel';
+import RegelSimulatie from './RegelSimulatie';
 import { MODES } from '../../pages/caseworker-v2/modes.config';
 
 // ── Existing section components (re-used as-is) ─────────────────────
@@ -31,9 +32,6 @@ import ProfielSection from '../CaseworkerDashboard/ProfielSection';
 import RollenSection from '../CaseworkerDashboard/RollenSection';
 import HrOnboardingSection from '../CaseworkerDashboard/HrOnboardingSection';
 import OnboardingArchiefSection from '../CaseworkerDashboard/OnboardingArchiefSection';
-import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
-import RipFase1WipSection from '../CaseworkerDashboard/RipFase1WipSection';
-import RipFase1GereedSection from '../CaseworkerDashboard/RipFase1GereedSection';
 import IouGebruiksscenarioSection from '../CaseworkerDashboard/IouGebruiksscenarioSection';
 import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
@@ -96,6 +94,14 @@ export default function SectionRouter({
   if (sectionId === 'filter-today') return <TakenInbox user={user} initialFilter="today" />;
   if (sectionId === 'filter-week') return <TakenInbox user={user} initialFilter="week" />;
 
+  // ── Simulatie ──────────────────────────────────────────────────────
+  // Auth-required (unlike the "Public / shared library" block below it in
+  // this file), and takes `user` — to key the persisted playback day
+  // per-caseworker (scenario parameters stay shared/global; only the
+  // current timeline position is per-user, so one caseworker never lands
+  // on another's leftover position).
+  if (sectionId === 'regelsimulatie') return <RegelSimulatie user={user} />;
+
   // ── Public / shared library (no props) ────────────────────────────
   if (sectionId === 'regelcatalogus') return <RegelCatalogus />;
   if (sectionId === 'procesbibliotheek') return <ProcesBibliotheek />;
@@ -121,9 +127,6 @@ export default function SectionRouter({
   if (sectionId === 'rollen') return <RollenSection user={user} />;
   if (sectionId === 'hr-onboarding') return <HrOnboardingSection user={user} />;
   if (sectionId === 'onboarding-archief') return <OnboardingArchiefSection user={user} />;
-  if (sectionId === 'rip-fase1') return <RipFase1Section user={user} />;
-  if (sectionId === 'rip-fase1-wip') return <RipFase1WipSection user={user} />;
-  if (sectionId === 'rip-fase1-gereed') return <RipFase1GereedSection user={user} />;
 
   // ── IOU forms (no props) ──────────────────────────────────────────
   if (sectionId === 'iou-gebruiksscenario') return <IouGebruiksscenarioSection />;

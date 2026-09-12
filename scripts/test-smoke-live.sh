@@ -78,18 +78,49 @@ read_env_var() {
     | sed -E 's/[[:space:]]+$//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
 }
 
-# On localhost, fall back to the backend's own Keycloak client credentials from
-# packages/backend/.env.<NODE_ENV> so Tier 2 runs without exporting a secret.
-# An explicit CLIENT_SECRET from the environment always wins; the .env fallback is
-# never used for TARGET=acc (those creds belong to the local realm).
+# Read one client's secret out of the seeded realm export.
+read_realm_secret() {
+  python -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding='utf-8'))
+    print(next(c.get('secret', '') for c in d.get('clients', []) if c.get('clientId') == sys.argv[2]))
+except Exception:
+    print('')
+" "$1" "$2" 2>/dev/null
+}
+
+# On localhost, resolve the Tier 2 client secret so the script runs without
+# exporting one. An explicit CLIENT_SECRET from the environment always wins, and
+# neither file is consulted for TARGET=acc — those creds belong to the ACC realm.
+#
+# The realm export is preferred over packages/backend/.env.<NODE_ENV> because it
+# is what Keycloak actually imports, so it is the copy that stays true after a
+# realm re-import. .env holds a third copy of the same secret and drifts silently:
+# a partial import resets the running client and orphans the .env value, which
+# then fails here while test-m2m-routes.sh (which already reads the realm file)
+# keeps working. .env remains the fallback for a checkout with no realm export.
 ENV_FILE="$BACKEND_DIR/.env.${NODE_ENV:-development}"
+REALM_FILE="$REPO_ROOT/config/keycloak/ronl-realm.json"
 CREDS_SOURCE="environment"
-if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -f "$ENV_FILE" && -z "${CLIENT_SECRET:-}" ]]; then
-  _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
-  if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
-    CLIENT_SECRET="$_env_secret"
-    CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
-    CREDS_SOURCE="$ENV_FILE"
+if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -z "${CLIENT_SECRET:-}" ]]; then
+  CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
+  CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
+
+  if [[ -f "$REALM_FILE" ]]; then
+    _realm_secret="$(read_realm_secret "$REALM_FILE" "$CLIENT_ID")"
+    if [[ -n "$_realm_secret" ]]; then
+      CLIENT_SECRET="$_realm_secret"
+      CREDS_SOURCE="$REALM_FILE"
+    fi
+  fi
+
+  if [[ -z "${CLIENT_SECRET:-}" && -f "$ENV_FILE" ]]; then
+    _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
+    if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
+      CLIENT_SECRET="$_env_secret"
+      CREDS_SOURCE="$ENV_FILE"
+    fi
   fi
 fi
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
@@ -114,6 +145,17 @@ run_edocs_probe() {
   ( cd "$BACKEND_DIR" && NODE_ENV="${NODE_ENV:-development}" \
       npx --no-install tsx scripts/edocs-healthcheck.ts --quiet ) 2>/dev/null \
     | sed -n 's/^EDOCS_HEALTH_RESULT //p' | tail -n1
+}
+
+# Run the direct Doccle reachability probe (packages/backend/scripts/doccle-healthcheck.ts)
+# and echo just its DOCCLE_HEALTH_RESULT json line. Needs no Keycloak/backend — it
+# reflects the LOCAL packages/backend/.env.<NODE_ENV> config, not the TARGET backend.
+# Unlike eDOCS this can only answer reachability, never "authenticated" — the v1
+# Doccle API has no side-effect-free endpoint to verify credentials.
+run_doccle_probe() {
+  ( cd "$BACKEND_DIR" && NODE_ENV="${NODE_ENV:-development}" \
+      npx --no-install tsx scripts/doccle-healthcheck.ts --quiet ) 2>/dev/null \
+    | sed -n 's/^DOCCLE_HEALTH_RESULT //p' | tail -n1
 }
 
 # ── Result helpers ────────────────────────────────────────────────────────────
@@ -284,6 +326,36 @@ else
   fi
 fi
 
+# ── Doccle check — DIRECT (in-process · no Keycloak · local .env) ─────────────
+#
+# Unlike eDOCS, the v1 Doccle API (mci-rest-app) has no side-effect-free
+# endpoint, so this can only prove reachability — never "authenticated". Real
+# credential verification only happens via the mutating scripts/test-doccle-live.sh.
+
+echo ""
+echo "── Doccle check — direct (in-process · no Keycloak · local .env) ──────────"
+
+if [[ ! -d "$BACKEND_DIR" ]]; then
+  skip "Doccle probe — backend package not found at $BACKEND_DIR"
+elif ! command -v npx >/dev/null 2>&1; then
+  skip "Doccle probe — npx/tsx not available"
+else
+  DOCCLE_JSON=$(run_doccle_probe)
+  if [[ -z "$DOCCLE_JSON" ]]; then
+    fail "Doccle probe produced no result — run manually: (cd packages/backend && npm run doccle:health)"
+  elif [[ "$(echo "$DOCCLE_JSON" | jq -r '.status')" == "stub" ]]; then
+    skip "Doccle — stub mode enabled locally (DOCCLE_STUB_MODE=true)"
+  else
+    rch=$(echo "$DOCCLE_JSON" | jq -r '.reachable')
+    lat=$(echo "$DOCCLE_JSON" | jq -r '.latency // "?"')
+    if [[ "$rch" == "true" ]]; then
+      pass "Doccle reachable (${lat} ms) — auth not verified (see test-doccle-live.sh)"
+    else
+      fail "Doccle not reachable: $(echo "$DOCCLE_JSON" | jq -r '.error // "no detail"')"
+    fi
+  fi
+fi
+
 # ── Tier 2 — authenticated seams (two Keycloak flows) ─────────────────────────
 #
 # 2a — CLIENT flow (client_credentials): a confidential client + secret. M2M, no
@@ -327,6 +399,22 @@ else
         else
           fail "eDOCS login failed via backend: $(jq -r '.data.error // "no detail"' "$TMP/edocs.json")"
         fi
+      fi
+    fi
+
+    # Doccle gated status — reuses the same M2M token. Reachability only, same
+    # caveat as the direct probe above: this API cannot prove authentication
+    # without a mutating call (see scripts/test-doccle-live.sh).
+    DS_CODE=$(get "$TMP/doccle.json" "${BASE_URL}/v1/doccle/status" "${AUTH_M2M[@]}")
+    check_status "GET /v1/doccle/status" "$DS_CODE" "200"
+    if [[ "$DS_CODE" == "200" ]]; then
+      if [[ "$(jq -r '.data.stubMode' "$TMP/doccle.json" 2>/dev/null)" == "true" ]]; then
+        skip "Doccle (backend) — stub mode enabled (DOCCLE_STUB_MODE)"
+      else
+        rch=$(jq -r '.data.reachable' "$TMP/doccle.json" 2>/dev/null)
+        [[ "$rch" == "true" ]] \
+          && pass "Doccle reachable via backend" \
+          || fail "Doccle not reachable via backend: $(jq -r '.data.error // "no detail"' "$TMP/doccle.json")"
       fi
     fi
   fi

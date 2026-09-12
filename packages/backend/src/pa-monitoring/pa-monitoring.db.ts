@@ -6,6 +6,7 @@
 
 import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
+import { config } from '@utils/config';
 
 const logger = createLogger('pa-monitoring-db');
 
@@ -204,6 +205,36 @@ export async function initPaDb(): Promise<void> {
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS routing TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS regio TEXT;
       ALTER TABLE pa_signals ADD COLUMN IF NOT EXISTS sentiment TEXT;
+
+      ALTER TABLE pa_saved_searches ADD COLUMN IF NOT EXISTS notify BOOLEAN NOT NULL DEFAULT false;
+
+      -- Personal watch derivative of a team-scoped (unowned) search — see
+      -- docs/WATCHBELL.md Gotcha #2. NULL for ordinary rows.
+      ALTER TABLE pa_saved_searches ADD COLUMN IF NOT EXISTS source_search_id TEXT
+        REFERENCES pa_saved_searches(id) ON DELETE CASCADE;
+
+      -- Per-user delivery audit for watched saved searches (incl. dossier watches).
+      -- UNIQUE(user_id, signal_id) is the dedup key: a signal already notified to a
+      -- user never resurfaces, even if a later curation cycle reprocesses it.
+      CREATE TABLE IF NOT EXISTS pa_notifications (
+        id                TEXT PRIMARY KEY,
+        tenant_id         TEXT NOT NULL,
+        user_id           TEXT NOT NULL,
+        signal_id         TEXT NOT NULL REFERENCES pa_signals(id) ON DELETE CASCADE,
+        matched_searches  JSONB NOT NULL DEFAULT '[]',
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        seen_at           TIMESTAMPTZ,
+        UNIQUE (user_id, signal_id)
+      );
+
+      -- Bearer token for the personal RSS feed (GET /v1/pa/signals.rss?token=...) —
+      -- RSS readers can't send a Keycloak JWT, so this is a separate lightweight auth path.
+      CREATE TABLE IF NOT EXISTS pa_feed_tokens (
+        token       TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL,
+        tenant_id   TEXT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
 
     // Backfill: all EU signals created before the subbron column existed came from
@@ -211,13 +242,27 @@ export async function initPaDb(): Promise<void> {
     await db.none(`UPDATE pa_signals SET subbron = 'ep-rss' WHERE bron = 'eu' AND subbron IS NULL`);
 
     logger.info('PA monitoring tables ready');
-    await seedTaxonomy();
+    // Opt-in, for the same reason the demo dossiers are: these criteria are
+    // fixture configuration, and curation runs against whatever is here — so
+    // seeding them unconditionally filled a live database with signals that no
+    // real zoekvraag had asked for. See DEMO_SEARCH_IDS.
+    if (config.pa.seedDemoData) await seedTaxonomy();
+    else logger.info('PA demo taxonomy not seeded (PA_SEED_DEMO_DATA is off)');
   } catch (err) {
     logger.warn('PA monitoring DB init failed — will retry on next request', {
       error: err instanceof Error ? err.message : String(err),
     });
   }
 }
+
+/**
+ * Every saved-search id this module seeds.
+ *
+ * Mirrors DEMO_DOSSIER_IDS: tooling removes demo criteria by this list, so it is
+ * derived from the seed itself rather than hand-kept. The `seed-` prefix matches
+ * what seedTaxonomy writes below.
+ */
+export const DEMO_SEARCH_IDS: readonly string[] = PA_TAXONOMY_SEED.map((e) => `seed-${e.id}`);
 
 async function seedTaxonomy(): Promise<void> {
   for (const entry of PA_TAXONOMY_SEED) {

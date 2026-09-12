@@ -7,6 +7,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
@@ -81,6 +84,34 @@ describe('GET /v1/hr/onboarding/completed', () => {
 
   it('500 when the service throws', async () => {
     svc.getHrOnboardingCompletedList.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('ONBOARDING_LIST_FAILED');
+  });
+});
+
+describe('handler guard for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so this guard is
+  // defensive; it still has to answer 401 rather than crash on req.user.x.
+  it('GET /onboarding/completed -> 401 UNAUTHORIZED', async () => {
+    const res = await request(app).get('/v1/hr/onboarding/completed').set('x-test-no-user', '1');
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as bare strings often enough that the
+  // 'Unknown error' fallback in each catch is a real path, not a formality.
+  it('GET /onboarding/profile still answers 500', async () => {
+    svc.getHrOnboardingProfile.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/hr/onboarding/profile?employeeId=e-1'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('HR_PROFILE_FAILED');
+  });
+
+  it('GET /onboarding/completed still answers 500', async () => {
+    svc.getHrOnboardingCompletedList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('ONBOARDING_LIST_FAILED');

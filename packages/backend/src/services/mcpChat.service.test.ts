@@ -198,3 +198,66 @@ describe('runChatStream', () => {
     });
   });
 });
+
+describe('runChatStream — aborts and non-Error failures mid-loop', () => {
+  it('stays silent when the turn fails because the caller aborted', async () => {
+    // A client that navigates away aborts the signal; the provider then rejects,
+    // and there is no longer a stream to report the failure on.
+    const signal = { aborted: false } as { aborted: boolean } as AbortSignal;
+    const streamTurn = jest.fn(async () => {
+      (signal as { aborted: boolean }).aborted = true;
+      throw new Error('aborted by client');
+    });
+    llm.getProvider.mockReturnValue(makeProvider(streamTurn));
+
+    await runChatStream([], 'hi', emit, [], 'model-1', signal);
+
+    expect(events).toHaveLength(0);
+  });
+
+  it('reports the Dutch fallback when the turn rejects with a non-Error', async () => {
+    const streamTurn = jest.fn(async () => {
+      throw 'socket hang up';
+    });
+    llm.getProvider.mockReturnValue(makeProvider(streamTurn));
+
+    await runChatStream([], 'hi', emit, [], 'model-1');
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        message: 'De AI-assistent kon geen antwoord genereren. Probeer het opnieuw.',
+        code: 'llm_failure',
+      },
+    ]);
+  });
+
+  it('stops before the next tool call once the caller aborts', async () => {
+    const signal = { aborted: false } as { aborted: boolean } as AbortSignal;
+    const streamTurn = jest.fn(async () => {
+      (signal as { aborted: boolean }).aborted = true;
+      return toolTurn('search');
+    });
+    llm.getProvider.mockReturnValue(makeProvider(streamTurn));
+
+    await runChatStream([], 'hi', emit, [], 'model-1', signal);
+
+    expect(mcp.callTool).not.toHaveBeenCalled();
+    expect(streamTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('labels a tool that rejects with a non-Error as a failed tool call', async () => {
+    const streamTurn = jest
+      .fn()
+      .mockImplementationOnce(async () => toolTurn('search'))
+      .mockImplementationOnce(async () => endTurn());
+    llm.getProvider.mockReturnValue(makeProvider(streamTurn));
+    mcp.callTool.mockRejectedValue('socket hang up');
+
+    await runChatStream([], 'hi', emit, [], 'model-1');
+
+    const secondMessages = streamTurn.mock.calls[1][0].messages;
+    const toolResults = secondMessages.find((m: { role: string }) => m.role === 'tool_results');
+    expect(toolResults.results[0]).toMatchObject({ content: 'Tool call failed', isError: true });
+  });
+});

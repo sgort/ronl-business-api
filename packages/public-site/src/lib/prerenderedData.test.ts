@@ -1,0 +1,84 @@
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { readPrerenderedData, isSamePayload } from './prerenderedData';
+
+function setBlob(content: string | null) {
+  document.getElementById('__PUB_DATA__')?.remove();
+  if (content !== null) {
+    const s = document.createElement('script');
+    s.id = '__PUB_DATA__';
+    s.type = 'application/json';
+    s.textContent = content;
+    document.body.appendChild(s);
+  }
+}
+
+afterEach(() => setBlob(null));
+
+describe('readPrerenderedData', () => {
+  it('returns the embedded data when the blob matches the requested route', () => {
+    setBlob(JSON.stringify({ route: '/regels', data: { services: [{ title: 'X' }] } }));
+    expect(readPrerenderedData<{ services: unknown[] }>('/regels')).toEqual({
+      services: [{ title: 'X' }],
+    });
+  });
+
+  it('returns null when the blob is for a different route (stale SPA navigation)', () => {
+    setBlob(JSON.stringify({ route: '/processen', data: { a: 1 } }));
+    expect(readPrerenderedData('/regels')).toBeNull();
+  });
+
+  it('returns null when no blob is present', () => {
+    expect(readPrerenderedData('/regels')).toBeNull();
+  });
+
+  it('returns null (never throws) when the blob is malformed', () => {
+    setBlob('{ not valid json');
+    expect(readPrerenderedData('/regels')).toBeNull();
+  });
+
+  it('is pure — repeated reads return the same data (safe for a useState lazy init under StrictMode)', () => {
+    setBlob(JSON.stringify({ route: '/regels', data: { ok: true } }));
+    expect(readPrerenderedData<{ ok: boolean }>('/regels')).toEqual({ ok: true });
+    expect(readPrerenderedData<{ ok: boolean }>('/regels')).toEqual({ ok: true });
+  });
+
+  it('returns null when the blob names the route but carries no data', () => {
+    // The prerender step writes the envelope before it knows whether the route
+    // produced anything; a `data`-less blob must read as "nothing prerendered"
+    // rather than as `undefined` reaching a component's state.
+    setBlob(JSON.stringify({ route: '/regels' }));
+    expect(readPrerenderedData('/regels')).toBeNull();
+  });
+
+  it('returns null when there is no document at all (the prerender runtime)', () => {
+    // scripts/prerender.ts imports the same components this reader serves, in
+    // Node, where there is no DOM. The guard is what keeps that from throwing
+    // a ReferenceError during the build rather than at runtime in a browser.
+    vi.stubGlobal('document', undefined);
+    try {
+      expect(readPrerenderedData('/regels')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('isSamePayload', () => {
+  it('treats structurally identical payloads as the same', () => {
+    expect(isSamePayload({ services: [{ uri: 's1' }] }, { services: [{ uri: 's1' }] })).toBe(true);
+  });
+
+  it('spots an extra entry — the retired service the stale seed still carried', () => {
+    const seed = { services: [{ uri: 'normbedragen' }, { uri: 'normbedragen-dh' }] };
+    const fresh = { services: [{ uri: 'normbedragen-jul26-041' }] };
+    expect(isSamePayload(seed, fresh)).toBe(false);
+  });
+
+  it('spots a changed value inside an otherwise identical shape', () => {
+    expect(isSamePayload({ n: 196 }, { n: 204 })).toBe(false);
+  });
+
+  it('treats a null seed as different from any payload', () => {
+    expect(isSamePayload(null, { services: [] })).toBe(false);
+  });
+});

@@ -1,0 +1,546 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR31Process" targetNamespace="http://example.com/rip-phase-31" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR31Process">
+    <bpmn:participant id="Participant_RipR31Process" name="R3.1 - Opstellen bestek en tekeningen" processRef="RipR31Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR31Process" name="R3.1 - Opstellen bestek en tekeningen" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR31Process">
+      <bpmn:lane id="Lane_KcInkoopPl" name="Kosten- en contractdeskundige, Inkoopadviseur werken, Projectleider">
+        <bpmn:flowNodeRef>Task_ToetsenInschrijfleidraad</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InschrijfleidraadAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ToetsenAanpassingenInschrijfleidraad</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AanpassingenInschrijfleidraadAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InschrijfleidraadTrackJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_KcOmgevingDirectieToezichtPl" name="Kosten- en contractdeskundige, Omgevingsmanager, Directievoerder, Toezichthouder, Projectleider">
+        <bpmn:flowNodeRef>Task_ToetsenBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BestekAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ToetsenAanpassingenBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AanpassingenBestekAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BestekTrackJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_OntwerperDirectiePlTechnisch" name="Ontwerper, Directievoerder, Projectleider, Technisch adviseur">
+        <bpmn:flowNodeRef>Task_ToetsenConceptBestekstekeningen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ConceptBestekstekeningenAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ToetsenAanpassingenBestekstekeningen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AanpassingenBestekstekeningenAkkoord</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>StartEvent_R31</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenOpstellenConceptBestekstekeningen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenAanpassenBestekstekeningen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BestekstekeningenJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DefinitiefMakenBestekstekeningen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenOpstellenBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ToetsingSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenAanpassenBestek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenAanpassenInschrijfleidraad</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ToetsingJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R32</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R31" name="Start R3.1 - Opstellen bestek&#10;en tekeningen (vanuit R2.4)">
+      <bpmn:outgoing>Flow_StartEvent_R31_Task_LatenOpstellenConceptBestekstekeningen</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_LatenOpstellenConceptBestekstekeningen" name="Laten opstellen&#10;concept bestekstekeningen" camunda:formRef="rip-concept-bestekstekeningen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-concept-bestekstekeningen">
+      <bpmn:incoming>Flow_StartEvent_R31_Task_LatenOpstellenConceptBestekstekeningen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenOpstellenConceptBestekstekeningen_Task_ToetsenConceptBestekstekeningen</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ToetsenConceptBestekstekeningen" name="Toetsen concept&#10;bestekstekeningen" camunda:formRef="rip-toetsen-concept-bestekstekeningen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ontwerper,rip-directievoerder,rip-projectleider,rip-technisch-adviseur" ronl:documentRef="rip-bevindingenformulier-bestekstekeningen">
+      <bpmn:incoming>Flow_Task_LatenOpstellenConceptBestekstekeningen_Task_ToetsenConceptBestekstekeningen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenConceptBestekstekeningen_Gateway_ConceptBestekstekeningenAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_ConceptBestekstekeningenAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenConceptBestekstekeningen_Gateway_ConceptBestekstekeningenAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_ConceptBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_ConceptBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_LatenAanpassenBestekstekeningen" name="Laten aanpassen&#10;bestekstekeningen" camunda:formRef="rip-aanpassen-bestekstekeningen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_ConceptBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenAanpassenBestekstekeningen_Task_ToetsenAanpassingenBestekstekeningen</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ToetsenAanpassingenBestekstekeningen" name="Toetsen aanpassingen&#10;bestekstekeningen" camunda:formRef="rip-toetsen-aanpassingen-bestekstekeningen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ontwerper,rip-directievoerder,rip-projectleider,rip-technisch-adviseur">
+      <bpmn:incoming>Flow_Task_LatenAanpassenBestekstekeningen_Task_ToetsenAanpassingenBestekstekeningen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenAanpassingenBestekstekeningen_Gateway_AanpassingenBestekstekeningenAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AanpassingenBestekstekeningenAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenAanpassingenBestekstekeningen_Gateway_AanpassingenBestekstekeningenAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_BestekstekeningenJoin">
+      <bpmn:incoming>Flow_Gateway_ConceptBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BestekstekeningenJoin_Task_DefinitiefMakenBestekstekeningen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_DefinitiefMakenBestekstekeningen" name="Definitief laten maken&#10;concept bestekstekeningen" camunda:formRef="rip-definitieve-bestekstekeningen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-definitieve-bestekstekeningen">
+      <bpmn:incoming>Flow_Gateway_BestekstekeningenJoin_Task_DefinitiefMakenBestekstekeningen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_DefinitiefMakenBestekstekeningen_Task_LatenOpstellenBestek</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_LatenOpstellenBestek" name="Laten opstellen bestek" camunda:formRef="rip-opstellen-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-bestek">
+      <bpmn:incoming>Flow_Task_DefinitiefMakenBestekstekeningen_Task_LatenOpstellenBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenOpstellenBestek_Gateway_ToetsingSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_ToetsingSplit">
+      <bpmn:incoming>Flow_Task_LatenOpstellenBestek_Gateway_ToetsingSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_ToetsingSplit_Task_ToetsenBestek</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_ToetsingSplit_Task_ToetsenInschrijfleidraad</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_ToetsenBestek" name="Toetsen bestek" camunda:formRef="rip-toetsen-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige,rip-omgevingsmanager,rip-directievoerder,rip-toezichthouder,rip-projectleider" ronl:documentRef="rip-bevindingenformulier-bestek">
+      <bpmn:incoming>Flow_Gateway_ToetsingSplit_Task_ToetsenBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenBestek_Gateway_BestekAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_BestekAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenBestek_Gateway_BestekAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BestekAkkoord_Task_LatenAanpassenBestek</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_BestekAkkoord_Gateway_BestekTrackJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_LatenAanpassenBestek" name="Laten aanpassen bestek" camunda:formRef="rip-aanpassen-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_BestekAkkoord_Task_LatenAanpassenBestek</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AanpassingenBestekAkkoord_Task_LatenAanpassenBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenAanpassenBestek_Task_ToetsenAanpassingenBestek</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ToetsenAanpassingenBestek" name="Toetsen aanpassingen&#10;bestek" camunda:formRef="rip-toetsen-aanpassingen-bestek" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige,rip-omgevingsmanager,rip-directievoerder,rip-toezichthouder,rip-projectleider">
+      <bpmn:incoming>Flow_Task_LatenAanpassenBestek_Task_ToetsenAanpassingenBestek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenAanpassingenBestek_Gateway_AanpassingenBestekAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AanpassingenBestekAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenAanpassingenBestek_Gateway_AanpassingenBestekAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AanpassingenBestekAkkoord_Task_LatenAanpassenBestek</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AanpassingenBestekAkkoord_Gateway_BestekTrackJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_BestekTrackJoin">
+      <bpmn:incoming>Flow_Gateway_BestekAkkoord_Gateway_BestekTrackJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AanpassingenBestekAkkoord_Gateway_BestekTrackJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BestekTrackJoin_Gateway_ToetsingJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_ToetsenInschrijfleidraad" name="Toetsen&#10;inschrijfleidraad" camunda:formRef="rip-toetsen-inschrijfleidraad" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige,rip-inkoopadviseur-werken,rip-projectleider" ronl:documentRef="rip-bevindingenformulier-inschrijfleidraad">
+      <bpmn:incoming>Flow_Gateway_ToetsingSplit_Task_ToetsenInschrijfleidraad</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenInschrijfleidraad_Gateway_InschrijfleidraadAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_InschrijfleidraadAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenInschrijfleidraad_Gateway_InschrijfleidraadAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_InschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_InschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_LatenAanpassenInschrijfleidraad" name="Laten aanpassen&#10;inschrijfleidraad" camunda:formRef="rip-aanpassen-inschrijfleidraad" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_InschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenAanpassenInschrijfleidraad_Task_ToetsenAanpassingenInschrijfleidraad</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ToetsenAanpassingenInschrijfleidraad" name="Toetsen aanpassingen&#10;inschrijfleidraad" camunda:formRef="rip-toetsen-aanpassingen-inschrijfleidraad" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige,rip-inkoopadviseur-werken,rip-projectleider">
+      <bpmn:incoming>Flow_Task_LatenAanpassenInschrijfleidraad_Task_ToetsenAanpassingenInschrijfleidraad</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ToetsenAanpassingenInschrijfleidraad_Gateway_AanpassingenInschrijfleidraadAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AanpassingenInschrijfleidraadAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_ToetsenAanpassingenInschrijfleidraad_Gateway_AanpassingenInschrijfleidraadAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_InschrijfleidraadTrackJoin">
+      <bpmn:incoming>Flow_Gateway_InschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_InschrijfleidraadTrackJoin_Gateway_ToetsingJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_ToetsingJoin">
+      <bpmn:incoming>Flow_Gateway_BestekTrackJoin_Gateway_ToetsingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_InschrijfleidraadTrackJoin_Gateway_ToetsingJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_ToetsingJoin_EndEvent_R32</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="EndEvent_R32" name="Getoetste contract- en aanbestedingsdocumenten&#10;→ R3.2 Verzamelen getoetste documenten">
+      <bpmn:incoming>Flow_Gateway_ToetsingJoin_EndEvent_R32</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R31_Task_LatenOpstellenConceptBestekstekeningen" sourceRef="StartEvent_R31" targetRef="Task_LatenOpstellenConceptBestekstekeningen" />
+    <bpmn:sequenceFlow id="Flow_Task_LatenOpstellenConceptBestekstekeningen_Task_ToetsenConceptBestekstekeningen" sourceRef="Task_LatenOpstellenConceptBestekstekeningen" targetRef="Task_ToetsenConceptBestekstekeningen" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenConceptBestekstekeningen_Gateway_ConceptBestekstekeningenAkkoord" sourceRef="Task_ToetsenConceptBestekstekeningen" targetRef="Gateway_ConceptBestekstekeningenAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_ConceptBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen" name="nee" sourceRef="Gateway_ConceptBestekstekeningenAkkoord" targetRef="Task_LatenAanpassenBestekstekeningen">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${conceptBestekstekeningenAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_ConceptBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin" name="ja" sourceRef="Gateway_ConceptBestekstekeningenAkkoord" targetRef="Gateway_BestekstekeningenJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${conceptBestekstekeningenAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_LatenAanpassenBestekstekeningen_Task_ToetsenAanpassingenBestekstekeningen" sourceRef="Task_LatenAanpassenBestekstekeningen" targetRef="Task_ToetsenAanpassingenBestekstekeningen" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenAanpassingenBestekstekeningen_Gateway_AanpassingenBestekstekeningenAkkoord" sourceRef="Task_ToetsenAanpassingenBestekstekeningen" targetRef="Gateway_AanpassingenBestekstekeningenAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen" name="nee" sourceRef="Gateway_AanpassingenBestekstekeningenAkkoord" targetRef="Task_LatenAanpassenBestekstekeningen">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aanpassingenBestekstekeningenAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin" name="ja" sourceRef="Gateway_AanpassingenBestekstekeningenAkkoord" targetRef="Gateway_BestekstekeningenJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aanpassingenBestekstekeningenAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_BestekstekeningenJoin_Task_DefinitiefMakenBestekstekeningen" sourceRef="Gateway_BestekstekeningenJoin" targetRef="Task_DefinitiefMakenBestekstekeningen" />
+    <bpmn:sequenceFlow id="Flow_Task_DefinitiefMakenBestekstekeningen_Task_LatenOpstellenBestek" sourceRef="Task_DefinitiefMakenBestekstekeningen" targetRef="Task_LatenOpstellenBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_LatenOpstellenBestek_Gateway_ToetsingSplit" sourceRef="Task_LatenOpstellenBestek" targetRef="Gateway_ToetsingSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_ToetsingSplit_Task_ToetsenBestek" sourceRef="Gateway_ToetsingSplit" targetRef="Task_ToetsenBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenBestek_Gateway_BestekAkkoord" sourceRef="Task_ToetsenBestek" targetRef="Gateway_BestekAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_BestekAkkoord_Task_LatenAanpassenBestek" name="nee" sourceRef="Gateway_BestekAkkoord" targetRef="Task_LatenAanpassenBestek">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${bestekAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_BestekAkkoord_Gateway_BestekTrackJoin" name="ja" sourceRef="Gateway_BestekAkkoord" targetRef="Gateway_BestekTrackJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${bestekAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_LatenAanpassenBestek_Task_ToetsenAanpassingenBestek" sourceRef="Task_LatenAanpassenBestek" targetRef="Task_ToetsenAanpassingenBestek" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenAanpassingenBestek_Gateway_AanpassingenBestekAkkoord" sourceRef="Task_ToetsenAanpassingenBestek" targetRef="Gateway_AanpassingenBestekAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AanpassingenBestekAkkoord_Task_LatenAanpassenBestek" name="nee" sourceRef="Gateway_AanpassingenBestekAkkoord" targetRef="Task_LatenAanpassenBestek">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aanpassingenBestekAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AanpassingenBestekAkkoord_Gateway_BestekTrackJoin" name="ja" sourceRef="Gateway_AanpassingenBestekAkkoord" targetRef="Gateway_BestekTrackJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aanpassingenBestekAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_BestekTrackJoin_Gateway_ToetsingJoin" sourceRef="Gateway_BestekTrackJoin" targetRef="Gateway_ToetsingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_ToetsingSplit_Task_ToetsenInschrijfleidraad" sourceRef="Gateway_ToetsingSplit" targetRef="Task_ToetsenInschrijfleidraad" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenInschrijfleidraad_Gateway_InschrijfleidraadAkkoord" sourceRef="Task_ToetsenInschrijfleidraad" targetRef="Gateway_InschrijfleidraadAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_InschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad" name="nee" sourceRef="Gateway_InschrijfleidraadAkkoord" targetRef="Task_LatenAanpassenInschrijfleidraad">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${inschrijfleidraadAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_InschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin" name="ja" sourceRef="Gateway_InschrijfleidraadAkkoord" targetRef="Gateway_InschrijfleidraadTrackJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${inschrijfleidraadAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_LatenAanpassenInschrijfleidraad_Task_ToetsenAanpassingenInschrijfleidraad" sourceRef="Task_LatenAanpassenInschrijfleidraad" targetRef="Task_ToetsenAanpassingenInschrijfleidraad" />
+    <bpmn:sequenceFlow id="Flow_Task_ToetsenAanpassingenInschrijfleidraad_Gateway_AanpassingenInschrijfleidraadAkkoord" sourceRef="Task_ToetsenAanpassingenInschrijfleidraad" targetRef="Gateway_AanpassingenInschrijfleidraadAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad" name="nee" sourceRef="Gateway_AanpassingenInschrijfleidraadAkkoord" targetRef="Task_LatenAanpassenInschrijfleidraad">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aanpassingenInschrijfleidraadAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin" name="ja" sourceRef="Gateway_AanpassingenInschrijfleidraadAkkoord" targetRef="Gateway_InschrijfleidraadTrackJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aanpassingenInschrijfleidraadAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_InschrijfleidraadTrackJoin_Gateway_ToetsingJoin" sourceRef="Gateway_InschrijfleidraadTrackJoin" targetRef="Gateway_ToetsingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_ToetsingJoin_EndEvent_R32" sourceRef="Gateway_ToetsingJoin" targetRef="EndEvent_R32" />
+
+    <bpmn:textAnnotation id="Annotation_CO1_Maatregelenplan">
+      <bpmn:text>CO1. Opstellen maatregelenplan</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_CO1_Maatregelenplan" sourceRef="Task_LatenOpstellenBestek" targetRef="Annotation_CO1_Maatregelenplan" />
+    <bpmn:textAnnotation id="Annotation_CO1_InformerenAannemer">
+      <bpmn:text>CO1. Informeren aannemer</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_CO1_InformerenAannemer" sourceRef="Gateway_ToetsingJoin" targetRef="Annotation_CO1_InformerenAannemer" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR31Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR31Process" bpmnElement="Collaboration_RipR31Process">
+      <bpmndi:BPMNShape id="Participant_RipR31Process_di" bpmnElement="Participant_RipR31Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2356" height="620" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_KcInkoopPl_di" bpmnElement="Lane_KcInkoopPl" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="2326" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_KcOmgevingDirectieToezichtPl_di" bpmnElement="Lane_KcOmgevingDirectieToezichtPl" isHorizontal="true">
+        <dc:Bounds x="190" y="220" width="2326" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_OntwerperDirectiePlTechnisch_di" bpmnElement="Lane_OntwerperDirectiePlTechnisch" isHorizontal="true">
+        <dc:Bounds x="190" y="360" width="2326" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="500" width="2326" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R31_di" bpmnElement="StartEvent_R31">
+        <dc:Bounds x="232" y="532" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="134" y="573" width="232" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenOpstellenConceptBestekstekeningen_di" bpmnElement="Task_LatenOpstellenConceptBestekstekeningen">
+        <dc:Bounds x="300" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenConceptBestekstekeningen_di" bpmnElement="Task_ToetsenConceptBestekstekeningen">
+        <dc:Bounds x="460" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ConceptBestekstekeningenAkkoord_di" bpmnElement="Gateway_ConceptBestekstekeningenAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="620" y="395" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="600" y="450" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenAanpassenBestekstekeningen_di" bpmnElement="Task_LatenAanpassenBestekstekeningen">
+        <dc:Bounds x="700" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenAanpassingenBestekstekeningen_di" bpmnElement="Task_ToetsenAanpassingenBestekstekeningen">
+        <dc:Bounds x="860" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AanpassingenBestekstekeningenAkkoord_di" bpmnElement="Gateway_AanpassingenBestekstekeningenAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1020" y="395" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1000" y="450" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BestekstekeningenJoin_di" bpmnElement="Gateway_BestekstekeningenJoin" isMarkerVisible="true">
+        <dc:Bounds x="1110" y="525" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DefinitiefMakenBestekstekeningen_di" bpmnElement="Task_DefinitiefMakenBestekstekeningen">
+        <dc:Bounds x="1190" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenOpstellenBestek_di" bpmnElement="Task_LatenOpstellenBestek">
+        <dc:Bounds x="1350" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ToetsingSplit_di" bpmnElement="Gateway_ToetsingSplit">
+        <dc:Bounds x="1510" y="525" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenBestek_di" bpmnElement="Task_ToetsenBestek">
+        <dc:Bounds x="1590" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BestekAkkoord_di" bpmnElement="Gateway_BestekAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1750" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1730" y="310" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenAanpassenBestek_di" bpmnElement="Task_LatenAanpassenBestek">
+        <dc:Bounds x="1830" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenAanpassingenBestek_di" bpmnElement="Task_ToetsenAanpassingenBestek">
+        <dc:Bounds x="1990" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AanpassingenBestekAkkoord_di" bpmnElement="Gateway_AanpassingenBestekAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="2150" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2130" y="310" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BestekTrackJoin_di" bpmnElement="Gateway_BestekTrackJoin" isMarkerVisible="true">
+        <dc:Bounds x="2240" y="255" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenInschrijfleidraad_di" bpmnElement="Task_ToetsenInschrijfleidraad">
+        <dc:Bounds x="1590" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_InschrijfleidraadAkkoord_di" bpmnElement="Gateway_InschrijfleidraadAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1750" y="115" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1730" y="170" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenAanpassenInschrijfleidraad_di" bpmnElement="Task_LatenAanpassenInschrijfleidraad">
+        <dc:Bounds x="1830" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ToetsenAanpassingenInschrijfleidraad_di" bpmnElement="Task_ToetsenAanpassingenInschrijfleidraad">
+        <dc:Bounds x="1990" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AanpassingenInschrijfleidraadAkkoord_di" bpmnElement="Gateway_AanpassingenInschrijfleidraadAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="2150" y="115" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2130" y="170" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_InschrijfleidraadTrackJoin_di" bpmnElement="Gateway_InschrijfleidraadTrackJoin" isMarkerVisible="true">
+        <dc:Bounds x="2240" y="115" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ToetsingJoin_di" bpmnElement="Gateway_ToetsingJoin">
+        <dc:Bounds x="2330" y="525" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R32_di" bpmnElement="EndEvent_R32">
+        <dc:Bounds x="2410" y="532" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2244" y="573" width="368" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_CO1_Maatregelenplan_di" bpmnElement="Annotation_CO1_Maatregelenplan">
+        <dc:Bounds x="1290" y="720" width="230" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_CO1_InformerenAannemer_di" bpmnElement="Annotation_CO1_InformerenAannemer">
+        <dc:Bounds x="2270" y="720" width="200" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R31_Task_LatenOpstellenConceptBestekstekeningen_di" bpmnElement="Flow_StartEvent_R31_Task_LatenOpstellenConceptBestekstekeningen">
+        <di:waypoint x="268" y="550" />
+        <di:waypoint x="300" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenOpstellenConceptBestekstekeningen_Task_ToetsenConceptBestekstekeningen_di" bpmnElement="Flow_Task_LatenOpstellenConceptBestekstekeningen_Task_ToetsenConceptBestekstekeningen">
+        <di:waypoint x="400" y="550" />
+        <di:waypoint x="430" y="550" />
+        <di:waypoint x="430" y="420" />
+        <di:waypoint x="460" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenConceptBestekstekeningen_Gateway_ConceptBestekstekeningenAkkoord_di" bpmnElement="Flow_Task_ToetsenConceptBestekstekeningen_Gateway_ConceptBestekstekeningenAkkoord">
+        <di:waypoint x="560" y="420" />
+        <di:waypoint x="620" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ConceptBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen_di" bpmnElement="Flow_Gateway_ConceptBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen">
+        <di:waypoint x="670" y="420" />
+        <di:waypoint x="685" y="420" />
+        <di:waypoint x="685" y="550" />
+        <di:waypoint x="700" y="550" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ConceptBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin_di" bpmnElement="Flow_Gateway_ConceptBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin">
+        <di:waypoint x="670" y="420" />
+        <di:waypoint x="890" y="420" />
+        <di:waypoint x="890" y="550" />
+        <di:waypoint x="1110" y="550" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenAanpassenBestekstekeningen_Task_ToetsenAanpassingenBestekstekeningen_di" bpmnElement="Flow_Task_LatenAanpassenBestekstekeningen_Task_ToetsenAanpassingenBestekstekeningen">
+        <di:waypoint x="800" y="550" />
+        <di:waypoint x="830" y="550" />
+        <di:waypoint x="830" y="420" />
+        <di:waypoint x="860" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenAanpassingenBestekstekeningen_Gateway_AanpassingenBestekstekeningenAkkoord_di" bpmnElement="Flow_Task_ToetsenAanpassingenBestekstekeningen_Gateway_AanpassingenBestekstekeningenAkkoord">
+        <di:waypoint x="960" y="420" />
+        <di:waypoint x="1020" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen_di" bpmnElement="Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Task_LatenAanpassenBestekstekeningen">
+        <di:waypoint x="1045" y="445" />
+        <di:waypoint x="1045" y="480" />
+        <di:waypoint x="750" y="480" />
+        <di:waypoint x="750" y="590" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1051" y="425" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin_di" bpmnElement="Flow_Gateway_AanpassingenBestekstekeningenAkkoord_Gateway_BestekstekeningenJoin">
+        <di:waypoint x="1070" y="420" />
+        <di:waypoint x="1090" y="420" />
+        <di:waypoint x="1090" y="550" />
+        <di:waypoint x="1110" y="550" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1076" y="400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BestekstekeningenJoin_Task_DefinitiefMakenBestekstekeningen_di" bpmnElement="Flow_Gateway_BestekstekeningenJoin_Task_DefinitiefMakenBestekstekeningen">
+        <di:waypoint x="1160" y="550" />
+        <di:waypoint x="1190" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_DefinitiefMakenBestekstekeningen_Task_LatenOpstellenBestek_di" bpmnElement="Flow_Task_DefinitiefMakenBestekstekeningen_Task_LatenOpstellenBestek">
+        <di:waypoint x="1290" y="550" />
+        <di:waypoint x="1350" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenOpstellenBestek_Gateway_ToetsingSplit_di" bpmnElement="Flow_Task_LatenOpstellenBestek_Gateway_ToetsingSplit">
+        <di:waypoint x="1450" y="550" />
+        <di:waypoint x="1510" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ToetsingSplit_Task_ToetsenBestek_di" bpmnElement="Flow_Gateway_ToetsingSplit_Task_ToetsenBestek">
+        <di:waypoint x="1560" y="550" />
+        <di:waypoint x="1575" y="550" />
+        <di:waypoint x="1575" y="280" />
+        <di:waypoint x="1590" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenBestek_Gateway_BestekAkkoord_di" bpmnElement="Flow_Task_ToetsenBestek_Gateway_BestekAkkoord">
+        <di:waypoint x="1690" y="280" />
+        <di:waypoint x="1750" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BestekAkkoord_Task_LatenAanpassenBestek_di" bpmnElement="Flow_Gateway_BestekAkkoord_Task_LatenAanpassenBestek">
+        <di:waypoint x="1800" y="280" />
+        <di:waypoint x="1815" y="280" />
+        <di:waypoint x="1815" y="550" />
+        <di:waypoint x="1830" y="550" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1806" y="260" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BestekAkkoord_Gateway_BestekTrackJoin_di" bpmnElement="Flow_Gateway_BestekAkkoord_Gateway_BestekTrackJoin">
+        <di:waypoint x="1800" y="280" />
+        <di:waypoint x="2240" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1806" y="260" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenAanpassenBestek_Task_ToetsenAanpassingenBestek_di" bpmnElement="Flow_Task_LatenAanpassenBestek_Task_ToetsenAanpassingenBestek">
+        <di:waypoint x="1930" y="550" />
+        <di:waypoint x="1960" y="550" />
+        <di:waypoint x="1960" y="280" />
+        <di:waypoint x="1990" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenAanpassingenBestek_Gateway_AanpassingenBestekAkkoord_di" bpmnElement="Flow_Task_ToetsenAanpassingenBestek_Gateway_AanpassingenBestekAkkoord">
+        <di:waypoint x="2090" y="280" />
+        <di:waypoint x="2150" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AanpassingenBestekAkkoord_Task_LatenAanpassenBestek_di" bpmnElement="Flow_Gateway_AanpassingenBestekAkkoord_Task_LatenAanpassenBestek">
+        <di:waypoint x="2175" y="305" />
+        <di:waypoint x="2175" y="340" />
+        <di:waypoint x="1880" y="340" />
+        <di:waypoint x="1880" y="590" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2181" y="285" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AanpassingenBestekAkkoord_Gateway_BestekTrackJoin_di" bpmnElement="Flow_Gateway_AanpassingenBestekAkkoord_Gateway_BestekTrackJoin">
+        <di:waypoint x="2200" y="280" />
+        <di:waypoint x="2240" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2206" y="260" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BestekTrackJoin_Gateway_ToetsingJoin_di" bpmnElement="Flow_Gateway_BestekTrackJoin_Gateway_ToetsingJoin">
+        <di:waypoint x="2290" y="280" />
+        <di:waypoint x="2310" y="280" />
+        <di:waypoint x="2310" y="550" />
+        <di:waypoint x="2330" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ToetsingSplit_Task_ToetsenInschrijfleidraad_di" bpmnElement="Flow_Gateway_ToetsingSplit_Task_ToetsenInschrijfleidraad">
+        <di:waypoint x="1560" y="550" />
+        <di:waypoint x="1575" y="550" />
+        <di:waypoint x="1575" y="140" />
+        <di:waypoint x="1590" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenInschrijfleidraad_Gateway_InschrijfleidraadAkkoord_di" bpmnElement="Flow_Task_ToetsenInschrijfleidraad_Gateway_InschrijfleidraadAkkoord">
+        <di:waypoint x="1690" y="140" />
+        <di:waypoint x="1750" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_InschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad_di" bpmnElement="Flow_Gateway_InschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad">
+        <di:waypoint x="1800" y="140" />
+        <di:waypoint x="1815" y="140" />
+        <di:waypoint x="1815" y="640" />
+        <di:waypoint x="1830" y="640" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1806" y="120" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_InschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin_di" bpmnElement="Flow_Gateway_InschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin">
+        <di:waypoint x="1800" y="140" />
+        <di:waypoint x="2240" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1806" y="120" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenAanpassenInschrijfleidraad_Task_ToetsenAanpassingenInschrijfleidraad_di" bpmnElement="Flow_Task_LatenAanpassenInschrijfleidraad_Task_ToetsenAanpassingenInschrijfleidraad">
+        <di:waypoint x="1930" y="640" />
+        <di:waypoint x="1960" y="640" />
+        <di:waypoint x="1960" y="140" />
+        <di:waypoint x="1990" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ToetsenAanpassingenInschrijfleidraad_Gateway_AanpassingenInschrijfleidraadAkkoord_di" bpmnElement="Flow_Task_ToetsenAanpassingenInschrijfleidraad_Gateway_AanpassingenInschrijfleidraadAkkoord">
+        <di:waypoint x="2090" y="140" />
+        <di:waypoint x="2150" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad_di" bpmnElement="Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Task_LatenAanpassenInschrijfleidraad">
+        <di:waypoint x="2175" y="165" />
+        <di:waypoint x="2175" y="195" />
+        <di:waypoint x="1880" y="195" />
+        <di:waypoint x="1880" y="680" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2181" y="145" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin_di" bpmnElement="Flow_Gateway_AanpassingenInschrijfleidraadAkkoord_Gateway_InschrijfleidraadTrackJoin">
+        <di:waypoint x="2200" y="140" />
+        <di:waypoint x="2240" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2206" y="120" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_InschrijfleidraadTrackJoin_Gateway_ToetsingJoin_di" bpmnElement="Flow_Gateway_InschrijfleidraadTrackJoin_Gateway_ToetsingJoin">
+        <di:waypoint x="2290" y="140" />
+        <di:waypoint x="2310" y="140" />
+        <di:waypoint x="2310" y="550" />
+        <di:waypoint x="2330" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_ToetsingJoin_EndEvent_R32_di" bpmnElement="Flow_Gateway_ToetsingJoin_EndEvent_R32">
+        <di:waypoint x="2380" y="550" />
+        <di:waypoint x="2410" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_CO1_Maatregelenplan_di" bpmnElement="Assoc_Annotation_CO1_Maatregelenplan">
+        <di:waypoint x="1400" y="510" />
+        <di:waypoint x="1405" y="765" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_CO1_InformerenAannemer_di" bpmnElement="Assoc_Annotation_CO1_InformerenAannemer">
+        <di:waypoint x="2355" y="525" />
+        <di:waypoint x="2370" y="765" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

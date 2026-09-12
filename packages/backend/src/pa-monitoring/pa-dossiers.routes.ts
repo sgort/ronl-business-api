@@ -16,6 +16,7 @@ import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
+import { computeNotifications } from './notifications.service';
 import {
   buildBodyFromAuthoring,
   rowToDossier,
@@ -162,6 +163,87 @@ router.get('/dossiers/:id', async (req, res) => {
   }
 });
 
+// ── POST /v1/pa/dossiers/:id/watch ──────────────────────────────────
+// Idempotent: creates (or re-enables) a personal watch-everything-for-this-
+// dossier pa_saved_searches row — dossier_id set, empty query. In
+// notifications.service's matcher, an empty-query dossier watch matches every
+// confirmed signal for that dossier (tkconv's "watch this entity" mode), as
+// opposed to a topic search that happens to be scoped to the same dossier.
+router.post('/dossiers/:id/watch', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  const dossierId = req.params.id;
+
+  try {
+    const existing = await db.oneOrNone<{ id: string }>(
+      `SELECT id FROM pa_saved_searches
+       WHERE tenant_id = $1 AND user_id = $2 AND dossier_id = $3 AND scope = 'user' AND query->>'q' = ''`,
+      [req.user.tenantId, req.user.userId, dossierId]
+    );
+    let id: string;
+    if (existing) {
+      id = existing.id;
+      await db.none(
+        `UPDATE pa_saved_searches SET notify = true, updated_at = NOW() WHERE id = $1`,
+        [id]
+      );
+    } else {
+      id = `watch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      await db.none(
+        `INSERT INTO pa_saved_searches (id, tenant_id, user_id, scope, dossier_id, query, tags, notify)
+         VALUES ($1, $2, $3, 'user', $4, $5, $6, true)`,
+        [
+          id,
+          req.user.tenantId,
+          req.user.userId,
+          dossierId,
+          JSON.stringify({ q: '', types: [], source: [] }),
+          [],
+        ]
+      );
+    }
+
+    // Watching a dossier is the moment any already-confirmed backlog for it
+    // becomes "watched" — recompute now so it surfaces immediately, not
+    // silently deferred until some unrelated later trigger dumps it all at
+    // once (see docs/WATCHBELL.md known limitations).
+    await computeNotifications(req.user.tenantId, 'watch-toggle').catch((err: unknown) => {
+      logger.error('Notification compute failed after dossier watch toggle', {
+        dossierId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
+    res.status(existing ? 200 : 201).json({ success: true, data: { id } });
+  } catch (err) {
+    logger.error('Dossier watch create error', {
+      dossierId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DOSSIER_WATCH_ERROR' } });
+  }
+});
+
+// ── DELETE /v1/pa/dossiers/:id/watch ────────────────────────────────
+router.delete('/dossiers/:id/watch', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  const dossierId = req.params.id;
+
+  try {
+    await db.none(
+      `DELETE FROM pa_saved_searches
+       WHERE tenant_id = $1 AND user_id = $2 AND dossier_id = $3 AND scope = 'user' AND query->>'q' = ''`,
+      [req.user.tenantId, req.user.userId, dossierId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Dossier watch delete error', {
+      dossierId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DOSSIER_WATCH_DELETE_ERROR' } });
+  }
+});
+
 interface DossierWriteBody {
   naam?: string;
   onderwerp?: string;
@@ -258,8 +340,13 @@ router.patch(
     const b = req.body as DossierWriteBody;
     const { id } = req.params;
 
-    if (b.gepubliceerd === true && !caps.publish) {
-      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_PUBLISH' } });
+    if (
+      b.status !== undefined &&
+      b.status !== 'actief' &&
+      b.status !== 'sluimerend' &&
+      b.status !== 'gearchiveerd'
+    ) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_STATUS' } });
     }
 
     try {
@@ -272,6 +359,25 @@ router.patch(
       // action (POST /dossiers/:id/unarchive), not a silent status flip.
       if (existing['status'] === 'gearchiveerd') {
         return res.status(409).json({ success: false, error: { code: 'ARCHIVED_READONLY' } });
+      }
+
+      // Archiving is an Archiefwet action that must capture classificatie/
+      // bewaartermijn/reden — route it through POST /dossiers/:id/archive,
+      // not a plain field write that would silently archive with no metadata
+      // and no role gate beyond the generic author/editor/admin PATCH guard.
+      if (b.status === 'gearchiveerd' && !caps.archive) {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_ARCHIVE' } });
+      }
+
+      // Guard both directions of the publish transition against the *existing*
+      // value — a pa-author must not be able to unpublish any more than they
+      // can publish. Resending the current value (no-op) is not gated.
+      if (
+        b.gepubliceerd !== undefined &&
+        Boolean(b.gepubliceerd) !== Boolean(existing['gepubliceerd']) &&
+        !caps.publish
+      ) {
+        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_PUBLISH' } });
       }
 
       const naam = b.naam !== undefined ? b.naam.trim() : (existing['naam'] as string);
@@ -367,7 +473,7 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
     !CLASS.includes(classificatie) ||
     !bewaartermijn ||
     !TERM.includes(bewaartermijn) ||
-    !reden ||
+    typeof reden !== 'string' ||
     !reden.trim()
   ) {
     return res.status(400).json({ success: false, error: { code: 'INVALID_ARCHIVE_METADATA' } });
@@ -465,20 +571,57 @@ router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res
 });
 
 // ── DELETE /v1/pa/dossiers/:id ──────────────────────────────────────
-// Hard delete incl. all versions (requires pa-admin).
+// Hard delete incl. everything that belonged to the dossier (requires
+// pa-admin): its versions, its curated signals and its zoekcriteria.
+//
+// None of this happens by cascade. dossier_id is a plain TEXT column on all
+// three tables with no FK back to pa_dossiers, so every delete has to be
+// spelled out here. It runs in one transaction because a partial delete is
+// worse than none: ids are slug-derived, so recreating a dossier under the
+// same name lands on the same id and silently inherits whatever was left
+// behind — versions via appendVersion's ON CONFLICT DO NOTHING, and signals
+// and searches simply by matching dossier_id again.
+//
+// Deleting the zoekcriteria is what actually stops the bleeding. Curation
+// selects saved searches by tenant and scope alone (curation.service.ts) and
+// never checks that the dossier still exists, so a surviving criterion keeps
+// running its query and filing fresh signals against a dossier that is gone.
+//
+// pa_notifications DOES cascade from pa_signals, so notifications for these
+// signals go with them without being named here.
+//
+// Signals are scoped by dossier_id alone because pa_signals has no tenant_id
+// column; the dossier row was already matched on tenant above, so by the time
+// this runs the id is known to belong to the caller's tenant.
 router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
   const { id } = req.params;
+  const tenantId = req.user.tenantId;
   try {
-    const result = await db.result(`DELETE FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`, [
-      id,
-      req.user.tenantId,
-    ]);
-    if (result.rowCount === 0) {
+    const deleted = await db.tx(async (t) => {
+      const result = await t.result(`DELETE FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`, [
+        id,
+        tenantId,
+      ]);
+      if (result.rowCount === 0) return false;
+      await t.none(`DELETE FROM pa_dossier_versions WHERE dossier_id = $1`, [id]);
+      const signals = await t.result(`DELETE FROM pa_signals WHERE dossier_id = $1`, [id]);
+      const searches = await t.result(
+        `DELETE FROM pa_saved_searches WHERE dossier_id = $1 AND tenant_id = $2`,
+        [id, tenantId]
+      );
+      return { signals: signals.rowCount, searches: searches.rowCount };
+    });
+    if (!deleted) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
-    await db.none(`DELETE FROM pa_dossier_versions WHERE dossier_id = $1`, [id]);
-    res.json({ success: true });
+    logger.info('Dossier deleted with its curation', {
+      id,
+      tenantId,
+      signalsDeleted: deleted.signals,
+      searchesDeleted: deleted.searches,
+    });
+    res.json({ success: true, data: deleted });
   } catch (err) {
     logger.error('Dossier delete error', {
       id,

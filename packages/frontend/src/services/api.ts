@@ -8,6 +8,7 @@ import type {
   Task,
   HistoricTask,
   ActivityHistoryItem,
+  PhaseSwimlaneModel,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -259,11 +260,63 @@ export const businessApi = {
     },
   },
 
+  validsign: {
+    taskSpec: async (taskId: string): Promise<ApiResponse<SignatureSpec>> => {
+      try {
+        const response = await api.get<ApiResponse<SignatureSpec>>(
+          `/validsign/task/${taskId}/spec`
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<SignatureSpec>;
+        }
+        throw error;
+      }
+    },
+    createPackage: async (
+      taskId: string,
+      delivery: 'embedded' | 'email'
+    ): Promise<ApiResponse<{ packageId: string; signingUrl?: string; sentTo?: string }>> => {
+      try {
+        const response = await api.post<
+          ApiResponse<{ packageId: string; signingUrl?: string; sentTo?: string }>
+        >(`/validsign/task/${taskId}/package`, { delivery });
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<{
+            packageId: string;
+            signingUrl?: string;
+            sentTo?: string;
+          }>;
+        }
+        throw error;
+      }
+    },
+    status: async (taskId: string): Promise<ApiResponse<{ status: SignatureStatus }>> => {
+      try {
+        const response = await api.get<ApiResponse<{ status: SignatureStatus }>>(
+          `/validsign/task/${taskId}/status`
+        );
+        return response.data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+          return error.response.data as ApiResponse<{ status: SignatureStatus }>;
+        }
+        throw error;
+      }
+    },
+  },
+
   rip: {
-    phase1Active: async (): Promise<
+    phaseActive: async (
+      phaseCode: string
+    ): Promise<
       ApiResponse<
         Array<{
           id: string;
+          businessKey: string | null;
           startTime: string;
           projectNumber: string;
           projectName: string;
@@ -272,11 +325,32 @@ export const businessApi = {
         }>
       >
     > => {
-      const response = await api.get('/rip/phase1/active');
+      const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/active`);
       return response.data;
     },
 
-    phase1Documents: async (
+    /** Active instances of EVERY modelled RIP phase in one request, each row
+     *  already tagged with its `phaseCode` — the aggregate that lets
+     *  useRipActiveAcrossPhases() collapse its former per-phase fan-out. */
+    phasesActive: async (): Promise<
+      ApiResponse<
+        Array<{
+          id: string;
+          businessKey: string | null;
+          startTime: string;
+          projectNumber: string;
+          projectName: string;
+          edocsWorkspaceId: string;
+          leadRole: string;
+          phaseCode: string;
+        }>
+      >
+    > => {
+      const response = await api.get('/rip/phases/active');
+      return response.data;
+    },
+
+    instanceDocuments: async (
       instanceId: string
     ): Promise<
       ApiResponse<{
@@ -286,14 +360,29 @@ export const businessApi = {
         pdp: Record<string, unknown> | null;
       }>
     > => {
-      const response = await api.get(`/rip/phase1/${instanceId}/documents`);
+      const response = await api.get(`/rip/instances/${instanceId}/documents`);
       return response.data;
     },
 
-    phase1Completed: async (): Promise<
+    deploymentStatus: async (): Promise<ApiResponse<{ deployedKeys: string[] }>> => {
+      const response = await api.get('/rip/phases/deployment-status');
+      return response.data;
+    },
+
+    phasesCounts: async (): Promise<
+      ApiResponse<{ counts: Record<string, { wip: number; gereed: number }> }>
+    > => {
+      const response = await api.get('/rip/phases/counts');
+      return response.data;
+    },
+
+    phaseCompleted: async (
+      phaseCode: string
+    ): Promise<
       ApiResponse<
         Array<{
           id: string;
+          businessKey: string | null;
           startTime: string;
           endTime: string;
           projectNumber: string;
@@ -302,7 +391,12 @@ export const businessApi = {
         }>
       >
     > => {
-      const response = await api.get('/rip/phase1/completed');
+      const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/completed`);
+      return response.data;
+    },
+
+    phaseModel: async (phaseCode: string): Promise<ApiResponse<PhaseSwimlaneModel>> => {
+      const response = await api.get(`/rip/phases/${encodeURIComponent(phaseCode)}/model`);
       return response.data;
     },
   },
@@ -651,4 +745,16 @@ export interface ProcessBundle {
   deployedForms: BundleDeployedForm[];
   deployedDocuments: BundleDeployedDocument[];
   subprocesses: BundleSubprocess[];
+}
+
+export type SignatureStatus = 'none' | 'sent' | 'completed' | 'declined' | 'failed';
+
+export interface SignatureSpec {
+  required: boolean;
+  /** True when the backend is in ValidSign stub mode -- signatures are not binding. */
+  stubMode?: boolean;
+  templateId?: string;
+  status?: SignatureStatus;
+  packageId?: string;
+  signingUrl?: string;
 }

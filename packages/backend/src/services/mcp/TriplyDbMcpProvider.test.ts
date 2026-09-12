@@ -146,3 +146,43 @@ describe('TriplyDbMcpProvider — command path and stderr handlers', () => {
     handlers['error'](Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }));
   });
 });
+
+describe('TriplyDbMcpProvider — environment and metadata fallbacks', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('passes empty strings when PATH and HOME are absent from the environment', async () => {
+    // The child process gets an explicit env, so anything missing here has to
+    // become '' rather than undefined — StdioClientTransport rejects undefined.
+    const { PATH, HOME } = process.env;
+    delete process.env.PATH;
+    delete process.env.HOME;
+    try {
+      const p = new TriplyDbMcpProvider();
+      mockTransportCtor.mockImplementation(() => ({ stderr: { on: jest.fn() } }));
+      mockClientCtor.mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+      }));
+
+      await p.connect();
+
+      const { env } = mockTransportCtor.mock.calls[0][0] as { env: Record<string, string> };
+      expect(env).toMatchObject({ PATH: '', HOME: '' });
+    } finally {
+      if (PATH !== undefined) process.env.PATH = PATH;
+      if (HOME !== undefined) process.env.HOME = HOME;
+    }
+  });
+
+  it('describes a tool that ships without a description as an empty string', async () => {
+    const p = new TriplyDbMcpProvider();
+    inject(p, {
+      listTools: jest
+        .fn()
+        .mockResolvedValue({ tools: [{ name: 'dmn_list', inputSchema: { type: 'object' } }] }),
+    });
+    await expect(p.getToolDefinitions()).resolves.toEqual([
+      { name: 'dmn_list', description: '', input_schema: { type: 'object' } },
+    ]);
+  });
+});

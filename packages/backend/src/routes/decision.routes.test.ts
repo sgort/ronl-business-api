@@ -8,6 +8,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = {
@@ -144,5 +147,61 @@ describe('GET /:key', () => {
     const res = await auth(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const noUser = (r: request.Test) => r.set('x-test-no-user', '1');
+
+  it('POST /:key/evaluate -> 401 UNAUTHORIZED', async () => {
+    const res = await noUser(request(app).post('/v1/decision/MyDec/evaluate').send({}));
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('GET /:key -> 401 UNAUTHORIZED', async () => {
+    const res = await noUser(request(app).get('/v1/decision/MyDec'));
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as bare strings often enough that the
+  // 'Unknown error' fallback in each catch is a real path, not a formality.
+  it('POST /:key/evaluate reports Unknown error rather than undefined', async () => {
+    svc.evaluateDecision.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).post('/v1/decision/MyDec/evaluate').send({}));
+    expect(res.status).toBe(500);
+    expect(res.body.error).toEqual({
+      code: 'DECISION_EVALUATION_FAILED',
+      message: 'Unknown error',
+    });
+  });
+
+  it('GET /:key still answers 404', async () => {
+    // fetch itself rejecting (DNS failure, connection refused) rather than
+    // answering !ok, so the rejection is whatever the runtime threw.
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue('socket hang up' as unknown as Error);
+    try {
+      const res = await auth(request(app).get('/v1/decision/MyDec'));
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe('POST /:key/evaluate without a variables key', () => {
+  it('evaluates the decision with no variables rather than rejecting the body', async () => {
+    svc.evaluateDecision.mockResolvedValue([{ resultaat: { value: true, type: 'Boolean' } }]);
+    const res = await auth(request(app).post('/v1/decision/MyDec/evaluate').send({}));
+    expect(res.status).toBe(200);
+    expect(svc.evaluateDecision).toHaveBeenCalledWith('MyDec', {}, 'flevoland');
   });
 });

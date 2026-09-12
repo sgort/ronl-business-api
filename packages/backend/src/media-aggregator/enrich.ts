@@ -10,34 +10,11 @@
  * render). Flip MEDIA_AGGREGATOR_SENTIMENT_ENABLED + wire an analyzer later.
  */
 
+import { FLEVOLAND_MUNICIPALITY_ALIASES } from '@ronl/shared';
 import type { FeedSource } from './types';
 import { summarize } from './sanitize';
 
 const PROVINCE = 'Flevoland';
-
-// canonical municipality → alias town/village names that imply it
-const MUNICIPALITY_ALIASES: Record<string, string[]> = {
-  Almere: ['almere', 'almere-buiten', 'almere buiten', 'almere-haven', 'almere haven'],
-  Lelystad: ['lelystad', 'lelystad airport'],
-  Dronten: ['dronten', 'swifterbant', 'biddinghuizen'],
-  Noordoostpolder: [
-    'noordoostpolder',
-    'emmeloord',
-    'nagele',
-    'ens',
-    'marknesse',
-    'luttelgeest',
-    'kraggenburg',
-    'creil',
-    'espel',
-    'bant',
-    'rutten',
-    'tollebeek',
-  ],
-  Urk: ['urk'],
-  Zeewolde: ['zeewolde'],
-  'Waterschap Zuiderzeeland': ['waterschap zuiderzeeland', 'zuiderzeeland'],
-};
 
 export interface RegionTag {
   province: string | null;
@@ -49,7 +26,7 @@ export function detectRegion(title: string, summary: string, source: FeedSource)
   const haystack = `${title} ${summary}`.toLowerCase();
 
   let municipality: string | null = null;
-  for (const [canonical, aliases] of Object.entries(MUNICIPALITY_ALIASES)) {
+  for (const [canonical, aliases] of Object.entries(FLEVOLAND_MUNICIPALITY_ALIASES)) {
     if (aliases.some((a) => haystack.includes(a))) {
       municipality = canonical;
       break;

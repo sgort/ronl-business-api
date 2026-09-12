@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<title>Social card — Flevoland Public Affairs (offline)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;padding:0;background:#d7dce2;font-family:"Fira Sans",Verdana,sans-serif}
+body{display:flex;align-items:flex-start;justify-content:center;padding:24px;gap:24px;flex-wrap:wrap}
+a{color:#01689b}a:hover{color:#007bc7}
+.card{width:1200px;height:630px;background:#154273;color:#fff;position:relative;overflow:hidden;display:grid;grid-template-columns:1fr 372px;flex:none}
+.bar{position:absolute;left:0;top:0;bottom:0;width:14px;background:linear-gradient(#ffb612 0 58%,#c3167f 58% 100%)}
+.left{padding:64px 56px 56px 84px;display:flex;flex-direction:column}
+.wordmark{display:flex;align-items:center;gap:14px;margin-bottom:auto}
+.wordmark i{width:6px;height:38px;background:#ffb612;display:block;flex:none}
+.wordmark b{display:block;font-size:22px;line-height:1.1;letter-spacing:-.01em}
+.wordmark span span{display:block;font-size:14.5px;font-weight:400;color:#cfdcea;margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:9px;align-self:flex-start;background:#0f3560;border:1px solid rgba(255,182,18,.55);padding:7px 13px;margin:0 0 20px;font:500 13px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:#ffb612}
+.badge s{width:6px;height:6px;background:#ffb612;border-radius:50%;text-decoration:none;display:block}
+h1{margin:0;font-size:60px;line-height:1.05;letter-spacing:-.025em;max-width:20ch;font-weight:700;text-wrap:balance}
+.lede{margin:22px 0 0;font-size:23px;line-height:1.4;color:#cfdcea;max-width:38ch}
+.foot{margin-top:auto;padding-top:38px;display:flex;align-items:center;gap:18px}
+.url{font:500 20px/1 "JetBrains Mono",monospace;color:#ffb612}
+.dot{width:5px;height:5px;background:#5a7ba3;border-radius:50%;flex:none}
+.tag{font:400 17px/1 "Fira Sans",sans-serif;color:#cfdcea}
+.right{background:#0f3560;padding:56px 48px 56px 44px;display:flex;flex-direction:column;justify-content:center;gap:2px;border-left:1px solid rgba(255,255,255,.14)}
+.row{background:#154273;padding:15px 20px;display:flex;align-items:baseline;gap:13px}
+.row{border-left:3px solid transparent}
+.row.on{border-left-color:#c3167f}
+.row .n{font:500 13px/1 "JetBrains Mono",monospace;color:#ffb612;flex:none;width:22px}
+.row.on .n{color:#f48fc4}
+.row b{font-size:18.5px;font-weight:600;line-height:1.2}
+.row span span{display:block;font-size:13.5px;font-weight:400;color:#9db4cf;margin-top:3px}
+.rowh{font:700 12px/1 "Fira Sans",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#7e9cbf;padding:0 20px 14px;display:flex;align-items:center;gap:10px}
+.rowh s{width:18px;height:2px;background:#c3167f;display:block;text-decoration:none;flex:none}
+.hint{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #b4b4b4;font-size:13px;color:#535353;padding:10px 20px;font-family:"Fira Sans",sans-serif}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+<div class="bar"></div>
+<div class="left">
+<div class="wordmark"><i></i><span><b>Open Regels Nederland</b><span>PA-Cockpit · packages/pa-demo</span></span></div>
+<p class="badge"><s></s>Acceptatieomgeving</p>
+<h1>Flevoland Public Affairs</h1>
+<p class="lede">Werkende demo van de PA-Cockpit: dossiers, curatie, monitoring en voortgang in één werkomgeving.</p>
+<div class="foot"><span class="url">acc.plato.open-regels.nl</span><span class="dot"></span><span class="tag">Mockdata · geen productiegegevens</span></div>
+</div>
+<div class="right">
+<div class="rowh"><s></s>Vijf werkmodi</div>
+<div class="row on"><span class="n">01</span><span><b>Vandaag</b><span>wat nu je aandacht vraagt</span></span></div>
+<div class="row"><span class="n">02</span><span><b>Dossiers</b><span>producten en hun herkomst</span></span></div>
+<div class="row"><span class="n">03</span><span><b>Monitoring</b><span>signalen en meldingen</span></span></div>
+<div class="row"><span class="n">04</span><span><b>Voortgang</b><span>de cyclus in beeld</span></span></div>
+<div class="row"><span class="n">05</span><span><b>Beheer</b><span>bronnen en instellingen</span></span></div>
+</div>
+</div>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#154273"/><rect x="0" y="0" width="4" height="58" fill="#ffb612"/><rect x="0" y="58" width="4" height="42" fill="#c3167f"/><text x="30" y="58" font-family="Verdana,sans-serif" font-size="26" font-weight="700" fill="#fff">PA</text></svg></template>
+</body>
+</html>

@@ -34,6 +34,11 @@ jest.mock('@services/edocs.service', () => ({
     ensureWorkspace: jest.fn(),
     uploadDocument: jest.fn(),
     getWorkspaceDocuments: jest.fn(),
+    getDocumentProfile: jest.fn(),
+    getDocumentVersions: jest.fn(),
+    downloadDocumentVersion: jest.fn(),
+    deleteDocument: jest.fn(),
+    deleteWorkspace: jest.fn(),
   },
 }));
 
@@ -52,6 +57,11 @@ const svc = edocsService as unknown as {
   ensureWorkspace: jest.Mock;
   uploadDocument: jest.Mock;
   getWorkspaceDocuments: jest.Mock;
+  getDocumentProfile: jest.Mock;
+  getDocumentVersions: jest.Mock;
+  downloadDocumentVersion: jest.Mock;
+  deleteDocument: jest.Mock;
+  deleteWorkspace: jest.Mock;
 };
 
 const app = express();
@@ -99,6 +109,7 @@ describe('GET /status', () => {
       reachable: true,
       authenticated: true,
       latencyMs: 42,
+      baseUrl: process.env.EDOCS_BASE_URL ?? '',
     });
   });
 
@@ -187,13 +198,23 @@ describe('POST /documents', () => {
     workspaceId: 'ws-1',
     filename: 'a.pdf',
     contentBase64: 'YmFzZTY0',
-    metadata: { docName: 'Doc' },
+    metadata: { docName: 'Doc', department: 'IVR' },
   };
 
   it('400s when metadata.docName is missing', async () => {
     const res = await auth(request(app).post('/v1/edocs/documents')).send({
       ...valid,
-      metadata: {},
+      metadata: { department: 'IVR' },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(svc.uploadDocument).not.toHaveBeenCalled();
+  });
+
+  it('400s when metadata.department is missing', async () => {
+    const res = await auth(request(app).post('/v1/edocs/documents')).send({
+      ...valid,
+      metadata: { docName: 'Doc' },
     });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('MISSING_FIELDS');
@@ -211,6 +232,23 @@ describe('POST /documents', () => {
     expect(res.body.data).toMatchObject({ documentId: 'doc-1', documentNumber: '555' });
     expect(svc.uploadDocument).toHaveBeenCalledWith('ws-1', 'a.pdf', 'YmFzZTY0', {
       docName: 'Doc',
+      department: 'IVR',
+    });
+  });
+
+  it('uploads standalone (null workspaceId) when workspaceId is omitted', async () => {
+    svc.uploadDocument.mockResolvedValue({
+      documentId: 'doc-2',
+      documentNumber: '556',
+      workspaceId: null,
+    });
+    const { workspaceId: _omit, ...withoutWorkspace } = valid;
+    const res = await auth(request(app).post('/v1/edocs/documents')).send(withoutWorkspace);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ documentId: 'doc-2', workspaceId: null });
+    expect(svc.uploadDocument).toHaveBeenCalledWith(null, 'a.pdf', 'YmFzZTY0', {
+      docName: 'Doc',
+      department: 'IVR',
     });
   });
 
@@ -239,6 +277,127 @@ describe('GET /workspaces/:workspaceId/documents', () => {
   it('maps a service failure to 502', async () => {
     svc.getWorkspaceDocuments.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/edocs/workspaces/ws-1/documents'));
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('GET /documents/:documentId/profile', () => {
+  it('returns the document profile on success', async () => {
+    svc.getDocumentProfile.mockResolvedValue({ DOCNAME: 'a.pdf', DOCNUMBER: '111' });
+    const res = await auth(request(app).get('/v1/edocs/documents/doc-1/profile'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ DOCNUMBER: '111' });
+    expect(svc.getDocumentProfile).toHaveBeenCalledWith('doc-1');
+  });
+
+  it('maps a service failure to 502', async () => {
+    svc.getDocumentProfile.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/edocs/documents/doc-1/profile'));
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('GET /documents/:documentId/versions', () => {
+  it('returns the version list on success', async () => {
+    svc.getDocumentVersions.mockResolvedValue([{ id: 'v1', version: '1' }]);
+    const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      documentId: 'doc-1',
+      versions: [{ id: 'v1', version: '1' }],
+    });
+  });
+
+  it('maps a service failure to 502', async () => {
+    svc.getDocumentVersions.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions'));
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('GET /documents/:documentId/versions/:version', () => {
+  it('returns the base64 file content on success', async () => {
+    svc.downloadDocumentVersion.mockResolvedValue({ contentBase64: 'YmFzZTY0' });
+    const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions/1'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ contentBase64: 'YmFzZTY0' });
+    expect(svc.downloadDocumentVersion).toHaveBeenCalledWith('doc-1', '1');
+  });
+
+  it('maps a service failure to 502', async () => {
+    svc.downloadDocumentVersion.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions/1'));
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('DELETE /documents/:documentId', () => {
+  it('deletes the document and confirms', async () => {
+    svc.deleteDocument.mockResolvedValue(undefined);
+    const res = await auth(request(app).delete('/v1/edocs/documents/doc-1'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ documentId: 'doc-1', deleted: true });
+    expect(svc.deleteDocument).toHaveBeenCalledWith('doc-1');
+  });
+
+  it('maps a service failure to 502', async () => {
+    svc.deleteDocument.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).delete('/v1/edocs/documents/doc-1'));
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('DELETE /workspaces/:workspaceId', () => {
+  it('deletes the workspace and confirms', async () => {
+    svc.deleteWorkspace.mockResolvedValue(undefined);
+    const res = await auth(request(app).delete('/v1/edocs/workspaces/ws-1'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ workspaceId: 'ws-1', deleted: true });
+    expect(svc.deleteWorkspace).toHaveBeenCalledWith('ws-1');
+  });
+
+  it('maps a service failure to 502', async () => {
+    svc.deleteWorkspace.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).delete('/v1/edocs/workspaces/ws-1'));
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('non-Error rejections', () => {
+  // eDOCS failures arrive over SOAP and surface as bare strings often enough
+  // that the String(error) fallback in each catch is a real path, not a formality.
+  const VALID_UPLOAD = {
+    workspaceId: 'ws-1',
+    filename: 'a.pdf',
+    contentBase64: 'AAAA',
+    metadata: { docName: 'A', department: 'IV' },
+  };
+
+  it.each([
+    ['listWorkspaces', 'get', '/v1/edocs/workspaces', undefined],
+    [
+      'ensureWorkspace',
+      'post',
+      '/v1/edocs/workspaces/ensure',
+      { projectNumber: 'p-1', projectName: 'Project 1' },
+    ],
+    ['uploadDocument', 'post', '/v1/edocs/documents', VALID_UPLOAD],
+    ['getWorkspaceDocuments', 'get', '/v1/edocs/workspaces/ws-1/documents', undefined],
+    ['getDocumentProfile', 'get', '/v1/edocs/documents/d-1/profile', undefined],
+    ['getDocumentVersions', 'get', '/v1/edocs/documents/d-1/versions', undefined],
+    ['downloadDocumentVersion', 'get', '/v1/edocs/documents/d-1/versions/2', undefined],
+    ['deleteDocument', 'delete', '/v1/edocs/documents/d-1', undefined],
+    ['deleteWorkspace', 'delete', '/v1/edocs/workspaces/ws-1', undefined],
+  ] as const)('%s rejecting with a string still answers 502', async (fn, method, path, body) => {
+    (svc[fn] as jest.Mock).mockRejectedValue('SOAP fault');
+    const req = auth(request(app)[method](path));
+    const res = await (body ? req.send(body) : req);
     expect(res.status).toBe(502);
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });

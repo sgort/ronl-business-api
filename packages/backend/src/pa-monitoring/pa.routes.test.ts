@@ -10,6 +10,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware never produces.
+    if (req.headers['x-test-no-user']) return next();
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
@@ -28,6 +31,9 @@ jest.mock('@auth/jwt.middleware', () => ({
   requireRoles:
     (...required: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
+      // Let the no-user probe through to the handler, whose own guard is the
+      // subject of the test; the real requireRoles would stop it here.
+      if (req.headers['x-test-no-user']) return next();
       const user = req.user;
       if (!user) {
         return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
@@ -56,17 +62,36 @@ jest.mock('@services/audit.service', () => ({ db: mockDb }));
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
-jest.mock('./sources/tk.client', () => ({ fetchTkFeed: jest.fn(), TK_DOCUMENT_TYPES: ['Motie'] }));
+// Spread the real module first: a jest.mock factory replaces it wholesale, so
+// an export added later is simply absent. That is not hypothetical — when
+// EU_DOCUMENT_TYPES was added below, this suite's mock did not have it and
+// GET /v1/pa/types answered 500 while every route test still passed.
+const mockTkOverrides = { fetchTkFeed: jest.fn() };
+jest.mock('./sources/tk.client', () => ({
+  ...jest.requireActual('./sources/tk.client'),
+  ...mockTkOverrides,
+}));
+const mockObOverrides = { fetchObFeed: jest.fn() };
 jest.mock('./sources/ob.client', () => ({
-  fetchObFeed: jest.fn(),
-  OB_PUBLICATION_TYPES: ['Vergunning'],
+  ...jest.requireActual('./sources/ob.client'),
+  ...mockObOverrides,
+}));
+const mockEuOverrides = { fetchEuFeed: jest.fn() };
+jest.mock('./sources/eu.client', () => ({
+  ...jest.requireActual('./sources/eu.client'),
+  ...mockEuOverrides,
 }));
 const mockPromoteToInbox = jest.fn();
+const mockCurationOverrides = { runCurationCycle: jest.fn(), promoteToInbox: mockPromoteToInbox };
 jest.mock('./curation.service', () => ({
-  runCurationCycle: jest.fn(),
-  promoteToInbox: mockPromoteToInbox,
+  ...jest.requireActual('./curation.service'),
+  ...mockCurationOverrides,
 }));
-jest.mock('./sources/agenda.client', () => ({ fetchAgenda: jest.fn() }));
+const mockAgendaOverrides = { fetchAgenda: jest.fn() };
+jest.mock('./sources/agenda.client', () => ({
+  ...jest.requireActual('./sources/agenda.client'),
+  ...mockAgendaOverrides,
+}));
 jest.mock('@utils/config', () => ({
   config: {
     pa: {
@@ -81,14 +106,18 @@ jest.mock('@utils/config', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { expectMockNamesRealExports } from '../test-utils/mockModule';
 import router from './pa.routes';
 import { fetchTkFeed } from './sources/tk.client';
 import { fetchObFeed } from './sources/ob.client';
+import { fetchEuFeed } from './sources/eu.client';
 import { fetchAgenda } from './sources/agenda.client';
 import { runCurationCycle } from './curation.service';
+import { FEEDS } from '../media-aggregator/feeds';
 
 const mockTk = fetchTkFeed as jest.Mock;
 const mockOb = fetchObFeed as jest.Mock;
+const mockEu = fetchEuFeed as jest.Mock;
 const mockAgenda = fetchAgenda as jest.Mock;
 const mockRun = runCurationCycle as jest.Mock;
 
@@ -98,6 +127,21 @@ app.use('/v1/pa', router);
 
 const PA = { 'x-test-roles': 'public-affairs' };
 const NON_PA = { 'x-test-roles': 'caseworker' };
+
+describe('the module mocks', () => {
+  // Spreading requireActual stops an export going missing; this stops one being
+  // renamed. A stale override name stubs nothing and the real implementation —
+  // a live network call, here — runs instead.
+  it.each([
+    ['./sources/tk.client', mockTkOverrides],
+    ['./sources/ob.client', mockObOverrides],
+    ['./sources/eu.client', mockEuOverrides],
+    ['./sources/agenda.client', mockAgendaOverrides],
+    ['./curation.service', mockCurationOverrides],
+  ])('%s mock only names real exports', (path, overrides) => {
+    expectMockNamesRealExports(jest.requireActual(path as string), overrides);
+  });
+});
 
 describe('PA routes — role gating', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -225,7 +269,10 @@ describe('PA routes — role gating', () => {
     });
 
     it('public-affairs role → 200 (guarded by tenant_id only, any PA officer can edit)', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
         .set(PA)
@@ -234,6 +281,78 @@ describe('PA routes — role gating', () => {
       expect(res.body.success).toBe(true);
       const [, values] = mockDb.result.mock.calls[0];
       expect(values).toEqual(['tenant', 'srch-1', 'flevoland']);
+    });
+  });
+
+  describe('POST /v1/pa/signals/:id/dismiss', () => {
+    const row = (status: string) => ({
+      id: 'sig-1',
+      tab: 'politiek',
+      dossier_id: null,
+      title: 'Test signal',
+      src: 'Tweede Kamer · Document',
+      bron: 'tk',
+      ref: null,
+      rel: 7,
+      impact: null,
+      impact_label: null,
+      duiding: null,
+      status,
+      ai_draft: null,
+      confirmed_by: null,
+      confirmed_at: null,
+      routing: null,
+    });
+
+    it('anonymous → 401', async () => {
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').send({});
+      expect(res.status).toBe(401);
+    });
+
+    it('authenticated non-PA role → 403', async () => {
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(NON_PA).send({});
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('unknown signal → 404', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      const res = await request(app).post('/v1/pa/signals/unknown-sig/dismiss').set(PA).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it('known signal → 200 and the status sticks', async () => {
+      // "Negeren" was client-only state before this, so an ignored signal came
+      // back on the next reload — the button did not do what it said.
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue(row('dismissed'));
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('dismissed');
+      expect(String(mockDb.none.mock.calls[0][0])).toContain("status = 'dismissed'");
+    });
+
+    it('clears routing, so a dismissed signal does not linger on the watchlist', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue(row('dismissed'));
+
+      await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(String(mockDb.none.mock.calls[0][0])).toContain('routing = NULL');
+    });
+
+    it('500s when the update fails', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockRejectedValue(new Error('db down'));
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
+
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('DISMISS_ERROR');
     });
   });
 
@@ -280,6 +399,50 @@ describe('PA routes — role gating', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('confirmed');
+    });
+
+    it('recomputes notifications synchronously, so a matching watch shows up without waiting for the next curation cycle', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ id: 'sig-1' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.one.mockResolvedValue({
+        id: 'sig-1',
+        tab: 'politiek',
+        dossier_id: 'lelystad',
+        title: 'Nieuw signaal over Lelystad',
+        src: 'Tweede Kamer · Motie',
+        bron: 'tk',
+        ref: null,
+        rel: 7,
+        impact: null,
+        impact_label: null,
+        duiding: null,
+        status: 'confirmed',
+        ai_draft: null,
+        confirmed_by: 'Test User',
+        confirmed_at: new Date().toISOString(),
+        routing: null,
+      });
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          { id: 'w1', user_id: 'u1', dossier_id: 'lelystad', query: { q: '' } },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'sig-1',
+            dossier_id: 'lelystad',
+            title: 'Nieuw signaal over Lelystad',
+            duiding: null,
+          },
+        ]);
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+
+      const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
+      expect(res.status).toBe(200);
+      expect(mockDb.result).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO pa_notifications'),
+        expect.arrayContaining(['flevoland', 'u1', 'sig-1'])
+      );
     });
 
     it('confirms without dossierId → routing:watchlist in UPDATE SQL', async () => {
@@ -411,6 +574,55 @@ describe('PA routes — role gating', () => {
       const updateSql: string = mockDb.result.mock.calls[0][0] as string;
       expect(updateSql).toMatch(/routing\s*=\s*NULL/i);
     });
+
+    it('recomputes notifications after linking, so a dossier-only watch that could not match a null-dossier signal matches now', async () => {
+      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.one.mockResolvedValue({
+        id: 'sig-eu',
+        tab: 'europa',
+        dossier_id: 'energie',
+        title: 'MOTION FOR A RESOLUTION on the Threat of War Crimes',
+        src: 'Europees Parlement · Ontwerpresolutie · Ingediende teksten',
+        bron: 'eu',
+        subbron: 'ep-teksten',
+        commissie: null,
+        ref: null,
+        rel: 8,
+        impact: null,
+        impact_label: null,
+        duiding: null,
+        status: 'confirmed',
+        ai_draft: null,
+        confirmed_by: 'Test User',
+        confirmed_at: new Date().toISOString(),
+        routing: null,
+      });
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          { id: 'w1', user_id: 'u1', dossier_id: 'energie', query: { q: '' } },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'sig-eu',
+            dossier_id: 'energie',
+            title: 'MOTION FOR A RESOLUTION on the Threat of War Crimes',
+            duiding: null,
+          },
+        ]);
+
+      const res = await request(app)
+        .patch('/v1/pa/signals/sig-eu')
+        .set(PA)
+        .send({ dossierId: 'energie' });
+      expect(res.status).toBe(200);
+
+      const insertCall = mockDb.result.mock.calls.find(([sql]: [string]) =>
+        sql.includes('INSERT INTO pa_notifications')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall?.[1]).toEqual(expect.arrayContaining(['flevoland', 'u1', 'sig-eu']));
+    });
   });
 });
 
@@ -442,6 +654,24 @@ describe('PA routes — feed & agenda', () => {
       const res = await request(app).get('/v1/pa/feed?source=ob').set(PA);
       expect(res.status).toBe(200);
       expect(mockTk).not.toHaveBeenCalled();
+    });
+
+    it('source=eu fetches only EU (was silently empty before eu was wired in)', async () => {
+      mockEu.mockResolvedValue({ items: [{ id: 'eu-1' }], total: 1, skip: 0, top: 20 });
+      const res = await request(app).get('/v1/pa/feed?source=eu').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toHaveLength(1);
+      expect(res.body.data.total).toBe(1);
+      expect(mockEu).toHaveBeenCalled();
+      expect(mockTk).not.toHaveBeenCalled();
+      expect(mockOb).not.toHaveBeenCalled();
+    });
+
+    it("source=both does not include eu (matches the curation cycle's opt-in-per-search treatment)", async () => {
+      mockTk.mockResolvedValue({ items: [], total: 0 });
+      mockOb.mockResolvedValue({ items: [], total: 0 });
+      await request(app).get('/v1/pa/feed').set(PA);
+      expect(mockEu).not.toHaveBeenCalled();
     });
 
     it('keeps total null when neither source reports a total', async () => {
@@ -484,6 +714,23 @@ describe('PA routes — feed & agenda', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveProperty('tk');
       expect(res.body.data).toHaveProperty('ob');
+    });
+
+    it('lists eu, so the blanco search can reach the EU feed', async () => {
+      // fetchFeedSources derives the cockpit's bron chips from these keys. Without
+      // 'eu' there is no chip, so GET /feed?source=eu — which is implemented — can
+      // never be requested from the UI.
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(Object.keys(res.body.data)).toContain('eu');
+      expect(res.body.data.eu).toEqual(
+        expect.arrayContaining(['Verslag', 'Motie', 'Aangenomen tekst', 'Mondelinge vraag'])
+      );
+    });
+
+    it('omits a source that is switched off', async () => {
+      // media is disabled in this suite's config mock; eu is enabled.
+      const res = await request(app).get('/v1/pa/types').set(PA);
+      expect(Object.keys(res.body.data)).not.toContain('media');
     });
   });
 
@@ -638,7 +885,10 @@ describe('PA routes — curator, searches CRUD & status', () => {
     });
 
     it('updates query, tags and dossierId together → 200', async () => {
-      mockDb.result.mockResolvedValue({ rowCount: 1 });
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: 'd2', query: { q: 'energie' }, tags: ['x'] }],
+      });
       const res = await request(app)
         .patch('/v1/pa/searches/srch-1')
         .set(PA)
@@ -648,6 +898,212 @@ describe('PA routes — curator, searches CRUD & status', () => {
       expect(sql).toMatch(/query = \$/);
       expect(sql).toMatch(/tags = \$/);
       expect(sql).toMatch(/dossier_id = \$/);
+    });
+
+    it('notify alone is a valid patch (the WatchBell toggle) → 200', async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
+      const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
+      expect(res.status).toBe(200);
+      const [sql, values] = mockDb.result.mock.calls[0];
+      expect(sql).toMatch(/notify\s*=\s*CASE/i);
+      expect(values).toEqual([true, 'srch-1', 'flevoland']);
+    });
+
+    it('notify: false is not treated as a missing field', async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ notify: false });
+      expect(res.status).toBe(200);
+    });
+
+    it('notify: true on an owned (personal) search recomputes notifications immediately, so a backlog already matching this watch surfaces on activation rather than an unrelated later trigger', async () => {
+      mockDb.result
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'stikstof' }, tags: [] }],
+        })
+        .mockResolvedValue({ rowCount: 1 });
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          { id: 'srch-1', user_id: 'u1', dossier_id: null, query: { q: 'stikstof' } },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'sig-old', dossier_id: null, title: 'Ouder stikstof signaal', duiding: null },
+        ]);
+
+      const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
+      expect(res.status).toBe(200);
+      expect(mockDb.result).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO pa_notifications'),
+        expect.arrayContaining(['flevoland', 'u1', 'sig-old'])
+      );
+    });
+
+    it('notify: false on an owned search does not trigger a notifications recompute (nothing new could match by turning a watch off)', async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [{ user_id: 'test-user', dossier_id: null, query: { q: 'x' }, tags: [] }],
+      });
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-1')
+        .set(PA)
+        .send({ notify: false });
+      expect(res.status).toBe(200);
+      expect(mockDb.any).not.toHaveBeenCalled();
+    });
+
+    it('notify: true on a team (unowned) search creates a personal watch derivative instead of writing notify on the shared row, and recomputes', async () => {
+      mockDb.result
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [
+            {
+              user_id: null,
+              dossier_id: 'lelystad',
+              query: { q: 'Lelystad Airport' },
+              tags: ['TK'],
+            },
+          ],
+        })
+        .mockResolvedValue({ rowCount: 1 });
+      mockDb.oneOrNone.mockResolvedValueOnce(null); // no existing derivative for this user yet
+      mockDb.none.mockResolvedValue(undefined);
+      // computeNotifications' own two db.any calls: active watches, then confirmed signals.
+      mockDb.any
+        .mockResolvedValueOnce([
+          {
+            id: 'watch-1',
+            user_id: 'test-user',
+            dossier_id: 'lelystad',
+            query: { q: 'Lelystad Airport' },
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'sig-old',
+            dossier_id: 'lelystad',
+            title: 'Motie over Lelystad Airport',
+            duiding: null,
+          },
+        ]);
+
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ notify: true });
+      expect(res.status).toBe(200);
+      // The shared team row's own notify column must NOT be set directly.
+      const [updateSql] = mockDb.result.mock.calls[0];
+      expect(updateSql).toMatch(/notify\s*=\s*CASE/i);
+      // A new personal derivative row was inserted, pointing back at the team row.
+      const insertCall = mockDb.none.mock.calls.find((c) =>
+        String(c[0]).includes('INSERT INTO pa_saved_searches')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall?.[1]).toEqual(
+        expect.arrayContaining([
+          'flevoland',
+          'test-user',
+          'lelystad',
+          JSON.stringify({ q: 'Lelystad Airport' }),
+          ['TK'],
+          'srch-team',
+        ])
+      );
+      // And the backlog surfaces immediately via the same recompute path as an owned watch.
+      expect(mockDb.result).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO pa_notifications'),
+        expect.arrayContaining(['flevoland', 'test-user', 'sig-old'])
+      );
+    });
+
+    it('notify: true on a team search re-enables an existing personal derivative instead of inserting a duplicate', async () => {
+      mockDb.result
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [
+            { user_id: null, dossier_id: 'lelystad', query: { q: 'Lelystad Airport' }, tags: [] },
+          ],
+        })
+        .mockResolvedValue({ rowCount: 1 });
+      mockDb.oneOrNone.mockResolvedValueOnce({ id: 'watch-existing' });
+      mockDb.none.mockResolvedValue(undefined);
+      mockDb.any.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ notify: true });
+      expect(res.status).toBe(200);
+      const updateCall = mockDb.none.mock.calls.find(
+        (c) =>
+          String(c[0]).includes('UPDATE pa_saved_searches') &&
+          String(c[0]).includes('notify = true')
+      );
+      expect(updateCall).toBeDefined();
+      expect(updateCall?.[1][0]).toBe('watch-existing');
+      const insertCall = mockDb.none.mock.calls.find((c) =>
+        String(c[0]).includes('INSERT INTO pa_saved_searches')
+      );
+      expect(insertCall).toBeUndefined();
+    });
+
+    it("notify: false on a team search deletes the caller's personal derivative, leaving the shared row untouched", async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [
+          { user_id: null, dossier_id: 'lelystad', query: { q: 'Lelystad Airport' }, tags: [] },
+        ],
+      });
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ notify: false });
+      expect(res.status).toBe(200);
+      const deleteCall = mockDb.none.mock.calls.find((c) =>
+        String(c[0]).includes('DELETE FROM pa_saved_searches')
+      );
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall?.[1]).toEqual(['srch-team', 'test-user']);
+      // Turning a watch off can't newly match anything, so no recompute.
+      expect(mockDb.any).not.toHaveBeenCalled();
+    });
+
+    it("editing a team search's query propagates to its personal watch derivatives so they do not go stale", async () => {
+      mockDb.result.mockResolvedValue({
+        rowCount: 1,
+        rows: [
+          { user_id: null, dossier_id: 'lelystad', query: { q: 'nieuwe term' }, tags: ['TK'] },
+        ],
+      });
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .patch('/v1/pa/searches/srch-team')
+        .set(PA)
+        .send({ query: { q: 'nieuwe term' } });
+      expect(res.status).toBe(200);
+      const syncCall = mockDb.none.mock.calls.find(
+        (c) =>
+          String(c[0]).includes('UPDATE pa_saved_searches') &&
+          String(c[0]).includes('source_search_id')
+      );
+      expect(syncCall).toBeDefined();
+      expect(syncCall?.[1]).toEqual([
+        JSON.stringify({ q: 'nieuwe term' }),
+        ['TK'],
+        'lelystad',
+        'srch-team',
+      ]);
     });
   });
 
@@ -661,7 +1117,226 @@ describe('PA routes — curator, searches CRUD & status', () => {
         eu: true,
         epTeksten: true,
         media: false,
+        feeds: FEEDS.map((f) => ({
+          id: f.id,
+          name: f.name,
+          homepage: f.homepage,
+          type: f.type,
+          url: f.url,
+          alwaysFlevoland: f.alwaysFlevoland ?? false,
+          categoryFilter: f.categoryFilter ?? null,
+        })),
       });
+    });
+  });
+});
+
+describe('PA routes — notifications & personal feed', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('GET /v1/pa/notifications', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).get('/v1/pa/notifications');
+      expect(res.status).toBe(401);
+    });
+
+    it('public-affairs role → 200 with unseenCount meta, and passes through the signal source', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-1',
+          signal_id: 'sig-1',
+          matched_searches: [{ id: 'w1', dossierId: null, label: 'stikstof' }],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal',
+          tab: 'politiek',
+          dossier_id: null,
+          src: 'Officiële Bekendmakingen · Provinciaal blad · 3 dgn',
+          dossier_naam: null,
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.meta.unseenCount).toBe(1);
+      expect(res.body.data[0].src).toBe('Officiële Bekendmakingen · Provinciaal blad · 3 dgn');
+      // No dossier match here, so the topic-search label passes through unchanged.
+      expect(res.body.data[0].matchedSearches[0].label).toBe('stikstof');
+    });
+
+    it('passes through the signal ref, so the Meldingen card can link to the source document', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-4',
+          signal_id: 'sig-4',
+          matched_searches: [{ id: 'w4', dossierId: null, label: 'luchthavenbesluit' }],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Antwoord op vragen over de verjaringstermijn',
+          tab: 'politiek',
+          dossier_id: 'lelystad',
+          src: 'Tweede Kamer · Antwoord schriftelijke vragen · 2 u geleden',
+          dossier_naam: 'Luchthaven Lelystad',
+          ref: {
+            type: 'Antwoord schriftelijke vragen',
+            nr: '2020D08667',
+            url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2020D08667&did=2020D08667',
+          },
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].ref).toEqual({
+        type: 'Antwoord schriftelijke vragen',
+        nr: '2020D08667',
+        url: 'https://www.tweedekamer.nl/kamerstukken/detail?id=2020D08667&did=2020D08667',
+      });
+    });
+
+    it('ref is null when the signal has none', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-5',
+          signal_id: 'sig-5',
+          matched_searches: [],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal zonder ref',
+          tab: 'politiek',
+          dossier_id: null,
+          src: 'Nieuws & media',
+          dossier_naam: null,
+          ref: null,
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].ref).toBeNull();
+    });
+
+    it('resolves a dossier-watch sentinel label ("dossier:<id>") to the dossier name', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-2',
+          signal_id: 'sig-2',
+          matched_searches: [{ id: 'w2', dossierId: 'lelystad', label: 'dossier:lelystad' }],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal over Lelystad',
+          tab: 'politiek',
+          dossier_id: 'lelystad',
+          src: 'Tweede Kamer · Motie · 1 dgn',
+          dossier_naam: 'Luchthaven Lelystad',
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].matchedSearches[0].label).toBe('Dossier: Luchthaven Lelystad');
+    });
+
+    it('leaves the raw sentinel label alone when the dossier has no resolvable name', async () => {
+      mockDb.any.mockResolvedValue([
+        {
+          id: 'notif-3',
+          signal_id: 'sig-3',
+          matched_searches: [
+            { id: 'w3', dossierId: 'unknown-dossier', label: 'dossier:unknown-dossier' },
+          ],
+          created_at: '2026-07-17T10:00:00Z',
+          seen_at: null,
+          title: 'Signaal',
+          tab: 'politiek',
+          dossier_id: 'unknown-dossier',
+          src: 'Tweede Kamer · Motie · 1 dgn',
+          dossier_naam: null,
+        },
+      ]);
+      const res = await request(app).get('/v1/pa/notifications').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].matchedSearches[0].label).toBe('dossier:unknown-dossier');
+    });
+
+    it('unseen=true adds a seen_at IS NULL condition', async () => {
+      mockDb.any.mockResolvedValue([]);
+      await request(app).get('/v1/pa/notifications?unseen=true').set(PA);
+      const [sql] = mockDb.any.mock.calls[0];
+      expect(sql).toMatch(/n\.seen_at IS NULL/);
+    });
+  });
+
+  describe('POST /v1/pa/notifications/ack', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).post('/v1/pa/notifications/ack').send({});
+      expect(res.status).toBe(401);
+    });
+
+    it('acks every unseen notification when ids is omitted', async () => {
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app).post('/v1/pa/notifications/ack').set(PA).send({});
+      expect(res.status).toBe(200);
+      const [sql, values] = mockDb.none.mock.calls[0];
+      expect(sql).not.toMatch(/id = ANY/);
+      expect(values).toEqual(['test-user', 'flevoland']);
+    });
+
+    it('acks only the given ids when provided', async () => {
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app)
+        .post('/v1/pa/notifications/ack')
+        .set(PA)
+        .send({ ids: ['notif-1', 'notif-2'] });
+      expect(res.status).toBe(200);
+      const [sql, values] = mockDb.none.mock.calls[0];
+      expect(sql).toMatch(/id = ANY/);
+      expect(values).toEqual(['test-user', 'flevoland', ['notif-1', 'notif-2']]);
+    });
+  });
+
+  describe('GET /v1/pa/feed-token', () => {
+    it('anonymous → 401', async () => {
+      const res = await request(app).get('/v1/pa/feed-token');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns the existing token when one is already minted', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ token: 'existing-token' });
+      const res = await request(app).get('/v1/pa/feed-token').set(PA);
+      expect(res.status).toBe(200);
+      expect(res.body.data.token).toBe('existing-token');
+      expect(res.body.data.url).toContain('token=existing-token');
+      expect(mockDb.none).not.toHaveBeenCalled();
+    });
+
+    it('mints and persists a new token when none exists', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      mockDb.none.mockResolvedValue(undefined);
+      const res = await request(app).get('/v1/pa/feed-token').set(PA);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.data.token).toBe('string');
+      expect(res.body.data.token.length).toBeGreaterThan(0);
+      expect(mockDb.none).toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /v1/pa/signals.rss', () => {
+    it('missing token → 401', async () => {
+      const res = await request(app).get('/v1/pa/signals.rss');
+      expect(res.status).toBe(401);
+    });
+
+    it('invalid token → 401', async () => {
+      mockDb.oneOrNone.mockResolvedValue(null);
+      const res = await request(app).get('/v1/pa/signals.rss?token=bogus');
+      expect(res.status).toBe(401);
+    });
+
+    it('valid token → 200 with RSS XML, no JWT required', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ user_id: 'u1', tenant_id: 'flevoland' });
+      mockDb.any.mockResolvedValue([]);
+      const res = await request(app).get('/v1/pa/signals.rss?token=valid-token');
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/rss\+xml/);
+      expect(res.text).toContain('<rss version="2.0">');
     });
   });
 });
@@ -737,5 +1412,117 @@ describe('PA routes — mutation error branches (500s)', () => {
     const res = await request(app).patch('/v1/pa/signals/sig-1').set(PA).send({ dossierId: 'd1' });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('LINK_DOSSIER_ERROR');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const NO_USER = { 'x-test-no-user': '1' };
+
+  it.each([
+    ['get', '/v1/pa/feed'],
+    ['get', '/v1/pa/agenda'],
+    ['get', '/v1/pa/signals'],
+    ['post', '/v1/pa/signals'],
+    ['post', '/v1/pa/signals/s-1/confirm'],
+    ['get', '/v1/pa/searches'],
+    ['post', '/v1/pa/searches'],
+    ['delete', '/v1/pa/searches/s-1'],
+    ['patch', '/v1/pa/searches/s-1'],
+    ['patch', '/v1/pa/signals/s-1'],
+    ['get', '/v1/pa/notifications'],
+    ['post', '/v1/pa/notifications/ack'],
+    ['get', '/v1/pa/feed-token'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await request(app)[method](path).set(NO_USER).send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('failures that are not Error instances', () => {
+  // pg can reject with a bare string on a connection-level failure; each catch
+  // has a String(err) fallback so the log line still says something.
+  const PA_HDR = { 'x-test-roles': 'public-affairs' };
+
+  it.each([
+    ['get', '/v1/pa/signals', {}],
+    ['post', '/v1/pa/signals', { tab: 'politiek', title: 'T', src: 'S', bron: 'tk' }],
+    ['post', '/v1/pa/signals/s-1/confirm', {}],
+    ['get', '/v1/pa/searches', {}],
+    ['post', '/v1/pa/searches', { naam: 'N', query: { q: 'x' } }],
+    ['delete', '/v1/pa/searches/s-1', {}],
+    ['patch', '/v1/pa/searches/s-1', { naam: 'N' }],
+    ['patch', '/v1/pa/signals/s-1', { status: 'confirmed' }],
+    ['get', '/v1/pa/notifications', {}],
+    ['post', '/v1/pa/notifications/ack', { ids: ['n-1'] }],
+    ['get', '/v1/pa/feed-token', {}],
+  ] as const)('%s %s answers 5xx rather than hanging', async (method, path, body) => {
+    for (const fn of ['any', 'one', 'oneOrNone', 'none', 'result'] as const) {
+      mockDb[fn].mockRejectedValue('connection terminated');
+    }
+    const res = await request(app)[method](path).set(PA_HDR).send(body);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(mockLogger.error).toHaveBeenCalled();
+  });
+});
+
+describe('GET /v1/pa/signals/counts', () => {
+  // The file's other clearAllMocks hooks are scoped to their own describes.
+  beforeEach(() => jest.clearAllMocks());
+
+  const PA_HDR = { 'x-test-roles': 'public-affairs' };
+
+  // Other queries run in the same request path, so locate the counts query by
+  // its SQL rather than by call position.
+  const countsCall = () => mockDb.any.mock.calls.find((c) => String(c[0]).includes('GROUP BY tab'));
+
+  it('returns the inbox size per tab from a single grouped query', async () => {
+    mockDb.any.mockResolvedValue([
+      { tab: 'politiek', count: '165' },
+      { tab: 'europa', count: '44' },
+      { tab: 'regionaal', count: '62' },
+      { tab: 'media', count: '484' },
+    ]);
+
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ politiek: 165, europa: 44, regionaal: 62, media: 484 });
+    // One grouped query, not one per tab — the whole point of the endpoint.
+    const calls = mockDb.any.mock.calls.filter((c) => String(c[0]).includes('GROUP BY tab'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('counts the inbox statuses by default', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(countsCall()![1]).toEqual([['candidate', 'ai_drafted']]);
+  });
+
+  it('accepts an explicit status list', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await request(app).get('/v1/pa/signals/counts?status=confirmed').set(PA_HDR);
+    expect(countsCall()![1]).toEqual([['confirmed']]);
+  });
+
+  it('omits a tab with no signals rather than inventing a zero', async () => {
+    // The badge falls back to 0 client-side; the endpoint reports only what exists.
+    mockDb.any.mockResolvedValue([{ tab: 'politiek', count: '3' }]);
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(res.body.data).toEqual({ politiek: 3 });
+  });
+
+  it('401s without a user', async () => {
+    const res = await request(app).get('/v1/pa/signals/counts').set('x-test-no-user', '1');
+    expect(res.status).toBe(401);
+  });
+
+  it('500s when the query fails', async () => {
+    mockDb.any.mockRejectedValue(new Error('db down'));
+    const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('SIGNAL_COUNTS_ERROR');
   });
 });

@@ -7,15 +7,52 @@ on:
     paths:
       - 'packages/frontend/**'
       - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
       - '.github/workflows/azure-frontend-acc.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
       - acc
+    # Mirrors the push filter above. Without it every pull request to acc
+    # deployed all three sites, each holding a Static Web Apps staging
+    # environment — three apps against a three-environment ceiling, which
+    # five open pull requests exhausted on 2026-08-28.
+    #
+    # Note this also gates close_pull_request_job, which fires on 'closed'.
+    # A pull request touching none of these paths never created a preview,
+    # so there is nothing for it to tear down.
+    paths:
+      - 'packages/frontend/**'
+      - 'packages/shared/**'
+      - 'packages/pa-cockpit/**'
+      - '.github/workflows/azure-frontend-acc.yml'
   workflow_dispatch:
+
+# Serialise deployments to one Azure Static Web Apps environment. Two
+# deployments at the same environment make Azure cancel one and report
+# "Deployment Canceled" on a job that did nothing wrong — seen on
+# 2026-08-29, two acc deploys 20 seconds apart. The group includes the ref,
+# so pull requests never cancel each other's previews, only their own
+# superseded runs.
+#
+# The key must distinguish the EVENT, not just the ref. Keyed on github.ref
+# alone, the pull_request(closed) teardown and the push deploy that a merge
+# fires simultaneously landed in the same group and cancelled each other —
+# one of each pair died, at random. Seen on 2026-08-29 merging #25: two acc
+# deploys skipped and one preview left un-torn-down.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Default to read-only; jobs opt into more only where required.
+permissions:
+  contents: read
 
 jobs:
   build_and_deploy_job:
+    permissions:
+      contents: read
+      pull-requests: write
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy ACC Frontend
@@ -24,13 +61,14 @@ jobs:
       url: https://acc.mijn.open-regels.nl
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           lfs: false
+          persist-credentials: false
 
       - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
 
@@ -40,8 +78,47 @@ jobs:
       - name: Build shared package
         run: npm run build --workspace=@ronl/shared
 
+      - name: Run linter
+        working-directory: packages/frontend
+        run: npm run lint
+
+      # @ronl/pa-cockpit has no deploy workflow of its own — it is a library
+      # this frontend consumes — so until now its 476 tests ran nowhere in CI.
+      # This workflow's paths filter already includes packages/pa-cockpit/**,
+      # so a change there triggers this run; it just did not test it. Placed
+      # before the frontend's own suite because the frontend imports it: a
+      # break here explains a break there.
+      #
+      # It also makes the per-file 80% branch floor mean the same thing in
+      # every workspace. A threshold that only fires on someone's laptop is a
+      # convention wearing a gate's clothes. See issue #80.
+      - name: Unit tests (pa-cockpit)
+        working-directory: packages/pa-cockpit
+        run: npm test
+
+      - name: Unit tests
+        working-directory: packages/frontend
+        run: npm test
+
+      - name: Performance budget
+        working-directory: packages/frontend
+        run: npm run test:perf
+
       - name: Build frontend for ACC
         working-directory: packages/frontend
+        # Stamps the bundle with which BUILD it is, not just which release —
+        # the changelog version comes from package.json and is bumped by hand,
+        # so ACC and PROD can serve different builds of the same version. Vite
+        # merges VITE_-prefixed process.env over .env.acceptance, so these
+        # reach import.meta.env without touching the mode file. Absent (local
+        # builds, forks), src/utils/buildInfo.ts renders 'local build'.
+        #
+        # On a pull request github.sha is the merge commit GitHub synthesises,
+        # so a preview's SHA matches no commit in the branch. That is the
+        # commit that was built, and is expected — not a bug to chase.
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_RUN: ${{ github.run_number }}
         run: |
           npm run build:acc
 
@@ -52,7 +129,7 @@ jobs:
 
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ACC }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -75,13 +152,14 @@ jobs:
           fi
 
   close_pull_request_job:
+    permissions: {}
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
     steps:
       - name: Close Pull Request
         id: closepullrequest
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ACC }}
           action: 'close'

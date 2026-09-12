@@ -145,3 +145,25 @@ describe('metadata helpers', () => {
     expect(registry.isAnyConnected(['unknown'])).toBe(false); // unknown ids resolve to nothing
   });
 });
+
+describe('failures that are not Error instances', () => {
+  // An MCP transport dying mid-handshake can reject with a bare string; the
+  // registry has to keep going and log something readable either way.
+  it('continues when a provider rejects connect with a string', async () => {
+    const bad = makeProvider('bad', { connect: jest.fn().mockRejectedValue('socket hang up') });
+    const good = makeProvider('good', { tools: [tool('t1')] });
+    registry.register(bad);
+    registry.register(good);
+
+    await registry.connectAll();
+
+    await registry.callTool('t1', {});
+    expect(good.callTool).toHaveBeenCalled();
+  });
+
+  it('swallows a disconnect that rejects with a string', async () => {
+    const p = makeProvider('op', { disconnect: jest.fn().mockRejectedValue('socket hang up') });
+    registry.register(p);
+    await expect(registry.disconnectAll()).resolves.toBeUndefined();
+  });
+});

@@ -1,29 +1,80 @@
 #!/usr/bin/env bash
 # test-m2m-routes.sh
-# Validates the active M2M route operations against ACC.
+# Validates the active M2M route operations against a running backend.
 #
 # Usage:
-#   CLIENT_SECRET=<secret> bash scripts/test-m2m-routes.sh
+#   bash scripts/test-m2m-routes.sh                        # local (default)
+#   TARGET=acc CLIENT_SECRET=<secret> bash scripts/test-m2m-routes.sh
+#
+# On TARGET=local the client secret is read from config/keycloak/ronl-realm.json
+# (the seeded operaton-mcp-client), so no secret has to be exported. TARGET=acc
+# always needs an explicit CLIENT_SECRET — those credentials are not in the repo.
 #
 # Optional overrides:
-#   BASE_URL=https://acc.api.open-regels.nl
-#   KEYCLOAK_URL=https://acc.keycloak.open-regels.nl
+#   TARGET=local|acc          picks a preset pair of URLs (default: local)
+#   BASE_URL / KEYCLOAK_URL   set either explicitly to override the TARGET preset
 #   CLIENT_ID=operaton-mcp-client
-#   DECISION_KEY=TreeFellingDecision
+#   DECISION_KEY / DECISION_VARS   override the per-TARGET decision preset
 
 set -u
 
-BASE_URL="${BASE_URL:-https://acc.api.open-regels.nl}"
-KEYCLOAK_URL="${KEYCLOAK_URL:-https://acc.keycloak.open-regels.nl}"
-# For local development use:
-# BASE_URL="${BASE_URL:-http://localhost:3002}"
-# KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REALM_FILE="$REPO_ROOT/config/keycloak/ronl-realm.json"
+
+TARGET="${TARGET:-local}"
+TARGET_LC="$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_LC" in
+  local)
+    DEFAULT_BASE_URL="http://localhost:3002"
+    DEFAULT_KEYCLOAK_URL="http://localhost:8080"
+    # From the local fixture bundle (docker-compose Operaton).
+    DEFAULT_DECISION_KEY="TreeFellingDecision"
+    DEFAULT_DECISION_VARS='{"variables": {"treeDiameter": 45, "protectedArea": false}}'
+    ;;
+  acc)
+    DEFAULT_BASE_URL="https://acc.api.open-regels.nl"
+    DEFAULT_KEYCLOAK_URL="https://acc.keycloak.open-regels.nl"
+    # ACC's M2M client talks to operaton-doc, a different engine from ACC's main
+    # one, and TreeFellingDecision is not deployed there. AwbCompletenessCheck is:
+    # one input, and a catch-all rule under FIRST hit policy, so any value
+    # evaluates cleanly rather than erroring.
+    DEFAULT_DECISION_KEY="AwbCompletenessCheck"
+    DEFAULT_DECISION_VARS='{"variables": {"productType": "TreeFellingPermit"}}'
+    ;;
+  *)
+    echo "ERROR: unknown TARGET='$TARGET' (expected 'local' or 'acc')."
+    exit 1
+    ;;
+esac
+
+BASE_URL="${BASE_URL:-$DEFAULT_BASE_URL}"
+KEYCLOAK_URL="${KEYCLOAK_URL:-$DEFAULT_KEYCLOAK_URL}"
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
-DECISION_KEY="${DECISION_KEY:-TreeFellingDecision}"
+DECISION_KEY="${DECISION_KEY:-$DEFAULT_DECISION_KEY}"
+DECISION_VARS="${DECISION_VARS:-$DEFAULT_DECISION_VARS}"
+
+# On localhost, fall back to the seeded realm's own client secret so the script
+# runs with no arguments. An exported CLIENT_SECRET always wins, and the realm
+# file is never consulted for TARGET=acc — those creds belong to the ACC realm.
+CREDS_SOURCE="environment"
+if [[ "$TARGET_LC" == "local" && -z "${CLIENT_SECRET:-}" && -f "$REALM_FILE" ]]; then
+  CLIENT_SECRET="$(
+    python -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding='utf-8'))
+    print(next(c.get('secret', '') for c in d.get('clients', []) if c.get('clientId') == sys.argv[2]))
+except Exception:
+    print('')
+" "$REALM_FILE" "$CLIENT_ID" 2>/dev/null
+  )"
+  [[ -n "${CLIENT_SECRET:-}" ]] && CREDS_SOURCE="$REALM_FILE"
+fi
 
 if [[ -z "${CLIENT_SECRET:-}" ]]; then
-  echo "ERROR: CLIENT_SECRET is not set."
-  echo "Usage: CLIENT_SECRET=<secret> bash $0"
+  echo "ERROR: CLIENT_SECRET is not set and could not be read from the realm file."
+  echo "Usage: TARGET=acc CLIENT_SECRET=<secret> bash $0"
   exit 1
 fi
 
@@ -62,6 +113,11 @@ check_field() {
 # ─── Token ────────────────────────────────────────────────────────────────────
 
 echo ""
+echo "  M2M route test  ·  TARGET=$TARGET"
+echo "  backend:  $BASE_URL"
+echo "  keycloak: $KEYCLOAK_URL"
+echo "  client:   $CLIENT_ID (secret from $CREDS_SOURCE)"
+echo ""
 echo "── Obtaining token ──────────────────────────────────────────────────────"
 
 TOKEN_RESPONSE=$(curl -s -X POST \
@@ -76,6 +132,23 @@ TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
 if [[ -z "$TOKEN" ]]; then
   echo "FATAL: Failed to obtain token."
   echo "$TOKEN_RESPONSE" | jq . 2>/dev/null || echo "$TOKEN_RESPONSE"
+  if [[ "$TARGET_LC" == "local" && "$CREDS_SOURCE" == "$REALM_FILE" ]]; then
+    echo ""
+    echo "  The secret came from the realm file. Keycloak only imports that on a"
+    echo "  first start, so a long-lived keycloak-data volume can hold a different"
+    echo "  one. Read what the running realm actually has with:"
+    echo ""
+    echo "    ADM=\$(curl -s -X POST $KEYCLOAK_URL/realms/master/protocol/openid-connect/token \\"
+    echo "      -d grant_type=password -d client_id=admin-cli -d username=admin -d password=admin \\"
+    echo "      | jq -r .access_token)"
+    echo "    ID=\$(curl -s -H \"Authorization: Bearer \$ADM\" \\"
+    echo "      \"$KEYCLOAK_URL/admin/realms/ronl/clients?clientId=$CLIENT_ID\" | jq -r '.[0].id')"
+    echo "    curl -s -H \"Authorization: Bearer \$ADM\" \\"
+    echo "      \"$KEYCLOAK_URL/admin/realms/ronl/clients/\$ID/client-secret\" | jq -r .value"
+    echo ""
+    echo "  then re-run with CLIENT_SECRET=<that value>, or reset the realm with"
+    echo "  'npm run docker:down:volumes && npm run docker:up' to re-import."
+  fi
   exit 1
 fi
 
@@ -192,7 +265,9 @@ if [[ "$PROC_LIST_STATUS" == "200" ]]; then
   fi
 
   if [[ -n "$FIRST_PROC_KEY" ]]; then
-    # process.start-form (404 acceptable — process may have no deployed start form)
+    # process.start-form. Against ACC the deployed bundle is unknown, so 404 is
+    # acceptable — the process may simply have no start-event form. Locally the
+    # fixture bundle is known, and the stronger assertions further down run too.
     PROC_FORM_STATUS=$(curl -s -o /tmp/m2m_proc_form.json -w "%{http_code}" \
       "${BASE_URL}/v1/m2m/process/${FIRST_PROC_KEY}/start-form" \
       -H "Authorization: Bearer $TOKEN")
@@ -218,24 +293,86 @@ PROC_HIST_STATUS=$(curl -s -o /tmp/m2m_proc_hist.json -w "%{http_code}" \
   -H "Authorization: Bearer $TOKEN")
 check_status "GET /v1/m2m/process/history" "$PROC_HIST_STATUS" "200"
 
-# decision.evaluate
-DECISION_STATUS=$(curl -s -o /tmp/m2m_decision.json -w "%{http_code}" \
-  -X POST "${BASE_URL}/v1/m2m/decision/${DECISION_KEY}/evaluate" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"variables": {"treeDiameter": 45, "protectedArea": false}}')
-check_status "POST /v1/m2m/decision/:key/evaluate" "$DECISION_STATUS" "200"
-if [[ "$DECISION_STATUS" == "200" ]]; then
-  check_field "POST /v1/m2m/decision/:key/evaluate body" "$(cat /tmp/m2m_decision.json)" '.success' 'true'
-fi
-
-# decision.get
+# decision.get — run first, because it doubles as the existence probe. Which
+# decisions are deployed is engine data, not route behaviour: local and ACC talk
+# to different engines, so a key missing from one is not a regression in the
+# other. A 404 here skips both decision checks with a ~ rather than reporting a
+# phantom failure, matching how the rest of the live scripts treat an absent
+# dependency.
 DECISION_GET_STATUS=$(curl -s -o /tmp/m2m_decision_get.json -w "%{http_code}" \
   "${BASE_URL}/v1/m2m/decision/${DECISION_KEY}" \
   -H "Authorization: Bearer $TOKEN")
-check_status "GET /v1/m2m/decision/:key" "$DECISION_GET_STATUS" "200"
-if [[ "$DECISION_GET_STATUS" == "200" ]]; then
-  check_field "GET /v1/m2m/decision/:key body" "$(cat /tmp/m2m_decision_get.json)" '.success' 'true'
+
+if [[ "$DECISION_GET_STATUS" == "404" ]]; then
+  echo "  ~ decision routes skipped — '$DECISION_KEY' is not deployed on this engine"
+  echo "    (override with DECISION_KEY=<key> and DECISION_VARS='{\"variables\":{...}}')"
+else
+  check_status "GET /v1/m2m/decision/:key" "$DECISION_GET_STATUS" "200"
+  if [[ "$DECISION_GET_STATUS" == "200" ]]; then
+    check_field "GET /v1/m2m/decision/:key body" "$(cat /tmp/m2m_decision_get.json)" '.success' 'true'
+  fi
+
+  # decision.evaluate
+  DECISION_STATUS=$(curl -s -o /tmp/m2m_decision.json -w "%{http_code}" \
+    -X POST "${BASE_URL}/v1/m2m/decision/${DECISION_KEY}/evaluate" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$DECISION_VARS")
+  check_status "POST /v1/m2m/decision/:key/evaluate" "$DECISION_STATUS" "200"
+  if [[ "$DECISION_STATUS" == "200" ]]; then
+    check_field "POST /v1/m2m/decision/:key/evaluate body" "$(cat /tmp/m2m_decision.json)" '.success' 'true'
+  fi
+fi
+
+# ─── Known-fixture assertions (local only) ───────────────────────────────────
+#
+# Against ACC the deployed bundle is whatever happens to be there, so the checks
+# above can only assert "route reached". Locally the fixture bundle is fixed, so
+# the tenant behaviour that actually matters can be asserted properly:
+#
+#   AwbShellProcess       tenant=flevoland, start form kapvergunning-start
+#   AwbZorgtoeslagProcess tenant=toeslagen, start form zorgtoeslag-provisional-start
+#   RipR21Process         tenant=flevoland, NO start-event form (started via API;
+#                         its 8 forms are user-task forms, reached through
+#                         /v1/m2m/task/:id/form-schema)
+#
+# Operaton's own /process-definition/key/{key}/... shorthand 404s for all three —
+# they are tenant-scoped and the M2M surface sends no tenant. Getting a form back
+# is therefore proof that resolveDeployedTenant + getByKeyWithTenantFallback are
+# doing their job, which a 200-or-404 check cannot distinguish from a broken one.
+
+if [[ "$TARGET_LC" == "local" ]]; then
+  echo ""
+  echo "── Known-fixture assertions (tenant fallback + cross-tenant) ────────────"
+
+  # A tenant-scoped process must still yield its start form through the
+  # untenanted M2M surface.
+  FIX_FLEVO_STATUS=$(curl -s -o /tmp/m2m_fix_flevo.json -w "%{http_code}"     "${BASE_URL}/v1/m2m/process/AwbShellProcess/start-form"     -H "Authorization: Bearer $TOKEN")
+  if [[ "$FIX_FLEVO_STATUS" == "200" ]]     && [[ "$(jq -r '.data.components | type' /tmp/m2m_fix_flevo.json 2>/dev/null)" == "array" ]]; then
+    pass "AwbShellProcess start-form resolves despite tenant scoping (flevoland)"
+  else
+    fail "AwbShellProcess start-form — expected HTTP 200 with a form, got HTTP $FIX_FLEVO_STATUS"
+  fi
+
+  # M2M is deliberately cross-tenant: a toeslagen-scoped process must resolve too.
+  FIX_TOESLAGEN_STATUS=$(curl -s -o /tmp/m2m_fix_toeslagen.json -w "%{http_code}"     "${BASE_URL}/v1/m2m/process/AwbZorgtoeslagProcess/start-form"     -H "Authorization: Bearer $TOKEN")
+  if [[ "$FIX_TOESLAGEN_STATUS" == "200" ]]     && [[ "$(jq -r '.data.components | type' /tmp/m2m_fix_toeslagen.json 2>/dev/null)" == "array" ]]; then
+    pass "AwbZorgtoeslagProcess start-form resolves across tenants (toeslagen)"
+  else
+    fail "AwbZorgtoeslagProcess start-form — expected HTTP 200 with a form, got HTTP $FIX_TOESLAGEN_STATUS"
+  fi
+
+  # A process with no start-event form must report that, not fall over.
+  FIX_NOFORM_STATUS=$(curl -s -o /dev/null -w "%{http_code}"     "${BASE_URL}/v1/m2m/process/RipR21Process/start-form"     -H "Authorization: Bearer $TOKEN")
+  check_status "RipR21Process start-form is absent (started via API, not a form)"     "$FIX_NOFORM_STATUS" "404"
+
+  # variable-hints must work for the same tenant-scoped definition.
+  FIX_HINTS_STATUS=$(curl -s -o /tmp/m2m_fix_hints.json -w "%{http_code}"     "${BASE_URL}/v1/m2m/process/RipR21Process/variable-hints"     -H "Authorization: Bearer $TOKEN")
+  if [[ "$FIX_HINTS_STATUS" == "200" ]]     && [[ "$(jq -r '.variables | type' /tmp/m2m_fix_hints.json 2>/dev/null)" == "array" ]]; then
+    pass "RipR21Process variable-hints resolves despite tenant scoping"
+  else
+    fail "RipR21Process variable-hints — expected HTTP 200 with variables, got HTTP $FIX_HINTS_STATUS"
+  fi
 fi
 
 # ─── No disabled operations — all are active ─────────────────────────────────

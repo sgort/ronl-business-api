@@ -1,18 +1,27 @@
 /**
  * PA Monitoring routes.
  * Mounted at /v1/pa in index.ts.
- * All routes require Keycloak JWT.
+ * All routes require Keycloak JWT, except /curator/run, /curator/status
+ * (route-level JWT instead of the router-wide middleware) and /signals.rss
+ * (RSS readers can't send a bearer token — authenticated via ?token= instead).
  */
 
 import express from 'express';
+import { randomBytes } from 'crypto';
 import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
 import { db } from '@services/audit.service';
 import { fetchTkFeed, TK_DOCUMENT_TYPES } from './sources/tk.client';
 import { fetchObFeed, OB_PUBLICATION_TYPES } from './sources/ob.client';
+import { searchFlevolandNews } from './sources/media.client';
+import { fetchEuFeed, EU_DOCUMENT_TYPES } from './sources/eu.client';
+import { FEEDS as MEDIA_FEEDS } from '../media-aggregator/feeds';
 import { runCurationCycle, promoteToInbox } from './curation.service';
 import { fetchAgenda } from './sources/agenda.client';
+import { matchesQueryTerms } from './query-match';
+import { computeNotifications } from './notifications.service';
+import { toRssXml } from './rss';
 import { config } from '@utils/config';
 import type { FeedItem, Signal } from '@ronl/shared';
 
@@ -70,12 +79,59 @@ router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), asy
   }
 });
 
+// ── GET /v1/pa/signals.rss ────────────────────────────────────────────────────
+// Personal RSS export of confirmed signals — "one query, two renderers" alongside
+// GET /v1/pa/signals below (same fetchSignalsRows + rowToSignal, XML instead of
+// JSON). RSS readers can't send a Keycloak bearer token, so this sits before the
+// router's jwtMiddleware and authenticates via ?token= instead, minted by the
+// authenticated GET /v1/pa/feed-token.
+router.get('/signals.rss', async (req, res) => {
+  const token = typeof req.query['token'] === 'string' ? req.query['token'] : null;
+  if (!token) return res.status(401).send('Missing token');
+
+  try {
+    const tokenRow = await db.oneOrNone<{ user_id: string; tenant_id: string }>(
+      `SELECT user_id, tenant_id FROM pa_feed_tokens WHERE token = $1`,
+      [token]
+    );
+    if (!tokenRow) return res.status(401).send('Invalid token');
+
+    const tab = typeof req.query['tab'] === 'string' ? req.query['tab'] : null;
+    const dossierId = typeof req.query['dossierId'] === 'string' ? req.query['dossierId'] : null;
+
+    const conditions: string[] = [`status = 'confirmed'`];
+    const values: unknown[] = [];
+    let idx = 1;
+    if (tab) {
+      conditions.push(`tab = $${idx++}`);
+      values.push(tab);
+    }
+    if (dossierId) {
+      conditions.push(`dossier_id = $${idx++}`);
+      values.push(dossierId);
+    }
+
+    const rows = await fetchSignalsRows(conditions.join(' AND '), values, 100);
+    const signals = rows.map(rowToSignal);
+    const selfUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    const xml = toRssXml(signals, 'PA-Cockpit — gecureerde signalen', selfUrl);
+
+    res.type('application/rss+xml; charset=utf-8').send(xml);
+  } catch (err) {
+    logger.error('Signals RSS error', { error: err instanceof Error ? err.message : String(err) });
+    res.status(500).send('Internal error');
+  }
+});
+
 router.use(jwtMiddleware);
 router.use(tenantMiddleware);
 router.use(requireRoles('public-affairs'));
 
 // ── GET /v1/pa/feed ──────────────────────────────────────────────────────────
-// Raw merged TK+OB feed. Query params: q, types (csv), source (tk|ob), skip, top.
+// Raw merged TK+OB+media feed. Query params: q, types (csv),
+// source (both|tk|ob|media|eu — 'both' does not include eu, matching the
+// curation cycle's own opt-in-per-search treatment of the EU source), skip,
+// top.
 router.get('/feed', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
@@ -88,7 +144,7 @@ router.get('/feed', async (req, res) => {
 
   try {
     const fetches: Promise<{ items: unknown[]; total: number | null }>[] = [];
-    if (source !== 'ob')
+    if (source === 'both' || source === 'tk')
       fetches.push(
         fetchTkFeed(
           q,
@@ -97,7 +153,7 @@ router.get('/feed', async (req, res) => {
           top
         )
       );
-    if (source !== 'tk')
+    if (source === 'both' || source === 'ob')
       fetches.push(
         fetchObFeed(
           q,
@@ -108,6 +164,10 @@ router.get('/feed', async (req, res) => {
           top
         )
       );
+    if ((source === 'both' || source === 'media') && config.pa.mediaSourceEnabled)
+      fetches.push(searchFlevolandNews(q, top));
+    if (source === 'eu' && config.pa.euSourceEnabled)
+      fetches.push(fetchEuFeed(q, types, skip, top));
 
     const results = await Promise.allSettled(fetches);
     const items: unknown[] = [];
@@ -133,12 +193,23 @@ router.get('/feed', async (req, res) => {
 });
 
 // ── GET /v1/pa/types ─────────────────────────────────────────────────────────
+// Keys double as the searchable-bronnen list for the blanco zoekfunctie
+// (frontend derives feedSources from Object.keys of this response).
 router.get('/types', (_req, res) => {
   res.json({
     success: true,
     data: {
       tk: [...TK_DOCUMENT_TYPES],
       ob: [...OB_PUBLICATION_TYPES],
+      // Media has no fixed document-type taxonomy (RSS feeds, not a typed API) —
+      // an empty array is enough to make 'media' a searchable bron key.
+      ...(config.pa.mediaSourceEnabled ? { media: [] } : {}),
+      // The keys here are what the cockpit offers as searchable bronnen —
+      // fetchFeedSources reads them straight off this response. Omitting 'eu' left
+      // GET /feed?source=eu implemented but unreachable: no chip rendered, so the
+      // blanco search could never target the EU feed despite advertising that it
+      // searches the raw bronfeeds.
+      ...(config.pa.euSourceEnabled ? { eu: [...EU_DOCUMENT_TYPES] } : {}),
     },
   });
 });
@@ -169,16 +240,8 @@ router.get('/agenda', async (req, res) => {
 
     const enriched = items.map((item) => {
       for (const s of searches) {
-        const terms = s.query.q
-          .split(/\s+OR\s+/i)
-          .map((t) => t.replace(/^"|"$/g, '').trim())
-          .filter(Boolean);
-        const lower = item.titel.toLowerCase();
-        for (const term of terms) {
-          if (lower.includes(term.toLowerCase())) {
-            return { ...item, dossier: s.dossier_id, matchTerm: term };
-          }
-        }
+        const term = matchesQueryTerms(item.titel, s.query.q);
+        if (term) return { ...item, dossier: s.dossier_id, matchTerm: term };
       }
       return item;
     });
@@ -232,15 +295,7 @@ router.get('/signals', async (req, res) => {
     const CAP = 100;
     const where = conditions.join(' AND ');
     const [rows, countRows] = await Promise.all([
-      db.any<Record<string, unknown>>(
-        `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
-                duiding, status, ai_draft, confirmed_by, confirmed_at, routing
-         FROM pa_signals
-         WHERE ${where}
-         ORDER BY rel DESC, created_at DESC
-         LIMIT ${CAP}`,
-        values
-      ),
+      fetchSignalsRows(where, values, CAP),
       db.any<{ count: string }>(`SELECT COUNT(*) AS count FROM pa_signals WHERE ${where}`, values),
     ]);
 
@@ -256,6 +311,40 @@ router.get('/signals', async (req, res) => {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'SIGNALS_ERROR' } });
+  }
+});
+
+// ── GET /v1/pa/signals/counts ────────────────────────────────────────────────
+// Inbox size per tab, in one grouped query. The cockpit's source badges need
+// four totals on mount; asking /signals four times pulls four capped result sets
+// (up to 100 rows each) to read four numbers off their meta. Must stay above any
+// /signals/:id-shaped GET so 'counts' is not swallowed as an id.
+router.get('/signals/counts', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const status =
+    typeof req.query['status'] === 'string' ? req.query['status'] : 'candidate,ai_drafted';
+
+  try {
+    const statuses = status
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const rows = await db.any<{ tab: string; count: string }>(
+      `SELECT tab, COUNT(*) AS count FROM pa_signals WHERE status = ANY($1) GROUP BY tab`,
+      [statuses]
+    );
+
+    const counts: Record<string, number> = {};
+    for (const row of rows) counts[row.tab] = parseInt(row.count, 10);
+
+    res.json({ success: true, data: counts });
+  } catch (err) {
+    logger.error('Signal counts fetch error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'SIGNAL_COUNTS_ERROR' } });
   }
 });
 
@@ -338,6 +427,15 @@ router.post('/signals/:id/confirm', async (req, res) => {
       [id]
     );
 
+    // A confirm is exactly the event a watch cares about — don't make the user
+    // wait for the next 6-hourly curation cycle to see it in Meldingen.
+    await computeNotifications(req.user.tenantId, 'confirm').catch((err: unknown) => {
+      logger.error('Notification compute failed after confirm', {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     res.json({ success: true, data: rowToSignal(updated) });
   } catch (err) {
     logger.error('Signal confirm error', {
@@ -348,16 +446,70 @@ router.post('/signals/:id/confirm', async (req, res) => {
   }
 });
 
+// ── POST /v1/pa/signals/:id/dismiss ──────────────────────────────────────────
+// The counterpart to confirm. "Negeren" used to be client-only state, so an
+// ignored signal came back on the next reload — the button did not do what it
+// said. Dismissing sets a status the inbox query does not select, which is also
+// what keeps it dismissed: persistCandidate's upsert only writes back
+// `WHERE pa_signals.status = 'candidate'`, so a later curation cycle leaves it
+// alone exactly as it leaves a confirmed one alone.
+router.post('/signals/:id/dismiss', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { id } = req.params;
+
+  try {
+    const existing = await db.oneOrNone<{ id: string }>('SELECT id FROM pa_signals WHERE id = $1', [
+      id,
+    ]);
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+
+    await db.none(
+      `UPDATE pa_signals SET status = 'dismissed', routing = NULL, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    const updated = await db.one<Record<string, unknown>>(
+      `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
+              duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+       FROM pa_signals WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true, data: rowToSignal(updated) });
+  } catch (err) {
+    logger.error('Signal dismiss error', {
+      id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'DISMISS_ERROR' } });
+  }
+});
+
 // ── GET /v1/pa/searches ───────────────────────────────────────────────────────
 router.get('/searches', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
   try {
+    // Team (unowned) rows have no `notify` column that means anything — see
+    // docs/WATCHBELL.md Gotcha #2 — so their effective notify state for the
+    // caller is whether a personal watch derivative (source_search_id -> this
+    // row, owned by the caller) exists. Personal rows keep using their own
+    // column. Derivative rows themselves are bookkeeping, not something a
+    // user picks from the list, so they're excluded here.
     const rows = await db.any(
-      `SELECT id, tenant_id, user_id, scope, dossier_id, query, tags, created_at, updated_at
-       FROM pa_saved_searches
-       WHERE tenant_id = $1 AND (scope = 'tenant' OR user_id = $2 OR user_id IS NULL)
-       ORDER BY created_at`,
+      `SELECT s.id, s.tenant_id, s.user_id, s.scope, s.dossier_id, s.query, s.tags, s.created_at, s.updated_at,
+              CASE WHEN s.user_id IS NULL
+                THEN EXISTS (
+                  SELECT 1 FROM pa_saved_searches w
+                  WHERE w.source_search_id = s.id AND w.user_id = $2 AND w.notify = true
+                )
+                ELSE s.notify
+              END AS notify
+       FROM pa_saved_searches s
+       WHERE s.tenant_id = $1 AND (s.scope = 'tenant' OR s.user_id = $2 OR s.user_id IS NULL)
+         AND s.source_search_id IS NULL
+       ORDER BY s.created_at`,
       [req.user.tenantId, req.user.userId]
     );
     res.json({ success: true, data: rows });
@@ -437,14 +589,21 @@ router.delete('/searches/:id', async (req, res) => {
 router.patch('/searches/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
 
-  const { scope, query, tags, dossierId } = req.body as {
+  const { scope, query, tags, dossierId, notify } = req.body as {
     scope?: 'tenant' | 'user';
     query?: { q: string; types?: string[]; source?: string[] };
     tags?: string[];
     dossierId?: string | null;
+    notify?: boolean;
   };
 
-  if (scope === undefined && query === undefined && tags === undefined && dossierId === undefined) {
+  if (
+    scope === undefined &&
+    query === undefined &&
+    tags === undefined &&
+    dossierId === undefined &&
+    notify === undefined
+  ) {
     return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
   }
   if (scope !== undefined && scope !== 'tenant' && scope !== 'user') {
@@ -475,15 +634,101 @@ router.patch('/searches/:id', async (req, res) => {
       sets.push(`dossier_id = $${idx++}`);
       values.push(dossierId);
     }
+    if (notify !== undefined) {
+      // Team (unowned) rows have no single recipient — writing `notify`
+      // straight onto the row is a no-op nobody ever sees (see
+      // docs/WATCHBELL.md Gotcha #2). Skip it in SQL for those rows; the
+      // block below creates/removes a personal watch derivative instead,
+      // which computeNotifications' `user_id IS NOT NULL` query can actually
+      // pick up.
+      sets.push(`notify = CASE WHEN user_id IS NOT NULL THEN $${idx++} ELSE notify END`);
+      values.push(notify);
+    }
 
     values.push(req.params.id, req.user.tenantId);
     const result = await db.result(
-      `UPDATE pa_saved_searches SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = $${idx + 1}`,
+      `UPDATE pa_saved_searches SET ${sets.join(', ')}
+       WHERE id = $${idx} AND tenant_id = $${idx + 1}
+       RETURNING user_id, dossier_id, query, tags`,
       values
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     }
+
+    const row = result.rows[0] as {
+      user_id: string | null;
+      dossier_id: string | null;
+      query: { q: string; types?: string[]; source?: string[] };
+      tags: string[];
+    };
+    const isTeamRow = row.user_id === null;
+
+    // Keep any personal watch derivatives of this team row in sync with
+    // edits to its query/tags/dossierId, so they don't keep matching on
+    // terms the team search no longer has.
+    if (isTeamRow && (query !== undefined || tags !== undefined || dossierId !== undefined)) {
+      await db.none(
+        `UPDATE pa_saved_searches SET query = $1, tags = $2, dossier_id = $3, updated_at = NOW()
+         WHERE source_search_id = $4`,
+        [JSON.stringify(row.query), row.tags, row.dossier_id, req.params.id]
+      );
+    }
+
+    let recompute = false;
+    if (notify !== undefined) {
+      if (isTeamRow) {
+        if (notify === true) {
+          const existingWatch = await db.oneOrNone<{ id: string }>(
+            `SELECT id FROM pa_saved_searches WHERE source_search_id = $1 AND user_id = $2`,
+            [req.params.id, req.user.userId]
+          );
+          if (existingWatch) {
+            await db.none(
+              `UPDATE pa_saved_searches SET notify = true, query = $2, tags = $3, dossier_id = $4, updated_at = NOW()
+               WHERE id = $1`,
+              [existingWatch.id, JSON.stringify(row.query), row.tags, row.dossier_id]
+            );
+          } else {
+            await db.none(
+              `INSERT INTO pa_saved_searches (id, tenant_id, user_id, scope, dossier_id, query, tags, notify, source_search_id)
+               VALUES ($1, $2, $3, 'user', $4, $5, $6, true, $7)`,
+              [
+                `watch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                req.user.tenantId,
+                req.user.userId,
+                row.dossier_id,
+                JSON.stringify(row.query),
+                row.tags,
+                req.params.id,
+              ]
+            );
+          }
+          recompute = true;
+        } else {
+          await db.none(
+            `DELETE FROM pa_saved_searches WHERE source_search_id = $1 AND user_id = $2`,
+            [req.params.id, req.user.userId]
+          );
+        }
+      } else if (notify === true) {
+        // Turning a watch on is the moment any already-confirmed backlog
+        // becomes "watched" — recompute now so it surfaces here, not
+        // silently deferred until some unrelated later trigger dumps it all
+        // at once.
+        recompute = true;
+      }
+    }
+
+    if (recompute) {
+      await computeNotifications(req.user.tenantId, 'watch-toggle').catch((err: unknown) => {
+        logger.error('Notification compute failed after watch toggle', {
+          id: req.params.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+
     res.json({ success: true });
   } catch (err) {
     logger.error('Search update error', {
@@ -522,6 +767,18 @@ router.patch('/signals/:id', async (req, res) => {
        FROM pa_signals WHERE id = $1`,
       [id]
     );
+
+    // Linking a watchlist signal to a dossier is exactly the kind of change a
+    // dossier-only watch (empty-query, matched on dossier_id) cares about — it
+    // couldn't have matched while dossier_id was null, so recompute now rather
+    // than waiting for the next curation cycle.
+    await computeNotifications(req.user.tenantId, 'link-dossier').catch((err: unknown) => {
+      logger.error('Notification compute failed after dossier link', {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     res.json({ success: true, data: rowToSignal(updated) });
   } catch (err) {
     logger.error('Signal link dossier error', {
@@ -529,6 +786,130 @@ router.patch('/signals/:id', async (req, res) => {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: { code: 'LINK_DOSSIER_ERROR' } });
+  }
+});
+
+// ── GET /v1/pa/notifications ──────────────────────────────────────────────────
+// Delivery inbox for watched saved searches (notify=true), populated by
+// notifications.service's computeNotifications() at the end of each curation
+// cycle. Query: unseen=true restricts to rows not yet acked.
+router.get('/notifications', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const unseenOnly = req.query['unseen'] === 'true';
+
+  try {
+    const conditions = ['n.user_id = $1', 'n.tenant_id = $2'];
+    const values: unknown[] = [req.user.userId, req.user.tenantId];
+    if (unseenOnly) conditions.push('n.seen_at IS NULL');
+
+    const rows = await db.any<Record<string, unknown>>(
+      `SELECT n.id, n.signal_id, n.matched_searches, n.created_at, n.seen_at,
+              s.title, s.tab, s.dossier_id, s.src, s.ref,
+              d.naam AS dossier_naam
+       FROM pa_notifications n
+       JOIN pa_signals s ON s.id = n.signal_id
+       LEFT JOIN pa_dossiers d ON d.id = s.dossier_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY n.created_at DESC
+       LIMIT 100`,
+      values
+    );
+
+    const notifications = rows.map((row) => {
+      const dossierNaam = row['dossier_naam'] as string | null;
+      // matchWatch() (notifications.service.ts) stores a `dossier:<id>` sentinel
+      // label for a watch-everything-for-this-dossier match — swap it for the
+      // dossier's actual name here rather than showing the raw id to the user.
+      const rawMatches = (row['matched_searches'] ?? []) as {
+        id: string;
+        dossierId: string | null;
+        label: string;
+      }[];
+      const matchedSearches = rawMatches.map((m) =>
+        dossierNaam && m.label.startsWith('dossier:')
+          ? { ...m, label: `Dossier: ${dossierNaam}` }
+          : m
+      );
+
+      return {
+        id: row['id'] as string,
+        signalId: row['signal_id'] as string,
+        title: row['title'] as string,
+        tab: row['tab'] as string,
+        dossierId: (row['dossier_id'] as string | null) ?? null,
+        src: row['src'] as string,
+        ref: row['ref'] ? (row['ref'] as { type: string; nr: string; url: string }) : null,
+        matchedSearches,
+        createdAt: String(row['created_at']),
+        seenAt: row['seen_at'] ? String(row['seen_at']) : null,
+      };
+    });
+    const unseenCount = notifications.filter((n) => !n.seenAt).length;
+
+    res.json({ success: true, data: notifications, meta: { unseenCount } });
+  } catch (err) {
+    logger.error('Notifications fetch error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'NOTIFICATIONS_ERROR' } });
+  }
+});
+
+// ── POST /v1/pa/notifications/ack ─────────────────────────────────────────────
+// Marks notifications seen. Body { ids?: string[] } — omitted acks every unseen
+// notification for the caller (tkconv's whole-batch delivery, no per-item read state).
+router.post('/notifications/ack', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { ids } = req.body as { ids?: string[] };
+
+  try {
+    if (ids?.length) {
+      await db.none(
+        `UPDATE pa_notifications SET seen_at = NOW()
+         WHERE user_id = $1 AND tenant_id = $2 AND id = ANY($3) AND seen_at IS NULL`,
+        [req.user.userId, req.user.tenantId, ids]
+      );
+    } else {
+      await db.none(
+        `UPDATE pa_notifications SET seen_at = NOW()
+         WHERE user_id = $1 AND tenant_id = $2 AND seen_at IS NULL`,
+        [req.user.userId, req.user.tenantId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Notifications ack error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: { code: 'NOTIFICATIONS_ACK_ERROR' } });
+  }
+});
+
+// ── GET /v1/pa/feed-token ─────────────────────────────────────────────────────
+// Find-or-create the caller's personal RSS token (GET /v1/pa/signals.rss?token=...).
+router.get('/feed-token', async (req, res) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  try {
+    const existing = await db.oneOrNone<{ token: string }>(
+      `SELECT token FROM pa_feed_tokens WHERE user_id = $1 AND tenant_id = $2`,
+      [req.user.userId, req.user.tenantId]
+    );
+    const token = existing?.token ?? randomBytes(24).toString('hex');
+    if (!existing) {
+      await db.none(`INSERT INTO pa_feed_tokens (token, user_id, tenant_id) VALUES ($1, $2, $3)`, [
+        token,
+        req.user.userId,
+        req.user.tenantId,
+      ]);
+    }
+    const url = `${req.protocol}://${req.get('host')}/v1/pa/signals.rss?token=${token}`;
+    res.json({ success: true, data: { token, url } });
+  } catch (err) {
+    logger.error('Feed token error', { error: err instanceof Error ? err.message : String(err) });
+    res.status(500).json({ success: false, error: { code: 'FEED_TOKEN_ERROR' } });
   }
 });
 
@@ -557,9 +938,30 @@ function rowToSignal(row: Record<string, unknown>): Signal {
   };
 }
 
+// Shared row-fetch behind GET /v1/pa/signals and GET /v1/pa/signals.rss — "one
+// query, two renderers": both routes build their own WHERE clause, then map
+// through the same rowToSignal().
+function fetchSignalsRows(
+  where: string,
+  values: unknown[],
+  limit: number
+): Promise<Record<string, unknown>[]> {
+  return db.any<Record<string, unknown>>(
+    `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
+            duiding, status, ai_draft, confirmed_by, confirmed_at, routing
+     FROM pa_signals
+     WHERE ${where}
+     ORDER BY rel DESC, created_at DESC
+     LIMIT ${limit}`,
+    values
+  );
+}
+
 // ── GET /v1/pa/sources/status ─────────────────────────────────────────────────
 // Read-only connector health: reflects actual env flags so the Signaalbronnen
 // screen never shows a status that contradicts the deployed configuration.
+// `feeds` mirrors media-aggregator's live registry (feeds.ts) so BronnenSection.tsx
+// doesn't need its own hand-maintained copy of the per-RSS-feed list.
 router.get('/sources/status', (_req, res) => {
   res.json({
     success: true,
@@ -569,6 +971,15 @@ router.get('/sources/status', (_req, res) => {
       eu: config.pa.euSourceEnabled,
       epTeksten: config.pa.epTextsSubmittedEnabled,
       media: config.pa.mediaSourceEnabled,
+      feeds: MEDIA_FEEDS.map((f) => ({
+        id: f.id,
+        name: f.name,
+        homepage: f.homepage,
+        type: f.type,
+        url: f.url,
+        alwaysFlevoland: f.alwaysFlevoland ?? false,
+        categoryFilter: f.categoryFilter ?? null,
+      })),
     },
   });
 });

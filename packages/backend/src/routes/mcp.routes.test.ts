@@ -176,3 +176,55 @@ describe('POST /v1/mcp/chat', () => {
     jest.restoreAllMocks();
   });
 });
+
+describe('POST /chat when the stream itself fails', () => {
+  const body = { message: 'hi', sources: ['operaton'], modelId: 'claude-opus-4-8' };
+
+  beforeEach(() => {
+    mcp.isAnyConnected.mockReturnValue(true);
+  });
+
+  it('reports the Error message on the stream rather than dropping the connection', async () => {
+    // Throw synchronously: the handler aborts on the request stream's 'close',
+    // which in Node fires as soon as the body is consumed, so a failure delivered
+    // a microtask later would be swallowed as 'the client already went away'.
+    mockRunChat.mockImplementation(() => {
+      throw new Error('anthropic 529');
+    });
+    const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
+    expect(res.text).toContain('data: {"type":"error","message":"anthropic 529"}');
+    expect(res.text).not.toContain('"type":"done"');
+  });
+
+  it('stringifies a non-Error rejection rather than reporting undefined', async () => {
+    mockRunChat.mockImplementation(() => {
+      throw 'socket hang up';
+    });
+    const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
+    expect(res.text).toContain('data: {"type":"error","message":"socket hang up"}');
+  });
+});
+
+describe('POST /chat with the optional fields left out', () => {
+  it('defaults history and sources, and asks the registry about all sources', async () => {
+    mcp.isAnyConnected.mockReturnValue(true);
+    mockRunChat.mockResolvedValue(undefined);
+
+    const res = await auth(request(app).post('/v1/mcp/chat')).send({
+      message: 'hi',
+      modelId: 'claude-opus-4-8',
+    });
+
+    expect(res.text).toContain('data: {"type":"done"}');
+    // An empty source selection means "any connected source will do".
+    expect(mcp.isAnyConnected).toHaveBeenCalledWith(undefined);
+    expect(mockRunChat).toHaveBeenCalledWith(
+      [],
+      'hi',
+      expect.any(Function),
+      [],
+      'claude-opus-4-8',
+      expect.any(Object)
+    );
+  });
+});

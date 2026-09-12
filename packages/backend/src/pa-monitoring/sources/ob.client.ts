@@ -168,7 +168,9 @@ export async function fetchObFeed(
 ): Promise<ObFeedResult> {
   const key = cacheKey(q, pubTypes, skip, top);
   const cached = await cacheGet<ObFeedResult>(key);
-  if (cached) return cached;
+  // Guard on the items, not the entry — see tk.client for why an empty
+  // cached result must not short-circuit.
+  if (cached?.items.length) return cached;
 
   // Fetch 3× top on page 1 for a better client-side sort window
   const fetchTop = skip === 0 ? top * 3 : top;

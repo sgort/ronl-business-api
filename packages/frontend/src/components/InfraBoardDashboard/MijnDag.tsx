@@ -6,13 +6,8 @@ import {
   getMockPortfolio,
   MIJN_PROJECT_NRS,
 } from '../../pages/infra-board/infra-board.data';
-import {
-  PHASES,
-  STATUS,
-  HEALTH,
-  roleByKey,
-  type StatusKey,
-} from '../../pages/infra-board/rip-model';
+import { STATUS, HEALTH, roleByKey, type StatusKey } from '../../pages/infra-board/rip-model';
+import { ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
@@ -144,7 +139,7 @@ export default function MijnDag({ user, onOpenProject, onGotoPortfolio }: Props)
               </button>
             </div>
             {mijn.map((p) => {
-              const ph = PHASES.find((x) => x.n === p.phase)!;
+              const ph = ripPhaseByCode(p.ripPhaseCode)!;
               return (
                 <button
                   type="button"
@@ -162,7 +157,7 @@ export default function MijnDag({ user, onOpenProject, onGotoPortfolio }: Props)
                     </div>
                   </div>
                   <span className="pb-mp-phase">
-                    F{ph.n} · {ph.name}
+                    {ph.code} · {ph.name}
                   </span>
                 </button>
               );

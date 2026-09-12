@@ -7,6 +7,9 @@ import type { Request, Response, NextFunction } from 'express';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = {
@@ -264,5 +267,103 @@ describe('POST /v1/task/:id/complete', () => {
     const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('TASK_COMPLETE_FAILED');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const noUser = (r: request.Test) => r.set('x-test-no-user', '1');
+
+  it.each([
+    ['get', '/v1/task'],
+    ['get', '/v1/task/history'],
+    ['get', '/v1/task/t-1'],
+    ['get', '/v1/task/t-1/variables'],
+    ['get', '/v1/task/t-1/form-schema'],
+    ['post', '/v1/task/t-1/claim'],
+    ['post', '/v1/task/t-1/complete'],
+  ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
+    const res = await noUser(request(app)[method](path));
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('inferType, via the variables submitted on task completion', () => {
+  it('tags each JSON value with the Operaton type Operaton expects', async () => {
+    svc.getTask.mockResolvedValue({ id: 't-1', tenantId: 'flevoland' });
+    svc.completeTask.mockResolvedValue(undefined);
+
+    await auth(
+      request(app)
+        .post('/v1/task/t-1/complete')
+        .send({
+          variables: {
+            akkoord: true,
+            aantal: 3,
+            bedrag: 12.5,
+            toelichting: 'ok',
+            bijlage: { naam: 'a.pdf' },
+            reden: null,
+          },
+        })
+    );
+
+    expect(svc.completeTask).toHaveBeenCalledWith('t-1', {
+      variables: {
+        akkoord: { value: true, type: 'Boolean' },
+        aantal: { value: 3, type: 'Integer' },
+        bedrag: { value: 12.5, type: 'Double' },
+        toelichting: { value: 'ok', type: 'String' },
+        bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
+        reden: { value: null, type: 'Null' },
+      },
+    });
+  });
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as bare strings often enough that the
+  // 'Unknown error' fallback in each catch is a real path, not a formality.
+  it.each([
+    ['getUserTasks', 'get', '/v1/task', 500],
+    ['getCompletedTasks', 'get', '/v1/task/history', 500],
+    ['getTask', 'get', '/v1/task/t-1', 404],
+    ['getProcessVariables', 'get', '/v1/task/t-1/variables', 500],
+    ['getDeployedTaskForm', 'get', '/v1/task/t-1/form-schema', 500],
+    ['claimTask', 'post', '/v1/task/t-1/claim', 500],
+    ['completeTask', 'post', '/v1/task/t-1/complete', 500],
+  ] as const)('%s rejecting with a string still answers %s', async (fn, method, path, status) => {
+    svc.getTask.mockResolvedValue({ id: 't-1', tenantId: 'flevoland' });
+    svc.getProcessVariables.mockResolvedValue({});
+    svc[fn].mockRejectedValue('socket hang up');
+    const res = await auth(request(app)[method](path));
+    expect(res.status).toBe(status);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe('GET /:id/form-schema error mapping', () => {
+  it('maps an Operaton 400 to 404, the same as a 404', async () => {
+    // Operaton answers 400 — not 404 — when a task exists but has no deployed
+    // form, which for the caller means the same thing: there is no form.
+    svc.getTask.mockResolvedValue({ id: 't-1', tenantId: 'flevoland' });
+    svc.getDeployedTaskForm.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 400 },
+    });
+    const res = await auth(request(app).get('/v1/task/t-1/form-schema'));
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /:id/complete without a variables key', () => {
+  it('completes the task with no variables rather than rejecting the body', async () => {
+    svc.getTask.mockResolvedValue({ id: 't-1', tenantId: 'flevoland' });
+    svc.completeTask.mockResolvedValue(undefined);
+    const res = await auth(request(app).post('/v1/task/t-1/complete').send({}));
+    expect(res.status).toBe(200);
+    expect(svc.completeTask).toHaveBeenCalledWith('t-1', { variables: {} });
   });
 });

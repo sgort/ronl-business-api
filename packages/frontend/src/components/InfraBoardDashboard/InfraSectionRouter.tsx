@@ -1,17 +1,17 @@
 import type { KeycloakUser } from '@ronl/shared';
 import type { InfraModeId } from '../../pages/infra-board/modes.config';
+import { phaseCodeFromSectionId } from '../../pages/infra-board/modes.config';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 import type { TenantConfig } from '../../services/tenant';
 import MijnDag from './MijnDag';
 import Portfolio from './Portfolio';
 import ProjectDetail from './ProjectDetail';
+import PhaseDetail from './PhaseDetail';
 import { getMockUpdates } from '../../pages/infra-board/infra-board.data';
 import { INFRA_PROCESS_KEYS } from '../../services/infra.api';
 
 // Reused, unchanged V1 components for the Beheer surface:
-import RipFase1Section from '../CaseworkerDashboard/RipFase1Section';
-import RipFase1WipSection from '../CaseworkerDashboard/RipFase1WipSection';
-import RipFase1GereedSection from '../CaseworkerDashboard/RipFase1GereedSection';
+import FaseladderOverview from './FaseladderOverview';
 import ArchiefSection from '../CaseworkerDashboard/ArchiefSection';
 import ProfielSection from '../CaseworkerDashboard/ProfielSection';
 import RollenSection from '../CaseworkerDashboard/RollenSection';
@@ -53,18 +53,17 @@ interface Props {
   openProject: ProjectRef | null;
   user: KeycloakUser | null;
   tenantConfig: TenantConfig | null;
-  phaseLabels: string[];
   onOpenProject: (ref: ProjectRef) => void;
   onBack: () => void;
   onGotoPortfolio: () => void;
+  onOpenPhase: (phaseCode: string) => void;
+  onBackToFaseladder: () => void;
 }
 
 export default function InfraSectionRouter(p: Props) {
   const { user, tenantConfig, section } = p;
   if (p.openProject) {
-    return (
-      <ProjectDetail projectRef={p.openProject} phaseLabels={p.phaseLabels} onBack={p.onBack} />
-    );
+    return <ProjectDetail projectRef={p.openProject} onBack={p.onBack} />;
   }
   if (p.mode === 'mijn-dag') {
     if (section === 'project-updates') return <ProjectUpdatesView />;
@@ -73,47 +72,50 @@ export default function InfraSectionRouter(p: Props) {
     );
   }
   if (p.mode === 'portfolio') {
-    return <Portfolio phaseLabels={p.phaseLabels} onOpenProject={p.onOpenProject} />;
+    return <Portfolio onOpenProject={p.onOpenProject} />;
   }
   // Beheer — reuse the existing V1 components verbatim, wrapped in the
   // same v2-main-pad padding that CaseworkerDashboardV2 applies.
   let content: React.ReactNode;
-  switch (section) {
-    case 'profiel':
-      content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
-      break;
-    case 'rollen':
-      content = <RollenSection user={user} />;
-      break;
-    case 'rip-fase1':
-      content = <RipFase1Section user={user} />;
-      break;
-    case 'rip-fase1-wip':
-      content = <RipFase1WipSection user={user} />;
-      break;
-    case 'rip-fase1-gereed':
-      content = <RipFase1GereedSection user={user} />;
-      break;
-    case 'archief':
-      content = <ArchiefSection boardId="infra-board" allowProcessKeys={INFRA_PROCESS_KEYS} />;
-      break;
-    case 'iou-gebruiksscenario':
-      content = <IouGebruiksscenarioSection />;
-      break;
-    case 'iou-feedback':
-      content = <IouFeedbackSection />;
-      break;
-    case 'iou-actieve-zaken':
-      content = <IouZakenSection state="opened" />;
-      break;
-    case 'iou-archief':
-      content = <IouZakenSection state="closed" />;
-      break;
-    case 'gereedschap-overzicht':
-      content = <GereedschapSection user={user} />;
-      break;
-    default:
-      content = <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />;
+  const phaseCode = section.startsWith('fase-') ? phaseCodeFromSectionId(section) : undefined;
+  if (phaseCode) {
+    content = <PhaseDetail phaseCode={phaseCode} onBack={p.onBackToFaseladder} />;
+  } else {
+    switch (section) {
+      case 'profiel':
+        content = (
+          <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />
+        );
+        break;
+      case 'rollen':
+        content = <RollenSection user={user} />;
+        break;
+      case 'faseladder':
+        content = <FaseladderOverview onOpenPhase={p.onOpenPhase} />;
+        break;
+      case 'archief':
+        content = <ArchiefSection boardId="infra-board" allowProcessKeys={INFRA_PROCESS_KEYS} />;
+        break;
+      case 'iou-gebruiksscenario':
+        content = <IouGebruiksscenarioSection />;
+        break;
+      case 'iou-feedback':
+        content = <IouFeedbackSection />;
+        break;
+      case 'iou-actieve-zaken':
+        content = <IouZakenSection state="opened" />;
+        break;
+      case 'iou-archief':
+        content = <IouZakenSection state="closed" />;
+        break;
+      case 'gereedschap-overzicht':
+        content = <GereedschapSection user={user} />;
+        break;
+      default:
+        content = (
+          <ProfielSection user={user} tenantConfig={tenantConfig} showManualFetch={false} />
+        );
+    }
   }
   return <div className="v2-main-pad">{content}</div>;
 }

@@ -21,6 +21,11 @@ packages/backend/*.zip
 packages/backend/.env.development
 .env.production
 .env.acceptance
+# Backups of the above — an editor's or a script's .bak/.orig copy carries the
+# same secrets as the file it shadows, and the exact-path rules above miss it.
+.env*.bak*
+.env*.orig
+.env*.save
 
 # Logs
 logs/
@@ -34,6 +39,21 @@ lerna-debug.log*
 coverage/
 .nyc_output/
 *.lcov
+packages/frontend/test-results/
+packages/frontend/e2e/test-results/
+packages/frontend/playwright-report/
+packages/frontend/e2e/playwright-report/
+/playwright-report/
+packages/frontend/e2e/.auth/
+packages/public-site/test-results/
+packages/public-site/e2e/test-results/
+packages/public-site/playwright-report/
+packages/public-site/e2e/playwright-report/
+packages/pa-demo/test-results/
+packages/pa-demo/e2e/test-results/
+packages/pa-demo/playwright-report/
+packages/pa-demo/e2e/playwright-report/
+packages/frontend/e2e/.pending-operaton-cleanup.json
 
 # IDEs and editors
 .vscode/
@@ -107,3 +127,37 @@ deploy-backend-to-*.sh
 
 # Knowledge graph (generated tooling output)
 .understand-anything/
+
+# Local-only vendor API reference (not meant for the repo)
+docs/edocs-rest-api-1.0.0.json
+
+# Claude Code local-only settings (shared commands like .claude/commands/
+# stay tracked)
+.claude/settings.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+# superpowers scratch state (progress ledgers, review packages) — never committed
+.superpowers/
+
+# design-handoff reference material — port content into the app, never commit the folder itself
+publiek-handoff/
+docs/infra-beheer-handoff/
+docs/infra-beheer-handoff-v2/
+docs/herkomst-handoff/
+docs/regelsimulatie-handoff/
+
+# Testing docs staging copy. The canonical page is the doc site --
+# https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/
+# -- and every reference in this repo points there. This file is a working
+# copy patched here and then carried over by /iou-documentation-patch; keeping
+# it untracked stops it drifting into a second source of truth, which is the
+# problem deleting docs/TEST*.md set out to solve.
+docs/overview.md
+
+# Semgrep plugin state. Not tidiness: guardian.yml holds a live OAuth access
+# token and refresh token for the Semgrep account, written per working
+# directory (root plus one per workspace), so `git add -A` from a repo root
+# would commit five copies of a credential. Never been tracked; keep it that
+# way. It also kept `deploy-backend-to-acc.sh` from running, since that script
+# requires a clean tree and `git status --porcelain` counts untracked files.
+.semgrep/

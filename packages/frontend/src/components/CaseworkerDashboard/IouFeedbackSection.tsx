@@ -67,14 +67,18 @@ export default function IouFeedbackSection() {
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // Persist the text fields on every change so a session-expiry redirect can't
-  // lose an in-progress draft. Cleared explicitly on a successful submit.
+  // lose an in-progress draft. Cleared explicitly on a successful submit —
+  // skip persisting while submitState is 'success' so the post-submit
+  // setForm(initialForm()) doesn't immediately re-write the draft key that
+  // clearDraft() just removed.
   useEffect(() => {
+    if (submitState === 'success') return;
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(form));
     } catch {
       /* storage unavailable — nothing we can do */
     }
-  }, [form]);
+  }, [form, submitState]);
 
   // ── Field helpers ──────────────────────────────────────────────────────────
 

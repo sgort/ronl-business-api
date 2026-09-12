@@ -1,0 +1,42 @@
+/*
+ * The generic RONL app-shell style: the Tailwind entry, the base resets and
+ * the default brand custom properties.
+ *
+ * It is not cockpit code — @ronl/pa-cockpit deliberately leaves it out of
+ * styles.css (see that file) and it stays in packages/frontend for the
+ * caseworker app — so this demo owns its own copy of the shell it renders the
+ * cockpit inside. It used to live under src/vendor/ as a byte-identical copy
+ * for the same reason; it is the one file of that tree that outlived it.
+ *
+ * The :root block below is why demo/shims/tenant.ts applies the Flevoland
+ * theme with an explicit setProperty rather than leaving it to CSS: these
+ * generic values satisfy the `var(--color-primary, #0046ad)` fallbacks in
+ * dashboard-pa.css, so without that inline write the cockpit would render in
+ * RONL blue instead of the tenant's. See that shim's header.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #01689b;
+  --color-primary-dark: #014d73;
+  --color-primary-light: #4da6e0;
+  --color-secondary: #e17000;
+  --color-accent: #ff6b00;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  @apply bg-gray-50;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}

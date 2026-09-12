@@ -1,18 +1,22 @@
 import { useState } from 'react';
 import {
   getMockPortfolio,
-  makePhase1Row,
+  makeLivePhaseRow,
   MIJN_PROJECT_NRS,
   TL,
   type PortfolioProject,
 } from '../../pages/infra-board/infra-board.data';
-import { PHASES, STATUS, roleByKey, type StatusKey } from '../../pages/infra-board/rip-model';
-import { useActivePhase1 } from '../../services/infra.api';
+import { STATUS, roleByKey, type StatusKey } from '../../pages/infra-board/rip-model';
+import { RIP_PHASES, RIP_STAGES, ripPhaseByCode } from '../../pages/infra-board/rip-phases.catalog';
+import { useRipActiveAcrossPhases } from '../../services/infra.api';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
 interface Props {
-  phaseLabels: string[];
   onOpenProject: (ref: ProjectRef) => void;
+}
+
+function curPhaseIdx(p: PortfolioProject): number {
+  return RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode);
 }
 
 function Gantt({
@@ -77,18 +81,19 @@ function Gantt({
                 <div className="pb-gantt-todayline" style={{ left: (TL.todayIdx + 0.5) * QW }} />
                 {p.segments.map((seg) => {
                   const s = STATUS[seg.status];
+                  const phase = ripPhaseByCode(seg.phaseCode)!;
                   return (
                     <div
-                      key={seg.phase}
-                      className={`pb-gantt-bar ${seg.status} ${seg.phase === p.phase ? 'current' : ''}`}
+                      key={seg.phaseCode}
+                      className={`pb-gantt-bar ${seg.status} ${seg.phaseCode === p.ripPhaseCode ? 'current' : ''}`}
                       style={{
                         left: seg.from * QW + 1,
                         width: seg.len * QW - 2,
                         background: s.color,
                       }}
-                      title={`F${seg.phase} · ${PHASES[seg.phase - 1].name} — ${s.label}`}
+                      title={`${phase.code} · ${phase.name} — ${s.label}`}
                     >
-                      <span className="ph">F{seg.phase}</span>
+                      <span className="ph">{phase.code}</span>
                     </div>
                   );
                 })}
@@ -103,28 +108,45 @@ function Gantt({
 
 function Kanban({
   rows,
-  phaseLabels,
   onOpenProject,
 }: {
   rows: PortfolioProject[];
-  phaseLabels: string[];
   onOpenProject: (ref: ProjectRef) => void;
 }) {
   return (
     <div className="pb-kanban">
-      {PHASES.map((ph) => {
-        const cards = rows.filter((p) => p.phase === ph.n);
+      {RIP_PHASES.map((ph, i) => {
+        const cards = rows.filter((p) => p.ripPhaseCode === ph.code);
+        const stage = RIP_STAGES.find((s) => s.code === ph.stage)!;
+        const firstOfStage = i === 0 || RIP_PHASES[i - 1].stage !== ph.stage;
         return (
-          <div className="pb-kan-col" key={ph.n}>
+          <div className={`pb-kan-col ${firstOfStage ? 'stage-start' : ''}`} key={ph.code}>
+            <div
+              className="pb-kan-stage"
+              style={{ color: stage.color }}
+              aria-hidden={!firstOfStage}
+            >
+              {firstOfStage ? (
+                <>
+                  <span className="pb-stage-dot" style={{ background: stage.color }} />
+                  {stage.code} · {stage.name}
+                </>
+              ) : (
+                <>&nbsp;</>
+              )}
+            </div>
             <div className="pb-kan-head">
               <span className="t">
-                F{ph.n} · {phaseLabels[ph.n - 1]}
+                <span className="kc" style={{ background: stage.color }}>
+                  {ph.code}
+                </span>
+                {ph.name}
               </span>
               <span className="c">{cards.length}</span>
             </div>
             <div className="pb-kan-cards">
               {cards.map((p) => {
-                const st = p.phaseStatuses[ph.n - 1];
+                const st = p.segments[i].status;
                 return (
                   <button
                     type="button"
@@ -147,7 +169,9 @@ function Kanban({
                         {STATUS[st].short}
                       </span>
                     </div>
-                    <div className="ms">{p.milestone}</div>
+                    <div className="ms">
+                      {st === 'wachtend' ? `Wacht op start van ${ph.code}` : p.milestone}
+                    </div>
                   </button>
                 );
               })}
@@ -160,16 +184,18 @@ function Kanban({
   );
 }
 
-export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
+export default function Portfolio({ onOpenProject }: Props) {
   const [view, setView] = useState<'tijdlijn' | 'kanban'>('tijdlijn');
   const [scope, setScope] = useState<'alle' | 'mijn' | 'risico'>('alle');
   const [role, setRole] = useState('alle');
 
-  const { data: liveInstances } = useActivePhase1();
+  const { data: liveInstances } = useRipActiveAcrossPhases();
 
   // Convert live instances to portfolio rows and prepend them.
   // Remove any mock row whose project number matches a live instance (avoid duplicates).
-  const liveRows: PortfolioProject[] = (liveInstances ?? []).map(makePhase1Row);
+  const liveRows: PortfolioProject[] = (liveInstances ?? []).map((i) =>
+    makeLivePhaseRow(i, i.phaseCode)
+  );
   const liveNrs = new Set(liveRows.map((r) => r.nr));
   const all = [...liveRows, ...getMockPortfolio().filter((p) => !liveNrs.has(p.nr))];
   const mijn = new Set(MIJN_PROJECT_NRS);
@@ -179,7 +205,7 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
     rows = rows.filter(
       (p) =>
         p.health === 'rood' ||
-        (['risk', 'overdue', 'action'] as StatusKey[]).includes(p.phaseStatuses[p.phase - 1])
+        (['risk', 'overdue', 'action'] as StatusKey[]).includes(p.segments[curPhaseIdx(p)].status)
     );
   if (role !== 'alle') rows = rows.filter((p) => p.role === role);
 
@@ -195,7 +221,7 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
     risico: all.filter(
       (p) =>
         p.health === 'rood' ||
-        (['risk', 'overdue', 'action'] as StatusKey[]).includes(p.phaseStatuses[p.phase - 1])
+        (['risk', 'overdue', 'action'] as StatusKey[]).includes(p.segments[curPhaseIdx(p)].status)
     ).length,
   };
 
@@ -205,8 +231,8 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
       <h1 className="pb-h1">Projectenportfolio</h1>
       <p className="pb-lead">
         {counts.total} projecten over de RIP-fasen (venster 2022–2027)
-        {liveInstances ? ` · ${liveInstances.length} actieve RIP Fase 1 instanties` : ''}. Bekijk
-        als tijdlijn of per fase. Klik een project om in te zoomen.
+        {liveInstances ? ` · ${liveInstances.length} actieve RIP-instanties` : ''}. Bekijk als
+        tijdlijn of per fase. Klik een project om in te zoomen.
       </p>
 
       <div className="pb-port-toolbar">
@@ -244,7 +270,7 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
           </select>
         </label>
         <div className="pb-legend">
-          {(['done', 'active', 'risk', 'overdue', 'action'] as StatusKey[]).map((k) => (
+          {(['done', 'active', 'wachtend', 'risk', 'overdue', 'action'] as StatusKey[]).map((k) => (
             <span className="lg" key={k}>
               <span className="sw" style={{ background: STATUS[k].color }} />
               {STATUS[k].label}
@@ -256,7 +282,7 @@ export default function Portfolio({ phaseLabels, onOpenProject }: Props) {
       {view === 'tijdlijn' ? (
         <Gantt rows={rows} onOpenProject={onOpenProject} />
       ) : (
-        <Kanban rows={rows} phaseLabels={phaseLabels} onOpenProject={onOpenProject} />
+        <Kanban rows={rows} onOpenProject={onOpenProject} />
       )}
     </div>
   );

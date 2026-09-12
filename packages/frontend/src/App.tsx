@@ -1,14 +1,16 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AuthCallback from './pages/AuthCallback';
 import CaseworkerDashboardV2 from './pages/CaseworkerDashboardV2';
-import PADashboardV2 from './pages/PADashboardV2';
+import PaCockpitRoute from './pages/PaCockpitRoute';
 import InfraBoardDashboard from './pages/InfraBoardDashboard';
 import WooDashboard from './pages/WooDashboard';
 import Dashboard from './pages/Dashboard';
 import LoginChoice from './pages/LoginChoice';
-import keycloak from './services/keycloak';
+import keycloak, { initializeKeycloak } from './services/keycloak';
 import './index.css';
+import '@ronl/pa-cockpit/styles.css';
 
 /**
  * Guards a route by authentication and role.
@@ -16,14 +18,34 @@ import './index.css';
  * - Not authenticated          → redirect to /
  * - Authenticated, wrong role  → redirect to the correct dashboard
  * - Authenticated, correct role → render children
+ *
+ * `keycloak.init()` is normally only called from AuthCallback, once, after a
+ * real login. That leaves a real gap: a fresh page load of a protected route
+ * (URL bar, bookmark, refresh) never calls it at all, so `keycloak.authenticated`
+ * reads false even with a live SSO session, and this always bounced to `/`
+ * regardless of the user's actual session. Doing our own `check-sso` init on
+ * mount (idempotent via `initializeKeycloak` — safe whether or not
+ * AuthCallback already initialized it this page load) fixes that.
  */
-function ProtectedRoute({
+export function ProtectedRoute({
   children,
   requiredRole,
 }: {
   children: React.ReactNode;
   requiredRole: 'citizen' | 'caseworker';
 }) {
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    initializeKeycloak()
+      .catch(() => false)
+      .finally(() => setChecked(true));
+  }, []);
+
+  if (!checked) {
+    return null;
+  }
+
   if (!keycloak.authenticated) {
     return <Navigate to="/" replace />;
   }
@@ -58,11 +80,17 @@ function App() {
           }
         />
 
-        {/* Caseworker portal is public — auth state is handled inside the component */}
-        <Route path="/dashboard/caseworker" element={<CaseworkerDashboardV2 />} />
+        <Route
+          path="/dashboard/caseworker"
+          element={
+            <ProtectedRoute requiredRole="caseworker">
+              <CaseworkerDashboardV2 />
+            </ProtectedRoute>
+          }
+        />
 
         {/* PA cockpit — public route; role gate lives inside the component */}
-        <Route path="/dashboard/public-affairs" element={<PADashboardV2 />} />
+        <Route path="/dashboard/public-affairs" element={<PaCockpitRoute />} />
 
         {/* Infra project-board — public route; role gate (infra-projectteam) lives inside */}
         <Route path="/dashboard/infra-board" element={<InfraBoardDashboard />} />

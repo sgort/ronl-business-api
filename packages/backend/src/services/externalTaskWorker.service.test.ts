@@ -11,6 +11,9 @@ jest.mock('axios', () => ({ __esModule: true, default: { post: jest.fn() } }));
 jest.mock('@services/edocs.service', () => ({
   edocsService: { ensureWorkspace: jest.fn(), uploadDocument: jest.fn() },
 }));
+jest.mock('@services/operaton.service', () => ({
+  operatonService: { getDeployedTemplate: jest.fn() },
+}));
 jest.mock('@utils/config', () => ({
   config: { operaton: { baseUrl: 'http://operaton/engine-rest' } },
 }));
@@ -21,10 +24,13 @@ jest.mock('@utils/logger', () => ({
 import axios from 'axios';
 import { ExternalTaskWorker } from './externalTaskWorker.service';
 import { edocsService } from '@services/edocs.service';
+import { operatonService } from '@services/operaton.service';
 
 const mockPost = (axios as unknown as { post: jest.Mock }).post;
 const mockEnsure = (edocsService as unknown as { ensureWorkspace: jest.Mock }).ensureWorkspace;
 const mockUpload = (edocsService as unknown as { uploadDocument: jest.Mock }).uploadDocument;
+const mockGetDeployedTemplate = (operatonService as unknown as { getDeployedTemplate: jest.Mock })
+  .getDeployedTemplate;
 
 type Var = { value: unknown; type: string };
 type Vars = Record<string, Var>;
@@ -109,6 +115,7 @@ describe('handleUploadDocument', () => {
     projectName: 'Proj',
     documentTemplateId: 'rip-intake-report',
     edocsDocumentVariableName: 'intakeDoc',
+    department: 'IVR',
   };
 
   it('renders content, uploads, and maps output under the configured variable name', async () => {
@@ -127,6 +134,7 @@ describe('handleUploadDocument', () => {
     expect(wsId).toBe('ws-1');
     expect(filename).toBe('rip-intake-report-P-1.txt');
     expect(metadata.docName).toContain('Intake Report');
+    expect(metadata.department).toBe('IVR');
     const decoded = Buffer.from(contentB64, 'base64').toString('utf-8');
     expect(decoded).toContain('INTAKE REPORT (Column 2)');
   });
@@ -147,6 +155,125 @@ describe('handleUploadDocument', () => {
       )
     ).rejects.toThrow(/missing required variables/);
     expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it('throws when department is missing', async () => {
+    await expect(
+      internals(new ExternalTaskWorker()).handleUploadDocument(
+        task('rip-edocs-document', { ...validVars, department: undefined })
+      )
+    ).rejects.toThrow(/missing required variables/);
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleUploadDocument — template-rendered documents', () => {
+  /** Minimal TipTap doc: one heading block containing the given (placeholder) text. */
+  const heading = (text: string) => ({
+    type: 'doc' as const,
+    content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text }] }],
+  });
+
+  const migratedVars = {
+    edocsWorkspaceId: 'ws-1',
+    projectNumber: 'FL-042',
+    projectName: 'Proj',
+    documentTemplateId: 'rip-pdp',
+    department: 'IVR',
+  };
+
+  it('renders rip-pdp from the deployed template as Markdown', async () => {
+    mockGetDeployedTemplate.mockResolvedValue({
+      id: 'rip-pdp',
+      bindings: [
+        {
+          id: 'b1',
+          placeholder: '{{projectNumber}}',
+          variableKey: 'projectNumber',
+          source: 'process',
+        },
+      ],
+      zones: {
+        body: {
+          blocks: [{ id: 'x', type: 'text', content: heading('Project {{projectNumber}}') }],
+        },
+      },
+    });
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', migratedVars)
+    );
+
+    expect(mockGetDeployedTemplate).toHaveBeenCalledWith('pi-1', 'rip-pdp');
+    const [, filename, contentB64] = mockUpload.mock.calls[0];
+    expect(filename).toBe('rip-pdp-FL-042.md');
+    expect(Buffer.from(contentB64, 'base64').toString('utf8')).toContain('# Project FL-042');
+  });
+
+  it('leaves rip-intake-report on the hardcoded renderer as .txt', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...migratedVars, documentTemplateId: 'rip-intake-report' })
+    );
+
+    const [, filename, contentB64] = mockUpload.mock.calls[0];
+    expect(filename).toBe('rip-intake-report-FL-042.txt');
+    expect(Buffer.from(contentB64, 'base64').toString('utf8')).toContain(
+      'INTAKE REPORT (Column 2)'
+    );
+    expect(mockGetDeployedTemplate).not.toHaveBeenCalled();
+  });
+
+  it('leaves rip-psu-report on the hardcoded renderer as .txt', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...migratedVars, documentTemplateId: 'rip-psu-report' })
+    );
+
+    const [, filename, contentB64] = mockUpload.mock.calls[0];
+    expect(filename).toBe('rip-psu-report-FL-042.txt');
+    expect(Buffer.from(contentB64, 'base64').toString('utf8')).toContain('PSU REPORT (Column 3)');
+    expect(mockGetDeployedTemplate).not.toHaveBeenCalled();
+  });
+
+  it('flattens variables without turning a real false or 0 into an em dash', async () => {
+    mockGetDeployedTemplate.mockResolvedValue({
+      id: 'rip-pdp',
+      bindings: [
+        {
+          id: 'b1',
+          placeholder: '{{projectNumber}}',
+          variableKey: 'projectNumber',
+          source: 'process',
+        },
+        { id: 'b2', placeholder: '{{isUrgent}}', variableKey: 'isUrgent', source: 'process' },
+        { id: 'b3', placeholder: '{{riskCount}}', variableKey: 'riskCount', source: 'process' },
+      ],
+      zones: {
+        body: {
+          blocks: [
+            {
+              id: 'x',
+              type: 'text',
+              content: heading('Project {{projectNumber}} urgent={{isUrgent}} risks={{riskCount}}'),
+            },
+          ],
+        },
+      },
+    });
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...migratedVars, isUrgent: false, riskCount: 0 })
+    );
+
+    const [, , contentB64] = mockUpload.mock.calls[0];
+    const content = Buffer.from(contentB64, 'base64').toString('utf8');
+    expect(content).toContain('urgent=false');
+    expect(content).toContain('risks=0');
   });
 });
 
@@ -260,5 +387,128 @@ describe('lifecycle', () => {
 
     w.stop();
     expect(internals(w).running).toBe(false);
+  });
+});
+
+describe('poll loop', () => {
+  /** The poll loop's own state, beyond the handler internals used above. */
+  type PollInternals = WorkerInternals & {
+    pollTimeout: ReturnType<typeof setTimeout> | null;
+    idlePollInterval: number;
+  };
+  const pollInternals = (w: ExternalTaskWorker) => w as unknown as PollInternals;
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('does nothing once the worker has been stopped', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    const fetchSpy = jest.spyOn(i, 'fetchAndLock');
+
+    i.running = false;
+    await i.poll();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('backs off for the idle interval when Operaton has no work', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    jest.spyOn(i, 'fetchAndLock').mockResolvedValue([]);
+
+    await i.poll();
+
+    expect(i.pollTimeout).not.toBeNull();
+    expect(jest.getTimerCount()).toBe(1);
+
+    // Let the scheduled callback run; it re-enters poll, which returns at once
+    // now that the worker is no longer running.
+    i.running = false;
+    jest.advanceTimersByTime(i.idlePollInterval);
+    await Promise.resolve();
+
+    w.stop();
+  });
+
+  it('handles every locked task, then polls again immediately', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    const t1 = task('rip-edocs-workspace', {});
+    const t2 = task('rip-edocs-document', {});
+    jest.spyOn(i, 'fetchAndLock').mockResolvedValue([t1, t2]);
+    // Stop after the batch so the tail-call recursion terminates.
+    const handleSpy = jest.spyOn(i, 'handleTask').mockImplementation(async () => {
+      i.running = false;
+    });
+
+    await i.poll();
+
+    expect(handleSpy).toHaveBeenCalledTimes(2);
+    expect(handleSpy).toHaveBeenCalledWith(t1);
+    expect(handleSpy).toHaveBeenCalledWith(t2);
+    // No timer: a non-empty batch re-polls straight away rather than backing off.
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('keeps a failed task from taking the whole batch down', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    const t1 = task('rip-edocs-workspace', {});
+    const t2 = task('rip-edocs-document', {});
+    jest.spyOn(i, 'fetchAndLock').mockResolvedValue([t1, t2]);
+    const handleSpy = jest
+      .spyOn(i, 'handleTask')
+      .mockRejectedValueOnce(new Error('handler blew up'))
+      .mockImplementation(async () => {
+        i.running = false;
+      });
+
+    await expect(i.poll()).resolves.toBeUndefined();
+
+    expect(handleSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('backs off rather than spinning when fetchAndLock fails', async () => {
+    const w = new ExternalTaskWorker();
+    const i = pollInternals(w);
+    i.running = true;
+    jest.spyOn(i, 'fetchAndLock').mockRejectedValue(new Error('operaton down'));
+
+    await i.poll();
+
+    expect(i.pollTimeout).not.toBeNull();
+    expect(jest.getTimerCount()).toBe(1);
+
+    i.running = false;
+    jest.advanceTimersByTime(i.idlePollInterval);
+    await Promise.resolve();
+
+    w.stop();
+  });
+});
+
+describe('handleTask dispatch — document topic', () => {
+  it('completes the rip-edocs-document topic with the uploaded document id', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+    mockPost.mockResolvedValue({}); // completeTask
+
+    await internals(new ExternalTaskWorker()).handleTask(
+      task('rip-edocs-document', {
+        edocsWorkspaceId: 'ws-1',
+        projectNumber: 'P-1',
+        projectName: 'Proj',
+        documentTemplateId: 'rip-intake-report',
+        department: 'IVR',
+      })
+    );
+
+    const [url, body] = mockPost.mock.calls[0];
+    expect(url).toBe('http://operaton/engine-rest/external-task/t-1/complete');
+    expect(body.variables.edocsDocumentId.value).toBe('555');
+    expect(body.variables.edocsDocumentId_docId.value).toBe('d1');
   });
 });

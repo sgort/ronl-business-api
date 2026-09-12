@@ -22,6 +22,13 @@ export interface JWTPayload {
   mandate?: MandateInfo;
   name?: string;
   email?: string;
+  // Not on every realm's token: this client's protocol mappers only added
+  // these once a real token was checked and found to carry neither `email`
+  // nor `name`. Preferred over splitting `name` when both are present; the
+  // split stays as the fallback for a realm that maps only `name` (a real
+  // possibility on ACC, which this repo does not control).
+  given_name?: string;
+  family_name?: string;
   preferred_username?: string;
   employeeId?: string;
 }

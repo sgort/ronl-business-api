@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR22" targetNamespace="http://example.com/rip-phase-22" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR22">
+    <bpmn:participant id="Participant_RipR22" name="R2.2 - VO" processRef="RipR22Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR22Process" name="R2.2 - VO" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR22">
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>StartEvent_R22</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UitgangspuntenSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_UitvoerenConditionerendeOnderzoeken</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UitgangspuntenJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BesprekenSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BesprekenJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AfrondingSplit</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Ontwerper" name="Ontwerper">
+        <bpmn:flowNodeRef>Task_OpstellenConceptVO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenDefinitiefVO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_VOGereed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_RIPteam_Aandrager_Adviseur" name="RIP-team, Aandrager, Adviseur">
+        <bpmn:flowNodeRef>Task_BesprekenConceptVO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BesprekenKlanteisenKL</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Omgevingsmanager" name="Omgevingsmanager">
+        <bpmn:flowNodeRef>Task_VerzamelenKlanteisen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InventariserenKabelsLeidingen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanvragenRaamvergunning</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TerugkoppelenKlanteisen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_KlanteisenTeruggekoppeld</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_R22" name="Start R2.2 - VO&#10;(vanuit R2.1)">
+      <bpmn:outgoing>Flow_StartEvent_R22_Gateway_UitgangspuntenSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:parallelGateway id="Gateway_UitgangspuntenSplit">
+      <bpmn:incoming>Flow_StartEvent_R22_Gateway_UitgangspuntenSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_UitgangspuntenSplit_Task_UitvoerenConditionerendeOnderzoeken</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_UitgangspuntenSplit_Task_OpstellenConceptVO</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_UitgangspuntenSplit_Task_VerzamelenKlanteisen</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_UitgangspuntenSplit_Task_InventariserenKabelsLeidingen</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_UitgangspuntenSplit_Task_AanvragenRaamvergunning</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_UitvoerenConditionerendeOnderzoeken" name="Uitvoeren conditionerende onderzoeken" camunda:formRef="rip-conditionerende-onderzoeken" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_UitvoerenConditionerendeOnderzoeken</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UitvoerenConditionerendeOnderzoeken_Gateway_UitgangspuntenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenConceptVO" name="Opstellen concept VO" camunda:formRef="rip-concept-vo" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ontwerper" ronl:documentRef="rip-ontwerptoelichting">
+      <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_OpstellenConceptVO</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenConceptVO_Gateway_UitgangspuntenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VerzamelenKlanteisen" name="Verzamelen klanteisen" camunda:formRef="rip-verzamelen-klanteisen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-omgevingsmanager" ronl:documentRef="rip-kes">
+      <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_VerzamelenKlanteisen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerzamelenKlanteisen_Gateway_UitgangspuntenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InventariserenKabelsLeidingen" name="Inventariseren&#10;kabels en leidingen" camunda:formRef="rip-inventariseren-kabels-leidingen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-omgevingsmanager">
+      <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_InventariserenKabelsLeidingen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InventariserenKabelsLeidingen_Gateway_UitgangspuntenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AanvragenRaamvergunning" name="Aanvragen raamvergunning" camunda:formRef="rip-aanvragen-raamvergunning" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-omgevingsmanager">
+      <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_AanvragenRaamvergunning</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AanvragenRaamvergunning_Gateway_UitgangspuntenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_UitgangspuntenJoin">
+      <bpmn:incoming>Flow_Task_UitvoerenConditionerendeOnderzoeken_Gateway_UitgangspuntenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_OpstellenConceptVO_Gateway_UitgangspuntenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_VerzamelenKlanteisen_Gateway_UitgangspuntenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_InventariserenKabelsLeidingen_Gateway_UitgangspuntenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_AanvragenRaamvergunning_Gateway_UitgangspuntenJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_UitgangspuntenJoin_Gateway_BesprekenSplit</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:parallelGateway id="Gateway_BesprekenSplit">
+      <bpmn:incoming>Flow_Gateway_UitgangspuntenJoin_Gateway_BesprekenSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BesprekenSplit_Task_BesprekenConceptVO</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_BesprekenSplit_Task_BesprekenKlanteisenKL</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_BesprekenConceptVO" name="Bespreken concept VO" camunda:formRef="rip-bespreken-concept-vo" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-team,rip-aandrager,rip-adviseur" ronl:documentRef="rip-bevindingenformulier">
+      <bpmn:incoming>Flow_Gateway_BesprekenSplit_Task_BesprekenConceptVO</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BesprekenConceptVO_Gateway_BesprekenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BesprekenKlanteisenKL" name="Bespreken klanteisen en&#10;kabels en leidingen" camunda:formRef="rip-bespreken-klanteisen-kl" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-team,rip-aandrager,rip-adviseur">
+      <bpmn:incoming>Flow_Gateway_BesprekenSplit_Task_BesprekenKlanteisenKL</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BesprekenKlanteisenKL_Gateway_BesprekenJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_BesprekenJoin">
+      <bpmn:incoming>Flow_Task_BesprekenConceptVO_Gateway_BesprekenJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_BesprekenKlanteisenKL_Gateway_BesprekenJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BesprekenJoin_Gateway_AfrondingSplit</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:parallelGateway id="Gateway_AfrondingSplit">
+      <bpmn:incoming>Flow_Gateway_BesprekenJoin_Gateway_AfrondingSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AfrondingSplit_Task_TerugkoppelenKlanteisen</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AfrondingSplit_Task_OpstellenDefinitiefVO</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_TerugkoppelenKlanteisen" name="Terugkoppelen klanteisen" camunda:formRef="rip-terugkoppelen-klanteisen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-omgevingsmanager">
+      <bpmn:incoming>Flow_Gateway_AfrondingSplit_Task_TerugkoppelenKlanteisen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_TerugkoppelenKlanteisen_EndEvent_KlanteisenTeruggekoppeld</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenDefinitiefVO" name="Opstellen definitief VO" camunda:formRef="rip-definitief-vo" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ontwerper" ronl:documentRef="rip-hoeveelheidsbepaling">
+      <bpmn:incoming>Flow_Gateway_AfrondingSplit_Task_OpstellenDefinitiefVO</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenDefinitiefVO_EndEvent_VOGereed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_KlanteisenTeruggekoppeld" name="Klanteisen teruggekoppeld">
+      <bpmn:incoming>Flow_Task_TerugkoppelenKlanteisen_EndEvent_KlanteisenTeruggekoppeld</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_VOGereed" name="VO gereed&#10;→ R2.3 Opstellen VO-raming">
+      <bpmn:incoming>Flow_Task_OpstellenDefinitiefVO_EndEvent_VOGereed</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_StartEvent_R22_Gateway_UitgangspuntenSplit" sourceRef="StartEvent_R22" targetRef="Gateway_UitgangspuntenSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitgangspuntenSplit_Task_UitvoerenConditionerendeOnderzoeken" sourceRef="Gateway_UitgangspuntenSplit" targetRef="Task_UitvoerenConditionerendeOnderzoeken" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitgangspuntenSplit_Task_OpstellenConceptVO" sourceRef="Gateway_UitgangspuntenSplit" targetRef="Task_OpstellenConceptVO" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitgangspuntenSplit_Task_VerzamelenKlanteisen" sourceRef="Gateway_UitgangspuntenSplit" targetRef="Task_VerzamelenKlanteisen" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitgangspuntenSplit_Task_InventariserenKabelsLeidingen" sourceRef="Gateway_UitgangspuntenSplit" targetRef="Task_InventariserenKabelsLeidingen" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitgangspuntenSplit_Task_AanvragenRaamvergunning" sourceRef="Gateway_UitgangspuntenSplit" targetRef="Task_AanvragenRaamvergunning" />
+    <bpmn:sequenceFlow id="Flow_Task_UitvoerenConditionerendeOnderzoeken_Gateway_UitgangspuntenJoin" sourceRef="Task_UitvoerenConditionerendeOnderzoeken" targetRef="Gateway_UitgangspuntenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenConceptVO_Gateway_UitgangspuntenJoin" sourceRef="Task_OpstellenConceptVO" targetRef="Gateway_UitgangspuntenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_VerzamelenKlanteisen_Gateway_UitgangspuntenJoin" sourceRef="Task_VerzamelenKlanteisen" targetRef="Gateway_UitgangspuntenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_InventariserenKabelsLeidingen_Gateway_UitgangspuntenJoin" sourceRef="Task_InventariserenKabelsLeidingen" targetRef="Gateway_UitgangspuntenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_AanvragenRaamvergunning_Gateway_UitgangspuntenJoin" sourceRef="Task_AanvragenRaamvergunning" targetRef="Gateway_UitgangspuntenJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitgangspuntenJoin_Gateway_BesprekenSplit" sourceRef="Gateway_UitgangspuntenJoin" targetRef="Gateway_BesprekenSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_BesprekenSplit_Task_BesprekenConceptVO" sourceRef="Gateway_BesprekenSplit" targetRef="Task_BesprekenConceptVO" />
+    <bpmn:sequenceFlow id="Flow_Gateway_BesprekenSplit_Task_BesprekenKlanteisenKL" sourceRef="Gateway_BesprekenSplit" targetRef="Task_BesprekenKlanteisenKL" />
+    <bpmn:sequenceFlow id="Flow_Task_BesprekenConceptVO_Gateway_BesprekenJoin" sourceRef="Task_BesprekenConceptVO" targetRef="Gateway_BesprekenJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_BesprekenKlanteisenKL_Gateway_BesprekenJoin" sourceRef="Task_BesprekenKlanteisenKL" targetRef="Gateway_BesprekenJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_BesprekenJoin_Gateway_AfrondingSplit" sourceRef="Gateway_BesprekenJoin" targetRef="Gateway_AfrondingSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfrondingSplit_Task_TerugkoppelenKlanteisen" sourceRef="Gateway_AfrondingSplit" targetRef="Task_TerugkoppelenKlanteisen" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfrondingSplit_Task_OpstellenDefinitiefVO" sourceRef="Gateway_AfrondingSplit" targetRef="Task_OpstellenDefinitiefVO" />
+    <bpmn:sequenceFlow id="Flow_Task_TerugkoppelenKlanteisen_EndEvent_KlanteisenTeruggekoppeld" sourceRef="Task_TerugkoppelenKlanteisen" targetRef="EndEvent_KlanteisenTeruggekoppeld" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenDefinitiefVO_EndEvent_VOGereed" sourceRef="Task_OpstellenDefinitiefVO" targetRef="EndEvent_VOGereed" />
+    <bpmn:textAnnotation id="Annotation_JU35">
+      <bpmn:text>JU3.5 Aanvragen vergunning (Omgevingsloket)</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_JU35" sourceRef="Task_AanvragenRaamvergunning" targetRef="Annotation_JU35" />
+    <bpmn:textAnnotation id="Annotation_CO1_Knelpunten_KL">
+      <bpmn:text>CO1. Uitvoeren knelpuntenanalyse</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_CO1_Knelpunten_KL" sourceRef="Task_InventariserenKabelsLeidingen" targetRef="Annotation_CO1_Knelpunten_KL" />
+    <bpmn:textAnnotation id="Annotation_CO1_Knelpunten_Bespreken">
+      <bpmn:text>CO1. Uitvoeren knelpuntenanalyse</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_CO1_Knelpunten_Bespreken" sourceRef="Task_BesprekenKlanteisenKL" targetRef="Annotation_CO1_Knelpunten_Bespreken" />
+    <bpmn:textAnnotation id="Annotation_CO1_Netbeheerder">
+      <bpmn:text>CO1. Voeren overleg netbeheerder</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_CO1_Netbeheerder" sourceRef="Task_OpstellenDefinitiefVO" targetRef="Annotation_CO1_Netbeheerder" />
+    <bpmn:textAnnotation id="Annotation_JoinTerugkeer">
+      <bpmn:text>Alle vijf takken keren hier terug. De PDF toont dat Inventariseren kabels en leidingen en Aanvragen raamvergunning de pool verlaten zonder terugkeer; letterlijk gemodelleerd blokkeert deze join. De terugkeer is toegevoegd om het proces uitvoerbaar te maken.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_JoinTerugkeer" sourceRef="Gateway_UitgangspuntenJoin" targetRef="Annotation_JoinTerugkeer" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR22">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR22" bpmnElement="Collaboration_RipR22">
+      <bpmndi:BPMNShape id="Participant_RipR22_di" bpmnElement="Participant_RipR22" isHorizontal="true">
+        <dc:Bounds x="155" y="80" width="1600" height="1000" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="185" y="80" width="1570" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Ontwerper_di" bpmnElement="Lane_Ontwerper" isHorizontal="true">
+        <dc:Bounds x="185" y="260" width="1570" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_RIPteam_Aandrager_Adviseur_di" bpmnElement="Lane_RIPteam_Aandrager_Adviseur" isHorizontal="true">
+        <dc:Bounds x="185" y="440" width="1570" height="260" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Omgevingsmanager_di" bpmnElement="Lane_Omgevingsmanager" isHorizontal="true">
+        <dc:Bounds x="185" y="700" width="1570" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R22_di" bpmnElement="StartEvent_R22">
+        <dc:Bounds x="232" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="211" y="195" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_UitgangspuntenSplit_di" bpmnElement="Gateway_UitgangspuntenSplit">
+        <dc:Bounds x="320" y="145" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UitvoerenConditionerendeOnderzoeken_di" bpmnElement="Task_UitvoerenConditionerendeOnderzoeken">
+        <dc:Bounds x="440" y="130" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenConceptVO_di" bpmnElement="Task_OpstellenConceptVO">
+        <dc:Bounds x="440" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerzamelenKlanteisen_di" bpmnElement="Task_VerzamelenKlanteisen">
+        <dc:Bounds x="440" y="730" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InventariserenKabelsLeidingen_di" bpmnElement="Task_InventariserenKabelsLeidingen">
+        <dc:Bounds x="440" y="850" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanvragenRaamvergunning_di" bpmnElement="Task_AanvragenRaamvergunning">
+        <dc:Bounds x="440" y="970" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_UitgangspuntenJoin_di" bpmnElement="Gateway_UitgangspuntenJoin">
+        <dc:Bounds x="680" y="145" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BesprekenSplit_di" bpmnElement="Gateway_BesprekenSplit">
+        <dc:Bounds x="790" y="145" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BesprekenConceptVO_di" bpmnElement="Task_BesprekenConceptVO">
+        <dc:Bounds x="910" y="480" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BesprekenKlanteisenKL_di" bpmnElement="Task_BesprekenKlanteisenKL">
+        <dc:Bounds x="910" y="590" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BesprekenJoin_di" bpmnElement="Gateway_BesprekenJoin">
+        <dc:Bounds x="1150" y="145" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AfrondingSplit_di" bpmnElement="Gateway_AfrondingSplit">
+        <dc:Bounds x="1260" y="145" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenDefinitiefVO_di" bpmnElement="Task_OpstellenDefinitiefVO">
+        <dc:Bounds x="1380" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TerugkoppelenKlanteisen_di" bpmnElement="Task_TerugkoppelenKlanteisen">
+        <dc:Bounds x="1380" y="730" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_VOGereed_di" bpmnElement="EndEvent_VOGereed">
+        <dc:Bounds x="1620" y="332" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1598" y="375" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_KlanteisenTeruggekoppeld_di" bpmnElement="EndEvent_KlanteisenTeruggekoppeld">
+        <dc:Bounds x="1620" y="752" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1600" y="795" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_JU35_di" bpmnElement="Annotation_JU35">
+        <dc:Bounds x="700" y="965" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_CO1_Knelpunten_KL_di" bpmnElement="Annotation_CO1_Knelpunten_KL">
+        <dc:Bounds x="700" y="845" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_CO1_Knelpunten_Bespreken_di" bpmnElement="Annotation_CO1_Knelpunten_Bespreken">
+        <dc:Bounds x="910" y="690" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_CO1_Netbeheerder_di" bpmnElement="Annotation_CO1_Netbeheerder">
+        <dc:Bounds x="1380" y="420" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_JoinTerugkeer_di" bpmnElement="Annotation_JoinTerugkeer">
+        <dc:Bounds x="860" y="85" width="220" height="55" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R22_Gateway_UitgangspuntenSplit_di" bpmnElement="Flow_StartEvent_R22_Gateway_UitgangspuntenSplit">
+        <di:waypoint x="268" y="170" />
+        <di:waypoint x="320" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitgangspuntenSplit_Task_UitvoerenConditionerendeOnderzoeken_di" bpmnElement="Flow_Gateway_UitgangspuntenSplit_Task_UitvoerenConditionerendeOnderzoeken">
+        <di:waypoint x="370" y="170" />
+        <di:waypoint x="440" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitgangspuntenSplit_Task_OpstellenConceptVO_di" bpmnElement="Flow_Gateway_UitgangspuntenSplit_Task_OpstellenConceptVO">
+        <di:waypoint x="345" y="195" />
+        <di:waypoint x="345" y="350" />
+        <di:waypoint x="440" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitgangspuntenSplit_Task_VerzamelenKlanteisen_di" bpmnElement="Flow_Gateway_UitgangspuntenSplit_Task_VerzamelenKlanteisen">
+        <di:waypoint x="345" y="195" />
+        <di:waypoint x="345" y="770" />
+        <di:waypoint x="440" y="770" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitgangspuntenSplit_Task_InventariserenKabelsLeidingen_di" bpmnElement="Flow_Gateway_UitgangspuntenSplit_Task_InventariserenKabelsLeidingen">
+        <di:waypoint x="345" y="195" />
+        <di:waypoint x="345" y="890" />
+        <di:waypoint x="440" y="890" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitgangspuntenSplit_Task_AanvragenRaamvergunning_di" bpmnElement="Flow_Gateway_UitgangspuntenSplit_Task_AanvragenRaamvergunning">
+        <di:waypoint x="345" y="195" />
+        <di:waypoint x="345" y="1010" />
+        <di:waypoint x="440" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UitvoerenConditionerendeOnderzoeken_Gateway_UitgangspuntenJoin_di" bpmnElement="Flow_Task_UitvoerenConditionerendeOnderzoeken_Gateway_UitgangspuntenJoin">
+        <di:waypoint x="600" y="170" />
+        <di:waypoint x="680" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenConceptVO_Gateway_UitgangspuntenJoin_di" bpmnElement="Flow_Task_OpstellenConceptVO_Gateway_UitgangspuntenJoin">
+        <di:waypoint x="600" y="350" />
+        <di:waypoint x="660" y="350" />
+        <di:waypoint x="660" y="170" />
+        <di:waypoint x="680" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerzamelenKlanteisen_Gateway_UitgangspuntenJoin_di" bpmnElement="Flow_Task_VerzamelenKlanteisen_Gateway_UitgangspuntenJoin">
+        <di:waypoint x="600" y="770" />
+        <di:waypoint x="660" y="770" />
+        <di:waypoint x="660" y="170" />
+        <di:waypoint x="680" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InventariserenKabelsLeidingen_Gateway_UitgangspuntenJoin_di" bpmnElement="Flow_Task_InventariserenKabelsLeidingen_Gateway_UitgangspuntenJoin">
+        <di:waypoint x="600" y="890" />
+        <di:waypoint x="660" y="890" />
+        <di:waypoint x="660" y="170" />
+        <di:waypoint x="680" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AanvragenRaamvergunning_Gateway_UitgangspuntenJoin_di" bpmnElement="Flow_Task_AanvragenRaamvergunning_Gateway_UitgangspuntenJoin">
+        <di:waypoint x="600" y="1010" />
+        <di:waypoint x="660" y="1010" />
+        <di:waypoint x="660" y="170" />
+        <di:waypoint x="680" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitgangspuntenJoin_Gateway_BesprekenSplit_di" bpmnElement="Flow_Gateway_UitgangspuntenJoin_Gateway_BesprekenSplit">
+        <di:waypoint x="730" y="170" />
+        <di:waypoint x="790" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BesprekenSplit_Task_BesprekenConceptVO_di" bpmnElement="Flow_Gateway_BesprekenSplit_Task_BesprekenConceptVO">
+        <di:waypoint x="815" y="195" />
+        <di:waypoint x="815" y="520" />
+        <di:waypoint x="910" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BesprekenSplit_Task_BesprekenKlanteisenKL_di" bpmnElement="Flow_Gateway_BesprekenSplit_Task_BesprekenKlanteisenKL">
+        <di:waypoint x="815" y="195" />
+        <di:waypoint x="815" y="630" />
+        <di:waypoint x="910" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BesprekenConceptVO_Gateway_BesprekenJoin_di" bpmnElement="Flow_Task_BesprekenConceptVO_Gateway_BesprekenJoin">
+        <di:waypoint x="1070" y="520" />
+        <di:waypoint x="1110" y="520" />
+        <di:waypoint x="1110" y="170" />
+        <di:waypoint x="1150" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BesprekenKlanteisenKL_Gateway_BesprekenJoin_di" bpmnElement="Flow_Task_BesprekenKlanteisenKL_Gateway_BesprekenJoin">
+        <di:waypoint x="1070" y="630" />
+        <di:waypoint x="1110" y="630" />
+        <di:waypoint x="1110" y="170" />
+        <di:waypoint x="1150" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BesprekenJoin_Gateway_AfrondingSplit_di" bpmnElement="Flow_Gateway_BesprekenJoin_Gateway_AfrondingSplit">
+        <di:waypoint x="1200" y="170" />
+        <di:waypoint x="1260" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfrondingSplit_Task_TerugkoppelenKlanteisen_di" bpmnElement="Flow_Gateway_AfrondingSplit_Task_TerugkoppelenKlanteisen">
+        <di:waypoint x="1285" y="195" />
+        <di:waypoint x="1285" y="770" />
+        <di:waypoint x="1380" y="770" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfrondingSplit_Task_OpstellenDefinitiefVO_di" bpmnElement="Flow_Gateway_AfrondingSplit_Task_OpstellenDefinitiefVO">
+        <di:waypoint x="1285" y="195" />
+        <di:waypoint x="1285" y="350" />
+        <di:waypoint x="1380" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_TerugkoppelenKlanteisen_EndEvent_KlanteisenTeruggekoppeld_di" bpmnElement="Flow_Task_TerugkoppelenKlanteisen_EndEvent_KlanteisenTeruggekoppeld">
+        <di:waypoint x="1540" y="770" />
+        <di:waypoint x="1620" y="770" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenDefinitiefVO_EndEvent_VOGereed_di" bpmnElement="Flow_Task_OpstellenDefinitiefVO_EndEvent_VOGereed">
+        <di:waypoint x="1540" y="350" />
+        <di:waypoint x="1620" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_JU35_di" bpmnElement="Association_JU35">
+        <di:waypoint x="600" y="1005" />
+        <di:waypoint x="700" y="995" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_CO1_Knelpunten_KL_di" bpmnElement="Association_CO1_Knelpunten_KL">
+        <di:waypoint x="600" y="885" />
+        <di:waypoint x="700" y="875" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_CO1_Knelpunten_Bespreken_di" bpmnElement="Association_CO1_Knelpunten_Bespreken">
+        <di:waypoint x="990" y="670" />
+        <di:waypoint x="990" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_CO1_Netbeheerder_di" bpmnElement="Association_CO1_Netbeheerder">
+        <di:waypoint x="1460" y="390" />
+        <di:waypoint x="1460" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_JoinTerugkeer_di" bpmnElement="Association_JoinTerugkeer">
+        <di:waypoint x="705" y="145" />
+        <di:waypoint x="860" y="115" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

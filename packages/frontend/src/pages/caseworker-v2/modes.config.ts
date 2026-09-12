@@ -1,18 +1,19 @@
 /**
  * Caseworker Dashboard V2 — mode + section configuration
  *
- * The V2 shell groups the existing ~25 sections into 3 modes:
+ * The V2 shell groups the existing ~25 sections into 4 modes:
  *
- *   1. Werk    — daily work surface (Taken inbox is default landing)
- *   2. Zoeken  — reference / lookup library
- *   3. Beheer  — admin, profile, IOU meta, projects (RIP)
+ *   1. Werk       — daily work surface (Taken inbox is default landing)
+ *   2. Zoeken     — reference / lookup library
+ *   3. Simulatie  — rule simulation (Regelsimulatie)
+ *   4. Beheer     — admin, profile, IOU meta, projects (RIP)
  *
  * Section ids match the `activeSection` strings used in the existing
  * `CaseworkerDashboard.tsx`, so the same SectionRouter can dispatch to the
  * existing components without changes.
  */
 
-export type ModeId = 'werk' | 'zoeken' | 'beheer';
+export type ModeId = 'werk' | 'zoeken' | 'simulatie' | 'beheer';
 
 export type OrgTypeGate = 'municipality' | 'province' | 'national' | 'commercial';
 
@@ -129,6 +130,16 @@ export const MODES: ModeConfig[] = [
     ],
   },
   {
+    id: 'simulatie',
+    label: 'Simulatie',
+    defaultSectionId: 'regelsimulatie',
+    groups: [
+      {
+        items: [{ id: 'regelsimulatie', label: 'Subsidie thuisbatterij', authRequired: true }],
+      },
+    ],
+  },
+  {
     id: 'beheer',
     label: 'Beheer',
     defaultSectionId: 'profiel',
@@ -192,27 +203,7 @@ export const MODES: ModeConfig[] = [
       {
         // V1 "Projecten" — RIP flows + Actieve zaken + Archief
         label: 'Projecten',
-        items: [
-          {
-            id: 'rip-fase1',
-            label: 'RIP Fase 1 starten',
-            authRequired: true,
-            requiredRoles: ['infra-projectteam'],
-          },
-          {
-            id: 'rip-fase1-wip',
-            label: 'RIP Fase 1 WIP',
-            authRequired: true,
-            requiredRoles: ['infra-projectteam'],
-          },
-          {
-            id: 'rip-fase1-gereed',
-            label: 'RIP Fase 1 gereed',
-            authRequired: true,
-            requiredRoles: ['infra-projectteam'],
-          },
-          { id: 'archief', label: 'Archief', authRequired: true },
-        ],
+        items: [{ id: 'archief', label: 'Archief', authRequired: true }],
       },
       {
         // V1 "IOU" tab
@@ -296,6 +287,7 @@ const SHELL_GLOBAL_SECTION_IDS: ReadonlySet<string> = new Set([
   'filter-week',
   'dvtp-start',
   'dvtp-taken',
+  'regelsimulatie',
 ]);
 
 export function isRailItemVisible(item: RailItem, ctx: GateContext): boolean {

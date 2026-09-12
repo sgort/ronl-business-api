@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
-import { useActivePhase1 } from '../../services/infra.api';
+import { useRipActiveAcrossPhases } from '../../services/infra.api';
 import type { InfraModeId } from '../../pages/infra-board/modes.config';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
 
@@ -24,13 +24,13 @@ export default function InfraCommandPalette({
   const [q, setQ] = useState('');
   const [hi, setHi] = useState(0);
   const ref = useRef<HTMLInputElement>(null);
-  const { data: live } = useActivePhase1();
+  const { data: live } = useRipActiveAcrossPhases();
 
   const items: Hit[] = useMemo(() => {
     const views: Hit[] = [
       { kind: 'view', id: 'mijn-dag', label: 'Mijn dag', tag: 'weergave' },
       { kind: 'view', id: 'portfolio', label: 'Portfolio', tag: 'weergave' },
-      { kind: 'view', id: 'beheer', label: 'Beheer · RIP Fase 1', tag: 'weergave' },
+      { kind: 'view', id: 'beheer', label: 'Beheer · Faseladder', tag: 'weergave' },
     ];
     const liveRows: Hit[] = (live ?? []).map((i) => ({
       kind: 'project',

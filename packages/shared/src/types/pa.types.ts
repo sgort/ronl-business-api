@@ -1,3 +1,34 @@
+/**
+ * media-aggregator's wire contract — the shape returned by
+ * GET /v1/media-aggregator/search. Canonical definition; both the aggregator
+ * (media-aggregator/types.ts) and its consumer (pa-monitoring/sources/media.client.ts)
+ * import this instead of keeping their own copies in sync by hand.
+ */
+export interface AggregatorArticle {
+  /** Stable id derived from the canonical URL. */
+  id: string;
+  /** Set when this article is one copy of a syndicated cluster; null for singletons.
+   *  The cockpit collapses a cluster to one candidate via `duplicate_group_id ?? id`. */
+  duplicate_group_id: string | null;
+  canonical_url: string;
+  title: string;
+  /** ≤ ~50-word plain-text summary (RSS description, stripped). */
+  summary_short: string;
+  /** ISO-8601 timestamp. */
+  published_at: string;
+  /** Gazetteer-detected province — 'Flevoland' or null. Display-only in the cockpit. */
+  province: string | null;
+  /** Gazetteer-detected municipality — one of the six, or null. Display-only. */
+  municipality: string | null;
+  /** AI sentiment — phase-2 (null in v1). Display-only, never scored. */
+  sentiment: 'positief' | 'neutraal' | 'negatief' | null;
+  source: {
+    name: string;
+    type: 'national' | 'regional';
+    homepage: string;
+  };
+}
+
 export interface Signal {
   id: string;
   tab: 'politiek' | 'regionaal' | 'europa' | 'media';
@@ -5,7 +36,10 @@ export interface Signal {
   title: string;
   src: string;
   bron: 'tk' | 'ob' | 'eu' | 'media' | null;
-  /** EU sub-source identifier: 'ep-rss' (plenary RSS) or 'ep-teksten' (texts-submitted).
+  /** EU sub-source identifier: 'ep-rss' (plenary documents, now via the EP Open
+   *  Data API — the key predates the move off RSS and is kept so the stream's
+   *  signals stay together) or 'ep-teksten' (texts-submitted). 'ep-persbericht'
+   *  occurs only on signals persisted before press releases were dropped (#55).
    *  Media sub-source: 'nieuws-nationaal' | 'nieuws-regionaal'. */
   subbron?: string | null;
   /** EP committee code (ITRE, ENVI, …). Display only — not used for scoring. */

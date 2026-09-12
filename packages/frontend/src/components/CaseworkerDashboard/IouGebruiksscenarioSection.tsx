@@ -602,13 +602,15 @@ ${PO_ASSESSMENT_TEMPLATE}`;
             </label>
           ))}
           <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.materials.has('__other__')}
-              onChange={() => toggleMaterial('__other__')}
-              className="accent-blue-600"
-            />
-            <span className="text-sm">Overig / Other:</span>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.materials.has('__other__')}
+                onChange={() => toggleMaterial('__other__')}
+                className="accent-blue-600"
+              />
+              Overig / Other:
+            </label>
             <input
               type="text"
               className="border border-gray-300 rounded px-2 py-1 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"

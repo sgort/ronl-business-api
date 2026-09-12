@@ -1,0 +1,1105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR52Process" targetNamespace="http://example.com/rip-phase-52" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR52Process">
+    <bpmn:participant id="Participant_RipR52Process" name="R5.2 - Directievoering en toezicht UAV" processRef="RipR52Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR52Process" name="R5.2 - Directievoering en toezicht UAV" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR52Process">
+      <bpmn:lane id="Lane_Ondersteuner" name="Ondersteuner">
+        <bpmn:flowNodeRef>Task_OpstellenBriefAkkoordAfwijzing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InvullenWebformulierAtb</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AO" name="AO">
+        <bpmn:flowNodeRef>Task_AccorderenFactuur</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BeoordelenVerzoekOpleveringAo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IndienenBriefBijBesluitvorming</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>Task_AccorderenFactuurDoorsturenAo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VerzoekSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SturenVerzoekOpleveringEnBeoordeling</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BeoordelenVerzoekOpleveringPl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_BinnenBuitenKrediet</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MakenNotaConcerndirecteur</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Waarde</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MakenNotaAo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LatenInvullenWebformulierAtb</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotaJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VerzoekJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Aannemer" name="Aannemer">
+        <bpmn:flowNodeRef>StartEvent_R52</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UitvoeringSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WeekStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WeekAfwSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenWeekstaat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenWeekstaat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WeekstaatBeoordelingSplit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WeekstaatBeoordelingJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WeekstaatAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanpassenWeekstaat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_MeldenAfwijking</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanpassenAfwijkingenrapport</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WeekAfwJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SturenFactuurAanOg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AanvragenTotOpneming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerzoekenTotUitstelOpleveren</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UitvoeringJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_R53</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Toezichthouder" name="Toezichthouder">
+        <bpmn:flowNodeRef>Task_UitvoerenWerkzaamhedenToezichtsplan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BeoordelenEnSturenBeoordelingWeekstaat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InvoerenAantallenWeekstaat</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Directievoerder" name="Directievoerder">
+        <bpmn:flowNodeRef>Task_BeoordelenWeekstaat</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AfstemmenAfwijking</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AfwijkingAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Directievoering</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_TermijnenContract</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DoorsturenGeaccordeerdeTermijn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SturenOverzichtAwr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OnderhandelenPrijzen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SturenAangepastOverzichtAwr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AwrJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenOverzichtAwrDv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WerkGereed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_BeoordelenVerzoekOpleverenDv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SturenAdviesVerzoekOpleveren</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaatsenBriefInVisi</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_KostenContractdeskundige" name="Kosten- en contractdeskundige">
+        <bpmn:flowNodeRef>Task_BeoordelenOverzichtAwr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AwrAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RetourSturenOverzichtAwr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VersturenOverzichtAwrKc</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R52" name="Start werk &quot;buiten&quot;&#10;(vanuit R5.1)">
+      <bpmn:outgoing>Flow_StartEvent_R52_Gateway_UitvoeringSplit</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:parallelGateway id="Gateway_UitvoeringSplit">
+      <bpmn:incoming>Flow_StartEvent_R52_Gateway_UitvoeringSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_UitvoeringSplit_Gateway_WeekStart</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_UitvoeringSplit_Task_SturenFactuurAanOg</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_UitvoeringSplit_Task_AanvragenTotOpneming</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="Gateway_WeekStart" name="Volgende week">
+      <bpmn:incoming>Flow_Gateway_UitvoeringSplit_Gateway_WeekStart</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_WerkGereed_Gateway_WeekStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WeekStart_Gateway_WeekAfwSplit</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_WeekAfwSplit">
+      <bpmn:incoming>Flow_Gateway_WeekStart_Gateway_WeekAfwSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WeekAfwSplit_Task_UitvoerenWerkzaamhedenToezichtsplan</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_WeekAfwSplit_Task_MeldenAfwijking</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_UitvoerenWerkzaamhedenToezichtsplan" name="Uitvoeren werkzaamheden&#10;conform toezichtsplan" camunda:formRef="rip-uitvoeren-toezichtsplan" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-toezichthouder">
+      <bpmn:incoming>Flow_Gateway_WeekAfwSplit_Task_UitvoerenWerkzaamhedenToezichtsplan</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_UitvoerenWerkzaamhedenToezichtsplan_Task_OpstellenWeekstaat</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenWeekstaat" name="Opstellen&#10;weekstaat" camunda:formRef="rip-opstellen-weekstaat" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer" ronl:documentRef="rip-weekstaat">
+      <bpmn:incoming>Flow_Task_UitvoerenWerkzaamhedenToezichtsplan_Task_OpstellenWeekstaat</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenWeekstaat_Task_VersturenWeekstaat</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenWeekstaat" name="Versturen weekstaat&#10;aan DV en TZH" camunda:formRef="rip-versturen-weekstaat" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer">
+      <bpmn:incoming>Flow_Task_OpstellenWeekstaat_Task_VersturenWeekstaat</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_AanpassenWeekstaat_Task_VersturenWeekstaat</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenWeekstaat_Gateway_WeekstaatBeoordelingSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_WeekstaatBeoordelingSplit">
+      <bpmn:incoming>Flow_Task_VersturenWeekstaat_Gateway_WeekstaatBeoordelingSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenEnSturenBeoordelingWeekstaat</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenWeekstaat</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_BeoordelenEnSturenBeoordelingWeekstaat" name="Beoordelen en sturen&#10;beoordeling weekstaat" camunda:formRef="rip-beoordelen-sturen-weekstaat" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-toezichthouder">
+      <bpmn:incoming>Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenEnSturenBeoordelingWeekstaat</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenEnSturenBeoordelingWeekstaat_Gateway_WeekstaatBeoordelingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenWeekstaat" name="Beoordelen&#10;weekstaat" camunda:formRef="rip-beoordelen-weekstaat" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenWeekstaat</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenWeekstaat_Gateway_WeekstaatBeoordelingJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_WeekstaatBeoordelingJoin">
+      <bpmn:incoming>Flow_Task_BeoordelenEnSturenBeoordelingWeekstaat_Gateway_WeekstaatBeoordelingJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_BeoordelenWeekstaat_Gateway_WeekstaatBeoordelingJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WeekstaatBeoordelingJoin_Gateway_WeekstaatAkkoord</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="Gateway_WeekstaatAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Gateway_WeekstaatBeoordelingJoin_Gateway_WeekstaatAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WeekstaatAkkoord_Task_AanpassenWeekstaat</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_WeekstaatAkkoord_Task_InvoerenAantallenWeekstaat</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AanpassenWeekstaat" name="Aanpassen&#10;weekstaat" camunda:formRef="rip-aanpassen-weekstaat" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer">
+      <bpmn:incoming>Flow_Gateway_WeekstaatAkkoord_Task_AanpassenWeekstaat</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AanpassenWeekstaat_Task_VersturenWeekstaat</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InvoerenAantallenWeekstaat" name="Invoeren aantallen weekstaat in&#10;besteksadministratie (wekelijks)" camunda:formRef="rip-invoeren-aantallen-weekstaat" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-toezichthouder">
+      <bpmn:incoming>Flow_Gateway_WeekstaatAkkoord_Task_InvoerenAantallenWeekstaat</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InvoerenAantallenWeekstaat_Gateway_WeekAfwJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_MeldenAfwijking" name="Melden afwijking&#10;(ON)" camunda:formRef="rip-melden-afwijking" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer" ronl:documentRef="rip-afwijkingenrapport">
+      <bpmn:incoming>Flow_Gateway_WeekAfwSplit_Task_MeldenAfwijking</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_MeldenAfwijking_Task_AfstemmenAfwijking</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AfstemmenAfwijking" name="Afstemmen afwijking met&#10;adviseur, ontwerper en PL" camunda:formRef="rip-afstemmen-afwijking" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-advies-afwijking">
+      <bpmn:incoming>Flow_Task_MeldenAfwijking_Task_AfstemmenAfwijking</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_AanpassenAfwijkingenrapport_Task_AfstemmenAfwijking</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AfstemmenAfwijking_Gateway_AfwijkingAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AfwijkingAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_AfstemmenAfwijking_Gateway_AfwijkingAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AfwijkingAkkoord_Task_AanpassenAfwijkingenrapport</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AfwijkingAkkoord_Gateway_WeekAfwJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AanpassenAfwijkingenrapport" name="Aanpassen&#10;afwijkingenrapport (ON)" camunda:formRef="rip-aanpassen-afwijkingenrapport" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer">
+      <bpmn:incoming>Flow_Gateway_AfwijkingAkkoord_Task_AanpassenAfwijkingenrapport</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AanpassenAfwijkingenrapport_Task_AfstemmenAfwijking</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_WeekAfwJoin">
+      <bpmn:incoming>Flow_Task_InvoerenAantallenWeekstaat_Gateway_WeekAfwJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_AfwijkingAkkoord_Gateway_WeekAfwJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WeekAfwJoin_Task_Directievoering</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_Directievoering" name="Directievoering" camunda:formRef="rip-directievoering" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-weekrapport">
+      <bpmn:incoming>Flow_Gateway_WeekAfwJoin_Task_Directievoering</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_Directievoering_Gateway_TermijnenContract</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_TermijnenContract" name="Geaccordeerde termijnen&#10;binnen of buiten contract?">
+      <bpmn:incoming>Flow_Task_Directievoering_Gateway_TermijnenContract</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_TermijnenContract_Task_DoorsturenGeaccordeerdeTermijn</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_TermijnenContract_Task_SturenOverzichtAwr</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_DoorsturenGeaccordeerdeTermijn" name="Doorsturen geaccordeerde&#10;termijn (via VISI)" camunda:formRef="rip-doorsturen-geaccordeerde-termijn" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-geaccordeerde-termijnen">
+      <bpmn:incoming>Flow_Gateway_TermijnenContract_Task_DoorsturenGeaccordeerdeTermijn</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_DoorsturenGeaccordeerdeTermijn_Gateway_AwrJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_SturenOverzichtAwr" name="Sturen&#10;overzicht AWR" camunda:formRef="rip-sturen-overzicht-awr" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder" ronl:documentRef="rip-awr-overzicht">
+      <bpmn:incoming>Flow_Gateway_TermijnenContract_Task_SturenOverzichtAwr</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_SturenOverzichtAwr_Task_BeoordelenOverzichtAwr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenOverzichtAwr" name="Beoordelen&#10;overzicht AWR" camunda:formRef="rip-beoordelen-overzicht-awr" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Task_SturenOverzichtAwr_Task_BeoordelenOverzichtAwr</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_SturenAangepastOverzichtAwr_Task_BeoordelenOverzichtAwr</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenOverzichtAwr_Gateway_AwrAkkoord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AwrAkkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_Task_BeoordelenOverzichtAwr_Gateway_AwrAkkoord</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AwrAkkoord_Task_RetourSturenOverzichtAwr</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_AwrAkkoord_Task_VersturenOverzichtAwrKc</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_RetourSturenOverzichtAwr" name="Retour sturen&#10;overzicht AWR" camunda:formRef="rip-retour-sturen-overzicht-awr" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Gateway_AwrAkkoord_Task_RetourSturenOverzichtAwr</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_RetourSturenOverzichtAwr_Task_OnderhandelenPrijzen</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OnderhandelenPrijzen" name="Onderhandelen over&#10;prijzen met aannemer" camunda:formRef="rip-onderhandelen-prijzen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_RetourSturenOverzichtAwr_Task_OnderhandelenPrijzen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OnderhandelenPrijzen_Task_SturenAangepastOverzichtAwr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_SturenAangepastOverzichtAwr" name="Sturen aangepast&#10;overzicht AWR" camunda:formRef="rip-sturen-aangepast-overzicht-awr" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_OnderhandelenPrijzen_Task_SturenAangepastOverzichtAwr</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_SturenAangepastOverzichtAwr_Task_BeoordelenOverzichtAwr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VersturenOverzichtAwrKc" name="Versturen&#10;overzicht AWR" camunda:formRef="rip-versturen-overzicht-awr-kc" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Gateway_AwrAkkoord_Task_VersturenOverzichtAwrKc</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenOverzichtAwrKc_Gateway_AwrJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_AwrJoin">
+      <bpmn:incoming>Flow_Task_DoorsturenGeaccordeerdeTermijn_Gateway_AwrJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_VersturenOverzichtAwrKc_Gateway_AwrJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_AwrJoin_Task_VersturenOverzichtAwrDv</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_VersturenOverzichtAwrDv" name="Versturen&#10;overzicht AWR" camunda:formRef="rip-versturen-overzicht-awr-dv" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Gateway_AwrJoin_Task_VersturenOverzichtAwrDv</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VersturenOverzichtAwrDv_Gateway_WerkGereed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_WerkGereed" name="Werk&#10;gereed?">
+      <bpmn:incoming>Flow_Task_VersturenOverzichtAwrDv_Gateway_WerkGereed</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_WerkGereed_Gateway_WeekStart</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_WerkGereed_Gateway_UitvoeringJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_SturenFactuurAanOg" name="Sturen factuur&#10;aan OG" camunda:formRef="rip-sturen-factuur-og" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer">
+      <bpmn:incoming>Flow_Gateway_UitvoeringSplit_Task_SturenFactuurAanOg</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_SturenFactuurAanOg_Task_AccorderenFactuurDoorsturenAo</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenFactuurDoorsturenAo" name="Accorderen factuur en&#10;doorsturen naar AO" camunda:formRef="rip-accorderen-factuur-pl" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Task_SturenFactuurAanOg_Task_AccorderenFactuurDoorsturenAo</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenFactuurDoorsturenAo_Task_AccorderenFactuur</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AccorderenFactuur" name="Accorderen&#10;factuur" camunda:formRef="rip-accorderen-factuur-ao" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao">
+      <bpmn:incoming>Flow_Task_AccorderenFactuurDoorsturenAo_Task_AccorderenFactuur</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AccorderenFactuur_Gateway_UitvoeringJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AanvragenTotOpneming" name="Aanvragen tot&#10;opneming" camunda:formRef="rip-aanvragen-tot-opneming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer">
+      <bpmn:incoming>Flow_Gateway_UitvoeringSplit_Task_AanvragenTotOpneming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AanvragenTotOpneming_Task_VerzoekenTotUitstelOpleveren</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VerzoekenTotUitstelOpleveren" name="Verzoeken tot&#10;(uitstel van) opleveren" camunda:formRef="rip-verzoeken-uitstel-opleveren" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-opdrachtnemer" ronl:documentRef="rip-verzoek-uitstel-oplevering">
+      <bpmn:incoming>Flow_Task_AanvragenTotOpneming_Task_VerzoekenTotUitstelOpleveren</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerzoekenTotUitstelOpleveren_Task_BeoordelenVerzoekOpleverenDv</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenVerzoekOpleverenDv" name="Beoordelen verzoek tot&#10;(uitstel van) opleveren" camunda:formRef="rip-beoordelen-verzoek-opleveren-dv" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_VerzoekenTotUitstelOpleveren_Task_BeoordelenVerzoekOpleverenDv</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenVerzoekOpleverenDv_Task_SturenAdviesVerzoekOpleveren</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_SturenAdviesVerzoekOpleveren" name="Sturen advies verzoek tot&#10;(uitstel van) opleveren" camunda:formRef="rip-sturen-advies-verzoek-opleveren" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_BeoordelenVerzoekOpleverenDv_Task_SturenAdviesVerzoekOpleveren</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_SturenAdviesVerzoekOpleveren_Gateway_VerzoekSplit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_VerzoekSplit">
+      <bpmn:incoming>Flow_Task_SturenAdviesVerzoekOpleveren_Gateway_VerzoekSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_VerzoekSplit_Task_SturenVerzoekOpleveringEnBeoordeling</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_VerzoekSplit_Task_BeoordelenVerzoekOpleveringPl</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_SturenVerzoekOpleveringEnBeoordeling" name="Sturen verzoek tot (uitstel tot)&#10;oplevering en beoordeling" camunda:formRef="rip-sturen-verzoek-oplevering" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_VerzoekSplit_Task_SturenVerzoekOpleveringEnBeoordeling</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_SturenVerzoekOpleveringEnBeoordeling_Task_BeoordelenVerzoekOpleveringAo</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenVerzoekOpleveringAo" name="Beoordelen verzoek tot&#10;(uitstel tot) oplevering" camunda:formRef="rip-beoordelen-verzoek-oplevering-ao" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao">
+      <bpmn:incoming>Flow_Task_SturenVerzoekOpleveringEnBeoordeling_Task_BeoordelenVerzoekOpleveringAo</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenVerzoekOpleveringAo_Task_OpstellenBriefAkkoordAfwijzing</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenBriefAkkoordAfwijzing" name="Opstellen brief akkoord / afwijzing&#10;(uitstel tot) oplevering" camunda:formRef="rip-opstellen-brief-oplevering" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ondersteuner" ronl:documentRef="rip-brief-uitstel-oplevering">
+      <bpmn:incoming>Flow_Task_BeoordelenVerzoekOpleveringAo_Task_OpstellenBriefAkkoordAfwijzing</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenBriefAkkoordAfwijzing_Task_IndienenBriefBijBesluitvorming</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_IndienenBriefBijBesluitvorming" name="Indienen brief bij besluitvorming&#10;met cc PL en DV" camunda:formRef="rip-indienen-brief-besluitvorming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao">
+      <bpmn:incoming>Flow_Task_OpstellenBriefAkkoordAfwijzing_Task_IndienenBriefBijBesluitvorming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_IndienenBriefBijBesluitvorming_Task_PlaatsenBriefInVisi</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_PlaatsenBriefInVisi" name="Plaatsen brief (uitstel tot)&#10;oplevering in VISI" camunda:formRef="rip-plaatsen-brief-visi" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-directievoerder">
+      <bpmn:incoming>Flow_Task_IndienenBriefBijBesluitvorming_Task_PlaatsenBriefInVisi</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_PlaatsenBriefInVisi_Gateway_VerzoekJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_BeoordelenVerzoekOpleveringPl" name="Beoordelen verzoek tot&#10;(uitstel tot) oplevering" camunda:formRef="rip-beoordelen-verzoek-oplevering-pl" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_VerzoekSplit_Task_BeoordelenVerzoekOpleveringPl</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_BeoordelenVerzoekOpleveringPl_Gateway_BinnenBuitenKrediet</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_BinnenBuitenKrediet" name="Binnen of&#10;buiten krediet?">
+      <bpmn:incoming>Flow_Task_BeoordelenVerzoekOpleveringPl_Gateway_BinnenBuitenKrediet</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_BinnenBuitenKrediet_Task_MakenNotaConcerndirecteur</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_BinnenBuitenKrediet_Gateway_Waarde</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_MakenNotaConcerndirecteur" name="Maken nota besluitvorming Concerndirecteur&#10;en laten invullen webformulier ATB" camunda:formRef="rip-maken-nota-concerndirecteur" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-nota-besluitvorming-concerndirecteur-oplevering">
+      <bpmn:incoming>Flow_Gateway_BinnenBuitenKrediet_Task_MakenNotaConcerndirecteur</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_MakenNotaConcerndirecteur_Gateway_NotaJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Waarde" name="Waarde?">
+      <bpmn:incoming>Flow_Gateway_BinnenBuitenKrediet_Gateway_Waarde</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_Waarde_Task_MakenNotaAo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_Waarde_Task_LatenInvullenWebformulierAtb</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_MakenNotaAo" name="Maken nota besluitvorming AO&#10;en laten invullen webformulier ATB" camunda:formRef="rip-maken-nota-ao" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-nota-besluitvorming-ao-oplevering">
+      <bpmn:incoming>Flow_Gateway_Waarde_Task_MakenNotaAo</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_MakenNotaAo_Gateway_NotaJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_LatenInvullenWebformulierAtb" name="Laten invullen&#10;webformulier ATB" camunda:formRef="rip-laten-invullen-webformulier-atb" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider">
+      <bpmn:incoming>Flow_Gateway_Waarde_Task_LatenInvullenWebformulierAtb</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_LatenInvullenWebformulierAtb_Gateway_NotaJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_NotaJoin">
+      <bpmn:incoming>Flow_Task_MakenNotaConcerndirecteur_Gateway_NotaJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_MakenNotaAo_Gateway_NotaJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_LatenInvullenWebformulierAtb_Gateway_NotaJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_NotaJoin_Task_InvullenWebformulierAtb</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_InvullenWebformulierAtb" name="Invullen&#10;webformulier ATB" camunda:formRef="rip-invullen-webformulier-atb" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ondersteuner" ronl:documentRef="rip-nota-besluitvorming-atb">
+      <bpmn:incoming>Flow_Gateway_NotaJoin_Task_InvullenWebformulierAtb</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InvullenWebformulierAtb_Gateway_VerzoekJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_VerzoekJoin">
+      <bpmn:incoming>Flow_Task_PlaatsenBriefInVisi_Gateway_VerzoekJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_InvullenWebformulierAtb_Gateway_VerzoekJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_VerzoekJoin_Gateway_UitvoeringJoin</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:parallelGateway id="Gateway_UitvoeringJoin">
+      <bpmn:incoming>Flow_Gateway_WerkGereed_Gateway_UitvoeringJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_AccorderenFactuur_Gateway_UitvoeringJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Gateway_VerzoekJoin_Gateway_UitvoeringJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_UitvoeringJoin_EndEvent_R53</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="EndEvent_R53" name="Werk gereed&#10;→ R5.3 Organiseren interne schouw">
+      <bpmn:incoming>Flow_Gateway_UitvoeringJoin_EndEvent_R53</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R52_Gateway_UitvoeringSplit" sourceRef="StartEvent_R52" targetRef="Gateway_UitvoeringSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitvoeringSplit_Gateway_WeekStart" sourceRef="Gateway_UitvoeringSplit" targetRef="Gateway_WeekStart" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitvoeringSplit_Task_SturenFactuurAanOg" sourceRef="Gateway_UitvoeringSplit" targetRef="Task_SturenFactuurAanOg" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitvoeringSplit_Task_AanvragenTotOpneming" sourceRef="Gateway_UitvoeringSplit" targetRef="Task_AanvragenTotOpneming" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekStart_Gateway_WeekAfwSplit" sourceRef="Gateway_WeekStart" targetRef="Gateway_WeekAfwSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekAfwSplit_Task_UitvoerenWerkzaamhedenToezichtsplan" sourceRef="Gateway_WeekAfwSplit" targetRef="Task_UitvoerenWerkzaamhedenToezichtsplan" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekAfwSplit_Task_MeldenAfwijking" sourceRef="Gateway_WeekAfwSplit" targetRef="Task_MeldenAfwijking" />
+    <bpmn:sequenceFlow id="Flow_Task_UitvoerenWerkzaamhedenToezichtsplan_Task_OpstellenWeekstaat" sourceRef="Task_UitvoerenWerkzaamhedenToezichtsplan" targetRef="Task_OpstellenWeekstaat" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenWeekstaat_Task_VersturenWeekstaat" sourceRef="Task_OpstellenWeekstaat" targetRef="Task_VersturenWeekstaat" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenWeekstaat_Gateway_WeekstaatBeoordelingSplit" sourceRef="Task_VersturenWeekstaat" targetRef="Gateway_WeekstaatBeoordelingSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenEnSturenBeoordelingWeekstaat" sourceRef="Gateway_WeekstaatBeoordelingSplit" targetRef="Task_BeoordelenEnSturenBeoordelingWeekstaat" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenWeekstaat" sourceRef="Gateway_WeekstaatBeoordelingSplit" targetRef="Task_BeoordelenWeekstaat" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenEnSturenBeoordelingWeekstaat_Gateway_WeekstaatBeoordelingJoin" sourceRef="Task_BeoordelenEnSturenBeoordelingWeekstaat" targetRef="Gateway_WeekstaatBeoordelingJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenWeekstaat_Gateway_WeekstaatBeoordelingJoin" sourceRef="Task_BeoordelenWeekstaat" targetRef="Gateway_WeekstaatBeoordelingJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekstaatBeoordelingJoin_Gateway_WeekstaatAkkoord" sourceRef="Gateway_WeekstaatBeoordelingJoin" targetRef="Gateway_WeekstaatAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekstaatAkkoord_Task_AanpassenWeekstaat" name="nee" sourceRef="Gateway_WeekstaatAkkoord" targetRef="Task_AanpassenWeekstaat">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${weekstaatAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekstaatAkkoord_Task_InvoerenAantallenWeekstaat" name="ja" sourceRef="Gateway_WeekstaatAkkoord" targetRef="Task_InvoerenAantallenWeekstaat">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${weekstaatAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_AanpassenWeekstaat_Task_VersturenWeekstaat" sourceRef="Task_AanpassenWeekstaat" targetRef="Task_VersturenWeekstaat" />
+    <bpmn:sequenceFlow id="Flow_Task_InvoerenAantallenWeekstaat_Gateway_WeekAfwJoin" sourceRef="Task_InvoerenAantallenWeekstaat" targetRef="Gateway_WeekAfwJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_MeldenAfwijking_Task_AfstemmenAfwijking" sourceRef="Task_MeldenAfwijking" targetRef="Task_AfstemmenAfwijking" />
+    <bpmn:sequenceFlow id="Flow_Task_AfstemmenAfwijking_Gateway_AfwijkingAkkoord" sourceRef="Task_AfstemmenAfwijking" targetRef="Gateway_AfwijkingAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AfwijkingAkkoord_Task_AanpassenAfwijkingenrapport" name="nee" sourceRef="Gateway_AfwijkingAkkoord" targetRef="Task_AanpassenAfwijkingenrapport">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${afwijkingAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AfwijkingAkkoord_Gateway_WeekAfwJoin" name="ja" sourceRef="Gateway_AfwijkingAkkoord" targetRef="Gateway_WeekAfwJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${afwijkingAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_AanpassenAfwijkingenrapport_Task_AfstemmenAfwijking" sourceRef="Task_AanpassenAfwijkingenrapport" targetRef="Task_AfstemmenAfwijking" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WeekAfwJoin_Task_Directievoering" sourceRef="Gateway_WeekAfwJoin" targetRef="Task_Directievoering" />
+    <bpmn:sequenceFlow id="Flow_Task_Directievoering_Gateway_TermijnenContract" sourceRef="Task_Directievoering" targetRef="Gateway_TermijnenContract" />
+    <bpmn:sequenceFlow id="Flow_Gateway_TermijnenContract_Task_DoorsturenGeaccordeerdeTermijn" name="binnen contract" sourceRef="Gateway_TermijnenContract" targetRef="Task_DoorsturenGeaccordeerdeTermijn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${termijnenContract == "binnen"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_TermijnenContract_Task_SturenOverzichtAwr" name="buiten contract" sourceRef="Gateway_TermijnenContract" targetRef="Task_SturenOverzichtAwr">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${termijnenContract == "buiten"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_DoorsturenGeaccordeerdeTermijn_Gateway_AwrJoin" sourceRef="Task_DoorsturenGeaccordeerdeTermijn" targetRef="Gateway_AwrJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_SturenOverzichtAwr_Task_BeoordelenOverzichtAwr" sourceRef="Task_SturenOverzichtAwr" targetRef="Task_BeoordelenOverzichtAwr" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenOverzichtAwr_Gateway_AwrAkkoord" sourceRef="Task_BeoordelenOverzichtAwr" targetRef="Gateway_AwrAkkoord" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AwrAkkoord_Task_RetourSturenOverzichtAwr" name="nee" sourceRef="Gateway_AwrAkkoord" targetRef="Task_RetourSturenOverzichtAwr">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${awrAkkoord == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_AwrAkkoord_Task_VersturenOverzichtAwrKc" name="ja" sourceRef="Gateway_AwrAkkoord" targetRef="Task_VersturenOverzichtAwrKc">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${awrAkkoord == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_RetourSturenOverzichtAwr_Task_OnderhandelenPrijzen" sourceRef="Task_RetourSturenOverzichtAwr" targetRef="Task_OnderhandelenPrijzen" />
+    <bpmn:sequenceFlow id="Flow_Task_OnderhandelenPrijzen_Task_SturenAangepastOverzichtAwr" sourceRef="Task_OnderhandelenPrijzen" targetRef="Task_SturenAangepastOverzichtAwr" />
+    <bpmn:sequenceFlow id="Flow_Task_SturenAangepastOverzichtAwr_Task_BeoordelenOverzichtAwr" sourceRef="Task_SturenAangepastOverzichtAwr" targetRef="Task_BeoordelenOverzichtAwr" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenOverzichtAwrKc_Gateway_AwrJoin" sourceRef="Task_VersturenOverzichtAwrKc" targetRef="Gateway_AwrJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_AwrJoin_Task_VersturenOverzichtAwrDv" sourceRef="Gateway_AwrJoin" targetRef="Task_VersturenOverzichtAwrDv" />
+    <bpmn:sequenceFlow id="Flow_Task_VersturenOverzichtAwrDv_Gateway_WerkGereed" sourceRef="Task_VersturenOverzichtAwrDv" targetRef="Gateway_WerkGereed" />
+    <bpmn:sequenceFlow id="Flow_Gateway_WerkGereed_Gateway_WeekStart" name="nee" sourceRef="Gateway_WerkGereed" targetRef="Gateway_WeekStart">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${werkGereed == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_WerkGereed_Gateway_UitvoeringJoin" name="ja" sourceRef="Gateway_WerkGereed" targetRef="Gateway_UitvoeringJoin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${werkGereed == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_SturenFactuurAanOg_Task_AccorderenFactuurDoorsturenAo" sourceRef="Task_SturenFactuurAanOg" targetRef="Task_AccorderenFactuurDoorsturenAo" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenFactuurDoorsturenAo_Task_AccorderenFactuur" sourceRef="Task_AccorderenFactuurDoorsturenAo" targetRef="Task_AccorderenFactuur" />
+    <bpmn:sequenceFlow id="Flow_Task_AccorderenFactuur_Gateway_UitvoeringJoin" sourceRef="Task_AccorderenFactuur" targetRef="Gateway_UitvoeringJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_AanvragenTotOpneming_Task_VerzoekenTotUitstelOpleveren" sourceRef="Task_AanvragenTotOpneming" targetRef="Task_VerzoekenTotUitstelOpleveren" />
+    <bpmn:sequenceFlow id="Flow_Task_VerzoekenTotUitstelOpleveren_Task_BeoordelenVerzoekOpleverenDv" sourceRef="Task_VerzoekenTotUitstelOpleveren" targetRef="Task_BeoordelenVerzoekOpleverenDv" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenVerzoekOpleverenDv_Task_SturenAdviesVerzoekOpleveren" sourceRef="Task_BeoordelenVerzoekOpleverenDv" targetRef="Task_SturenAdviesVerzoekOpleveren" />
+    <bpmn:sequenceFlow id="Flow_Task_SturenAdviesVerzoekOpleveren_Gateway_VerzoekSplit" sourceRef="Task_SturenAdviesVerzoekOpleveren" targetRef="Gateway_VerzoekSplit" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VerzoekSplit_Task_SturenVerzoekOpleveringEnBeoordeling" sourceRef="Gateway_VerzoekSplit" targetRef="Task_SturenVerzoekOpleveringEnBeoordeling" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VerzoekSplit_Task_BeoordelenVerzoekOpleveringPl" sourceRef="Gateway_VerzoekSplit" targetRef="Task_BeoordelenVerzoekOpleveringPl" />
+    <bpmn:sequenceFlow id="Flow_Task_SturenVerzoekOpleveringEnBeoordeling_Task_BeoordelenVerzoekOpleveringAo" sourceRef="Task_SturenVerzoekOpleveringEnBeoordeling" targetRef="Task_BeoordelenVerzoekOpleveringAo" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenVerzoekOpleveringAo_Task_OpstellenBriefAkkoordAfwijzing" sourceRef="Task_BeoordelenVerzoekOpleveringAo" targetRef="Task_OpstellenBriefAkkoordAfwijzing" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenBriefAkkoordAfwijzing_Task_IndienenBriefBijBesluitvorming" sourceRef="Task_OpstellenBriefAkkoordAfwijzing" targetRef="Task_IndienenBriefBijBesluitvorming" />
+    <bpmn:sequenceFlow id="Flow_Task_IndienenBriefBijBesluitvorming_Task_PlaatsenBriefInVisi" sourceRef="Task_IndienenBriefBijBesluitvorming" targetRef="Task_PlaatsenBriefInVisi" />
+    <bpmn:sequenceFlow id="Flow_Task_PlaatsenBriefInVisi_Gateway_VerzoekJoin" sourceRef="Task_PlaatsenBriefInVisi" targetRef="Gateway_VerzoekJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_BeoordelenVerzoekOpleveringPl_Gateway_BinnenBuitenKrediet" sourceRef="Task_BeoordelenVerzoekOpleveringPl" targetRef="Gateway_BinnenBuitenKrediet" />
+    <bpmn:sequenceFlow id="Flow_Gateway_BinnenBuitenKrediet_Task_MakenNotaConcerndirecteur" name="buiten" sourceRef="Gateway_BinnenBuitenKrediet" targetRef="Task_MakenNotaConcerndirecteur">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${kredietPositie == "buiten"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_BinnenBuitenKrediet_Gateway_Waarde" name="binnen" sourceRef="Gateway_BinnenBuitenKrediet" targetRef="Gateway_Waarde">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${kredietPositie == "binnen"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_Waarde_Task_MakenNotaAo" name="&gt; 50.000,-" sourceRef="Gateway_Waarde" targetRef="Task_MakenNotaAo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${notaWaarde == "boven"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_Waarde_Task_LatenInvullenWebformulierAtb" name="&lt; 50.000,-" sourceRef="Gateway_Waarde" targetRef="Task_LatenInvullenWebformulierAtb">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${notaWaarde == "onder"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_MakenNotaConcerndirecteur_Gateway_NotaJoin" sourceRef="Task_MakenNotaConcerndirecteur" targetRef="Gateway_NotaJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_MakenNotaAo_Gateway_NotaJoin" sourceRef="Task_MakenNotaAo" targetRef="Gateway_NotaJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_LatenInvullenWebformulierAtb_Gateway_NotaJoin" sourceRef="Task_LatenInvullenWebformulierAtb" targetRef="Gateway_NotaJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_NotaJoin_Task_InvullenWebformulierAtb" sourceRef="Gateway_NotaJoin" targetRef="Task_InvullenWebformulierAtb" />
+    <bpmn:sequenceFlow id="Flow_Task_InvullenWebformulierAtb_Gateway_VerzoekJoin" sourceRef="Task_InvullenWebformulierAtb" targetRef="Gateway_VerzoekJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_VerzoekJoin_Gateway_UitvoeringJoin" sourceRef="Gateway_VerzoekJoin" targetRef="Gateway_UitvoeringJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_UitvoeringJoin_EndEvent_R53" sourceRef="Gateway_UitvoeringJoin" targetRef="EndEvent_R53" />
+
+    <bpmn:textAnnotation id="Annotation_R51_Entry">
+      <bpmn:text>R5.1 Houden overleg met V&amp;G-coördinator (ON) — en R5.3 Restpunten oplossen door ON, wanneer de schouw restpunten oplevert</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_R51_Entry" sourceRef="Task_UitvoerenWerkzaamhedenToezichtsplan" targetRef="Annotation_R51_Entry" />
+    <bpmn:textAnnotation id="Annotation_KV2_Nota">
+      <bpmn:text>KV2. Input nota — de nota's besluitvorming gaan als input naar het proces besluitvorming</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_KV2_Nota" sourceRef="Gateway_NotaJoin" targetRef="Annotation_KV2_Nota" />
+    <bpmn:textAnnotation id="Annotation_ATB">
+      <bpmn:text>Proces ATB — het webformulier ATB wordt buiten R5.2 afgehandeld</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_ATB" sourceRef="Task_InvullenWebformulierAtb" targetRef="Annotation_ATB" />
+    <bpmn:textAnnotation id="Annotation_KV2_Documenten">
+      <bpmn:text>KV2. Versturen documenten</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_KV2_Documenten" sourceRef="Task_IndienenBriefBijBesluitvorming" targetRef="Annotation_KV2_Documenten" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR52Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR52Process" bpmnElement="Collaboration_RipR52Process">
+      <bpmndi:BPMNShape id="Participant_RipR52Process_di" bpmnElement="Participant_RipR52Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="3146" height="2480" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Ondersteuner_di" bpmnElement="Lane_Ondersteuner" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="3116" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AO_di" bpmnElement="Lane_AO" isHorizontal="true">
+        <dc:Bounds x="190" y="280" width="3116" height="290" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="570" width="3116" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Aannemer_di" bpmnElement="Lane_Aannemer" isHorizontal="true">
+        <dc:Bounds x="190" y="950" width="3116" height="470" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Toezichthouder_di" bpmnElement="Lane_Toezichthouder" isHorizontal="true">
+        <dc:Bounds x="190" y="1420" width="3116" height="290" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Directievoerder_di" bpmnElement="Lane_Directievoerder" isHorizontal="true">
+        <dc:Bounds x="190" y="1710" width="3116" height="560" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_KostenContractdeskundige_di" bpmnElement="Lane_KostenContractdeskundige" isHorizontal="true">
+        <dc:Bounds x="190" y="2270" width="3116" height="290" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R52_di" bpmnElement="StartEvent_R52">
+        <dc:Bounds x="240" y="992" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="182" y="1033" width="152" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_UitvoeringSplit_di" bpmnElement="Gateway_UitvoeringSplit">
+        <dc:Bounds x="300" y="985" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WeekStart_di" bpmnElement="Gateway_WeekStart" isMarkerVisible="true">
+        <dc:Bounds x="380" y="985" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="353" y="1040" width="104" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WeekAfwSplit_di" bpmnElement="Gateway_WeekAfwSplit">
+        <dc:Bounds x="460" y="985" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UitvoerenWerkzaamhedenToezichtsplan_di" bpmnElement="Task_UitvoerenWerkzaamhedenToezichtsplan">
+        <dc:Bounds x="540" y="1440" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenWeekstaat_di" bpmnElement="Task_OpstellenWeekstaat">
+        <dc:Bounds x="700" y="970" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenWeekstaat_di" bpmnElement="Task_VersturenWeekstaat">
+        <dc:Bounds x="860" y="970" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WeekstaatBeoordelingSplit_di" bpmnElement="Gateway_WeekstaatBeoordelingSplit">
+        <dc:Bounds x="1020" y="985" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenEnSturenBeoordelingWeekstaat_di" bpmnElement="Task_BeoordelenEnSturenBeoordelingWeekstaat">
+        <dc:Bounds x="1100" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenWeekstaat_di" bpmnElement="Task_BeoordelenWeekstaat">
+        <dc:Bounds x="1100" y="1730" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WeekstaatBeoordelingJoin_di" bpmnElement="Gateway_WeekstaatBeoordelingJoin">
+        <dc:Bounds x="1260" y="985" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WeekstaatAkkoord_di" bpmnElement="Gateway_WeekstaatAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="1340" y="985" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1320" y="1040" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanpassenWeekstaat_di" bpmnElement="Task_AanpassenWeekstaat">
+        <dc:Bounds x="1420" y="1060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InvoerenAantallenWeekstaat_di" bpmnElement="Task_InvoerenAantallenWeekstaat">
+        <dc:Bounds x="1420" y="1620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MeldenAfwijking_di" bpmnElement="Task_MeldenAfwijking">
+        <dc:Bounds x="540" y="1150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AfstemmenAfwijking_di" bpmnElement="Task_AfstemmenAfwijking">
+        <dc:Bounds x="700" y="1820" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AfwijkingAkkoord_di" bpmnElement="Gateway_AfwijkingAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="860" y="1835" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="840" y="1890" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanpassenAfwijkingenrapport_di" bpmnElement="Task_AanpassenAfwijkingenrapport">
+        <dc:Bounds x="940" y="1150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WeekAfwJoin_di" bpmnElement="Gateway_WeekAfwJoin">
+        <dc:Bounds x="1600" y="985" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Directievoering_di" bpmnElement="Task_Directievoering">
+        <dc:Bounds x="1680" y="1910" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_TermijnenContract_di" bpmnElement="Gateway_TermijnenContract" isMarkerVisible="true">
+        <dc:Bounds x="1840" y="1925" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1761" y="1980" width="208" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DoorsturenGeaccordeerdeTermijn_di" bpmnElement="Task_DoorsturenGeaccordeerdeTermijn">
+        <dc:Bounds x="1920" y="1820" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SturenOverzichtAwr_di" bpmnElement="Task_SturenOverzichtAwr">
+        <dc:Bounds x="1920" y="2000" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenOverzichtAwr_di" bpmnElement="Task_BeoordelenOverzichtAwr">
+        <dc:Bounds x="2080" y="2290" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AwrAkkoord_di" bpmnElement="Gateway_AwrAkkoord" isMarkerVisible="true">
+        <dc:Bounds x="2240" y="2305" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2220" y="2360" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RetourSturenOverzichtAwr_di" bpmnElement="Task_RetourSturenOverzichtAwr">
+        <dc:Bounds x="2320" y="2380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OnderhandelenPrijzen_di" bpmnElement="Task_OnderhandelenPrijzen">
+        <dc:Bounds x="2480" y="2090" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SturenAangepastOverzichtAwr_di" bpmnElement="Task_SturenAangepastOverzichtAwr">
+        <dc:Bounds x="2640" y="2180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenOverzichtAwrKc_di" bpmnElement="Task_VersturenOverzichtAwrKc">
+        <dc:Bounds x="2320" y="2470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AwrJoin_di" bpmnElement="Gateway_AwrJoin" isMarkerVisible="true">
+        <dc:Bounds x="2800" y="1925" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VersturenOverzichtAwrDv_di" bpmnElement="Task_VersturenOverzichtAwrDv">
+        <dc:Bounds x="2880" y="1910" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WerkGereed_di" bpmnElement="Gateway_WerkGereed" isMarkerVisible="true">
+        <dc:Bounds x="3040" y="1925" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3020" y="1980" width="90" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SturenFactuurAanOg_di" bpmnElement="Task_SturenFactuurAanOg">
+        <dc:Bounds x="540" y="1240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenFactuurDoorsturenAo_di" bpmnElement="Task_AccorderenFactuurDoorsturenAo">
+        <dc:Bounds x="700" y="590" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AccorderenFactuur_di" bpmnElement="Task_AccorderenFactuur">
+        <dc:Bounds x="860" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AanvragenTotOpneming_di" bpmnElement="Task_AanvragenTotOpneming">
+        <dc:Bounds x="540" y="1330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerzoekenTotUitstelOpleveren_di" bpmnElement="Task_VerzoekenTotUitstelOpleveren">
+        <dc:Bounds x="700" y="1330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenVerzoekOpleverenDv_di" bpmnElement="Task_BeoordelenVerzoekOpleverenDv">
+        <dc:Bounds x="860" y="2090" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SturenAdviesVerzoekOpleveren_di" bpmnElement="Task_SturenAdviesVerzoekOpleveren">
+        <dc:Bounds x="1020" y="2090" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_VerzoekSplit_di" bpmnElement="Gateway_VerzoekSplit">
+        <dc:Bounds x="1180" y="695" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SturenVerzoekOpleveringEnBeoordeling_di" bpmnElement="Task_SturenVerzoekOpleveringEnBeoordeling">
+        <dc:Bounds x="1260" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenVerzoekOpleveringAo_di" bpmnElement="Task_BeoordelenVerzoekOpleveringAo">
+        <dc:Bounds x="1420" y="390" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenBriefAkkoordAfwijzing_di" bpmnElement="Task_OpstellenBriefAkkoordAfwijzing">
+        <dc:Bounds x="1580" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_IndienenBriefBijBesluitvorming_di" bpmnElement="Task_IndienenBriefBijBesluitvorming">
+        <dc:Bounds x="1740" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PlaatsenBriefInVisi_di" bpmnElement="Task_PlaatsenBriefInVisi">
+        <dc:Bounds x="1900" y="2180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BeoordelenVerzoekOpleveringPl_di" bpmnElement="Task_BeoordelenVerzoekOpleveringPl">
+        <dc:Bounds x="1260" y="770" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BinnenBuitenKrediet_di" bpmnElement="Gateway_BinnenBuitenKrediet" isMarkerVisible="true">
+        <dc:Bounds x="1420" y="785" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1385" y="840" width="120" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MakenNotaConcerndirecteur_di" bpmnElement="Task_MakenNotaConcerndirecteur">
+        <dc:Bounds x="1500" y="860" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Waarde_di" bpmnElement="Gateway_Waarde" isMarkerVisible="true">
+        <dc:Bounds x="1500" y="695" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1480" y="750" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MakenNotaAo_di" bpmnElement="Task_MakenNotaAo">
+        <dc:Bounds x="1580" y="590" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LatenInvullenWebformulierAtb_di" bpmnElement="Task_LatenInvullenWebformulierAtb">
+        <dc:Bounds x="1580" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NotaJoin_di" bpmnElement="Gateway_NotaJoin" isMarkerVisible="true">
+        <dc:Bounds x="1740" y="785" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InvullenWebformulierAtb_di" bpmnElement="Task_InvullenWebformulierAtb">
+        <dc:Bounds x="1820" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_VerzoekJoin_di" bpmnElement="Gateway_VerzoekJoin">
+        <dc:Bounds x="2060" y="695" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_UitvoeringJoin_di" bpmnElement="Gateway_UitvoeringJoin">
+        <dc:Bounds x="3120" y="985" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_R53_di" bpmnElement="EndEvent_R53">
+        <dc:Bounds x="3200" y="992" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3086" y="1033" width="264" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_R51_Entry_di" bpmnElement="Annotation_R51_Entry">
+        <dc:Bounds x="240" y="1440" width="280" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_KV2_Nota_di" bpmnElement="Annotation_KV2_Nota">
+        <dc:Bounds x="1900" y="770" width="280" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_ATB_di" bpmnElement="Annotation_ATB">
+        <dc:Bounds x="2000" y="100" width="280" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_KV2_Documenten_di" bpmnElement="Annotation_KV2_Documenten">
+        <dc:Bounds x="1900" y="480" width="240" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R52_Gateway_UitvoeringSplit_di" bpmnElement="Flow_StartEvent_R52_Gateway_UitvoeringSplit">
+        <di:waypoint x="276" y="1010" />
+        <di:waypoint x="300" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitvoeringSplit_Gateway_WeekStart_di" bpmnElement="Flow_Gateway_UitvoeringSplit_Gateway_WeekStart">
+        <di:waypoint x="350" y="1010" />
+        <di:waypoint x="380" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitvoeringSplit_Task_SturenFactuurAanOg_di" bpmnElement="Flow_Gateway_UitvoeringSplit_Task_SturenFactuurAanOg">
+        <di:waypoint x="350" y="1010" />
+        <di:waypoint x="445" y="1010" />
+        <di:waypoint x="445" y="1280" />
+        <di:waypoint x="540" y="1280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitvoeringSplit_Task_AanvragenTotOpneming_di" bpmnElement="Flow_Gateway_UitvoeringSplit_Task_AanvragenTotOpneming">
+        <di:waypoint x="350" y="1010" />
+        <di:waypoint x="445" y="1010" />
+        <di:waypoint x="445" y="1370" />
+        <di:waypoint x="540" y="1370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekStart_Gateway_WeekAfwSplit_di" bpmnElement="Flow_Gateway_WeekStart_Gateway_WeekAfwSplit">
+        <di:waypoint x="430" y="1010" />
+        <di:waypoint x="460" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekAfwSplit_Task_UitvoerenWerkzaamhedenToezichtsplan_di" bpmnElement="Flow_Gateway_WeekAfwSplit_Task_UitvoerenWerkzaamhedenToezichtsplan">
+        <di:waypoint x="510" y="1010" />
+        <di:waypoint x="525" y="1010" />
+        <di:waypoint x="525" y="1480" />
+        <di:waypoint x="540" y="1480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekAfwSplit_Task_MeldenAfwijking_di" bpmnElement="Flow_Gateway_WeekAfwSplit_Task_MeldenAfwijking">
+        <di:waypoint x="510" y="1010" />
+        <di:waypoint x="525" y="1010" />
+        <di:waypoint x="525" y="1190" />
+        <di:waypoint x="540" y="1190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_UitvoerenWerkzaamhedenToezichtsplan_Task_OpstellenWeekstaat_di" bpmnElement="Flow_Task_UitvoerenWerkzaamhedenToezichtsplan_Task_OpstellenWeekstaat">
+        <di:waypoint x="640" y="1480" />
+        <di:waypoint x="670" y="1480" />
+        <di:waypoint x="670" y="1010" />
+        <di:waypoint x="700" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenWeekstaat_Task_VersturenWeekstaat_di" bpmnElement="Flow_Task_OpstellenWeekstaat_Task_VersturenWeekstaat">
+        <di:waypoint x="800" y="1010" />
+        <di:waypoint x="860" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenWeekstaat_Gateway_WeekstaatBeoordelingSplit_di" bpmnElement="Flow_Task_VersturenWeekstaat_Gateway_WeekstaatBeoordelingSplit">
+        <di:waypoint x="960" y="1010" />
+        <di:waypoint x="1020" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenEnSturenBeoordelingWeekstaat_di" bpmnElement="Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenEnSturenBeoordelingWeekstaat">
+        <di:waypoint x="1070" y="1010" />
+        <di:waypoint x="1085" y="1010" />
+        <di:waypoint x="1085" y="1570" />
+        <di:waypoint x="1100" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenWeekstaat_di" bpmnElement="Flow_Gateway_WeekstaatBeoordelingSplit_Task_BeoordelenWeekstaat">
+        <di:waypoint x="1070" y="1010" />
+        <di:waypoint x="1085" y="1010" />
+        <di:waypoint x="1085" y="1770" />
+        <di:waypoint x="1100" y="1770" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenEnSturenBeoordelingWeekstaat_Gateway_WeekstaatBeoordelingJoin_di" bpmnElement="Flow_Task_BeoordelenEnSturenBeoordelingWeekstaat_Gateway_WeekstaatBeoordelingJoin">
+        <di:waypoint x="1200" y="1570" />
+        <di:waypoint x="1230" y="1570" />
+        <di:waypoint x="1230" y="1010" />
+        <di:waypoint x="1260" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenWeekstaat_Gateway_WeekstaatBeoordelingJoin_di" bpmnElement="Flow_Task_BeoordelenWeekstaat_Gateway_WeekstaatBeoordelingJoin">
+        <di:waypoint x="1200" y="1770" />
+        <di:waypoint x="1230" y="1770" />
+        <di:waypoint x="1230" y="1010" />
+        <di:waypoint x="1260" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekstaatBeoordelingJoin_Gateway_WeekstaatAkkoord_di" bpmnElement="Flow_Gateway_WeekstaatBeoordelingJoin_Gateway_WeekstaatAkkoord">
+        <di:waypoint x="1310" y="1010" />
+        <di:waypoint x="1340" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekstaatAkkoord_Task_AanpassenWeekstaat_di" bpmnElement="Flow_Gateway_WeekstaatAkkoord_Task_AanpassenWeekstaat">
+        <di:waypoint x="1390" y="1010" />
+        <di:waypoint x="1405" y="1010" />
+        <di:waypoint x="1405" y="1100" />
+        <di:waypoint x="1420" y="1100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1396" y="990" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekstaatAkkoord_Task_InvoerenAantallenWeekstaat_di" bpmnElement="Flow_Gateway_WeekstaatAkkoord_Task_InvoerenAantallenWeekstaat">
+        <di:waypoint x="1390" y="1010" />
+        <di:waypoint x="1405" y="1010" />
+        <di:waypoint x="1405" y="1660" />
+        <di:waypoint x="1420" y="1660" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1396" y="990" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AanpassenWeekstaat_Task_VersturenWeekstaat_di" bpmnElement="Flow_Task_AanpassenWeekstaat_Task_VersturenWeekstaat">
+        <di:waypoint x="1470" y="1140" />
+        <di:waypoint x="1470" y="1410" />
+        <di:waypoint x="910" y="1410" />
+        <di:waypoint x="910" y="1050" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InvoerenAantallenWeekstaat_Gateway_WeekAfwJoin_di" bpmnElement="Flow_Task_InvoerenAantallenWeekstaat_Gateway_WeekAfwJoin">
+        <di:waypoint x="1520" y="1660" />
+        <di:waypoint x="1560" y="1660" />
+        <di:waypoint x="1560" y="1010" />
+        <di:waypoint x="1600" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_MeldenAfwijking_Task_AfstemmenAfwijking_di" bpmnElement="Flow_Task_MeldenAfwijking_Task_AfstemmenAfwijking">
+        <di:waypoint x="640" y="1190" />
+        <di:waypoint x="670" y="1190" />
+        <di:waypoint x="670" y="1860" />
+        <di:waypoint x="700" y="1860" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AfstemmenAfwijking_Gateway_AfwijkingAkkoord_di" bpmnElement="Flow_Task_AfstemmenAfwijking_Gateway_AfwijkingAkkoord">
+        <di:waypoint x="800" y="1860" />
+        <di:waypoint x="860" y="1860" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfwijkingAkkoord_Task_AanpassenAfwijkingenrapport_di" bpmnElement="Flow_Gateway_AfwijkingAkkoord_Task_AanpassenAfwijkingenrapport">
+        <di:waypoint x="910" y="1860" />
+        <di:waypoint x="925" y="1860" />
+        <di:waypoint x="925" y="1190" />
+        <di:waypoint x="940" y="1190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="916" y="1840" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AfwijkingAkkoord_Gateway_WeekAfwJoin_di" bpmnElement="Flow_Gateway_AfwijkingAkkoord_Gateway_WeekAfwJoin">
+        <di:waypoint x="910" y="1860" />
+        <di:waypoint x="1255" y="1860" />
+        <di:waypoint x="1255" y="1010" />
+        <di:waypoint x="1600" y="1010" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="916" y="1840" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AanpassenAfwijkingenrapport_Task_AfstemmenAfwijking_di" bpmnElement="Flow_Task_AanpassenAfwijkingenrapport_Task_AfstemmenAfwijking">
+        <di:waypoint x="990" y="1230" />
+        <di:waypoint x="990" y="1995" />
+        <di:waypoint x="750" y="1995" />
+        <di:waypoint x="750" y="1900" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WeekAfwJoin_Task_Directievoering_di" bpmnElement="Flow_Gateway_WeekAfwJoin_Task_Directievoering">
+        <di:waypoint x="1650" y="1010" />
+        <di:waypoint x="1665" y="1010" />
+        <di:waypoint x="1665" y="1950" />
+        <di:waypoint x="1680" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_Directievoering_Gateway_TermijnenContract_di" bpmnElement="Flow_Task_Directievoering_Gateway_TermijnenContract">
+        <di:waypoint x="1780" y="1950" />
+        <di:waypoint x="1840" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_TermijnenContract_Task_DoorsturenGeaccordeerdeTermijn_di" bpmnElement="Flow_Gateway_TermijnenContract_Task_DoorsturenGeaccordeerdeTermijn">
+        <di:waypoint x="1890" y="1950" />
+        <di:waypoint x="1905" y="1950" />
+        <di:waypoint x="1905" y="1860" />
+        <di:waypoint x="1920" y="1860" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1896" y="1930" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_TermijnenContract_Task_SturenOverzichtAwr_di" bpmnElement="Flow_Gateway_TermijnenContract_Task_SturenOverzichtAwr">
+        <di:waypoint x="1890" y="1950" />
+        <di:waypoint x="1905" y="1950" />
+        <di:waypoint x="1905" y="2040" />
+        <di:waypoint x="1920" y="2040" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1896" y="1930" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_DoorsturenGeaccordeerdeTermijn_Gateway_AwrJoin_di" bpmnElement="Flow_Task_DoorsturenGeaccordeerdeTermijn_Gateway_AwrJoin">
+        <di:waypoint x="2020" y="1860" />
+        <di:waypoint x="2410" y="1860" />
+        <di:waypoint x="2410" y="1950" />
+        <di:waypoint x="2800" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_SturenOverzichtAwr_Task_BeoordelenOverzichtAwr_di" bpmnElement="Flow_Task_SturenOverzichtAwr_Task_BeoordelenOverzichtAwr">
+        <di:waypoint x="2020" y="2040" />
+        <di:waypoint x="2050" y="2040" />
+        <di:waypoint x="2050" y="2330" />
+        <di:waypoint x="2080" y="2330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenOverzichtAwr_Gateway_AwrAkkoord_di" bpmnElement="Flow_Task_BeoordelenOverzichtAwr_Gateway_AwrAkkoord">
+        <di:waypoint x="2180" y="2330" />
+        <di:waypoint x="2240" y="2330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AwrAkkoord_Task_RetourSturenOverzichtAwr_di" bpmnElement="Flow_Gateway_AwrAkkoord_Task_RetourSturenOverzichtAwr">
+        <di:waypoint x="2290" y="2330" />
+        <di:waypoint x="2305" y="2330" />
+        <di:waypoint x="2305" y="2420" />
+        <di:waypoint x="2320" y="2420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2296" y="2310" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AwrAkkoord_Task_VersturenOverzichtAwrKc_di" bpmnElement="Flow_Gateway_AwrAkkoord_Task_VersturenOverzichtAwrKc">
+        <di:waypoint x="2290" y="2330" />
+        <di:waypoint x="2305" y="2330" />
+        <di:waypoint x="2305" y="2510" />
+        <di:waypoint x="2320" y="2510" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2296" y="2310" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_RetourSturenOverzichtAwr_Task_OnderhandelenPrijzen_di" bpmnElement="Flow_Task_RetourSturenOverzichtAwr_Task_OnderhandelenPrijzen">
+        <di:waypoint x="2420" y="2420" />
+        <di:waypoint x="2450" y="2420" />
+        <di:waypoint x="2450" y="2130" />
+        <di:waypoint x="2480" y="2130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OnderhandelenPrijzen_Task_SturenAangepastOverzichtAwr_di" bpmnElement="Flow_Task_OnderhandelenPrijzen_Task_SturenAangepastOverzichtAwr">
+        <di:waypoint x="2580" y="2130" />
+        <di:waypoint x="2610" y="2130" />
+        <di:waypoint x="2610" y="2220" />
+        <di:waypoint x="2640" y="2220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_SturenAangepastOverzichtAwr_Task_BeoordelenOverzichtAwr_di" bpmnElement="Flow_Task_SturenAangepastOverzichtAwr_Task_BeoordelenOverzichtAwr">
+        <di:waypoint x="2690" y="2260" />
+        <di:waypoint x="2690" y="2560" />
+        <di:waypoint x="2130" y="2560" />
+        <di:waypoint x="2130" y="2370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenOverzichtAwrKc_Gateway_AwrJoin_di" bpmnElement="Flow_Task_VersturenOverzichtAwrKc_Gateway_AwrJoin">
+        <di:waypoint x="2420" y="2510" />
+        <di:waypoint x="2610" y="2510" />
+        <di:waypoint x="2610" y="1950" />
+        <di:waypoint x="2800" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_AwrJoin_Task_VersturenOverzichtAwrDv_di" bpmnElement="Flow_Gateway_AwrJoin_Task_VersturenOverzichtAwrDv">
+        <di:waypoint x="2850" y="1950" />
+        <di:waypoint x="2880" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VersturenOverzichtAwrDv_Gateway_WerkGereed_di" bpmnElement="Flow_Task_VersturenOverzichtAwrDv_Gateway_WerkGereed">
+        <di:waypoint x="2980" y="1950" />
+        <di:waypoint x="3040" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WerkGereed_Gateway_WeekStart_di" bpmnElement="Flow_Gateway_WerkGereed_Gateway_WeekStart">
+        <di:waypoint x="3065" y="1975" />
+        <di:waypoint x="3065" y="1415" />
+        <di:waypoint x="405" y="1415" />
+        <di:waypoint x="405" y="1035" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3071" y="1955" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_WerkGereed_Gateway_UitvoeringJoin_di" bpmnElement="Flow_Gateway_WerkGereed_Gateway_UitvoeringJoin">
+        <di:waypoint x="3090" y="1950" />
+        <di:waypoint x="3105" y="1950" />
+        <di:waypoint x="3105" y="1010" />
+        <di:waypoint x="3120" y="1010" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3096" y="1930" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_SturenFactuurAanOg_Task_AccorderenFactuurDoorsturenAo_di" bpmnElement="Flow_Task_SturenFactuurAanOg_Task_AccorderenFactuurDoorsturenAo">
+        <di:waypoint x="640" y="1280" />
+        <di:waypoint x="670" y="1280" />
+        <di:waypoint x="670" y="630" />
+        <di:waypoint x="700" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenFactuurDoorsturenAo_Task_AccorderenFactuur_di" bpmnElement="Flow_Task_AccorderenFactuurDoorsturenAo_Task_AccorderenFactuur">
+        <di:waypoint x="800" y="630" />
+        <di:waypoint x="830" y="630" />
+        <di:waypoint x="830" y="340" />
+        <di:waypoint x="860" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AccorderenFactuur_Gateway_UitvoeringJoin_di" bpmnElement="Flow_Task_AccorderenFactuur_Gateway_UitvoeringJoin">
+        <di:waypoint x="960" y="340" />
+        <di:waypoint x="2040" y="340" />
+        <di:waypoint x="2040" y="1010" />
+        <di:waypoint x="3120" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AanvragenTotOpneming_Task_VerzoekenTotUitstelOpleveren_di" bpmnElement="Flow_Task_AanvragenTotOpneming_Task_VerzoekenTotUitstelOpleveren">
+        <di:waypoint x="640" y="1370" />
+        <di:waypoint x="700" y="1370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerzoekenTotUitstelOpleveren_Task_BeoordelenVerzoekOpleverenDv_di" bpmnElement="Flow_Task_VerzoekenTotUitstelOpleveren_Task_BeoordelenVerzoekOpleverenDv">
+        <di:waypoint x="800" y="1370" />
+        <di:waypoint x="830" y="1370" />
+        <di:waypoint x="830" y="2130" />
+        <di:waypoint x="860" y="2130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenVerzoekOpleverenDv_Task_SturenAdviesVerzoekOpleveren_di" bpmnElement="Flow_Task_BeoordelenVerzoekOpleverenDv_Task_SturenAdviesVerzoekOpleveren">
+        <di:waypoint x="960" y="2130" />
+        <di:waypoint x="1020" y="2130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_SturenAdviesVerzoekOpleveren_Gateway_VerzoekSplit_di" bpmnElement="Flow_Task_SturenAdviesVerzoekOpleveren_Gateway_VerzoekSplit">
+        <di:waypoint x="1120" y="2130" />
+        <di:waypoint x="1150" y="2130" />
+        <di:waypoint x="1150" y="720" />
+        <di:waypoint x="1180" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VerzoekSplit_Task_SturenVerzoekOpleveringEnBeoordeling_di" bpmnElement="Flow_Gateway_VerzoekSplit_Task_SturenVerzoekOpleveringEnBeoordeling">
+        <di:waypoint x="1230" y="720" />
+        <di:waypoint x="1260" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VerzoekSplit_Task_BeoordelenVerzoekOpleveringPl_di" bpmnElement="Flow_Gateway_VerzoekSplit_Task_BeoordelenVerzoekOpleveringPl">
+        <di:waypoint x="1230" y="720" />
+        <di:waypoint x="1245" y="720" />
+        <di:waypoint x="1245" y="810" />
+        <di:waypoint x="1260" y="810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_SturenVerzoekOpleveringEnBeoordeling_Task_BeoordelenVerzoekOpleveringAo_di" bpmnElement="Flow_Task_SturenVerzoekOpleveringEnBeoordeling_Task_BeoordelenVerzoekOpleveringAo">
+        <di:waypoint x="1360" y="720" />
+        <di:waypoint x="1390" y="720" />
+        <di:waypoint x="1390" y="430" />
+        <di:waypoint x="1420" y="430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenVerzoekOpleveringAo_Task_OpstellenBriefAkkoordAfwijzing_di" bpmnElement="Flow_Task_BeoordelenVerzoekOpleveringAo_Task_OpstellenBriefAkkoordAfwijzing">
+        <di:waypoint x="1520" y="430" />
+        <di:waypoint x="1550" y="430" />
+        <di:waypoint x="1550" y="140" />
+        <di:waypoint x="1580" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenBriefAkkoordAfwijzing_Task_IndienenBriefBijBesluitvorming_di" bpmnElement="Flow_Task_OpstellenBriefAkkoordAfwijzing_Task_IndienenBriefBijBesluitvorming">
+        <di:waypoint x="1680" y="140" />
+        <di:waypoint x="1710" y="140" />
+        <di:waypoint x="1710" y="520" />
+        <di:waypoint x="1740" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_IndienenBriefBijBesluitvorming_Task_PlaatsenBriefInVisi_di" bpmnElement="Flow_Task_IndienenBriefBijBesluitvorming_Task_PlaatsenBriefInVisi">
+        <di:waypoint x="1840" y="520" />
+        <di:waypoint x="1870" y="520" />
+        <di:waypoint x="1870" y="2220" />
+        <di:waypoint x="1900" y="2220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_PlaatsenBriefInVisi_Gateway_VerzoekJoin_di" bpmnElement="Flow_Task_PlaatsenBriefInVisi_Gateway_VerzoekJoin">
+        <di:waypoint x="2000" y="2220" />
+        <di:waypoint x="2030" y="2220" />
+        <di:waypoint x="2030" y="720" />
+        <di:waypoint x="2060" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_BeoordelenVerzoekOpleveringPl_Gateway_BinnenBuitenKrediet_di" bpmnElement="Flow_Task_BeoordelenVerzoekOpleveringPl_Gateway_BinnenBuitenKrediet">
+        <di:waypoint x="1360" y="810" />
+        <di:waypoint x="1420" y="810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BinnenBuitenKrediet_Task_MakenNotaConcerndirecteur_di" bpmnElement="Flow_Gateway_BinnenBuitenKrediet_Task_MakenNotaConcerndirecteur">
+        <di:waypoint x="1470" y="810" />
+        <di:waypoint x="1485" y="810" />
+        <di:waypoint x="1485" y="900" />
+        <di:waypoint x="1500" y="900" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1476" y="790" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_BinnenBuitenKrediet_Gateway_Waarde_di" bpmnElement="Flow_Gateway_BinnenBuitenKrediet_Gateway_Waarde">
+        <di:waypoint x="1470" y="810" />
+        <di:waypoint x="1485" y="810" />
+        <di:waypoint x="1485" y="720" />
+        <di:waypoint x="1500" y="720" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1476" y="790" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Waarde_Task_MakenNotaAo_di" bpmnElement="Flow_Gateway_Waarde_Task_MakenNotaAo">
+        <di:waypoint x="1550" y="720" />
+        <di:waypoint x="1565" y="720" />
+        <di:waypoint x="1565" y="630" />
+        <di:waypoint x="1580" y="630" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1556" y="700" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Waarde_Task_LatenInvullenWebformulierAtb_di" bpmnElement="Flow_Gateway_Waarde_Task_LatenInvullenWebformulierAtb">
+        <di:waypoint x="1550" y="720" />
+        <di:waypoint x="1580" y="720" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1556" y="700" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_MakenNotaConcerndirecteur_Gateway_NotaJoin_di" bpmnElement="Flow_Task_MakenNotaConcerndirecteur_Gateway_NotaJoin">
+        <di:waypoint x="1600" y="900" />
+        <di:waypoint x="1670" y="900" />
+        <di:waypoint x="1670" y="810" />
+        <di:waypoint x="1740" y="810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_MakenNotaAo_Gateway_NotaJoin_di" bpmnElement="Flow_Task_MakenNotaAo_Gateway_NotaJoin">
+        <di:waypoint x="1680" y="630" />
+        <di:waypoint x="1710" y="630" />
+        <di:waypoint x="1710" y="810" />
+        <di:waypoint x="1740" y="810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_LatenInvullenWebformulierAtb_Gateway_NotaJoin_di" bpmnElement="Flow_Task_LatenInvullenWebformulierAtb_Gateway_NotaJoin">
+        <di:waypoint x="1680" y="720" />
+        <di:waypoint x="1710" y="720" />
+        <di:waypoint x="1710" y="810" />
+        <di:waypoint x="1740" y="810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_NotaJoin_Task_InvullenWebformulierAtb_di" bpmnElement="Flow_Gateway_NotaJoin_Task_InvullenWebformulierAtb">
+        <di:waypoint x="1790" y="810" />
+        <di:waypoint x="1805" y="810" />
+        <di:waypoint x="1805" y="230" />
+        <di:waypoint x="1820" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InvullenWebformulierAtb_Gateway_VerzoekJoin_di" bpmnElement="Flow_Task_InvullenWebformulierAtb_Gateway_VerzoekJoin">
+        <di:waypoint x="1920" y="230" />
+        <di:waypoint x="1990" y="230" />
+        <di:waypoint x="1990" y="720" />
+        <di:waypoint x="2060" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_VerzoekJoin_Gateway_UitvoeringJoin_di" bpmnElement="Flow_Gateway_VerzoekJoin_Gateway_UitvoeringJoin">
+        <di:waypoint x="2110" y="720" />
+        <di:waypoint x="2615" y="720" />
+        <di:waypoint x="2615" y="1010" />
+        <di:waypoint x="3120" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_UitvoeringJoin_EndEvent_R53_di" bpmnElement="Flow_Gateway_UitvoeringJoin_EndEvent_R53">
+        <di:waypoint x="3170" y="1010" />
+        <di:waypoint x="3200" y="1010" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_R51_Entry_di" bpmnElement="Assoc_Annotation_R51_Entry">
+        <di:waypoint x="590" y="1440" />
+        <di:waypoint x="380" y="1500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_KV2_Nota_di" bpmnElement="Assoc_Annotation_KV2_Nota">
+        <di:waypoint x="1765" y="785" />
+        <di:waypoint x="2040" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_ATB_di" bpmnElement="Assoc_Annotation_ATB">
+        <di:waypoint x="1870" y="190" />
+        <di:waypoint x="2140" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_KV2_Documenten_di" bpmnElement="Assoc_Annotation_KV2_Documenten">
+        <di:waypoint x="1790" y="480" />
+        <di:waypoint x="2020" y="525" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

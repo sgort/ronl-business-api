@@ -4,7 +4,12 @@
  * config are mocked; fast-xml-parser runs for real against a crafted fixture.
  */
 
-jest.mock('../pa-cache', () => ({ cacheGet: jest.fn(), cacheSet: jest.fn() }));
+// Spread the real module so a third export added later is not silently absent.
+const mockCacheOverrides = { cacheGet: jest.fn(), cacheSet: jest.fn() };
+jest.mock('../pa-cache', () => ({
+  ...jest.requireActual('../pa-cache'),
+  ...mockCacheOverrides,
+}));
 jest.mock('@utils/config', () => ({
   config: { pa: { tkApiBase: 'https://tk', cacheTtlTk: 900 } },
 }));
@@ -14,6 +19,7 @@ jest.mock('@utils/logger', () => ({
 
 import { fetchObFeed } from './ob.client';
 import { cacheGet, cacheSet } from '../pa-cache';
+import { expectMockNamesRealExports } from '../../test-utils/mockModule';
 
 const mockCacheGet = cacheGet as jest.Mock;
 const mockCacheSet = cacheSet as jest.Mock;
@@ -46,12 +52,30 @@ beforeEach(() => {
   mockCacheSet.mockResolvedValue(undefined);
 });
 
+describe('the pa-cache mock', () => {
+  it('only names real exports', () => {
+    expectMockNamesRealExports(jest.requireActual('../pa-cache'), mockCacheOverrides);
+  });
+});
+
 describe('fetchObFeed', () => {
   it('returns cached results without fetching', async () => {
     mockCacheGet.mockResolvedValue({ items: [{ id: 'x' }], total: 1, skip: 0, top: 20 });
     const res = await fetchObFeed('q');
     expect(res.items).toEqual([{ id: 'x' }]);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not serve an empty cached result for the rest of the TTL', async () => {
+    // Same guard as tk.client: { items: [] } is truthy, so an entry left behind
+    // by a failed fetch used to be served as a real answer until the TTL ran out.
+    mockCacheGet.mockResolvedValue({ items: [], total: 0, skip: 0, top: 20 });
+    mockFetch.mockResolvedValue({ ok: true, text: async () => SRU_XML });
+
+    const res = await fetchObFeed('q');
+
+    expect(mockFetch).toHaveBeenCalled();
+    expect(res.items.length).toBeGreaterThan(0);
   });
 
   it('parses the SRU XML, sorts newest-first, and caches', async () => {
@@ -189,5 +213,83 @@ describe('fetchObFeed', () => {
     mockFetch.mockResolvedValue({ ok: true, text: async () => mixedXml });
     const res = await fetchObFeed('q');
     expect(res.items.map((i) => i.id)).toEqual(['valid-1']);
+  });
+});
+
+describe('fetchObFeed — sparse or unusual SRU payloads', () => {
+  const ok = (xml: string) => ({ ok: true, status: 200, text: async () => xml });
+
+  beforeEach(() => {
+    mockCacheGet.mockResolvedValue(null);
+    mockCacheSet.mockResolvedValue(undefined);
+  });
+
+  it('reports no total when the response omits numberOfRecords', async () => {
+    mockFetch.mockResolvedValue(
+      ok('<searchRetrieveResponse><records></records></searchRetrieveResponse>')
+    );
+    const res = await fetchObFeed('stikstof');
+    expect(res.total).toBeNull();
+    expect(res.items).toEqual([]);
+  });
+
+  it('falls back to the raw parse root when there is no searchRetrieveResponse wrapper', async () => {
+    mockFetch.mockResolvedValue(
+      ok(`<records>${record('stb-2026-9', 'Wet B', '2026-07-04', 'Staatsblad')}</records>`)
+    );
+    const res = await fetchObFeed('stikstof');
+    expect(res.items.map((i) => i.id)).toEqual(['stb-2026-9']);
+  });
+
+  it('substitutes placeholders for a record with only an identifier', async () => {
+    mockFetch.mockResolvedValue(
+      ok(`<searchRetrieveResponse><records><record><recordData><gzd>
+        <originalData><meta><owmskern><identifier>stcrt-2026-77</identifier></owmskern></meta></originalData>
+      </gzd></recordData></record></records></searchRetrieveResponse>`)
+    );
+    const [item] = (await fetchObFeed('stikstof')).items;
+    expect(item).toMatchObject({
+      id: 'stcrt-2026-77',
+      title: '(geen titel)',
+      type: null,
+      number: null,
+      date: null,
+      url: 'https://zoek.officielebekendmakingen.nl/stcrt-2026-77.html',
+    });
+    expect(item.description).toBeUndefined();
+  });
+
+  it('drops a record that has neither a title nor an identifier', async () => {
+    mockFetch.mockResolvedValue(
+      ok(`<searchRetrieveResponse><records><record><recordData><gzd>
+        <originalData><meta><owmskern><creator>X</creator></owmskern></meta></originalData>
+      </gzd></recordData></record></records></searchRetrieveResponse>`)
+    );
+    expect((await fetchObFeed('stikstof')).items).toEqual([]);
+  });
+
+  it('sorts date-less records without crashing on the comparison', async () => {
+    mockFetch.mockResolvedValue(
+      ok(`<searchRetrieveResponse><records>
+        <record><recordData><gzd><originalData><meta><owmskern>
+          <identifier>a-1</identifier><title>Eerste</title>
+        </owmskern></meta></originalData></gzd></recordData></record>
+        <record><recordData><gzd><originalData><meta><owmskern>
+          <identifier>a-2</identifier><title>Tweede</title>
+        </owmskern></meta></originalData></gzd></recordData></record>
+      </records></searchRetrieveResponse>`)
+    );
+    expect((await fetchObFeed('stikstof')).items.map((i) => i.id).sort()).toEqual(['a-1', 'a-2']);
+  });
+
+  it('searches with no query and the default paging when called bare', async () => {
+    mockFetch.mockResolvedValue(ok(SRU_XML));
+    const res = await fetchObFeed();
+    expect(res).toMatchObject({ skip: 0, top: 20 });
+  });
+
+  it('logs Unknown error rather than undefined when fetch rejects with a string', async () => {
+    mockFetch.mockRejectedValue('socket hang up');
+    await expect(fetchObFeed('stikstof')).rejects.toBe('socket hang up');
   });
 });

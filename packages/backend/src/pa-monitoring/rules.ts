@@ -16,6 +16,7 @@ import {
   MATCH_CAP,
   REL_MAX,
   NOISE_FLOOR,
+  FLEVOLAND_TERMS,
 } from '@ronl/shared';
 
 interface SavedSearch {
@@ -40,18 +41,6 @@ const TAB_BY_SOURCE: Record<string, Signal['tab']> = {
 const HIGH_VALUE_TK_TYPES = new Set(['Motie', 'Kamervraag', 'Brief', 'Amendement']);
 const HIGH_VALUE_EU_TYPES = new Set(['Verslag', 'Motie', 'Aangenomen tekst', 'Resolutie']);
 
-// Flevoland gazetteer for geographic relevance bump on media items.
-// regio/sentiment are display-only; only the province/municipality bump counts toward rel.
-const FLEVOLAND_MUNICIPALITIES = new Set([
-  'almere',
-  'lelystad',
-  'dronten',
-  'noordoostpolder',
-  'urk',
-  'zeewolde',
-  'zuiderzeeland',
-]);
-
 export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult {
   let rel = REL_BASE;
   const tab: Signal['tab'] = TAB_BY_SOURCE[item.source] ?? 'politiek';
@@ -71,7 +60,7 @@ export function scoreItem(item: FeedItem, searches: SavedSearch[]): RulesResult 
     const regio = (item.regio ?? '').toLowerCase();
     const haystack = `${item.title} ${item.description ?? ''} ${regio}`.toLowerCase();
     if (regio.includes('flevoland') || haystack.includes('flevoland')) rel += MEDIA_PROV_BUMP;
-    for (const gemeente of FLEVOLAND_MUNICIPALITIES) {
+    for (const gemeente of FLEVOLAND_TERMS) {
       if (haystack.includes(gemeente)) {
         rel += MEDIA_MUNI_BUMP;
         break;

@@ -5,6 +5,7 @@ import { operatonService, OperatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
+import { inferType } from '@utils/operaton-variables';
 
 const router = express.Router();
 const logger = createLogger('m2m-routes');
@@ -25,7 +26,9 @@ const m2mOperatonService = config.operaton.m2mBaseUrl
 // A disabled operation returns 403 OPERATION_NOT_PERMITTED.
 // No other code changes required.
 //
-const M2M_ALLOWED_OPERATIONS: readonly string[] = [
+// Exported so the gate itself can be exercised: with every operation listed, the
+// 403 path below is otherwise only reachable by editing this file.
+export const M2M_ALLOWED_OPERATIONS: string[] = [
   // Process
   'process.list',
   'process.start',
@@ -71,22 +74,6 @@ function notAllowed(res: Response): void {
 router.use(jwtMiddleware);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function inferType(value: unknown): OperatonVariable['type'] {
-  if (value === null || value === undefined) return 'Null';
-  switch (typeof value) {
-    case 'boolean':
-      return 'Boolean';
-    case 'number':
-      return Number.isInteger(value) ? 'Integer' : 'Double';
-    case 'string':
-      return 'String';
-    case 'object':
-      return 'Json';
-    default:
-      return 'String';
-  }
-}
 
 function toOperatonVariables(input: Record<string, unknown>): Record<string, OperatonVariable> {
   const result: Record<string, OperatonVariable> = {};

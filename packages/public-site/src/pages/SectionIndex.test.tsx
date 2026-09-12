@@ -1,0 +1,320 @@
+// packages/public-site/src/pages/SectionIndex.test.tsx
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import SectionIndex from './SectionIndex';
+import { translations } from '../i18n';
+import * as api from '../lib/api';
+
+vi.mock('../lib/api', async () => {
+  const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
+  return {
+    ...actual,
+    getBerichten: vi.fn(),
+    getNieuws: vi.fn(),
+    getProducten: vi.fn(),
+    getProcessen: vi.fn(),
+  };
+});
+
+const t = translations.nl;
+beforeEach(() => vi.clearAllMocks());
+
+describe('SectionIndex (berichten)', () => {
+  it('lists fetched items and shows a live item count', async () => {
+    vi.mocked(api.getBerichten).mockResolvedValue({
+      items: [
+        {
+          id: 'b1',
+          subject: 'Wegwerkzaamheden',
+          preview: 'De N23 is dicht.',
+          content: null,
+          publishedAt: '2026-07-01',
+          sender: { id: 'x', name: 'Provincie Flevoland' },
+        },
+        {
+          id: 'b2',
+          subject: 'Subsidieronde open',
+          preview: 'Vraag nu aan.',
+          content: null,
+          publishedAt: '2026-07-02',
+          sender: { id: 'x', name: 'Provincie Flevoland' },
+        },
+      ],
+      total: 2,
+    });
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Wegwerkzaamheden/ })).toBeInTheDocument()
+    );
+    expect(screen.getByText('2 items')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('a local filter narrows the visible items by title', async () => {
+    vi.mocked(api.getBerichten).mockResolvedValue({
+      items: [
+        {
+          id: 'b1',
+          subject: 'Wegwerkzaamheden',
+          preview: '',
+          content: null,
+          publishedAt: '2026-01-01',
+          sender: { id: 'x', name: 'X' },
+        },
+        {
+          id: 'b2',
+          subject: 'Subsidieronde open',
+          preview: '',
+          content: null,
+          publishedAt: '2026-01-02',
+          sender: { id: 'x', name: 'X' },
+        },
+      ],
+      total: 2,
+    });
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Wegwerkzaamheden/ })).toBeInTheDocument()
+    );
+    fireEvent.change(screen.getByLabelText(t.searchLabel), { target: { value: 'subsidie' } });
+    fireEvent.submit(screen.getByRole('search'));
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: /Wegwerkzaamheden/ })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole('link', { name: /Subsidieronde/ })).toBeInTheDocument();
+  });
+});
+
+describe('SectionIndex — prerendered seeding', () => {
+  function setBlob(route: string, data: unknown) {
+    document.getElementById('__PUB_DATA__')?.remove();
+    const s = document.createElement('script');
+    s.id = '__PUB_DATA__';
+    s.type = 'application/json';
+    s.textContent = JSON.stringify({ route, data });
+    document.body.appendChild(s);
+  }
+  afterEach(() => document.getElementById('__PUB_DATA__')?.remove());
+
+  it('renders items from the prerendered blob on first paint, without fetching', () => {
+    vi.mocked(api.getBerichten).mockResolvedValue({ items: [], total: 0 });
+    setBlob('/berichten', [
+      {
+        id: 'b1',
+        slug: 'b1',
+        type: 'bericht',
+        title: 'Seeded bericht',
+        summary: 'x',
+        org: 'Provincie Flevoland',
+        date: '2026-07-01',
+        audience: [],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    // Present synchronously — seeded during render, no "Laden…" first.
+    expect(screen.getByRole('link', { name: /Seeded bericht/ })).toBeInTheDocument();
+    expect(screen.getByText('1 items')).toBeInTheDocument();
+  });
+
+  it('revalidates the seed and replaces it when the section has moved on', async () => {
+    // Same defect as the Regelcatalogus one in issue #88: the blob is baked at
+    // build time, so every section route froze at the last deploy.
+    vi.mocked(api.getBerichten).mockResolvedValue({
+      items: [
+        {
+          id: 'b9',
+          subject: 'Fresh bericht',
+          preview: '',
+          content: null,
+          publishedAt: '2026-07-02',
+          sender: { id: 'x', name: 'X' },
+        },
+      ],
+      total: 1,
+    });
+    setBlob('/berichten', [
+      {
+        id: 'b1',
+        slug: 'b1',
+        type: 'bericht',
+        title: 'Stale bericht',
+        summary: 'x',
+        org: 'Provincie Flevoland',
+        date: '2026-07-01',
+        audience: [],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    // The seed paints first, with no loading placeholder in between.
+    expect(screen.getByRole('link', { name: /Stale bericht/ })).toBeInTheDocument();
+    expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Fresh bericht/ })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('link', { name: /Stale bericht/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the seed on screen when the revalidation fails', async () => {
+    vi.mocked(api.getBerichten).mockRejectedValue(new Error('backend down'));
+    setBlob('/berichten', [
+      {
+        id: 'b1',
+        slug: 'b1',
+        type: 'bericht',
+        title: 'Seeded bericht',
+        summary: 'x',
+        org: 'Provincie Flevoland',
+        date: '2026-07-01',
+        audience: [],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(api.getBerichten).toHaveBeenCalled());
+    expect(screen.getByRole('link', { name: /Seeded bericht/ })).toBeInTheDocument();
+    expect(screen.queryByText('Laden…')).not.toBeInTheDocument();
+  });
+
+  it('still fetches when no blob is present (cold load)', async () => {
+    vi.mocked(api.getBerichten).mockResolvedValue({
+      items: [
+        {
+          id: 'b9',
+          subject: 'Fetched bericht',
+          preview: '',
+          content: null,
+          publishedAt: '2026-07-01',
+          sender: { id: 'x', name: 'X' },
+        },
+      ],
+      total: 1,
+    });
+    render(
+      <MemoryRouter initialEntries={['/berichten']}>
+        <SectionIndex t={t} lang="nl" type="bericht" />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Fetched bericht/ })).toBeInTheDocument()
+    );
+    expect(api.getBerichten).toHaveBeenCalled();
+  });
+});
+
+describe('SectionIndex, one loader per section type', () => {
+  // loadItems switches on the section type; each arm calls a different endpoint
+  // with its own page size and its own mapper. A wrong arm shows the wrong
+  // list on a route that otherwise looks correct, so each is pinned here.
+  const renderFor = (type: 'nieuws' | 'product' | 'proces' | 'regel') =>
+    render(
+      <MemoryRouter>
+        <SectionIndex t={t} lang="nl" type={type} />
+      </MemoryRouter>
+    );
+
+  it('loads nieuws from getNieuws', async () => {
+    vi.mocked(api.getNieuws).mockResolvedValue({
+      items: [
+        {
+          id: 'n1',
+          title: 'Nieuw beleid',
+          summary: 'Samenvatting',
+          source: { id: 'ro', name: 'Rijksoverheid' },
+          publishedAt: '2026-07-01',
+        },
+      ],
+      total: 1,
+    } as unknown as Awaited<ReturnType<typeof api.getNieuws>>);
+
+    renderFor('nieuws');
+
+    await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
+    expect(api.getNieuws).toHaveBeenCalledWith(200);
+  });
+
+  it('loads producten from getProducten', async () => {
+    vi.mocked(api.getProducten).mockResolvedValue({
+      items: [
+        {
+          id: 'p1',
+          title: 'Paspoort aanvragen',
+          description: 'Beschrijving',
+          modified: '2026-07-01',
+          audience: [],
+        },
+      ],
+      total: 1,
+    } as unknown as Awaited<ReturnType<typeof api.getProducten>>);
+
+    renderFor('product');
+
+    await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
+    expect(api.getProducten).toHaveBeenCalledWith(200);
+  });
+
+  it('loads processen from getProcessen', async () => {
+    vi.mocked(api.getProcessen).mockResolvedValue([
+      {
+        key: 'proc-1',
+        naam: 'Aanvraag behandelen',
+        beschrijving: null,
+        gepubliceerd: '2026-07-01',
+      },
+    ] as unknown as Awaited<ReturnType<typeof api.getProcessen>>);
+
+    renderFor('proces');
+
+    await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
+    expect(api.getProcessen).toHaveBeenCalled();
+  });
+
+  it('renders the regel section empty, because Regelcatalogus owns that type', async () => {
+    renderFor('regel');
+
+    await waitFor(() => expect(screen.getByText('0 items')).toBeInTheDocument());
+    expect(api.getBerichten).not.toHaveBeenCalled();
+    expect(api.getNieuws).not.toHaveBeenCalled();
+    expect(api.getProducten).not.toHaveBeenCalled();
+    expect(api.getProcessen).not.toHaveBeenCalled();
+  });
+
+  it('translates the loading placeholder', () => {
+    // Never resolves, so the placeholder is what is on screen.
+    vi.mocked(api.getBerichten).mockReturnValue(new Promise(() => {}));
+    render(
+      <MemoryRouter>
+        <SectionIndex t={t} lang="en" type="bericht" />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+});

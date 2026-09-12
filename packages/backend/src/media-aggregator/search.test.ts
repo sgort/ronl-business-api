@@ -70,3 +70,27 @@ describe('searchArticles', () => {
     expect(res).toEqual([]);
   });
 });
+
+describe('searchArticles — query fields left out', () => {
+  it('defaults region, q and top when the query object is empty', async () => {
+    mockGet.mockResolvedValue(CORPUS);
+    // No region means no region filter, so the whole corpus comes back.
+    await expect(searchArticles({})).resolves.toHaveLength(CORPUS.length);
+  });
+
+  it('falls back to 50 when top is not a usable number', async () => {
+    mockGet.mockResolvedValue(CORPUS);
+    for (const top of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(searchArticles({ top })).resolves.toHaveLength(Math.min(CORPUS.length, 50));
+    }
+  });
+
+  it('sorts articles that carry no publication date without crashing', async () => {
+    mockGet.mockResolvedValue([
+      article({ id: 'a', title: 'Eerste', published_at: '' }),
+      article({ id: 'b', title: 'Tweede', published_at: '' }),
+    ]);
+    const res = await searchArticles({});
+    expect(res.map((a) => a.id).sort()).toEqual(['a', 'b']);
+  });
+});

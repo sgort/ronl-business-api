@@ -161,7 +161,9 @@ function cacheKey(dateFrom: string, dateTo: string): string {
 export async function fetchAgenda(dateFrom: string, dateTo: string): Promise<PlenaryItem[]> {
   const key = cacheKey(dateFrom, dateTo);
   const cached = await cacheGet<PlenaryItem[]>(key);
-  if (cached) return cached;
+  // Guard on length, not truthiness — see tk.client for why an empty
+  // cached result must not short-circuit.
+  if (cached?.length) return cached;
 
   logger.info('Agenda fetch', { dateFrom, dateTo });
 

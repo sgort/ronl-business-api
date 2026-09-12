@@ -14,8 +14,61 @@ dotenv.config();
 // otherwise ignored. Apply it now, before any TLS connection is made.
 applyExtraCaCerts();
 
+/**
+ * Deployment tier this instance represents — the answer to "which environment
+ * am I looking at?".
+ *
+ * Deliberately separate from NODE_ENV. NODE_ENV is a runtime-mode contract that
+ * Node, Express and several libraries branch on, and this codebase branches on
+ * it too: error-message disclosure (index.ts), console log format (logger.ts),
+ * whether the MCP servers are spawned from dist/ or via tsx from src/, the
+ * external-task long-poll window, and the required-settings check below. ACC
+ * therefore runs with NODE_ENV=production so it behaves exactly like production
+ * — which is the point of an acceptance environment — and cannot use NODE_ENV
+ * to say which tier it is.
+ *
+ * DEPLOYMENT_ENV carries the tier label instead, set per Azure App Service:
+ *   az webapp config appsettings set -g rg-ronl-acc  -n ronl-business-api-acc  --settings DEPLOYMENT_ENV=acceptance
+ *   az webapp config appsettings set -g rg-ronl-prod -n ronl-business-api-prod --settings DEPLOYMENT_ENV=production
+ * Falls back to NODE_ENV when unset, so local development stays zero-config and
+ * nothing changes for an environment that has not set it yet.
+ */
+const DEPLOYMENT_ENV_ALIASES: Record<string, string> = {
+  dev: 'development',
+  development: 'development',
+  acc: 'acceptance',
+  acceptance: 'acceptance',
+  staging: 'acceptance',
+  prod: 'production',
+  production: 'production',
+  test: 'test',
+};
+
+function resolveDeploymentEnv(): string {
+  const raw = (process.env.DEPLOYMENT_ENV || process.env.NODE_ENV || 'development')
+    .toLowerCase()
+    .trim();
+  // An unrecognised label is passed through rather than swallowed, so a typo in
+  // App Settings shows up in /v1/health instead of silently reading as 'development'.
+  return DEPLOYMENT_ENV_ALIASES[raw] ?? raw;
+}
+
 interface Config {
   nodeEnv: string;
+  /**
+   * Deployment tier. Display and reporting only — do not branch on this to
+   * change behaviour, or ACC stops behaving like production, which is the
+   * point of an acceptance environment.
+   *
+   * One deliberate exception: VALIDSIGN_LIVE_TIERS gates real ValidSign
+   * package creation on this value. The ValidSign licence is
+   * production-only with no sandbox tenant and its API key is account-wide,
+   * so a tier that has not been explicitly allowlisted must not be able to
+   * fire real signatures. The gate is an allowlist, not a hardcoded ACC
+   * exclusion: add 'acceptance' to VALIDSIGN_LIVE_TIERS and ACC signs for
+   * real like production does.
+   */
+  deploymentEnv: string;
   port: number;
   host: string;
   corsOrigin: string[];
@@ -86,6 +139,18 @@ interface Config {
     userId: string;
     password: string;
     stubMode: boolean;
+    department: string;
+  };
+  edocsMcp: {
+    enabled: boolean;
+    clientId: string;
+    clientSecret: string;
+  };
+  doccle: {
+    apiBaseUrl: string;
+    username: string;
+    password: string;
+    stubMode: boolean;
   };
   mcp: {
     enabled: boolean;
@@ -115,9 +180,17 @@ interface Config {
   lde: {
     enabled: boolean;
     databaseUrl: string;
+    apiUrl: string;
   };
   altcha: {
     hmacKey: string;
+  };
+  public: {
+    /** ACC-only escape hatch: also expose 'wip' process bundles on the
+     * public site's process library, not just 'active' ones, so ACC can
+     * be used to preview in-progress processes before they go live. Must
+     * stay false/unset in production. */
+    showWipProcesses: boolean;
   };
   pa: {
     tkApiBase: string;
@@ -130,17 +203,28 @@ interface Config {
     cacheTtlTk: number;
     cacheTtlAgenda: number;
     cacheTtlStatic: number;
-    useMock: boolean;
+    seedDemoData: boolean;
+  };
+  validsign: {
+    baseUrl: string;
+    apiKey: string;
+    senderEmail: string;
+    stubMode: boolean;
+    callbackSecret: string;
+    liveTiers: string[];
+    pollIntervalMs: number;
   };
 }
 
 export const config: Config = {
   nodeEnv: process.env.NODE_ENV || 'development',
+  deploymentEnv: resolveDeploymentEnv(),
   port: parseEnvInt(process.env.PORT, 3002),
   host: process.env.HOST || '0.0.0.0',
   corsOrigin: parseEnvArray(process.env.CORS_ORIGIN, [
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://localhost:5175', // public-site dev server
     'http://localhost:3002',
   ]),
   keycloak: {
@@ -182,7 +266,18 @@ export const config: Config = {
 
   rateLimit: {
     windowMs: parseEnvInt(process.env.RATE_LIMIT_WINDOW_MS, 60000),
-    maxRequests: parseEnvInt(process.env.RATE_LIMIT_MAX_REQUESTS, 100),
+    // 100/min was below what the PA cockpit costs to use: one short authoring
+    // journey measured 21 requests to /v1/pa/*, so a minute of ordinary
+    // clicking exhausted the budget and every fetch came back 429. The surface
+    // renders that as "Kon dossiers niet laden", which reads as a backend fault
+    // rather than a throttle, and it cost an afternoon of misdiagnosis once.
+    //
+    // This is the default that ships: tiers configured purely through App
+    // Settings inherit it, so it has to be a number a real user cannot reach by
+    // working normally. Note the budget is per key from keyGenerator below,
+    // which is IP-based — see TRUST_PROXY, without which every user behind the
+    // same proxy shares one bucket.
+    maxRequests: parseEnvInt(process.env.RATE_LIMIT_MAX_REQUESTS, 1000),
     perTenant: parseEnvBool(process.env.RATE_LIMIT_PER_TENANT, true),
   },
 
@@ -224,6 +319,30 @@ export const config: Config = {
     userId: process.env.EDOCS_USER_ID ?? '',
     password: process.env.EDOCS_PASSWORD ?? '',
     stubMode: parseEnvBool(process.env.EDOCS_STUB_MODE, true),
+    // UV_AFD_NAAM profile field on the DM server -- a property of the eDOCS
+    // environment, not of the project/instance doing the archiving (see
+    // EDOCS_DEPARTMENT in .env.example for why this must not come from a
+    // process variable). 'IVR' is the value proven to work against the live
+    // test server, so a developer with no extra configuration still gets a
+    // working archive. Not required: an empty value degrades to an upload
+    // failure per document, not a startup failure.
+    department: process.env.EDOCS_DEPARTMENT ?? 'IVR',
+  },
+
+  edocsMcp: {
+    enabled: parseEnvBool(process.env.EDOCS_MCP_ENABLED, false),
+    clientId: process.env.EDOCS_MCP_CLIENT_ID ?? 'edocs-mcp-client',
+    clientSecret: process.env.EDOCS_MCP_CLIENT_SECRET ?? '',
+  },
+
+  doccle: {
+    // DOCCLE_API_ACC is the name already configured for the staging (acceptance)
+    // environment; DOCCLE_BASE_URL is the generic name used once other environments
+    // (e.g. production) are configured.
+    apiBaseUrl: process.env.DOCCLE_BASE_URL ?? process.env.DOCCLE_API_ACC ?? '',
+    username: process.env.DOCCLE_USERNAME ?? '',
+    password: process.env.DOCCLE_PASSWORD ?? '',
+    stubMode: parseEnvBool(process.env.DOCCLE_STUB_MODE, true),
   },
 
   mcp: {
@@ -245,6 +364,7 @@ export const config: Config = {
   lde: {
     enabled: parseEnvBool(process.env.LDE_MCP_ENABLED, false),
     databaseUrl: process.env.LDE_DATABASE_URL ?? '',
+    apiUrl: process.env.LDE_API_URL || 'https://acc.backend.linkeddata.open-regels.nl/v1',
   },
 
   anthropic: {
@@ -266,6 +386,10 @@ export const config: Config = {
     hmacKey: process.env.ALTCHA_HMAC_KEY || '',
   },
 
+  public: {
+    showWipProcesses: parseEnvBool(process.env.PUBLIC_SHOW_WIP_PROCESSES, false),
+  },
+
   pa: {
     tkApiBase: process.env.TK_API_BASE || 'https://gegevensmagazijn.tweedekamer.nl/OData/v5',
     euApiBase: process.env.EU_API_BASE || 'https://data.europarl.europa.eu/api/v2',
@@ -277,7 +401,21 @@ export const config: Config = {
     cacheTtlTk: parseEnvInt(process.env.CACHE_TTL_TK, 900),
     cacheTtlAgenda: parseEnvInt(process.env.CACHE_TTL_AGENDA, 1800),
     cacheTtlStatic: parseEnvInt(process.env.CACHE_TTL_STATIC, 3600),
-    useMock: parseEnvBool(process.env.PA_USE_MOCK, false),
+    // Off by default: a live database holds only dossiers someone actually
+    // authored. Turn on to populate a fresh demo/ACC environment with the
+    // SEED_DOSSIERS examples. See pa-dossiers.db.ts.
+    seedDemoData: parseEnvBool(process.env.PA_SEED_DEMO_DATA, false),
+  },
+
+  validsign: {
+    baseUrl: process.env.VALIDSIGN_BASE_URL || 'https://my.validsign.eu/api',
+    apiKey: process.env.VALIDSIGN_API_KEY ?? '',
+    senderEmail: process.env.VALIDSIGN_SENDER_EMAIL ?? '',
+    stubMode: parseEnvBool(process.env.VALIDSIGN_STUB_MODE, true),
+    callbackSecret: process.env.VALIDSIGN_CALLBACK_SECRET ?? '',
+    // Empty by default: no tier may create real packages until one is named.
+    liveTiers: parseEnvArray(process.env.VALIDSIGN_LIVE_TIERS, []),
+    pollIntervalMs: parseEnvInt(process.env.VALIDSIGN_POLL_INTERVAL_MS, 15000),
   },
 };
 
@@ -289,16 +427,39 @@ function validateConfig() {
     errors.push('KEYCLOAK_CLIENT_SECRET is required in production');
   }
 
-  if (!config.database.url) {
-    errors.push('DATABASE_URL is required');
+  // These two check process.env rather than the resolved config on purpose.
+  // Both settings fall back to a local/shared default above, so the resolved
+  // value is never empty and `!config.database.url` could never be true — the
+  // check read like a safety net while catching nothing, and a production
+  // deployment with no DATABASE_URL would silently write its audit log to
+  // localhost. The defaults stay, so development still needs no .env.
+  if (!process.env.DATABASE_URL && config.nodeEnv === 'production') {
+    errors.push('DATABASE_URL is required in production');
   }
 
-  if (!config.operaton.baseUrl) {
-    errors.push('OPERATON_BASE_URL is required');
+  if (!process.env.OPERATON_BASE_URL && config.nodeEnv === 'production') {
+    errors.push('OPERATON_BASE_URL is required in production');
   }
 
   if (!config.anthropic.apiKey) {
     errors.push('ANTHROPIC_API_KEY is required');
+  }
+
+  // Only when live signing is switched on. Unconditional requirements here
+  // would break every test: validateConfig() runs on import with no test skip.
+  if (!config.validsign.stubMode) {
+    if (!config.validsign.apiKey) {
+      errors.push('VALIDSIGN_API_KEY is required when VALIDSIGN_STUB_MODE=false');
+    }
+    if (!config.validsign.callbackSecret) {
+      errors.push('VALIDSIGN_CALLBACK_SECRET is required when VALIDSIGN_STUB_MODE=false');
+    }
+    if (!config.validsign.liveTiers.includes(config.deploymentEnv)) {
+      errors.push(
+        `DEPLOYMENT_ENV="${config.deploymentEnv}" is not in VALIDSIGN_LIVE_TIERS — ` +
+          'refusing to start with live signing enabled on an unlisted tier'
+      );
+    }
   }
 
   if (errors.length > 0) {

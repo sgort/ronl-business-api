@@ -7,7 +7,7 @@ persistence.
 The surface lives under **Beheer → Strategisch kompas → Dossierbeheer** (overview)
 and **Nieuw dossier** (create). Mock vs. live is a **runtime toggle**, not just a
 build flag: the flag banner flips a persisted `localStorage` override
-(`paV2.dossiers.mock`) that [`fetchDossiers`](../packages/frontend/src/services/pa.api.ts)
+(`paV2.dossiers.mock`) that [`fetchDossiers`](../packages/pa-cockpit/src/services/pa.api.ts)
 reads, defaulting to `VITE_PA_DOSSIERS_MOCK`. So you can validate the whole UI on
 mocks first, then flip to live in the same session — no rebuild.
 

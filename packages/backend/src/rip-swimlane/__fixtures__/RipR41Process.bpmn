@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_RipR41Process" targetNamespace="http://example.com/rip-phase-41" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:collaboration id="Collaboration_RipR41Process">
+    <bpmn:participant id="Participant_RipR41Process" name="R4.1 - Aanbestedingsproces" processRef="RipR41Process" />
+  </bpmn:collaboration>
+  <bpmn:process id="RipR41Process" name="R4.1 - Aanbestedingsproces" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:laneSet id="LaneSet_RipR41Process">
+      <bpmn:lane id="Lane_KostenContractdeskundige" name="Kosten- en contractdeskundige">
+        <bpmn:flowNodeRef>StartEvent_R41</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VerzoekenTotAanbesteden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HerstellenDossier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ActualiserenProjectraming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ControlerenWijzigingenNotaVanInlichtingen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Onregelmatigheid1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TerzijdeLeggenOnrechtmatigeInschrijving</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ControlerenEenheidsprijzen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Onregelmatigheid2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpvragenVerduidelijkingInschrijving</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Inkoopadviseur" name="Inkoopadviseur">
+        <bpmn:flowNodeRef>Task_ControlerenAanbestedingsdocumenten</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DossierVolledig</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AfwijzenInschrijving</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_InschrijvingAfgewezen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenVoornemenTotGunnen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AfrondenInkoopprocedure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Inkoopprocedure</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectleider" name="Projectleider">
+        <bpmn:flowNodeRef>Gateway_Dekkingsbron</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenNotaBesluitvormingConcerndirecteur</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpstellenNotaBesluitvormingAo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotaJoin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Concerndirecteur" name="Concerndirecteur">
+        <bpmn:flowNodeRef>Task_VaststellenNotaBesluitvormingConcerndirecteur</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Financien" name="Financiën">
+        <bpmn:flowNodeRef>Task_VerwerkenProjectramingAanbesteding</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AO" name="AO">
+        <bpmn:flowNodeRef>Task_VaststellenNotaBesluitvormingAo</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Projectondersteuner" name="Projectondersteuner">
+        <bpmn:flowNodeRef>Task_InformerenInkoopadviseur</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_R41" name="Start R4.1 - Aanbestedingsproces&#10;(vanuit R3.2)">
+      <bpmn:outgoing>Flow_StartEvent_R41_Task_VerzoekenTotAanbesteden</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_VerzoekenTotAanbesteden" name="Verzoeken tot&#10;aanbesteden" camunda:formRef="rip-verzoeken-tot-aanbesteden" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_StartEvent_R41_Task_VerzoekenTotAanbesteden</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerzoekenTotAanbesteden_Task_ControlerenAanbestedingsdocumenten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControlerenAanbestedingsdocumenten" name="Controleren aanbestedingsdocumenten&#10;klaar voor upload" camunda:formRef="rip-controleren-aanbestedingsdocumenten" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-inkoopadviseur" ronl:documentRef="rip-aanbestedingsdossier">
+      <bpmn:incoming>Flow_Task_VerzoekenTotAanbesteden_Task_ControlerenAanbestedingsdocumenten</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_HerstellenDossier_Task_ControlerenAanbestedingsdocumenten</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenAanbestedingsdocumenten_Gateway_DossierVolledig</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_DossierVolledig" name="Dossier&#10;volledig?">
+      <bpmn:incoming>Flow_Task_ControlerenAanbestedingsdocumenten_Gateway_DossierVolledig</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_DossierVolledig_Task_HerstellenDossier</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_DossierVolledig_Task_ActualiserenProjectraming</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_HerstellenDossier" name="Herstellen dossier" camunda:formRef="rip-herstellen-dossier" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Gateway_DossierVolledig_Task_HerstellenDossier</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_HerstellenDossier_Task_ControlerenAanbestedingsdocumenten</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ActualiserenProjectraming" name="Actualiseren&#10;projectraming" camunda:formRef="rip-actualiseren-projectraming" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:documentRef="rip-projectraming-na-aanbesteding">
+      <bpmn:incoming>Flow_Gateway_DossierVolledig_Task_ActualiserenProjectraming</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ActualiserenProjectraming_Task_ControlerenWijzigingenNotaVanInlichtingen</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControlerenWijzigingenNotaVanInlichtingen" name="Controleren wijzigingen&#10;Nota van inlichtingen" camunda:formRef="rip-controleren-nota-van-inlichtingen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:documentRef="rip-nota-van-inlichtingen">
+      <bpmn:incoming>Flow_Task_ActualiserenProjectraming_Task_ControlerenWijzigingenNotaVanInlichtingen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenWijzigingenNotaVanInlichtingen_Gateway_Onregelmatigheid1</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Onregelmatigheid1" name="Onregelmatigheid&#10;gevonden?">
+      <bpmn:incoming>Flow_Task_ControlerenWijzigingenNotaVanInlichtingen_Gateway_Onregelmatigheid1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_Onregelmatigheid1_Task_TerzijdeLeggenOnrechtmatigeInschrijving</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_Onregelmatigheid1_Task_ControlerenEenheidsprijzen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_TerzijdeLeggenOnrechtmatigeInschrijving" name="Terzijde leggen i.v.m.&#10;onrechtmatige inschrijving" camunda:formRef="rip-terzijde-leggen-inschrijving" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Gateway_Onregelmatigheid1_Task_TerzijdeLeggenOnrechtmatigeInschrijving</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_TerzijdeLeggenOnrechtmatigeInschrijving_Task_AfwijzenInschrijving</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AfwijzenInschrijving" name="Afwijzen inschrijving" camunda:formRef="rip-afwijzen-inschrijving" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-inkoopadviseur">
+      <bpmn:incoming>Flow_Task_TerzijdeLeggenOnrechtmatigeInschrijving_Task_AfwijzenInschrijving</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AfwijzenInschrijving_EndEvent_InschrijvingAfgewezen</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_InschrijvingAfgewezen" name="Inschrijving afgewezen">
+      <bpmn:incoming>Flow_Task_AfwijzenInschrijving_EndEvent_InschrijvingAfgewezen</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_ControlerenEenheidsprijzen" name="Controleren eenheidsprijzen&#10;inschrijfstaat" camunda:formRef="rip-controleren-eenheidsprijzen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige" ronl:documentRef="rip-proces-verbaal-aanbesteding">
+      <bpmn:incoming>Flow_Gateway_Onregelmatigheid1_Task_ControlerenEenheidsprijzen</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_OpvragenVerduidelijkingInschrijving_Task_ControlerenEenheidsprijzen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_ControlerenEenheidsprijzen_Gateway_Onregelmatigheid2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Onregelmatigheid2" name="Onregelmatigheid&#10;gevonden?">
+      <bpmn:incoming>Flow_Task_ControlerenEenheidsprijzen_Gateway_Onregelmatigheid2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_Onregelmatigheid2_Task_OpvragenVerduidelijkingInschrijving</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_Onregelmatigheid2_Task_OpstellenVoornemenTotGunnen</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_OpvragenVerduidelijkingInschrijving" name="Opvragen verduidelijking&#10;inschrijving" camunda:formRef="rip-opvragen-verduidelijking-inschrijving" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-kosten-contractdeskundige">
+      <bpmn:incoming>Flow_Gateway_Onregelmatigheid2_Task_OpvragenVerduidelijkingInschrijving</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpvragenVerduidelijkingInschrijving_Task_ControlerenEenheidsprijzen</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenVoornemenTotGunnen" name="Opstellen voornemen tot gunnen&#10;(bij BPKV: bijlage motivering)" camunda:formRef="rip-opstellen-voornemen-tot-gunnen" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-inkoopadviseur,rip-kosten-contractdeskundige" ronl:documentRef="rip-gunningsvoornemen">
+      <bpmn:incoming>Flow_Gateway_Onregelmatigheid2_Task_OpstellenVoornemenTotGunnen</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenVoornemenTotGunnen_Gateway_Dekkingsbron</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Dekkingsbron" name="Over- of onderschrijding&#10;dekkingsbron?">
+      <bpmn:incoming>Flow_Task_OpstellenVoornemenTotGunnen_Gateway_Dekkingsbron</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingConcerndirecteur</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingAo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_OpstellenNotaBesluitvormingConcerndirecteur" name="Opstellen nota besluitvorming&#10;(Concerndirecteur - sjabloon)" camunda:formRef="rip-nota-besluitvorming-concerndirecteur" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-nota-besluitvorming-concerndirecteur">
+      <bpmn:incoming>Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingConcerndirecteur</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenNotaBesluitvormingConcerndirecteur_Task_VaststellenNotaBesluitvormingConcerndirecteur</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_OpstellenNotaBesluitvormingAo" name="Opstellen nota besluitvorming&#10;(AO - sjabloon)" camunda:formRef="rip-nota-besluitvorming-ao" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectleider" ronl:documentRef="rip-nota-besluitvorming-ao">
+      <bpmn:incoming>Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingAo</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_OpstellenNotaBesluitvormingAo_Task_VaststellenNotaBesluitvormingAo</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VaststellenNotaBesluitvormingConcerndirecteur" name="Vaststellen nota&#10;besluitvorming" camunda:formRef="rip-vaststellen-nota-concerndirecteur" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-concerndirecteur">
+      <bpmn:incoming>Flow_Task_OpstellenNotaBesluitvormingConcerndirecteur_Task_VaststellenNotaBesluitvormingConcerndirecteur</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VaststellenNotaBesluitvormingConcerndirecteur_Gateway_NotaJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VaststellenNotaBesluitvormingAo" name="Vaststellen nota&#10;besluitvorming" camunda:formRef="rip-vaststellen-nota-ao" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ao">
+      <bpmn:incoming>Flow_Task_OpstellenNotaBesluitvormingAo_Task_VaststellenNotaBesluitvormingAo</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VaststellenNotaBesluitvormingAo_Gateway_NotaJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_NotaJoin">
+      <bpmn:incoming>Flow_Task_VaststellenNotaBesluitvormingConcerndirecteur_Gateway_NotaJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_Task_VaststellenNotaBesluitvormingAo_Gateway_NotaJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_Gateway_NotaJoin_Task_VerwerkenProjectramingAanbesteding</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_VerwerkenProjectramingAanbesteding" name="Verwerken projectraming&#10;en raamkrediet Infra" camunda:formRef="rip-verwerken-projectraming-aanbesteding" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-financien">
+      <bpmn:incoming>Flow_Gateway_NotaJoin_Task_VerwerkenProjectramingAanbesteding</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_VerwerkenProjectramingAanbesteding_Task_InformerenInkoopadviseur</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_InformerenInkoopadviseur" name="Informeren&#10;Inkoopadviseur" camunda:formRef="rip-informeren-inkoopadviseur" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-projectondersteuner">
+      <bpmn:incoming>Flow_Task_VerwerkenProjectramingAanbesteding_Task_InformerenInkoopadviseur</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_InformerenInkoopadviseur_Task_AfrondenInkoopprocedure</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AfrondenInkoopprocedure" name="Afronden&#10;inkoopprocedure" camunda:formRef="rip-afronden-inkoopprocedure" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-inkoopadviseur">
+      <bpmn:incoming>Flow_Task_InformerenInkoopadviseur_Task_AfrondenInkoopprocedure</bpmn:incoming>
+      <bpmn:outgoing>Flow_Task_AfrondenInkoopprocedure_EndEvent_Inkoopprocedure</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_Inkoopprocedure" name="Inkoopprocedure afgerond&#10;→ IIN1.2.x Publiceren voornemen tot gunnen (TenderNed)">
+      <bpmn:incoming>Flow_Task_AfrondenInkoopprocedure_EndEvent_Inkoopprocedure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_StartEvent_R41_Task_VerzoekenTotAanbesteden" sourceRef="StartEvent_R41" targetRef="Task_VerzoekenTotAanbesteden" />
+    <bpmn:sequenceFlow id="Flow_Task_VerzoekenTotAanbesteden_Task_ControlerenAanbestedingsdocumenten" sourceRef="Task_VerzoekenTotAanbesteden" targetRef="Task_ControlerenAanbestedingsdocumenten" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenAanbestedingsdocumenten_Gateway_DossierVolledig" sourceRef="Task_ControlerenAanbestedingsdocumenten" targetRef="Gateway_DossierVolledig" />
+    <bpmn:sequenceFlow id="Flow_Gateway_DossierVolledig_Task_HerstellenDossier" name="nee" sourceRef="Gateway_DossierVolledig" targetRef="Task_HerstellenDossier">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${dossierVolledig == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_DossierVolledig_Task_ActualiserenProjectraming" name="ja" sourceRef="Gateway_DossierVolledig" targetRef="Task_ActualiserenProjectraming">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${dossierVolledig == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_HerstellenDossier_Task_ControlerenAanbestedingsdocumenten" sourceRef="Task_HerstellenDossier" targetRef="Task_ControlerenAanbestedingsdocumenten" />
+    <bpmn:sequenceFlow id="Flow_Task_ActualiserenProjectraming_Task_ControlerenWijzigingenNotaVanInlichtingen" sourceRef="Task_ActualiserenProjectraming" targetRef="Task_ControlerenWijzigingenNotaVanInlichtingen" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenWijzigingenNotaVanInlichtingen_Gateway_Onregelmatigheid1" sourceRef="Task_ControlerenWijzigingenNotaVanInlichtingen" targetRef="Gateway_Onregelmatigheid1" />
+    <bpmn:sequenceFlow id="Flow_Gateway_Onregelmatigheid1_Task_TerzijdeLeggenOnrechtmatigeInschrijving" name="ja" sourceRef="Gateway_Onregelmatigheid1" targetRef="Task_TerzijdeLeggenOnrechtmatigeInschrijving">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${onregelmatigheidNotaInlichtingen == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_Onregelmatigheid1_Task_ControlerenEenheidsprijzen" name="nee" sourceRef="Gateway_Onregelmatigheid1" targetRef="Task_ControlerenEenheidsprijzen">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${onregelmatigheidNotaInlichtingen == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_TerzijdeLeggenOnrechtmatigeInschrijving_Task_AfwijzenInschrijving" sourceRef="Task_TerzijdeLeggenOnrechtmatigeInschrijving" targetRef="Task_AfwijzenInschrijving" />
+    <bpmn:sequenceFlow id="Flow_Task_AfwijzenInschrijving_EndEvent_InschrijvingAfgewezen" sourceRef="Task_AfwijzenInschrijving" targetRef="EndEvent_InschrijvingAfgewezen" />
+    <bpmn:sequenceFlow id="Flow_Task_ControlerenEenheidsprijzen_Gateway_Onregelmatigheid2" sourceRef="Task_ControlerenEenheidsprijzen" targetRef="Gateway_Onregelmatigheid2" />
+    <bpmn:sequenceFlow id="Flow_Gateway_Onregelmatigheid2_Task_OpvragenVerduidelijkingInschrijving" name="ja" sourceRef="Gateway_Onregelmatigheid2" targetRef="Task_OpvragenVerduidelijkingInschrijving">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${onregelmatigheidEenheidsprijzen == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_Onregelmatigheid2_Task_OpstellenVoornemenTotGunnen" name="nee" sourceRef="Gateway_Onregelmatigheid2" targetRef="Task_OpstellenVoornemenTotGunnen">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${onregelmatigheidEenheidsprijzen == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_OpvragenVerduidelijkingInschrijving_Task_ControlerenEenheidsprijzen" sourceRef="Task_OpvragenVerduidelijkingInschrijving" targetRef="Task_ControlerenEenheidsprijzen" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenVoornemenTotGunnen_Gateway_Dekkingsbron" sourceRef="Task_OpstellenVoornemenTotGunnen" targetRef="Gateway_Dekkingsbron" />
+    <bpmn:sequenceFlow id="Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingConcerndirecteur" name="ja" sourceRef="Gateway_Dekkingsbron" targetRef="Task_OpstellenNotaBesluitvormingConcerndirecteur">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${dekkingsbronAfwijking == "ja"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingAo" name="nee" sourceRef="Gateway_Dekkingsbron" targetRef="Task_OpstellenNotaBesluitvormingAo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${dekkingsbronAfwijking == "nee"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenNotaBesluitvormingConcerndirecteur_Task_VaststellenNotaBesluitvormingConcerndirecteur" sourceRef="Task_OpstellenNotaBesluitvormingConcerndirecteur" targetRef="Task_VaststellenNotaBesluitvormingConcerndirecteur" />
+    <bpmn:sequenceFlow id="Flow_Task_OpstellenNotaBesluitvormingAo_Task_VaststellenNotaBesluitvormingAo" sourceRef="Task_OpstellenNotaBesluitvormingAo" targetRef="Task_VaststellenNotaBesluitvormingAo" />
+    <bpmn:sequenceFlow id="Flow_Task_VaststellenNotaBesluitvormingConcerndirecteur_Gateway_NotaJoin" sourceRef="Task_VaststellenNotaBesluitvormingConcerndirecteur" targetRef="Gateway_NotaJoin" />
+    <bpmn:sequenceFlow id="Flow_Task_VaststellenNotaBesluitvormingAo_Gateway_NotaJoin" sourceRef="Task_VaststellenNotaBesluitvormingAo" targetRef="Gateway_NotaJoin" />
+    <bpmn:sequenceFlow id="Flow_Gateway_NotaJoin_Task_VerwerkenProjectramingAanbesteding" sourceRef="Gateway_NotaJoin" targetRef="Task_VerwerkenProjectramingAanbesteding" />
+    <bpmn:sequenceFlow id="Flow_Task_VerwerkenProjectramingAanbesteding_Task_InformerenInkoopadviseur" sourceRef="Task_VerwerkenProjectramingAanbesteding" targetRef="Task_InformerenInkoopadviseur" />
+    <bpmn:sequenceFlow id="Flow_Task_InformerenInkoopadviseur_Task_AfrondenInkoopprocedure" sourceRef="Task_InformerenInkoopadviseur" targetRef="Task_AfrondenInkoopprocedure" />
+    <bpmn:sequenceFlow id="Flow_Task_AfrondenInkoopprocedure_EndEvent_Inkoopprocedure" sourceRef="Task_AfrondenInkoopprocedure" targetRef="EndEvent_Inkoopprocedure" />
+
+    <bpmn:textAnnotation id="Annotation_IN1_Inkoopproces">
+      <bpmn:text>IN1. Uitvoeren inkoopprocedure / Inkoopproces</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_IN1_Inkoopproces" sourceRef="Task_ControlerenAanbestedingsdocumenten" targetRef="Annotation_IN1_Inkoopproces" />
+    <bpmn:textAnnotation id="Annotation_KV2_Infranotas">
+      <bpmn:text>KV2. Infranota's</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Annotation_KV2_Infranotas" sourceRef="Gateway_NotaJoin" targetRef="Annotation_KV2_Infranotas" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_RipR41Process">
+    <bpmndi:BPMNPlane id="BPMNPlane_RipR41Process" bpmnElement="Collaboration_RipR41Process">
+      <bpmndi:BPMNShape id="Participant_RipR41Process_di" bpmnElement="Participant_RipR41Process" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2726" height="1160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_KostenContractdeskundige_di" bpmnElement="Lane_KostenContractdeskundige" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="2696" height="280" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Inkoopadviseur_di" bpmnElement="Lane_Inkoopadviseur" isHorizontal="true">
+        <dc:Bounds x="190" y="360" width="2696" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectleider_di" bpmnElement="Lane_Projectleider" isHorizontal="true">
+        <dc:Bounds x="190" y="560" width="2696" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Concerndirecteur_di" bpmnElement="Lane_Concerndirecteur" isHorizontal="true">
+        <dc:Bounds x="190" y="760" width="2696" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Financien_di" bpmnElement="Lane_Financien" isHorizontal="true">
+        <dc:Bounds x="190" y="880" width="2696" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AO_di" bpmnElement="Lane_AO" isHorizontal="true">
+        <dc:Bounds x="190" y="1000" width="2696" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Projectondersteuner_di" bpmnElement="Lane_Projectondersteuner" isHorizontal="true">
+        <dc:Bounds x="190" y="1120" width="2696" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_R41_di" bpmnElement="StartEvent_R41">
+        <dc:Bounds x="232" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="122" y="253" width="256" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerzoekenTotAanbesteden_di" bpmnElement="Task_VerzoekenTotAanbesteden">
+        <dc:Bounds x="300" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenAanbestedingsdocumenten_di" bpmnElement="Task_ControlerenAanbestedingsdocumenten">
+        <dc:Bounds x="460" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_DossierVolledig_di" bpmnElement="Gateway_DossierVolledig" isMarkerVisible="true">
+        <dc:Bounds x="620" y="395" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="600" y="450" width="90" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HerstellenDossier_di" bpmnElement="Task_HerstellenDossier">
+        <dc:Bounds x="700" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ActualiserenProjectraming_di" bpmnElement="Task_ActualiserenProjectraming">
+        <dc:Bounds x="860" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenWijzigingenNotaVanInlichtingen_di" bpmnElement="Task_ControlerenWijzigingenNotaVanInlichtingen">
+        <dc:Bounds x="1020" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Onregelmatigheid1_di" bpmnElement="Gateway_Onregelmatigheid1" isMarkerVisible="true">
+        <dc:Bounds x="1180" y="205" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1141" y="260" width="128" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TerzijdeLeggenOnrechtmatigeInschrijving_di" bpmnElement="Task_TerzijdeLeggenOnrechtmatigeInschrijving">
+        <dc:Bounds x="1260" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AfwijzenInschrijving_di" bpmnElement="Task_AfwijzenInschrijving">
+        <dc:Bounds x="1420" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_InschrijvingAfgewezen_di" bpmnElement="EndEvent_InschrijvingAfgewezen">
+        <dc:Bounds x="1580" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1510" y="443" width="176" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControlerenEenheidsprijzen_di" bpmnElement="Task_ControlerenEenheidsprijzen">
+        <dc:Bounds x="1260" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Onregelmatigheid2_di" bpmnElement="Gateway_Onregelmatigheid2" isMarkerVisible="true">
+        <dc:Bounds x="1420" y="205" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1381" y="260" width="128" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpvragenVerduidelijkingInschrijving_di" bpmnElement="Task_OpvragenVerduidelijkingInschrijving">
+        <dc:Bounds x="1500" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenVoornemenTotGunnen_di" bpmnElement="Task_OpstellenVoornemenTotGunnen">
+        <dc:Bounds x="1660" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Dekkingsbron_di" bpmnElement="Gateway_Dekkingsbron" isMarkerVisible="true">
+        <dc:Bounds x="1820" y="595" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1749" y="650" width="192" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenNotaBesluitvormingConcerndirecteur_di" bpmnElement="Task_OpstellenNotaBesluitvormingConcerndirecteur">
+        <dc:Bounds x="1900" y="580" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_OpstellenNotaBesluitvormingAo_di" bpmnElement="Task_OpstellenNotaBesluitvormingAo">
+        <dc:Bounds x="1900" y="670" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VaststellenNotaBesluitvormingConcerndirecteur_di" bpmnElement="Task_VaststellenNotaBesluitvormingConcerndirecteur">
+        <dc:Bounds x="2060" y="780" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VaststellenNotaBesluitvormingAo_di" bpmnElement="Task_VaststellenNotaBesluitvormingAo">
+        <dc:Bounds x="2060" y="1020" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NotaJoin_di" bpmnElement="Gateway_NotaJoin" isMarkerVisible="true">
+        <dc:Bounds x="2220" y="595" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerwerkenProjectramingAanbesteding_di" bpmnElement="Task_VerwerkenProjectramingAanbesteding">
+        <dc:Bounds x="2300" y="900" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InformerenInkoopadviseur_di" bpmnElement="Task_InformerenInkoopadviseur">
+        <dc:Bounds x="2460" y="1140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AfrondenInkoopprocedure_di" bpmnElement="Task_AfrondenInkoopprocedure">
+        <dc:Bounds x="2620" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Inkoopprocedure_di" bpmnElement="EndEvent_Inkoopprocedure">
+        <dc:Bounds x="2780" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2582" y="443" width="432" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_IN1_Inkoopproces_di" bpmnElement="Annotation_IN1_Inkoopproces">
+        <dc:Bounds x="400" y="620" width="260" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Annotation_KV2_Infranotas_di" bpmnElement="Annotation_KV2_Infranotas">
+        <dc:Bounds x="2160" y="1240" width="200" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_StartEvent_R41_Task_VerzoekenTotAanbesteden_di" bpmnElement="Flow_StartEvent_R41_Task_VerzoekenTotAanbesteden">
+        <di:waypoint x="268" y="230" />
+        <di:waypoint x="300" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerzoekenTotAanbesteden_Task_ControlerenAanbestedingsdocumenten_di" bpmnElement="Flow_Task_VerzoekenTotAanbesteden_Task_ControlerenAanbestedingsdocumenten">
+        <di:waypoint x="400" y="230" />
+        <di:waypoint x="430" y="230" />
+        <di:waypoint x="430" y="420" />
+        <di:waypoint x="460" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenAanbestedingsdocumenten_Gateway_DossierVolledig_di" bpmnElement="Flow_Task_ControlerenAanbestedingsdocumenten_Gateway_DossierVolledig">
+        <di:waypoint x="560" y="420" />
+        <di:waypoint x="620" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_DossierVolledig_Task_HerstellenDossier_di" bpmnElement="Flow_Gateway_DossierVolledig_Task_HerstellenDossier">
+        <di:waypoint x="670" y="420" />
+        <di:waypoint x="685" y="420" />
+        <di:waypoint x="685" y="230" />
+        <di:waypoint x="700" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_DossierVolledig_Task_ActualiserenProjectraming_di" bpmnElement="Flow_Gateway_DossierVolledig_Task_ActualiserenProjectraming">
+        <di:waypoint x="670" y="420" />
+        <di:waypoint x="765" y="420" />
+        <di:waypoint x="765" y="230" />
+        <di:waypoint x="860" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="400" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_HerstellenDossier_Task_ControlerenAanbestedingsdocumenten_di" bpmnElement="Flow_Task_HerstellenDossier_Task_ControlerenAanbestedingsdocumenten">
+        <di:waypoint x="750" y="270" />
+        <di:waypoint x="750" y="352" />
+        <di:waypoint x="510" y="352" />
+        <di:waypoint x="510" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ActualiserenProjectraming_Task_ControlerenWijzigingenNotaVanInlichtingen_di" bpmnElement="Flow_Task_ActualiserenProjectraming_Task_ControlerenWijzigingenNotaVanInlichtingen">
+        <di:waypoint x="960" y="230" />
+        <di:waypoint x="1020" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenWijzigingenNotaVanInlichtingen_Gateway_Onregelmatigheid1_di" bpmnElement="Flow_Task_ControlerenWijzigingenNotaVanInlichtingen_Gateway_Onregelmatigheid1">
+        <di:waypoint x="1120" y="230" />
+        <di:waypoint x="1180" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Onregelmatigheid1_Task_TerzijdeLeggenOnrechtmatigeInschrijving_di" bpmnElement="Flow_Gateway_Onregelmatigheid1_Task_TerzijdeLeggenOnrechtmatigeInschrijving">
+        <di:waypoint x="1230" y="230" />
+        <di:waypoint x="1245" y="230" />
+        <di:waypoint x="1245" y="140" />
+        <di:waypoint x="1260" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1236" y="210" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Onregelmatigheid1_Task_ControlerenEenheidsprijzen_di" bpmnElement="Flow_Gateway_Onregelmatigheid1_Task_ControlerenEenheidsprijzen">
+        <di:waypoint x="1230" y="230" />
+        <di:waypoint x="1260" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1236" y="210" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_TerzijdeLeggenOnrechtmatigeInschrijving_Task_AfwijzenInschrijving_di" bpmnElement="Flow_Task_TerzijdeLeggenOnrechtmatigeInschrijving_Task_AfwijzenInschrijving">
+        <di:waypoint x="1360" y="140" />
+        <di:waypoint x="1390" y="140" />
+        <di:waypoint x="1390" y="420" />
+        <di:waypoint x="1420" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AfwijzenInschrijving_EndEvent_InschrijvingAfgewezen_di" bpmnElement="Flow_Task_AfwijzenInschrijving_EndEvent_InschrijvingAfgewezen">
+        <di:waypoint x="1520" y="420" />
+        <di:waypoint x="1580" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_ControlerenEenheidsprijzen_Gateway_Onregelmatigheid2_di" bpmnElement="Flow_Task_ControlerenEenheidsprijzen_Gateway_Onregelmatigheid2">
+        <di:waypoint x="1360" y="230" />
+        <di:waypoint x="1420" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Onregelmatigheid2_Task_OpvragenVerduidelijkingInschrijving_di" bpmnElement="Flow_Gateway_Onregelmatigheid2_Task_OpvragenVerduidelijkingInschrijving">
+        <di:waypoint x="1470" y="230" />
+        <di:waypoint x="1485" y="230" />
+        <di:waypoint x="1485" y="310" />
+        <di:waypoint x="1500" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1476" y="210" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Onregelmatigheid2_Task_OpstellenVoornemenTotGunnen_di" bpmnElement="Flow_Gateway_Onregelmatigheid2_Task_OpstellenVoornemenTotGunnen">
+        <di:waypoint x="1470" y="230" />
+        <di:waypoint x="1565" y="230" />
+        <di:waypoint x="1565" y="420" />
+        <di:waypoint x="1660" y="420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1476" y="210" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpvragenVerduidelijkingInschrijving_Task_ControlerenEenheidsprijzen_di" bpmnElement="Flow_Task_OpvragenVerduidelijkingInschrijving_Task_ControlerenEenheidsprijzen">
+        <di:waypoint x="1550" y="350" />
+        <di:waypoint x="1550" y="352" />
+        <di:waypoint x="1310" y="352" />
+        <di:waypoint x="1310" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenVoornemenTotGunnen_Gateway_Dekkingsbron_di" bpmnElement="Flow_Task_OpstellenVoornemenTotGunnen_Gateway_Dekkingsbron">
+        <di:waypoint x="1760" y="420" />
+        <di:waypoint x="1790" y="420" />
+        <di:waypoint x="1790" y="620" />
+        <di:waypoint x="1820" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingConcerndirecteur_di" bpmnElement="Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingConcerndirecteur">
+        <di:waypoint x="1870" y="620" />
+        <di:waypoint x="1900" y="620" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1876" y="600" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingAo_di" bpmnElement="Flow_Gateway_Dekkingsbron_Task_OpstellenNotaBesluitvormingAo">
+        <di:waypoint x="1870" y="620" />
+        <di:waypoint x="1885" y="620" />
+        <di:waypoint x="1885" y="710" />
+        <di:waypoint x="1900" y="710" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1876" y="600" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenNotaBesluitvormingConcerndirecteur_Task_VaststellenNotaBesluitvormingConcerndirecteur_di" bpmnElement="Flow_Task_OpstellenNotaBesluitvormingConcerndirecteur_Task_VaststellenNotaBesluitvormingConcerndirecteur">
+        <di:waypoint x="2000" y="620" />
+        <di:waypoint x="2030" y="620" />
+        <di:waypoint x="2030" y="820" />
+        <di:waypoint x="2060" y="820" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_OpstellenNotaBesluitvormingAo_Task_VaststellenNotaBesluitvormingAo_di" bpmnElement="Flow_Task_OpstellenNotaBesluitvormingAo_Task_VaststellenNotaBesluitvormingAo">
+        <di:waypoint x="2000" y="710" />
+        <di:waypoint x="2030" y="710" />
+        <di:waypoint x="2030" y="1060" />
+        <di:waypoint x="2060" y="1060" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VaststellenNotaBesluitvormingConcerndirecteur_Gateway_NotaJoin_di" bpmnElement="Flow_Task_VaststellenNotaBesluitvormingConcerndirecteur_Gateway_NotaJoin">
+        <di:waypoint x="2160" y="820" />
+        <di:waypoint x="2190" y="820" />
+        <di:waypoint x="2190" y="620" />
+        <di:waypoint x="2220" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VaststellenNotaBesluitvormingAo_Gateway_NotaJoin_di" bpmnElement="Flow_Task_VaststellenNotaBesluitvormingAo_Gateway_NotaJoin">
+        <di:waypoint x="2160" y="1060" />
+        <di:waypoint x="2190" y="1060" />
+        <di:waypoint x="2190" y="620" />
+        <di:waypoint x="2220" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Gateway_NotaJoin_Task_VerwerkenProjectramingAanbesteding_di" bpmnElement="Flow_Gateway_NotaJoin_Task_VerwerkenProjectramingAanbesteding">
+        <di:waypoint x="2270" y="620" />
+        <di:waypoint x="2285" y="620" />
+        <di:waypoint x="2285" y="940" />
+        <di:waypoint x="2300" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_VerwerkenProjectramingAanbesteding_Task_InformerenInkoopadviseur_di" bpmnElement="Flow_Task_VerwerkenProjectramingAanbesteding_Task_InformerenInkoopadviseur">
+        <di:waypoint x="2400" y="940" />
+        <di:waypoint x="2430" y="940" />
+        <di:waypoint x="2430" y="1180" />
+        <di:waypoint x="2460" y="1180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_InformerenInkoopadviseur_Task_AfrondenInkoopprocedure_di" bpmnElement="Flow_Task_InformerenInkoopadviseur_Task_AfrondenInkoopprocedure">
+        <di:waypoint x="2560" y="1180" />
+        <di:waypoint x="2590" y="1180" />
+        <di:waypoint x="2590" y="420" />
+        <di:waypoint x="2620" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Task_AfrondenInkoopprocedure_EndEvent_Inkoopprocedure_di" bpmnElement="Flow_Task_AfrondenInkoopprocedure_EndEvent_Inkoopprocedure">
+        <di:waypoint x="2720" y="420" />
+        <di:waypoint x="2780" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_IN1_Inkoopproces_di" bpmnElement="Assoc_Annotation_IN1_Inkoopproces">
+        <di:waypoint x="510" y="380" />
+        <di:waypoint x="530" y="665" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Annotation_KV2_Infranotas_di" bpmnElement="Assoc_Annotation_KV2_Infranotas">
+        <di:waypoint x="2245" y="595" />
+        <di:waypoint x="2260" y="1285" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

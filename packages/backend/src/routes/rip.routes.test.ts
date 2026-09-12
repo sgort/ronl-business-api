@@ -1,12 +1,19 @@
 /**
- * Route tests for /v1/rip/phase1 (jwt + tenant) — active/completed lists and the
- * documents endpoint with tenant-isolation. operatonService is mocked.
+ * Route tests for /v1/rip (jwt + tenant) — the phase-parameterised
+ * active/completed lists, the instance documents endpoint with
+ * tenant-isolation, and the catalogue-driven phase endpoints.
+ * operatonService is mocked.
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
+    // An authenticated request that carries no user: the shape each handler's own
+    // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
+    if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
@@ -18,9 +25,12 @@ jest.mock('@middleware/tenant.middleware', () => ({
 }));
 jest.mock('@services/operaton.service', () => ({
   operatonService: {
-    getRipPhase1ActiveList: jest.fn(),
-    getRipPhase1CompletedList: jest.fn(),
-    getRipPhase1Documents: jest.fn(),
+    getRipPhaseActiveList: jest.fn(),
+    getRipPhaseCompletedList: jest.fn(),
+    getRipInstanceDocuments: jest.fn(),
+    getDeployedProcessKeys: jest.fn(),
+    getPhaseInstanceCounts: jest.fn(),
+    getPhaseSwimlaneModel: jest.fn(),
   },
 }));
 jest.mock('@utils/logger', () => ({
@@ -31,11 +41,33 @@ import express from 'express';
 import request from 'supertest';
 import ripRouter from './rip.routes';
 import { operatonService } from '@services/operaton.service';
+import { RIP_PHASE_KEYS } from '@ronl/shared';
+import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
+
+/** Every phase modelled as BPMN — the exact list both phase endpoints query. */
+const MODELLED_KEYS = RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter(Boolean);
+
+/**
+ * A phase the catalogue knows but has no process model for, used to exercise
+ * the 409 branch. Derived rather than pinned: R2.3 held this role until it was
+ * deployed, and a literal means every future deployment breaks two tests that
+ * have nothing to do with the phase being deployed.
+ *
+ * When the whole ladder is modelled this becomes undefined and the two tests
+ * below skip visibly. That is the signal to delete them AND the
+ * PHASE_NOT_MODELLED branch they cover, deliberately -- not to leave them
+ * limping.
+ */
+const UNMODELLED_CODE = RIP_PHASE_KEYS.find((p) => !p.processDefinitionKey)?.code;
+const itIfUnmodelled = UNMODELLED_CODE ? it : it.skip;
 
 const svc = operatonService as unknown as {
-  getRipPhase1ActiveList: jest.Mock;
-  getRipPhase1CompletedList: jest.Mock;
-  getRipPhase1Documents: jest.Mock;
+  getRipPhaseActiveList: jest.Mock;
+  getRipPhaseCompletedList: jest.Mock;
+  getRipInstanceDocuments: jest.Mock;
+  getDeployedProcessKeys: jest.Mock;
+  getPhaseInstanceCounts: jest.Mock;
+  getPhaseSwimlaneModel: jest.Mock;
 };
 
 const app = express();
@@ -46,69 +78,364 @@ beforeEach(() => jest.clearAllMocks());
 
 describe('lists', () => {
   it('401 without a token', async () => {
-    const res = await request(app).get('/v1/rip/phase1/active');
+    const res = await request(app).get('/v1/rip/phases/R2.1/active');
     expect(res.status).toBe(401);
   });
 
-  it('GET /phase1/active returns the tenant list', async () => {
-    svc.getRipPhase1ActiveList.mockResolvedValue([{ id: 'i1' }]);
-    const res = await auth(request(app).get('/v1/rip/phase1/active'));
+  it('GET /phases/:code/active returns the tenant list', async () => {
+    svc.getRipPhaseActiveList.mockResolvedValue([{ id: 'i1' }]);
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([{ id: 'i1' }]);
-    expect(svc.getRipPhase1ActiveList).toHaveBeenCalledWith('flevoland');
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
   });
 
-  it('GET /phase1/active → 500 on service failure', async () => {
-    svc.getRipPhase1ActiveList.mockRejectedValue(new Error('boom'));
-    const res = await auth(request(app).get('/v1/rip/phase1/active'));
+  it('GET /phases/:code/active resolves each modelled phase to its own key', async () => {
+    svc.getRipPhaseActiveList.mockResolvedValue([]);
+    await auth(request(app).get('/v1/rip/phases/R2.2/active'));
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR22Process', 'flevoland');
+  });
+
+  it('GET /phases/:code/active answers 404 for a phase code the catalogue has never heard of', async () => {
+    const res = await auth(request(app).get('/v1/rip/phases/R9.9/active'));
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+    expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
+  });
+
+  itIfUnmodelled(
+    'GET /phases/:code/active answers 409, not an empty list, for a known but unmodelled phase',
+    async () => {
+      // The distinction that matters: a caller must be able to tell "this phase
+      // has no process yet" from "this phase is deployed and currently idle".
+      const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/active`));
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
+      expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
+    }
+  );
+
+  it('GET /phases/:code/active → 500 on service failure', async () => {
+    svc.getRipPhaseActiveList.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_LIST_FAILED');
   });
 
-  it('GET /phase1/completed returns the tenant list', async () => {
-    svc.getRipPhase1CompletedList.mockResolvedValue([{ id: 'c1' }]);
-    const res = await auth(request(app).get('/v1/rip/phase1/completed'));
+  it('GET /phases/:code/completed returns the tenant list', async () => {
+    svc.getRipPhaseCompletedList.mockResolvedValue([{ id: 'c1' }]);
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(200);
-    expect(svc.getRipPhase1CompletedList).toHaveBeenCalledWith('flevoland');
+    expect(svc.getRipPhaseCompletedList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
   });
 
-  it('GET /phase1/completed → 500 on service failure', async () => {
-    svc.getRipPhase1CompletedList.mockRejectedValue(new Error('boom'));
-    const res = await auth(request(app).get('/v1/rip/phase1/completed'));
+  it('GET /phases/:code/completed answers 404 for an unknown phase', async () => {
+    const res = await auth(request(app).get('/v1/rip/phases/R9.9/completed'));
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+  });
+
+  itIfUnmodelled(
+    'GET /phases/:code/completed answers 409 for a known but unmodelled phase',
+    async () => {
+      const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/completed`));
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
+    }
+  );
+
+  it('the fixed /phases routes are not swallowed by /phases/:code', async () => {
+    // deployment-status, counts and active sit one path segment shorter than
+    // /phases/:code/active so they cannot collide, but the arrangement is
+    // load-bearing enough to pin.
+    svc.getDeployedProcessKeys.mockResolvedValue([]);
+    svc.getPhaseInstanceCounts.mockResolvedValue({});
+    svc.getRipPhaseActiveList.mockResolvedValue([]);
+    expect((await auth(request(app).get('/v1/rip/phases/deployment-status'))).status).toBe(200);
+    expect((await auth(request(app).get('/v1/rip/phases/counts'))).status).toBe(200);
+    const activeRes = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(activeRes.status).toBe(200);
+    // The tell-tale sign of being swallowed by /phases/:code/active would be a
+    // 404 UNKNOWN_PHASE (code="active" is not in the catalogue) — the aggregate
+    // shape below is proof this hit the literal route instead.
+    expect(activeRes.body.error).toBeUndefined();
+    expect(activeRes.body.data).toEqual([]);
+  });
+
+  it('GET /phases/:code/completed → 500 on service failure', async () => {
+    svc.getRipPhaseCompletedList.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
   });
 });
 
-describe('GET /phase1/:instanceId/documents', () => {
+describe('GET /phases/active', () => {
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/active');
+    expect(res.status).toBe(401);
+  });
+
+  it('aggregates active instances across every modelled phase, tagging each row with its phaseCode', async () => {
+    svc.getRipPhaseActiveList.mockImplementation((key: string) =>
+      Promise.resolve(key === 'RipR21Process' ? [{ id: 'i1' }] : [])
+    );
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([{ id: 'i1', phaseCode: 'R2.1' }]);
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledTimes(MODELLED_KEYS.length);
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
+    expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR22Process', 'flevoland');
+  });
+
+  it('omits a failing phase rather than blanking the rest of the aggregate', async () => {
+    svc.getRipPhaseActiveList.mockImplementation((key: string) => {
+      if (key === 'RipR22Process') return Promise.reject('socket hang up'); // non-Error rejection
+      return Promise.resolve(key === 'RipR21Process' ? [{ id: 'i1' }] : []);
+    });
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([{ id: 'i1', phaseCode: 'R2.1' }]);
+    expect(
+      (res.body.data as Array<{ phaseCode: string }>).some((r) => r.phaseCode === 'R2.2')
+    ).toBe(false);
+  });
+
+  it('500s with RIP_ACTIVE_AGGREGATE_FAILED when every modelled phase fails', async () => {
+    svc.getRipPhaseActiveList.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
+  });
+});
+
+describe('GET /phases/deployment-status', () => {
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/deployment-status');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns the deployed keys from the service', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
+    const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ deployedKeys: ['RipR21Process'] });
+    expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(MODELLED_KEYS, 'flevoland');
+  });
+
+  it('500 with DEPLOYMENT_STATUS_FAILED on service failure', async () => {
+    svc.getDeployedProcessKeys.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
+  });
+});
+
+describe('GET /phases/counts', () => {
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/counts');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns counts for the deployed keys only', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
+    svc.getPhaseInstanceCounts.mockResolvedValue({
+      RipR21Process: { wip: 3, gereed: 7 },
+    });
+    const res = await auth(request(app).get('/v1/rip/phases/counts'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ counts: { RipR21Process: { wip: 3, gereed: 7 } } });
+    expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipR21Process'], 'flevoland');
+  });
+
+  it('500 with PHASE_COUNTS_FAILED on service failure', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
+    svc.getPhaseInstanceCounts.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/phases/counts'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
+  });
+});
+
+describe('GET /instances/:instanceId/documents', () => {
   it('returns documents when the instance belongs to the tenant', async () => {
-    svc.getRipPhase1Documents.mockResolvedValue({
+    svc.getRipInstanceDocuments.mockResolvedValue({
       variables: { municipality: 'flevoland' },
       intakeReport: { t: 'intake' },
       psuReport: null,
       pdp: null,
     });
-    const res = await auth(request(app).get('/v1/rip/phase1/pi-1/documents'));
+    const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(200);
     expect(res.body.data.intakeReport).toEqual({ t: 'intake' });
   });
 
   it('403 when the instance belongs to another tenant', async () => {
-    svc.getRipPhase1Documents.mockResolvedValue({
+    svc.getRipInstanceDocuments.mockResolvedValue({
       variables: { municipality: 'utrecht' },
       intakeReport: null,
       psuReport: null,
       pdp: null,
     });
-    const res = await auth(request(app).get('/v1/rip/phase1/pi-1/documents'));
+    const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
   it('500 on service failure', async () => {
-    svc.getRipPhase1Documents.mockRejectedValue(new Error('boom'));
-    const res = await auth(request(app).get('/v1/rip/phase1/pi-1/documents'));
+    svc.getRipInstanceDocuments.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
+  });
+});
+
+describe('handler guards for an authenticated request without a user', () => {
+  // jwtMiddleware always attaches req.user or rejects, so these guards are
+  // defensive; they still have to answer 401 rather than crash on req.user.x.
+  const noUser = (r: request.Test) => r.set('x-test-no-user', '1');
+
+  it.each([
+    ['/v1/rip/phases/active'],
+    ['/v1/rip/phases/R2.1/active'],
+    ['/v1/rip/phases/deployment-status'],
+    ['/v1/rip/phases/counts'],
+    ['/v1/rip/instances/pi-1/documents'],
+    ['/v1/rip/phases/R2.1/completed'],
+    ['/v1/rip/phases/R2.1/model'],
+  ])('%s → 401 UNAUTHORIZED', async (path) => {
+    const res = await noUser(request(app).get(path));
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+describe('non-Error rejections', () => {
+  // Operaton failures surface as strings often enough that the ternary's
+  // 'Unknown error' fallback is a real path, not a formality.
+  it('GET /phases/:code/active still answers 500', async () => {
+    svc.getRipPhaseActiveList.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_LIST_FAILED');
+  });
+
+  it('GET /phases/active still answers 500 when every phase rejects without an Error', async () => {
+    svc.getRipPhaseActiveList.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/active'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
+  });
+
+  it('GET /phases/deployment-status still answers 500', async () => {
+    svc.getDeployedProcessKeys.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
+  });
+
+  it('GET /phases/counts still answers 500', async () => {
+    svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
+    svc.getPhaseInstanceCounts.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/counts'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
+  });
+
+  it('GET /instances/:instanceId/documents still answers 500', async () => {
+    svc.getRipInstanceDocuments.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
+  });
+
+  it('GET /phases/:code/completed still answers 500', async () => {
+    svc.getRipPhaseCompletedList.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
+  });
+
+  it('GET /phases/:code/model still answers 500', async () => {
+    svc.getPhaseSwimlaneModel.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get('/v1/rip/phases/R2.1/model'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
+  });
+});
+
+describe('tenant isolation when the instance has no municipality', () => {
+  it('serves the documents rather than 403, since there is nothing to mismatch', async () => {
+    svc.getRipInstanceDocuments.mockResolvedValue({
+      variables: {},
+      intakeReport: { t: 'intake' },
+      psuReport: null,
+      pdp: null,
+    });
+    const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
+    expect(res.status).toBe(200);
+    expect(res.body.data.intakeReport).toEqual({ t: 'intake' });
+  });
+});
+
+describe('GET /phases/:code/model', () => {
+  // The route now delegates fetch+parse+cache to operatonService.getPhaseSwimlaneModel
+  // (operaton.service.test.ts covers that pipeline against this same fixture,
+  // including the cache itself); here the mock resolves with the real parsed
+  // model so the route-layer assertions below still catch wrong-shape wiring.
+  const r22Xml = readFileSync(
+    join(__dirname, '../rip-swimlane/__fixtures__/RipR22Process.bpmn'),
+    'utf-8'
+  );
+  const r22Model = parseSwimlane(r22Xml, 'R2.2');
+
+  it('401 without a token', async () => {
+    const res = await request(app).get('/v1/rip/phases/R2.2/model');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns a swimlane model derived from the deployed BPMN', async () => {
+    svc.getPhaseSwimlaneModel.mockResolvedValue(r22Model);
+
+    const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    // Fixture-verified (bpmn-swimlane.test.ts): R2.2 has these exact 4 lanes,
+    // 17 nodes and 21 edges. Asserting the counts and lane labels, not just
+    // `success: true`, catches wrong-fixture or mis-wired parsing.
+    expect(res.body.data.phaseCode).toBe('R2.2');
+    expect(res.body.data.lanes.map((l: { label: string }) => l.label)).toEqual([
+      'Projectleider',
+      'Ontwerper',
+      'RIP-team, Aandrager, Adviseur',
+      'Omgevingsmanager',
+    ]);
+    expect(res.body.data.nodes).toHaveLength(17);
+    expect(res.body.data.edges).toHaveLength(21);
+    expect(svc.getPhaseSwimlaneModel).toHaveBeenCalledWith('RipR22Process', 'R2.2', 'flevoland');
+  });
+
+  it('404s an unknown phase code without touching the engine', async () => {
+    const res = await auth(request(app).get('/v1/rip/phases/R9.9/model'));
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+    expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
+  });
+
+  itIfUnmodelled('409s a known but unmodelled phase without touching the engine', async () => {
+    const res = await auth(request(app).get(`/v1/rip/phases/${UNMODELLED_CODE}/model`));
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('PHASE_NOT_MODELLED');
+    expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
+  });
+
+  it('500s with PHASE_MODEL_FAILED rather than half-rendering when the engine is unreachable', async () => {
+    svc.getPhaseSwimlaneModel.mockRejectedValue(new Error('ECONNREFUSED'));
+    const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
   });
 });
