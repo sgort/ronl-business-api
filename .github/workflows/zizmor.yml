@@ -98,6 +98,46 @@ jobs:
         # nothing useful.
         run: npx --yes --package renovate@44.50.3 renovate-config-validator --strict
 
+      - name: Install dependencies for the formatter
+        # Needed because the check below must run THIS repository's Prettier,
+        # not a version named here. An `npx prettier@<pinned>` would be a second
+        # version to keep in step with package.json, reintroducing exactly the
+        # drift the check exists to catch. npm ci costs install time and cannot
+        # drift.
+        #
+        # This job had no npm ci at all before: everything in it ran from npx or
+        # plain node. That is the cost of this step, and it buys a check that is
+        # always measuring what developers actually run.
+        if: always()
+        run: npm ci
+
+      - name: Check formatting
+        # Formatting was enforced by the pre-push hook alone, so the rule held
+        # on a developer's machine and not on the shared branch. That gap is not
+        # theoretical: a Prettier 3.7 -> 3.9 upgrade changed how short union
+        # types are formatted, and five files nobody had touched began failing
+        # `prettier --check` the moment the upgrade merged — with every CI check
+        # green. The symptom would have been the next person's `git push`
+        # failing on files they had never opened.
+        #
+        # The ROOT script, matching what the pre-push hook runs. Linked Data
+        # Explorer fans out per workspace because Prettier resolves
+        # .prettierignore relative to the working directory and its packages
+        # each carry their own; this repository has one root .prettierignore and
+        # one root script, so the root run IS the right command here. Copying
+        # either shape into the other repository would be wrong.
+        #
+        # It belongs in this job rather than in a deploy workflow: `audit` has
+        # no paths filter and is the required status check, so every pull
+        # request reaches it — including documentation-only ones, whose markdown
+        # is the most likely thing to drift, since lint-staged only formats
+        # src/** and package.json on commit.
+        #
+        # if: always() for the same reason as the validator above — a zizmor
+        # failure should not hide a formatting failure behind it.
+        if: always()
+        run: npm run check-format
+
       - name: Verify pin truth and register agreement
         # zizmor validates pin FORMAT — that `uses:` names a 40-character SHA.
         # It cannot say the SHA is the RIGHT one, so a wrong or hostile digest
