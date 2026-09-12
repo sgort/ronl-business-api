@@ -23,7 +23,7 @@
     "@ronl/shared": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.1"
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
