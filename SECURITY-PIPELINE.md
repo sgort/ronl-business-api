@@ -13,18 +13,21 @@ build shape differs, and the differences matter in both directions.
 
 These are GitHub settings, not files. Without them parts of the policy are inert.
 
-| Setting                         | Required state                 | Why                                                                                            |
-| ------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Renovate GitHub App             | installed, scoped to this repo | `renovate.json` is inert until it is                                                           |
-| Dependabot **alerts**           | enabled                        | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
-| Dependabot **security updates** | **disabled**                   | it opens competing PRs that ignore the 14-day cooldown                                         |
-| Merge methods                   | merge commits only             | squash and rebase rewrite the SHAs a changelog entry names                                     |
-| `acc` ruleset                   | require PR + `audit` check     | a workflow that runs but cannot block is advice, not a gate                                    |
+| Setting                         | Required state                                 | Why                                                                                            |
+| ------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Renovate GitHub App             | installed, scoped to this repo                 | `renovate.json` is inert until it is                                                           |
+| Dependabot **alerts**           | enabled                                        | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
+| Dependabot **security updates** | **disabled**                                   | it opens competing PRs that ignore the 14-day cooldown                                         |
+| Merge methods                   | merge commits only                             | squash and rebase rewrite the SHAs a changelog entry names                                     |
+| `acc` ruleset                   | PR + `audit` + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
+| `main` ruleset                  | the same four rules                            | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
 
 ## Pinned
 
 **31 `uses:` references across 10 workflows, all 31 digest-pinned.** Verified on
-`acc` at `bdad286`, 12 September 2026.
+`acc` at `8e8fcdb`, 12 September 2026 — by `npm run check-supply-chain`, which
+blocks the `audit` job, so this headline cannot drift from the workflows without
+failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                        |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
@@ -99,24 +102,33 @@ open a routine-looking digest update reverting **all nine** references to
 old. Updates for this dependency are therefore disabled in `renovate.json`, with
 the reasoning recorded inline there too.
 
-### `node-version` floats — and three sources disagree
+### ~~`node-version` floats — and three sources disagree~~ — closed 2026-09-12
 
-Eight of the nine workflows request `node-version: '20'`, which resolves to
-whatever 20.x `actions/setup-node` downloads at run time. Under a policy of
-"nothing a pipeline downloads may float", that is an exception.
+**No longer an exception.** Kept here rather than deleted, because what it got
+wrong is worth more than what it got right.
 
-The ninth is deliberate and pinned differently: the `renovate-config-validator`
-step in `zizmor.yml` sets `node-version: '24'`, because `renovate@44.50.3`
-declares `engines.node ^24.11.0` and npm accepts a mismatch with an
-`EBADENGINE` **warning** rather than refusing — so the validator had been
-running unsupported and green.
+It read: eight of the nine workflows request `node-version: '20'`, resolving to
+whatever 20.x the runner downloads; `.nvmrc` says `22`; `engines.node` says
+`>=20.13.0`; developers therefore work on a different major than the one
+producing the deployed artifact.
 
-Worth recording alongside it: **`.nvmrc` says `22`** while CI builds on 20, and
-`package.json` declares `engines.node >= 20.13.0`. Developers therefore work on a
-different Node major than the one producing the deployed artifact. Not a
-supply-chain defect, but a divergence that belongs on the record — and
-`node-version-file: .nvmrc` would close both issues at once if the two are meant
-to agree.
+**There was a fourth source, and it was the one that settled it.** Both App
+Service plans run **`NODE|22-lts`**. So the workflows were not merely floating —
+they were building the deployed backend on a major the host does not run. That
+fact appears nowhere in the paragraph above, and it is what turned a
+three-way stylistic disagreement into a one-sided answer.
+
+Closed by [#36](https://github.com/sgort/ronl-business-api/issues/36): the eight
+deploy workflows now read `node-version-file: .nvmrc`, `.nvmrc` carries an exact
+`22.22.0` rather than a bare major — the same "may not float" rule the digests
+above follow — and `engines.node` is `>=22`. Renovate's `node` manager parses
+`.nvmrc`, so it stays maintained rather than hand-bumped.
+
+`zizmor.yml` keeps its literal `node-version: '24'`, and that part was right all
+along: `renovate@44.50.3` declares `engines.node ^24.11.0`, and npm accepts a
+mismatch with an `EBADENGINE` **warning** rather than refusing — so the validator
+had been running unsupported and green. That pin is load-bearing; do not sweep it
+into the shared file.
 
 ### The backend is deployed outside CI, and its dependencies are unpinned
 
@@ -175,7 +187,10 @@ What that means for this document's scope:
   structural, not carelessness.
 
 This is the widest floating surface in the repository and, unlike the container
-exception above, it is fixable from our side — see "Queued CI improvements".
+exception above, it is fixable from our side —
+[#34](https://github.com/sgort/ronl-business-api/issues/34) pins the bundle's
+dependencies, [#35](https://github.com/sgort/ronl-business-api/issues/35) moves
+the deploy into a workflow. Both still open.
 
 ## What the audit cannot see
 
