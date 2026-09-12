@@ -1,6 +1,22 @@
 name: Build Backend for Production
 
 on:
+  # No `pull_request` trigger, deliberately. This is the decision #87 asks for,
+  # recorded here rather than left to drift.
+  #
+  # `main` is promoted from `acc`, so every commit arriving here has already run
+  # this same suite on its own acc pull request (since #87 closed that gap).
+  # Re-running 2008 tests on the promotion pull request costs minutes and says
+  # nothing new about the code -- while `audit`, which IS required on `main`,
+  # reports there on every pull request regardless of base.
+  #
+  # Note that linked-data-explorer excludes its production workflow for a
+  # DIFFERENT reason that does not apply here: there, the production
+  # environment carries required reviewers, so a pull_request trigger would put
+  # a human approval in front of the very tests meant to inform it. Both
+  # environments in this repository have no protection rules at all. The
+  # exclusion stands on the promotion argument alone, and would want revisiting
+  # if protection rules were ever added.
   push:
     branches:
       - main
@@ -8,6 +24,11 @@ on:
       - 'packages/backend/**'
       - 'packages/shared/**'
       - '.github/workflows/azure-backend-prod.yml'
+      # Mirrors the acc workflow: the root lockfile and manifest feed every
+      # workspace, so a lockfile-only promotion must still build and test the
+      # backend rather than reaching production untested.
+      - 'package-lock.json'
+      - 'package.json'
   workflow_dispatch:
 
 # Default to read-only; jobs opt into more only where required.
