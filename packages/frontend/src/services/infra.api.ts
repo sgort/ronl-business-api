@@ -399,10 +399,9 @@ function startOfDay(d: Date) {
  * entirely by INFRA_PROCESS_KEYS below.
  */
 const PROCESS_DISPLAY_NAMES: Record<string, string> = Object.fromEntries(
-  RIP_PHASES.filter((p) => p.processDefinitionKey).map((p) => [
-    p.processDefinitionKey as string,
-    `RIP ${p.code} — ${p.name}`,
-  ])
+  // No filter and no cast since #85: processDefinitionKey is required on
+  // RipPhase, so every catalogued phase contributes a name.
+  RIP_PHASES.map((p) => [p.processDefinitionKey, `RIP ${p.code} — ${p.name}`])
 );
 
 /**

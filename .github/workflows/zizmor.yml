@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
           # The action's `version` input defaults to "latest". Pinning it is
           # the whole point of this exercise — and it keeps CI's findings
@@ -98,6 +98,68 @@ jobs:
         # nothing useful.
         run: npx --yes --package renovate@44.50.3 renovate-config-validator --strict
 
+      - name: Install dependencies for the formatter
+        # Needed because the check below must run THIS repository's Prettier,
+        # not a version named here. An `npx prettier@<pinned>` would be a second
+        # version to keep in step with package.json, reintroducing exactly the
+        # drift the check exists to catch. npm ci costs install time and cannot
+        # drift.
+        #
+        # This job had no npm ci at all before: everything in it ran from npx or
+        # plain node. That is the cost of this step, and it buys a check that is
+        # always measuring what developers actually run.
+        if: always()
+        run: npm ci
+
+      - name: Check formatting
+        # Formatting was enforced by the pre-push hook alone, so the rule held
+        # on a developer's machine and not on the shared branch. That gap is not
+        # theoretical: a Prettier 3.7 -> 3.9 upgrade changed how short union
+        # types are formatted, and five files nobody had touched began failing
+        # `prettier --check` the moment the upgrade merged — with every CI check
+        # green. The symptom would have been the next person's `git push`
+        # failing on files they had never opened.
+        #
+        # The ROOT script, matching what the pre-push hook runs. Linked Data
+        # Explorer fans out per workspace because Prettier resolves
+        # .prettierignore relative to the working directory and its packages
+        # each carry their own; this repository has one root .prettierignore and
+        # one root script, so the root run IS the right command here. Copying
+        # either shape into the other repository would be wrong.
+        #
+        # It belongs in this job rather than in a deploy workflow: `audit` has
+        # no paths filter and is the required status check, so every pull
+        # request reaches it — including documentation-only ones, whose markdown
+        # is the most likely thing to drift, since lint-staged only formats
+        # src/** and package.json on commit.
+        #
+        # if: always() for the same reason as the validator above — a zizmor
+        # failure should not hide a formatting failure behind it.
+        if: always()
+        run: npm run check-format
+
+      - name: Verify @ronl/shared holds no logic
+        # @ronl/shared has no test runner, so a function placed there escapes
+        # the per-file 80% branch floor every other workspace is held to (#80).
+        # It is not under-tested -- it is outside the measurement entirely, and
+        # nothing signals that: no run fails and no number moves. v2026.09.4
+        # moved a branching helper back out of that package for exactly this
+        # reason, found by hand rather than by any check. #84.
+        #
+        # Here rather than in a workspace suite, for the same reason the
+        # formatter is: this job has no paths filter and is the required check,
+        # so every pull request reaches it. A suite that only runs when
+        # packages/shared/** changes would not catch the pull request that adds
+        # the first function to a package the filter does not yet watch.
+        #
+        # Costs nothing on top of the npm ci above, which the formatter already
+        # needed -- this reads the TypeScript compiler from node_modules.
+        #
+        # if: always() for the same reason as the validator above -- one run
+        # should report on every half of the policy, not stop at the first.
+        if: always()
+        run: npm run check-shared
+
       - name: Verify pin truth and register agreement
         # zizmor validates pin FORMAT — that `uses:` names a 40-character SHA.
         # It cannot say the SHA is the RIGHT one, so a wrong or hostile digest
@@ -114,34 +176,46 @@ jobs:
         # if: always() for the same reason as the validator above — one run
         # should report on every half of the policy, not stop at the first.
         if: always()
-        # NON-BLOCKING to start with, and not merely out of caution.
+        # BLOCKING. It ran with continue-on-error: true from its adoption in
+        # #81 until #83 promoted it, once the thing it was waiting on had been
+        # shown to work here rather than only in linked-data-explorer.
         #
-        # Renovate rewrites workflow pins and never touches
-        # SECURITY-PIPELINE.md, so every action-bump pull request fails the
-        # register half until the register is updated by hand. Blocking on
-        # that would fail a required check on routine dependency updates,
-        # which is how gates get resented and then bypassed.
+        # What it was waiting on: Renovate rewrites workflow pins and their
+        # version comments together, and never touches SECURITY-PIPELINE.md, so
+        # every action-bump pull request fails the register half until the
+        # register is updated by hand. Blocking on that would fail a required
+        # check on routine dependency updates, which is how gates get resented
+        # and then bypassed.
         #
-        # The answer, proven in linked-data-explorer over two bumps
-        # (sgort/linked-data-explorer#66 and #67): update the register ON the
-        # bump's branch, before merging, so the check is green on the pull
-        # request rather than only on acc afterwards. Promote to blocking once
-        # that habit holds here too — see issue #81.
+        # What resolved it: the register is updated ON the bump's branch,
+        # before merging, so the check is green on the pull request rather than
+        # only on acc afterwards. Exercised here on #101 (zizmor-action v0.6.2
+        # -> v0.6.4), which is also this repository's own drift mode rather
+        # than a borrowed one.
         #
-        # Do not leave it non-blocking indefinitely. continue-on-error does
-        # not merely keep the job green: it rewrites the STEP's reported
-        # conclusion too, and the honest result (outcome: failure) is not
-        # exposed by the REST API. A finding is then visible ONLY in this
-        # step's log — the checks list, the job and the step all read
-        # "success". Observed on sgort/linked-data-explorer#66.
+        # Why NOT staying non-blocking, which is the part that is easy to get
+        # wrong: continue-on-error does not merely keep the job green, it
+        # rewrites the STEP's reported conclusion too, and the honest result
+        # (outcome: failure) is not exposed by the REST API at all. Observed on
+        # #101 before its register was fixed -- the step, the job and the pull
+        # request's checks list ALL read "success" while this step's own log
+        # carried:
         #
-        # The other reason to start non-blocking: this makes a network call
-        # inside a job the ruleset requires, so an API outage or rate limit
-        # could fail a gate unrelated to the change under review. If that
-        # proves to be a problem, add --offline rather than restoring
-        # continue-on-error: it keeps the register half blocking and drops
-        # only the network-dependent half.
-        continue-on-error: true
+        #   1 finding(s):
+        #     [register] zizmorcore/zizmor-action: workflow pins cc914d7f3750…
+        #                (v0.6.4) but SECURITY-PIPELINE.md records only
+        #                3dc1ecc9bcb9… (v0.6.2)
+        #
+        # A check nobody can see fail is not protecting anything; it is a check
+        # that has to be remembered, which is the condition the register
+        # drifted in to begin with.
+        #
+        # This does put a network call inside a job the ruleset requires, so a
+        # GitHub API outage or rate limit can now fail a gate unrelated to the
+        # change under review. If that proves to be a problem, add --offline:
+        # it keeps the register half blocking and drops only the
+        # network-dependent half. Do NOT restore continue-on-error, which
+        # reinstates the invisibility above.
         env:
           # contents: read suffices — this only resolves public refs.
           GITHUB_TOKEN: ${{ github.token }}

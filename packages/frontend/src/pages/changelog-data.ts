@@ -112,6 +112,154 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.7',
+      status: 'Released',
+      date: '12 sep 2026',
+      scope: ['frontend', 'backend'],
+      commits: [
+        {
+          sha: 'f0cfe43',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'acc gains the deletion and non-fast-forward rules main already had',
+          details: [
+            'C1, and the last item of the CI alignment. The work started at C2 and never came back to this one, so for a month acc could be force-pushed by anyone who could push to it, while main — created the same week, during the promotion — carried both rules. Two rulesets in one repository differing in a way nobody had decided.',
+            'The ruleset is edited rather than the repository, so this commit is the record rather than the change. Applied as a PUT replacing the full rules array and then read back, because the response to a write is not evidence: this repository already learned that omitting require_extra_approval_for_unattributed_changes has GitHub store it as true, invisibly. Read back, acc now carries deletion, non_fast_forward, pull_request and required_status_checks [audit], confirmed against rules/branches/acc, which reports the effective rules from every ruleset at once rather than one ruleset in isolation.',
+            'The two rulesets still differ in exactly one parameter, deliberately: acc keeps require_extra_approval_for_unattributed_changes true, main has it false because its promotion carried commits under three author identities against a ruleset requiring zero approvals. Preserved rather than harmonised, and now written down in both places so the next person to compare them does not read it as drift. Two claims in SECURITY-PIPELINE.md were corrected while editing it — both false rather than merely stale.',
+          ],
+        },
+        {
+          sha: '6865c05',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'An unmodelled RIP phase is now unrepresentable',
+          details: [
+            'processDefinitionKey becomes required on RipPhaseKey in @ronl/shared, and the PHASE_NOT_MODELLED 409 branch goes with it. The branch answered for a phase the catalogue knew but had no BPMN process for; R5.3 completed the ladder, all twelve entries carry a key, and no input could reach it any more. Its three tests had been reporting as skipped on every run since, which is what the fixture was built to signal. Closes #85.',
+            'Deleting the branch while leaving the type optional would have been cheaper and worse: a future phase added without a key would then reach Operaton with undefined instead of getting a clean 409. Requiring the field makes that a compile error instead. Two consumers the issue did not name mattered more than the two it did — PhaseDetail.tsx used a double non-null assertion twice, and rip-phases.catalog.ts re-declares processDefinitionKey in a frontend-local interface populated by an optional-chained lookup that yielded undefined on a miss and rendered ontwerp forever. It now throws, naming the phase and both lists.',
+            'Verified across every workspace on full suites: backend 86 suites and 2008 tests with 0 skipped, was 3; frontend 110 files and 1103 tests; pa-cockpit 43 and 476; pa-demo 19 and 106; public-site 31 and 225. Also verified in the running app against a local Operaton with all twelve processes deployed, where the Faseladder reads 12 of 12 deelprocessen inzetbaar and 0 waiting on deployment.',
+          ],
+        },
+        {
+          sha: '10d8c1f',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: '@ronl/shared is kept free of logic, and checked',
+          details: [
+            'The per-file 80% branch floor is enforced in the five workspaces that have a test runner. @ronl/shared is not one of them, so a function placed there is not under-tested — it is outside the measurement entirely. No run fails and no reviewer sees a number move. Not hypothetical: v2026.09.4 moved a branching label helper out of this package for exactly that reason, and that was caught by hand, by someone who happened to look. Closes #84.',
+            'The check uses the TypeScript compiler API rather than a pattern over text, and the difference is load-bearing: an arrow in an interface is a FunctionType and perfectly fine here, while the same syntax assigned to a const is an ArrowFunction and is not. A regex cannot separate them. Both directions are exercised rather than assumed — planting a function declaration, an if and an arrow function produces three findings with file, line and kind; planting a function type, a method signature, a generic function-type alias, a conditional type and a Record constant produces none.',
+            'It runs in the audit job rather than a workspace suite, for the same reason the formatter does: audit has no paths filter and is the required check, so every pull request reaches it, including the one that first adds a function to a package the filter does not yet watch. packages/shared/README.md records the decision where someone opening the package to add a helper will meet it, along with the documented fallback if the package ever genuinely needs runtime logic.',
+          ],
+        },
+        {
+          sha: 'e9e54eb',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The GitLab mirror is checked at every release',
+          details: [
+            'Every gate in SECURITY-PIPELINE.md runs on GitHub Actions. The gitlab remote is outside all of them and is pushed by hand, so it drifts on every merge — and a mirror nothing checks is not a backup, it is a second place for content to be. Nothing reconciled it except someone remembering to.',
+            'This cannot run in CI, and that is a property of the mirror rather than a shortcoming here: the remote lives in .git/config and no tracked file names the host, so an Actions runner has no such remote, no key for it and no route to it. The check therefore runs where the push actually happens, called from bump-release step 8. It never pushes — it prints the exact command and stops, because writing to a shared remote is a human’s decision.',
+            'Two details that look cosmetic and are not. It prints the remote-tracking form rather than the short one, because local branches drift: in linked-data-explorer local main sat at a four-month-old merge node that origin/main had never contained. And it separates behind from diverged with merge-base, which a commit count cannot — behind is one fast-forward, diverged means the mirror holds commits GitHub has never seen. All four paths are exercised against a scratch bare repository: match, behind by 4, diverged by 21, and missing.',
+          ],
+        },
+        {
+          sha: 'ede8244',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The Node runtime has one source of truth',
+          details: [
+            'The issue recorded three disagreeing sources. There were four, and the one it missed is the one that decides the answer: both App Service plans run NODE|22-lts, so eight workflows were building the deployed artifact on Node 20 and shipping it to a Node 22 host. Everything except the workflows already agreed on 22, so this is not a choice between majors. Closes #36.',
+            'The eight deploy workflows now read node-version-file from .nvmrc, and .nvmrc carries an exact 22.22.0 rather than a bare 22 — nothing a pipeline downloads may float is the policy the action digests already follow, and a bare major resolves to whatever the runner happens to carry. Renovate’s node manager parses .nvmrc, so it stays maintained rather than hand-bumped. engines.node moves to >=22, because a floor of >=20.13.0 permits exactly the mismatch being removed.',
+            'zizmor.yml keeps its literal 24 and is deliberately not switched: its renovate-config-validator step needs Node 24 because renovate declares an engines.node of ^24.11.0, and npm accepts a mismatch with a warning rather than refusing, so that pin is load-bearing. This diverges from linked-data-explorer rather than copying it, since that repository pins exact literals in each workflow and its own open issue is about the drift that shape produces. Each workflow comment records the reasoning so it does not get aligned back.',
+          ],
+        },
+        {
+          sha: '307209d',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Axios response headers are coerced to string at both form call sites',
+          details: [
+            'axios 1.18 widens header values to a union of string, number, boolean, string array and AxiosHeaders, so assigning one to a string no longer compiles. That breaks the backend build on the axios security bump, where 1859 tests pass and one suite fails to compile.',
+            'Both call sites are fixed, not only the one CI named: TypeScript halts a file at its first error, so getDeployedStartForm carried the same defect behind getDeployedTaskForm and would have produced a second red run on the same pull request. String() rather than a cast, because the cast satisfies the compiler and still hands a non-string to callers that put this value straight into a Content-Type response header. The comment records that so it does not get simplified back.',
+          ],
+        },
+        {
+          sha: '3a59a95',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Renovate is aligned with the cross-repository posture',
+          details: [
+            'Four changes, one of which matters far more than the others. lockFileMaintenance was absent entirely, so nothing has ever refreshed this repository’s transitive tree — Renovate maintains declared dependencies, not what they resolve to. The first authenticated Semgrep scan found 435 findings across 1266 npm dependencies, 419 of them Supply Chain and 249 reachable. In linked-data-explorer a single refresh closed 63 of 66 Supply Chain findings with no manifest change, which is why this lands before any triage rather than after it. Triaging first would be work thrown away.',
+            'The global dependencyDashboardApproval is replaced by one scoped to majors, so the queue’s majors stay checkboxes holding no slot in prConcurrentLimit while the four genuine minor and patch updates flow under the 14-day cooldown. prConcurrentLimit is 5, and what sizes it here is reviewer attention, not Static Web Apps staging environments: all three acc SWA workflows now carry paths filters on pull_request as well as push, and none of those filters watches the root lockfile or package.json, so a dependency pull request consumes no preview environment at all.',
+            'Four workspace groups, not three as in the reference — six packages but only four deployables, with pa-cockpit compiled into both frontend and pa-demo and shared feeding frontend and backend, so updates under either stay ungrouped. Every group rule lists the nine update types except lockFileMaintenance; a schema validator cannot catch that omission because the config is valid either way, and without it one refresh arrives as several pull requests with byte-identical lockfiles. baseBranchPatterns is added so main, which is promoted from acc, never receives dependency pull requests directly.',
+          ],
+        },
+        {
+          sha: '5b93e03',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Semgrep scans for code and supply-chain findings',
+          details: [
+            'check-supply-chain verifies that Actions digest pins resolve to the versions their comments claim, and says nothing whatever about the packages in package-lock.json. Renovate remediates that tree; nothing here verified it. This is the half that was missing. One job covers the monorepo, because all six workspaces resolve through the single root lockfile and there is no per-workspace fan-out to keep in step.',
+            'scan is deliberately not a required check. Both rulesets require audit and nothing else, and they stay that way: the baseline has never been scanned in CI, and requiring a check before knowing what it reports is how a gate gets bypassed in its first week. Promotion is a ruleset edit, reversible without touching the file, which is also why nothing in the file will move when it happens. Marking the job non-blocking instead is the obvious alternative and the wrong tool, for the reason zizmor.yml now spells out at length.',
+            '.semgrepignore is derived from linked-data-explorer’s rather than copied, and diverges in three places, each noted in the file. It was set-differenced rather than counted, because the count cannot show this: 889 files scanned without the ignore file, 553 with it, all 337 dropped attributable to a named rule, none under a served public tree, and the 8-file remainder already excluded by Semgrep’s defaults in both runs.',
+          ],
+        },
+        {
+          sha: 'b04b3b3',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The supply-chain check blocks a merge',
+          details: [
+            'The pin-truth and register-agreement check has run non-blocking since it was adopted. It was waiting on one thing: evidence that the register gets updated on a bump’s own branch here, and not only in linked-data-explorer where the habit was proven. The zizmor-action v0.6.2 to v0.6.4 bump supplied it — register fixed on Renovate’s branch, check green there before any merge. Closes #83.',
+            'That same pull request is the argument against waiting longer. Before the register was fixed the check reported a real finding — the workflow pinning v0.6.4 while SECURITY-PIPELINE.md recorded only v0.6.2 — while the step, the job and the checks list all read success. Marking a step non-blocking rewrites its reported conclusion as well as the job’s, and the honest outcome is not exposed by the REST API at all, so nothing outside that one log knew. A check nobody can see fail is a check that has to be remembered, which is the condition the register drifted in to begin with.',
+            'The cost is recorded rather than glossed: a network call now sits inside a required check, so an API outage or rate limit can fail a gate unrelated to the change under review. An offline mode is the remedy if that bites, keeping the register half blocking and dropping only the network-dependent half. Restoring the non-blocking flag is not, because it restores the invisibility above.',
+          ],
+        },
+        {
+          sha: '7b7e403',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The supply-chain register records zizmor-action v0.6.4',
+          details: [
+            'Renovate rewrites workflow pins and their version comments together, and never touches SECURITY-PIPELINE.md, so this bump left the register describing a policy the workflow no longer follows. check-supply-chain caught it on the pull request, and it is fixed here on the bump’s own branch and before merging — the habit recorded under Keeping this register true, since a register fixed after the merge leaves the check red for that pull request’s whole life.',
+            'Only the pin and version cells move. zizmor-action is referenced exactly once, so no multiplicity changes and the headline count of pinned references is unchanged. The headline’s own verification stamp is deliberately left alone: it records when the whole table was last verified end to end, and this change verifies one row on a branch.',
+          ],
+        },
+        {
+          sha: 'b53dd65',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Formatting is checked in the audit job, not only at pre-push',
+          details: [
+            'Formatting was enforced by the pre-push hook alone, so the rule held on a developer’s machine and not on the shared branch. The gap is not theoretical: a Prettier 3.7 to 3.9 upgrade changed how short union types are formatted, and five files nobody had touched began failing the check the moment the upgrade merged, with every CI check green. The symptom would have been the next person’s push failing on files they had never opened.',
+            'Two steps in the audit job, both running unconditionally so a zizmor failure cannot hide a formatting failure behind it. npm ci comes first, because the check must run this repository’s Prettier: pulling a pinned version from npx would be a second version to keep in step with package.json, reintroducing the drift the check exists to catch. That install is the cost of the step, and this job had none before.',
+            'It uses the root check-format script, matching what the pre-push hook runs. Linked Data Explorer fans out per workspace because Prettier resolves its ignore file relative to the working directory and its packages each carry their own; this repository has one root ignore file and one root script. It belongs in audit rather than a deploy workflow because audit has no paths filter and is the required status check, so every pull request reaches it — including documentation-only ones, whose markdown is the likeliest thing to drift.',
+          ],
+        },
+        {
+          sha: 'eb74221',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'zizmor-action is pinned at v0.6.4',
+          details: [
+            'A routine Renovate action bump, rewriting the digest pin and its version comment together. Renovate never touches SECURITY-PIPELINE.md, so the matching register row moves separately — check-supply-chain reported the gap on this pull request, and 7b7e403 closes it on the same branch.',
+          ],
+        },
+        {
+          sha: '4f4808d',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The backend suite runs on pull requests, not only after the merge',
+          details: [
+            'The backend’s 2008 tests triggered on push alone, so a backend pull request reached acc with audit as its only check — and audit says nothing about whether the code works. The per-file 80% branch floor made that sharper: the threshold gated nothing before a merge, so a file dropping below it failed on acc after the fact rather than on the branch that caused it. Closes #87.',
+            'No event guards are needed, unlike linked-data-explorer’s equivalent change: that workflow deploys to Azure and had to gate six deploy-side steps on the event, while this one ends at an uploaded artifact and has no deploy step at all. Both filters gain package-lock.json and package.json, because every workspace resolves through them and a lockfile-only change was built and tested by nothing — safe to widen here and nowhere else, since this job claims no Static Web Apps staging environment and cannot exhaust the frontend’s Free-plan ceiling of three. A concurrency group keyed on the pull-request number stops a twice-pushed branch running the suite twice.',
+            'The production workflow records the decision the issue also asks for: no pull_request trigger, because main is promoted from acc and those commits have already run this suite. Verified by making the gate fail rather than trusting it — a probe file with uncovered branches produced a branch-threshold failure naming the file, with npm exiting 1, while the suite was otherwise green at 86 suites and 2008 tests. The probe was deleted.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.6',
       status: 'Released',
       date: '12 sep 2026',

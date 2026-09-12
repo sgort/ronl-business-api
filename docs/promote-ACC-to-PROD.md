@@ -28,6 +28,7 @@ two minutes and tells you whether anything moved overnight.
 8. [After PROD: aligning CI with the cross-repo posture](#8-after-prod-aligning-ci-with-the-cross-repo-posture)
 9. [Open issues walkthrough](#9-open-issues-walkthrough)
 10. [T-0 re-verification](#10-t-0-re-verification)
+11. [Outcome — executed 12 September 2026](#11-outcome--executed-12-september-2026)
 
 ---
 
@@ -1298,3 +1299,55 @@ git -C "$S/tm" diff --name-only --diff-filter=U        # expect nothing
 git -C "$S/tm" diff origin/acc --stat                  # expect only packages/frontend/.env.production
 git worktree remove --force "$S/tm" && git worktree prune
 ```
+
+---
+
+## 11. Outcome — executed 12 September 2026
+
+PROD went from **3.8.2 (17 July)** to **v2026.09.6**. The promotion merge is
+`04840ed`; the release it carries is `5f1091e`.
+
+| Surface                 | Result                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| Backend                 | `RuntimeSuccessful`; `/` reports 2026.09.6, 17 endpoints; `/v1/health` healthy with `cache: up` |
+| Caseworker (`mijn`)     | `build 04840ed · #12` in the changelog drawer, confirmed by eye                                 |
+| Public site (`publiek`) | live; footer `publiek.open-regels.nl · v2026.09.6 · build 04840ed · #2`; e2e 6/6                |
+| PA demo (`plato`)       | live; production card byte-identical to the committed PNG; e2e 11/11                            |
+| Keycloak                | 28 roles created, `test-infra-flevoland` at 37 (matching ACC); 3 token-claim mappers            |
+| Mirror                  | `acc` and `main` fast-forwarded; both remotes match                                             |
+
+All six decisions applied as recorded: the cockpit reads live (D1), all four
+surfaces shipped (D2), v2026.09.6 was cut first (D3), the `main promotion gate`
+ruleset was created and **reported `BLOCKED` on the promotion pull request until
+`audit` passed** (D4), `CORS_ORIGIN` is `mijn` + `publiek` with `localhost:5173`
+removed and verified by request (D5), and the RIP roles went to
+`test-infra-flevoland` (D6).
+
+### What differed from the plan
+
+- **A production deploy failed on a trailing newline.** `az … -o tsv | gh secret set`
+  stores 120 bytes where the key is 119, and the Static Web Apps action reports
+  only `An unknown exception has occurred` after the build steps pass. Re-set with
+  `tr -d '\r\n'` and the re-dispatch succeeded. Both go-live docs now carry the
+  warning.
+- **The container failed to start once, at 07:44**, while the deploy was replacing
+  `wwwroot`; Azure retried, and the final restart produced a clean boot. Every
+  later status line repeats that timestamp as `LastError`, which reads alarming
+  and is historical. Uptime sampling is what distinguishes a settled instance from
+  a loop.
+- **The PA demo e2e suite fails when pointed at the default `*.azurestaticapps.net`
+  hostname**, because it asserts the social card's origin equals the origin under
+  test, and a production build correctly advertises `plato`. That is the test
+  working. Run it against the real domain after the CNAME is bound.
+
+### Left open
+
+- `KEYCLOAK_CLIENT_SECRET` on the PROD App Service is still
+  `change-me-in-keycloak-console`. It does not block boot, and it does not affect
+  the MCP providers (all four connected), but anything authenticating **as** the
+  `ronl-business-api` client — the smoke script's Tier 2 leg, `/v1/m2m` — will
+  fail until it is regenerated in Keycloak and set on the App Service.
+- `EP teksten fetch complete, total: 0` on PROD — relevant to #57, which assumed
+  that host is reachable from PROD's egress range.
+- The startup log still advertises `/v1/docs`, which is never mounted (#67).
+- The backend still deploys by hand, outside CI (#34/#35, item C9 below).

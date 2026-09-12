@@ -1,0 +1,87 @@
+# Paths Semgrep should not scan, in .gitignore syntax.
+#
+# Semgrep already limits itself to files tracked by git, so node_modules/,
+# dist/, build/ and the backend's deploy/ tree are excluded by .gitignore
+# without needing a line here. This file is for paths that ARE tracked and ARE
+# meant to be, but are not application code.
+#
+# Derived from linked-data-explorer's file rather than copied. Three of its
+# rules apply here unchanged, one applies for a DIFFERENT reason, and one glob
+# is wider. Each divergence is noted where it occurs -- a borrowed comment that
+# describes the other repository's tree is worse than no comment, because it
+# reads as verified and is not.
+
+# Reference material at the repository root: the Flevoland organisation export
+# -- BPMN processes, DMN decision tables, Camunda forms and document templates,
+# plus two HTML fixtures. Thirty-six tracked files, loaded by no package and
+# built by nothing. Deployed to Operaton by hand and by the e2e fixtures.
+#
+# The leading slash is deliberate but NOT for the reason linked-data-explorer
+# gives. There, a bare `examples/` would also have swallowed a served
+# packages/frontend/public/examples/, and dropping it from the scan was caught
+# only by set-differencing the scanned file lists. This repository has no nested
+# examples/ directory at all -- the root one is the only one, and none of the
+# three served public/ trees (frontend, pa-demo, public-site) contains one.
+#
+# So the anchor buys nothing today. It is here because it costs nothing and
+# because the day someone adds packages/frontend/public/examples/, the bare form
+# would silently stop scanning a served file while the finding count stayed
+# identical. Anchor now, when it is free, rather than discovering it the way
+# ttl-editor did.
+#
+# Unlike linked-data-explorer, this rule is not expected to silence much: its
+# examples/organizations/ holds executable scripts (eval-detected,
+# hardcoded-password-default-argument), and this one holds no scripts at all --
+# only process models, forms and templates. The justification is "reference
+# material is not application code", not a finding count.
+/examples/
+
+# Test files are excluded from Code scanning, but NOT from Secrets scanning,
+# which carries its own separate ignore list in the Semgrep project settings and
+# keeps covering them. A hardcoded credential in a test is the one finding class
+# here worth having, and it survives these rules.
+#
+# Reading a fixture off disk means path.resolve; asserting on generated text
+# means building a RegExp from a variable. Both are ordinary test code, so
+# path-join-resolve-traversal and detect-non-literal-regexp fire on it forever,
+# and triaging each new test file by hand is not a strategy. The narrower fix,
+# scoping those two rules to non-test paths, is not available: Semgrep has no
+# per-rule path setting, and forking two registry rules to add paths.exclude is
+# more to maintain than this is worth.
+#
+# The third glob is where this file is WIDER than the one it was derived from.
+# linked-data-explorer's says "every test file in this repository is .test.ts or
+# .test.tsx; there are no .spec files", and tells the next reader to widen it if
+# that changes. Here it already has: 290 files are .test.ts/.test.tsx, and 12
+# more are .spec.ts -- the Playwright journeys under packages/frontend/e2e/,
+# packages/pa-demo/e2e/ and packages/public-site/e2e/.
+#
+# Those twelve are the files most likely to hold a real login credential, which
+# is exactly why excluding them from Code scanning is safe: Secrets scanning is
+# what would catch that, and it is unaffected by this file. What the exclusion
+# drops is Code noise on E2E journeys, which is what it is meant to drop.
+#
+# There are no JavaScript tests -- no .test.js, no .spec.js, nothing under
+# .mjs/.cjs. Widen this if that changes.
+*.test.ts
+*.test.tsx
+*.spec.ts
+
+# Restores two rules from Semgrep's built-in default ignore list, which this file
+# REPLACES rather than extends. That replacement is the trap: adding a
+# .semgrepignore at all silently brings back into scope everything the defaults
+# were excluding, and the finding count can come out identical either way --
+# linked-data-explorer brought 16 files back without any count moving, and found
+# it only by diffing the scanned file sets.
+#
+# Four directories match here: packages/frontend/src/test/,
+# packages/pa-cockpit/src/test/, packages/pa-demo/src/test/ and
+# packages/public-site/src/test/ -- all Vitest setup and support.
+#
+# Bare on purpose, unlike /examples/ above: every directory of either name in
+# this repository is test support, and none sits under a served public/ tree
+# (checked, not assumed). The other defaults -- node_modules/, dist/, build/,
+# vendor/, *.min.js -- are not restored because nothing matching them is
+# tracked, and Semgrep scans only tracked files.
+test/
+tests/

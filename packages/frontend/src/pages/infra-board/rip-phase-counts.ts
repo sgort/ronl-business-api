@@ -84,7 +84,7 @@ export function normalizeLiveCounts(
 ): Record<string, PhaseCounts> {
   const out: Record<string, PhaseCounts> = {};
   for (const phase of phases) {
-    if (!phase.processDefinitionKey) continue;
+    // No key guard since #85 — every phase has one.
     const c = raw[phase.processDefinitionKey];
     if (c) out[phase.code] = { wip: c.wip, gereed: c.gereed };
   }

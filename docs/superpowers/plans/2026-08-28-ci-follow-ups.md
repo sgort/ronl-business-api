@@ -208,19 +208,31 @@ its pinned actions target a Node version the runner now force-upgrades.
 
 ## 8. Remove `dependencyDashboardApproval` from `renovate.json`
 
-> Tracked as draft PR [#20](https://github.com/sgort/ronl-business-api/pull/20), open since 2026-08-28.
+> **Done**, in [#105](https://github.com/sgort/ronl-business-api/pull/105)
+> (`c6d57af`) — but not the one-line way this item proposed. Draft PR
+> [#20](https://github.com/sgort/ronl-business-api/pull/20) is closed as
+> superseded.
 
 Set during adoption so Renovate raised nothing while the same workflow files were
 being pinned on a branch — two agents editing the same `uses:` lines would have
 conflicted.
 
-That race is over: `renovate/pin-dependencies` has already dropped off the
-dashboard, which is Renovate confirming it has nothing left to pin. Removing the
-key lets it open PRs normally under the 14-day cooldown, which is the steady state
-this was all built for.
+That race is over: `renovate/pin-dependencies` had already dropped off the
+dashboard, which is Renovate confirming it has nothing left to pin.
 
-One line. It needs a release to ship, so it should ride with the next one rather
-than justify its own.
+**What this item got wrong was the queue.** Removing the key outright would have
+released all of it at once, and on 12 September 2026 that was 35 entries pending
+approval of which all but four were majors — express 5, react 19, typescript 7,
+vite 8, jest 30, eslint 10, tailwindcss 4, node 24, postgres 18 — none of which
+anyone merges on autopilot. So the global key is gone and a `matchUpdateTypes:
+["major"]` rule carries the approval gate instead: majors stay checkboxes holding
+no slot in `prConcurrentLimit`, and the four genuine minor/patch updates flow
+normally under the 14-day cooldown. `vulnerabilityAlerts` sets
+`dependencyDashboardApproval: false` explicitly, so a security fix that happens to
+be a major never waits on a checkbox.
+
+The claim that it needed a release to ship was also wrong — it shipped as a `ci`
+change like the rest of the alignment work.
 
 ## 9. The deploy workflows need a `concurrency:` group
 

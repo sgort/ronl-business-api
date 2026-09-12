@@ -96,23 +96,25 @@ describe('previousModelledPhase / skippedPhasesBefore', () => {
 
 describe('getPhaseDeployStatus', () => {
   const withKey: RipPhase = { ...ripPhaseByCode('R2.1')! };
-  // Synthesised, because no real phase can play this role any more: every
-  // phase in the catalogue now either carries a processDefinitionKey or is
-  // is consulted. The branch is still reachable in practice -- a phase
-  // catalogued ahead of its BPMN being deployed sits in exactly this state --
-  // so the fixture is built rather than deleted along with the coverage.
-  const withoutKey: RipPhase = { ...ripPhaseByCode('R6.1')!, processDefinitionKey: undefined };
+
+  // The third case here was 'is ontwerp when the phase has no key', against a
+  // synthesised `{ ...phase, processDefinitionKey: undefined }` fixture. #85
+  // made `processDefinitionKey` required, so that object no longer type-checks
+  // and the state it described is unrepresentable.
+  //
+  // Its comment argued the branch was "still reachable in practice -- a phase
+  // catalogued ahead of its BPMN being deployed". That conflated two different
+  // things, and the distinction is why the remaining two tests are enough:
+  // catalogued-ahead-of-DEPLOYMENT is the second case below, which is live and
+  // covered. Catalogued-ahead-of-MODELLING is what the deleted fixture stood
+  // for, and the compiler now rejects it.
 
   it('is gedeployed when the phase has a key and it is in the deployed set', () => {
     expect(getPhaseDeployStatus(withKey, new Set(['RipR21Process']))).toBe('gedeployed');
   });
 
-  it('is ontwerp when the phase has a key but it is not in the deployed set', () => {
+  it('is ontwerp when the phase is modelled but not deployed on this environment', () => {
     expect(getPhaseDeployStatus(withKey, new Set())).toBe('ontwerp');
-  });
-
-  it('is ontwerp when the phase has no key', () => {
-    expect(getPhaseDeployStatus(withoutKey, new Set())).toBe('ontwerp');
   });
 });
 

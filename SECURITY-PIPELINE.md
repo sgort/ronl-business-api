@@ -13,28 +13,32 @@ build shape differs, and the differences matter in both directions.
 
 These are GitHub settings, not files. Without them parts of the policy are inert.
 
-| Setting                         | Required state                 | Why                                                                                            |
-| ------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Renovate GitHub App             | installed, scoped to this repo | `renovate.json` is inert until it is                                                           |
-| Dependabot **alerts**           | enabled                        | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
-| Dependabot **security updates** | **disabled**                   | it opens competing PRs that ignore the 14-day cooldown                                         |
-| Merge methods                   | merge commits only             | squash and rebase rewrite the SHAs a changelog entry names                                     |
-| `acc` ruleset                   | require PR + `audit` check     | a workflow that runs but cannot block is advice, not a gate                                    |
+| Setting                         | Required state                                 | Why                                                                                            |
+| ------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Renovate GitHub App             | installed, scoped to this repo                 | `renovate.json` is inert until it is                                                           |
+| Dependabot **alerts**           | enabled                                        | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
+| Dependabot **security updates** | **disabled**                                   | it opens competing PRs that ignore the 14-day cooldown                                         |
+| Merge methods                   | merge commits only                             | squash and rebase rewrite the SHAs a changelog entry names                                     |
+| `acc` ruleset                   | PR + `audit` + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
+| `main` ruleset                  | the same four rules                            | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
 
 ## Pinned
 
-**30 `uses:` references across 9 workflows, all 30 digest-pinned.** Verified on
-`acc` at `570f973`, 29 August 2026.
+**31 `uses:` references across 10 workflows, all 31 digest-pinned.** Verified on
+`acc` at `8e8fcdb`, 12 September 2026 — by `npm run check-supply-chain`, which
+blocks the `audit` job, so this headline cannot drift from the workflows without
+failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                        |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
-| `actions/checkout` (×9)             | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
+| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
 | `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                             |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                         |
 | `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                             |
-| `zizmorcore/zizmor-action`          | `3dc1ecc9bcb9e94e9b2c709687979e1298497054`          | v0.6.2            | Renovate                                                                             |
+| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                             |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | **manual** — an action input, which Renovate's github-actions manager does not parse |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                            |
+| Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses       |
 | npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                             |
 
 The zizmor pin is stronger than it looks: `zizmor-action` resolves the requested
@@ -98,24 +102,33 @@ open a routine-looking digest update reverting **all nine** references to
 old. Updates for this dependency are therefore disabled in `renovate.json`, with
 the reasoning recorded inline there too.
 
-### `node-version` floats — and three sources disagree
+### ~~`node-version` floats — and three sources disagree~~ — closed 2026-09-12
 
-Eight of the nine workflows request `node-version: '20'`, which resolves to
-whatever 20.x `actions/setup-node` downloads at run time. Under a policy of
-"nothing a pipeline downloads may float", that is an exception.
+**No longer an exception.** Kept here rather than deleted, because what it got
+wrong is worth more than what it got right.
 
-The ninth is deliberate and pinned differently: the `renovate-config-validator`
-step in `zizmor.yml` sets `node-version: '24'`, because `renovate@44.50.3`
-declares `engines.node ^24.11.0` and npm accepts a mismatch with an
-`EBADENGINE` **warning** rather than refusing — so the validator had been
-running unsupported and green.
+It read: eight of the nine workflows request `node-version: '20'`, resolving to
+whatever 20.x the runner downloads; `.nvmrc` says `22`; `engines.node` says
+`>=20.13.0`; developers therefore work on a different major than the one
+producing the deployed artifact.
 
-Worth recording alongside it: **`.nvmrc` says `22`** while CI builds on 20, and
-`package.json` declares `engines.node >= 20.13.0`. Developers therefore work on a
-different Node major than the one producing the deployed artifact. Not a
-supply-chain defect, but a divergence that belongs on the record — and
-`node-version-file: .nvmrc` would close both issues at once if the two are meant
-to agree.
+**There was a fourth source, and it was the one that settled it.** Both App
+Service plans run **`NODE|22-lts`**. So the workflows were not merely floating —
+they were building the deployed backend on a major the host does not run. That
+fact appears nowhere in the paragraph above, and it is what turned a
+three-way stylistic disagreement into a one-sided answer.
+
+Closed by [#36](https://github.com/sgort/ronl-business-api/issues/36): the eight
+deploy workflows now read `node-version-file: .nvmrc`, `.nvmrc` carries an exact
+`22.22.0` rather than a bare major — the same "may not float" rule the digests
+above follow — and `engines.node` is `>=22`. Renovate's `node` manager parses
+`.nvmrc`, so it stays maintained rather than hand-bumped.
+
+`zizmor.yml` keeps its literal `node-version: '24'`, and that part was right all
+along: `renovate@44.50.3` declares `engines.node ^24.11.0`, and npm accepts a
+mismatch with an `EBADENGINE` **warning** rather than refusing — so the validator
+had been running unsupported and green. That pin is load-bearing; do not sweep it
+into the shared file.
 
 ### The backend is deployed outside CI, and its dependencies are unpinned
 
@@ -174,7 +187,10 @@ What that means for this document's scope:
   structural, not carelessness.
 
 This is the widest floating surface in the repository and, unlike the container
-exception above, it is fixable from our side — see "Queued CI improvements".
+exception above, it is fixable from our side —
+[#34](https://github.com/sgort/ronl-business-api/issues/34) pins the bundle's
+dependencies, [#35](https://github.com/sgort/ronl-business-api/issues/35) moves
+the deploy into a workflow. Both still open.
 
 ## What the audit cannot see
 
@@ -230,16 +246,41 @@ Adding or removing a workflow step that carries a `uses:` line also moves the
 `(×N)` count and the totals headline. That is the ×8→×9 case above, and the check
 now fails on it rather than leaving it to a reader.
 
-The step is `continue-on-error: true` for now. It was proven in
-linked-data-explorer over two bumps
+**The step blocks.** It ran `continue-on-error: true` from its adoption
+([#81](https://github.com/sgort/ronl-business-api/issues/81)) until
+[#83](https://github.com/sgort/ronl-business-api/issues/83) promoted it, waiting
+on exactly one thing: evidence that the paragraph above — update the register on
+the bump's own branch — is a habit that holds _here_, and not only in
+linked-data-explorer, where it was proven over two bumps
 ([#66](https://github.com/sgort/linked-data-explorer/pull/66),
-[#67](https://github.com/sgort/linked-data-explorer/pull/67)) and promoted to
-blocking there; promote it here once the same habit holds. Do not leave it
-non-blocking indefinitely: `continue-on-error` rewrites the _step's_ reported
-conclusion as well as the job's, and the honest result is not exposed by the REST
-API — so a finding is visible only in the step's log while the checks list, the
-job and the step all read "success". See issue
-[#81](https://github.com/sgort/ronl-business-api/issues/81).
+[#67](https://github.com/sgort/linked-data-explorer/pull/67)).
+
+[#101](https://github.com/sgort/ronl-business-api/pull/101) supplied it.
+Renovate bumped `zizmorcore/zizmor-action` from v0.6.2 to v0.6.4 and, as
+described above, left this register behind; the register was then updated on
+Renovate's branch and the check went green there, before any merge.
+
+That same pull request is also the argument against waiting any longer. Before
+the register was fixed, the check reported:
+
+```
+1 finding(s):
+  [register] zizmorcore/zizmor-action: workflow pins cc914d7f3750… (v0.6.4)
+             but SECURITY-PIPELINE.md records only 3dc1ecc9bcb9… (v0.6.2)
+```
+
+— while the step, the job and the pull request's checks list **all read
+"success"**. `continue-on-error` rewrites the _step's_ reported conclusion as
+well as the job's, and the honest result (`outcome: failure`) is not exposed by
+the REST API at all, so nothing outside that one log knew. A check nobody can
+see fail is not protecting anything; it is a check that has to be remembered,
+which is the condition this register drifted in to begin with.
+
+The cost, stated plainly: a network call now sits inside a required check, so a
+GitHub API outage or rate limit can fail a gate unrelated to the change under
+review. `--offline` is the answer if that ever bites — it keeps the register
+half blocking and drops only the half that needs the network. Restoring
+`continue-on-error` is not, because it restores the invisibility above.
 
 ## Pending work
 

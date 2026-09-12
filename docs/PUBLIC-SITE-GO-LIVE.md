@@ -14,7 +14,8 @@ different integration), `docs/superpowers/plans/2026-08-06-public-site.md` (the
 The CI workflows
 ([azure-publicsite-acc.yml](../.github/workflows/azure-publicsite-acc.yml),
 [azure-publicsite-prod.yml](../.github/workflows/azure-publicsite-prod.yml)) will
-fail on first push without the resource + token secret. **ACC done; PROD pending.**
+fail on first push without the resource + token secret. **Both done** — ACC on
+2026-08-07, PROD on 2026-09-12.
 
 Create each SWA with deployment **Source: `Other`** (not GitHub) — that yields just
 the resource + a deployment token and does **not** generate a competing workflow;
@@ -22,13 +23,24 @@ our hand-tuned workflow already deploys the pre-built `dist` via `skip_app_build
 
 - [x] Create the **ACC** Static Web App in Azure (matches `azure-frontend-acc.yml`'s
       resource for the pattern to copy).
-- [ ] Create the **PROD** Static Web App in Azure.
+- [x] Create the **PROD** Static Web App in Azure. Done 2026-09-12:
+      `ronl-business-public-site-prod` in resource group `ronl-public-site-prod`,
+      subscription C1427, westeurope, Standard, default hostname
+      `thankful-sand-05d1a7c03.3.azurestaticapps.net`, `provider: None`.
 - [x] Copy the **ACC** deployment token (Azure Portal → the SWA resource → "Manage
-      deployment token", or `az staticwebapp secrets list`). PROD token pending.
-- [ ] Add both tokens as GitHub repo secrets, **exact names** (already referenced
+      deployment token", or `az staticwebapp secrets list`).
+- [x] Add both tokens as GitHub repo secrets, **exact names** (already referenced
       by the workflows):
   - [x] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_ACC`
-  - [ ] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_PROD`
+  - [x] `AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_PROD`
+
+> **Do not pipe the token straight from `az … -o tsv` into `gh secret set`.** The
+> CLI appends a newline, the secret stores 120 bytes where the key is 119, and the
+> Static Web Apps action then fails with nothing more specific than
+> `An unknown exception has occurred` after printing a DeploymentId — the build
+> steps all pass, so it reads like an Azure fault rather than a bad secret. Strip
+> it: `az … -o tsv | tr -d '\r\n' | gh secret set <NAME>`. This cost one failed
+> production deploy on 2026-09-12.
 
 > **Resolved in this branch** (`fix(public-site): ship staticwebapp.config.json in
 the build output`): the SWA config previously lived at the package root, which
@@ -39,14 +51,15 @@ the build output`): the SWA config previously lived at the package root, which
 > manual step needed; noted here because it directly affects the SWA deploy this
 > section sets up.
 
-## 2. Backend deploy — ACC and PROD (**ACC done; PROD pending**)
+## 2. Backend deploy — ACC and PROD (**both done**)
 
 Phase 1 (`GET /v1/public/processen`, `GET /v1/public/zoeken`, the
 `/v1/public/{nieuws,producten,regels}/:slug` detail routes) is **deployed and live
 on ACC** (`acc.api.open-regels.nl`) — verified by the smoke-test below.
-`feature/public-site` was merged into `acc` and deleted. PROD is still pending:
-until Phase 1 is on `api.open-regels.nl`, a prod public-site build's prerender step
-will 404 (exactly as an early ACC build did).
+`feature/public-site` was merged into `acc` and deleted. PROD followed on
+2026-09-12: until Phase 1 was on `api.open-regels.nl`, a prod public-site build's
+prerender step would 404 (exactly as an early ACC build did), which is why the
+backend went first.
 
 **Deploy order matters — backend before the push.** The backend is deployed by
 `deploy-backend-to-acc.sh` (a local `az webapp deploy` from a clean `acc` checkout;
@@ -63,9 +76,13 @@ between merging locally and pushing:
       real data, not 404.
 - [x] `git push origin acc` — triggered the frontend + public-site Actions; both
       deployed successfully (public-site live at `acc.publiek.open-regels.nl`).
-- [ ] Repeat for prod once ACC is verified: merge to prod's deploy branch, run
-      `deploy-backend-to-prod.sh`, smoke-test, then push to trigger the prod
-      Actions.
+- [x] Repeat for prod once ACC is verified. Done 2026-09-12 as Phase 6 of
+      `docs/promote-ACC-to-PROD.md`, with one refinement: rather than pushing and
+      letting the SWA workflows race the backend, the three production SWA
+      workflows were **disabled** before the promotion merge, the backend was
+      deployed from a clean `main` (`deploy-backend-to-prod.sh`,
+      `RuntimeSuccessful`), smoke-tested, and only then was each site re-enabled
+      and dispatched by hand.
 
 > The caseworker frontend has no such dependency — it's a runtime-fetch SPA with no
 > prerender, so its build never calls the backend. Only public-site does. And if you
@@ -80,22 +97,27 @@ this branch do not by themselves fix ACC/prod. Set these in each backend App
 Service's Configuration blade (Azure Portal → App Service → Configuration →
 Application settings) — not in any file in this repo.
 
-| Variable                    | ACC                                                                                   | PROD                                                      | Why                                                                                                                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CORS_ORIGIN`               | append `https://acc.publiek.open-regels.nl`                                           | append `https://publiek.open-regels.nl`                   | Whatever ACC/prod's `CORS_ORIGIN` is already set to, **plus** the new origin — replacing it outright would break the existing caseworker frontend.                                                       |
-| `LDE_API_URL`               | leave unset (code default already `https://acc.backend.linkeddata.open-regels.nl/v1`) | **must set explicitly** — code default is the ACC LDE URL | Without this, prod's process library would silently proxy ACC's LDE data instead of prod's. Likely value: `https://backend.linkeddata.open-regels.nl/v1` (matches the frontend's own `.env.production`). |
-| `PUBLIC_SHOW_WIP_PROCESSES` | `true` (already agreed — preview WIP processes on ACC)                                | leave unset (defaults to `false`)                         | ACC-only escape hatch; must never be true in prod.                                                                                                                                                       |
+| Variable                    | ACC                                                                                   | PROD                                                                              | Why                                                                                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CORS_ORIGIN`               | append `https://acc.publiek.open-regels.nl`                                           | set to `mijn` + `publiek`; `localhost:5173` dropped (D5 of the promotion runbook) | Whatever ACC/prod's `CORS_ORIGIN` is already set to, **plus** the new origin — replacing it outright would break the existing caseworker frontend.                                                       |
+| `LDE_API_URL`               | leave unset (code default already `https://acc.backend.linkeddata.open-regels.nl/v1`) | **must set explicitly** — code default is the ACC LDE URL                         | Without this, prod's process library would silently proxy ACC's LDE data instead of prod's. Likely value: `https://backend.linkeddata.open-regels.nl/v1` (matches the frontend's own `.env.production`). |
+| `PUBLIC_SHOW_WIP_PROCESSES` | `true` (already agreed — preview WIP processes on ACC)                                | leave unset (defaults to `false`)                                                 | ACC-only escape hatch; must never be true in prod.                                                                                                                                                       |
 
-**ACC done** (set on `ronl-business-api-acc` / `rg-ronl-acc` via
-`az webapp config appsettings set`, which restarts the App Service automatically —
-no manual restart needed). **PROD pending.**
+**Both done** (set via `az webapp config appsettings set`, which restarts the App
+Service automatically — no manual restart needed). PROD was done on 2026-09-12,
+before the promotion merge, while 3.8.2 was still serving.
 
 - [x] `CORS_ORIGIN` updated on ACC backend App Service
-- [ ] `CORS_ORIGIN` updated on PROD backend App Service
-- [ ] `LDE_API_URL` set explicitly on PROD backend App Service
-- [x] `PUBLIC_SHOW_WIP_PROCESSES=true` set on ACC backend App Service
-- [x] ACC App Service restarted (automatic on `appsettings set`); PROD restart still
-      pending after its settings are saved
+- [x] `CORS_ORIGIN` updated on PROD backend App Service — final value
+      `https://mijn.open-regels.nl,https://publiek.open-regels.nl`. Verified by
+      request: `publiek` and `mijn` receive an `access-control-allow-origin`
+      header, `http://localhost:5173` receives none.
+- [x] `LDE_API_URL` set explicitly on PROD backend App Service
+      (`https://backend.linkeddata.open-regels.nl/v1`)
+- [x] `PUBLIC_SHOW_WIP_PROCESSES=true` set on ACC backend App Service; left unset
+      on PROD, so it defaults to `false`
+- [x] ACC App Service restarted (automatic on `appsettings set`); PROD likewise,
+      and 3.8.2 came back healthy on the first probe after each restart
 
 ## 4. Caddy deploy — Skosmos CSP fix (✅ done — blocking for the Gegevenswoordenboek page)
 
@@ -120,14 +142,15 @@ the public site (`publiek` / `acc.publiek`), and both dev servers
       `http://localhost:5175/woordenboek`: the Skosmos thesaurus renders in the
       iframe._
 
-## 5. DNS — Azure DNS zone `open-regels.nl` (blocking — **ACC done; PROD pending**)
+## 5. DNS — Azure DNS zone `open-regels.nl` (blocking — **both done**)
 
-You own this zone in Azure DNS, which matters for `publiek.open-regels.nl`
-specifically: it's an **apex/root record**, and a plain CNAME is not valid at a
-zone apex per DNS spec. Azure DNS's **Alias record** feature solves this natively —
-an Alias record at the apex can point directly at an Azure resource (the Static
-Web App), unlike a plain CNAME. `acc.publiek.open-regels.nl` is an ordinary
-subdomain and a plain CNAME works fine there.
+You own this zone in Azure DNS. Both hostnames are ordinary subdomains of
+`open-regels.nl`, so a plain CNAME works for each.
+
+> **Correction (2026-09-12).** This section used to call `publiek.open-regels.nl`
+> an apex/root record needing an Azure **Alias** record. It is not: the zone is
+> `open-regels.nl`, so `publiek` is a subdomain like `acc.publiek`, and it was
+> bound with a plain CNAME. No alias record was needed or created.
 
 - [x] In the Azure Static Web App resource (ACC), add the custom domain
       `acc.publiek.open-regels.nl` — Azure will show the exact validation record
@@ -137,15 +160,17 @@ subdomain and a plain CNAME works fine there.
       shows this on the custom domain screen). _Verified 2026-08-07:
       `https://acc.publiek.open-regels.nl/` resolves with valid TLS and serves the
       SWA (the Azure placeholder page — real content lands once §2's push runs)._
-- [ ] Repeat domain validation for the PROD Static Web App, root domain
-      `publiek.open-regels.nl`.
-- [ ] Add an **Alias record** (not a plain A/CNAME) at the zone apex pointing at
-      the PROD Static Web App resource — in the Azure DNS zone UI this is "Add
-      record set" → type `A` → "Alias record set" toggled on → target set to the
-      SWA resource (not an IP).
-- [ ] Wait for DNS propagation, then confirm both custom domains show "Ready" /
+- [x] Repeat domain validation for the PROD Static Web App, subdomain
+      `publiek.open-regels.nl` (2026-09-12, CNAME validation in the portal).
+- [x] Add a `CNAME` record: `publiek` →
+      `thankful-sand-05d1a7c03.3.azurestaticapps.net`. No alias record — see the
+      correction above.
+- [x] Wait for DNS propagation, then confirm both custom domains show "Ready" /
       valid TLS in the Azure Portal (Azure auto-provisions the certificate once
-      DNS validates).
+      DNS validates). _Verified 2026-09-12: `https://publiek.open-regels.nl/`
+      serves the site, its footer reads
+      `publiek.open-regels.nl · v2026.09.6 · build 04840ed · #2`, and the e2e
+      suite passes 6/6 against it._
 
 ## 6. Post-deploy verification (not blocking, don't skip)
 
@@ -185,6 +210,12 @@ These need a real live URL, so they can only happen after steps 1–5.
 
 ## 7. PROD promotion — the rest of the `acc` → `main` delta (read before merging)
 
+> **Executed on 2026-09-12.** PROD went from 3.8.2 to **v2026.09.6** — 51
+> releases, 646 commits — following `docs/promote-ACC-to-PROD.md`, which
+> superseded this section and carries the verified state, the six decisions and
+> the rollback. The figures below are the August snapshot and are kept as a
+> record of what this section said at the time; do not read them as current.
+
 §1–6 cover the **public-site** slice. But PROD currently runs **v3.8.2 (17 Jul)** and
 `acc` is **2026.08.23** — merging `acc → main` deploys **342 commits / 21 releases**
 across the **backend, the caseworker frontend, and the public-site**, not just the public
@@ -208,15 +239,22 @@ is still the manual `deploy-backend-to-prod.sh` (unchanged in this delta: builds
 then `az webapp deploy` → `ronl-business-api-prod` / `rg-ronl-prod`). Push first and the
 new frontends call a v3.8.2 backend that lacks their routes.
 
-- [ ] **CI is green on `acc` first.** `28ab6ca` gated all three PROD workflows on lint +
+- [x] **CI is green on `acc` first.** `28ab6ca` gated all three PROD workflows on lint +
       unit tests, and the frontend additionally on `npm run test:perf` (performance
       budget), public-site on lint + type-check + tests. A failing gate means the deploy
       step never runs — you get a half-promoted `main`, backend deployed and frontends not.
-- [ ] Merge `acc → main` **locally** (do not push yet).
-- [ ] `bash deploy-backend-to-prod.sh` — backend live on PROD first.
-- [ ] Smoke-test the PROD backend (`/v1/health` reports the new version; a `/v1/public/*`
-      route responds, not 404).
-- [ ] **Then** push `main` — triggers both SWA deploys against the now-current backend.
+- [ ] Merge `acc → main` **locally** (do not push yet). **Superseded on
+      2026-09-12:** `main` is now protected by the `main promotion gate` ruleset, so
+      the promotion went through a pull request instead of a local merge.
+- [x] `bash deploy-backend-to-prod.sh` — backend live on PROD first
+      (`RuntimeSuccessful`, 2026-09-12).
+- [x] Smoke-test the PROD backend (`/v1/health` reports the new version; a `/v1/public/*`
+      route responds, not 404). _Verified: 2026.09.6, 17 endpoints, `cache: up`,
+      `/v1/public/processen` and `/v1/public/zoeken` both 200._
+- [ ] **Then** push `main` — triggers both SWA deploys against the now-current
+      backend. **Superseded on 2026-09-12:** the three production SWA workflows were
+      disabled before the merge and dispatched by hand afterwards, so the backend
+      could not be raced.
 
 ### 7b. Backend env vars on the PROD App Service
 
@@ -234,9 +272,11 @@ code in at least one place (it ships `EDOCS_MCP_ENABLED=true`; the code default 
 | `DOCCLE_*` (new `/v1/doccle` route)             | `DOCCLE_STUB_MODE` `true` | leave stubbed unless real Doccle is wanted (then base URL + creds + `STUB_MODE=false`) |
 | `PUBLIC_SHOW_WIP_PROCESSES`                     | `false`                   | keep unset/false in PROD                                                               |
 
-- [ ] Set `DEPLOYMENT_ENV=production` on the PROD App Service (display-only, non-blocking,
+- [x] Set `DEPLOYMENT_ENV=production` on the PROD App Service (display-only, non-blocking,
       but `/v1/health` is what 7a's smoke test reads).
-- [ ] Confirm eDOCS-MCP + Doccle are off/stubbed (or configured deliberately).
+- [x] Confirm eDOCS-MCP + Doccle are off/stubbed (or configured deliberately).
+      Verified 2026-09-12: the `EDOCS_MCP_*` and `DOCCLE_*` settings are unset on
+      PROD, so both fall through to their disabled/stubbed code defaults.
 
 **Blocking — the required-env checks now actually fire.** `e28dc19` found that the
 `DATABASE_URL` / `OPERATON_BASE_URL` guards were dead code: both resolve through a
@@ -246,7 +286,9 @@ localhost. They now test `process.env` and gate on production, and `validateConf
 **throws at import** — so a missing value is no longer a silent misconfiguration, it is a
 backend that will not boot.
 
-- [ ] Confirm `DATABASE_URL` **and** `OPERATON_BASE_URL` are set in PROD App Settings.
+- [x] Confirm `DATABASE_URL` **and** `OPERATON_BASE_URL` are set in PROD App Settings.
+      _Verified 2026-09-12, together with `KEYCLOAK_CLIENT_SECRET` and
+      `ANTHROPIC_API_KEY`; the backend booted cleanly, so `validateConfig()` passed._
       (Both were verified present on `ronl-business-api-prod` when the check was written —
       this is a confirm, but a boot-blocking one if it is wrong.)
 
@@ -266,10 +308,13 @@ starts 429-ing.
 still exist, but only as the **build-time default** — `PA_MOCK_DEFAULT` ORs them, and a
 `paV2.mock` **localStorage** entry (`'1'`/`'0'`) overrides it per browser.
 
-- [ ] Both `VITE_PA_DOSSIERS_MOCK` and `VITE_PA_SIGNALS_MOCK` are `false` in the frontend's
+- [x] Both `VITE_PA_DOSSIERS_MOCK` and `VITE_PA_SIGNALS_MOCK` are `false` in the frontend's
       `.env.production` — either one at `true` puts the whole cockpit in mock. They are
       already `false` there; this is a confirm, not a change.
-- [ ] Real PA data still depends on the new backend from 7a being live.
+- [x] Real PA data still depends on the new backend from 7a being live — which it now
+      is. Note this was **not** a confirm on the day: `main` carried
+      `VITE_PA_DOSSIERS_MOCK=true` from `171f32b`, and a three-way merge keeps that
+      side silently. It was flipped deliberately on the promotion branch (decision D1).
 
 Two things the old single-var checkbox did not capture:
 

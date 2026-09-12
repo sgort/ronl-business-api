@@ -12,20 +12,30 @@ const logger = createLogger('rip-routes');
 router.use(jwtMiddleware);
 router.use(tenantMiddleware);
 
-/** Every RIP phase modelled as BPMN, in ladder order. */
-const modelledKeys = () =>
-  RIP_PHASE_KEYS.map((p) => p.processDefinitionKey).filter((k): k is string => !!k);
+/**
+ * Every RIP phase's process-definition key, in ladder order.
+ *
+ * No filter since #85: `processDefinitionKey` is required on `RipPhaseKey`, so
+ * every entry has one. This used to drop the unmodelled phases, of which there
+ * have been none since R5.3 completed the ladder (#72).
+ */
+const modelledKeys = () => RIP_PHASE_KEYS.map((p) => p.processDefinitionKey);
 
 /**
  * Resolve a `:code` path param to its process-definition key, answering on
  * `res` and returning null when it cannot.
  *
- * The two failure modes are deliberately distinct. An unknown code is a
- * client error — a typo or a stale link — and 404s. A known code with no
- * process model yet (R2.3 today) is a state of the world, not a bad request,
- * and 409s with the phase echoed back. Neither returns an empty list: a phase
- * that has no deployed process must not be indistinguishable from a deployed
- * one that happens to have no instances.
+ * One failure mode, not two. An unknown code is a client error — a typo or a
+ * stale link — and 404s.
+ *
+ * There used to be a second: a known code with no process model yet answered
+ * 409 PHASE_NOT_MODELLED, so that a caller could tell "this phase has no
+ * process" from "this phase is deployed and currently idle". R5.3 completed the
+ * ladder (#72) and `processDefinitionKey` became required on `RipPhaseKey`
+ * (#85), which makes that state unrepresentable rather than merely absent — the
+ * compiler rejects an entry without a key, so no input can reach the branch.
+ * Its three tests had been skipping since the ladder closed; they were deleted
+ * with it rather than left limping.
  */
 function resolvePhaseKey(code: string, res: Response): string | null {
   const phase = RIP_PHASE_KEYS.find((p) => p.code === code);
@@ -33,16 +43,6 @@ function resolvePhaseKey(code: string, res: Response): string | null {
     res.status(404).json({
       success: false,
       error: { code: 'UNKNOWN_PHASE', message: `Unknown RIP phase '${code}'` },
-    });
-    return null;
-  }
-  if (!phase.processDefinitionKey) {
-    res.status(409).json({
-      success: false,
-      error: {
-        code: 'PHASE_NOT_MODELLED',
-        message: `RIP phase '${code}' has no process model deployed yet`,
-      },
     });
     return null;
   }
@@ -78,11 +78,12 @@ router.get('/phases/active', async (req, res) => {
     });
   }
   const tenantId = req.user.tenantId;
-  const phases = RIP_PHASE_KEYS.filter(
-    (p): p is typeof p & { processDefinitionKey: string } => !!p.processDefinitionKey
-  );
+  // No filter since #85 — every phase carries a process-definition key, so the
+  // type predicate that used to narrow this list has nothing left to narrow.
   const settled = await Promise.allSettled(
-    phases.map((p) => operatonService.getRipPhaseActiveList(p.processDefinitionKey, tenantId))
+    RIP_PHASE_KEYS.map((p) =>
+      operatonService.getRipPhaseActiveList(p.processDefinitionKey, tenantId)
+    )
   );
   const rows: Array<
     Awaited<ReturnType<typeof operatonService.getRipPhaseActiveList>>[number] & {
@@ -94,11 +95,11 @@ router.get('/phases/active', async (req, res) => {
     if (result.status === 'fulfilled') {
       anySucceeded = true;
       for (const instance of result.value) {
-        rows.push({ ...instance, phaseCode: phases[i].code });
+        rows.push({ ...instance, phaseCode: RIP_PHASE_KEYS[i].code });
       }
     } else {
       logger.error('Failed to list active RIP phase instances for the aggregate', {
-        phaseCode: phases[i].code,
+        phaseCode: RIP_PHASE_KEYS[i].code,
         tenantId,
         error:
           result.reason instanceof Error

@@ -1,6 +1,42 @@
 name: Build Backend for ACC
 
 on:
+  # The backend's 2008 tests used to run only AFTER a merge, because this
+  # workflow triggered on push alone. A backend pull request therefore reached
+  # acc with `audit` as its only check -- and audit validates workflows,
+  # renovate.json and the supply-chain register, saying nothing about whether
+  # the code works.
+  #
+  # #86 made that sharper rather than softer: the per-file 80% branch floor it
+  # added to packages/backend/jest.config.js gated nothing before a merge, so a
+  # file dropping below it failed on acc, after the fact, rather than on the
+  # branch that caused it. The floor was real in four workspaces and
+  # retrospective in the fifth. Issue #87.
+  #
+  # Nothing here needs an `if:` guard, unlike linked-data-explorer's equivalent
+  # change (its #82): that workflow deploys to Azure, so it had to gate six
+  # deploy-side steps on the event. This one ends at an uploaded artifact and
+  # contains no deploy step at all -- the real deploy is deploy-backend-to-acc.sh,
+  # run by hand -- so a pull-request run has no external side effect.
+  pull_request:
+    branches:
+      - acc
+    paths:
+      - 'packages/backend/**'
+      - 'packages/shared/**'
+      - '.github/workflows/azure-backend-acc.yml'
+      # The root lockfile and manifest, because every workspace resolves through
+      # them and a hoisted dependency can move under any of them. Without these
+      # a lockfile-only change -- Renovate's lock-file maintenance above all --
+      # is built and tested by nothing.
+      #
+      # Safe to widen HERE and nowhere else: this job claims no Static Web Apps
+      # staging environment, so it cannot exhaust the frontend app's Free-plan
+      # ceiling of three, which five open pull requests did on 2026-08-28. The
+      # three SWA workflows keep their narrow filters for that reason.
+      # linked-data-explorer#97.
+      - 'package-lock.json'
+      - 'package.json'
   push:
     branches:
       - acc
@@ -8,7 +44,19 @@ on:
       - 'packages/backend/**'
       - 'packages/shared/**'
       - '.github/workflows/azure-backend-acc.yml'
+      - 'package-lock.json'
+      - 'package.json'
   workflow_dispatch:
+
+# Serialise runs, so a pull request pushed to twice in quick succession does not
+# run 2008 tests twice over. Keyed on the pull-request NUMBER where there is one
+# and the ref otherwise: keyed on github.ref alone, the push run a merge fires
+# and the pull request's own final run land in the same group and cancel each
+# other at random -- seen in this repository on 2026-08-29 with the Static Web
+# Apps deploys, and fixed there the same way.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 # Default to read-only; jobs opt into more only where required.
 permissions:
@@ -19,6 +67,14 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    # Declared for pull-request runs too, following linked-data-explorer rather
+    # than the conditional #87 floats as the tidier alternative. Both
+    # environments in this repository carry no protection rules, so nothing
+    # waits on an approval; the only cost is that a pull-request run records a
+    # deployment against `acc` in the environment's history. The Static Web Apps
+    # preview deploys already do exactly that on every pull request, so the
+    # entry is not a new pattern -- and matching the reference repository is
+    # worth more than avoiding it.
     environment:
       name: acc
       url: https://acc.api.open-regels.nl
@@ -29,10 +85,29 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          # Read from .nvmrc, so there is ONE place this repository states its
+          # Node version. Before #36 there were four answers and they disagreed:
+          # these workflows said '20', .nvmrc said 22, engines.node said
+          # >=20.13.0, and both App Service plans run NODE|22-lts. So the
+          # deployed artifact was BUILT on a major the host does not run.
+          #
+          # .nvmrc is pinned to an exact 22.22.0 rather than a bare 22,
+          # deliberately: 'nothing a pipeline downloads may float' is the same
+          # policy the action digests above follow, and a bare major resolves to
+          # whatever 22.x the runner happens to carry. Renovate's node manager
+          # parses .nvmrc, so this is maintained rather than hand-bumped --
+          # unlike linked-data-explorer, which pins exact literals in each
+          # workflow and drifted apart exactly that way (its #80: engines moved
+          # to >=24.20.0 while all four workflows stayed at 24.19.0).
+          #
+          # zizmor.yml is deliberately NOT switched to this file. Its
+          # renovate-config-validator step needs Node 24, because renovate@44.50.3
+          # declares engines.node ^24.11.0 and npm accepts a mismatch with an
+          # EBADENGINE warning rather than refusing. That pin is load-bearing.
+          node-version-file: .nvmrc
 
       - name: Install dependencies
         run: npm ci
