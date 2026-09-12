@@ -112,6 +112,81 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.6',
+      status: 'Released',
+      date: '12 sep 2026',
+      scope: ['frontend', 'backend', 'public-site', 'pa-demo'],
+      commits: [
+        {
+          sha: 'c3e05ac',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The social card reads production',
+          details: [
+            'The Open Graph card shipped with acceptance baked into its pixels: an ACCEPTATIEOMGEVING badge and acc.plato.open-regels.nl in its footer. Deployed to production unchanged it would have read ACC while og:url read PROD — the rewrite in social-card-origin.ts moves text, never pixels.',
+            'Re-captured from the handoff’s reference HTML at exactly 1× (1200×630), with the badge dropped and the footer set to plato.open-regels.nl, and both tracked copies replaced. The capture refuses to run unless Fira Sans and JetBrains Mono actually loaded, because a card rendered in the fallback faces looks plausible and is wrong.',
+            'One asset serves every tier, so an ACC link preview now shows the production hostname inside the image while og:url still points at ACC. That trade is recorded where someone would meet it: index.html, social-card-origin.ts and the go-live checklist.',
+          ],
+        },
+        {
+          sha: '557ed6a',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The public site’s footer identifies the build, not just the release',
+          details: [
+            'The footer showed its origin and a version read from package.json. That version is authored by hand at release time, so it names a release rather than a build of one: ACC and PROD can serve different builds of the same string, and redeploying unchanged code produces a new artifact carrying it.',
+            'The mono line now ends with the pair that answers it — publiek.open-regels.nl · v2026.09.2 · build 570fd98 · #412. The SHA says what source was built, the run number distinguishes two builds of that source, and the full 40-character SHA sits on the title attribute so it can be copied for a lookup. An uninjected bundle reads local build rather than resembling a deployed one.',
+            'buildInfo.ts and its eight tests port unchanged from packages/frontend, keeping both decisions: a separate module, so the fallback rules are testable without rendering, and the environment read inside the function rather than captured at module scope. The env block goes on the build step in both workflows, because this package builds on the runner and the Static Web Apps action only uploads dist/. Verified with real builds in both directions — the bundle hash moved, which is what proves the second build ran.',
+          ],
+        },
+        {
+          sha: 'd45385e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The prerendered seed is revalidated instead of trusted',
+          details: [
+            'The prerender step embeds each route’s data as __PUB_DATA__ so the first client render already has content and the page does not shift. Both consuming pages treated that seed as the final value rather than a first paint, returning early from their effect whenever the blob was present. Seed present meant no fetch, ever, so the public site rendered a snapshot frozen at the last build.',
+            'That is why /regels showed two retired services under SZW and a Diensten count of 14, while the caseworker dashboard, reading the identical API, showed one and 13. The Begrippen counter had drifted the same way, 196 against 204.',
+            'Both pages now paint the seed and revalidate underneath it, gated on isSamePayload so a response matching the seed causes no state update and no re-render — which is what keeps the no-layout-shift guarantee the seeding exists for. A failed revalidation keeps what is on screen rather than blanking a page that already has good content. This covers every prerendered content route, not only the Regelcatalogus. Closes #88.',
+          ],
+        },
+        {
+          sha: 'e19aa5c',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The per-file 80% branch floor is enforced, and pa-cockpit runs in CI',
+          details: [
+            'v2026.09.2 took 53 files below an 80% per-file branch floor to none across the five workspaces that have a test runner, and nothing mechanical held it afterwards: a file could drop to 40% branches and fail no local run, no hook and no pipeline.',
+            'Per-file branch thresholds now sit in all five runner configs — a glob key in Jest, thresholds with perFile in Vitest — each with a comment recording the decision beside it. perFile is the mechanism rather than a detail: against a package average the threshold is inert, since frontend sits at 89.78% and one file dropping to 40% barely moves it. Branches only, deliberately — a functions floor at 80 would fail 31 files today.',
+            '@ronl/pa-cockpit is a library with no deploy workflow of its own, so its 476 tests ran nowhere in CI; both frontend workflows now run its suite, placed before the frontend’s own because the frontend imports it. The gate was proven by making it fail rather than by trusting it: a probe file with four uncovered branches exits 1 in both runners and names the file, which is the acceptance criterion.',
+          ],
+        },
+        {
+          sha: '9bd29ee',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'check-supply-chain runs in the audit job, non-blocking to start',
+          details: [
+            'zizmor validates pin format — that a uses: names a 40-character SHA — and cannot say the SHA is the right one, so a wrong or hostile digest carrying a plausible version comment passes zizmor, Prettier and review alike. The script resolves every digest against the GitHub API and compares SECURITY-PIPELINE.md’s register with the workflows: digests, versions, the (×N) multiplicities and the totals headline.',
+            'This repository is why the count half of it exists. setup-node silently went from ×8 to ×9 when the renovate-config-validator step was added and the register still said ×8 with every gate green, so that case was tested rather than assumed, as was a planted wrong digest.',
+            'Non-blocking to start, because Renovate rewrites workflow pins and never touches the register, so every action bump would fail a required check until the register is updated by hand. The answer is to update it on the bump’s branch before merging, and to promote the step once that habit holds here. continue-on-error is not a permanent home: it rewrites the step’s reported conclusion as well as the job’s, leaving a finding visible only in the log.',
+          ],
+        },
+        {
+          sha: '20e7292',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The changelog identifies the build, not just the release',
+          details: [
+            'The version in the changelog comes from package.json and is bumped by hand at release time, so it names a release rather than a build of it. ACC and PROD can serve different builds of one version string, which made "which build am I looking at?" unanswerable from the running application.',
+            'One small monospace line under the changelog heading now carries both halves — build 570fd98 · #412 — with the full 40-character SHA on the title attribute. Half-configured counts as untracked: a run number with no SHA renders local build, because a run number with no commit behind it implies a provenance the bundle does not have.',
+            'Nothing is derived from git at build time; the deploy workflows inject the values, because a build id that silently fails to resolve is worse than none — it lies. Both land in the lazily loaded ChangelogPanelContent chunk rather than index.js, which is where the verification greps had to look. On a pull request github.sha is the merge commit GitHub synthesises, so a preview’s SHA matches no commit in the branch; that is the commit that was built.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.5',
       status: 'Released',
       date: '4 sep 2026',
