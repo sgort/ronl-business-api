@@ -27,7 +27,7 @@
     "@ronl/shared": "*",
     "@tailwindcss/typography": "^0.5.19",
     "altcha": "^3.0.11",
-    "axios": "^1.6.5",
+    "axios": "^1.18.0",
     "keycloak-js": "^23.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
