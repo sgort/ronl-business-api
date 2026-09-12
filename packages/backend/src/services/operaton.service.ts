@@ -1308,7 +1308,11 @@ export class OperatonService {
         '/deployed-start-form',
         { responseType: 'text' }
       );
-      const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
+      // String(), not a cast. Axios 1.18 widened header values to
+      // string | number | boolean | string[] | AxiosHeaders, and `as string`
+      // would silence the compiler while still handing a non-string to callers
+      // that put this straight into a Content-Type response header.
+      const contentType = String(response.headers['content-type'] ?? 'application/octet-stream');
       return { data: response.data, contentType };
     } catch (error) {
       logger.error('Failed to fetch deployed start form', {
@@ -1330,7 +1334,11 @@ export class OperatonService {
       const response = await this.client.get(`/task/${taskId}/deployed-form`, {
         responseType: 'text',
       });
-      const contentType: string = response.headers['content-type'] ?? 'application/octet-stream';
+      // String(), not a cast. Axios 1.18 widened header values to
+      // string | number | boolean | string[] | AxiosHeaders, and `as string`
+      // would silence the compiler while still handing a non-string to callers
+      // that put this straight into a Content-Type response header.
+      const contentType = String(response.headers['content-type'] ?? 'application/octet-stream');
       return { data: response.data as string, contentType };
     } catch (error) {
       logger.error('Failed to fetch deployed task form', {
