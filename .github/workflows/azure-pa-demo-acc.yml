@@ -73,10 +73,29 @@ jobs:
           lfs: false
           persist-credentials: false
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          # Read from .nvmrc, so there is ONE place this repository states its
+          # Node version. Before #36 there were four answers and they disagreed:
+          # these workflows said '20', .nvmrc said 22, engines.node said
+          # >=20.13.0, and both App Service plans run NODE|22-lts. So the
+          # deployed artifact was BUILT on a major the host does not run.
+          #
+          # .nvmrc is pinned to an exact 22.22.0 rather than a bare 22,
+          # deliberately: 'nothing a pipeline downloads may float' is the same
+          # policy the action digests above follow, and a bare major resolves to
+          # whatever 22.x the runner happens to carry. Renovate's node manager
+          # parses .nvmrc, so this is maintained rather than hand-bumped --
+          # unlike linked-data-explorer, which pins exact literals in each
+          # workflow and drifted apart exactly that way (its #80: engines moved
+          # to >=24.20.0 while all four workflows stayed at 24.19.0).
+          #
+          # zizmor.yml is deliberately NOT switched to this file. Its
+          # renovate-config-validator step needs Node 24, because renovate@44.50.3
+          # declares engines.node ^24.11.0 and npm accepts a mismatch with an
+          # EBADENGINE warning rather than refusing. That pin is load-bearing.
+          node-version-file: .nvmrc
 
       - name: Install dependencies
         run: npm ci
