@@ -138,6 +138,28 @@ jobs:
         if: always()
         run: npm run check-format
 
+      - name: Verify @ronl/shared holds no logic
+        # @ronl/shared has no test runner, so a function placed there escapes
+        # the per-file 80% branch floor every other workspace is held to (#80).
+        # It is not under-tested -- it is outside the measurement entirely, and
+        # nothing signals that: no run fails and no number moves. v2026.09.4
+        # moved a branching helper back out of that package for exactly this
+        # reason, found by hand rather than by any check. #84.
+        #
+        # Here rather than in a workspace suite, for the same reason the
+        # formatter is: this job has no paths filter and is the required check,
+        # so every pull request reaches it. A suite that only runs when
+        # packages/shared/** changes would not catch the pull request that adds
+        # the first function to a package the filter does not yet watch.
+        #
+        # Costs nothing on top of the npm ci above, which the formatter already
+        # needed -- this reads the TypeScript compiler from node_modules.
+        #
+        # if: always() for the same reason as the validator above -- one run
+        # should report on every half of the policy, not stop at the first.
+        if: always()
+        run: npm run check-shared
+
       - name: Verify pin truth and register agreement
         # zizmor validates pin FORMAT — that `uses:` names a 40-character SHA.
         # It cannot say the SHA is the RIGHT one, so a wrong or hostile digest

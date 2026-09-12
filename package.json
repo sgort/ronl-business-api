@@ -24,6 +24,7 @@
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "check-supply-chain": "node scripts/check-supply-chain.mjs",
     "check-mirror": "bash scripts/check-mirror.sh",
+    "check-shared": "node scripts/check-shared-declarations.mjs",
     "check-format": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "test": "npm run test --workspaces --if-present",
