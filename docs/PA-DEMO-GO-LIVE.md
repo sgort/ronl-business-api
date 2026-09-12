@@ -1,8 +1,8 @@
 # PA-Cockpit demo go-live checklist
 
 Everything needed to take `packages/pa-demo` from "works locally" to live at
-`plato.open-regels.nl` / `acc.plato.open-regels.nl`. **ACC is done; PROD is
-pending** — every PROD item below is unstarted.
+`plato.open-regels.nl` / `acc.plato.open-regels.nl`. **Both are live** — ACC on
+2026-08-28, PROD on 2026-09-12 with the promotion.
 
 `pa-demo` is a public, unauthenticated, **mock-only** instance of the PA Cockpit,
 built so a prospective province can be shown the product without an account. It
@@ -37,20 +37,20 @@ Subscription: **Platform Regelbeheer 2025 — C1427**
         --location westeurope \
         --sku Standard
 
-- [ ] **PROD** equivalents. Nothing exists yet. Suggested names, following the
-      ACC pattern and public-site's: resource group `ronl-pademo-site-prod`, SWA
-      `ronl-business-pademo-site-prod`. Confirm before creating.
+- [x] **PROD** equivalents, created 2026-09-12 with the suggested names:
+      resource group `ronl-pademo-site-prod`, SWA
+      `ronl-business-pademo-site-prod`, westeurope, Standard, `provider: None`.
 
 `Standard` matches `ronl-business-public-site-acc` rather than being required —
 `Free` would very likely suffice for demo traffic, but moving Free → Standard
 later means recreating the resource, not toggling a setting.
 
-|                  | ACC                                         | PROD      |
-| ---------------- | ------------------------------------------- | --------- |
-| Resource group   | `ronl-pademo-site-acc`                      | _pending_ |
-| Static Web App   | `ronl-business-pademo-site-acc`             | _pending_ |
-| Region / SKU     | westeurope / Standard                       | _pending_ |
-| Default hostname | `red-river-0ce4c9803.7.azurestaticapps.net` | _pending_ |
+|                  | ACC                                         | PROD                                          |
+| ---------------- | ------------------------------------------- | --------------------------------------------- |
+| Resource group   | `ronl-pademo-site-acc`                      | `ronl-pademo-site-prod`                       |
+| Static Web App   | `ronl-business-pademo-site-acc`             | `ronl-business-pademo-site-prod`              |
+| Region / SKU     | westeurope / Standard                       | westeurope / Standard                         |
+| Default hostname | `red-river-0ce4c9803.7.azurestaticapps.net` | `black-cliff-0a7103503.6.azurestaticapps.net` |
 
 ## 2. Deployment token secrets
 
@@ -58,7 +58,14 @@ The workflows fail at their final step without these. Names are exact — they a
 already referenced in the YAML.
 
 - [x] `AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_ACC`
-- [ ] `AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD`
+- [x] `AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD` (2026-09-12)
+
+> **Strip the newline when scripting this.** `az … -o tsv` appends one, and a
+> secret carrying it makes the deploy step fail with a bare
+> `An unknown exception has occurred`, after the build steps have all passed —
+> which looks like an Azure fault and is not. Use
+> `az … -o tsv | tr -d '\r\n' | gh secret set <NAME>`. The
+> public site lost one production deploy to exactly this on 2026-09-12.
 
 Retrieve a token with `az staticwebapp secrets list -n <swa> -g <rg> --query
 "properties.apiKey" -o tsv`, then add it under GitHub → Settings → Secrets and
@@ -68,9 +75,12 @@ over worrying about where a copy ended up.
 
 ## 3. DNS and custom domains
 
-- [ ] `acc.plato` → CNAME → `red-river-0ce4c9803.7.azurestaticapps.net`, in the
+- [x] `acc.plato` → CNAME → `red-river-0ce4c9803.7.azurestaticapps.net`, in the
       `open-regels.nl` Azure DNS zone.
-- [ ] `plato` → CNAME → the PROD SWA's default hostname, once §1 exists.
+- [x] `plato` → CNAME → `black-cliff-0a7103503.6.azurestaticapps.net`
+      (2026-09-12). The hostname previously pointed at an older, unrelated
+      "Parlementair Dashboard" Static Web App; that record and its resources were
+      deleted first, so nothing had to be unbound under a live site.
 
 **Two steps, not one.** The DNS record alone gives a name that resolves and that
 Azure will not serve — which looks like slow propagation and is not. Register the
@@ -129,7 +139,9 @@ runs pa-demo's `type-check` here, rather than surfacing later at an unrelated PR
 ACC runs, in order: install → build shared → lint → type-check → unit tests →
 Playwright browser install → **E2E** → build (with the bundle gate) → deploy.
 **PROD does not run E2E**; if that matters to you, add it before the first
-production deploy rather than after.
+production deploy rather than after. On the first production deploy
+(2026-09-12) it was run by hand against the live domain instead — 11/11 — which
+is the §6 procedure below.
 
 `workflow_dispatch` on both means a deploy can be triggered by hand — useful when
 merging with `[no ci]` in the tip commit to suppress the automatic run.
@@ -166,7 +178,7 @@ is why it runs in the ACC workflow.
 The Playwright suite retargets at a deployed site — no backend, database or
 Keycloak needed, unlike every other suite in this repo:
 
-      E2E_BASE_URL=https://acc.plato.open-regels.nl \
+      E2E_BASE_URL=https://plato.open-regels.nl \
         npm run test:e2e --workspace=@ronl/pa-demo
 
 That runs the same eleven tests against the real domain, including the
@@ -175,12 +187,13 @@ origin check. Prefer it to a manual smoke test.
 
 Quick manual checks that catch the common deploy faults:
 
-- [ ] A deep link (e.g. `/beheer`) returns 200, not 404 — confirms the SWA config
+- [x] A deep link (e.g. `/beheer`) returns 200, not 404 — confirms the SWA config
       shipped inside `dist/` and `navigationFallback` is active.
-- [ ] `/pa/feiten-icons/wonen.png` returns 200 `image/png` — confirms the
+- [x] `/pa/feiten-icons/wonen.png` returns 200 `image/png` — confirms the
       `@ronl/pa-cockpit` static assets deployed.
-- [ ] The response carries `content-security-policy: … connect-src 'self' …`.
-- [ ] Beheer shows **nine** sections, with no IOU group and no Hulpmiddelen.
+- [x] The response carries `content-security-policy: … connect-src 'self' …`.
+- [x] Beheer shows **nine** sections, with no IOU group and no Hulpmiddelen
+      (asserted by the e2e run above, 11/11 against `plato`).
 - [ ] Paste the site URL into a link-preview validator (or Slack) and confirm the
       card renders. The E2E test proves `og:image` resolves to a real PNG on this
       origin; only a scraper proves the preview itself composes. Since the §3b
