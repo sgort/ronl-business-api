@@ -99,12 +99,7 @@ export interface Persoon {
 }
 
 export type RedenKey =
-  | 'failliet'
-  | 'buitenprovincie'
-  | 'relatie'
-  | 'toestemming'
-  | 'energierekening'
-  | 'toegekend';
+  'failliet' | 'buitenprovincie' | 'relatie' | 'toestemming' | 'energierekening' | 'toegekend';
 
 export interface EntitlementResult {
   recht: boolean;

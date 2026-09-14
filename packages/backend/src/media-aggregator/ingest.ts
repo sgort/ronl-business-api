@@ -58,8 +58,7 @@ export function parseFeedXml(xml: string, source: FeedSource): RawItem[] {
 
   // RSS 2.0
   const channel = (doc['rss'] as Record<string, unknown> | undefined)?.['channel'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   if (channel) {
     const items = (channel['item'] as Record<string, unknown>[] | undefined) ?? [];
     const cat = source.categoryFilter?.toLowerCase();
