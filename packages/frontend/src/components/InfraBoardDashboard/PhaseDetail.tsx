@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { liveProjectName, liveProjectNumber } from '../../pages/infra-board/infra-board.data';
 import {
   RIP_PHASES,
   RIP_STAGES,
@@ -72,6 +73,11 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
   const [justStarted, setJustStarted] = useState(0);
   const [fallbackStarted, setFallbackStarted] = useState(false);
   const [fallbackError, setFallbackError] = useState<StartError | null>(null);
+  // Asked for at start so the new project is named everywhere at once. The
+  // intake form asks for the same two fields and opens pre-filled with them.
+  const [newProjectNumber, setNewProjectNumber] = useState('');
+  const [newProjectName, setNewProjectName] = useState('');
+  const newProjectReady = newProjectNumber.trim() !== '' && newProjectName.trim() !== '';
   const [openDossier, setOpenDossier] = useState<string | null>(null);
 
   const {
@@ -230,7 +236,10 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
     setSubmitting(true);
     setFallbackError(null);
     try {
-      const res = await businessApi.process.start(phase!.processDefinitionKey, {});
+      const res = await businessApi.process.start(phase!.processDefinitionKey, {
+        projectNumber: newProjectNumber.trim(),
+        projectName: newProjectName.trim(),
+      });
       if (res.success) {
         setFallbackStarted(true);
         reloadWip();
@@ -363,9 +372,9 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                     <tr key={inst.id}>
                       <td>
                         <span className="pb-proj-nr">
-                          {inst.projectNumber || inst.id.slice(0, 8)}
+                          {liveProjectNumber(inst.projectNumber, inst.id)}
                         </span>{' '}
-                        {inst.projectName || 'RIP Fase 1 project'}
+                        {liveProjectName(inst.projectName, phase.code)}
                         <span className="pb-live-badge">LIVE</span>
                       </td>
                       <td>{info?.step ?? '—'}</td>
@@ -469,9 +478,9 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                         <tr>
                           <td>
                             <span className="pb-proj-nr">
-                              {inst.projectNumber || inst.id.slice(0, 8)}
+                              {liveProjectNumber(inst.projectNumber, inst.id)}
                             </span>{' '}
-                            {inst.projectName || 'RIP Fase 1 project'}
+                            {liveProjectName(inst.projectName, phase.code)}
                             <span className="pb-live-badge">LIVE</span>
                           </td>
                           <td>{new Date(inst.endTime).toLocaleDateString('nl-NL')}</td>
@@ -565,10 +574,32 @@ export default function PhaseDetail({ phaseCode, onBack }: Props) {
                       {fallbackError.cause && <p>{fallbackError.cause}</p>}
                     </div>
                   )}
+                  <div className="pb-new-project">
+                    <label>
+                      Projectnummer
+                      <input
+                        type="text"
+                        value={newProjectNumber}
+                        onChange={(e) => setNewProjectNumber(e.target.value)}
+                        placeholder="bijv. 26014"
+                        required
+                      />
+                    </label>
+                    <label>
+                      Projectnaam
+                      <input
+                        type="text"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="bijv. Kuinderweg — reconstructie N712"
+                        required
+                      />
+                    </label>
+                  </div>
                   <button
                     type="button"
                     className="v2-btn"
-                    disabled={submitting}
+                    disabled={submitting || !newProjectReady}
                     onClick={handleFallbackStart}
                   >
                     {phase.code} starten

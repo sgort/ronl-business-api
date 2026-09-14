@@ -1402,8 +1402,10 @@ export class OperatonService {
       id: i.id,
       businessKey: i.businessKey ?? null,
       startTime: i.startTime,
-      projectNumber: varMap[i.id]?.projectNumber ?? '—',
-      projectName: varMap[i.id]?.projectName ?? '—',
+      // Empty, not a placeholder: naming a nameless project is the UI's job,
+      // and an R2.1 instance has no name until its intake form is submitted.
+      projectNumber: varMap[i.id]?.projectNumber ?? '',
+      projectName: varMap[i.id]?.projectName ?? '',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
       // Ownership signal (B): the process's declared lead role. Empty when the
       // instance predates the leadRole contract — the frontend defaults it.
@@ -1518,8 +1520,10 @@ export class OperatonService {
       businessKey: i.businessKey ?? null,
       startTime: i.startTime,
       endTime: i.endTime,
-      projectNumber: varMap[i.id]?.projectNumber ?? '—',
-      projectName: varMap[i.id]?.projectName ?? '—',
+      // Empty, not a placeholder: naming a nameless project is the UI's job,
+      // and an R2.1 instance has no name until its intake form is submitted.
+      projectNumber: varMap[i.id]?.projectNumber ?? '',
+      projectName: varMap[i.id]?.projectName ?? '',
       edocsWorkspaceId: varMap[i.id]?.edocsWorkspaceId ?? '—',
     }));
   }

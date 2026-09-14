@@ -9,6 +9,8 @@ import {
   getMockWipRows,
   getOutOfSequenceProjects,
   getReadyProjects,
+  liveProjectName,
+  liveProjectNumber,
   makeLivePhaseRow,
   normalizeLeadRole,
   TL,
@@ -26,6 +28,28 @@ describe('normalizeLeadRole', () => {
 
   it('falls back to projectleider for an unrecognised role key', () => {
     expect(normalizeLeadRole('not-a-real-role')).toBe('projectleider');
+  });
+});
+
+describe('liveProjectName / liveProjectNumber', () => {
+  it('keeps a real name and number', () => {
+    expect(liveProjectName('Testweg', 'R2.1')).toBe('Testweg');
+    expect(liveProjectNumber('24001', 'abcdefgh-1234')).toBe('24001');
+  });
+
+  it('names a nameless R2.1 instance by its state: intake not yet submitted', () => {
+    expect(liveProjectName('', 'R2.1')).toBe('Nieuw R2.1-project · intake open');
+    expect(liveProjectName(undefined, 'R2.1')).toBe('Nieuw R2.1-project · intake open');
+  });
+
+  it('keeps the generic fallback for a nameless instance of a later phase', () => {
+    // Only R2.1 collects the name in its intake; a later phase inherits it.
+    expect(liveProjectName('', 'R2.2')).toBe('RIP R2.2 project');
+  });
+
+  it('falls back to the instance id prefix for a missing number', () => {
+    expect(liveProjectNumber('', 'abcdefgh-1234')).toBe('abcdefgh');
+    expect(liveProjectNumber('—', 'abcdefgh-1234')).toBe('abcdefgh');
   });
 });
 
@@ -71,8 +95,27 @@ describe('makeLivePhaseRow', () => {
     );
 
     expect(row.nr).toBe('abcdefgh'); // first 8 chars of id
-    expect(row.naam).toBe('RIP R2.1 project');
+    // An R2.1 instance has no name until its intake form is submitted.
+    expect(row.naam).toBe('Nieuw R2.1-project · intake open');
     expect(row.role).toBe('projectleider'); // normalizeLeadRole(undefined)
+  });
+
+  it('treats the placeholder an older backend sends for a missing value as missing', () => {
+    // Before the backend stopped substituting it, a missing projectNumber or
+    // projectName arrived as an em dash. The frontend and backend deploy
+    // separately, so that value must still render as "no name yet".
+    const row = makeLivePhaseRow(
+      {
+        id: 'abcdefgh-1234',
+        startTime: '2024-01-01T00:00:00Z',
+        projectNumber: '—',
+        projectName: '—',
+      },
+      'R2.1'
+    );
+
+    expect(row.nr).toBe('abcdefgh');
+    expect(row.naam).toBe('Nieuw R2.1-project · intake open');
   });
 
   it('marks earlier phases done and later ones todo for a mid-ladder phase', () => {

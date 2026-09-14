@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getMockPortfolio } from '../../pages/infra-board/infra-board.data';
+import {
+  getMockPortfolio,
+  liveProjectName,
+  liveProjectNumber,
+} from '../../pages/infra-board/infra-board.data';
 import { useRipActiveAcrossPhases } from '../../services/infra.api';
 import type { InfraModeId } from '../../pages/infra-board/modes.config';
 import type { ProjectRef } from '../../pages/InfraBoardDashboard';
@@ -32,12 +36,15 @@ export default function InfraCommandPalette({
       { kind: 'view', id: 'portfolio', label: 'Portfolio', tag: 'weergave' },
       { kind: 'view', id: 'beheer', label: 'Beheer · Faseladder', tag: 'weergave' },
     ];
-    const liveRows: Hit[] = (live ?? []).map((i) => ({
-      kind: 'project',
-      ref: { nr: i.projectNumber || i.id.slice(0, 8), instanceId: i.id },
-      label: `${i.projectNumber} · ${i.projectName}`,
-      tag: 'live',
-    }));
+    const liveRows: Hit[] = (live ?? []).map((i) => {
+      const nr = liveProjectNumber(i.projectNumber, i.id);
+      return {
+        kind: 'project',
+        ref: { nr, instanceId: i.id },
+        label: `${nr} · ${liveProjectName(i.projectName, i.phaseCode)}`,
+        tag: 'live',
+      };
+    });
     const mockRows: Hit[] = getMockPortfolio().map((p) => ({
       kind: 'project',
       ref: { nr: p.nr },

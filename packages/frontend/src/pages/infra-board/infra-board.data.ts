@@ -626,6 +626,29 @@ const RAW: Raw[] = [
 ];
 
 /** Build a PortfolioProject row from a live RIP Fase 1 process instance. */
+/**
+ * The backend used to send an em dash for a missing projectNumber or
+ * projectName. The frontend and backend deploy separately, so that value is
+ * still read as "missing" here.
+ */
+const isMissing = (v: string | undefined): boolean => !v || v === '—';
+
+/**
+ * Display name for a live RIP instance. An R2.1 instance has no name until its
+ * intake form is submitted — "R2.1 starten" asks for it up front, but an
+ * instance started any other way waits for the intake — so a nameless R2.1
+ * instance is named by that state. A later phase inherits its name from R2.1.
+ */
+export function liveProjectName(projectName: string | undefined, phaseCode: string): string {
+  if (!isMissing(projectName)) return projectName as string;
+  return phaseCode === 'R2.1' ? 'Nieuw R2.1-project · intake open' : `RIP ${phaseCode} project`;
+}
+
+/** Display number for a live RIP instance: its project number, or the instance id prefix. */
+export function liveProjectNumber(projectNumber: string | undefined, instanceId: string): string {
+  return isMissing(projectNumber) ? instanceId.slice(0, 8) : (projectNumber as string);
+}
+
 export function makeLivePhaseRow(
   inst: {
     id: string;
@@ -648,8 +671,8 @@ export function makeLivePhaseRow(
   const last = segments[segments.length - 1];
   return {
     id: 'live-' + inst.id,
-    nr: inst.projectNumber || inst.id.slice(0, 8),
-    naam: inst.projectName || `RIP ${phaseCode} project`,
+    nr: liveProjectNumber(inst.projectNumber, inst.id),
+    naam: liveProjectName(inst.projectName, phaseCode),
     role: normalizeLeadRole(inst.leadRole),
     health: 'groen',
     milestone: `${phaseCode} lopend`,
