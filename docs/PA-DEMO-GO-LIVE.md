@@ -29,13 +29,15 @@ Subscription: **Platform Regelbeheer 2025 — C1427**
 
 - [x] **ACC** resource group and Static Web App:
 
-      az group create --name ronl-pademo-site-acc --location westeurope
+  ```bash
+  az group create --name ronl-pademo-site-acc --location westeurope
 
-      az staticwebapp create \
-        --name ronl-business-pademo-site-acc \
-        --resource-group ronl-pademo-site-acc \
-        --location westeurope \
-        --sku Standard
+  az staticwebapp create \
+    --name ronl-business-pademo-site-acc \
+    --resource-group ronl-pademo-site-acc \
+    --location westeurope \
+    --sku Standard
+  ```
 
 - [x] **PROD** equivalents, created 2026-09-12 with the suggested names:
       resource group `ronl-pademo-site-prod`, SWA

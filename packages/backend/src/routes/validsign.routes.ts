@@ -149,11 +149,7 @@ function secretMatches(provided: unknown): boolean {
 
 /** Which accepted form carried the callback key; logged, never the value. */
 type CallbackCredential =
-  | 'bearer'
-  | 'basic-raw'
-  | 'basic-base64'
-  | 'basic-base64-pair'
-  | 'x-validsign-secret';
+  'bearer' | 'basic-raw' | 'basic-base64' | 'basic-base64-pair' | 'x-validsign-secret';
 
 /** `<scheme> <value>` from an Authorization header; the scheme lower-cased (RFC 9110). */
 function authorizationParts(header: unknown): { scheme: string; value: string } | undefined {

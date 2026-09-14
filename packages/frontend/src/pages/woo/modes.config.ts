@@ -1,10 +1,5 @@
 export type WooTabId =
-  | 'overzicht'
-  | 'verzoeken'
-  | 'tijdigheid'
-  | 'proces'
-  | 'publicatie'
-  | 'bezwaar';
+  'overzicht' | 'verzoeken' | 'tijdigheid' | 'proces' | 'publicatie' | 'bezwaar';
 
 export const WOO_GATE_ROLE = 'woo-coordinatie';
 
