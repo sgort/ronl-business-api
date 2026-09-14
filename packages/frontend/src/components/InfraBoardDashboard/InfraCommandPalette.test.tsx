@@ -85,6 +85,36 @@ describe('InfraCommandPalette', () => {
     expect(liveItem).toHaveTextContent('live');
   });
 
+  it('labels a nameless R2.1 instance by its state instead of blanks', () => {
+    mockUseRipActiveAcrossPhases.mockReturnValue({
+      data: [
+        {
+          id: 'abcdefgh-1234',
+          startTime: '2026-09-14T11:30:00Z',
+          projectNumber: '',
+          projectName: '',
+          edocsWorkspaceId: '',
+          leadRole: '',
+          phaseCode: 'R2.1',
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+
+    render(
+      <InfraCommandPalette
+        open
+        onClose={vi.fn()}
+        onSelectView={vi.fn()}
+        onSelectProject={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('abcdefgh · Nieuw R2.1-project · intake open')).toBeInTheDocument();
+  });
+
   it('typing filters the list, showing "Niets gevonden" when nothing matches', async () => {
     const user = userEvent.setup();
     render(

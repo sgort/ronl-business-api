@@ -9,7 +9,7 @@
  * Gate: infra-projectteam realm role.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
 import {
@@ -170,7 +170,21 @@ function InfraBoardDashboardContent() {
   // Portfolio.tsx/FaseladderOverview.tsx already source their own live data
   // rather than lifting it here and threading it down as props.
   const { data: liveTasks } = useOpenTasks();
-  const { data: liveInstances } = useRipActiveAcrossPhases();
+  const { data: liveInstances, reload: reloadLiveInstances } = useRipActiveAcrossPhases();
+
+  // Refresh the shared live instances on every mode switch (Mijn dag,
+  // Portfolio, Beheer), so a project started from Beheer or outside the board
+  // shows up without a page reload. Skipped on first render, where the
+  // provider's own fetch has just run: one request per switch, not per view.
+  const modeSeen = useRef(false);
+  useEffect(() => {
+    if (!modeSeen.current) {
+      modeSeen.current = true;
+      return;
+    }
+    reloadLiveInstances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
   const { data: deployment } = useDeployedProcessKeys();
   const { data: liveCountsRaw } = useLivePhaseCounts();
 
