@@ -317,6 +317,76 @@ describe('useRipActiveAcrossPhases', () => {
   });
 });
 
+describe('RipActiveAcrossPhasesProvider refresh', () => {
+  // The provider fetches once for the whole board (48 requests became 1). It
+  // must still notice instances started elsewhere -- a script, another tab,
+  // another user -- without reintroducing a request per consumer or per phase.
+  const setVisibility = (state: 'visible' | 'hidden') => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
+
+  beforeEach(() => {
+    mockBusinessApi.rip.phasesActive.mockReset();
+    mockBusinessApi.rip.phaseActive.mockReset();
+    mockBusinessApi.rip.phasesActive.mockResolvedValue({ success: true, data: [] });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+  });
+
+  const renderInProvider = () =>
+    renderHook(() => useRipActiveAcrossPhases(), { wrapper: RipActiveAcrossPhasesProvider });
+
+  it('refetches once, via the aggregate endpoint, when the tab becomes visible again', async () => {
+    const { result } = renderInProvider();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(1);
+
+    const started = [
+      {
+        id: 'i-new',
+        startTime: '2026-09-14T11:30:00Z',
+        projectNumber: '99999',
+        projectName: 'Started elsewhere',
+        edocsWorkspaceId: 'w1',
+        leadRole: 'projectleider',
+        phaseCode: 'R2.1',
+      },
+    ];
+    mockBusinessApi.rip.phasesActive.mockResolvedValue({ success: true, data: started });
+    setVisibility('hidden');
+    setVisibility('visible');
+
+    await waitFor(() => expect(result.current.data).toBe(started));
+    expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(2);
+    expect(mockBusinessApi.rip.phaseActive).not.toHaveBeenCalled();
+  });
+
+  it('does not refetch when the tab is hidden', async () => {
+    const { result } = renderInProvider();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    setVisibility('hidden');
+
+    expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops listening once the board unmounts', async () => {
+    const { result, unmount } = renderInProvider();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    unmount();
+    setVisibility('visible');
+
+    expect(mockBusinessApi.rip.phasesActive).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('useRipPhaseReadiness', () => {
   afterEach(() => {
     vi.restoreAllMocks();

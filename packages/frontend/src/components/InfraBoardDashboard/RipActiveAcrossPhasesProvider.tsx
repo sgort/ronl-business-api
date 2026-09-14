@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import {
   RipActiveAcrossPhasesContext,
   useRipActiveAcrossPhasesResource,
@@ -24,9 +24,28 @@ import {
  * InfraBoardDashboard.tsx too. So all four of today's callers —
  * Portfolio, InfraCommandPalette, ProjectDetail and the page root itself —
  * end up under this one provider and share its one request.
+ *
+ * Fetching once must not mean fetching once per page load. Instances start
+ * outside the board -- a script, another tab, another user -- so the shared
+ * request is repeated when the tab becomes visible again, and the board
+ * repeats it on every mode switch (InfraBoardDashboard.tsx). Each refresh is
+ * the same single aggregate request, never one per consumer or per phase.
  */
 export function RipActiveAcrossPhasesProvider({ children }: { children: ReactNode }) {
   const resource = useRipActiveAcrossPhasesResource();
+
+  // `reload` is a new function on every render; the listener reads the latest
+  // through a ref so it is attached once rather than on every render.
+  const reloadRef = useRef(resource.reload);
+  reloadRef.current = resource.reload;
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') reloadRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
   return (
     <RipActiveAcrossPhasesContext.Provider value={resource}>
       {children}

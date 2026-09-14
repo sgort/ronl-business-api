@@ -138,6 +138,32 @@ describe('InfraBoardDashboard', () => {
     );
   });
 
+  it('refreshes the shared live instances when switching mode, but not on first render', async () => {
+    // Instances started from Beheer, or outside the board, must show up in
+    // Portfolio without a page reload. One reload per switch keeps the single
+    // shared request the provider exists for.
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    const reload = vi.fn();
+    mockUseRipActiveAcrossPhases.mockReturnValue({
+      data: null,
+      loading: false,
+      error: false,
+      reload,
+    });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await waitFor(() => expect(screen.getByTestId('section-router')).toBeInTheDocument());
+    expect(reload).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Portfolio' }));
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
   it('logout calls keycloak.logout with the app origin as redirect', async () => {
     mockKeycloak.authenticated = true;
     mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
