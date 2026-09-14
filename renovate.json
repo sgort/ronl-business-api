@@ -164,6 +164,25 @@
     },
     {
       "description": [
+        "Below 1.0.0 a minor bump is a major in all but name: semver gives 0.x",
+        "no compatibility promise, but Renovate classifies 0.4 -> 0.5 as minor,",
+        "so the rule above lets it through. On 2026-09-14 that opened #138,",
+        "eslint-plugin-react-refresh ^0.4.5 -> ^0.5.5, whose 0.5.0 requires",
+        "ESLint 9 and flat config; every workspace here is on ESLint 8 with",
+        ".eslintrc.cjs, so audit, both previews and the lockfile update failed",
+        "on ERESOLVE. Such updates now wait as dashboard checkboxes too.",
+        "matchCurrentVersion is checked against the locked version when the",
+        "manifest holds a range (CurrentVersionMatcher,",
+        "lib/util/package-rules/current-version.ts), so ^0.4.5 locked at 0.4.26",
+        "matches. Patch updates stay routine. Security fixes still bypass this:",
+        "vulnerabilityAlerts sets dependencyDashboardApproval false."
+      ],
+      "matchCurrentVersion": "<1.0.0",
+      "matchUpdateTypes": ["minor"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": [
         "Lock-file maintenance is the ONLY thing that moves the transitive tree.",
         "Nothing had refreshed this one before 2026-09-12, when the first",
         "authenticated Semgrep scan found 435 findings, 419 of them Supply Chain",
