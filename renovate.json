@@ -210,6 +210,29 @@
       "prPriority": 10,
       "prConcurrentLimit": 0,
       "prHourlyLimit": 0
+    },
+    {
+      "description": [
+        "engines is a floor we set, not a version to chase. rangeStrategy bump",
+        "above rewrites it to the newest release: on 2026-09-14 #144 moved",
+        "engines.node from >=22 to >=22.23.2 and #145 moved engines.npm from",
+        ">=10.0.0 to >=10.9.9, a floor that no Node 22 release satisfies",
+        "(22.23.2 bundles npm 10.9.8). Nothing enforces engines here -- no",
+        "engine-strict, and deps:check does not read it -- so a raised floor only",
+        "turns every install on a slightly older toolchain into EBADENGINE noise,",
+        "and the root drifts from packages/backend and from App Service's",
+        "NODE|22-lts. widen leaves a range untouched when the new version already",
+        "satisfies it (npm versioning getNewValue: >=22 stays >=22), so Renovate",
+        "has nothing to raise. The exact runtime lives in .nvmrc, which stays",
+        "maintained.",
+        "minimumReleaseAge repeats the top-level 14 days and changes nothing:",
+        "Semgrep's renovate-missing-minimum-release-age flags any rule matching",
+        "on matchDepTypes that does not set it locally, whatever the top level",
+        "says."
+      ],
+      "matchDepTypes": ["engines"],
+      "rangeStrategy": "widen",
+      "minimumReleaseAge": "14 days"
     }
   ],
   "prConcurrentLimit": 5,
