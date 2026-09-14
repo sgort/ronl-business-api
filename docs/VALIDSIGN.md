@@ -105,10 +105,28 @@ sequenceDiagram
   and for embedded delivery `validsignSigningUrl`. If no embedded URL can be
   fetched the request still succeeds and reports `sentTo` (email fallback).
 
-The package's **name** is the document template's own `name` —
-_"RIP — Preliminary Design Principles (Column 4)"_ for `rip-pdp`. The RIP
-document names are English on purpose (they also name the eDOCS documents);
-Dutch labels exist only for on-screen use (`rip-swimlane/doc-label.ts`).
+#### The package name and document
+
+ValidSign shows signers the package as _"RIP — Preliminary Design Principles
+(Column 4)"_. That is the intended name, not a mix-up with another document:
+
+- **Where the name comes from.** The signing route creates the package with
+  `name: spec.template.name`
+  ([`validsign.routes.ts:815`](../packages/backend/src/routes/validsign.routes.ts)),
+  the `name` field of the document template being signed. For
+  `Task_AccorderenProjectplan4` that is the `rip-pdp` template, and the repo's
+  copy
+  [`examples/organizations/flevoland/rip-phase1/rip-pdp.document`](../examples/organizations/flevoland/rip-phase1/rip-pdp.document)
+  has exactly `"name": "RIP — Preliminary Design Principles (Column 4)"`.
+- **It is the right document.** "Column 4" is the project plan's fourth
+  column, _Projectplan 4. Uitgangspunten VO-fase_ — what the task approves. The
+  file ValidSign receives is named after the template id, `rip-pdp.pdf`
+  (`` fileName: `${spec.templateId}.pdf` ``, line 823).
+- **English on purpose.** The RIP document names also name the eDOCS
+  documents, so they stay English (`externalTaskWorker.service.ts`); Dutch
+  labels exist only for on-screen use (`rip-swimlane/doc-label.ts`). A Dutch
+  name for signers would be set on the ValidSign package alone, leaving the
+  template and eDOCS names unchanged.
 
 ### Completing — `completeSignature(packageId)`
 
