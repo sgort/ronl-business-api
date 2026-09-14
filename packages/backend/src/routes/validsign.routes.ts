@@ -147,15 +147,54 @@ function secretMatches(provided: unknown): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/**
- * The callback key as `Authorization: Bearer <key>` -- what ValidSign sends
- * for a callback handler registered with security type "Bearer token". The
- * scheme name is case-insensitive (RFC 9110). Any other scheme yields nothing.
- */
-function bearerToken(header: unknown): string | undefined {
+/** Which accepted form carried the callback key; logged, never the value. */
+type CallbackCredential =
+  | 'bearer'
+  | 'basic-raw'
+  | 'basic-base64'
+  | 'basic-base64-pair'
+  | 'x-validsign-secret';
+
+/** `<scheme> <value>` from an Authorization header; the scheme lower-cased (RFC 9110). */
+function authorizationParts(header: unknown): { scheme: string; value: string } | undefined {
   if (typeof header !== 'string') return undefined;
-  const match = /^Bearer\s+(\S+)\s*$/i.exec(header);
-  return match ? match[1] : undefined;
+  const match = /^([A-Za-z][A-Za-z0-9-]{0,19})\s+(\S+)\s*$/.exec(header);
+  return match ? { scheme: match[1].toLowerCase(), value: match[2] } : undefined;
+}
+
+/**
+ * The key under `Authorization: Basic`. Observed on ACC on 2026-09-14: a
+ * callback handler registered with security type "Bearer token" still sends
+ * Basic. What follows it is not yet confirmed, so every form that still
+ * requires the key is accepted -- the raw key, the base64-encoded key, or a
+ * base64 `name:key` pair with the key on either side -- and the callback log
+ * records which one matched. Narrow this to that form once it is known.
+ */
+function basicCredential(value: string): CallbackCredential | undefined {
+  if (secretMatches(value)) return 'basic-raw';
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return undefined;
+  const decoded = Buffer.from(value, 'base64').toString('utf8');
+  if (secretMatches(decoded)) return 'basic-base64';
+  const colon = decoded.indexOf(':');
+  if (
+    colon >= 0 &&
+    (secretMatches(decoded.slice(colon + 1)) || secretMatches(decoded.slice(0, colon)))
+  ) {
+    return 'basic-base64-pair';
+  }
+  return undefined;
+}
+
+/** The form that carried a matching key, or undefined when none did. */
+function matchedCredential(req: express.Request): CallbackCredential | undefined {
+  const auth = authorizationParts(req.headers.authorization);
+  if (auth?.scheme === 'bearer' && secretMatches(auth.value)) return 'bearer';
+  if (auth?.scheme === 'basic') {
+    const form = basicCredential(auth.value);
+    if (form) return form;
+  }
+  if (secretMatches(req.headers['x-validsign-secret'])) return 'x-validsign-secret';
+  return undefined;
 }
 
 /**
@@ -206,12 +245,10 @@ callbackRouter.post(
   callbackLimiter,
   express.json({ limit: CALLBACK_BODY_LIMIT }),
   async (req, res) => {
-    // Either form is accepted: the Bearer token ValidSign's callback handler
-    // sends, or the x-validsign-secret header this route has always read.
-    if (
-      !secretMatches(bearerToken(req.headers.authorization)) &&
-      !secretMatches(req.headers['x-validsign-secret'])
-    ) {
+    // Authorization Bearer or Basic (see basicCredential), or the
+    // x-validsign-secret header this route has always read.
+    const credential = matchedCredential(req);
+    if (!credential) {
       logger.warn('ValidSign callback rejected: bad shared secret', {
         presented: describePresented(req),
       });
@@ -222,7 +259,7 @@ callbackRouter.post(
     const packageId = String((req.body as { packageId?: string }).packageId ?? '');
     const event = (req.body as { name?: string }).name;
     // Audit-relevant path: log every callback, success or not.
-    logger.info('ValidSign callback received', { packageId, event });
+    logger.info('ValidSign callback received', { packageId, event, credential });
     try {
       await completeSignature(packageId);
     } catch (error) {
