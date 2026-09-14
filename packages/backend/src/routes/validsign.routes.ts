@@ -147,6 +147,33 @@ function secretMatches(provided: unknown): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * The callback key as `Authorization: Bearer <key>` -- what ValidSign sends
+ * for a callback handler registered with security type "Bearer token". The
+ * scheme name is case-insensitive (RFC 9110). Any other scheme yields nothing.
+ */
+function bearerToken(header: unknown): string | undefined {
+  if (typeof header !== 'string') return undefined;
+  const match = /^Bearer\s+(\S+)\s*$/i.exec(header);
+  return match ? match[1] : undefined;
+}
+
+/**
+ * Which credential forms a rejected callback carried, for the log: header
+ * names and the Authorization scheme only, never a value. A scheme-less
+ * Authorization header is not echoed, because its whole value could be the key.
+ */
+function describePresented(req: express.Request): string {
+  const parts: string[] = [];
+  const auth = req.headers.authorization;
+  if (typeof auth === 'string') {
+    const scheme = /^([A-Za-z][A-Za-z0-9-]{0,19})\s+\S/.exec(auth);
+    parts.push(`authorization:${scheme ? scheme[1] : '(no scheme)'}`);
+  }
+  if (req.headers['x-validsign-secret'] !== undefined) parts.push('x-validsign-secret');
+  return parts.length > 0 ? parts.join(',') : 'none';
+}
+
 // A real ValidSign webhook payload is a handful of small fields (packageId,
 // an event name, a few identifiers) -- 16kb is generous headroom over that,
 // while still bounding what an unauthenticated POST can make this route
@@ -179,8 +206,15 @@ callbackRouter.post(
   callbackLimiter,
   express.json({ limit: CALLBACK_BODY_LIMIT }),
   async (req, res) => {
-    if (!secretMatches(req.headers['x-validsign-secret'])) {
-      logger.warn('ValidSign callback rejected: bad shared secret');
+    // Either form is accepted: the Bearer token ValidSign's callback handler
+    // sends, or the x-validsign-secret header this route has always read.
+    if (
+      !secretMatches(bearerToken(req.headers.authorization)) &&
+      !secretMatches(req.headers['x-validsign-secret'])
+    ) {
+      logger.warn('ValidSign callback rejected: bad shared secret', {
+        presented: describePresented(req),
+      });
       return res
         .status(401)
         .json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid secret' } });

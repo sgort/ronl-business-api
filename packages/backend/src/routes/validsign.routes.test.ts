@@ -79,9 +79,12 @@ jest.mock('@services/validsignCompletion.service', () => ({
 jest.mock('@services/document/renderTemplate', () => ({ renderTemplate: jest.fn() }));
 jest.mock('@services/document/toPdf', () => ({ toPdf: jest.fn() }));
 
-jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
-}));
+jest.mock('@utils/logger', () => {
+  // One instance for every createLogger() call, so a test can read back what
+  // the route logged via jest.requireMock('@utils/logger').createLogger().
+  const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+  return { createLogger: () => logger };
+});
 
 import express from 'express';
 import helmet from 'helmet';
@@ -199,6 +202,85 @@ describe('POST /v1/validsign/callback', () => {
       .set('x-validsign-secret', 'wrong')
       .send({ packageId: 'pkg-1' });
     expect(res.status).toBe(401);
+  });
+
+  // ValidSign's callback handler is registered with security type "Bearer
+  // token", which sends the callback key as `Authorization: Bearer <key>`.
+  // The original x-validsign-secret header stays accepted.
+  it('accepts the shared secret as an Authorization Bearer token', async () => {
+    mockCompleteSignature.mockResolvedValue('completed');
+    const res = await request(app)
+      .post('/v1/validsign/callback')
+      .set('Authorization', 'Bearer secret')
+      .send({ packageId: 'pkg-1', name: 'PACKAGE_COMPLETE' });
+    expect(res.status).toBe(200);
+    expect(mockCompleteSignature).toHaveBeenCalledWith('pkg-1');
+  });
+
+  it('treats the Bearer scheme name case-insensitively', async () => {
+    mockCompleteSignature.mockResolvedValue('completed');
+    const res = await request(app)
+      .post('/v1/validsign/callback')
+      .set('Authorization', 'bearer secret')
+      .send({ packageId: 'pkg-1' });
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects a wrong Bearer token', async () => {
+    const res = await request(app)
+      .post('/v1/validsign/callback')
+      .set('Authorization', 'Bearer wrong')
+      .send({ packageId: 'pkg-1' });
+    expect(res.status).toBe(401);
+    expect(mockCompleteSignature).not.toHaveBeenCalled();
+  });
+
+  it('rejects the right secret under another Authorization scheme', async () => {
+    const res = await request(app)
+      .post('/v1/validsign/callback')
+      .set('Authorization', 'Basic secret')
+      .send({ packageId: 'pkg-1' });
+    expect(res.status).toBe(401);
+    expect(mockCompleteSignature).not.toHaveBeenCalled();
+  });
+
+  it('logs which credential form a rejected callback presented, never its value', async () => {
+    // The first real callback on ACC is what confirms the header ValidSign
+    // sends; a rejection must say what arrived without logging the secret.
+    const log = (
+      jest.requireMock('@utils/logger') as { createLogger: () => { warn: jest.Mock } }
+    ).createLogger();
+    log.warn.mockClear();
+
+    await request(app)
+      .post('/v1/validsign/callback')
+      .set('Authorization', 'Basic s3cr3t-value')
+      .set('x-validsign-secret', 'other-value')
+      .send({ packageId: 'pkg-1' });
+
+    expect(log.warn).toHaveBeenCalledWith('ValidSign callback rejected: bad shared secret', {
+      presented: 'authorization:Basic,x-validsign-secret',
+    });
+    const logged = JSON.stringify(log.warn.mock.calls);
+    expect(logged).not.toContain('s3cr3t-value');
+    expect(logged).not.toContain('other-value');
+  });
+
+  it('does not log a scheme-less Authorization value, which could be the key itself', async () => {
+    const log = (
+      jest.requireMock('@utils/logger') as { createLogger: () => { warn: jest.Mock } }
+    ).createLogger();
+    log.warn.mockClear();
+
+    await request(app)
+      .post('/v1/validsign/callback')
+      .set('Authorization', 'raw-key-without-scheme')
+      .send({ packageId: 'pkg-1' });
+
+    expect(log.warn).toHaveBeenCalledWith('ValidSign callback rejected: bad shared secret', {
+      presented: 'authorization:(no scheme)',
+    });
+    expect(JSON.stringify(log.warn.mock.calls)).not.toContain('raw-key-without-scheme');
   });
 
   it('accepts a valid callback and drives completion', async () => {
