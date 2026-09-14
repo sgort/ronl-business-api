@@ -1,4 +1,12 @@
 #!/bin/sh
+# First, so a push from an install that no longer matches package-lock.json
+# stops here with the fix named (npm ci), instead of the checks below running
+# on the wrong tool versions. On 2026-09-14 a clone still on Prettier 3.8.1
+# after the lockfile moved to 3.9.6 failed check-format on seven files that
+# were correctly formatted, and nothing said why.
+echo "📦 Checking installed dependencies..."
+npm run deps:check
+
 echo "🔨 Building shared package..."
 npm run build --workspace=@ronl/shared
 
