@@ -124,11 +124,15 @@ deploy workflows now read `node-version-file: .nvmrc`, `.nvmrc` carries an exact
 above follow — and `engines.node` is `>=22`. Renovate's `node` manager parses
 `.nvmrc`, so it stays maintained rather than hand-bumped.
 
-`zizmor.yml` keeps its literal `node-version: '24'`, and that part was right all
-along: `renovate@44.50.3` declares `engines.node ^24.11.0`, and npm accepts a
-mismatch with an `EBADENGINE` **warning** rather than refusing — so the validator
-had been running unsupported and green. That pin is load-bearing; do not sweep it
-into the shared file.
+`zizmor.yml` keeps its own literal `node-version` on Node 24, and that part was
+right all along: `renovate@44.50.3` declares `engines.node ^24.11.0`, and npm
+accepts a mismatch with an `EBADENGINE` **warning** rather than refusing — so the
+validator had been running unsupported and green. That pin is load-bearing; do
+not sweep it into the shared file. It was a bare `'24'` until
+[#139](https://github.com/sgort/ronl-business-api/pull/139) made it an exact
+`24.20.0` on 2026-09-14, closing the last floating Node version in CI under the
+same rule as `.nvmrc`; Renovate's `node` manager keeps it current, behind the
+14-day cooldown like every other dependency.
 
 ### The backend is deployed outside CI, and its dependencies are unpinned
 
