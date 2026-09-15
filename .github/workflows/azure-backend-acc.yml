@@ -31,9 +31,11 @@ on:
       # is built and tested by nothing.
       #
       # Safe to widen HERE and nowhere else: this job claims no Static Web Apps
-      # staging environment, so it cannot exhaust the frontend app's Free-plan
-      # ceiling of three, which five open pull requests did on 2026-08-28. The
-      # three SWA workflows keep their narrow filters for that reason.
+      # staging environment. The frontend app was on the Free plan, three
+      # environments, when five open pull requests exhausted it on 2026-08-28,
+      # which is why the three SWA workflows kept their narrow filters. It is
+      # on Standard (ten) now; widening those filters would make every
+      # lockfile-only pull request claim previews, and is a decision of its own.
       # linked-data-explorer#97.
       - 'package-lock.json'
       - 'package.json'

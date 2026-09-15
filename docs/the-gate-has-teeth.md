@@ -141,6 +141,9 @@ Three zizmor inputs are deliberate:
   supply-chain gate pulling an unpinned tool would defeat itself. The action
   resolves this through an internal digest table and runs a
   `ghcr.io/zizmorcore/zizmor@sha256:…` image, so it is a real container pin.
+  Renovate maintains it, as that image, in the `github actions` group; the
+  action has to be at a release whose table includes the new version.
+  `SECURITY-PIPELINE.md` has the merge order.
 - **`advanced-security: false`** — the default uploads SARIF and needs
   `security-events: write`. This job is `contents: read` only, which also means
   **fork PRs work**, having no upload step to fail.

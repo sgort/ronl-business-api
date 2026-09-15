@@ -29,22 +29,45 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
-| Dependency                          | Pin                                                 | Version           | Maintained by                                                                        |
-| ----------------------------------- | --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
-| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
-| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                             |
-| `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                         |
-| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                             |
-| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                             |
-| zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | **manual** — an action input, which Renovate's github-actions manager does not parse |
-| `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                            |
-| Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses       |
-| npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                             |
+| Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
+| ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
+| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
+| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
+| zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
+| `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                                     |
+| Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses                |
+| npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                                      |
 
 The zizmor pin is stronger than it looks: `zizmor-action` resolves the requested
 version through an internal digest table and runs
 `ghcr.io/zizmorcore/zizmor:1.29.0@sha256:863026d5…` — a genuine container digest
 pin.
+
+**Renovate maintains that input, although this table said `manual` until
+15 September 2026.** Its `github-actions` manager does not parse action inputs in
+general, but it maps `zizmor-action` to the Docker image
+`ghcr.io/zizmorcore/zizmor` (`known-actions.ts` in Renovate), and the Dependency
+Dashboard (#16) lists `ghcr.io/zizmorcore/zizmor 1.29.0` with 1.30.1 queued.
+linked-data-explorer#139 and ttl-editor#144 corrected the same claim. Two things
+follow:
+
+- **The image and the action must move together.** `zizmor-action` runs only the
+  zizmor versions in its own digest table: 1.30.1 is in v0.6.4's and not in
+  v0.6.3's. This repository is already on v0.6.4, so the queued 1.30.1 is safe.
+  In general the `github actions` group, which collects minor, patch and digest
+  updates for every `github-actions` dependency, brings both in one pull request.
+  Not always: each clears the 14-day cooldown on its own clock, and zizmor
+  publishes before the action release that adds it, so a group branch can briefly
+  hold the image update alone and fail `audit` at "Run zizmor". Do not merge it in
+  that state. A major zizmor release waits for dashboard approval separately, and
+  then the action bump has to merge first.
+- **This row is still kept current by hand.** `check-supply-chain` reads `uses:`
+  lines and skips prose rows like this one, so nothing fails when it goes stale —
+  which is how it came to say `manual` with an update queued. Before recording
+  that Renovate cannot see something, read the dashboard's detected dependencies.
 
 ## Where this repo is _stronger_ than the ttl-editor pattern
 
