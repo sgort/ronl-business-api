@@ -230,7 +230,7 @@ describe('getPublicIndex', () => {
         naam: 'Zorgtoeslag',
         beschrijving: 'Aanvraagproces',
         gepubliceerd: '2026-06-01T00:00:00.000Z',
-        status: 'active',
+        status: 'example',
         forms: [{ id: 'f1', name: 'Formulier' }],
         documents: [],
         subprocesses: [],
@@ -240,6 +240,9 @@ describe('getPublicIndex', () => {
     const proces = index.find((i) => i.type === 'proces')!;
     expect(proces.slug).toBe('zorgtoeslag-process');
     expect(proces.forms).toEqual([{ id: 'f1', name: 'Formulier' }]);
+    // Carried at the top level, not only inside facts, so a search hit shows
+    // the same status badge the process listing does (#111).
+    expect(proces.status).toBe('example');
   });
 
   it('caches for 5 minutes and forceRefresh bypasses it', async () => {

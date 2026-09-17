@@ -48,6 +48,10 @@ export interface PublicIndexItem {
   subprocesses?: PublicSubprocessRow[];
   /** Regel items only: the DMN source files LDE publishes for this service. */
   dmns?: PublicDmn[];
+  /** Proces items only: the bundle's status label (e.g. 'example', 'wip',
+   * 'e2e'), so a search hit carries the same badge as the process listing
+   * — see #111. */
+  status?: string;
 }
 
 export interface PublicSearchFilters {
@@ -206,6 +210,7 @@ async function buildIndex(): Promise<PublicIndexItem[]> {
       forms: proces.forms,
       documents: proces.documents,
       subprocesses: proces.subprocesses,
+      status: proces.status,
       facts: [
         ['Proceskey', proces.key],
         ['Gepubliceerd', proces.gepubliceerd],

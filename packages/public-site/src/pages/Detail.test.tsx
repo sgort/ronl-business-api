@@ -198,10 +198,10 @@ describe('Detail (proces)', () => {
       naam: 'Aanvraag behandelen',
       beschrijving: 'Beschrijving van het proces.',
       gepubliceerd: '2026-07-01',
-      status: 'active',
+      status: 'example',
       forms: [{ id: 'f1', name: 'Aanvraagformulier' }],
       documents: [{ id: 'd1', name: 'Beschikking' }],
-      subprocesses: [{ id: 's1', name: 'Sub', bpmnProcessId: 'sub', status: 'active' }],
+      subprocesses: [{ id: 's1', name: 'Sub', bpmnProcessId: 'sub', status: 'example' }],
       ...over,
     }) as unknown as Awaited<ReturnType<typeof api.getProcesByKey>>;
 

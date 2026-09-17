@@ -83,6 +83,9 @@ export interface PublicHit {
   /** Regel items only: DMN source files LDE publishes for this service, with
    * an absolute URL the browser can follow straight to the XML. */
   dmns?: { title: string; xmlUrl: string }[];
+  /** Proces items only: the bundle's status label (e.g. 'example', 'wip',
+   * 'e2e'). Shown on the listing, not just the detail page — see #111. */
+  status?: string;
 }
 
 export interface SearchResponse {

@@ -5,12 +5,14 @@ import type { PublicHit } from '../lib/api';
 import { hrefFor } from '../lib/slug';
 import { highlight, truncate } from '../lib/search';
 import TypeTag from './TypeTag';
+import StatusTag from './StatusTag';
 
 export default function Hit({ item, q, lang }: { item: PublicHit; q: string; lang: Lang }) {
   return (
     <article className="pub-hit">
       <div className="pub-meta">
         <TypeTag type={item.type} lang={lang} />
+        {item.type === 'proces' && item.status && <StatusTag status={item.status} />}
         <span>{item.org}</span>
         {item.date && (
           <>
