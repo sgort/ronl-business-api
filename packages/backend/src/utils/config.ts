@@ -186,11 +186,12 @@ interface Config {
     hmacKey: string;
   };
   public: {
-    /** ACC-only escape hatch: also expose 'wip' process bundles on the
-     * public site's process library, not just 'active' ones, so ACC can
-     * be used to preview in-progress processes before they go live. Must
-     * stay false/unset in production. */
-    showWipProcesses: boolean;
+    /** boardOwner values (plus untagged bundles) exposed on the public
+     * site's process library and the caseworker dashboard's public-facing
+     * views. Defaults to just 'caseworker'; widen it (e.g. to also include
+     * 'infra-board') to publish bundles from additional boards. A bundle's
+     * status label plays no part in this — see #111. */
+    processBoards: string[];
   };
   pa: {
     tkApiBase: string;
@@ -387,7 +388,7 @@ export const config: Config = {
   },
 
   public: {
-    showWipProcesses: parseEnvBool(process.env.PUBLIC_SHOW_WIP_PROCESSES, false),
+    processBoards: parseEnvArray(process.env.PUBLIC_PROCESS_BOARDS, ['caseworker']),
   },
 
   pa: {

@@ -55,6 +55,34 @@ describe('Results', () => {
     expect(screen.getByRole('link', { name: /Zorgtoeslag/ })).toBeInTheDocument();
   });
 
+  it('badges a process hit with its status label, as the process listing does (#111)', async () => {
+    vi.mocked(api.searchPublic).mockResolvedValue({
+      items: [
+        {
+          id: 'proces-zorgtoeslag',
+          slug: 'zorgtoeslag',
+          type: 'proces',
+          title: 'Zorgtoeslag aanvragen',
+          summary: 'Uitvoerbaar proces',
+          org: 'Provincie Flevoland',
+          date: null,
+          audience: [],
+          external: null,
+          facts: [],
+          tech: [],
+          status: 'wip',
+        },
+      ],
+      total: 1,
+      facets: { soort: [['proces', 1]], bron: [['Provincie Flevoland', 1]], doelgroep: [] },
+    } as unknown as Awaited<ReturnType<typeof api.searchPublic>>);
+    renderAt('/zoeken?q=zorg');
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /Zorgtoeslag aanvragen/ })).toBeInTheDocument()
+    );
+    expect(screen.getByText('wip')).toBeInTheDocument();
+  });
+
   it('shows the empty state with a real suggestion when there are no hits', async () => {
     vi.mocked(api.searchPublic).mockResolvedValue({
       items: [],

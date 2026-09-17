@@ -75,7 +75,7 @@ describe('mapToHits', () => {
         naam: 'Zorgtoeslag',
         beschrijving: null,
         gepubliceerd: '2026-06-01',
-        status: 'active',
+        status: 'example',
       },
     ]);
     expect(hit).toMatchObject({
@@ -84,6 +84,7 @@ describe('mapToHits', () => {
       type: 'proces',
       title: 'Zorgtoeslag',
       summary: '',
+      status: 'example',
     });
   });
 

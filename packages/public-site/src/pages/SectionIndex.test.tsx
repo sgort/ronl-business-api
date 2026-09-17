@@ -281,13 +281,14 @@ describe('SectionIndex, one loader per section type', () => {
     expect(api.getProducten).toHaveBeenCalledWith(200);
   });
 
-  it('loads processen from getProcessen', async () => {
+  it('loads processen from getProcessen and shows the status label', async () => {
     vi.mocked(api.getProcessen).mockResolvedValue([
       {
         key: 'proc-1',
         naam: 'Aanvraag behandelen',
         beschrijving: null,
         gepubliceerd: '2026-07-01',
+        status: 'wip',
       },
     ] as unknown as Awaited<ReturnType<typeof api.getProcessen>>);
 
@@ -295,6 +296,8 @@ describe('SectionIndex, one loader per section type', () => {
 
     await waitFor(() => expect(screen.getByText('1 items')).toBeInTheDocument());
     expect(api.getProcessen).toHaveBeenCalled();
+    // The listing shows a bundle's status label — issue #111 — never colour alone.
+    expect(screen.getByText('wip')).toBeInTheDocument();
   });
 
   it('renders the regel section empty, because Regelcatalogus owns that type', async () => {

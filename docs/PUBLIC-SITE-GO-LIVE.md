@@ -97,11 +97,11 @@ this branch do not by themselves fix ACC/prod. Set these in each backend App
 Service's Configuration blade (Azure Portal → App Service → Configuration →
 Application settings) — not in any file in this repo.
 
-| Variable                    | ACC                                                                                   | PROD                                                                              | Why                                                                                                                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CORS_ORIGIN`               | append `https://acc.publiek.open-regels.nl`                                           | set to `mijn` + `publiek`; `localhost:5173` dropped (D5 of the promotion runbook) | Whatever ACC/prod's `CORS_ORIGIN` is already set to, **plus** the new origin — replacing it outright would break the existing caseworker frontend.                                                       |
-| `LDE_API_URL`               | leave unset (code default already `https://acc.backend.linkeddata.open-regels.nl/v1`) | **must set explicitly** — code default is the ACC LDE URL                         | Without this, prod's process library would silently proxy ACC's LDE data instead of prod's. Likely value: `https://backend.linkeddata.open-regels.nl/v1` (matches the frontend's own `.env.production`). |
-| `PUBLIC_SHOW_WIP_PROCESSES` | `true` (already agreed — preview WIP processes on ACC)                                | leave unset (defaults to `false`)                                                 | ACC-only escape hatch; must never be true in prod.                                                                                                                                                       |
+| Variable                | ACC                                                                                   | PROD                                                                              | Why                                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CORS_ORIGIN`           | append `https://acc.publiek.open-regels.nl`                                           | set to `mijn` + `publiek`; `localhost:5173` dropped (D5 of the promotion runbook) | Whatever ACC/prod's `CORS_ORIGIN` is already set to, **plus** the new origin — replacing it outright would break the existing caseworker frontend.                                                                              |
+| `LDE_API_URL`           | leave unset (code default already `https://acc.backend.linkeddata.open-regels.nl/v1`) | **must set explicitly** — code default is the ACC LDE URL                         | Without this, prod's process library would silently proxy ACC's LDE data instead of prod's. Likely value: `https://backend.linkeddata.open-regels.nl/v1` (matches the frontend's own `.env.production`).                        |
+| `PUBLIC_PROCESS_BOARDS` | leave unset (defaults to `caseworker`)                                                | leave unset (defaults to `caseworker`)                                            | Replaces this go-live's `PUBLIC_SHOW_WIP_PROCESSES` escape hatch, since removed (#111) — the public site no longer gates on status at all. Widen to `caseworker,infra-board` only if infra-board bundles should also go public. |
 
 **Both done** (set via `az webapp config appsettings set`, which restarts the App
 Service automatically — no manual restart needed). PROD was done on 2026-09-12,
@@ -115,7 +115,9 @@ before the promotion merge, while 3.8.2 was still serving.
 - [x] `LDE_API_URL` set explicitly on PROD backend App Service
       (`https://backend.linkeddata.open-regels.nl/v1`)
 - [x] `PUBLIC_SHOW_WIP_PROCESSES=true` set on ACC backend App Service; left unset
-      on PROD, so it defaults to `false`
+      on PROD, so it defaulted to `false`. **Since removed (#111)** — the public
+      site no longer gates on status, so this App Service setting is now inert;
+      `PUBLIC_PROCESS_BOARDS` (default `caseworker`) is what gates visibility today
 - [x] ACC App Service restarted (automatic on `appsettings set`); PROD likewise,
       and 3.8.2 came back healthy on the first probe after each restart
 
@@ -262,15 +264,15 @@ Everything new since v3.8.2. Unset keys fall through to the **code default in `c
 not to `.env.example` — the example file is local-dev documentation and disagrees with the
 code in at least one place (it ships `EDOCS_MCP_ENABLED=true`; the code default is `false`).
 
-| Var                                             | Code default              | PROD action                                                                            |
-| ----------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------- |
-| `DEPLOYMENT_ENV`                                | falls back to `NODE_ENV`  | **set to `production`** — new in `e28dc19`, else `/v1/health` mislabels the tier       |
-| `PA_SEED_DEMO_DATA`                             | `false`                   | leave unset — live means dossiers/criteria someone authored                            |
-| `RATE_LIMIT_MAX_REQUESTS`                       | **`1000`** (was `100`)    | leave unset to pick up the raise — see the proxy caveat below                          |
-| `EDOCS_MCP_ENABLED` / `EDOCS_MCP_CLIENT_SECRET` | `false` / `''`            | leave unset unless you want the eDOCS assistant (then enable + set the M2M secret)     |
-| `EDOCS_STUB_MODE`                               | `true` (stub)             | leave stubbed unless real eDOCS is wanted                                              |
-| `DOCCLE_*` (new `/v1/doccle` route)             | `DOCCLE_STUB_MODE` `true` | leave stubbed unless real Doccle is wanted (then base URL + creds + `STUB_MODE=false`) |
-| `PUBLIC_SHOW_WIP_PROCESSES`                     | `false`                   | keep unset/false in PROD                                                               |
+| Var                                             | Code default              | PROD action                                                                                           |
+| ----------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `DEPLOYMENT_ENV`                                | falls back to `NODE_ENV`  | **set to `production`** — new in `e28dc19`, else `/v1/health` mislabels the tier                      |
+| `PA_SEED_DEMO_DATA`                             | `false`                   | leave unset — live means dossiers/criteria someone authored                                           |
+| `RATE_LIMIT_MAX_REQUESTS`                       | **`1000`** (was `100`)    | leave unset to pick up the raise — see the proxy caveat below                                         |
+| `EDOCS_MCP_ENABLED` / `EDOCS_MCP_CLIENT_SECRET` | `false` / `''`            | leave unset unless you want the eDOCS assistant (then enable + set the M2M secret)                    |
+| `EDOCS_STUB_MODE`                               | `true` (stub)             | leave stubbed unless real eDOCS is wanted                                                             |
+| `DOCCLE_*` (new `/v1/doccle` route)             | `DOCCLE_STUB_MODE` `true` | leave stubbed unless real Doccle is wanted (then base URL + creds + `STUB_MODE=false`)                |
+| `PUBLIC_PROCESS_BOARDS`                         | `caseworker`              | leave unset unless PROD's public site should also expose another board's bundles (e.g. `infra-board`) |
 
 - [x] Set `DEPLOYMENT_ENV=production` on the PROD App Service (display-only, non-blocking,
       but `/v1/health` is what 7a's smoke test reads).
@@ -362,6 +364,8 @@ PROD, override `BASE_URL` / `KEYCLOAK_URL` explicitly rather than passing `TARGE
 Static Web Apps deploy is push-based per branch (`acc` → ACC, `main` → prod) with
 no separate rollback script — revert the merge commit and push, or use the Azure
 Portal's SWA deployment history to redeploy a previous build. The backend's
-`PUBLIC_SHOW_WIP_PROCESSES` and `CORS_ORIGIN` additions are additive-only (nothing
-existing was removed), so no rollback needed there beyond a normal backend
-redeploy if `deploy-backend-to-acc.sh`/`-prod.sh` ever needs reverting.
+`CORS_ORIGIN` addition was additive-only (nothing existing was removed), so no
+rollback needed there beyond a normal backend redeploy if
+`deploy-backend-to-acc.sh`/`-prod.sh` ever needs reverting. (`PUBLIC_SHOW_WIP_PROCESSES`,
+also added in this go-live, has since been removed along with the status gate it
+fed — see #111.)
