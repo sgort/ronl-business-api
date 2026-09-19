@@ -72,14 +72,31 @@ else
   fi
 fi
 
+# 2. The package-manager cooldown in .npmrc (min-release-age) needs npm 11.10
+# or newer. Older npm ignores the setting without a word, so an `npm install`
+# on this machine would resolve versions published minutes ago. Node 22's
+# bundled npm 10 is such a version. A warning, not a failure: check 1 is what
+# keeps the install matching the lockfile; this is about what the next install
+# here would resolve. sgort/linked-data-explorer#119.
+NPM_VERSION=$(npm --version 2>/dev/null || echo "unknown")
+if ! node -e '
+  const [major, minor] = process.argv[1].split(".").map(Number);
+  process.exit(major > 11 || (major === 11 && minor >= 10) ? 0 : 1);
+' "$NPM_VERSION"; then
+  echo -e "${YELLOW}⚠ npm $NPM_VERSION ignores the min-release-age cooldown in .npmrc${NC} — it needs npm 11.10 or newer:"
+  echo ""
+  echo "  npm install -g npm@11"
+fi
+
 echo ""
 
 if [ "$STALE" = true ]; then
   # `npm ci`, not `npm install`. The committed lockfile is the source of truth
   # here: `npm ci` installs exactly what it records, never rewrites it, and
   # fails loudly if package.json and the lockfile disagree. `npm install`
-  # re-resolves the caret ranges instead, and with no package-manager cooldown
-  # it can pull a transitive version published that morning. See
+  # re-resolves the caret ranges instead; the cooldown in .npmrc holds it back
+  # 14 days on npm 11.10 or newer, and on older npm (check 2) it can pull a
+  # transitive version published that morning. See
   # ICTU-dependencies-assessment.md (linked-data-explorer), recommendations 3, 4
   # and 6. `npm install <package>` remains the way to add or upgrade one.
   echo -e "${RED}Dependencies are not ready.${NC} Install them from the lockfile:"
