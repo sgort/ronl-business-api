@@ -68,7 +68,7 @@ jobs:
   build:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Declared for pull-request runs too, following linked-data-explorer rather
     # than the conditional #87 floats as the tidier alternative. Both
     # environments in this repository carry no protection rules, so nothing

@@ -157,6 +157,26 @@ not sweep it into the shared file. It was a bare `'24'` until
 same rule as `.nvmrc`; Renovate's `node` manager keeps it current, behind the
 14-day cooldown like every other dependency.
 
+### The runner image — `ubuntu-24.04` pins a release, not an image
+
+Every job ran on `ubuntu-latest` until
+[linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119),
+a label GitHub moves to a new Ubuntu release on its own schedule. All thirteen
+jobs now name `ubuntu-24.04`, so a change of OS release arrives as a diff in
+this repository rather than silently under every job at once. ICTU
+recommendation 2.
+
+That pins the **release**, not the image. GitHub rebuilds `ubuntu-24.04` about
+weekly, and a hosted runner cannot be pinned to a digest. What the jobs depend
+on is pinned separately — Node through `.nvmrc`, actions by digest, npm packages
+by the lockfile — so the weekly rebuild changes the environment around the
+build, not its inputs. Renovate's `github-actions` manager documents reading a
+versioned `runs-on` label as a `github-runner` dependency; confirm it is listed
+on the Dependency Dashboard before relying on that.
+
+**Reachable from our side:** the release, yes, and done; the image, no.
+**Accepted risk** for the image, reviewed when this document is next revised.
+
 ### The backend is deployed outside CI, and its dependencies are unpinned
 
 `azure-backend-{acc,prod}.yml` run build, lint, test, package a zip and call
