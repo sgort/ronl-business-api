@@ -41,21 +41,21 @@ across four acceptance and production pipelines.
 
 ## 2. What it delivers
 
-| Property                                                     | Enforced by                               | Blocks a merge      |
-| ------------------------------------------------------------ | ----------------------------------------- | ------------------- |
-| Every action reference is an immutable commit digest         | zizmor `unpinned-uses`, policy `hash-pin` | yes                 |
-| No job carries more token scope than it needs                | zizmor `excessive-permissions`            | yes                 |
-| No git credential is left in the workspace for later steps   | zizmor `artipacked`                       | yes                 |
-| **Each digest resolves to the version its comment claims**   | `check-supply-chain`                      | **yes, since #83**  |
-| **The register still describes the workflows**               | `check-supply-chain`                      | **yes, since #83**  |
-| `renovate.json` is valid and not silently auto-migrated      | `renovate-config-validator --strict`      | yes                 |
-| Formatting holds on the shared branch, not just pre-push     | `prettier --check`                        | yes                 |
-| **`@ronl/shared` stays free of unmeasured logic**            | `check-shared`                            | **yes, since #84**  |
-| Backend tests and the per-file branch floor run before merge | `Build Backend for ACC` on `pull_request` | no — not required   |
-| Vulnerable and outdated npm packages are surfaced            | Semgrep Code + Supply Chain               | no — reporting only |
-| Pins stay current instead of freezing                        | Renovate, under a 14-day cooldown         | n/a                 |
-| The GitLab mirror has not silently drifted                   | `check-mirror`, at each release           | no — runs locally   |
-| What cannot be pinned is written down                        | `SECURITY-PIPELINE.md`                    | n/a                 |
+| Property                                                     | Enforced by                               | Blocks a merge                          |
+| ------------------------------------------------------------ | ----------------------------------------- | --------------------------------------- |
+| Every action reference is an immutable commit digest         | zizmor `unpinned-uses`, policy `hash-pin` | yes                                     |
+| No job carries more token scope than it needs                | zizmor `excessive-permissions`            | yes                                     |
+| No git credential is left in the workspace for later steps   | zizmor `artipacked`                       | yes                                     |
+| **Each digest resolves to the version its comment claims**   | `check-supply-chain`                      | **yes, since #83**                      |
+| **The register still describes the workflows**               | `check-supply-chain`                      | **yes, since #83**                      |
+| `renovate.json` is valid and not silently auto-migrated      | `renovate-config-validator --strict`      | yes                                     |
+| Formatting holds on the shared branch, not just pre-push     | `prettier --check`                        | yes                                     |
+| **`@ronl/shared` stays free of unmeasured logic**            | `check-shared`                            | **yes, since #84**                      |
+| Backend tests and the per-file branch floor run before merge | `Build Backend for ACC` on `pull_request` | **yes, since linked-data-explorer#119** |
+| Vulnerable and outdated npm packages are surfaced            | Semgrep Code + Supply Chain               | **yes, since linked-data-explorer#119** |
+| Pins stay current instead of freezing                        | Renovate, under a 14-day cooldown         | n/a                                     |
+| The GitLab mirror has not silently drifted                   | `check-mirror`, at each release           | no — runs locally                       |
+| What cannot be pinned is written down                        | `SECURITY-PIPELINE.md`                    | n/a                                     |
 
 Measured on adoption: **49 findings → 0**, across the 8 workflows that existed
 then.
@@ -110,8 +110,9 @@ already a no-op.
 ### 3.3 `.github/workflows/zizmor.yml` — the gate
 
 Runs on `pull_request` (no `branches:` or `paths:` filter) and on `push` to `acc`
-and `main`. Job name: **`audit`**. It is the only required check in either
-ruleset.
+and `main`. Job name: **`audit`**. It was the only required check in either
+ruleset until linked-data-explorer#119 added `scan` and the four build checks to
+`acc` (§3.7); on `main` it still is.
 
 **It is no longer just zizmor.** Eight steps run, and `if: always()` on each
 check means one run reports on every half of the policy rather than stopping at
@@ -193,10 +194,16 @@ Its first full scan on `acc`, 12 September 2026, found **435 findings, none
 policy-blocking**: 249 reachable, 101 undetermined and 69 unreachable Supply
 Chain findings across 1,266 npm dependencies, plus 16 Code findings.
 
-**`scan` is deliberately not a required check.** Requiring a gate before knowing
-what it reports is how gates get resented and bypassed; promotion is a ruleset
-edit, reversible without touching the file. `continue-on-error` would be the
-wrong tool for the same reason §3.4 gives.
+**`scan` was deliberately not a required check at first.** Requiring a gate
+before knowing what it reports is how gates get resented and bypassed; promotion
+is a ruleset edit, reversible without touching the file. `continue-on-error`
+would be the wrong tool for the same reason §3.4 gives.
+
+_Required on `acc` since [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119)._ Lock-file
+maintenance took the 435 findings to 25, none policy-blocking, and every scan
+since had passed. Requiring it blocks new policy-blocking findings and a scan
+that cannot run — the same trade linked-data-explorer and ttl-editor accept.
+The 25 remain to be triaged.
 
 `.semgrepignore` **replaces** Semgrep's built-in default ignore list rather than
 extending it — which is why it restores `test/` and `tests/`. Adding the file at
@@ -233,13 +240,20 @@ no manifest change.
 
 ### 3.7 The rulesets — what makes it _enforcement_
 
-A workflow that runs but cannot block is advice. **Two** rulesets exist, and
-since 12 September 2026 they carry the same four rules:
+A workflow that runs but cannot block is advice. **Two** rulesets exist. Since
+12 September 2026 they carry the same four rules; since linked-data-explorer#119
+`acc` requires more checks than `main`:
 
-| Ruleset                 | Branch | Rules                                                                             |
-| ----------------------- | ------ | --------------------------------------------------------------------------------- |
-| `acc supply-chain gate` | `acc`  | `pull_request`, `required_status_checks: [audit]`, `deletion`, `non_fast_forward` |
-| `main promotion gate`   | `main` | the same four                                                                     |
+| Ruleset                 | Branch | Rules                                                                                                                                                                                         |
+| ----------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `acc supply-chain gate` | `acc`  | `pull_request`, `required_status_checks: [audit, scan, build, Build and Deploy ACC Frontend, Build and Deploy ACC PA Demo, Build and Deploy ACC Public Site]`, `deletion`, `non_fast_forward` |
+| `main promotion gate`   | `main` | `pull_request`, `required_status_checks: [audit]`, `deletion`, `non_fast_forward`                                                                                                             |
+
+The build checks can be required because their workflows filter in a `changes`
+job rather than on the trigger (#160): an unrelated pull request skips the build
+job, and a skipped job counts as passed. `main` cannot require them — no
+production workflow has a `pull_request` trigger — and does not need to: a
+promotion carries commits that passed them on `acc`.
 
 `deletion` and `non_fast_forward` reached `acc` last. `main` got them when it was
 created, during the promotion; `acc` went without for a month because the
@@ -290,9 +304,9 @@ every hash.
 ```
 push to a feature branch            → nothing runs
 open a PR against acc               → audit + scan always; build and the
-                                      acc deploys if their paths match
-audit fails                         → merge blocked by the ruleset
-scan or build fails                 → merge NOT blocked; neither is required
+                                      acc deploys run if their paths match,
+                                      and report "skipped" if not
+audit, scan or a build fails        → merge blocked by the ruleset
 direct push to acc                  → rejected: a PR is required
 ```
 

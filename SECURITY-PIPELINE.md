@@ -13,14 +13,29 @@ build shape differs, and the differences matter in both directions.
 
 These are GitHub settings, not files. Without them parts of the policy are inert.
 
-| Setting                         | Required state                                 | Why                                                                                            |
-| ------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Renovate GitHub App             | installed, scoped to this repo                 | `renovate.json` is inert until it is                                                           |
-| Dependabot **alerts**           | enabled                                        | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
-| Dependabot **security updates** | **disabled**                                   | it opens competing PRs that ignore the 14-day cooldown                                         |
-| Merge methods                   | merge commits only                             | squash and rebase rewrite the SHAs a changelog entry names                                     |
-| `acc` ruleset                   | PR + `audit` + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
-| `main` ruleset                  | the same four rules                            | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
+| Setting                         | Required state                                                                  | Why                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Renovate GitHub App             | installed, scoped to this repo                                                  | `renovate.json` is inert until it is                                                           |
+| Dependabot **alerts**           | enabled                                                                         | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
+| Dependabot **security updates** | **disabled**                                                                    | it opens competing PRs that ignore the 14-day cooldown                                         |
+| Merge methods                   | merge commits only                                                              | squash and rebase rewrite the SHAs a changelog entry names                                     |
+| `acc` ruleset                   | PR + `audit` + `scan` + the four build checks + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
+| `main` ruleset                  | PR + `audit` + `deletion` + `non_fast_forward`                                  | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
+
+The four build checks on `acc` are `build`, `Build and Deploy ACC Frontend`,
+`Build and Deploy ACC PA Demo` and `Build and Deploy ACC Public Site`, added with
+`scan` for [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119). Their workflows used to
+path-filter the `pull_request` trigger, and a workflow its trigger filters out
+reports no check, so a required one would block every unrelated pull request
+forever. Each now filters in a `changes` job instead (#160): the build job is
+skipped on an unrelated pull request, a skipped job counts as passed, and if
+`changes` fails the build runs anyway. Required checks match by job name, so
+renaming one of these jobs means updating the ruleset in the same change.
+
+`main` stays on `audit` alone, deliberately, and that makes it the weaker branch
+in this one respect: none of the production workflows has a `pull_request`
+trigger, so their checks could never report on a promotion, and a promotion
+carries commits that already passed every check on `acc`.
 
 ## Pinned
 
