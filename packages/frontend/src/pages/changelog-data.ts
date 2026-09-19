@@ -112,6 +112,93 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.9',
+      status: 'Released',
+      date: '19 sep 2026',
+      scope: ['backend', 'public-site', 'ci'],
+      commits: [
+        {
+          sha: '1d08fac',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A change to .nvmrc now builds and deploys',
+          details: [
+            '.nvmrc sets the Node version every deploy workflow builds, tests and ships on, and no path filter included it. A Node bump therefore built nothing, tested nothing and deployed nothing: the new version reached the next unrelated deploy untested. Once the build checks became required on acc, such a pull request also showed every required build check skipped and was mergeable. Found on linked-data-explorer#80, which changes .nvmrc alone.',
+            '.nvmrc is now in the push filter of all eight app deploy workflows and in the changes-job pattern of the four ACC ones. Each pattern was checked to match .nvmrc at the repository root only and to leave its other matches as they were.',
+          ],
+        },
+        {
+          sha: 'cdaaa48',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The build checks now required on acc are written down',
+          details: [
+            'The acc ruleset now requires scan, build, Build and Deploy ACC Frontend, Build and Deploy ACC PA Demo and Build and Deploy ACC Public Site alongside audit. SECURITY-PIPELINE.md records which checks gate acc and main, why the build checks are safe to require, and that renaming one of those jobs means updating the ruleset in the same change. main stays on audit alone, deliberately: no production workflow has a pull_request trigger. docs/the-gate-has-teeth.md keeps its original reasoning for leaving scan unrequired and records what changed beneath it.',
+            'Being documentation only, the pull request was also the test: every changes job reported relevant false, every build check was skipped, and it was mergeable under the new ruleset.',
+          ],
+        },
+        {
+          sha: 'fc9ca6c',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'ACC deploy workflows filter in a job, so their build checks can be required',
+          details: [
+            'A required check must report on every pull request. A workflow its pull_request trigger filters out never starts and reports nothing, so a required build check would have left every pull request that does not touch its paths waiting forever. A job skipped by its own if: reports success instead.',
+            "Each ACC deploy workflow drops the path filter from its pull_request trigger and gains a changes job, which asks the GitHub API for the pull request's files and matches them against one pattern mirroring the push filter. The build and close jobs run only when the pull request is relevant, and also when changes did not succeed, so a failed lookup means a full build rather than a free pass. Push triggers keep their filters.",
+          ],
+        },
+        {
+          sha: '4120a58',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A 14-day package-manager cooldown in .npmrc',
+          details: [
+            "Renovate's minimumReleaseAge covers only the updates Renovate proposes. Lock-file maintenance hands the refresh to npm, where the transitive tree moves, and Renovate documents that its own cooldown cannot apply there. A root .npmrc now sets min-release-age=14, so npm itself will not resolve a version younger than 14 days. ICTU recommendation 6.",
+            'Measured before writing it: npm 11.10 or newer honours it on install and update; npm ci ignores it on purpose, so CI cannot fail on it; npm 10.9.8, bundled with Node 22.23.2, ignores it without a warning, so scripts/check-deps.sh now warns when npm is older than 11.10. It does not reach the backend deploy, which installs in its own deploy/ folder without a lockfile (#34).',
+          ],
+        },
+        {
+          sha: '5ef7479',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Every job runs on ubuntu-24.04',
+          details: [
+            'All thirteen jobs across the ten workflows now name ubuntu-24.04 instead of ubuntu-latest, a label GitHub moves to a new Ubuntu release on its own schedule, so a change of OS release arrives as a diff here. ICTU recommendation 2. The label pins the release, not the image, which GitHub rebuilds about weekly and a hosted runner cannot pin by digest; SECURITY-PIPELINE.md records that.',
+          ],
+        },
+        {
+          sha: 'db67cba',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The public site shows every deployed process, whatever its label',
+          details: [
+            "The public process library required a bundle's status to be 'active', a value the Linked Data Explorer's database cannot hold: its constraint permits example, wip and e2e only. Nothing had ever passed that check, so production showed nothing and acceptance showed only what the PUBLIC_SHOW_WIP_PROCESSES escape hatch let through.",
+            'The filter now decides on board ownership alone, so both tiers behave the same way, and the escape hatch is gone, including its rows in the promotion and go-live runbooks. PUBLIC_PROCESS_BOARDS replaces the hardcoded allowlist, defaulting to caseworker. A process now shows its status label on the listing and in search results, not only on its detail page. The tests that let this through asserted against a status the source database cannot produce; the fixtures are rebuilt from the real vocabulary. Closes linked-data-explorer#111.',
+          ],
+        },
+        {
+          sha: '4d0a684',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            "Renovate maintains zizmor's version; the Static Web Apps plan and preview claims corrected",
+          details: [
+            "The register and two workflow comments said zizmor's version input is bumped by hand. Renovate maps zizmor-action to the ghcr.io/zizmorcore/zizmor image and maintains it, as the Dependency Dashboard shows. renovate.json and a workflow comment also called the acceptance frontend Free; read from Azure on 15 September, all three acceptance apps are Standard and the production frontend is Free. And a dependency pull request editing packages/pa-cockpit does hold previews, on both frontend-acc and pa-demo-acc.",
+          ],
+        },
+        {
+          sha: '7a0cb56',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: '/bump-release versions packages/pa-cockpit when a release includes it',
+          details: [
+            "Step 2 counted packages/pa-cockpit toward a release's scope, but step 4 had no rule to bump the package, so it stayed at 1.0.0 across 49 commits. It is now bumped, lockfile entry included, only when a pa-cockpit change is part of the release, and the report always names shared and pa-cockpit. Closes #152.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.8',
       status: 'Released',
       date: '15 sep 2026',
