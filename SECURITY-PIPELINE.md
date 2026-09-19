@@ -177,6 +177,32 @@ on the Dependency Dashboard before relying on that.
 **Reachable from our side:** the release, yes, and done; the image, no.
 **Accepted risk** for the image, reviewed when this document is next revised.
 
+### The package-manager cooldown — `.npmrc`, and where it does not reach
+
+Renovate's `minimumReleaseAge` covers only the updates Renovate proposes.
+Lock-file maintenance hands the refresh to npm, which is where the transitive
+tree moves, and Renovate documents that its own cooldown cannot apply there.
+Since [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119),
+the root `.npmrc` sets `min-release-age=14`, so npm itself will not resolve a
+version younger than 14 days. For its own update pull requests Renovate uses
+whichever cutoff is stricter, and if npm answers `ETARGET` on a security fix it
+retries without the cutoff. ICTU recommendation 6.
+
+Three places it does not reach, all measured on 19 September 2026:
+
+- **`npm ci`** ignores it on purpose (npm/cli#9281). CI's test and build jobs
+  only run `npm ci`, so they cannot fail on it, and are not protected by it.
+- **npm older than 11.10** ignores it without a warning. Node 22.23.2, which
+  `.nvmrc` names, bundles npm 10.9.8. `scripts/check-deps.sh` warns about this at
+  every dev-server start and push, and names `npm install -g npm@11`.
+- **The backend deploy** installs in `packages/backend/deploy/`, which has its
+  own `package.json`, so npm treats it as a separate project and never reads the
+  root `.npmrc`. That install has no lockfile either; see the next section and
+  #34.
+
+**Reachable from our side:** yes, and done for the first two as far as npm
+allows; the third closes with #34.
+
 ### The backend is deployed outside CI, and its dependencies are unpinned
 
 `azure-backend-{acc,prod}.yml` run build, lint, test, package a zip and call
