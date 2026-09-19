@@ -32,6 +32,9 @@ on:
       - '.github/workflows/azure-backend-acc.yml'
       - 'package-lock.json'
       - 'package.json'
+      # .nvmrc sets the Node version this workflow builds, tests and ships on.
+      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
+      - '.nvmrc'
   workflow_dispatch:
 
 # Serialise runs, so a pull request pushed to twice in quick succession does not
@@ -89,7 +92,7 @@ jobs:
           # on Standard (ten) now; widening those filters would make every
           # lockfile-only pull request claim previews, and is a decision of its own.
           # linked-data-explorer#97.
-          PATTERN: '^(packages/backend/|packages/shared/|\.github/workflows/azure-backend-acc\.yml$|package-lock\.json$|package\.json$)'
+          PATTERN: '^(\.nvmrc$|packages/backend/|packages/shared/|\.github/workflows/azure-backend-acc\.yml$|package-lock\.json$|package\.json$)'
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"

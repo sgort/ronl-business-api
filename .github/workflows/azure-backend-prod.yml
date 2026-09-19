@@ -29,6 +29,9 @@ on:
       # backend rather than reaching production untested.
       - 'package-lock.json'
       - 'package.json'
+      # .nvmrc sets the Node version this workflow builds, tests and ships on.
+      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
+      - '.nvmrc'
   workflow_dispatch:
 
 # Default to read-only; jobs opt into more only where required.

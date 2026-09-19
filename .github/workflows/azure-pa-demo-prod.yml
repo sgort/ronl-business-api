@@ -15,6 +15,9 @@ on:
       - 'packages/shared/**'
       - 'packages/pa-cockpit/**'
       - '.github/workflows/azure-pa-demo-prod.yml'
+      # .nvmrc sets the Node version this workflow builds, tests and ships on.
+      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
+      - '.nvmrc'
   workflow_dispatch:
 
 # Same serialisation as the acc workflow, but production runs QUEUE rather

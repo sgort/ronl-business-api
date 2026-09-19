@@ -9,6 +9,9 @@ on:
       - 'packages/shared/**'
       - 'packages/pa-cockpit/**'
       - '.github/workflows/azure-frontend-acc.yml'
+      # .nvmrc sets the Node version this workflow builds, tests and ships on.
+      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
+      - '.nvmrc'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
@@ -72,7 +75,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           # The paths under push: above, as one regular expression. Keep the two in step.
-          PATTERN: '^(packages/frontend/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-frontend-acc\.yml$)'
+          PATTERN: '^(\.nvmrc$|packages/frontend/|packages/shared/|packages/pa-cockpit/|\.github/workflows/azure-frontend-acc\.yml$)'
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
