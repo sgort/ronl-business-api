@@ -345,13 +345,7 @@ export interface DocumentTemplate {
 }
 
 export type ZoneId =
-  | 'letterhead'
-  | 'contactInformation'
-  | 'reference'
-  | 'body'
-  | 'closing'
-  | 'signOff'
-  | 'annex';
+  'letterhead' | 'contactInformation' | 'reference' | 'body' | 'closing' | 'signOff' | 'annex';
 
 /** Canonical render order (annex last). */
 export const ZONE_ORDER: ZoneId[] = [

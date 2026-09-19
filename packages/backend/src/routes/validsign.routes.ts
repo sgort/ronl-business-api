@@ -147,6 +147,68 @@ function secretMatches(provided: unknown): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** Which accepted form carried the callback key; logged, never the value. */
+type CallbackCredential =
+  'bearer' | 'basic-raw' | 'basic-base64' | 'basic-base64-pair' | 'x-validsign-secret';
+
+/** `<scheme> <value>` from an Authorization header; the scheme lower-cased (RFC 9110). */
+function authorizationParts(header: unknown): { scheme: string; value: string } | undefined {
+  if (typeof header !== 'string') return undefined;
+  const match = /^([A-Za-z][A-Za-z0-9-]{0,19})\s+(\S+)\s*$/.exec(header);
+  return match ? { scheme: match[1].toLowerCase(), value: match[2] } : undefined;
+}
+
+/**
+ * The key under `Authorization: Basic`. Observed on ACC on 2026-09-14: a
+ * callback handler registered with security type "Bearer token" still sends
+ * Basic. What follows it is not yet confirmed, so every form that still
+ * requires the key is accepted -- the raw key, the base64-encoded key, or a
+ * base64 `name:key` pair with the key on either side -- and the callback log
+ * records which one matched. Narrow this to that form once it is known.
+ */
+function basicCredential(value: string): CallbackCredential | undefined {
+  if (secretMatches(value)) return 'basic-raw';
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return undefined;
+  const decoded = Buffer.from(value, 'base64').toString('utf8');
+  if (secretMatches(decoded)) return 'basic-base64';
+  const colon = decoded.indexOf(':');
+  if (
+    colon >= 0 &&
+    (secretMatches(decoded.slice(colon + 1)) || secretMatches(decoded.slice(0, colon)))
+  ) {
+    return 'basic-base64-pair';
+  }
+  return undefined;
+}
+
+/** The form that carried a matching key, or undefined when none did. */
+function matchedCredential(req: express.Request): CallbackCredential | undefined {
+  const auth = authorizationParts(req.headers.authorization);
+  if (auth?.scheme === 'bearer' && secretMatches(auth.value)) return 'bearer';
+  if (auth?.scheme === 'basic') {
+    const form = basicCredential(auth.value);
+    if (form) return form;
+  }
+  if (secretMatches(req.headers['x-validsign-secret'])) return 'x-validsign-secret';
+  return undefined;
+}
+
+/**
+ * Which credential forms a rejected callback carried, for the log: header
+ * names and the Authorization scheme only, never a value. A scheme-less
+ * Authorization header is not echoed, because its whole value could be the key.
+ */
+function describePresented(req: express.Request): string {
+  const parts: string[] = [];
+  const auth = req.headers.authorization;
+  if (typeof auth === 'string') {
+    const scheme = /^([A-Za-z][A-Za-z0-9-]{0,19})\s+\S/.exec(auth);
+    parts.push(`authorization:${scheme ? scheme[1] : '(no scheme)'}`);
+  }
+  if (req.headers['x-validsign-secret'] !== undefined) parts.push('x-validsign-secret');
+  return parts.length > 0 ? parts.join(',') : 'none';
+}
+
 // A real ValidSign webhook payload is a handful of small fields (packageId,
 // an event name, a few identifiers) -- 16kb is generous headroom over that,
 // while still bounding what an unauthenticated POST can make this route
@@ -179,8 +241,13 @@ callbackRouter.post(
   callbackLimiter,
   express.json({ limit: CALLBACK_BODY_LIMIT }),
   async (req, res) => {
-    if (!secretMatches(req.headers['x-validsign-secret'])) {
-      logger.warn('ValidSign callback rejected: bad shared secret');
+    // Authorization Bearer or Basic (see basicCredential), or the
+    // x-validsign-secret header this route has always read.
+    const credential = matchedCredential(req);
+    if (!credential) {
+      logger.warn('ValidSign callback rejected: bad shared secret', {
+        presented: describePresented(req),
+      });
       return res
         .status(401)
         .json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid secret' } });
@@ -188,7 +255,7 @@ callbackRouter.post(
     const packageId = String((req.body as { packageId?: string }).packageId ?? '');
     const event = (req.body as { name?: string }).name;
     // Audit-relevant path: log every callback, success or not.
-    logger.info('ValidSign callback received', { packageId, event });
+    logger.info('ValidSign callback received', { packageId, event, credential });
     try {
       await completeSignature(packageId);
     } catch (error) {

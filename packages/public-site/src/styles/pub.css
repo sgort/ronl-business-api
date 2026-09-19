@@ -501,6 +501,35 @@ html {
   border-color: #00566b;
   background: #e9f4f7;
 }
+.pub-status {
+  display: inline-block;
+  font: 700 11px/1 var(--pub-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.s-example {
+  color: #2c5c17;
+  border-color: #2c5c17;
+  background: #eff6ea;
+}
+.s-wip {
+  color: #8a5a00;
+  border-color: #8a5a00;
+  background: #fdf6e3;
+}
+.s-e2e {
+  color: var(--ro-violet);
+  border-color: var(--ro-violet);
+  background: #f5eefa;
+}
+.s-other {
+  color: var(--ro-ink-2);
+  border-color: var(--ro-rule-2);
+  background: #f4f4f4;
+}
 .pub-empty {
   padding: 40px 0;
   max-width: 60ch;

@@ -13,14 +13,29 @@ build shape differs, and the differences matter in both directions.
 
 These are GitHub settings, not files. Without them parts of the policy are inert.
 
-| Setting                         | Required state                                 | Why                                                                                            |
-| ------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Renovate GitHub App             | installed, scoped to this repo                 | `renovate.json` is inert until it is                                                           |
-| Dependabot **alerts**           | enabled                                        | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
-| Dependabot **security updates** | **disabled**                                   | it opens competing PRs that ignore the 14-day cooldown                                         |
-| Merge methods                   | merge commits only                             | squash and rebase rewrite the SHAs a changelog entry names                                     |
-| `acc` ruleset                   | PR + `audit` + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
-| `main` ruleset                  | the same four rules                            | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
+| Setting                         | Required state                                                                  | Why                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Renovate GitHub App             | installed, scoped to this repo                                                  | `renovate.json` is inert until it is                                                           |
+| Dependabot **alerts**           | enabled                                                                         | `vulnerabilityAlerts` consumes this feed; without it the no-cooldown security lane never fires |
+| Dependabot **security updates** | **disabled**                                                                    | it opens competing PRs that ignore the 14-day cooldown                                         |
+| Merge methods                   | merge commits only                                                              | squash and rebase rewrite the SHAs a changelog entry names                                     |
+| `acc` ruleset                   | PR + `audit` + `scan` + the four build checks + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
+| `main` ruleset                  | PR + `audit` + `deletion` + `non_fast_forward`                                  | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
+
+The four build checks on `acc` are `build`, `Build and Deploy ACC Frontend`,
+`Build and Deploy ACC PA Demo` and `Build and Deploy ACC Public Site`, added with
+`scan` for [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119). Their workflows used to
+path-filter the `pull_request` trigger, and a workflow its trigger filters out
+reports no check, so a required one would block every unrelated pull request
+forever. Each now filters in a `changes` job instead (#160): the build job is
+skipped on an unrelated pull request, a skipped job counts as passed, and if
+`changes` fails the build runs anyway. Required checks match by job name, so
+renaming one of these jobs means updating the ruleset in the same change.
+
+`main` stays on `audit` alone, deliberately, and that makes it the weaker branch
+in this one respect: none of the production workflows has a `pull_request`
+trigger, so their checks could never report on a promotion, and a promotion
+carries commits that already passed every check on `acc`.
 
 ## Pinned
 
@@ -29,22 +44,45 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
-| Dependency                          | Pin                                                 | Version           | Maintained by                                                                        |
-| ----------------------------------- | --------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
-| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                             |
-| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                             |
-| `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                         |
-| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                             |
-| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                             |
-| zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | **manual** — an action input, which Renovate's github-actions manager does not parse |
-| `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                            |
-| Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses       |
-| npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                             |
+| Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
+| ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
+| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
+| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
+| zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
+| `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                                     |
+| Semgrep itself                      | `pip install semgrep==1.176.1`                      | 1.176.1           | **manual** — a version inside a `run:` block, which no Renovate manager parses                |
+| npm dependencies                    | `package-lock.json`, `sha512` integrity per package | lockfileVersion 3 | Renovate                                                                                      |
 
 The zizmor pin is stronger than it looks: `zizmor-action` resolves the requested
 version through an internal digest table and runs
 `ghcr.io/zizmorcore/zizmor:1.29.0@sha256:863026d5…` — a genuine container digest
 pin.
+
+**Renovate maintains that input, although this table said `manual` until
+15 September 2026.** Its `github-actions` manager does not parse action inputs in
+general, but it maps `zizmor-action` to the Docker image
+`ghcr.io/zizmorcore/zizmor` (`known-actions.ts` in Renovate), and the Dependency
+Dashboard (#16) lists `ghcr.io/zizmorcore/zizmor 1.29.0` with 1.30.1 queued.
+linked-data-explorer#139 and ttl-editor#144 corrected the same claim. Two things
+follow:
+
+- **The image and the action must move together.** `zizmor-action` runs only the
+  zizmor versions in its own digest table: 1.30.1 is in v0.6.4's and not in
+  v0.6.3's. This repository is already on v0.6.4, so the queued 1.30.1 is safe.
+  In general the `github actions` group, which collects minor, patch and digest
+  updates for every `github-actions` dependency, brings both in one pull request.
+  Not always: each clears the 14-day cooldown on its own clock, and zizmor
+  publishes before the action release that adds it, so a group branch can briefly
+  hold the image update alone and fail `audit` at "Run zizmor". Do not merge it in
+  that state. A major zizmor release waits for dashboard approval separately, and
+  then the action bump has to merge first.
+- **This row is still kept current by hand.** `check-supply-chain` reads `uses:`
+  lines and skips prose rows like this one, so nothing fails when it goes stale —
+  which is how it came to say `manual` with an update queued. Before recording
+  that Renovate cannot see something, read the dashboard's detected dependencies.
 
 ## Where this repo is _stronger_ than the ttl-editor pattern
 
@@ -124,11 +162,61 @@ deploy workflows now read `node-version-file: .nvmrc`, `.nvmrc` carries an exact
 above follow — and `engines.node` is `>=22`. Renovate's `node` manager parses
 `.nvmrc`, so it stays maintained rather than hand-bumped.
 
-`zizmor.yml` keeps its literal `node-version: '24'`, and that part was right all
-along: `renovate@44.50.3` declares `engines.node ^24.11.0`, and npm accepts a
-mismatch with an `EBADENGINE` **warning** rather than refusing — so the validator
-had been running unsupported and green. That pin is load-bearing; do not sweep it
-into the shared file.
+`zizmor.yml` keeps its own literal `node-version` on Node 24, and that part was
+right all along: `renovate@44.50.3` declares `engines.node ^24.11.0`, and npm
+accepts a mismatch with an `EBADENGINE` **warning** rather than refusing — so the
+validator had been running unsupported and green. That pin is load-bearing; do
+not sweep it into the shared file. It was a bare `'24'` until
+[#139](https://github.com/sgort/ronl-business-api/pull/139) made it an exact
+`24.20.0` on 2026-09-14, closing the last floating Node version in CI under the
+same rule as `.nvmrc`; Renovate's `node` manager keeps it current, behind the
+14-day cooldown like every other dependency.
+
+### The runner image — `ubuntu-24.04` pins a release, not an image
+
+Every job ran on `ubuntu-latest` until
+[linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119),
+a label GitHub moves to a new Ubuntu release on its own schedule. All thirteen
+jobs now name `ubuntu-24.04`, so a change of OS release arrives as a diff in
+this repository rather than silently under every job at once. ICTU
+recommendation 2.
+
+That pins the **release**, not the image. GitHub rebuilds `ubuntu-24.04` about
+weekly, and a hosted runner cannot be pinned to a digest. What the jobs depend
+on is pinned separately — Node through `.nvmrc`, actions by digest, npm packages
+by the lockfile — so the weekly rebuild changes the environment around the
+build, not its inputs. Renovate's `github-actions` manager documents reading a
+versioned `runs-on` label as a `github-runner` dependency; confirm it is listed
+on the Dependency Dashboard before relying on that.
+
+**Reachable from our side:** the release, yes, and done; the image, no.
+**Accepted risk** for the image, reviewed when this document is next revised.
+
+### The package-manager cooldown — `.npmrc`, and where it does not reach
+
+Renovate's `minimumReleaseAge` covers only the updates Renovate proposes.
+Lock-file maintenance hands the refresh to npm, which is where the transitive
+tree moves, and Renovate documents that its own cooldown cannot apply there.
+Since [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119),
+the root `.npmrc` sets `min-release-age=14`, so npm itself will not resolve a
+version younger than 14 days. For its own update pull requests Renovate uses
+whichever cutoff is stricter, and if npm answers `ETARGET` on a security fix it
+retries without the cutoff. ICTU recommendation 6.
+
+Three places it does not reach, all measured on 19 September 2026:
+
+- **`npm ci`** ignores it on purpose (npm/cli#9281). CI's test and build jobs
+  only run `npm ci`, so they cannot fail on it, and are not protected by it.
+- **npm older than 11.10** ignores it without a warning. Node 22.23.2, which
+  `.nvmrc` names, bundles npm 10.9.8. `scripts/check-deps.sh` warns about this at
+  every dev-server start and push, and names `npm install -g npm@11`.
+- **The backend deploy** installs in `packages/backend/deploy/`, which has its
+  own `package.json`, so npm treats it as a separate project and never reads the
+  root `.npmrc`. That install has no lockfile either; see the next section and
+  #34.
+
+**Reachable from our side:** yes, and done for the first two as far as npm
+allows; the third closes with #34.
 
 ### The backend is deployed outside CI, and its dependencies are unpinned
 

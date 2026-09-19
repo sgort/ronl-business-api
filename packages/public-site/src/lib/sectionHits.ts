@@ -64,6 +64,7 @@ export function mapToHits(type: PubType, raw: unknown[]): PublicHit[] {
         external: null,
         facts: [],
         tech: [],
+        status: p.status,
       }));
     case 'regel':
       return []; // Regelcatalogus owns this type

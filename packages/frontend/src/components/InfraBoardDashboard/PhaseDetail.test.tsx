@@ -115,6 +115,18 @@ describe('PhaseDetail — header and side panel', () => {
 // PhaseDetail.tsx for a future phase catalogued ahead of its sheet.
 
 describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
+  // The number and name are asked for at start, so the new project is named
+  // everywhere at once. The intake form asks for the same two fields and opens
+  // pre-filled with them, since ProjectDetail passes the task's variables in.
+  const fillNewProject = async (
+    user: ReturnType<typeof userEvent.setup>,
+    nr = '24001',
+    naam = 'Testweg'
+  ) => {
+    await user.type(screen.getByLabelText('Projectnummer'), nr);
+    await user.type(screen.getByLabelText('Projectnaam'), naam);
+  };
+
   it('shows the single-button fallback when the ready-list is empty and there is no predecessor', () => {
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
     expect(getReadyProjects('R2.1')).toEqual([]);
@@ -125,15 +137,34 @@ describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
+    await fillNewProject(user, ' 24001 ', ' Testweg ');
     await user.click(screen.getByRole('button', { name: 'R2.1 starten' }));
 
-    expect(mockStart).toHaveBeenCalledWith('RipR21Process', {});
+    expect(mockStart).toHaveBeenCalledWith('RipR21Process', {
+      projectNumber: '24001',
+      projectName: 'Testweg',
+    });
     expect(await screen.findByText('R2.1 gestart', { exact: false })).toBeInTheDocument();
+  });
+
+  it('keeps the start button disabled until both number and name are filled in', async () => {
+    const user = userEvent.setup();
+    render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'R2.1 starten' });
+
+    expect(button).toBeDisabled();
+    await user.type(screen.getByLabelText('Projectnummer'), '24001');
+    expect(button).toBeDisabled();
+    await user.type(screen.getByLabelText('Projectnaam'), '   ');
+    expect(button).toBeDisabled();
+    await user.type(screen.getByLabelText('Projectnaam'), 'Testweg');
+    expect(button).toBeEnabled();
   });
 
   it('guards against double-submit', async () => {
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
+    await fillNewProject(user);
 
     const button = screen.getByRole('button', { name: 'R2.1 starten' });
     await user.dblClick(button);
@@ -149,6 +180,7 @@ describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
     const user = userEvent.setup();
     render(<PhaseDetail phaseCode="R2.1" onBack={vi.fn()} />);
 
+    await fillNewProject(user);
     await user.click(screen.getByRole('button', { name: 'R2.1 starten' }));
 
     expect(await screen.findByText('Proces niet gevonden')).toBeInTheDocument();
@@ -160,6 +192,7 @@ describe('PhaseDetail — Starten tab, R2.1 fallback', () => {
     await screen.findByRole('button', { name: 'R2.1 starten' });
     mockPhaseActive.mockClear();
 
+    await fillNewProject(user);
     await user.click(screen.getByRole('button', { name: 'R2.1 starten' }));
     await screen.findByText('R2.1 gestart', { exact: false });
 

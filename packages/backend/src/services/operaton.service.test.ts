@@ -1321,6 +1321,16 @@ describe('archive list builders', () => {
     );
   });
 
+  it('getRipPhaseActiveList returns empty strings, not a placeholder, for a project not yet named', async () => {
+    mockClient.post.mockResolvedValue({
+      data: [{ id: 'i1', businessKey: 'flevoland-123', startTime: 's' }],
+    });
+    mockClient.get.mockResolvedValue({ data: [] });
+
+    const res = await svc.getRipPhaseActiveList('RipR21Process', 'flevoland');
+    expect(res[0]).toMatchObject({ id: 'i1', projectNumber: '', projectName: '' });
+  });
+
   it('getRipPhaseCompletedList maps completed instances', async () => {
     mockClient.post.mockResolvedValue({
       data: [{ id: 'i1', businessKey: 'flevoland-123', startTime: 's', endTime: 'e' }],
@@ -1335,7 +1345,9 @@ describe('archive list builders', () => {
       businessKey: 'flevoland-123',
       endTime: 'e',
       projectNumber: 'P1',
-      projectName: '—',
+      // Missing means empty: naming a nameless project is the UI's job, and an
+      // R2.1 instance has no name until its intake form is submitted.
+      projectName: '',
     });
     expect(mockClient.post).toHaveBeenCalledWith(
       '/history/process-instance',
@@ -1573,18 +1585,20 @@ describe('list mappers when the history variables are sparse', () => {
   // History returns every variable of every instance in one flat list, so the
   // mappers have to skip variables they do not care about, tolerate a null
   // value, and fall back for an instance that contributed no variables at all.
+  // The RIP lists fall back to "" (naming a nameless project is the UI's job);
+  // the capacity-claim lists still fall back to a placeholder.
   const LISTS: Array<[string, () => Promise<Array<Record<string, unknown>>>, string, string]> = [
     [
       'getRipPhaseActiveList',
       () => svc.getRipPhaseActiveList('RipR21Process', 'flevoland'),
       'projectNumber',
-      '—',
+      '',
     ],
     [
       'getRipPhaseCompletedList',
       () => svc.getRipPhaseCompletedList('RipR21Process', 'flevoland'),
       'projectNumber',
-      '—',
+      '',
     ],
     [
       'getCapacityClaimActiveList',

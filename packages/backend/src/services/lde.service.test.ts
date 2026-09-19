@@ -19,7 +19,7 @@ jest.mock('@utils/logger', () => ({
 }));
 const mockConfig = {
   lde: { apiUrl: 'https://lde.test/v1' },
-  public: { showWipProcesses: false },
+  public: { processBoards: ['caseworker'] },
 };
 jest.mock('@utils/config', () => ({ config: mockConfig }));
 jest.mock('@services/regelcatalogus.service', () => ({
@@ -37,13 +37,17 @@ function freshModule(): Mod {
   return mod;
 }
 
-const activeCaseworkerBundle = {
+// Status vocabulary mirrors the LDE database constraint: only 'example',
+// 'wip' and 'e2e' are values it can actually hold — never 'active'. Visibility
+// no longer depends on this value at all (see #111); it is varied across
+// these fixtures specifically to prove that.
+const exampleCaseworkerBundle = {
   id: 'b1',
   bpmnProcessId: 'zorgtoeslag-process',
   name: 'Zorgtoeslag',
   description: 'Aanvraag zorgtoeslag',
   processRole: 'main',
-  status: 'active',
+  status: 'example',
   boardOwner: 'caseworker',
   deployedAt: '2026-06-01T00:00:00.000Z',
   operatonUrl: 'https://operaton.test',
@@ -53,35 +57,18 @@ const activeCaseworkerBundle = {
   deployedDocuments: [{ id: 'd1', name: 'Beschikking' }],
   subprocesses: [],
 };
-const activeUntaggedBundle = {
-  ...activeCaseworkerBundle,
+const wipUntaggedBundle = {
+  ...exampleCaseworkerBundle,
   id: 'b2',
   bpmnProcessId: 'untagged',
+  status: 'wip',
   boardOwner: undefined,
 };
-const activeInfraBundle = {
-  ...activeCaseworkerBundle,
+const e2eInfraBundle = {
+  ...exampleCaseworkerBundle,
   id: 'b3',
   bpmnProcessId: 'infra-x',
-  boardOwner: 'infra-board',
-};
-const draftBundle = {
-  ...activeCaseworkerBundle,
-  id: 'b4',
-  bpmnProcessId: 'draft-x',
-  status: 'draft',
-};
-const wipCaseworkerBundle = {
-  ...activeCaseworkerBundle,
-  id: 'b5',
-  bpmnProcessId: 'wip-caseworker',
-  status: 'wip',
-};
-const wipInfraBundle = {
-  ...activeCaseworkerBundle,
-  id: 'b6',
-  bpmnProcessId: 'wip-infra',
-  status: 'wip',
+  status: 'e2e',
   boardOwner: 'infra-board',
 };
 
@@ -107,40 +94,45 @@ let getPublicProcessByKey: Mod['getPublicProcessByKey'];
 let getPublicDmnsByService: Mod['getPublicDmnsByService'];
 beforeEach(() => {
   jest.clearAllMocks();
-  mockConfig.public.showWipProcesses = false;
+  mockConfig.public.processBoards = ['caseworker'];
   ({ getPublicProcesses, getPublicProcessByKey, getPublicDmnsByService } = freshModule());
 });
 
 describe('getPublicProcesses', () => {
-  it('fetches, filters to active + caseworker/untagged, and maps fields', async () => {
+  it('fetches, filters by board (not status), and maps fields', async () => {
     mockAxios.get.mockResolvedValue({
       data: {
         success: true,
-        data: [activeCaseworkerBundle, activeUntaggedBundle, activeInfraBundle, draftBundle],
+        data: [exampleCaseworkerBundle, wipUntaggedBundle, e2eInfraBundle],
       },
     });
     const items = await getPublicProcesses();
-    expect(items).toHaveLength(2);
+    // caseworker + untagged are visible; infra-board is not in the default
+    // allowlist — regardless of any of the three's status label.
     expect(items.map((i) => i.key).sort()).toEqual(['untagged', 'zorgtoeslag-process']);
     expect(items[0]).toMatchObject({
       key: 'zorgtoeslag-process',
       naam: 'Zorgtoeslag',
       beschrijving: 'Aanvraag zorgtoeslag',
       gepubliceerd: '2026-06-01T00:00:00.000Z',
-      status: 'active',
+      status: 'example',
     });
     expect(items[0].forms).toEqual([{ id: 'f1', name: 'Aanvraagformulier' }]);
   });
 
   it('caches for 5 minutes', async () => {
-    mockAxios.get.mockResolvedValue({ data: { success: true, data: [activeCaseworkerBundle] } });
+    mockAxios.get.mockResolvedValue({
+      data: { success: true, data: [exampleCaseworkerBundle] },
+    });
     await getPublicProcesses();
     await getPublicProcesses();
     expect(mockAxios.get).toHaveBeenCalledTimes(1);
   });
 
   it('forceRefresh bypasses the cache', async () => {
-    mockAxios.get.mockResolvedValue({ data: { success: true, data: [activeCaseworkerBundle] } });
+    mockAxios.get.mockResolvedValue({
+      data: { success: true, data: [exampleCaseworkerBundle] },
+    });
     await getPublicProcesses();
     await getPublicProcesses(true);
     expect(mockAxios.get).toHaveBeenCalledTimes(2);
@@ -151,7 +143,7 @@ describe('getPublicProcesses', () => {
     expect(await getPublicProcesses()).toEqual([]);
 
     mockAxios.get.mockResolvedValueOnce({
-      data: { success: true, data: [activeCaseworkerBundle] },
+      data: { success: true, data: [exampleCaseworkerBundle] },
     });
     await getPublicProcesses();
     mockAxios.get.mockRejectedValueOnce(new Error('down again'));
@@ -159,39 +151,53 @@ describe('getPublicProcesses', () => {
     expect(stale).toHaveLength(1);
   });
 
-  it('excludes wip bundles by default (config.public.showWipProcesses = false)', async () => {
-    mockAxios.get.mockResolvedValue({
-      data: { success: true, data: [activeCaseworkerBundle, wipCaseworkerBundle] },
-    });
-    const items = await getPublicProcesses();
-    expect(items.map((i) => i.key)).toEqual(['zorgtoeslag-process']);
+  it.each(['example', 'wip', 'e2e'])(
+    "is visible on a caseworker board whatever its status label ('%s')",
+    async (status) => {
+      mockAxios.get.mockResolvedValue({
+        data: { success: true, data: [{ ...exampleCaseworkerBundle, status }] },
+      });
+      const items = await getPublicProcesses();
+      // This is the defect fixed by #111: status used to gate visibility
+      // (requiring 'active', a value the source database cannot produce) and
+      // now plays no part in it at all.
+      expect(items.map((i) => i.key)).toEqual(['zorgtoeslag-process']);
+    }
+  );
+
+  it('hides a bundle whose board is not in the allowlist, regardless of status', async () => {
+    mockAxios.get.mockResolvedValue({ data: { success: true, data: [e2eInfraBundle] } });
+    expect(await getPublicProcesses()).toEqual([]);
   });
 
-  it('includes wip bundles when config.public.showWipProcesses is true, still gated on board', async () => {
-    mockConfig.public.showWipProcesses = true;
+  it('keeps untagged bundles visible regardless of status', async () => {
+    mockAxios.get.mockResolvedValue({ data: { success: true, data: [wipUntaggedBundle] } });
+    const items = await getPublicProcesses();
+    expect(items.map((i) => i.key)).toEqual(['untagged']);
+  });
+
+  it('includes a board once it is added to config.public.processBoards', async () => {
+    mockConfig.public.processBoards = ['caseworker', 'infra-board'];
     ({ getPublicProcesses } = freshModule());
     mockAxios.get.mockResolvedValue({
-      data: {
-        success: true,
-        data: [activeCaseworkerBundle, wipCaseworkerBundle, wipInfraBundle, draftBundle],
-      },
+      data: { success: true, data: [exampleCaseworkerBundle, e2eInfraBundle] },
     });
     const items = await getPublicProcesses();
-    // wip-caseworker included (wip + caseworker board); wip-infra still excluded
-    // (wrong board, regardless of status); draft still excluded (neither active nor wip).
-    expect(items.map((i) => i.key).sort()).toEqual(['wip-caseworker', 'zorgtoeslag-process']);
+    expect(items.map((i) => i.key).sort()).toEqual(['infra-x', 'zorgtoeslag-process']);
   });
 });
 
 describe('getPublicProcessByKey', () => {
   it('finds a publicly-visible bundle by its bpmnProcessId', async () => {
-    mockAxios.get.mockResolvedValue({ data: { success: true, data: [activeCaseworkerBundle] } });
+    mockAxios.get.mockResolvedValue({
+      data: { success: true, data: [exampleCaseworkerBundle] },
+    });
     const item = await getPublicProcessByKey('zorgtoeslag-process');
     expect(item?.naam).toBe('Zorgtoeslag');
   });
 
   it('returns null when not found or not publicly visible', async () => {
-    mockAxios.get.mockResolvedValue({ data: { success: true, data: [activeInfraBundle] } });
+    mockAxios.get.mockResolvedValue({ data: { success: true, data: [e2eInfraBundle] } });
     expect(await getPublicProcessByKey('infra-x')).toBeNull();
     expect(await getPublicProcessByKey('nope')).toBeNull();
   });

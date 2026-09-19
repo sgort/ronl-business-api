@@ -938,6 +938,37 @@
   color: var(--v2-ink-3);
   margin-top: 4px;
 }
+/* R2.1 fallback start: number and name asked for up front (PhaseDetail). */
+.pbd .pb-new-project {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 12px 0 14px;
+}
+.pbd .pb-new-project label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 220px;
+  max-width: 360px;
+  font-size: 12px;
+  color: var(--v2-ink-2);
+}
+.pbd .pb-new-project input {
+  border: 1px solid var(--v2-rule);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--v2-ink, #1f2937);
+  background: #fff;
+}
+.pbd .pb-new-project input::placeholder {
+  color: var(--v2-ink-3);
+}
+.pbd .pb-new-project input:focus {
+  outline: none;
+  border-color: var(--v2-accent);
+}
 .pbd .pb-side-panel {
   border: 1px solid var(--v2-rule);
   padding: 16px;

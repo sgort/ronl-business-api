@@ -7,10 +7,6 @@ const logger = createLogger('lde-service');
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — mirrors regelcatalogus.service
 
-// Only these boardOwner values (plus untagged bundles) are exposed on the
-// public site. infra-board and other internal boards stay caseworker-only.
-const PUBLIC_PROCESS_BOARDS = new Set(['caseworker']);
-
 // ── LDE's native shape (mirrors ProcessBundle in packages/frontend/src/services/api.ts) ──
 
 interface LdeDeployedForm {
@@ -55,9 +51,13 @@ export interface PublicProcess {
   subprocesses: LdeSubprocess[];
 }
 
+// A bundle's status label (example/wip/e2e) plays no part in whether it is
+// public — see #111. Only these boardOwner values (plus untagged bundles)
+// are exposed on the public site; other boards stay caseworker-only. The
+// allowlist is configurable — config.public.processBoards — and defaults to
+// just 'caseworker'.
 function isPubliclyVisible(b: LdeProcessBundle): boolean {
-  const statusOk = b.status === 'active' || (config.public.showWipProcesses && b.status === 'wip');
-  return statusOk && (!b.boardOwner || PUBLIC_PROCESS_BOARDS.has(b.boardOwner));
+  return !b.boardOwner || config.public.processBoards.includes(b.boardOwner);
 }
 
 function toPublicProcess(b: LdeProcessBundle): PublicProcess {

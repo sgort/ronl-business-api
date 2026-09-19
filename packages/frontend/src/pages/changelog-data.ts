@@ -112,6 +112,322 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.9',
+      status: 'Released',
+      date: '19 sep 2026',
+      scope: ['backend', 'public-site', 'ci'],
+      commits: [
+        {
+          sha: '1d08fac',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A change to .nvmrc now builds and deploys',
+          details: [
+            '.nvmrc sets the Node version every deploy workflow builds, tests and ships on, and no path filter included it. A Node bump therefore built nothing, tested nothing and deployed nothing: the new version reached the next unrelated deploy untested. Once the build checks became required on acc, such a pull request also showed every required build check skipped and was mergeable. Found on linked-data-explorer#80, which changes .nvmrc alone.',
+            '.nvmrc is now in the push filter of all eight app deploy workflows and in the changes-job pattern of the four ACC ones. Each pattern was checked to match .nvmrc at the repository root only and to leave its other matches as they were.',
+          ],
+        },
+        {
+          sha: 'cdaaa48',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The build checks now required on acc are written down',
+          details: [
+            'The acc ruleset now requires scan, build, Build and Deploy ACC Frontend, Build and Deploy ACC PA Demo and Build and Deploy ACC Public Site alongside audit. SECURITY-PIPELINE.md records which checks gate acc and main, why the build checks are safe to require, and that renaming one of those jobs means updating the ruleset in the same change. main stays on audit alone, deliberately: no production workflow has a pull_request trigger. docs/the-gate-has-teeth.md keeps its original reasoning for leaving scan unrequired and records what changed beneath it.',
+            'Being documentation only, the pull request was also the test: every changes job reported relevant false, every build check was skipped, and it was mergeable under the new ruleset.',
+          ],
+        },
+        {
+          sha: 'fc9ca6c',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'ACC deploy workflows filter in a job, so their build checks can be required',
+          details: [
+            'A required check must report on every pull request. A workflow its pull_request trigger filters out never starts and reports nothing, so a required build check would have left every pull request that does not touch its paths waiting forever. A job skipped by its own if: reports success instead.',
+            "Each ACC deploy workflow drops the path filter from its pull_request trigger and gains a changes job, which asks the GitHub API for the pull request's files and matches them against one pattern mirroring the push filter. The build and close jobs run only when the pull request is relevant, and also when changes did not succeed, so a failed lookup means a full build rather than a free pass. Push triggers keep their filters.",
+          ],
+        },
+        {
+          sha: '4120a58',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A 14-day package-manager cooldown in .npmrc',
+          details: [
+            "Renovate's minimumReleaseAge covers only the updates Renovate proposes. Lock-file maintenance hands the refresh to npm, where the transitive tree moves, and Renovate documents that its own cooldown cannot apply there. A root .npmrc now sets min-release-age=14, so npm itself will not resolve a version younger than 14 days. ICTU recommendation 6.",
+            'Measured before writing it: npm 11.10 or newer honours it on install and update; npm ci ignores it on purpose, so CI cannot fail on it; npm 10.9.8, bundled with Node 22.23.2, ignores it without a warning, so scripts/check-deps.sh now warns when npm is older than 11.10. It does not reach the backend deploy, which installs in its own deploy/ folder without a lockfile (#34).',
+          ],
+        },
+        {
+          sha: '5ef7479',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Every job runs on ubuntu-24.04',
+          details: [
+            'All thirteen jobs across the ten workflows now name ubuntu-24.04 instead of ubuntu-latest, a label GitHub moves to a new Ubuntu release on its own schedule, so a change of OS release arrives as a diff here. ICTU recommendation 2. The label pins the release, not the image, which GitHub rebuilds about weekly and a hosted runner cannot pin by digest; SECURITY-PIPELINE.md records that.',
+          ],
+        },
+        {
+          sha: 'db67cba',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The public site shows every deployed process, whatever its label',
+          details: [
+            "The public process library required a bundle's status to be 'active', a value the Linked Data Explorer's database cannot hold: its constraint permits example, wip and e2e only. Nothing had ever passed that check, so production showed nothing and acceptance showed only what the PUBLIC_SHOW_WIP_PROCESSES escape hatch let through.",
+            'The filter now decides on board ownership alone, so both tiers behave the same way, and the escape hatch is gone, including its rows in the promotion and go-live runbooks. PUBLIC_PROCESS_BOARDS replaces the hardcoded allowlist, defaulting to caseworker. A process now shows its status label on the listing and in search results, not only on its detail page. The tests that let this through asserted against a status the source database cannot produce; the fixtures are rebuilt from the real vocabulary. Closes linked-data-explorer#111.',
+          ],
+        },
+        {
+          sha: '4d0a684',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            "Renovate maintains zizmor's version; the Static Web Apps plan and preview claims corrected",
+          details: [
+            "The register and two workflow comments said zizmor's version input is bumped by hand. Renovate maps zizmor-action to the ghcr.io/zizmorcore/zizmor image and maintains it, as the Dependency Dashboard shows. renovate.json and a workflow comment also called the acceptance frontend Free; read from Azure on 15 September, all three acceptance apps are Standard and the production frontend is Free. And a dependency pull request editing packages/pa-cockpit does hold previews, on both frontend-acc and pa-demo-acc.",
+          ],
+        },
+        {
+          sha: '7a0cb56',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: '/bump-release versions packages/pa-cockpit when a release includes it',
+          details: [
+            "Step 2 counted packages/pa-cockpit toward a release's scope, but step 4 had no rule to bump the package, so it stayed at 1.0.0 across 49 commits. It is now bumped, lockfile entry included, only when a pa-cockpit change is part of the release, and the report always names shared and pa-cockpit. Closes #152.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.09.8',
+      status: 'Released',
+      date: '15 sep 2026',
+      scope: ['frontend', 'backend', 'pa-demo'],
+      commits: [
+        {
+          sha: '2d5587d',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'Backend dependencies raised within their ranges',
+          details: [
+            'Forty-one declared ranges in packages/backend move up to the versions already resolved, among them express ^4.22.2, pg ^8.23.0, openai ^6.49.0, ioredis ^5.11.1, jose ^5.10.0 and typescript-eslint ^8.69.0. Lock-file maintenance had already installed nearly all of them, so the lockfile moves far less than the manifest.',
+            'What actually changes in the installed tree: pg 8.16.3 → 8.23.0, the one backend runtime change, while pg-promise keeps its own nested pg 8.16.3; typescript-eslint and its ten sub-packages 8.68.0 → 8.69.0 and tsc-alias 1.9.2 → 1.9.3, all dev-only. altcha-lib moves in the lockfile to packages/backend/node_modules at the same 2.4.0. Backend build, audit and scan passed on the rebased head. The backend ACC workflow builds and tests only; the deploy stays manual.',
+          ],
+        },
+        {
+          sha: 'a527777',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'React 18.3 ranges in pa-cockpit',
+          details: [
+            'react and react-dom ^18.3.1, @types/react ^18.3.31, @types/react-dom ^18.3.7 and eslint-plugin-react-hooks ^4.6.2 in packages/pa-cockpit. Declared ranges only: the lockfile already resolved every one of these versions, so nothing installed changes. Both ACC previews that compile pa-cockpit built green on the rebased head.',
+          ],
+        },
+        {
+          sha: 'c8973ca',
+          author: 'renovate[bot]',
+          type: 'fix',
+          subject: 'axios ^1.20.0 in pa-cockpit',
+          details: [
+            'A declared-range update only, from ^1.6.5 to the ^1.20.0 already resolved; the lockfile changes one line and no installed version moves.',
+          ],
+        },
+        {
+          sha: '65b3199',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Node 22.23.2 in .nvmrc',
+          details: [
+            "The exact runtime every deploy workflow reads moves from 22.22.0 to 22.23.2, past three Node security releases (22.22.2, 22.23.0, 22.23.2). Renovate's own lockfile runs had been warning that npm 12 does not support 22.22.0 and needs ^22.22.2.",
+            'As first opened, the pull request also raised engines.node to >=22.23.2; 4f3b483 stopped that, and the rebased change is .nvmrc alone. No path-filtered workflow watches .nvmrc, so each site first builds on 22.23.2 when a later change to its own paths triggers it. The backend build on the pull request already ran green on it.',
+          ],
+        },
+        {
+          sha: '4f3b483',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Renovate no longer raises engines floors to the newest release',
+          details: [
+            "rangeStrategy bump applies to engines too. The Node update above raised engines.node from >=22 to >=22.23.2, and a separate pull request raised engines.npm from >=10.0.0 to >=10.9.9 — a floor no Node 22 release satisfies, since 22.23.2 bundles npm 10.9.8. Nothing enforces engines here, so a raised floor only produces EBADENGINE warnings on a slightly older toolchain and drifts the root away from packages/backend and App Service's NODE|22-lts.",
+            "engines now uses rangeStrategy widen, which leaves a range untouched when the new version already satisfies it: checked against Renovate's npm versioning, >=22 stays >=22. The exact runtime stays in .nvmrc. minimumReleaseAge on the rule repeats the top-level 14 days and changes nothing; Semgrep's renovate-missing-minimum-release-age flags any matchDepTypes rule that does not set it locally.",
+          ],
+        },
+        {
+          sha: 'e69826c',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'TypeScript ^5.9.3 declared in root, pa-cockpit and shared',
+          details: [
+            'Ranges only: the lockfile already held a single TypeScript 5.9.3 for every workspace, and every peer range in the tree — typescript-eslint <6.1.0, ts-jest <7, msw — admits it. Type-check and build are unchanged.',
+          ],
+        },
+        {
+          sha: '7914cc8',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'react-router-dom peer range ^6.30.6 in pa-cockpit',
+          details: [
+            "pa-cockpit's peerDependencies now state the 6.30.6 the lockfile already installs. The two open react-router advisories are fixed only in 7.18 and stay pending behind the v7 major.",
+          ],
+        },
+        {
+          sha: 'bf0ad50',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'SECURITY-PIPELINE.md records the exact Node 24 pin in zizmor.yml',
+          details: [
+            "It still said zizmor.yml keeps a literal node-version '24'. The paragraph now records the exact 24.20.0, keeps the warning against moving the config validator onto .nvmrc — Node 22, which renovate@44.50.3 does not support — and notes that Renovate maintains the pin behind the 14-day cooldown.",
+          ],
+        },
+        {
+          sha: 'b9c7973',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'The config validator runs on exactly Node 24.20.0',
+          details: [
+            "zizmor.yml's setup-node for renovate-config-validator moves from '24' to '24.20.0', the last floating Node version in CI, now under the same exact-pin rule as .nvmrc and the 14-day cooldown.",
+          ],
+        },
+        {
+          sha: 'ec8383d',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Minor updates of pre-1.0 packages wait for Dependency Dashboard approval',
+          details: [
+            'Renovate classifies 0.4 → 0.5 as a minor update, so the rule holding majors behind approval let eslint-plugin-react-refresh ^0.4.5 → ^0.5.5 through. Its 0.5.0 requires ESLint 9 and flat config; every workspace is on ESLint 8 with .eslintrc.cjs, so audit, both ACC previews and the lockfile update failed on ERESOLVE. The pull request was closed; that upgrade belongs with the ESLint 9 migration.',
+            'Minor updates whose current version is below 1.0.0 now wait on the Dependency Dashboard like majors. matchCurrentVersion is evaluated against the locked version when the manifest holds a range, so ^0.4.5 locked at 0.4.26 matches. Patch updates stay routine, and security fixes still bypass approval through vulnerabilityAlerts.',
+          ],
+        },
+        {
+          sha: 'ba8b9c4',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Testing Library patch ranges in pa-cockpit',
+          details: ['@testing-library/react ^16.3.3 and @testing-library/user-event ^14.6.6.'],
+        },
+        {
+          sha: '323cd96',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'ESLint ^8.57.1 in pa-cockpit',
+          details: ['From ^8.55.0, staying on the ESLint 8 line every workspace uses.'],
+        },
+        {
+          sha: 'd4e9671',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Vitest ^4.1.11 in pa-cockpit',
+          details: ['vitest and @vitest/coverage-v8 from ^4.1.9.'],
+        },
+        {
+          sha: '49f7e82',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'lint-staged ^15.5.2',
+          details: ['Root devDependency, from ^15.2.2.'],
+        },
+        {
+          sha: '6626aaf',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'husky ^9.1.7',
+          details: ['Root devDependency, from ^9.0.11.'],
+        },
+        {
+          sha: '1cdd1c7',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The install is checked against the lockfile before every push',
+          details: [
+            'scripts/check-deps.sh compares what is installed with a snapshot of package-lock.json taken after the last install, and stops with the fix named — npm ci — when they differ. Until now it ran only when a dev server started. A push does not start one, so a clone not reinstalled since the lockfile moved went straight into lint and check-format on the wrong tool versions.',
+            "It now runs first in the pre-push hook; husky runs hooks with sh -e, so a stale install stops the push there. Not hypothetical: on 14 September a clone still had Prettier 3.8.1 installed after the lockfile moved to 3.9.6, and its push failed check-format on seven correctly formatted files with nothing saying the install was the problem. Verified through husky's own wrapper: with the install marker missing the hook exits 1 at deps:check and names npm ci, and lint does not run.",
+          ],
+        },
+        {
+          sha: '34d41be',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'First lock-file maintenance: the transitive tree is refreshed',
+          details: [
+            'The first refresh this repository has had — +5277 −5362 lines of package-lock.json and no manifest change. It moves the transitive tree nothing else updates, and with it most of the exposure the first authenticated Semgrep scan found on 12 September: Semgrep findings 435 → 25, reachable Supply Chain findings 249 → 0, open Dependabot alerts 154 → 7, and the seven open security pull requests closed by Renovate as superseded.',
+            'None of the seven remaining alerts is reachable by a routine update: minimatch (high) needs typescript-eslint 8 in four workspaces, react-router ×2 needs v7.18, qs ×2 needs Express 5 or an overrides entry, and adm-zip and elliptic have no fixed version. It also moved Prettier to 3.9.6, which 44b40c4 had to meet first.',
+          ],
+        },
+        {
+          sha: '44b40c4',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Prettier pinned to exactly 3.9.6, and what it reformats',
+          details: [
+            'The lock-file maintenance pull request failed its required audit check at Check formatting, on eight files it did not touch: the refresh moved Prettier from 3.8.1 to 3.9.6, which both ^3.1.1 declarations admit. The formatting check working as intended — without it the refresh merges green and the next pre-push hook fails on files nobody opened. Fixed on acc rather than on the Renovate branch, which Renovate rebuilds.',
+            'Prettier is now exact in both declarations, so formatter changes arrive as their own pull request. Five files collapse a multi-line union type onto one line, with the types unchanged. docs/PA-DEMO-GO-LIVE.md needed more: its az staticwebapp create example was an indented code block inside a checklist item, which 3.9.6 re-indents by four spaces on every run and never converges; it is now a fenced bash block with the commands unchanged. Verified: check-format clean repo-wide, type-check in all six workspaces, lint in all five that lint.',
+          ],
+        },
+        {
+          sha: '51c87b0',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: "Lock-file maintenance is exempt from Renovate's PR limits",
+          details: [
+            'The first scheduled run, Monday 14 September, opened nothing: the Dependency Dashboard listed it as rate-limited, because the repository-wide prConcurrentLimit of 5 was already exceeded when its window opened. The lock-file maintenance rule now sets prConcurrentLimit 0 and prHourlyLimit 0.',
+            "Verified against renovate 44.50.3: calcLimit reads the limit from the upgrades inside the branch and treats 0 as no limit, and that branch holds exactly one upgrade, so nothing else inherits the exemption. It also corrects the rule's old reasoning that holding majors behind approval kept a slot free: getConcurrentPrsCount counts every open Renovate pull request, security ones included, and seven open security pull requests alone exceeded the limit.",
+          ],
+        },
+        {
+          sha: '5ffb449',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'ValidSign callbacks are accepted under Authorization Basic, and the matched form is logged',
+          details: [
+            'The first live signing on ACC showed ValidSign sending Authorization: Basic, not Bearer: all six callbacks for package a2beacfa were rejected with presented "authorization:Basic", and the poller completed the signature seven seconds later. The value after Basic is never logged, by design, so the route now accepts every Basic form that still requires the key: the raw key, the base64-encoded key, and a base64 name:key pair with the key on either side.',
+            'A value that merely contains the key, a wrong key in any form, or another scheme such as Digest is still a 401; Bearer and x-validsign-secret keep working. "ValidSign callback received" now logs which credential form matched, so the next ACC signing shows the form ValidSign uses and the check can be narrowed to it. Tests cover the four accepted Basic forms without the key appearing in the log, and four rejected variants.',
+          ],
+        },
+        {
+          sha: 'a775f2c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'ValidSign callbacks are accepted with the key as a Bearer token',
+          details: [
+            'The callback handler is registered with security type "Bearer token", but POST /v1/validsign/callback only read an x-validsign-secret header, so every real callback would have been a 401 — invisible, because the poller completes the signature anyway. The route now accepts Authorization: Bearer <key>, scheme matched case-insensitively, as well as the header, both through the same constant-time comparison.',
+            'A rejection logs which credential forms arrived, never their values — header names and the Authorization scheme, with a scheme-less value logged as "(no scheme)" because it could be the key. That log line is what showed, on the first live signing, that ValidSign sends Basic instead. Nothing mounted before the callback router reads the Authorization header. .env.example names both forms for VALIDSIGN_CALLBACK_SECRET.',
+          ],
+        },
+        {
+          sha: 'aac0357',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A new R2.1 project is named at start, and an unnamed one is shown by its state',
+          details: [
+            'Projects started with "R2.1 starten" appeared in the portfolio as "—" for both number and name: the start sent no variables, and projectNumber and projectName are only set when the intake form is submitted. "R2.1 starten" now asks for Projectnummer and Projectnaam, both required and trimmed, and passes them as start variables; the intake form opens pre-filled with them.',
+            'Instances started any other way still wait for the intake, so the backend\'s R2.1 phase lists return empty strings instead of an em dash, and liveProjectName and liveProjectNumber name a live instance in one place — "Nieuw R2.1-project · intake open" for a nameless R2.1 instance, "RIP R2.x project" for a later phase — reading an em dash as missing too, because frontend and backend deploy separately. The portfolio, the command palette and PhaseDetail\'s WIP and Gereed tables use them.',
+          ],
+        },
+        {
+          sha: 'b945937',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "The board's live instances refresh without a page reload",
+          details: [
+            'A project started outside the board did not appear until a hard refresh: after scripts/rip-r21-to-approval.sh started an R2.1 instance, the portfolio kept showing 45 projects and 3 live instances. f2bf68e had moved the live instances into RipActiveAcrossPhasesProvider, one aggregate request for the whole board, but that request ran once on mount and nothing called its reload.',
+            'The single aggregate request stays and is now repeated when the tab becomes visible again and when switching between Mijn dag, Portfolio and Beheer, skipped on first render. Each refresh is exactly one GET /v1/rip/phases/active, never one per consumer or per phase, and the tests pin that. Verified in the browser: the new instance appeared after switching tabs, with no reload.',
+          ],
+        },
+        {
+          sha: '39ee705',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'deps:check no longer fires on release bumps, and names npm ci',
+          details: [
+            'npm run dev refused to start after every release even when no dependency had changed: check-deps.sh compared package-lock.json byte for byte with a post-install snapshot, and every release bump rewrites our own package versions in the lockfile. On a workstation last installed at v2026.09.5 and now on v2026.09.7, six entries differed — all six our own packages.',
+            "The check now parses both files and ignores only this repository's own version numbers, so upgrading, removing or adding a third-party package is still reported, and line endings no longer matter. The remedy it prints is npm ci, not npm install: the committed lockfile is the source of truth, while npm install re-resolves caret ranges with no package-manager cooldown. Verified against eleven constructed cases.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.7',
       status: 'Released',
       date: '12 sep 2026',

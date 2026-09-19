@@ -116,7 +116,7 @@ const ALL_OVERRIDES: Record<string, string> = {
   GITLAB_PROJECT_PATH: 'group%2Fproject',
   GITLAB_UC_LABEL: 'uc::other',
   ALTCHA_HMAC_KEY: 'hmac-key',
-  PUBLIC_SHOW_WIP_PROCESSES: 'true',
+  PUBLIC_PROCESS_BOARDS: 'caseworker, infra-board',
   TK_API_BASE: 'https://tk.test/OData/v5',
   EU_API_BASE: 'https://eu.test/api/v2',
   EU_SOURCE_ENABLED: 'false',
@@ -251,7 +251,7 @@ describe('config defaults (empty environment)', () => {
       ucLabel: 'uc::submitted',
     });
     expect(config.altcha).toEqual({ hmacKey: '' });
-    expect(config.public).toEqual({ showWipProcesses: false });
+    expect(config.public).toEqual({ processBoards: ['caseworker'] });
     expect(config.pa).toEqual({
       tkApiBase: 'https://gegevensmagazijn.tweedekamer.nl/OData/v5',
       euApiBase: 'https://data.europarl.europa.eu/api/v2',
@@ -374,7 +374,8 @@ describe('config overrides (every variable set)', () => {
       ucLabel: 'uc::other',
     });
     expect(config.altcha).toEqual({ hmacKey: 'hmac-key' });
-    expect(config.public).toEqual({ showWipProcesses: true });
+    // A comma-separated list is split and each entry trimmed, same as corsOrigin.
+    expect(config.public).toEqual({ processBoards: ['caseworker', 'infra-board'] });
     expect(config.pa).toEqual({
       tkApiBase: 'https://tk.test/OData/v5',
       euApiBase: 'https://eu.test/api/v2',

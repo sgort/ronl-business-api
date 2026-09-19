@@ -72,7 +72,7 @@ permissions:
 jobs:
   semgrep:
     name: scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -92,11 +92,12 @@ jobs:
       # this workflow adds exactly one `uses:` reference to the register --
       # actions/checkout, taking it from x9 to x10.
       - name: Install Semgrep
-        # Hand-pinned, like zizmor's `version:` input and the renovate@44.50.3
-        # argument in the audit workflow. Renovate's managers do not parse a
-        # version out of a run: block, so this is bumped by hand; it is recorded
-        # in SECURITY-PIPELINE.md's Pinned table as a manual row, alongside those
-        # two.
+        # Hand-pinned, like the renovate@44.50.3 argument in the audit
+        # workflow. Renovate's managers do not parse a version out of a run:
+        # block, so this is bumped by hand; it is recorded in
+        # SECURITY-PIPELINE.md's Pinned table as a manual row, alongside that
+        # one. zizmor's `version:` input was once named here too, and turned out
+        # to be Renovate-maintained.
         #
         # The venv is required, not stylistic: ubuntu-latest marks its system
         # Python as externally-managed (PEP 668), so a bare `pip install` exits

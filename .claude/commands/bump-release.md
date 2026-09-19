@@ -118,13 +118,19 @@ or none. Out-of-scope PRs stay open and are gathered by the next release. Then:
   - `'backend'` → `packages/backend/package.json`
   - `'public-site'` → `packages/public-site/package.json`
   - `'pa-demo'` → `packages/pa-demo/package.json`
-  - `ScopeTag` is only these four — there is **no `'shared'` tag**. A
+  - `ScopeTag` is these four plus `'ci'`, which is not a deployable and bumps
+    no package (step 4) — there is **no `'shared'` tag**. A
     `packages/shared/**` change is expressed as `['frontend','backend']` (shared
     feeds both builds); bump root + frontend + backend, and bump
-    `packages/shared/package.json` too if shared itself was versioned.
+    `packages/shared/package.json` too when a `packages/shared/**` change is
+    part of the release (step 4).
     `packages/pa-demo` also depends on `@ronl/shared`, but only for **types**
     (erased before Vite sees them), so a shared-only change does not imply
     `'pa-demo'`.
+  - There is no `'pa-cockpit'` tag either. A `packages/pa-cockpit/**` change is
+    expressed as `['frontend','pa-demo']` (compiled into both apps, deployed by
+    neither); bump root + frontend + pa-demo, and bump
+    `packages/pa-cockpit/package.json` too (step 4).
   - (Legacy entries carry a string `scope` like `'both'` instead — `'both'`
     means frontend + backend. Never author a new one of these.)
   - If `scope` is **absent** (only possible on a legacy entry — new entries
@@ -274,7 +280,25 @@ entries of the root `package-lock.json`:
     did not change.
   - `packages/shared/package.json` — only if a `packages/shared/**` change was
     part of the release (there is no `'shared'` scope tag; such a release carries
-    `['frontend','backend']`). `shared` is otherwise pinned at `1.0.0`.
+    `['frontend','backend']`). Otherwise it lags at the last release that changed
+    it, like any out-of-scope package. It sat at `1.0.0` until v2026.08.36 and has
+    followed this rule since; this line said it was still pinned there until #152.
+  - `packages/pa-cockpit/package.json` — only if a `packages/pa-cockpit/**`
+    change was part of the release (there is no `'pa-cockpit'` scope tag; such a
+    release carries `['frontend','pa-demo']`). The package is `private: true`
+    and consumed as `"@ronl/pa-cockpit": "*"`, so its version constrains
+    nothing; it records which pa-cockpit code a frontend or pa-demo release
+    contains, for the lockfile and the SBOM, audit and provenance tooling that
+    reads it. Bumping it triggers no extra workflow: `packages/pa-cockpit/**`
+    appears only in the frontend and pa-demo path filters, which this release
+    already trips.
+
+    Until #152 no step named it, so it stayed at `1.0.0` from its scaffold on
+    2026-08-26 through v2026.09.8, across 49 commits — while v2026.09.8 bumped
+    `shared` for a single devDependency range and left pa-cockpit behind with
+    seven commits in range. The first release that includes a pa-cockpit change
+    moves it straight to that release's version; the "run ahead" paragraph below
+    already allows a package to change by more than one step.
 - `package-lock.json` — the top-level `version`, `packages[""].version`, and
   `packages["packages/<ws>"].version` for each workspace bumped above
 
@@ -372,7 +396,9 @@ State:
 
 - The version that was released, and its **scope**
 - Which package.json files were bumped, and which were deliberately left behind
-  (with their lagging version)
+  (with their lagging version). Always name `packages/shared` and
+  `packages/pa-cockpit` either way: neither has a scope tag, so they are the
+  two a report can omit without anything looking wrong
 - Any endpoint keys that were added or removed
 - If scope was inferred or a cross-check mismatch was found, say so
 - For a new-format entry: how many commits it covers

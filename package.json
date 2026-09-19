@@ -1,6 +1,6 @@
 {
   "name": "ronl-business-api",
-  "version": "2026.09.7",
+  "version": "2026.09.9",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
@@ -54,10 +54,10 @@
   "license": "EUPL-1.2",
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "husky": "^9.0.11",
-    "lint-staged": "^15.2.2",
-    "prettier": "^3.1.1",
-    "typescript": "^5.3.3"
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "prettier": "3.9.6",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=22",
