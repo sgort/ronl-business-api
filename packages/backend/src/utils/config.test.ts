@@ -49,7 +49,6 @@ const ALL_OVERRIDES: Record<string, string> = {
   KEYCLOAK_URL: 'https://kc.test',
   KEYCLOAK_REALM: 'other-realm',
   KEYCLOAK_CLIENT_ID: 'other-client',
-  KEYCLOAK_CLIENT_SECRET: 'shh',
   JWT_ISSUER: 'https://kc.test/realms/other',
   JWT_AUDIENCE: 'other-audience',
   TOKEN_CACHE_TTL: '60',
@@ -162,7 +161,6 @@ describe('config defaults (empty environment)', () => {
       url: 'http://localhost:8080',
       realm: 'ronl',
       clientId: 'ronl-business-api',
-      clientSecret: '',
     });
     expect(config.jwt).toEqual({
       issuer: 'http://localhost:8080/realms/ronl',
@@ -288,7 +286,6 @@ describe('config overrides (every variable set)', () => {
       url: 'https://kc.test',
       realm: 'other-realm',
       clientId: 'other-client',
-      clientSecret: 'shh',
     });
     expect(config.jwt).toEqual({
       issuer: 'https://kc.test/realms/other',
@@ -428,7 +425,6 @@ describe('import-time side effects', () => {
 /** The settings a production start must supply for validateConfig to pass. */
 const PRODUCTION_ENV = {
   NODE_ENV: 'production',
-  KEYCLOAK_CLIENT_SECRET: 'shh',
   DATABASE_URL: 'postgresql://u:p@db.test:5432/audit',
   OPERATON_BASE_URL: 'https://op.test/engine-rest',
 };
@@ -439,9 +435,15 @@ describe('validateConfig', () => {
     expect(config.nodeEnv).toBe('production');
   });
 
-  it('rejects a production start without a Keycloak client secret', () => {
-    const { KEYCLOAK_CLIENT_SECRET: _omitted, ...rest } = PRODUCTION_ENV;
-    expect(() => loadConfig(rest)).toThrow(/KEYCLOAK_CLIENT_SECRET is required in production/);
+  it('starts in production with no Keycloak client secret, which nothing reads', () => {
+    // #96: ronl-business-api is a PUBLIC client -- config/keycloak/ronl-realm.json
+    // has publicClient: true, no secret and no service account -- so it cannot
+    // have one to configure. Nothing in the backend ever read the setting; it was
+    // required in production, which is why PROD carried the literal "not-used".
+    // Set it anyway: the assertion is that it is ignored, not merely absent.
+    const config = loadConfig({ ...PRODUCTION_ENV, KEYCLOAK_CLIENT_SECRET: 'anything' });
+    expect(config.nodeEnv).toBe('production');
+    expect(config.keycloak).not.toHaveProperty('clientSecret');
   });
 
   it('rejects a production start without a database URL', () => {
@@ -480,10 +482,63 @@ describe('validateConfig', () => {
       }
     })();
 
-    expect(message).toContain('KEYCLOAK_CLIENT_SECRET is required in production');
     expect(message).toContain('DATABASE_URL is required in production');
     expect(message).toContain('OPERATON_BASE_URL is required in production');
     expect(message).toContain('ANTHROPIC_API_KEY is required');
+  });
+});
+
+describe('validateConfig placeholder secrets', () => {
+  it('rejects a production start on the .env.example fill-me-in value', () => {
+    // packages/backend/.env.example ships ANTHROPIC_API_KEY=your-anthropic-api-key-here.
+    // A non-empty check passes it, and the failure then surfaces at the first
+    // LLM call rather than at boot (AnthropicLlmProvider reads the key directly).
+    expect(() =>
+      loadConfig({ ...PRODUCTION_ENV, ANTHROPIC_API_KEY: 'your-anthropic-api-key-here' })
+    ).toThrow(/ANTHROPIC_API_KEY is still a placeholder in production/);
+  });
+
+  it('rejects a production start on a change-me value', () => {
+    expect(() => loadConfig({ ...PRODUCTION_ENV, ANTHROPIC_API_KEY: 'change-me' })).toThrow(
+      /ANTHROPIC_API_KEY is still a placeholder in production/
+    );
+  });
+
+  it('rejects a production start on a key that is empty once trimmed', () => {
+    expect(() => loadConfig({ ...PRODUCTION_ENV, ANTHROPIC_API_KEY: '   ' })).toThrow(
+      /ANTHROPIC_API_KEY is still a placeholder in production/
+    );
+  });
+
+  it('accepts a real secret that merely reads like a placeholder', () => {
+    // 'exchange-mechanism-2026' contains 'change-me' as a substring, so a naive
+    // includes() check would reject a legitimate secret and fail the boot it is
+    // meant to protect. The guard anchors on the start of the value instead.
+    const config = loadConfig({ ...PRODUCTION_ENV, ANTHROPIC_API_KEY: 'exchange-mechanism-2026' });
+    expect(config.anthropic.apiKey).toBe('exchange-mechanism-2026');
+  });
+
+  it('leaves development alone, where a placeholder costs nothing', () => {
+    // Failing a developer's boot over an unfilled .env would be hostile, and
+    // the provider already reports itself unavailable without a usable key.
+    const config = loadConfig({ ANTHROPIC_API_KEY: 'your-anthropic-api-key-here' });
+    expect(config.nodeEnv).toBe('development');
+    expect(config.anthropic.apiKey).toBe('your-anthropic-api-key-here');
+  });
+
+  it('reports a placeholder alongside the settings that are missing outright', () => {
+    const message = (() => {
+      try {
+        loadInvalidConfig({ NODE_ENV: 'production', ANTHROPIC_API_KEY: 'change-me' });
+        return '';
+      } catch (err) {
+        return (err as Error).message;
+      }
+    })();
+
+    expect(message).toContain('ANTHROPIC_API_KEY is still a placeholder in production');
+    expect(message).toContain('DATABASE_URL is required in production');
+    expect(message).toContain('OPERATON_BASE_URL is required in production');
   });
 });
 

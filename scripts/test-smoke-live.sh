@@ -15,7 +15,7 @@
 #   TARGET=acc CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh   # acc env
 #
 # On TARGET=local, Tier 2 credentials are taken from KEYCLOAK_CLIENT_ID /
-# KEYCLOAK_CLIENT_SECRET in packages/backend/.env.<NODE_ENV> when CLIENT_SECRET is
+# OPERATON_MCP_CLIENT_SECRET in packages/backend/.env.<NODE_ENV> when CLIENT_SECRET is
 # not already set, so a plain `bash scripts/test-smoke-live.sh` runs everything.
 #
 # eDOCS gets TWO checks: 1/2 direct (in-process, packages/backend/.env, no
@@ -32,7 +32,7 @@
 #     CLIENT_ID          confidential client (default: .env KEYCLOAK_CLIENT_ID on
 #                          local, else operaton-mcp-client)
 #     CLIENT_SECRET      its secret; on local, auto-loaded from .env
-#                          KEYCLOAK_CLIENT_SECRET when not exported
+#                          OPERATON_MCP_CLIENT_SECRET when not exported
 #   Tier 2b — USER flow (role) → MCP /sources:
 #     USER_CLIENT_ID     public client for the password grant (default: ronl-business-api)
 #     SMOKE_USER         role-bearing user (default: test-caseworker-flevoland)
@@ -104,7 +104,7 @@ ENV_FILE="$BACKEND_DIR/.env.${NODE_ENV:-development}"
 REALM_FILE="$REPO_ROOT/config/keycloak/ronl-realm.json"
 CREDS_SOURCE="environment"
 if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -z "${CLIENT_SECRET:-}" ]]; then
-  CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
+  CLIENT_ID="${CLIENT_ID:-$(read_env_var OPERATON_MCP_CLIENT_ID "$ENV_FILE")}"
   CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
 
   if [[ -f "$REALM_FILE" ]]; then
@@ -116,8 +116,8 @@ if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -z "${CLIEN
   fi
 
   if [[ -z "${CLIENT_SECRET:-}" && -f "$ENV_FILE" ]]; then
-    _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
-    if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
+    _env_secret="$(read_env_var OPERATON_MCP_CLIENT_SECRET "$ENV_FILE")"
+    if [[ -n "$_env_secret" && "$_env_secret" != "your-m2m-client-secret-here" ]]; then
       CLIENT_SECRET="$_env_secret"
       CREDS_SOURCE="$ENV_FILE"
     fi
@@ -367,7 +367,7 @@ echo ""
 echo "── Tier 2a — client flow (M2M) → eDOCS 2/2 JWT-gated ──────────────────────"
 
 if [[ -z "${CLIENT_SECRET:-}" ]]; then
-  skip "eDOCS 2/2 (JWT-gated, M2M client) — no CLIENT_SECRET (export it, or add KEYCLOAK_CLIENT_SECRET to $ENV_FILE for TARGET=local; direct check 1/2 ran above)"
+  skip "eDOCS 2/2 (JWT-gated, M2M client) — no CLIENT_SECRET (export it, or add OPERATON_MCP_CLIENT_SECRET to $ENV_FILE for TARGET=local; direct check 1/2 ran above)"
 else
   [[ "$CREDS_SOURCE" != "environment" ]] && \
     echo "  · CLIENT_SECRET loaded from $(basename "$CREDS_SOURCE") (client: ${CLIENT_ID})"

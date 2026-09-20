@@ -366,7 +366,9 @@ drawer on `acc.mijn.open-regels.nl` or read
 - Deploys gated on lint, tests and a performance budget.
 - **Required-env checks now actually fire** (2026.08.21): `DATABASE_URL`,
   `OPERATON_BASE_URL`, `KEYCLOAK_CLIENT_SECRET` and `ANTHROPIC_API_KEY` are
-  checked at import, so a missing one is a backend that does not boot. `/v1/health`
+  checked at import, so a missing one is a backend that does not boot.
+  _(`KEYCLOAK_CLIENT_SECRET` has since been removed from that list: the client it
+  names is public and nothing read the value — #96.)_ `/v1/health`
   reports the deployment tier.
 - Backend branch and function coverage above 80 % for every file.
 - PA: Europarl gets a User-Agent and an empty `202` is no longer read as a feed;
@@ -469,7 +471,7 @@ for non-secret keys.
 | `LDE_API_URL`                                                                                                            | unset                                   | unset (ACC is happy with the ACC default)     | **set `https://backend.linkeddata.open-regels.nl/v1`** — the default is the _ACC_ LDE, so PROD's process library would silently proxy ACC data. Target verified live: LDE `2026.09.4`, `production`                            |
 | `CORS_ORIGIN`                                                                                                            | `mijn`, `localhost:5173`                | `acc.mijn`, `iou-architectuur`, `acc.publiek` | **set to `mijn` + `publiek`, dropping `localhost:5173`** (D5)                                                                                                                                                                  |
 | `DEPLOYMENT_ENV`                                                                                                         | `production` ✅                         | `acceptance`                                  | none                                                                                                                                                                                                                           |
-| `DATABASE_URL`, `OPERATON_BASE_URL`, `KEYCLOAK_CLIENT_SECRET`, `ANTHROPIC_API_KEY`                                       | present ✅                              | present                                       | none — `validateConfig()` throws at import without them                                                                                                                                                                        |
+| `DATABASE_URL`, `OPERATON_BASE_URL`, `ANTHROPIC_API_KEY`                                                                 | present ✅                              | present                                       | none — `validateConfig()` throws at import without them                                                                                                                                                                        |
 | `CPRMV_URL`                                                                                                              | `https://cprmv.open-regels.nl/mcp` ✅   | unset (default is `acc.cprmv`)                | none                                                                                                                                                                                                                           |
 | `EDOCS_MCP_*`                                                                                                            | unset → disabled                        | `ENABLED=false`, client id + secret           | none — leave off                                                                                                                                                                                                               |
 | `VALIDSIGN_*`                                                                                                            | unset → stub (default `true`)           | `STUB_MODE=true`                              | none                                                                                                                                                                                                                           |
@@ -778,10 +780,10 @@ az webapp config appsettings list -n ronl-business-api-prod -g rg-ronl-prod \
 
 ```bash
 az webapp config appsettings list -n ronl-business-api-prod -g rg-ronl-prod --query "[].name" -o tsv \
-  | grep -xE 'DATABASE_URL|OPERATON_BASE_URL|KEYCLOAK_CLIENT_SECRET|ANTHROPIC_API_KEY' | sort
+  | grep -xE 'DATABASE_URL|OPERATON_BASE_URL|ANTHROPIC_API_KEY' | sort
 ```
 
-- [ ] All four listed (they were on 11 Sep).
+- [ ] All three listed.
 
 ### Phase 4 — PROD Keycloak (additive; do before anyone tests)
 
@@ -1342,11 +1344,14 @@ removed and verified by request (D5), and the RIP roles went to
 
 ### Left open
 
-- `KEYCLOAK_CLIENT_SECRET` on the PROD App Service is still
-  `change-me-in-keycloak-console`. It does not block boot, and it does not affect
-  the MCP providers (all four connected), but anything authenticating **as** the
-  `ronl-business-api` client — the smoke script's Tier 2 leg, `/v1/m2m` — will
-  fail until it is regenerated in Keycloak and set on the App Service.
+- ~~`KEYCLOAK_CLIENT_SECRET` on the PROD App Service.~~ **Withdrawn (#96, 20 Sep).**
+  `ronl-business-api` is a public client — the realm export gives it
+  `publicClient: true`, no secret and no service account — so it has no secret to
+  configure, and nothing in the backend ever read the setting. PROD held `not-used`,
+  not the placeholder. The setting has been removed rather than corrected. The
+  placeholder in the realm export belongs to the three **confidential** clients
+  (`operaton-mcp-client`, `edocs-mcp-client`, `copilot-studio-edocs`); Tier 2a and
+  `/v1/m2m` authenticate as the first of those, not as `ronl-business-api`.
 - `EP teksten fetch complete, total: 0` on PROD — relevant to #57, which assumed
   that host is reachable from PROD's egress range.
 - The startup log still advertises `/v1/docs`, which is never mounted (#67).
