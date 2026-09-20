@@ -44,7 +44,7 @@
 #
 # Defaults to TARGET=local (http://localhost:3002 + http://localhost:8080) —
 # same default as test-smoke-live.sh. On localhost, CLIENT_SECRET (and
-# CLIENT_ID) auto-load from KEYCLOAK_CLIENT_SECRET / KEYCLOAK_CLIENT_ID in
+# CLIENT_ID) auto-load from OPERATON_MCP_CLIENT_SECRET / OPERATON_MCP_CLIENT_ID in
 # packages/backend/.env.<NODE_ENV> when not already exported, so a bare
 # `bash scripts/test-edocs-live.sh` runs without exporting a secret by hand.
 # TARGET=acc (or any non-localhost BASE_URL) always requires an explicit
@@ -140,10 +140,10 @@ read_env_var() {
 ENV_FILE="$BACKEND_DIR/.env.${NODE_ENV:-development}"
 CREDS_SOURCE="environment"
 if [[ "$BASE_URL" =~ ^https?://(localhost|127\.0\.0\.1) && -f "$ENV_FILE" && -z "${CLIENT_SECRET:-}" ]]; then
-  _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
-  if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
+  _env_secret="$(read_env_var OPERATON_MCP_CLIENT_SECRET "$ENV_FILE")"
+  if [[ -n "$_env_secret" && "$_env_secret" != "your-m2m-client-secret-here" ]]; then
     CLIENT_SECRET="$_env_secret"
-    CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
+    CLIENT_ID="${CLIENT_ID:-$(read_env_var OPERATON_MCP_CLIENT_ID "$ENV_FILE")}"
     CREDS_SOURCE="$ENV_FILE"
   fi
 fi

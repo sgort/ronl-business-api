@@ -291,6 +291,8 @@ backend that will not boot.
 - [x] Confirm `DATABASE_URL` **and** `OPERATON_BASE_URL` are set in PROD App Settings.
       _Verified 2026-09-12, together with `KEYCLOAK_CLIENT_SECRET` and
       `ANTHROPIC_API_KEY`; the backend booted cleanly, so `validateConfig()` passed._
+      _`KEYCLOAK_CLIENT_SECRET` has since been removed — it named a public client and
+      nothing read it (#96). The other three still boot-block._
       (Both were verified present on `ronl-business-api-prod` when the check was written —
       this is a confirm, but a boot-blocking one if it is wrong.)
 
