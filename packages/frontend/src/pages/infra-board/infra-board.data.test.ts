@@ -15,6 +15,7 @@ import {
   normalizeLeadRole,
   TL,
 } from './infra-board.data';
+import { getKlaarCounts } from './rip-phase-counts';
 import { RIP_PHASES } from './rip-phases.catalog';
 
 describe('normalizeLeadRole', () => {
@@ -278,6 +279,87 @@ describe('getReadyProjects / getOutOfSequenceProjects', () => {
       if (curIdx >= idx) continue; // at or past this phase — not a candidate at all
       expect(readyIds.has(p.id) || outIds.has(p.id)).toBe(true);
     }
+  });
+});
+
+describe('getReadyProjects — phase re-entry (#69)', () => {
+  /**
+   * R5.3 is the one phase a project can legitimately complete more than once:
+   * three of its four end events return to R5.2, and a vervroegde ingebruikname
+   * puts part of the areaal into use while the work carries on, so the project
+   * comes back through R5.2 and enters R5.3 again for the actual oplevering.
+   *
+   * #69 asks whether the Starten tab's readiness rule handles that. It does,
+   * and the reason is worth pinning rather than rediscovering: the rule is
+   * **positional and history-free**. It asks only where a project is now and
+   * whether it is waiting there. It cannot be confused by a completed instance
+   * because it never looks at one.
+   *
+   * That is a property of the current implementation, not a guarantee of the
+   * design, which is exactly why it needs a test. The obvious "improvement" —
+   * also excluding projects that have already completed this phase, which the
+   * issue's own wording describes the rule as doing — would look like a
+   * tightening and would silently strand every project in the R5.2 ↔ R5.3 loop.
+   */
+  it('reads only current position and state, for every phase in the ladder', () => {
+    const portfolio = getMockPortfolio();
+
+    for (let i = 1; i < RIP_PHASES.length; i++) {
+      const phase = RIP_PHASES[i];
+      const prevCode = RIP_PHASES[i - 1].code;
+      const positional = portfolio.filter(
+        (p) => p.ripPhaseCode === prevCode && p.ripPhaseState === 'wachtend'
+      );
+
+      expect(
+        getReadyProjects(phase.code)
+          .map((p) => p.id)
+          .sort()
+      ).toEqual(positional.map((p) => p.id).sort());
+    }
+  });
+
+  it('offers R5.3 from R5.2 regardless of how often R5.3 has been completed', () => {
+    // The identity above, stated for the phase the issue is about. It holds
+    // whether or not the fixture currently has anyone sitting at R5.2: what is
+    // asserted is that the rule adds no exclusion of its own beyond position
+    // and state, which is the part a re-entering project depends on.
+    const readyForR53 = getReadyProjects('R5.3');
+    for (const p of readyForR53) {
+      expect(p.ripPhaseCode).toBe('R5.2');
+      expect(p.ripPhaseState).toBe('wachtend');
+    }
+    expect(readyForR53).toHaveLength(
+      getMockPortfolio().filter((p) => p.ripPhaseCode === 'R5.2' && p.ripPhaseState === 'wachtend')
+        .length
+    );
+  });
+
+  it('suppresses R5.4s Klaar count without suppressing R5.4s readiness list', () => {
+    // Two different surfaces, easy to conflate while fixing either.
+    //
+    // `multipleExits` on R5.3 makes getKlaarCounts refuse a figure for R5.4:
+    // R5.3's flat `gereed` mixes four outcomes, only one of which advances, so
+    // any subtraction would overstate R5.4's candidates.
+    //
+    // Readiness is not derived by subtraction — it reads each project's own
+    // position — so it stays exact and must keep listing projects waiting at
+    // R5.3. Whoever gives R5.4 a real Klaar figure back (issue #69, item 2)
+    // should not reach for `multipleExits` here on the way past.
+    const r53 = RIP_PHASES.find((p) => p.code === 'R5.3');
+    expect(r53?.multipleExits).toBe(true);
+
+    expect(getKlaarCounts(RIP_PHASES, getMockPhaseCounts())['R5.4']).toBeUndefined();
+
+    const waitingAtR53 = getMockPortfolio().filter(
+      (p) => p.ripPhaseCode === 'R5.3' && p.ripPhaseState === 'wachtend'
+    );
+    expect(waitingAtR53.length).toBeGreaterThan(0); // the fixture must keep exercising this
+    expect(
+      getReadyProjects('R5.4')
+        .map((p) => p.id)
+        .sort()
+    ).toEqual(waitingAtR53.map((p) => p.id).sort());
   });
 });
 
