@@ -13,6 +13,9 @@ jest.mock('@utils/config', () => ({
     deploymentEnv: 'acceptance',
   },
 }));
+jest.mock('@utils/build-info', () => ({
+  buildInfo: { sha: 'a1b2c3d', run: '128', runId: '9876543210' },
+}));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }));
@@ -97,6 +100,20 @@ describe('GET /v1/health', () => {
     expect(res.body.data.status).toBe('unhealthy');
     expect(res.body.data.error).toBe('operaton exploded');
   });
+});
+
+it('reports which build is running, so a deploy can be verified', async () => {
+  // `version` names the RELEASE and moves only when one is cut, so every
+  // deploy between two releases reports the same string (#129). Without the
+  // build block, "has my change reached acc?" and "did that deploy take
+  // effect?" cannot be answered from the API -- and the deploy workflow's own
+  // post-deploy check has nothing to compare github.sha against.
+  opHealth.mockResolvedValue({ status: 'up' });
+  mockFetch.mockResolvedValue({ ok: true });
+
+  const res = await request(app).get('/v1/health');
+
+  expect(res.body.data.build).toEqual({ sha: 'a1b2c3d', run: '128', runId: '9876543210' });
 });
 
 describe('GET /v1/health/live', () => {
