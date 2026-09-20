@@ -291,6 +291,34 @@ Both of those gaps are now covered by `scripts/check-supply-chain.mjs` — see
 [Keeping this register true](#keeping-this-register-true) below. What follows
 here is what remains outside any check.
 
+**How a deploy credential reaches CI is not checked either.** Nothing verifies
+that a secret holds what its author meant. Piping a token straight out of the
+Azure CLI stores a trailing newline —
+
+```bash
+az staticwebapp secrets list … --query properties.apiKey -o tsv | gh secret set <NAME>
+```
+
+— 120 bytes where the key is 119. Both halves are the documented way to do their
+job; the composition is what goes wrong. It cost the public site's first
+production deploy on 12 September 2026, and the failure named nothing: every
+build step passed, then `An unknown exception has occurred` with a DeploymentId
+printed first, so it read as an upload that began and failed rather than an
+authentication that never happened.
+
+A secret's value cannot be read back, so no check can confirm this after the
+fact and none is proposed. `scripts/set-secret.sh` removes the trap at the point
+of use instead: it reads the value from stdin, strips whitespace, refuses an
+empty result, and reports the byte count it stored — the one piece of evidence
+that survives.
+
+```bash
+az staticwebapp secrets list … -o tsv | bash scripts/set-secret.sh <NAME>
+```
+
+The value is never echoed, never passed as an argument, and never written to a
+file. Issue #97.
+
 **Production is not yet protected.** The `*-prod.yml` files are pinned by this
 change, but GitHub Actions runs the workflow file _from the branch being pushed_.
 Measured on `origin/main`, 29 August 2026: **4 workflows, 13 `uses:` references,
