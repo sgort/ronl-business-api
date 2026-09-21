@@ -290,13 +290,13 @@ the rollback backup ([3.1](#31-take-a-rollback-artifact)) and for issue #35.
 **What fires when the promotion lands on `main`** — every production workflow,
 because the delta touches every path filter (including each workflow's own file):
 
-| Workflow                          | On push to `main` | Effect if left enabled                                      |
-| --------------------------------- | ----------------- | ----------------------------------------------------------- |
-| Supply-chain audit (`zizmor.yml`) | fires             | read-only; harmless                                         |
-| Build Backend for Production      | fires             | lint + 2008 tests + build + artifact; **deploys nothing**   |
-| Deploy Frontend to Production     | fires             | **deploys `mijn` immediately**, possibly before the backend |
-| Deploy Public Site to Production  | fires             | prerender against the 3.8.2 API → 404 → fails; and no token |
-| Deploy PA Demo to Production      | fires             | builds, then fails at deploy — no token                     |
+| Workflow                           | On push to `main` | Effect if left enabled                                                     |
+| ---------------------------------- | ----------------- | -------------------------------------------------------------------------- |
+| Supply-chain audit (`zizmor.yml`)  | fires             | read-only; harmless                                                        |
+| Deploy Backend to Azure Production | fires             | lint + tests + build + artifact, then **deploys** and verifies `build.sha` |
+| Deploy Frontend to Production      | fires             | **deploys `mijn` immediately**, possibly before the backend                |
+| Deploy Public Site to Production   | fires             | prerender against the 3.8.2 API → 404 → fails; and no token                |
+| Deploy PA Demo to Production       | fires             | builds, then fails at deploy — no token                                    |
 
 `workflow_dispatch` is present on all four production workflows (verified), which
 is what makes the disable → dispatch ordering in Phase 6 possible.

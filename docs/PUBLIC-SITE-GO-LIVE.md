@@ -235,11 +235,16 @@ Three workflows fire on push to `main`, each path-filtered, and they are **not**
 | `azure-frontend-prod.yml`   | `packages/frontend/**`, `shared/**` | **deploys** to SWA `mijn.open-regels.nl`    |
 | `azure-publicsite-prod.yml` | `packages/public-site/**`           | **deploys** to SWA `publiek.open-regels.nl` |
 
-So the frontends self-deploy on push while the backend does not — `azure-backend-prod.yml`
-is named "Build Backend for Production" and stops at `upload-artifact`. The backend deploy
-is still the manual `deploy-backend-to-prod.sh` (unchanged in this delta: builds locally,
-then `az webapp deploy` → `ronl-business-api-prod` / `rg-ronl-prod`). Push first and the
-new frontends call a v3.8.2 backend that lacks their routes.
+The frontends self-deploy on push, and since #35 so does the backend:
+`azure-backend-prod.yml` is "Deploy Backend to Azure Production", and it ships and then
+verifies that `/v1/health`'s `build.sha` matches the commit it deployed.
+
+That removes the manual step but **not** the ordering problem. All four workflows fire on
+the same push and race each other, and the frontends have no reason to finish last. Push
+first and the new frontends can still call a backend that lacks their routes — for the
+minutes it takes the backend job to run its tests, build and start the site, rather than
+until someone remembers to run a script. `deploy-backend-to-prod.sh` remains as the
+break-glass path.
 
 - [x] **CI is green on `acc` first.** `28ab6ca` gated all three PROD workflows on lint +
       unit tests, and the frontend additionally on `npm run test:perf` (performance

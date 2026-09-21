@@ -39,8 +39,8 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**31 `uses:` references across 10 workflows, all 31 digest-pinned.** Verified on
-`acc` at `8e8fcdb`, 12 September 2026 — by `npm run check-supply-chain`, which
+**33 `uses:` references across 10 workflows, all 33 digest-pinned.** Verified on
+`acc` at `9b1b5b1`, 20 September 2026 — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
@@ -50,6 +50,7 @@ failing a merge.
 | `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
 | `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
 | `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                                     |
@@ -268,17 +269,24 @@ What that means for this document's scope:
   `npm install --production --omit=dev` inside `packages/backend/deploy/` — a
   directory with a `package.json` but **no lockfile**. Resolution happens against
   semver ranges, on a developer machine, leaving no CI record of what was
-  installed. The same pattern exists in the CI workflows' "Prepare deployment
-  package" step, but that copy is never deployed.
+  installed. The CI workflows' "Prepare deployment package" step used to carry
+  the same pattern; it now installs from the root lockfile in a staging copy,
+  filtered to the backend workspace with production dependencies only.
 - The scripts do carry real safety rails: they refuse to run off `acc`, refuse a
   dirty working tree, and resolve an archiver before building anything. The gap is
   structural, not carelessness.
 
-This is the widest floating surface in the repository and, unlike the container
-exception above, it is fixable from our side —
-[#34](https://github.com/sgort/ronl-business-api/issues/34) pins the bundle's
-dependencies, [#35](https://github.com/sgort/ronl-business-api/issues/35) moves
-the deploy into a workflow. Both still open.
+This was the widest floating surface in the repository and, unlike the container
+exception above, it was fixable from our side. The workflow path is now fixed:
+[#35](https://github.com/sgort/ronl-business-api/issues/35) moved the deploy
+into `azure-backend-{acc,prod}.yml`, which installs from the lockfile and so
+closes [#34](https://github.com/sgort/ronl-business-api/issues/34) for anything
+that ships through CI.
+
+**The scripts remain, and so does the exception — narrowed.** They are the
+break-glass path when CI cannot deploy, they still resolve dependencies on a
+developer machine against semver ranges, and nothing stops someone running one.
+The exception closes when they are retired, not when the workflow lands.
 
 ## What the audit cannot see
 

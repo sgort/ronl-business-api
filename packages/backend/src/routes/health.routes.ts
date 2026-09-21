@@ -4,6 +4,7 @@ import { operatonService } from '@services/operaton.service';
 import { cacheHealth } from '../pa-monitoring/pa-cache';
 import { createLogger } from '@utils/logger';
 import packageJson from '../../package.json';
+import { buildInfo } from '@utils/build-info';
 
 const router = express.Router();
 const logger = createLogger('health-routes');
@@ -63,6 +64,10 @@ router.get('/', async (req, res) => {
     const healthData = {
       name: 'RONL Business API',
       version: packageJson.version,
+      // Which build, as opposed to which release (#129). null in a working
+      // tree; the deploy workflow writes it into the artifact and then reads
+      // it back to prove the deploy took effect.
+      build: buildInfo,
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
