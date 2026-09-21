@@ -223,7 +223,10 @@ jobs:
           #
           # The root `prepare` is `husky`, a devDependency, so under --omit=dev it
           # would fail with "husky: not found". It is dropped from the staged copy
-          # rather than from the repository, where it is load-bearing.
+          # rather than from the repository, where it is load-bearing. The same goes
+          # for @ronl/shared's `prepare`, which is `tsc`: under --omit=dev npm runs
+          # it with no TypeScript installed and the install fails. Its dist is
+          # built by the step above and copied into the artifact below.
           stage="$RUNNER_TEMP/backend-prod"
           rm -rf "$stage"
           mkdir -p "$stage/packages/backend" "$stage/packages/shared" "$stage/scripts"
@@ -232,27 +235,48 @@ jobs:
           cp package.json "$stage/packages/backend/"
           cp ../shared/package.json "$stage/packages/shared/"
           (cd "$stage" && npm pkg delete scripts.prepare)
+          (cd "$stage" && npm pkg delete scripts.prepare --workspace=@ronl/shared)
           (cd "$stage" && npm ci --omit=dev --workspace=@ronl/backend --no-audit --no-fund)
 
           # A production dependency the backend needs at a version other than the
-          # hoisted one would be installed under packages/backend/node_modules and
-          # would not reach the artifact from here. None does today; fail rather
-          # than ship without it on the day one does. Only real package entries
-          # count, not the directory itself: npm can leave it behind empty.
+          # hoisted one -- or one the lockfile simply records under the workspace,
+          # as it does altcha-lib (ec32fa8) -- is installed under
+          # packages/backend/node_modules. deploy/ IS the backend's root, so those
+          # entries belong in deploy/node_modules and are merged in after the
+          # hoisted tree is copied. Where the same package is ALSO hoisted, the two
+          # versions cannot both live there: something else resolves to the hoisted
+          # one, and overwriting it would break that instead. Fail on that case
+          # rather than guess. Dot entries (.bin, npm's metadata) are skipped, and
+          # a scope directory stands for the packages inside it.
           nested="$stage/packages/backend/node_modules"
+          nested_pkgs=""
           if [ -d "$nested" ]; then
-            echo "packages/backend/node_modules holds: $(ls -A "$nested" | xargs)"
-            if find "$nested" -mindepth 1 -maxdepth 1 ! -name ".*" | grep -q .; then
-              echo "❌ Backend production dependencies installed un-hoisted; the packaging below would drop them:"
-              find "$nested" -mindepth 1 -maxdepth 1 ! -name ".*"
-              exit 1
-            fi
+            for entry in "$nested"/[!.]*; do
+              [ -e "$entry" ] || continue
+              name=$(basename "$entry")
+              case "$name" in
+                @*) for scoped in "$entry"/*; do nested_pkgs="$nested_pkgs $name/$(basename "$scoped")"; done ;;
+                *) nested_pkgs="$nested_pkgs $name" ;;
+              esac
+            done
+            echo "packages/backend/node_modules holds:${nested_pkgs:- nothing}"
+            for pkg in $nested_pkgs; do
+              if [ -e "$stage/node_modules/$pkg" ]; then
+                echo "❌ $pkg is installed both hoisted and under packages/backend; the artifact can hold only one"
+                exit 1
+              fi
+            done
           fi
 
           # The workspace link points back into the staging copy, so it is removed
           # before the tree is copied and replaced with real content afterwards.
           rm -rf "$stage/node_modules/@ronl"
           cp -r "$stage/node_modules" deploy/
+          for pkg in $nested_pkgs; do
+            mkdir -p "deploy/node_modules/$(dirname "$pkg")"
+            cp -r "$nested/$pkg" "deploy/node_modules/$pkg"
+            echo "✅ $pkg merged from packages/backend/node_modules"
+          done
 
           # @ronl/shared is a workspace package npm cannot fetch from the registry.
           # It goes in AFTER the install, deliberately: copied in before, npm sees
