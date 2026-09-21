@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
-import { claimIfNeeded } from './helpers/tasks';
+import { instanceIdsForBusinessKey, openOwnTask } from './helpers/tasks';
 
 // Phase 1 item 4 — a second deep journey against a real backend-backed
 // flow, alongside caseworker-journey.spec.ts's Kapvergunning roundtrip.
@@ -38,6 +38,9 @@ test('citizen submits a zorgtoeslag claim and the toeslagen caseworker reviews i
   await citizenPage.getByRole('button', { name: 'Submit application' }).click();
   await expect(citizenPage.getByText('Aanvraag ingediend')).toBeVisible({ timeout: 15_000 });
   const businessKey = await citizenPage.locator('.font-mono').innerText();
+  // Resolved before the caseworker logs in: the shell instance plus its called
+  // sub-process, so each task below can be picked out of a shared queue.
+  const ownInstances = await instanceIdsForBusinessKey(businessKey);
   await citizenContext.close();
 
   // ── Caseworker: claim and complete the resulting review task ───────────
@@ -46,11 +49,7 @@ test('citizen submits a zorgtoeslag claim and the toeslagen caseworker reviews i
   await loginAsMedewerker(caseworkerPage, 'test-caseworker-toeslagen', 'test123');
   await expect(caseworkerPage).toHaveURL(/\/dashboard\/caseworker$/);
 
-  await caseworkerPage
-    .getByRole('button', { name: /Case review: provisional entitlement decision/ })
-    .first()
-    .click();
-  await claimIfNeeded(caseworkerPage);
+  await openOwnTask(caseworkerPage, /Case review: provisional entitlement decision/, ownInstances);
 
   // Same form-js custom-combobox quirk as caseworker-journey.spec.ts — the
   // accessible textbox/label both target a visually-hidden, zero-size
@@ -63,11 +62,7 @@ test('citizen submits a zorgtoeslag claim and the toeslagen caseworker reviews i
   // ── Caseworker: finish the roundtrip — AwbZorgtoeslagProcess's own
   // follow-up notify task (also candidateGroups="caseworker") is created
   // once the review completes; leaving it open would dangle the process.
-  await caseworkerPage
-    .getByRole('button', { name: /Phase 6: Notify applicant of decision/ })
-    .first()
-    .click();
-  await claimIfNeeded(caseworkerPage);
+  await openOwnTask(caseworkerPage, /Phase 6: Notify applicant of decision/, ownInstances);
 
   await caseworkerPage.locator('[id$="-Field_NotificationMethod-display"]').click();
   await caseworkerPage.getByText('Email', { exact: true }).click();
