@@ -1,4 +1,4 @@
-name: Build Backend for ACC
+name: Deploy Backend to Azure ACC
 
 on:
   # The backend's 2008 tests used to run only AFTER a merge, because this

@@ -1,4 +1,4 @@
-name: Build Backend for Production
+name: Deploy Backend to Azure Production
 
 on:
   # No `pull_request` trigger, deliberately. This is the decision #87 asks for,
