@@ -52,15 +52,31 @@ function splitTerms(q: string | null): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Builds one OData $filter.
+ *
+ * ONE term clause at most, deliberately. fetchTkFeed below splits on the term
+ * count before it gets here: more than one term fans out into a request per
+ * term, so every call arrives with a single-element array (or an empty one for
+ * a blanco search). buildFilter and buildUrl are both module-private, so that
+ * is the only path in.
+ *
+ * This carried an `else if (terms.length > 1)` arm that joined the clauses with
+ * `or`. It had no caller, and it built precisely the request the fan-out exists
+ * to avoid: measured against the live API, a five-term OR query with `$count`
+ * took 23-48s and blew the 15s AbortController every time, so every multi-term
+ * criterion silently retrieved nothing and looked like a source with no matches
+ * (#61). A working implementation of that sitting one call site away, with
+ * nothing saying so, is worse than no implementation.
+ *
+ * If a caller ever needs more than one term, fan out — do not reinstate the OR.
+ * The "issues one request per term instead of one OR filter" test asserts that
+ * no request carries ` or contains(`, and is what would catch it.
+ */
 function buildFilter(terms: string[], types: string[]): string {
   const parts: string[] = ['Verwijderd eq false'];
   if (terms.length === 1) {
     parts.push(`contains(Onderwerp,'${terms[0].replace(/'/g, "''")}')`);
-  } else if (terms.length > 1) {
-    const orClauses = terms
-      .map((t) => `contains(Onderwerp,'${t.replace(/'/g, "''")}')`)
-      .join(' or ');
-    parts.push(`(${orClauses})`);
   }
   if (types.length) {
     const typeClauses = types.map((t) => `Soort eq '${t}'`).join(' or ');
