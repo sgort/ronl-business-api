@@ -1,8 +1,14 @@
-const FRONTEND_URL = 'http://localhost:5173';
-const BACKEND_HEALTH_URL = 'http://localhost:3002/v1/health';
-const LDE_HEALTH_URL = 'http://localhost:3001/v1/health';
-
 import { verifyRequiredProcesses } from './helpers/required-processes';
+import {
+  assertTargetAllowed,
+  BACKEND_URL,
+  checkLde,
+  FRONTEND_URL,
+  isLocalTarget,
+  KEYCLOAK_URL,
+  LDE_URL,
+  targetLabel,
+} from './helpers/target';
 
 async function checkReachable(url: string, timeoutMs = 3000): Promise<boolean> {
   // Not AbortSignal.timeout() — its internal timer isn't always cleaned up
@@ -22,33 +28,49 @@ async function checkReachable(url: string, timeoutMs = 3000): Promise<boolean> {
 }
 
 // Fails fast with a clear message instead of a confusing mid-test connection
-// error. This project does not start the dev stack itself — see
-// Environment section of the testing docs: run `npm run dev`
-// (root) yourself, and start the sibling linked-data-explorer repo's
-// `npm run dev:backend` separately.
+// error. This project does not start the dev stack itself — see the
+// Environment section of the testing docs: run `npm run dev` (root)
+// yourself, and start the sibling linked-data-explorer repo's
+// `npm run dev:backend` separately. Against a remote target nothing is
+// started at all; the checks below simply confirm the tier is up.
 export default async function globalSetup() {
-  const [frontendUp, backendUp, ldeUp] = await Promise.all([
-    checkReachable(FRONTEND_URL),
-    checkReachable(BACKEND_HEALTH_URL),
-    checkReachable(LDE_HEALTH_URL),
-  ]);
+  assertTargetAllowed();
 
-  const missing: string[] = [];
-  if (!frontendUp) missing.push(`- Frontend not reachable at ${FRONTEND_URL}`);
-  if (!backendUp) missing.push(`- Backend not reachable at ${BACKEND_HEALTH_URL}`);
-  if (!ldeUp) missing.push(`- LDE backend not reachable at ${LDE_HEALTH_URL}`);
+  // A remote tier is slower to answer than a loopback dev server, and a
+  // cold-started App Service slower still.
+  const timeoutMs = isLocalTarget ? 3000 : 15_000;
+
+  const probes: Array<{ label: string; url: string }> = [
+    { label: 'Frontend', url: FRONTEND_URL },
+    { label: 'Backend', url: `${BACKEND_URL}/v1/health` },
+    { label: 'Keycloak', url: KEYCLOAK_URL },
+  ];
+  if (checkLde) probes.push({ label: 'LDE backend', url: `${LDE_URL}/v1/health` });
+
+  const results = await Promise.all(probes.map((p) => checkReachable(p.url, timeoutMs)));
+  const missing = probes
+    .filter((_, i) => !results[i])
+    .map((p) => `- ${p.label} not reachable at ${p.url}`);
 
   if (missing.length > 0) {
     throw new Error(
       [
         '',
-        'E2E preconditions not met — the dev stack must already be running.',
+        `E2E preconditions not met — target: ${targetLabel}.`,
         ...missing,
         '',
-        'Start it yourself first:',
-        '  docker compose up -d          (repo root — Keycloak/Postgres/Redis)',
-        '  npm run dev                   (repo root — frontend :5173 + backend :3002)',
-        '  npm run dev:backend           (linked-data-explorer repo root — LDE backend :3001)',
+        ...(isLocalTarget
+          ? [
+              'The dev stack must already be running. Start it yourself first:',
+              '  docker compose up -d          (repo root — Keycloak/Postgres/Redis)',
+              '  npm run dev                   (repo root — frontend :5173 + backend :3002)',
+              '  npm run dev:backend           (linked-data-explorer repo root — LDE backend :3001)',
+            ]
+          : [
+              'Check the tier is up and the URLs are right. The suite reads',
+              'FRONTEND_URL, BACKEND_URL, KEYCLOAK_URL, LDE_URL and OPERATON_URL',
+              '(see e2e/helpers/target.ts); anything unset falls back to localhost.',
+            ]),
         '',
         'See https://iou-architectuur.open-regels.nl/ronl-business-api/developer/testing/overview/ for the full environment setup.',
         '',
@@ -61,17 +83,30 @@ export default async function globalSetup() {
     throw new Error(
       [
         '',
-        'E2E preconditions not met — the required tenant-scoped process bundle is not deployed correctly.',
+        `E2E preconditions not met — the required process bundle is not deployed correctly on ${targetLabel}.`,
         ...processProblems,
         '',
-        "Deploy the bundle yourself first, manually, via linked-data-explorer's BPMN Modeler:",
-        "  1. Open linked-data-explorer's BPMN Modeler (npm run dev:backend + npm run dev, LDE repo)",
-        '  2. Import each file from linked-data-explorer/e2e-fixtures/<tenant>/',
-        '  3. Set the Organization field to the tenant shown above, click Deploy',
-        '',
-        'See linked-data-explorer/e2e-fixtures/manifest.json for the full fixture list.',
+        ...(isLocalTarget
+          ? [
+              "Deploy the bundle yourself first, manually, via linked-data-explorer's BPMN Modeler:",
+              "  1. Open linked-data-explorer's BPMN Modeler (npm run dev:backend + npm run dev, LDE repo)",
+              '  2. Import each file from linked-data-explorer/e2e-fixtures/<tenant>/',
+              '  3. Set the Organization field to the tenant shown above, click Deploy',
+              '',
+              'See linked-data-explorer/e2e-fixtures/manifest.json for the full fixture list.',
+            ]
+          : [
+              'A shared tier runs the de-labelled bundle from',
+              'linked-data-explorer/packages/frontend/public/examples/<tenant>/ — the same',
+              'content as the fixtures, without the E2E annotation and without the',
+              '`...E2E` sub-process key. Redeploy that bundle under the tenant shown above.',
+            ]),
         '',
       ].join('\n')
     );
+  }
+
+  if (!isLocalTarget) {
+    console.log(`\nE2E target: ${targetLabel} — journeys will create real instances there.\n`);
   }
 }

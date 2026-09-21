@@ -251,6 +251,11 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                     overdue ? 'overdue' : ''
                   }`}
                   onClick={() => handleSelect(t)}
+                  // Lets a test pick its OWN task out of a shared queue. The visible
+                  // text is only the task name plus the process-definition key, which
+                  // on ACC/PROD is shared with every other instance of the same
+                  // process — including foreign and legacy ones. Invisible to users.
+                  data-process-instance-id={t.processInstanceId}
                 >
                   <div className="v2-taken-item-row">
                     <span className="v2-taken-item-name">{t.name}</span>

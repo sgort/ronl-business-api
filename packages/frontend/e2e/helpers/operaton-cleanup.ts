@@ -3,9 +3,13 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import { OPERATON_URL } from './target';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const OPERATON_BASE_URL = 'http://localhost:8081/engine-rest';
+// Resolved per target (see target.ts) — history for a run against ACC must
+// be deleted on ACC's engine, not on the local one.
+const OPERATON_BASE_URL = OPERATON_URL;
 
 // Playwright runs each test in a worker child process that does not forward
 // the CLI's real TTY stdin (confirmed: microsoft/playwright#33061 — a
