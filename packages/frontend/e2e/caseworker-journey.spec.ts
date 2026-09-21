@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
-import { claimIfNeeded } from './helpers/tasks';
+import { instanceIdsForBusinessKey, openOwnTask } from './helpers/tasks';
 
 // Phase 1 item 4 — one deep journey against a real backend-backed flow.
 // Citizen submits a Kapvergunning (tree felling permit) request via
@@ -31,6 +31,9 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   await citizenPage.getByRole('button', { name: 'Submit application' }).click();
   await expect(citizenPage.getByText('Aanvraag ingediend')).toBeVisible({ timeout: 15_000 });
   const businessKey = await citizenPage.locator('.font-mono').innerText();
+  // Resolved before the caseworker logs in: the shell instance plus its called
+  // sub-process, so each task below can be picked out of a shared queue.
+  const ownInstances = await instanceIdsForBusinessKey(businessKey);
   await citizenContext.close();
 
   // ── Caseworker: claim and complete the resulting review task ───────────
@@ -39,11 +42,7 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   await loginAsMedewerker(caseworkerPage, 'test-caseworker-flevoland', 'test123');
   await expect(caseworkerPage).toHaveURL(/\/dashboard\/caseworker$/);
 
-  await caseworkerPage
-    .getByRole('button', { name: /Case review: tree felling permit decision/ })
-    .first()
-    .click();
-  await claimIfNeeded(caseworkerPage);
+  await openOwnTask(caseworkerPage, /Case review: tree felling permit decision/, ownInstances);
 
   // form-js renders `select` fields as a custom combobox: the <label> and
   // accessible "textbox" role both target a visually-hidden, zero-size
@@ -61,11 +60,7 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   // ── Caseworker: finish the roundtrip — AwbShellProcess's own follow-up
   // notify task (also candidateGroups="caseworker") is created once the
   // review completes; leaving it open would dangle the process forever.
-  await caseworkerPage
-    .getByRole('button', { name: /Phase 6: Notify applicant of decision/ })
-    .first()
-    .click();
-  await claimIfNeeded(caseworkerPage);
+  await openOwnTask(caseworkerPage, /Phase 6: Notify applicant of decision/, ownInstances);
 
   await caseworkerPage.locator('[id$="-Field_NotificationMethod-display"]').click();
   await caseworkerPage.getByText('Email', { exact: true }).click();

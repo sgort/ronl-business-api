@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { FRONTEND_URL } from './helpers/target';
+
 // Kept separate from src/ (see the testing docs) so Vitest's
 // include/exclude globs never need to know about this directory.
 //
@@ -37,7 +39,9 @@ export default defineConfig({
   globalTeardown: './global-teardown.ts',
 
   use: {
-    baseURL: 'http://localhost:5173',
+    // Defaults to the local dev server; set FRONTEND_URL to point the suite
+    // at a deployed tier (see e2e/helpers/target.ts).
+    baseURL: FRONTEND_URL,
     trace: 'on-first-retry',
   },
 
