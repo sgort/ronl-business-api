@@ -477,6 +477,33 @@ gh pr create --base acc --title "chore: bump release to v<version>" --body "..."
   here: the `gitlab` remote lives in `.git/config`, so an Actions runner has no
   such remote, no key for it and no route to it. Run where the push happens.
 
+- **Then check for orphaned preview environments:**
+
+  ```bash
+  npm run check-previews
+  ```
+
+  A pull request's preview is deleted by a close job when the pull request
+  closes, and that job cannot catch everything — GitHub does not run
+  `pull_request` workflows while a pull request has a merge conflict, closing
+  included. On 12 September 2026 three Renovate security pull requests left
+  **eight** previews behind across three apps. Nothing reported them; they were
+  found by listing environments from Azure by hand, twice (#154).
+
+  Each orphan is a public URL serving old code and a slot on a plan with a
+  ceiling — a ceiling this repository has hit. A release is the point where
+  that is worth reconciling, for the same reason the mirror is.
+
+  Like `check-mirror`, it **never deletes**: it prints the exact command,
+  including `--subscription`, because the apps span two of them. Deleting an
+  Azure resource is a human's decision.
+
+  It also cannot run in CI — it needs an Azure login a runner does not have —
+  and it reports anything it could not check rather than passing over it. A
+  subscription it cannot read counts as unchecked and fails the command, which
+  matters: an expired token makes the query return nothing, and "I could not
+  ask" must never read as "there is nothing there".
+
 - **Confirm the branch is gone from the remote too.** `gh pr merge --delete-branch`
   removes both copies, and both repositories now have `delete_branch_on_merge`
   enabled so a merge through the GitHub UI does the same. But a release merged some
