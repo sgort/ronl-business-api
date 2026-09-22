@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { rateLimitKey } from '@utils/client-ip';
 import { config } from '@utils/config';
 import logger, { createLogger } from '@utils/logger';
+import { corsOriginCallback } from '@utils/cors-origin';
 import rootRoutes from '@routes/root.routes';
 import healthRoutes from '@routes/health.routes';
 import processRoutes from '@routes/process.routes';
@@ -76,9 +77,20 @@ if (config.security.helmetEnabled) {
 }
 
 // CORS configuration
+//
+// A function rather than the array it used to be, so a pull request's Static Web
+// Apps preview can call this backend (#37). Preview hostnames are ephemeral and
+// cannot be listed; the callback matches them on their app's stable slug, and
+// refuses them outright in production. See utils/cors-origin.ts.
+const isProductionTier = config.deploymentEnv === 'production';
+if (isProductionTier && config.corsPreviewSlugs.length > 0) {
+  appLogger.warn('CORS_PREVIEW_SLUGS is set on a production tier and is being ignored', {
+    slugs: config.corsPreviewSlugs.length,
+  });
+}
 app.use(
   cors({
-    origin: config.corsOrigin,
+    origin: corsOriginCallback(config.corsOrigin, config.corsPreviewSlugs, isProductionTier),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
