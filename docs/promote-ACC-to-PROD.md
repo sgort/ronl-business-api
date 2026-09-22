@@ -876,6 +876,17 @@ gh pr create --base main --head promote/2026-09-12 \
 
 ### Phase 6 — The merge window (in this order)
 
+> **Superseded on 22 September 2026 by #177.** Phase 6's disable → merge →
+> dispatch dance was this document's answer to the race in the table above:
+> three workflows taken out of the push's way by hand so the backend could go
+> first. That ordering is now in the repository rather than in a runbook.
+> `promote-to-production.yml` is the only thing that fires on a push to `main`,
+> and it calls the four deploy workflows — backend first, then the three sites
+> in parallel once it has succeeded or been skipped. Nothing needs disabling.
+>
+> The rest of this document is the record of the 12 September 2026 promotion and
+> is left as it was written.
+
 #### 6.1 Disable the three production SWA workflows
 
 ```bash

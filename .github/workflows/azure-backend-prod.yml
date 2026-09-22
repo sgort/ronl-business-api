@@ -1,6 +1,20 @@
 name: Deploy Backend to Azure Production
 
 on:
+  # Called by promote-to-production.yml and nothing else (#177).
+  #
+  # This used to trigger on a push to main with a paths filter, alongside the
+  # three site workflows, and the four raced. The backend has to be serving the
+  # promoted commit BEFORE any site that calls it deploys, and nothing said so.
+  # The filter that used to live here now lives in scripts/promotion-targets.sh,
+  # which answers for all four in one place; the ordering lives in the promotion
+  # workflow. Keep the two in step — the acc workflow's own paths filter is the
+  # reference copy.
+  #
+  # workflow_dispatch stays: it is the escape hatch for deploying the backend
+  # alone, and the only route left if the promotion workflow is broken.
+  workflow_call:
+
   # No `pull_request` trigger, deliberately. This is the decision #87 asks for,
   # recorded here rather than left to drift.
   #
@@ -17,22 +31,21 @@ on:
   # environments in this repository have no protection rules at all. The
   # exclusion stands on the promotion argument alone, and would want revisiting
   # if protection rules were ever added.
-  push:
-    branches:
-      - main
-    paths:
-      - 'packages/backend/**'
-      - 'packages/shared/**'
-      - '.github/workflows/azure-backend-prod.yml'
-      # Mirrors the acc workflow: the root lockfile and manifest feed every
-      # workspace, so a lockfile-only promotion must still build and test the
-      # backend rather than reaching production untested.
-      - 'package-lock.json'
-      - 'package.json'
-      # .nvmrc sets the Node version this workflow builds, tests and ships on.
-      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
-      - '.nvmrc'
   workflow_dispatch:
+
+# This workflow had no concurrency group while a push to main was its only
+# automatic trigger — one push, one run. #177 leaves workflow_dispatch as the
+# escape hatch for deploying the backend alone, which can now collide with the
+# backend deploy a promotion is already running. Two `az webapp deploy` calls at
+# the same App Service is the failure this prevents.
+#
+# The group names this app rather than ${{ github.workflow }}: inside a called
+# workflow that expression resolves to the CALLER's name, and a group equal to
+# the promotion workflow's own would deadlock it against the job it is waiting
+# for. QUEUE rather than cancel, matching the three site workflows.
+concurrency:
+  group: deploy-backend-prod-${{ github.ref }}
+  cancel-in-progress: false
 
 # Default to read-only; jobs opt into more only where required.
 permissions:

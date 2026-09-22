@@ -227,6 +227,14 @@ per scope, and public-site was last in scope at v2026.08.20.
 
 ### 7a. Backend before the push — app-wide (blocking)
 
+> **Superseded on 22 September 2026 by #177.** The four production workflows no
+> longer fire on a push to `main` at all. `promote-to-production.yml` does, and
+> it calls them as reusable workflows — backend first, then the three sites once
+> the backend is serving the promoted commit. The paths filters this table
+> quotes moved to `scripts/promotion-targets.sh`, which decides for all four in
+> one place. The race described below is the reason that workflow exists; the
+> paragraph is kept because it is what the checklist was written against.
+
 Three workflows fire on push to `main`, each path-filtered, and they are **not** symmetric:
 
 | Workflow                    | Trigger paths                       | What it actually does                       |
