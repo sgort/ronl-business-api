@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
 import { watchForRateLimit } from './helpers/rate-limit';
+import { OPERATON_URL } from './helpers/target';
 
 /**
  * RIP fase 1 (R2.1) end to end — start the phase, work every task, reach
@@ -323,7 +324,12 @@ async function openFaseladder(page: Page): Promise<number> {
 const PROJECT_NUMBER = 'E2E-26014';
 const PROJECT_NAME = 'E2E — R2.1 journey (test, safe to delete)';
 
-const OPERATON = 'http://localhost:8081/engine-rest';
+// Resolved per target (see helpers/target.ts). Pinned to localhost this spec
+// would start its instance on the target under test and then poll a different
+// engine for it: the skip guard below counts instances that are not the ones
+// the run could pick, nextStep() never sees the task it is waiting for, and
+// the journey times out with nothing to say for itself.
+const OPERATON = OPERATON_URL;
 
 /**
  * How many R2.1 instances are in flight.
