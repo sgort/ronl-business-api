@@ -157,6 +157,7 @@ describe('getPublicIndex', () => {
           exactMatch: null,
           serviceUri: 'svc:1',
           serviceTitle: 'Zorgtoeslag',
+          richting: 'invoer',
         },
       ],
       rules: [
@@ -177,6 +178,101 @@ describe('getPublicIndex', () => {
     expect(regel.ruleCount).toBe(1);
     expect(regel.rules).toEqual([{ naam: 'Recht op zorgtoeslag', geldig: '2026-01-01' }]);
     expect(regel.begrippen).toEqual(['Toetsingsinkomen']);
+  });
+
+  it('carries each concept’s input/output direction alongside the flat label list', async () => {
+    const concept = (prefLabel: string, richting: 'invoer' | 'uitvoer' | null) => ({
+      uri: `c:${prefLabel}`,
+      prefLabel,
+      exactMatch: null,
+      serviceUri: 'svc:1',
+      serviceTitle: 'Thuisbatterij',
+      richting,
+    });
+    m.regels.mockResolvedValue({
+      services: [{ uri: 'svc:1', title: 'Thuisbatterij', description: '' }],
+      organizations: [],
+      concepts: [
+        concept('Gemaakte Kosten', 'invoer'),
+        concept('Hoogte Subsidie', 'uitvoer'),
+        concept('Losse Flodder', null),
+      ],
+      rules: [
+        {
+          serviceTitle: 'Thuisbatterij',
+          ruleTitle: 'R',
+          validFrom: null,
+          confidence: null,
+          description: null,
+        },
+      ],
+    });
+
+    const index = await search.getPublicIndex();
+    const regel = index.find((i) => i.type === 'regel')!;
+
+    expect(regel.begrippenIO).toEqual([
+      { label: 'Gemaakte Kosten', richting: 'invoer' },
+      { label: 'Hoogte Subsidie', richting: 'uitvoer' },
+      { label: 'Losse Flodder', richting: null },
+    ]);
+    // The flat list stays exactly what it has always been, for the open API.
+    expect(regel.begrippen).toEqual(['Gemaakte Kosten', 'Hoogte Subsidie', 'Losse Flodder']);
+  });
+
+  it('collapses a concept the graph repeats for one service', async () => {
+    // A concept bound to two variables of the same service comes back twice —
+    // "Aanspraken" in Digital Twin Inkomensregelingen does today. Neither list
+    // may show it twice.
+    const row = (uri: string) => ({
+      uri,
+      prefLabel: 'Aanspraken',
+      exactMatch: null,
+      serviceUri: 'svc:1',
+      serviceTitle: 'Digital Twin',
+      richting: 'invoer' as const,
+    });
+    m.regels.mockResolvedValue({
+      services: [{ uri: 'svc:1', title: 'Digital Twin', description: '' }],
+      organizations: [],
+      concepts: [row('c:1'), row('c:2')],
+      rules: [],
+    });
+
+    const index = await search.getPublicIndex();
+    const regel = index.find((i) => i.type === 'regel')!;
+
+    expect(regel.begrippen).toEqual(['Aanspraken']);
+    expect(regel.begrippenIO).toEqual([{ label: 'Aanspraken', richting: 'invoer' }]);
+  });
+
+  it('keeps both entries when one concept is an input here and an output there', async () => {
+    // No service in the graph does this today, but nothing forbids it, and the
+    // page groups on direction — so both rows have to survive.
+    const row = (uri: string, richting: 'invoer' | 'uitvoer') => ({
+      uri,
+      prefLabel: 'Recht Op Subsidie',
+      exactMatch: null,
+      serviceUri: 'svc:1',
+      serviceTitle: 'Thuisbatterij',
+      richting,
+    });
+    m.regels.mockResolvedValue({
+      services: [{ uri: 'svc:1', title: 'Thuisbatterij', description: '' }],
+      organizations: [],
+      concepts: [row('c:1', 'uitvoer'), row('c:2', 'invoer')],
+      rules: [],
+    });
+
+    const index = await search.getPublicIndex();
+    const regel = index.find((i) => i.type === 'regel')!;
+
+    expect(regel.begrippenIO).toEqual([
+      { label: 'Recht Op Subsidie', richting: 'uitvoer' },
+      { label: 'Recht Op Subsidie', richting: 'invoer' },
+    ]);
+    // The flat list is a list of concepts, so it still names it once.
+    expect(regel.begrippen).toEqual(['Recht Op Subsidie']);
   });
 
   it('attaches the DMNs LDE publishes for a service, joined on the service URI', async () => {

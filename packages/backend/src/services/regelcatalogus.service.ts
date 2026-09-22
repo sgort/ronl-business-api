@@ -32,12 +32,18 @@ export interface CatalogOrganization {
   services: Array<{ uri: string; title: string }>;
 }
 
+/** Which side of the rules a concept sits on: a value they consume, or one
+ * they produce. Null when the graph carries neither signal — see
+ * `conceptDirection`. */
+export type ConceptDirection = 'invoer' | 'uitvoer';
+
 export interface CatalogConcept {
   uri: string;
   prefLabel: string;
   exactMatch: string | null;
   serviceUri: string;
   serviceTitle: string;
+  richting: ConceptDirection | null;
 }
 
 export interface CatalogRule {
@@ -218,7 +224,7 @@ PREFIX cpsv:     <http://purl.org/vocab/cpsv#>
 PREFIX cprmv:    <https://cprmv.open-regels.nl/0.3.0/>
 PREFIX cprmv041: <https://standaarden.open-regels.nl/standards/cprmv/0.4.1#>
 
-SELECT DISTINCT ?subject ?prefLabel ?exactMatch ?service ?serviceTitle
+SELECT DISTINCT ?subject ?prefLabel ?exactMatch ?service ?serviceTitle ?variable ?dmnRequired ?dmnProduced
 WHERE {
   ?subject skos:exactMatch ?exactMatch ;
            dct:subject ?variable .
@@ -248,7 +254,26 @@ ORDER BY ?service ?subject
     exactMatch: val(r, 'exactMatch'),
     serviceUri: val(r, 'service') ?? '',
     serviceTitle: val(r, 'serviceTitle') ?? '',
+    richting: conceptDirection(val(r, 'variable'), val(r, 'dmnRequired'), val(r, 'dmnProduced')),
   }));
+}
+
+/** Read a concept's direction from whichever signal the export carries. The
+ * two generations described above each say it their own way: an older export
+ * through the variable's edge to the DMN, a CPRMV 0.4.1 export only through
+ * the `/input/N` or `/output/N` tail of the variable URI. Where the graph
+ * carries both they agree throughout, so the edge — the explicit statement —
+ * wins and the URI is the fallback. */
+function conceptDirection(
+  variable: string | null,
+  required: string | null,
+  produced: string | null
+): ConceptDirection | null {
+  if (required) return 'invoer';
+  if (produced) return 'uitvoer';
+  if (variable && /\/input\/\d+$/.test(variable)) return 'invoer';
+  if (variable && /\/output\/\d+$/.test(variable)) return 'uitvoer';
+  return null;
 }
 
 async function fetchRules(): Promise<CatalogRule[]> {

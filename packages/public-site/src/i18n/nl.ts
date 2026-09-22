@@ -51,6 +51,9 @@ export interface Translations {
   dienst: string;
   rulesIn: string;
   conceptsIn: string;
+  conceptsInput: string;
+  conceptsOutput: string;
+  conceptsUnspecified: string;
   validFrom: string;
   filterRule: string;
   filterConcept: string;
@@ -113,6 +116,9 @@ export const nl: Translations = {
   dienst: 'Dienst',
   rulesIn: 'Regels in deze dienst',
   conceptsIn: 'Begrippen in deze dienst',
+  conceptsInput: 'Invoer — gegevens die de regels nodig hebben',
+  conceptsOutput: 'Uitvoer — wat de regels bepalen',
+  conceptsUnspecified: 'Overige begrippen',
   validFrom: 'Geldig vanaf',
   filterRule: 'Zoek op regelnaam…',
   filterConcept: 'Zoek op begrip…',

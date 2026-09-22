@@ -77,6 +77,10 @@ export interface PublicHit {
   rules?: { naam: string; geldig: string | null }[];
   ruleCount?: number;
   begrippen?: string[];
+  /** Regel items only: the same concepts as `begrippen`, each with the side of
+   * the rules it sits on, so the detail page can group them. Absent from a
+   * response served by a backend older than this field. */
+  begrippenIO?: { label: string; richting: 'invoer' | 'uitvoer' | null }[];
   forms?: { id: string; name: string }[];
   documents?: { id: string; name: string }[];
   subprocesses?: { id: string; name: string; bpmnProcessId: string; status: string }[];
