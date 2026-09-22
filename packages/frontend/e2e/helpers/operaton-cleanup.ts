@@ -87,6 +87,33 @@ async function deleteHistory(operatonUrl: string, businessKey: string): Promise<
 }
 
 /**
+ * Whether this key still has history on that engine.
+ *
+ * A spec may clean up after itself and still record a pending key as a
+ * backstop — rip-r21-journey does exactly that, deleting its own runtime and
+ * history unconditionally in afterEach because the prompt is skipped on piped
+ * and CI runs, where the RIP "Gereed" counters would otherwise drift. Its
+ * recorded key is therefore already spent by the time this runs, and offering
+ * it produced a prompt that could only ever report "Deleted 0".
+ *
+ * Checking first keeps the backstop meaningful: a key whose own cleanup really
+ * did fail still has history, so it is still offered. Only the ones with
+ * nothing left are dropped, which is also what makes a non-zero count mean
+ * something again.
+ */
+async function hasHistory(operatonUrl: string, businessKey: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${operatonUrl}/history/process-instance/count?processInstanceBusinessKey=${encodeURIComponent(businessKey)}`
+    );
+    if (!res.ok) return true; // can't tell — offer it rather than drop it
+    return ((await res.json()) as { count: number }).count > 0;
+  } catch {
+    return true; // engine unreachable: never drop a key on a failed lookup
+  }
+}
+
+/**
  * Called from within a test, once its roundtrip is fully finished. Does not
  * prompt itself (see the module comment above) — just records the businessKey,
  * and the engine it was created on, for globalTeardown to ask about after all
@@ -135,8 +162,28 @@ export async function runPendingCleanupPrompts(): Promise<void> {
     return;
   }
 
+  // Drop keys the engine no longer holds anything for, silently — see
+  // hasHistory(). Done before grouping so an engine whose keys are all spent
+  // produces no prompt at all rather than an empty one.
+  const live: PendingCleanup[] = [];
+  let spent = 0;
+  for (const entry of known) {
+    if (await hasHistory(entry.operatonUrl, entry.businessKey)) live.push(entry);
+    else spent++;
+  }
+  if (spent > 0) {
+    console.log(
+      `\n${spent} recorded business key(s) had no history left — already cleaned up by the ` +
+        `spec that created them — and were dropped without asking.`
+    );
+  }
+  if (live.length === 0) {
+    fs.unlinkSync(PENDING_FILE);
+    return;
+  }
+
   const byEngine = new Map<string, string[]>();
-  for (const { businessKey, operatonUrl } of known) {
+  for (const { businessKey, operatonUrl } of live) {
     byEngine.set(operatonUrl, [...(byEngine.get(operatonUrl) ?? []), businessKey]);
   }
 
