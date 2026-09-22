@@ -249,6 +249,80 @@ describe('SPARQL responses that carry no bindings', () => {
   });
 });
 
+describe('the input/output direction of a concept', () => {
+  /** Route the concept query to `rows` and leave the other four queries empty. */
+  function withConceptRows(rows: Row[]) {
+    mockAxios.post.mockImplementation((_url, query: string) => {
+      if (query.includes('skos:exactMatch')) return Promise.resolve(results(rows));
+      return Promise.resolve(results([]));
+    });
+    mockAxios.get.mockResolvedValue({ data: [] });
+  }
+
+  const concept = (extra: Row): Row => ({
+    subject: { value: 'c-1' },
+    prefLabel: { value: 'Concept' },
+    exactMatch: { value: 'em' },
+    service: { value: 'svc-1' },
+    ...extra,
+  });
+
+  it('reads an older export’s cpsv:isRequiredBy edge as an input', async () => {
+    withConceptRows([concept({ dmnRequired: { value: 'https://dmn/a' } })]);
+
+    const { concepts } = await getRegelcatalogusData();
+
+    expect(concepts[0].richting).toBe('invoer');
+  });
+
+  it('reads an older export’s cpsv:produces edge as an output', async () => {
+    withConceptRows([concept({ dmnProduced: { value: 'https://dmn/a' } })]);
+
+    const { concepts } = await getRegelcatalogusData();
+
+    expect(concepts[0].richting).toBe('uitvoer');
+  });
+
+  it('falls back to the /input/N segment of a CPRMV 0.4.1 variable URI', async () => {
+    withConceptRows([concept({ variable: { value: 'https://dmn/a/input/6' } })]);
+
+    const { concepts } = await getRegelcatalogusData();
+
+    expect(concepts[0].richting).toBe('invoer');
+  });
+
+  it('falls back to the /output/N segment of a CPRMV 0.4.1 variable URI', async () => {
+    withConceptRows([concept({ variable: { value: 'https://dmn/a/output/2' } })]);
+
+    const { concepts } = await getRegelcatalogusData();
+
+    expect(concepts[0].richting).toBe('uitvoer');
+  });
+
+  it('prefers the explicit edge over the variable URI segment', async () => {
+    // The two signals agree everywhere in the graph today. Pin the precedence
+    // anyway, so a future export that disagrees resolves predictably.
+    withConceptRows([
+      concept({
+        dmnProduced: { value: 'https://dmn/a' },
+        variable: { value: 'https://dmn/a/input/6' },
+      }),
+    ]);
+
+    const { concepts } = await getRegelcatalogusData();
+
+    expect(concepts[0].richting).toBe('uitvoer');
+  });
+
+  it('leaves the direction null when neither an edge nor a segment says', async () => {
+    withConceptRows([concept({ variable: { value: 'https://dmn/a/something-else' } })]);
+
+    const { concepts } = await getRegelcatalogusData();
+
+    expect(concepts[0].richting).toBeNull();
+  });
+});
+
 describe('optional bindings that the existing fixtures always supply', () => {
   it('maps a missing organization identifier/name and a missing link serviceTitle', async () => {
     mockAxios.post.mockImplementation((_url, query: string) => {

@@ -562,6 +562,14 @@ html {
   font-size: 22px;
   margin: 32px 0 10px;
 }
+/* Labels a chip row under a section heading — e.g. the input and output
+   halves of a service's concepts. Quieter than the h2 above it, so the
+   section still reads as one block. */
+.pub-detail-body .pub-chips-heading {
+  font-size: 15px;
+  color: var(--ro-ink-2);
+  margin: 14px 0 8px;
+}
 .pub-detail-body p {
   margin-bottom: 12px;
 }

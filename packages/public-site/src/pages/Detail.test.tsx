@@ -367,6 +367,92 @@ describe('Detail (regel), rules and concepts', () => {
     );
   });
 
+  it('splits the concepts into an input group and an output group, each counted', async () => {
+    vi.mocked(api.getRegelBySlug).mockResolvedValue(
+      hit({
+        ruleCount: 1,
+        rules: [{ naam: 'R', geldig: '2026-01-01' }],
+        begrippen: ['Gemaakte Kosten', 'Provincie Woning', 'Hoogte Subsidie'],
+        begrippenIO: [
+          { label: 'Gemaakte Kosten', richting: 'invoer' },
+          { label: 'Provincie Woning', richting: 'invoer' },
+          { label: 'Hoogte Subsidie', richting: 'uitvoer' },
+        ],
+      })
+    );
+
+    renderAt('x');
+
+    // The section heading still counts every concept; the groups divide them.
+    expect(await screen.findByText(`${t.conceptsIn} (3)`)).toBeInTheDocument();
+    expect(screen.getByText(`${t.conceptsInput} (2)`)).toBeInTheDocument();
+    expect(screen.getByText(`${t.conceptsOutput} (1)`)).toBeInTheDocument();
+
+    const input = screen.getByText(`${t.conceptsInput} (2)`).nextElementSibling!;
+    const output = screen.getByText(`${t.conceptsOutput} (1)`).nextElementSibling!;
+    expect(input).toHaveTextContent('Gemaakte Kosten');
+    expect(input).toHaveTextContent('Provincie Woning');
+    expect(input).not.toHaveTextContent('Hoogte Subsidie');
+    expect(output).toHaveTextContent('Hoogte Subsidie');
+  });
+
+  it('renders one group when every concept is on the same side', async () => {
+    vi.mocked(api.getRegelBySlug).mockResolvedValue(
+      hit({
+        ruleCount: 1,
+        rules: [{ naam: 'R', geldig: '2026-01-01' }],
+        begrippen: ['Gemaakte Kosten'],
+        begrippenIO: [{ label: 'Gemaakte Kosten', richting: 'invoer' }],
+      })
+    );
+
+    renderAt('x');
+
+    expect(await screen.findByText(`${t.conceptsInput} (1)`)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(t.conceptsOutput))).not.toBeInTheDocument();
+  });
+
+  it('keeps a concept whose direction the graph does not give', async () => {
+    // Nothing in the graph is undirected today, but the graph is authored
+    // elsewhere. Such a concept falls back to the undivided heading rather
+    // than disappearing off the page.
+    vi.mocked(api.getRegelBySlug).mockResolvedValue(
+      hit({
+        ruleCount: 1,
+        rules: [{ naam: 'R', geldig: '2026-01-01' }],
+        begrippen: ['Gemaakte Kosten', 'Losse Flodder'],
+        begrippenIO: [
+          { label: 'Gemaakte Kosten', richting: 'invoer' },
+          { label: 'Losse Flodder', richting: null },
+        ],
+      })
+    );
+
+    renderAt('x');
+
+    expect(await screen.findByText(`${t.conceptsInput} (1)`)).toBeInTheDocument();
+    expect(screen.getByText(`${t.conceptsUnspecified} (1)`)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Losse Flodder' })).toBeInTheDocument();
+  });
+
+  it('falls back to one undivided list when the API sends no directions', async () => {
+    // A response cached by a backend from before this field existed.
+    vi.mocked(api.getRegelBySlug).mockResolvedValue(
+      hit({
+        ruleCount: 1,
+        rules: [{ naam: 'R', geldig: '2026-01-01' }],
+        begrippen: ['Gemaakte Kosten', 'Hoogte Subsidie'],
+      })
+    );
+
+    renderAt('x');
+
+    expect(await screen.findByText(`${t.conceptsIn} (2)`)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(t.conceptsInput))).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Gemaakte Kosten' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Hoogte Subsidie' })).toBeInTheDocument();
+  });
+
   it('omits the concepts block when the service has none', async () => {
     vi.mocked(api.getRegelBySlug).mockResolvedValue(
       hit({ ruleCount: 1, rules: [{ naam: 'R', geldig: '2026-01-01' }], begrippen: [] })
