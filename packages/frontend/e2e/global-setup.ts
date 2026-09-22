@@ -1,4 +1,4 @@
-import { verifyRequiredProcesses } from './helpers/required-processes';
+import { verifyRequiredDecisions, verifyRequiredProcesses } from './helpers/required-processes';
 import {
   assertTargetAllowed,
   BACKEND_URL,
@@ -100,6 +100,39 @@ export default async function globalSetup() {
               'linked-data-explorer/packages/frontend/public/examples/<tenant>/ — the same',
               'content as the fixtures, without the E2E annotation and without the',
               '`...E2E` sub-process key. Redeploy that bundle under the tenant shown above.',
+            ]),
+        '',
+      ].join('\n')
+    );
+  }
+
+  // Decisions are a separate gate, because they are deployed differently:
+  // without an Organization, so a tenant-scoped process can reach them with
+  // decisionRefTenantId="${null}". A missing or tenant-pinned DMN does not show
+  // up as a missing process above — it surfaces mid-journey as a 500 on process
+  // start, or on a citizen's screen as "probeer het opnieuw", neither of which
+  // mentions a decision. sgort/linked-data-explorer#187.
+  const decisionProblems = await verifyRequiredDecisions();
+  if (decisionProblems.length > 0) {
+    throw new Error(
+      [
+        '',
+        `E2E preconditions not met — the required DECISION definitions are not deployed correctly on ${targetLabel}.`,
+        ...decisionProblems,
+        '',
+        'Decisions deploy WITHOUT an Organization, unlike the processes above.',
+        ...(isLocalTarget
+          ? [
+              'Import each file from linked-data-explorer/e2e-fixtures/ listed under',
+              "manifest.json's `sharedDecisions.files`, leaving the Organization field EMPTY.",
+              '',
+              'One exception: zorgtoeslag_resultaat ships with the zorgtoeslag rules set, not',
+              "with the fixture bundle — see manifest.json's `sharedDecisions.external`.",
+            ]
+          : [
+              'On a shared tier these are deployed once and shared by every tenant.',
+              'Check Cockpit: a decision listed under an Organization is the failure mode',
+              'here, not an absent one.',
             ]),
         '',
       ].join('\n')
