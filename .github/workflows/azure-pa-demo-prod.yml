@@ -1,31 +1,42 @@
 name: Deploy PA Demo to Azure Production
 
 on:
-  push:
-    branches:
-      - main
-    # packages/shared/** is included even though pa-demo's @ronl/shared
-    # imports are type-only (erased before Vite ever sees them). A
-    # shared-only change can't alter the compiled output, but without this
-    # filter a breaking type change in @ronl/shared would never run
-    # pa-demo's type-check step here, and would instead surface later at an
-    # unrelated pa-demo PR.
-    paths:
-      - 'packages/pa-demo/**'
-      - 'packages/shared/**'
-      - 'packages/pa-cockpit/**'
-      - '.github/workflows/azure-pa-demo-prod.yml'
-      # .nvmrc sets the Node version this workflow builds, tests and ships on.
-      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
-      - '.nvmrc'
+  # Called by promote-to-production.yml and nothing else (#177).
+  #
+  # This used to trigger on a push to main with a paths filter, alongside the
+  # backend and the two other sites, and the four raced. The filter that used
+  # to live here now lives in scripts/promotion-targets.sh, which answers for
+  # all four in one place; the ordering lives in the promotion workflow. Keep
+  # the two in step — azure-pa-demo-acc.yml's paths filter is the reference
+  # copy, including the reason packages/shared/** is in it despite pa-demo's
+  # @ronl/shared imports being type-only.
+  #
+  # workflow_dispatch stays: it is the escape hatch for deploying this site
+  # alone, and the only route left if the promotion workflow is broken.
+  workflow_call:
+    # Named rather than inherited. `secrets: inherit` would hand this workflow
+    # every secret the repository has -- including the Keycloak VM's SSH key and
+    # the Semgrep token -- to deploy one static site. Declaring the one it needs
+    # means the caller passes that one, and a missing secret fails at the call
+    # rather than at the deploy step.
+    secrets:
+      AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD:
+        description: Deployment token for the plato.open-regels.nl Static Web App.
+        required: true
   workflow_dispatch:
 
 # Same serialisation as the acc workflow, but production runs QUEUE rather
 # than cancel: interrupting a live production deployment to start another
 # is worse than waiting for it. Production deploys are rare enough that
 # the wait costs nothing.
+#
+# The group names this app rather than ${{ github.workflow }}. Inside a called
+# workflow that expression resolves to the CALLER's name, so all three site
+# workflows would share one group and serialise against each other for no
+# reason — and a group equal to the promotion workflow's own would deadlock it
+# against the jobs it is waiting for.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: deploy-pa-demo-prod-${{ github.ref }}
   cancel-in-progress: false
 
 # Default to read-only; jobs opt into more only where required.

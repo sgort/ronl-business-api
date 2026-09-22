@@ -1,0 +1,224 @@
+name: Promote to Production
+
+# A promotion is ONE thing, so it is one workflow run.
+#
+# Until #177 it was four. `main` received a push and four workflows started at
+# once, each with its own `paths:` filter, and nothing sequenced them. The
+# backend job is the slowest of the four — it runs the full backend suite
+# before it packages anything, while a Static Web App deploy is a build and an
+# upload — so the frontends reliably finished FIRST. A new frontend calling a
+# route the deployed backend did not serve yet got a 404, and on the public
+# site that is worse than transient: its build prerenders against the live API,
+# so a prerender inside the window bakes the failure into the deployed output.
+#
+# Before #35 the ordering was implicit in a runbook — push, then run
+# deploy-backend-to-prod.sh by hand. #35 removed the manual step without adding
+# ordering, which shrank the window from "until someone remembers" to "the
+# minutes the backend needs" and made it nobody's decision to get right.
+#
+# This is option 3 of the four in #177: the promotion becomes explicit. It
+# decides what changed, then calls the four deploy workflows as reusable
+# workflows in the order it wants — backend first, then the three sites in
+# parallel once the backend is serving the commit being promoted.
+#
+# CONSEQUENCE WORTH KNOWING: the four deploy workflows no longer trigger on a
+# push to main. If THIS workflow breaks, nothing deploys — silently, because
+# `main`'s ruleset requires only `audit` and these are not required checks. The
+# escape hatch is that all four keep `workflow_dispatch`, so any one of them can
+# still be run alone from the Actions tab.
+#
+# ACC IS NOT CHANGED HERE. It has the same four-way shape on a push to `acc`,
+# but its workflows also carry the `pull_request` trigger whose JOB NAMES the
+# `acc supply-chain gate` ruleset requires by name, plus the preview-environment
+# gating from #181. Restructuring that is a larger change with a ruleset in the
+# blast radius, and acceptance traffic is us. #177 records it as the lesser half.
+
+on:
+  push:
+    branches:
+      - main
+    # No `paths:` filter, deliberately — the opposite of what the four
+    # workflows used to carry. This workflow must START on every promotion in
+    # order to be the thing that decides which of them run; a trigger filter
+    # would mean the decision is made by not running at all.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Decide what would deploy, and deploy nothing'
+        type: boolean
+        default: true
+
+# Promotions QUEUE rather than cancel, which is what the three site workflows
+# already said for themselves: interrupting a live production deployment to
+# start another is worse than waiting for it. The group is a literal, not
+# ${{ github.workflow }}, so that the workflows this one CALLS — which see this
+# workflow's name in github.workflow — cannot land in the same group and
+# deadlock against their own caller.
+concurrency:
+  group: promote-to-production
+  cancel-in-progress: false
+
+# Default to read-only; jobs opt into more only where required. A calling job's
+# permissions are the ceiling for the workflow it calls, so the grants below are
+# the ones the four deploy workflows need, named here as well as there.
+permissions:
+  contents: read
+
+jobs:
+  # What did this promotion change? The four `paths:` filters that used to sit
+  # on four push triggers now live in scripts/promotion-targets.sh, one place
+  # that answers for all four. That file is a script rather than a `run:` block
+  # so the decision can be run locally against a real commit range — see its
+  # header.
+  changes:
+    name: changes
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    outputs:
+      backend: ${{ steps.targets.outputs.backend }}
+      frontend: ${{ steps.targets.outputs.frontend }}
+      pa_demo: ${{ steps.targets.outputs.pa_demo }}
+      public_site: ${{ steps.targets.outputs.public_site }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pushed range has to be walkable. A shallow clone does not
+          # contain github.event.before, and the fail-safe below would then
+          # deploy all four on every promotion — correct, but useless.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide which deploys this promotion needs
+        id: targets
+        env:
+          # Through env rather than interpolated into the script: these are
+          # untrusted-shaped values as far as the shell is concerned, and this
+          # repository does not interpolate event data into `run:` anywhere.
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          # Fail safe towards deploying everything, never towards deploying
+          # nothing. A promotion whose range cannot be read is not a promotion
+          # that changed nothing — the same rule the acc workflows' `changes`
+          # job states for itself. Three cases reach it: workflow_dispatch,
+          # which carries no `before`; a first push or force-push, whose
+          # `before` is all zeros; and a `before` this clone cannot resolve.
+          if [ -z "$BEFORE" ] \
+            || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "No readable commit range (before='${BEFORE:-unset}') — deploying everything."
+            bash scripts/promotion-targets.sh --all
+            exit 0
+          fi
+
+          # --no-renames on purpose: with rename detection a moved file appears
+          # under its new name only, and a file moved OUT of packages/backend/
+          # would then not deploy the backend it was removed from. GitHub's own
+          # path filters count both names; so does this.
+          git diff --name-only --no-renames "$BEFORE" "$AFTER" > "$RUNNER_TEMP/changed.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/changed.txt") changed file(s) in ${BEFORE}..${AFTER}"
+          bash scripts/promotion-targets.sh < "$RUNNER_TEMP/changed.txt"
+
+      - name: Summary
+        env:
+          BACKEND: ${{ steps.targets.outputs.backend }}
+          FRONTEND: ${{ steps.targets.outputs.frontend }}
+          PA_DEMO: ${{ steps.targets.outputs.pa_demo }}
+          PUBLIC_SITE: ${{ steps.targets.outputs.public_site }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          {
+            echo "| Deploy | This promotion |"
+            echo "| --- | --- |"
+            echo "| Backend (api.open-regels.nl) | $BACKEND |"
+            echo "| Frontend (mijn.open-regels.nl) | $FRONTEND |"
+            echo "| PA demo (plato.open-regels.nl) | $PA_DEMO |"
+            echo "| Public site (publiek.open-regels.nl) | $PUBLIC_SITE |"
+            if [ "$DRY_RUN" = "true" ]; then
+              echo
+              echo "**Dry run — nothing above is deployed.** Everything up to the call"
+              echo "was exercised: the range, the matcher, the four workflow references"
+              echo "and their secrets. Re-dispatch with \`dry_run\` unticked to deploy."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Two things that hold for all four calls below ────────────────────────
+  #
+  # `$/` rather than `./`. GitHub's self-repository syntax
+  # (July 2026) resolves against THIS repository at this commit; the
+  # workspace-relative `./` form resolves against the runner's filesystem, so it
+  # can pick up something an earlier step wrote there. zizmor's self-repository
+  # audit flags the latter, and `audit` is a required check.
+  #
+  # `dry_run` is how this workflow gets proven without promoting anything. The
+  # four calls below are resolved when the run is PARSED, before any job starts,
+  # so a dry run still fails loudly on a bad reference, a missing secret or an
+  # unsatisfiable `needs` graph — it just deploys nothing. It defaults to true
+  # so that a manual dispatch errs towards saying what it would do.
+
+  # ── The backend goes first, and alone ────────────────────────────────────
+  #
+  # This is the whole point of the workflow. The backend must be serving the
+  # promoted commit before any site that calls it is deployed.
+  #
+  # The `if` runs this job when `changes` did NOT succeed as well as when it
+  # said true — a git failure there must mean a full deploy, never a free pass.
+  # `!cancelled()` is what lets the job run at all after a failed need; without
+  # it GitHub skips the job regardless of what the condition says.
+  backend:
+    name: backend
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
+    permissions:
+      contents: read
+      # Mints the OIDC token azure/login exchanges for an ARM token. Granted
+      # here because a called workflow cannot hold more than its caller.
+      id-token: write
+    uses: $/.github/workflows/azure-backend-prod.yml
+    # No `secrets:` at all, and no `inherit`. This deploy authenticates with
+    # OIDC against `vars.AZURE_CLIENT_ID_PROD` — repository variables need no
+    # passing — so it needs not one secret. `secrets: inherit` would have handed
+    # it every secret the repository has to use none of them.
+
+  # ── Then the three sites, together ───────────────────────────────────────
+  #
+  # They do not depend on each other, only on the backend, so they run in
+  # parallel — the promotion is no slower than it was, only ordered.
+  #
+  # `needs.backend.result` is checked against a positive list rather than
+  # `!= 'failure'`: a skipped backend (nothing backend-shaped changed) and a
+  # successful one both mean the deployed backend serves what these sites
+  # expect, while `cancelled` means nobody knows and the sites must not go.
+  frontend:
+    name: frontend
+    needs: [changes, backend]
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && contains(fromJSON('["success","skipped"]'), needs.backend.result) && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: $/.github/workflows/azure-frontend-prod.yml
+    secrets:
+      AZURE_STATIC_WEB_APPS_API_TOKEN_PROD: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+
+  pa_demo:
+    name: pa-demo
+    needs: [changes, backend]
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && contains(fromJSON('["success","skipped"]'), needs.backend.result) && (needs.changes.result != 'success' || needs.changes.outputs.pa_demo == 'true') }}
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: $/.github/workflows/azure-pa-demo-prod.yml
+    secrets:
+      AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PA_DEMO_PROD }}
+
+  public_site:
+    name: public-site
+    needs: [changes, backend]
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && contains(fromJSON('["success","skipped"]'), needs.backend.result) && (needs.changes.result != 'success' || needs.changes.outputs.public_site == 'true') }}
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: $/.github/workflows/azure-publicsite-prod.yml
+    secrets:
+      AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_PROD: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PUBLIC_SITE_PROD }}
