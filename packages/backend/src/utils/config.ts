@@ -72,6 +72,7 @@ interface Config {
   port: number;
   host: string;
   corsOrigin: string[];
+  corsPreviewSlugs: string[];
   keycloak: {
     url: string;
     realm: string;
@@ -227,6 +228,14 @@ export const config: Config = {
     'http://localhost:5175', // public-site dev server
     'http://localhost:3002',
   ]),
+  // Static Web Apps slugs whose NUMBERED PREVIEWS may call this backend (#37).
+  // Empty everywhere by default, and ignored outright in production — see
+  // utils/cors-origin.ts. These are the stable per-app slugs Azure derives
+  // preview hostnames from, not hostnames themselves:
+  //   ashy-pebble-0d80dbe03  (frontend)
+  //   red-river-0ce4c9803    (pa-demo)
+  //   calm-water-068f8b303   (public site)
+  corsPreviewSlugs: parseEnvArray(process.env.CORS_PREVIEW_SLUGS, []),
   keycloak: {
     url: process.env.KEYCLOAK_URL || 'http://localhost:8080',
     realm: process.env.KEYCLOAK_REALM || 'ronl',
