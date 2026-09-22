@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
 
+import { isLocalTarget, targetLabel } from './target';
+
 /**
  * Turn an API throttle into a message that says so.
  *
@@ -26,7 +28,12 @@ export function watchForRateLimit(page: Page): { hit: () => string | null } {
       first &&
       `The API rate-limited this run (429 on ${first}). This is the backend's ` +
         `RATE_LIMIT_MAX_REQUESTS budget, not a defect in the app or the test — ` +
-        `raise it in packages/backend/.env.development and restart the backend, ` +
-        `or leave a minute between runs.`,
+        (isLocalTarget
+          ? `raise it in packages/backend/.env.development and restart the backend, ` +
+            `or leave a minute between runs.`
+          : `and on ${targetLabel} it is set in the App Service settings, not in any ` +
+            `local file — ACC serves 100 requests a minute against a local default of ` +
+            `1000, so a run that is fine on localhost throttles there. Raise it on the ` +
+            `tier or leave a minute between runs.`),
   };
 }
