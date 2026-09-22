@@ -55,6 +55,7 @@ across four acceptance and production pipelines.
 | Vulnerable and outdated npm packages are surfaced            | Semgrep Code + Supply Chain                     | **yes, since linked-data-explorer#119** |
 | Pins stay current instead of freezing                        | Renovate, under a 14-day cooldown               | n/a                                     |
 | The GitLab mirror has not silently drifted                   | `check-mirror`, at each release                 | no — runs locally                       |
+| No preview environment outlives its pull request             | `check-previews`, at each release               | no — runs locally                       |
 | What cannot be pinned is written down                        | `SECURITY-PIPELINE.md`                          | n/a                                     |
 
 Measured on adoption: **49 findings → 0**, across the 8 workflows that existed
