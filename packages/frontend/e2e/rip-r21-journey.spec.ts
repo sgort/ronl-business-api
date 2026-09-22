@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
 import { watchForRateLimit } from './helpers/rate-limit';
-import { OPERATON_URL } from './helpers/target';
+import { OPERATON_URL, targetLabel } from './helpers/target';
 
 /**
  * RIP fase 1 (R2.1) end to end — start the phase, work every task, reach
@@ -480,11 +480,25 @@ async function signPhaseApproval(page: Page, name: string): Promise<void> {
   // licence -- the guard stopped the signature, not the request. The panel
   // publishes the backend's mode (SigningPanel, from the spec endpoint) so
   // this can be settled while nothing has been created yet.
-  await expect(
-    panel,
-    'refusing to request a LIVE ValidSign signature from a test — set ' +
-      'VALIDSIGN_STUB_MODE=true and restart the backend'
-  ).toHaveAttribute('data-validsign-stub', 'true');
+  //
+  // Skipped rather than failed, for the same reason the foreign-instance guard
+  // above skips: a tier that signs for real is a fact about the environment,
+  // not a defect in the journey, and reporting the two alike teaches people to
+  // read red as noise. ACC is deliberately live (VALIDSIGN_LIVE_TIERS=
+  // acceptance), so against it this is the expected outcome — flipping that
+  // setting to get a green tick would disable the very thing acceptance exists
+  // to exercise. The afterEach still runs on a skip, so the instance this
+  // journey started is cleaned up rather than left to block the next run.
+  const stub = await panel.getAttribute('data-validsign-stub');
+  if (stub !== 'true') {
+    const reason =
+      `${targetLabel} signs with the real ValidSign (VALIDSIGN_STUB_MODE=false), and this ` +
+      `journey will not request a binding signature. Nothing was created — the refusal ` +
+      `happens before POST /task/:id/package. Run it against a target where ` +
+      `VALIDSIGN_STUB_MODE=true.`;
+    console.warn(`[rip-r21-journey] SKIPPED — ${reason}`);
+    test.skip(true, reason);
+  }
 
   await page.getByRole('button', { name: 'Onderteken nu' }).click();
 
