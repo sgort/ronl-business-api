@@ -379,6 +379,8 @@ drawer on `acc.mijn.open-regels.nl` or read
   signals with it.
 - The rate-limit **code default** went 100 → 1000. Both App Services pin
   `RATE_LIMIT_MAX_REQUESTS=100` explicitly, so neither tier picks this up (§4.1).
+  (ACC was since raised to `1000` by hand, on 22 September — see §4.1. PROD
+  still pins `100`.)
 
 **28 August — 2026.08.24 → 2026.08.32 (PA demo, the cockpit package, the supply chain)**
 
@@ -479,9 +481,26 @@ for non-secret keys.
 | `PUBLIC_PROCESS_BOARDS`                                                                                                  | unset → `caseworker`                    | unset → `caseworker`                          | none — widen only if a board beyond `caseworker` (e.g. `caseworker,infra-board`) should also be public. Replaces the removed `PUBLIC_SHOW_WIP_PROCESSES` escape hatch (#111): the public site no longer gates on status at all |
 | `PA_SEED_DEMO_DATA`                                                                                                      | unset → `false`                         | unset                                         | none                                                                                                                                                                                                                           |
 | `EU_SOURCE_ENABLED`, `EP_TEXTS_SUBMITTED_ENABLED`, `EU_API_BASE`                                                         | unset → on, on, `data.europarl…/api/v2` | same                                          | none                                                                                                                                                                                                                           |
-| `RATE_LIMIT_MAX_REQUESTS`                                                                                                | `100`                                   | `100`                                         | none — parity with ACC (see §3.3)                                                                                                                                                                                              |
+| `RATE_LIMIT_MAX_REQUESTS`                                                                                                | `100`                                   | `1000` (raised 22 Sep)                        | **decide** — ACC was raised so the E2E suite can run against it; the old "parity with ACC" reason no longer holds. `TRUST_PROXY=true` on both tiers, so the budget is per client, not one pot — see the note under this table. |
 | `TRUST_PROXY`                                                                                                            | `true`                                  | `true`                                        | none — so the "one shared budget per deployment" caveat in PUBLIC-SITE-GO-LIVE §7b does **not** apply                                                                                                                          |
 | PROD-only legacy (`DSO_*`, `ENABLE_*`, `OPENAI_API_KEY`, `OPERATON_URL`, `RONL_SPARQL_ENDPOINT`, `MEDIA_AGGREGATOR_*` …) | present                                 | absent                                        | leave                                                                                                                                                                                                                          |
+
+**On the rate limit.** `TRUST_PROXY=true` on both tiers, so Express reads
+`req.ip` from X-Forwarded-For and the limiter buckets **per client**, not once
+per deployment — confirmed three ways on 22 September: this table, the real
+client address in the ACC request log quoted in `utils/client-ip.ts`, and a
+probe returning `RateLimit-Remaining: 99` on its first call. A heavy caller
+therefore spends its own budget and does not throttle anyone else, which is what
+made raising ACC to `1000` a convenience decision rather than a safety one: a
+full E2E run from one machine exceeds 100/min in the PA cockpit specs. The same
+reasoning does not automatically carry to PROD — a tenfold ceiling per client is
+a much weaker defence on a public tier, and nothing there needs the headroom
+unless the suite is meant to run against it.
+
+Note also that `client-ip.ts` strips the `address:port` Azure writes into
+X-Forwarded-For (commit `3ad8c7b`). Before that the key was per _connection_, so
+the limit read as per-client and behaved as per-connection — softer by whatever
+number of connections a browser happened to open.
 
 Two cosmetic observations. Neither blocks, but both are worth an issue:
 
