@@ -1,7 +1,11 @@
 import { getNieuwsItems } from '@services/nieuws.service';
 import { getBerichtenItems } from '@services/berichten.service';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
-import { getRegelcatalogusData, CatalogService } from '@services/regelcatalogus.service';
+import {
+  getRegelcatalogusData,
+  CatalogService,
+  ConceptDirection,
+} from '@services/regelcatalogus.service';
 import { getPublicProcesses, getPublicDmnsByService, PublicDmn } from '@services/lde.service';
 import { slugify } from '@utils/slug';
 import { createLogger } from '@utils/logger';
@@ -25,6 +29,13 @@ export interface PublicSubprocessRow {
   bpmnProcessId: string;
   status: string;
 }
+/** A concept of a regel service together with the side of the rules it sits
+ * on. Published alongside the flat `begrippen` rather than replacing it: that
+ * array is part of the open, anonymous API and outside consumers read it. */
+export interface PublicConceptRow {
+  label: string;
+  richting: ConceptDirection | null;
+}
 
 export interface PublicIndexItem {
   /** Unique across the whole federated index, e.g. "regel-zorgtoeslag". */
@@ -43,6 +54,10 @@ export interface PublicIndexItem {
   rules?: PublicRuleRow[];
   ruleCount?: number;
   begrippen?: string[];
+  /** The same concepts as `begrippen`, each with the side of the rules it sits
+   * on, so the public detail page can group them. A concept the graph places on
+   * both sides appears twice here and once in `begrippen`. */
+  begrippenIO?: PublicConceptRow[];
   forms?: PublicFormRow[];
   documents?: PublicFormRow[];
   subprocesses?: PublicSubprocessRow[];
@@ -63,6 +78,17 @@ export interface PublicSearchFilters {
 
 // ── Mappers ────────────────────────────────────────────────────────────────
 
+/** First occurrence wins, so the graph's own ordering survives. */
+function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const k = key(item);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 function mapRegelService(
   service: CatalogService,
   data: Awaited<ReturnType<typeof getRegelcatalogusData>>,
@@ -73,9 +99,15 @@ function mapRegelService(
   const rules = data.rules
     .filter((r) => r.serviceTitle === service.title)
     .map((r) => ({ naam: r.ruleTitle, geldig: r.validFrom }));
-  const begrippen = data.concepts
-    .filter((c) => c.serviceTitle === service.title)
-    .map((c) => c.prefLabel);
+  // One concept can reach a service through more than one variable, so both
+  // lists are deduplicated — the flat one by label, the directional one by
+  // label and side together.
+  const serviceConcepts = data.concepts.filter((c) => c.serviceTitle === service.title);
+  const begrippen = [...new Set(serviceConcepts.map((c) => c.prefLabel))];
+  const begrippenIO = uniqueBy(
+    serviceConcepts.map((c) => ({ label: c.prefLabel, richting: c.richting })),
+    (b) => `${b.richting ?? ''}|${b.label}`
+  );
   const dmns = dmnsByService.get(service.uri);
 
   return {
@@ -91,6 +123,7 @@ function mapRegelService(
     rules,
     ruleCount: rules.length,
     begrippen,
+    begrippenIO,
     ...(dmns?.length ? { dmns } : {}),
     facts: [
       ['Uitvoeringsorganisatie', org?.name ?? '—'],

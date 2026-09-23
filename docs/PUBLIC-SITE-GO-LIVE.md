@@ -227,6 +227,14 @@ per scope, and public-site was last in scope at v2026.08.20.
 
 ### 7a. Backend before the push — app-wide (blocking)
 
+> **Superseded on 22 September 2026 by #177.** The four production workflows no
+> longer fire on a push to `main` at all. `promote-to-production.yml` does, and
+> it calls them as reusable workflows — backend first, then the three sites once
+> the backend is serving the promoted commit. The paths filters this table
+> quotes moved to `scripts/promotion-targets.sh`, which decides for all four in
+> one place. The race described below is the reason that workflow exists; the
+> paragraph is kept because it is what the checklist was written against.
+
 Three workflows fire on push to `main`, each path-filtered, and they are **not** symmetric:
 
 | Workflow                    | Trigger paths                       | What it actually does                       |
@@ -235,11 +243,16 @@ Three workflows fire on push to `main`, each path-filtered, and they are **not**
 | `azure-frontend-prod.yml`   | `packages/frontend/**`, `shared/**` | **deploys** to SWA `mijn.open-regels.nl`    |
 | `azure-publicsite-prod.yml` | `packages/public-site/**`           | **deploys** to SWA `publiek.open-regels.nl` |
 
-So the frontends self-deploy on push while the backend does not — `azure-backend-prod.yml`
-is named "Build Backend for Production" and stops at `upload-artifact`. The backend deploy
-is still the manual `deploy-backend-to-prod.sh` (unchanged in this delta: builds locally,
-then `az webapp deploy` → `ronl-business-api-prod` / `rg-ronl-prod`). Push first and the
-new frontends call a v3.8.2 backend that lacks their routes.
+The frontends self-deploy on push, and since #35 so does the backend:
+`azure-backend-prod.yml` is "Deploy Backend to Azure Production", and it ships and then
+verifies that `/v1/health`'s `build.sha` matches the commit it deployed.
+
+That removes the manual step but **not** the ordering problem. All four workflows fire on
+the same push and race each other, and the frontends have no reason to finish last. Push
+first and the new frontends can still call a backend that lacks their routes — for the
+minutes it takes the backend job to run its tests, build and start the site, rather than
+until someone remembers to run a script. `deploy-backend-to-prod.sh` remains as the
+break-glass path.
 
 - [x] **CI is green on `acc` first.** `28ab6ca` gated all three PROD workflows on lint +
       unit tests, and the frontend additionally on `npm run test:perf` (performance
@@ -291,6 +304,8 @@ backend that will not boot.
 - [x] Confirm `DATABASE_URL` **and** `OPERATON_BASE_URL` are set in PROD App Settings.
       _Verified 2026-09-12, together with `KEYCLOAK_CLIENT_SECRET` and
       `ANTHROPIC_API_KEY`; the backend booted cleanly, so `validateConfig()` passed._
+      _`KEYCLOAK_CLIENT_SECRET` has since been removed — it named a public client and
+      nothing read it (#96). The other three still boot-block._
       (Both were verified present on `ronl-business-api-prod` when the check was written —
       this is a confirm, but a boot-blocking one if it is wrong.)
 

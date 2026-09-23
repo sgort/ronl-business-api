@@ -41,21 +41,22 @@ across four acceptance and production pipelines.
 
 ## 2. What it delivers
 
-| Property                                                     | Enforced by                               | Blocks a merge                          |
-| ------------------------------------------------------------ | ----------------------------------------- | --------------------------------------- |
-| Every action reference is an immutable commit digest         | zizmor `unpinned-uses`, policy `hash-pin` | yes                                     |
-| No job carries more token scope than it needs                | zizmor `excessive-permissions`            | yes                                     |
-| No git credential is left in the workspace for later steps   | zizmor `artipacked`                       | yes                                     |
-| **Each digest resolves to the version its comment claims**   | `check-supply-chain`                      | **yes, since #83**                      |
-| **The register still describes the workflows**               | `check-supply-chain`                      | **yes, since #83**                      |
-| `renovate.json` is valid and not silently auto-migrated      | `renovate-config-validator --strict`      | yes                                     |
-| Formatting holds on the shared branch, not just pre-push     | `prettier --check`                        | yes                                     |
-| **`@ronl/shared` stays free of unmeasured logic**            | `check-shared`                            | **yes, since #84**                      |
-| Backend tests and the per-file branch floor run before merge | `Build Backend for ACC` on `pull_request` | **yes, since linked-data-explorer#119** |
-| Vulnerable and outdated npm packages are surfaced            | Semgrep Code + Supply Chain               | **yes, since linked-data-explorer#119** |
-| Pins stay current instead of freezing                        | Renovate, under a 14-day cooldown         | n/a                                     |
-| The GitLab mirror has not silently drifted                   | `check-mirror`, at each release           | no — runs locally                       |
-| What cannot be pinned is written down                        | `SECURITY-PIPELINE.md`                    | n/a                                     |
+| Property                                                     | Enforced by                                     | Blocks a merge                          |
+| ------------------------------------------------------------ | ----------------------------------------------- | --------------------------------------- |
+| Every action reference is an immutable commit digest         | zizmor `unpinned-uses`, policy `hash-pin`       | yes                                     |
+| No job carries more token scope than it needs                | zizmor `excessive-permissions`                  | yes                                     |
+| No git credential is left in the workspace for later steps   | zizmor `artipacked`                             | yes                                     |
+| **Each digest resolves to the version its comment claims**   | `check-supply-chain`                            | **yes, since #83**                      |
+| **The register still describes the workflows**               | `check-supply-chain`                            | **yes, since #83**                      |
+| `renovate.json` is valid and not silently auto-migrated      | `renovate-config-validator --strict`            | yes                                     |
+| Formatting holds on the shared branch, not just pre-push     | `prettier --check`                              | yes                                     |
+| **`@ronl/shared` stays free of unmeasured logic**            | `check-shared`                                  | **yes, since #84**                      |
+| Backend tests and the per-file branch floor run before merge | `Deploy Backend to Azure ACC` on `pull_request` | **yes, since linked-data-explorer#119** |
+| Vulnerable and outdated npm packages are surfaced            | Semgrep Code + Supply Chain                     | **yes, since linked-data-explorer#119** |
+| Pins stay current instead of freezing                        | Renovate, under a 14-day cooldown               | n/a                                     |
+| The GitLab mirror has not silently drifted                   | `check-mirror`, at each release                 | no — runs locally                       |
+| No preview environment outlives its pull request             | `check-previews`, at each release               | no — runs locally                       |
+| What cannot be pinned is written down                        | `SECURITY-PIPELINE.md`                          | n/a                                     |
 
 Measured on adoption: **49 findings → 0**, across the 8 workflows that existed
 then.

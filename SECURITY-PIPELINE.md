@@ -39,17 +39,18 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**31 `uses:` references across 10 workflows, all 31 digest-pinned.** Verified on
-`acc` at `8e8fcdb`, 12 September 2026 — by `npm run check-supply-chain`, which
+**34 `uses:` references across 11 workflows, all 34 digest-pinned.** Verified on
+`acc` at `65850f9`, 22 September 2026 — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| `actions/checkout` (×10)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/checkout` (×11)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
 | `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
 | `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
 | `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
 | `renovate-config-validator`         | `npx --package renovate@44.50.3`                    | 44.50.3           | **manual** — an inline npx argument, not a manifest entry                                     |
@@ -268,17 +269,24 @@ What that means for this document's scope:
   `npm install --production --omit=dev` inside `packages/backend/deploy/` — a
   directory with a `package.json` but **no lockfile**. Resolution happens against
   semver ranges, on a developer machine, leaving no CI record of what was
-  installed. The same pattern exists in the CI workflows' "Prepare deployment
-  package" step, but that copy is never deployed.
+  installed. The CI workflows' "Prepare deployment package" step used to carry
+  the same pattern; it now installs from the root lockfile in a staging copy,
+  filtered to the backend workspace with production dependencies only.
 - The scripts do carry real safety rails: they refuse to run off `acc`, refuse a
   dirty working tree, and resolve an archiver before building anything. The gap is
   structural, not carelessness.
 
-This is the widest floating surface in the repository and, unlike the container
-exception above, it is fixable from our side —
-[#34](https://github.com/sgort/ronl-business-api/issues/34) pins the bundle's
-dependencies, [#35](https://github.com/sgort/ronl-business-api/issues/35) moves
-the deploy into a workflow. Both still open.
+This was the widest floating surface in the repository and, unlike the container
+exception above, it was fixable from our side. The workflow path is now fixed:
+[#35](https://github.com/sgort/ronl-business-api/issues/35) moved the deploy
+into `azure-backend-{acc,prod}.yml`, which installs from the lockfile and so
+closes [#34](https://github.com/sgort/ronl-business-api/issues/34) for anything
+that ships through CI.
+
+**The scripts remain, and so does the exception — narrowed.** They are the
+break-glass path when CI cannot deploy, they still resolve dependencies on a
+developer machine against semver ranges, and nothing stops someone running one.
+The exception closes when they are retired, not when the workflow lands.
 
 ## What the audit cannot see
 
@@ -290,6 +298,34 @@ that this document still matches the workflows.
 Both of those gaps are now covered by `scripts/check-supply-chain.mjs` — see
 [Keeping this register true](#keeping-this-register-true) below. What follows
 here is what remains outside any check.
+
+**How a deploy credential reaches CI is not checked either.** Nothing verifies
+that a secret holds what its author meant. Piping a token straight out of the
+Azure CLI stores a trailing newline —
+
+```bash
+az staticwebapp secrets list … --query properties.apiKey -o tsv | gh secret set <NAME>
+```
+
+— 120 bytes where the key is 119. Both halves are the documented way to do their
+job; the composition is what goes wrong. It cost the public site's first
+production deploy on 12 September 2026, and the failure named nothing: every
+build step passed, then `An unknown exception has occurred` with a DeploymentId
+printed first, so it read as an upload that began and failed rather than an
+authentication that never happened.
+
+A secret's value cannot be read back, so no check can confirm this after the
+fact and none is proposed. `scripts/set-secret.sh` removes the trap at the point
+of use instead: it reads the value from stdin, strips whitespace, refuses an
+empty result, and reports the byte count it stored — the one piece of evidence
+that survives.
+
+```bash
+az staticwebapp secrets list … -o tsv | bash scripts/set-secret.sh <NAME>
+```
+
+The value is never echoed, never passed as an argument, and never written to a
+file. Issue #97.
 
 **Production is not yet protected.** The `*-prod.yml` files are pinned by this
 change, but GitHub Actions runs the workflow file _from the branch being pushed_.

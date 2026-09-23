@@ -3,9 +3,9 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { OPERATON_URL } from './target';
 
-const OPERATON_BASE_URL = 'http://localhost:8081/engine-rest';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Playwright runs each test in a worker child process that does not forward
 // the CLI's real TTY stdin (confirmed: microsoft/playwright#33061 — a
@@ -15,6 +15,35 @@ const OPERATON_BASE_URL = 'http://localhost:8081/engine-rest';
 // records the businessKey it wants cleaned up here, and globalTeardown
 // (see ../global-teardown.ts) does the actual prompting afterward, once.
 const PENDING_FILE = path.join(__dirname, '..', '.pending-operaton-cleanup.json');
+
+/**
+ * A recorded key, with the engine it lives on.
+ *
+ * The engine is part of the record because the suite is target-aware: a run
+ * against ACC creates its instances on ACC's engine, and its keys must be
+ * deleted there. Before this was stored, the file held bare strings and the
+ * teardown always used whatever OPERATON_URL the NEXT run happened to have —
+ * so a local run following an ACC run would look ACC's keys up on
+ * localhost:8081, match nothing, delete nothing, and still consider the file
+ * handled, losing the only record that ACC history was left behind.
+ */
+interface PendingCleanup {
+  businessKey: string;
+  operatonUrl: string;
+}
+
+/** Entries written before the engine was recorded; the engine is unknowable. */
+type StoredEntry = PendingCleanup | string;
+
+function readPending(): StoredEntry[] {
+  if (!fs.existsSync(PENDING_FILE)) return [];
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(PENDING_FILE, 'utf8'));
+    return Array.isArray(parsed) ? (parsed as StoredEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Interactive y/n prompt on the real terminal running `npm run test:e2e`.
@@ -30,74 +59,156 @@ async function askYesNo(question: string): Promise<boolean> {
 }
 
 /**
- * Deletes the historic process-instance record(s) for a given businessKey —
- * both the top-level instance and any call-activity subprocess instances,
- * which Operaton tracks as separate history entries (deleting the parent's
- * history does not cascade to them).
+ * Deletes the historic process-instance record(s) for a given businessKey on
+ * one engine — both the top-level instance and any call-activity subprocess
+ * instances, which Operaton tracks as separate history entries (deleting the
+ * parent's history does not cascade to them).
  */
-async function deleteHistory(businessKey: string): Promise<number> {
+async function deleteHistory(operatonUrl: string, businessKey: string): Promise<number> {
   const parentsRes = await fetch(
-    `${OPERATON_BASE_URL}/history/process-instance?processInstanceBusinessKey=${encodeURIComponent(businessKey)}`
+    `${operatonUrl}/history/process-instance?processInstanceBusinessKey=${encodeURIComponent(businessKey)}`
   );
   const parents = (await parentsRes.json()) as Array<{ id: string }>;
 
   let deleted = 0;
   for (const parent of parents) {
     const subsRes = await fetch(
-      `${OPERATON_BASE_URL}/history/process-instance?superProcessInstanceId=${parent.id}`
+      `${operatonUrl}/history/process-instance?superProcessInstanceId=${parent.id}`
     );
     const subs = (await subsRes.json()) as Array<{ id: string }>;
     for (const sub of subs) {
-      await fetch(`${OPERATON_BASE_URL}/history/process-instance/${sub.id}`, { method: 'DELETE' });
+      await fetch(`${operatonUrl}/history/process-instance/${sub.id}`, { method: 'DELETE' });
       deleted++;
     }
-    await fetch(`${OPERATON_BASE_URL}/history/process-instance/${parent.id}`, { method: 'DELETE' });
+    await fetch(`${operatonUrl}/history/process-instance/${parent.id}`, { method: 'DELETE' });
     deleted++;
   }
   return deleted;
 }
 
 /**
- * Called from within a test, once its roundtrip is fully finished. Does not
- * prompt itself (see the module comment above) — just records the
- * businessKey for globalTeardown to ask about after all tests finish.
+ * Whether this key still has history on that engine.
+ *
+ * A spec may clean up after itself and still record a pending key as a
+ * backstop — rip-r21-journey does exactly that, deleting its own runtime and
+ * history unconditionally in afterEach because the prompt is skipped on piped
+ * and CI runs, where the RIP "Gereed" counters would otherwise drift. Its
+ * recorded key is therefore already spent by the time this runs, and offering
+ * it produced a prompt that could only ever report "Deleted 0".
+ *
+ * Checking first keeps the backstop meaningful: a key whose own cleanup really
+ * did fail still has history, so it is still offered. Only the ones with
+ * nothing left are dropped, which is also what makes a non-zero count mean
+ * something again.
  */
-export function recordPendingCleanup(businessKey: string): void {
-  const existing: string[] = fs.existsSync(PENDING_FILE)
-    ? (JSON.parse(fs.readFileSync(PENDING_FILE, 'utf8')) as string[])
-    : [];
-  fs.writeFileSync(PENDING_FILE, JSON.stringify([...existing, businessKey]));
+async function hasHistory(operatonUrl: string, businessKey: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${operatonUrl}/history/process-instance/count?processInstanceBusinessKey=${encodeURIComponent(businessKey)}`
+    );
+    if (!res.ok) return true; // can't tell — offer it rather than drop it
+    return ((await res.json()) as { count: number }).count > 0;
+  } catch {
+    return true; // engine unreachable: never drop a key on a failed lookup
+  }
 }
 
 /**
- * Runs from global-teardown.ts, once, after all tests finish. Asks a single
- * yes/no for every businessKey recorded via recordPendingCleanup() this run,
- * rather than prompting per key — either all of them get cleaned, or none
- * do. Leaves the pending file untouched (for next time) when not run
- * interactively, or when declined — local Operaton keeps full history by
- * default, which isn't always wanted across repeated local runs, but this
- * must never hang an unattended run, and a decline must not silently lose
- * track of history that was never actually deleted.
+ * Called from within a test, once its roundtrip is fully finished. Does not
+ * prompt itself (see the module comment above) — just records the businessKey,
+ * and the engine it was created on, for globalTeardown to ask about after all
+ * tests finish.
+ */
+export function recordPendingCleanup(businessKey: string): void {
+  const existing = readPending();
+  const entry: PendingCleanup = { businessKey, operatonUrl: OPERATON_URL };
+  fs.writeFileSync(PENDING_FILE, JSON.stringify([...existing, entry]));
+}
+
+/**
+ * Runs from global-teardown.ts, once, after all tests finish. Asks one yes/no
+ * per engine for every businessKey recorded via recordPendingCleanup() this
+ * run — either all of that engine's keys get cleaned, or none do. Leaves the
+ * pending file untouched (for next time) when not run interactively, or when
+ * declined — Operaton keeps full history by default, which isn't always wanted
+ * across repeated runs, but this must never hang an unattended run, and a
+ * decline must not silently lose track of history that was never deleted.
  */
 export async function runPendingCleanupPrompts(): Promise<void> {
-  if (!fs.existsSync(PENDING_FILE)) return;
-  const businessKeys = JSON.parse(fs.readFileSync(PENDING_FILE, 'utf8')) as string[];
-  if (businessKeys.length === 0) return;
-  if (!process.stdin.isTTY) return;
+  const entries = readPending();
+  if (entries.length === 0) return;
 
-  const label =
-    businessKeys.length === 1 ? '1 business key' : `${businessKeys.length} business keys`;
-  const shouldCleanAll = await askYesNo(
-    `\nClean up Operaton history for ${label} (${businessKeys.join(', ')})? [y/N] `
-  );
-  if (!shouldCleanAll) return;
+  // Entries from before the engine was recorded. They cannot be acted on —
+  // guessing an engine is exactly the bug this format fixes — so name them
+  // and drop them rather than deleting against the wrong one or nagging on
+  // every future run.
+  const legacy = entries.filter((e): e is string => typeof e === 'string');
+  const known = entries.filter((e): e is PendingCleanup => typeof e !== 'string');
 
-  let totalDeleted = 0;
-  for (const businessKey of businessKeys) {
-    totalDeleted += await deleteHistory(businessKey);
+  if (legacy.length > 0) {
+    console.log(
+      `\n${legacy.length} business key(s) were recorded before the target engine was tracked, ` +
+        `so they cannot be cleaned automatically — delete their history by hand if you still ` +
+        `want it gone:\n  ${legacy.join('\n  ')}`
+    );
   }
-  console.log(
-    `Deleted ${totalDeleted} historic process-instance record(s) across ${businessKeys.length} business key(s).`
-  );
-  fs.unlinkSync(PENDING_FILE);
+
+  // Nothing is dropped or deleted unattended: without a real terminal the file
+  // is left exactly as it is, legacy entries included, so the next interactive
+  // run still sees them.
+  if (!process.stdin.isTTY) return;
+  if (known.length === 0) {
+    fs.unlinkSync(PENDING_FILE);
+    return;
+  }
+
+  // Drop keys the engine no longer holds anything for, silently — see
+  // hasHistory(). Done before grouping so an engine whose keys are all spent
+  // produces no prompt at all rather than an empty one.
+  const live: PendingCleanup[] = [];
+  let spent = 0;
+  for (const entry of known) {
+    if (await hasHistory(entry.operatonUrl, entry.businessKey)) live.push(entry);
+    else spent++;
+  }
+  if (spent > 0) {
+    console.log(
+      `\n${spent} recorded business key(s) had no history left — already cleaned up by the ` +
+        `spec that created them — and were dropped without asking.`
+    );
+  }
+  if (live.length === 0) {
+    fs.unlinkSync(PENDING_FILE);
+    return;
+  }
+
+  const byEngine = new Map<string, string[]>();
+  for (const { businessKey, operatonUrl } of live) {
+    byEngine.set(operatonUrl, [...(byEngine.get(operatonUrl) ?? []), businessKey]);
+  }
+
+  const kept: PendingCleanup[] = [];
+  for (const [operatonUrl, businessKeys] of byEngine) {
+    const label =
+      businessKeys.length === 1 ? '1 business key' : `${businessKeys.length} business keys`;
+    const shouldClean = await askYesNo(
+      `\nClean up Operaton history on ${operatonUrl} for ${label} (${businessKeys.join(', ')})? [y/N] `
+    );
+    if (!shouldClean) {
+      kept.push(...businessKeys.map((businessKey) => ({ businessKey, operatonUrl })));
+      continue;
+    }
+
+    let totalDeleted = 0;
+    for (const businessKey of businessKeys) {
+      totalDeleted += await deleteHistory(operatonUrl, businessKey);
+    }
+    console.log(
+      `Deleted ${totalDeleted} historic process-instance record(s) across ` +
+        `${businessKeys.length} business key(s) on ${operatonUrl}.`
+    );
+  }
+
+  if (kept.length > 0) fs.writeFileSync(PENDING_FILE, JSON.stringify(kept));
+  else fs.unlinkSync(PENDING_FILE);
 }

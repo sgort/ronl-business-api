@@ -1,6 +1,20 @@
-name: Build Backend for Production
+name: Deploy Backend to Azure Production
 
 on:
+  # Called by promote-to-production.yml and nothing else (#177).
+  #
+  # This used to trigger on a push to main with a paths filter, alongside the
+  # three site workflows, and the four raced. The backend has to be serving the
+  # promoted commit BEFORE any site that calls it deploys, and nothing said so.
+  # The filter that used to live here now lives in scripts/promotion-targets.sh,
+  # which answers for all four in one place; the ordering lives in the promotion
+  # workflow. Keep the two in step — the acc workflow's own paths filter is the
+  # reference copy.
+  #
+  # workflow_dispatch stays: it is the escape hatch for deploying the backend
+  # alone, and the only route left if the promotion workflow is broken.
+  workflow_call:
+
   # No `pull_request` trigger, deliberately. This is the decision #87 asks for,
   # recorded here rather than left to drift.
   #
@@ -17,22 +31,21 @@ on:
   # environments in this repository have no protection rules at all. The
   # exclusion stands on the promotion argument alone, and would want revisiting
   # if protection rules were ever added.
-  push:
-    branches:
-      - main
-    paths:
-      - 'packages/backend/**'
-      - 'packages/shared/**'
-      - '.github/workflows/azure-backend-prod.yml'
-      # Mirrors the acc workflow: the root lockfile and manifest feed every
-      # workspace, so a lockfile-only promotion must still build and test the
-      # backend rather than reaching production untested.
-      - 'package-lock.json'
-      - 'package.json'
-      # .nvmrc sets the Node version this workflow builds, tests and ships on.
-      # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
-      - '.nvmrc'
   workflow_dispatch:
+
+# This workflow had no concurrency group while a push to main was its only
+# automatic trigger — one push, one run. #177 leaves workflow_dispatch as the
+# escape hatch for deploying the backend alone, which can now collide with the
+# backend deploy a promotion is already running. Two `az webapp deploy` calls at
+# the same App Service is the failure this prevents.
+#
+# The group names this app rather than ${{ github.workflow }}: inside a called
+# workflow that expression resolves to the CALLER's name, and a group equal to
+# the promotion workflow's own would deadlock it against the job it is waiting
+# for. QUEUE rather than cancel, matching the three site workflows.
+concurrency:
+  group: deploy-backend-prod-${{ github.ref }}
+  cancel-in-progress: false
 
 # Default to read-only; jobs opt into more only where required.
 permissions:
@@ -42,6 +55,8 @@ jobs:
   build:
     permissions:
       contents: read
+      # Mints the OIDC token azure/login exchanges for an ARM token.
+      id-token: write
     runs-on: ubuntu-24.04
     environment:
       name: production
@@ -103,30 +118,127 @@ jobs:
 
       - name: Prepare deployment package
         working-directory: packages/backend
+        env:
+          BUILD_SHA: ${{ github.sha }}
+          BUILD_RUN: ${{ github.run_number }}
+          BUILD_RUN_ID: ${{ github.run_id }}
         run: |
           mkdir -p deploy
 
           cp -r dist deploy/
           cp package.json deploy/
 
-          # Copy shared package before npm install can overwrite it
+          # Record which build this artifact is, for /v1/health's `build` block
+          # (#129). package.json's version names the release, not the build, so
+          # every deploy between two releases reports the same string. It is a
+          # file in the artifact rather than an App Service setting, because
+          # settings persist across deploys and can describe a build that is no
+          # longer running -- which is the failure this exists to detect.
+          jq -n --arg sha "$BUILD_SHA" --arg run "$BUILD_RUN" --arg runId "$BUILD_RUN_ID" \
+            '{sha: $sha, run: $run, runId: $runId}' > deploy/build-info.json
+          cat deploy/build-info.json
+
+          # Install production dependencies FROM THE LOCKFILE (#34). This used to
+          # be `npm install --production` in deploy/, which had a package.json and
+          # no lockfile, so it re-resolved every caret range at deploy time: the
+          # artifact could ship versions no test ran against and no lockfile
+          # records, with no cooldown. On 2026-08-29 an acceptance deploy ran with
+          # @anthropic-ai/sdk freshly jumped 42 minor versions and uuid five
+          # majors, none of it matching what any build had verified.
+          #
+          # The only lockfile is the workspace root's, and `npm ci` in deploy/
+          # cannot use it: it describes every workspace. So the install runs in a
+          # staging copy holding the root manifest and lockfile and the two
+          # manifests the backend needs, filtered to the backend workspace with
+          # production dependencies only. `npm ci` refuses a lockfile that does
+          # not satisfy the manifests, rather than resolving around it.
+          #
+          # packages/shared is present because the lockfile records @ronl/shared
+          # as a workspace link and npm must be able to resolve it. The other
+          # workspaces are left out: with them present npm also installs their
+          # packages, which never reach this artifact.
+          #
+          # The root `prepare` is `husky`, a devDependency, so under --omit=dev it
+          # would fail with "husky: not found". It is dropped from the staged copy
+          # rather than from the repository, where it is load-bearing. The same goes
+          # for @ronl/shared's `prepare`, which is `tsc`: under --omit=dev npm runs
+          # it with no TypeScript installed and the install fails. Its dist is
+          # built by the step above and copied into the artifact below.
+          stage="$RUNNER_TEMP/backend-prod"
+          rm -rf "$stage"
+          mkdir -p "$stage/packages/backend" "$stage/packages/shared" "$stage/scripts"
+          cp ../../package.json ../../package-lock.json "$stage/"
+          cp ../../scripts/write-deps-marker.sh "$stage/scripts/"
+          cp package.json "$stage/packages/backend/"
+          cp ../shared/package.json "$stage/packages/shared/"
+          (cd "$stage" && npm pkg delete scripts.prepare)
+          (cd "$stage" && npm pkg delete scripts.prepare --workspace=@ronl/shared)
+          (cd "$stage" && npm ci --omit=dev --workspace=@ronl/backend --no-audit --no-fund)
+
+          # A production dependency the backend needs at a version other than the
+          # hoisted one -- or one the lockfile simply records under the workspace,
+          # as it does altcha-lib (ec32fa8) -- is installed under
+          # packages/backend/node_modules. deploy/ IS the backend's root, so those
+          # entries belong in deploy/node_modules and are merged in after the
+          # hoisted tree is copied. Where the same package is ALSO hoisted, the two
+          # versions cannot both live there: something else resolves to the hoisted
+          # one, and overwriting it would break that instead. Fail on that case
+          # rather than guess. Dot entries (.bin, npm's metadata) are skipped, and
+          # a scope directory stands for the packages inside it.
+          nested="$stage/packages/backend/node_modules"
+          nested_pkgs=""
+          if [ -d "$nested" ]; then
+            for entry in "$nested"/[!.]*; do
+              [ -e "$entry" ] || continue
+              name=$(basename "$entry")
+              case "$name" in
+                @*) for scoped in "$entry"/*; do nested_pkgs="$nested_pkgs $name/$(basename "$scoped")"; done ;;
+                *) nested_pkgs="$nested_pkgs $name" ;;
+              esac
+            done
+            echo "packages/backend/node_modules holds:${nested_pkgs:- nothing}"
+            for pkg in $nested_pkgs; do
+              if [ -e "$stage/node_modules/$pkg" ]; then
+                echo "❌ $pkg is installed both hoisted and under packages/backend; the artifact can hold only one"
+                exit 1
+              fi
+            done
+          fi
+
+          # The workspace link points back into the staging copy, so it is removed
+          # before the tree is copied and replaced with real content afterwards.
+          rm -rf "$stage/node_modules/@ronl"
+          cp -r "$stage/node_modules" deploy/
+          for pkg in $nested_pkgs; do
+            mkdir -p "deploy/node_modules/$(dirname "$pkg")"
+            cp -r "$nested/$pkg" "deploy/node_modules/$pkg"
+            echo "✅ $pkg merged from packages/backend/node_modules"
+          done
+
+          # @ronl/shared is a workspace package npm cannot fetch from the registry.
+          # It goes in AFTER the install, deliberately: copied in before, npm sees
+          # a package not declared in the manifest it is installing, prunes it as
+          # extraneous, and the app dies at runtime with "Cannot find module
+          # '@ronl/shared'". deploy-backend-to-prod.sh learned this the hard way and
+          # says so; the version of this step that this replaces had the two the
+          # wrong way round, latent only because nothing ever deployed its artifact.
           mkdir -p deploy/node_modules/@ronl/shared
           cp -r ../shared/dist deploy/node_modules/@ronl/shared/
           cp ../shared/package.json deploy/node_modules/@ronl/shared/
+          node -e "require.resolve('@ronl/shared', { paths: ['./deploy'] })" \
+            && echo "✅ @ronl/shared resolves from the artifact"
 
-          # Remove @ronl/shared from package.json so npm install doesn't touch it
-          cd deploy
-          npm pkg delete dependencies.@ronl/shared
-          npm install --production --omit=dev
+          echo "Production dependencies: $(ls deploy/node_modules | wc -l) top-level entries"
 
-          echo "[config]" > .deployment
-          echo "SCM_DO_BUILD_DURING_DEPLOYMENT = false" >> .deployment
+          # Tell Azure not to rebuild — this artifact is already built.
+          echo "[config]" > deploy/.deployment
+          echo "SCM_DO_BUILD_DURING_DEPLOYMENT = false" >> deploy/.deployment
 
       - name: Create deployment zip
         working-directory: packages/backend
         run: |
           cd deploy
-          zip -r ../deployment-prod.zip .
+          zip -qr ../deployment-prod.zip .
           echo "✅ $(du -sh ../deployment-prod.zip | cut -f1) — deployment-prod.zip"
 
       - name: Upload deployment artifact
@@ -135,3 +247,77 @@ jobs:
           name: deployment-prod
           path: packages/backend/deployment-prod.zip
           retention-days: 5
+
+      # ── Deploy ────────────────────────────────────────────────────────────────
+      #
+      # No event gate here: this workflow has no pull_request trigger, by the same
+      # reasoning linked-data-explorer records on its production workflow. main is
+      # promoted from acc, so the content has already run this suite on its acc
+      # pull request, and the `production` environment's protection rules would
+      # otherwise make every promotion wait on a human approval BEFORE the tests
+      # could run -- an approval gate in front of the check meant to inform it.
+      #
+      # Authentication is OIDC rather than a publish profile. SCM basic auth is
+      # DISABLED on this App Service (basicPublishingCredentialsPolicies/scm
+      # allow=false, measured 2026-09-20), so a publish-profile deploy would be
+      # rejected. `az webapp deploy` over an ARM token is what
+      # deploy-backend-to-prod.sh already does by hand.
+      #
+      # The identity is separate from acc's, scoped to this App Service alone, so
+      # a mistake in the acceptance workflow cannot reach production.
+      - name: Log in to Azure
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_PROD }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        run: |
+          az webapp deploy \
+            --name ronl-business-api-prod \
+            --resource-group rg-ronl-prod \
+            --src-path packages/backend/deployment-prod.zip \
+            --type zip
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 5); do
+            code=$(curl -s -o /dev/null -m 10 -w "%{http_code}" https://api.open-regels.nl/v1/health/live || true)
+            if [ "$code" = "200" ]; then
+              echo "✅ Backend is alive"
+              exit 0
+            fi
+            echo "Attempt $i/5: HTTP ${code:-none}, retrying in 10s"
+            sleep 10
+          done
+          echo "❌ Liveness check failed after 5 attempts"
+          exit 1
+
+      - name: Verify the deploy took effect
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          # The previous build keeps answering while Azure starts the new one, so
+          # a liveness check passes against either. build.sha (#129) tells them
+          # apart directly: without it, a deploy that silently left the old
+          # artifact serving would pass every check above.
+          #
+          # About three minutes, matching linked-data-explorer, where a 34s window
+          # once gave up 14s before the new build started.
+          running=""
+          for attempt in $(seq 1 12); do
+            body=$(curl -s -m 10 https://api.open-regels.nl/v1/health || true)
+            running=$(printf '%s' "$body" | jq -r '.data.build.sha' 2>/dev/null || true)
+            [ "$running" = "$EXPECTED_SHA" ] && break
+            echo "Attempt $attempt/12: build.sha is ${running:-unreadable}, expected $EXPECTED_SHA"
+            [ "$attempt" -lt 12 ] && sleep 15
+          done
+
+          if [ "$running" = "$EXPECTED_SHA" ]; then
+            echo "✅ production is running $EXPECTED_SHA"
+          else
+            echo "❌ production is running ${running:-unreadable}, expected $EXPECTED_SHA: the deploy did not take effect"
+            curl -s https://api.open-regels.nl/v1/health | jq '{version, build, environment}' || true
+            exit 1
+          fi

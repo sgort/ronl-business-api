@@ -44,6 +44,9 @@ packages/frontend/e2e/test-results/
 packages/frontend/playwright-report/
 packages/frontend/e2e/playwright-report/
 /playwright-report/
+# Playwright resolves its default outputDir relative to the repo root, the same
+# place playwright.config.ts pins the html report to, so both land here.
+/test-results/
 packages/frontend/e2e/.auth/
 packages/public-site/test-results/
 packages/public-site/e2e/test-results/
@@ -124,9 +127,6 @@ deploy-theme-to-*.sh
 deploy-backend-to-*.sh
 !deploy-backend-to-prod.sh
 !deploy-backend-to-acc.sh
-
-# Knowledge graph (generated tooling output)
-.understand-anything/
 
 # Local-only vendor API reference (not meant for the repo)
 docs/edocs-rest-api-1.0.0.json

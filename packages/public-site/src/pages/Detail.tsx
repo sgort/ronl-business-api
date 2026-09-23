@@ -26,6 +26,7 @@ interface DetailItem {
   rules?: { naam: string; geldig: string | null }[];
   ruleCount?: number;
   begrippen?: string[];
+  begrippenIO?: { label: string; richting: 'invoer' | 'uitvoer' | null }[];
   forms?: { id: string; name: string }[];
   documents?: { id: string; name: string }[];
   subprocesses?: { id: string; name: string; bpmnProcessId: string; status: string }[];
@@ -91,9 +92,65 @@ async function loadDetail(type: PubType, slug: string): Promise<DetailItem | nul
     rules: item.rules,
     ruleCount: item.ruleCount,
     begrippen: item.begrippen,
+    begrippenIO: item.begrippenIO,
     dmns: item.dmns,
     apiPath: item.tech.find(([k]) => k === 'api')?.[1] ?? '',
   };
+}
+
+interface ConceptGrouping {
+  /** Null when the concepts are shown undivided, so the section heading above
+   * is the only label they need. */
+  heading: string | null;
+  labels: string[];
+}
+
+/** Divide a service's concepts into the side of the rules each one sits on.
+ * Falls back to a single undivided group when the API carries no directions —
+ * a response from a backend older than the field — and gives any concept the
+ * graph leaves undirected a group of its own, so none is dropped. */
+function conceptGroups(
+  item: { begrippen?: string[]; begrippenIO?: DetailItem['begrippenIO'] },
+  t: Translations
+): ConceptGrouping[] {
+  const io = item.begrippenIO;
+  if (!io || io.length === 0) return [{ heading: null, labels: item.begrippen ?? [] }];
+
+  const of = (richting: 'invoer' | 'uitvoer' | null) =>
+    io.filter((b) => b.richting === richting).map((b) => b.label);
+
+  return (
+    [
+      { heading: t.conceptsInput, labels: of('invoer') },
+      { heading: t.conceptsOutput, labels: of('uitvoer') },
+      { heading: t.conceptsUnspecified, labels: of(null) },
+    ] as ConceptGrouping[]
+  ).filter((group) => group.labels.length > 0);
+}
+
+function ConceptGroup({ heading, labels, lang }: ConceptGrouping & { lang: Lang }) {
+  return (
+    <>
+      {heading && (
+        <h3 className="pub-chips-heading">
+          {heading} ({labels.length})
+        </h3>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+        {labels.map((b, i) => (
+          <a
+            key={i}
+            className="pub-chip"
+            href={`https://skosmos.open-regels.nl/ronl/${lang}/search?q=${encodeURIComponent(b)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {b}
+          </a>
+        ))}
+      </div>
+    </>
+  );
 }
 
 export default function Detail({ t, lang, type }: { t: Translations; lang: Lang; type: PubType }) {
@@ -221,19 +278,9 @@ export default function Detail({ t, lang, type }: { t: Translations; lang: Lang;
                     <h2>
                       {t.conceptsIn} ({item.begrippen.length})
                     </h2>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-                      {item.begrippen.map((b, i) => (
-                        <a
-                          key={i}
-                          className="pub-chip"
-                          href={`https://skosmos.open-regels.nl/ronl/${lang}/search?q=${encodeURIComponent(b)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {b}
-                        </a>
-                      ))}
-                    </div>
+                    {conceptGroups(item, t).map((group) => (
+                      <ConceptGroup key={group.heading ?? 'all'} lang={lang} {...group} />
+                    ))}
                   </>
                 )}
               </>

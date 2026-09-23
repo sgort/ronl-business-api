@@ -351,7 +351,7 @@ not "whichever ran last."
 - Skip this step if scope does **not** include `'backend'` (no backend routes
   could have changed)
 
-### 6. Normalize formatting, then lint, before committing
+### 6. Normalize formatting, then lint and test, before committing
 
 Windows checkouts drift package.json/changelog-data.ts line endings (LF vs
 CRLF) enough to fail the pre-push hook's `npm run check-format` even though
@@ -390,6 +390,55 @@ other pages already split pure logic/data out of component files) and
 re-run `npm run format && npm run lint` until both are clean before
 proceeding to commit. Do not release with an outstanding lint warning.
 
+**Then run the tests — step 4 edited source files, and some tests read them.**
+Lint and Prettier both read a `package.json` as data. A test can read it as
+_input_, and then a version bump is a behaviour change:
+
+```bash
+npm test
+```
+
+Root `npm test` is `npm run test --workspaces --if-present`, so it covers every
+workspace including the ones with no deploy workflow of their own. Use the root
+command rather than picking the workspaces you bumped: the set you bumped is
+exactly the set most likely to break, and it is also the set easiest to
+under-count by one.
+
+This is not hypothetical. Cutting **v2026.09.10** bumped `packages/pa-cockpit`
+from `1.0.0` for the first time, which is what #152's rule says to do — and
+`packages/pa-cockpit/src/scaffold.test.ts` still asserted the opposite,
+`expect(pkg.version).toBe('1.0.0')`, because #152 changed this command file and
+nothing else. Format, lint and type-check were all clean; the release was
+committed, pushed and opened as a pull request before anything said otherwise:
+
+```
+FAIL  packages/pa-cockpit/src/scaffold.test.ts
+      > is pinned at 1.0.0 — it is compiled into two apps that carry their own CalVer
+      AssertionError: expected '2026.09.10' to be '1.0.0'
+```
+
+Two things made it slow to see. `pa-cockpit` has no deploy workflow, so its
+suite runs in CI **only** inside `Build and Deploy ACC Frontend` — `audit`,
+`scan`, `build` and the PA demo deploy were all green beside the one red check.
+And the fix had to land _before_ the bump commit — step 1's authoring rule,
+because the bump is the boundary marker the next release searches for — which
+meant rewriting a branch that was already pushed with a pull request open on it.
+A few minutes of `npm test` here would have saved a reset, a re-commit and a
+force-push there.
+
+Four test files in this repository read a `package.json`, and two assert on a
+version. Only one asserted a literal — `root.routes.test.ts` compares the
+response against `packageJson.version`, so it moves with the bump and cannot
+break this way. That ratio is not a reason to skip the run; it is why the
+failure was surprising.
+
+If a test fails, decide which side is wrong before changing either. A release
+bump breaking a test is usually the test recording a decision that has since
+been reversed — as here — but it can equally be the bump touching a package the
+release did not change, which step 2's cross-check exists to catch. Fix the
+right one, then re-run `npm run format && npm run lint && npm test` until all
+three are clean.
+
 ### 7. Report and ask to commit
 
 State:
@@ -402,6 +451,9 @@ State:
 - Any endpoint keys that were added or removed
 - If scope was inferred or a cross-check mismatch was found, say so
 - For a new-format entry: how many commits it covers
+- That `npm run format`, `npm run lint` and `npm test` are clean, with the
+  suite's file and test counts — a release reported without them is a release
+  whose tests nobody ran
 
 Then ask whether to commit. Do not commit unless the user confirms.
 When committing, use the message format:
@@ -476,6 +528,33 @@ gh pr create --base acc --title "chore: bump release to v<version>" --body "..."
   It cannot run in CI, and that is a property of the mirror rather than a gap
   here: the `gitlab` remote lives in `.git/config`, so an Actions runner has no
   such remote, no key for it and no route to it. Run where the push happens.
+
+- **Then check for orphaned preview environments:**
+
+  ```bash
+  npm run check-previews
+  ```
+
+  A pull request's preview is deleted by a close job when the pull request
+  closes, and that job cannot catch everything — GitHub does not run
+  `pull_request` workflows while a pull request has a merge conflict, closing
+  included. On 12 September 2026 three Renovate security pull requests left
+  **eight** previews behind across three apps. Nothing reported them; they were
+  found by listing environments from Azure by hand, twice (#154).
+
+  Each orphan is a public URL serving old code and a slot on a plan with a
+  ceiling — a ceiling this repository has hit. A release is the point where
+  that is worth reconciling, for the same reason the mirror is.
+
+  Like `check-mirror`, it **never deletes**: it prints the exact command,
+  including `--subscription`, because the apps span two of them. Deleting an
+  Azure resource is a human's decision.
+
+  It also cannot run in CI — it needs an Azure login a runner does not have —
+  and it reports anything it could not check rather than passing over it. A
+  subscription it cannot read counts as unchecked and fails the command, which
+  matters: an expired token makes the query return nothing, and "I could not
+  ask" must never read as "there is nothing there".
 
 - **Confirm the branch is gone from the remote too.** `gh pr merge --delete-branch`
   removes both copies, and both repositories now have `delete_branch_on_merge`

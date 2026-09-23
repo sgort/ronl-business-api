@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit';
 import { rateLimitKey } from '@utils/client-ip';
 import { config } from '@utils/config';
 import logger, { createLogger } from '@utils/logger';
+import { corsOriginCallback } from '@utils/cors-origin';
+import rootRoutes from '@routes/root.routes';
 import healthRoutes from '@routes/health.routes';
 import processRoutes from '@routes/process.routes';
 import decisionRoutes from '@routes/decision.routes';
@@ -75,9 +77,20 @@ if (config.security.helmetEnabled) {
 }
 
 // CORS configuration
+//
+// A function rather than the array it used to be, so a pull request's Static Web
+// Apps preview can call this backend (#37). Preview hostnames are ephemeral and
+// cannot be listed; the callback matches them on their app's stable slug, and
+// refuses them outright in production. See utils/cors-origin.ts.
+const isProductionTier = config.deploymentEnv === 'production';
+if (isProductionTier && config.corsPreviewSlugs.length > 0) {
+  appLogger.warn('CORS_PREVIEW_SLUGS is set on a production tier and is being ignored', {
+    slugs: config.corsPreviewSlugs.length,
+  });
+}
 app.use(
   cors({
-    origin: config.corsOrigin,
+    origin: corsOriginCallback(config.corsOrigin, config.corsPreviewSlugs, isProductionTier),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
@@ -151,42 +164,9 @@ app.use((req: Request, res: Response, next) => {
 // Audit logging middleware
 app.use(auditMiddleware);
 
-// Root endpoint
-app.get('/', (req: Request, res: Response) => {
-  res.json({
-    name: 'RONL Business API',
-    version: packageJson.version,
-    status: 'running',
-    environment: config.deploymentEnv,
-    documentation: '/v1/docs',
-    endpoints: {
-      health: '/v1/health',
-      process: '/v1/process',
-      decision: '/v1/decision',
-      tasks: '/v1/task',
-      brp: '/v1/brp',
-      public: '/v1/public',
-      hr: '/v1/hr',
-      hrCapacity: '/v1/hr-capacity',
-      rip: '/v1/rip',
-      edocs: '/v1/edocs',
-      doccle: '/v1/doccle',
-      validsign: '/v1/validsign',
-      curator: '/v1/pa',
-      mediaAggregator: '/v1/media-aggregator',
-      admin: '/v1/admin',
-      m2m: '/v1/m2m',
-      mcp: '/v1/mcp',
-    },
-    security: {
-      authentication: 'JWT (Keycloak)',
-      authorization: 'Role-based + Tenant isolation',
-      compliance: ['BIO', 'NEN 7510', 'AVG/GDPR', 'eIDAS'],
-    },
-  });
-});
-
-// Mount routes
+// Mount routes. The service banner at / lives in its own router so it can be
+// tested; it promised documentation at /v1/docs that nothing served (#67).
+app.use('/', rootRoutes);
 app.use('/v1/health', healthRoutes);
 app.use('/v1/process', processRoutes);
 app.use('/v1/decision', decisionRoutes);
@@ -325,7 +305,6 @@ const startServer = async () => {
 
     appLogger.info(`API available at: http://${host}:${port}/v1`);
     appLogger.info(`Health check: http://${host}:${port}/v1/health`);
-    appLogger.info(`Documentation: http://${host}:${port}/v1/docs`);
 
     appLogger.info('Security configuration', {
       helmetEnabled: config.security.helmetEnabled,

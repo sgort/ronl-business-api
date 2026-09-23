@@ -112,6 +112,322 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.11',
+      status: 'Released',
+      date: '23 sep 2026',
+      scope: ['backend', 'public-site', 'ci'],
+      commits: [
+        {
+          sha: '417cd53',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: "The config validator's Node moves to 24.21.0",
+          details: [
+            "One line in zizmor.yml, and deliberately not shared with .nvmrc. The renovate-config-validator step runs on its own exact Node 24 because renovate@44.50.3 declares engines.node ^24.11.0, and npm accepts a mismatch with an EBADENGINE warning rather than refusing — so before that pin the validator had been running unsupported and green. Everything else in CI builds, tests and ships on the repository's single .nvmrc, still 22.23.2, which the App Service plans match.",
+            'Renovate maintains this pin behind the same 14-day cooldown as every other dependency. v24.21.0 was released on 7 September, sixteen days before this release, checked against the Node release index rather than taken from the stability-days status — the day before, that status read "not met" on three lock-file maintenance branches that were in fact compliant.',
+          ],
+        },
+        {
+          sha: 'f89062e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "A service's input concepts are told apart from its output ones",
+          details: [
+            'A regel detail page listed every concept of a service in one alphabetical row, so nothing said which values the rules consume and which ones they produce. The distinction was already in the knowledge graph; it was being dropped on the way out.',
+            "The concept query carries it two ways, one per generation of export: an older export states it as the variable's edge to the DMN (cpsv:isRequiredBy / cpsv:produces), a CPRMV 0.4.1 export only as the /input/N or /output/N tail of the variable URI. The query already matched both to find the DMN, then selected neither. It now selects both, and conceptDirection() reads the edge first and falls back to the URI. Across the live graph the two agree wherever both appear — 193 of 193 rows — and all 241 concept rows of all 14 services resolve to a side.",
+            'PublicIndexItem gains begrippenIO, the same concepts each with its direction. The flat begrippen array is left exactly as it was, because it is part of the open, anonymous API and outside consumers read it. Both lists are now deduplicated: one concept can reach a service through more than one variable, as Aanspraken does in Digital Twin Inkomensregelingen, and neither list may name it twice. The page keeps its heading and the count of every concept, and divides the chips into "Invoer — gegevens die de regels nodig hebben" and "Uitvoer — wat de regels bepalen". Two fallbacks keep a concept from going missing: a response with no directions at all, from a backend older than the field, renders the one undivided row it always did, and a concept the graph leaves undirected gets a group of its own rather than being filtered away. The grouping is per service, not per rule — all 21 concepts of the thuisbatterij service hang off a single DMN, so Recht Op Subsidie reads as an output of the service even though the third rule plausibly consumes it. Per-rule attribution is not in the graph.',
+          ],
+        },
+        {
+          sha: '2d1cf27',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: '/bump-release runs the tests before it commits',
+          details: [
+            'The release command normalised formatting and ran lint. It did not run the tests — and the step immediately above edits source files: five package.json manifests and the lockfile. Lint and Prettier read a package.json as data; a test can read it as input, and then a version bump is a behaviour change.',
+            "v2026.09.10 is what proved it. That release bumped packages/pa-cockpit from 1.0.0 for the first time, which is what #152's rule says to do, while the package's own scaffold test still asserted the opposite — expect(pkg.version).toBe('1.0.0') — because #152 changed the command file and nothing else. Format, lint and type-check were all clean, and the release was committed, pushed and opened as a pull request before anything said otherwise. pa-cockpit has no deploy workflow, so its suite runs in CI only inside Build and Deploy ACC Frontend: audit, scan, build and the PA demo deploy were all green beside the one red check.",
+            "Step 6 now runs npm test at the root, which covers the workspaces with no deploy workflow of their own. The step records the reasoning, including the honest ratio — four test files here read a package.json and two assert on a version, but only one asserted a literal — and says to decide which side is wrong before changing either. Step 7's report must now state that format, lint and test are clean with the suite's counts, because a step nothing reports on is a step that gets skipped.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.09.10',
+      status: 'Released',
+      date: '22 sep 2026',
+      scope: ['backend', 'frontend', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: 'f117475',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: "pa-cockpit's version is a release version, not a pin",
+          details: [
+            "#152 gave the release command a rule to version packages/pa-cockpit when a release includes a change to it. That changed the command file and nothing else, so the package's own scaffold test kept asserting the opposite — pinned at 1.0.0, on the reasoning that a package compiled into two apps which carry their own CalVer needs no version of its own. This release is the first to include a pa-cockpit change, which is exactly the case #152 predicted would move it straight to the release's version, and the test stopped it.",
+            'The bump wins. The package is private and consumed as a wildcard, so its version constrains nothing at install time; what it does is record which pa-cockpit code a frontend or pa-demo release contains, for the lockfile and for the SBOM, audit and provenance tooling that reads it. Pinned at 1.0.0 it sat through 49 commits saying nothing, while packages/shared moved for a single devDependency range.',
+            'So the assertion pins the rule rather than a literal: a release version, moved only by a release that includes this package and left to lag otherwise. The comment beside it says not to re-pin it, naming that as the change the test exists to catch. Verified both ways — 43 files and 476 tests green at the release version, and re-pinning to 1.0.0 fails this test alone.',
+          ],
+        },
+        {
+          sha: '3bc93f1',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A promotion is one ordered run instead of four racing ones',
+          details: [
+            'A push to main fired four deploy workflows at once and nothing sequenced them. The backend job is the slowest of the four — it runs the full backend suite before it packages anything, while a Static Web App deploy is a build and an upload — so the frontends reliably finished first. A frontend calling a route the deployed backend does not serve yet gets a 404, and on the public site that is worse than transient: its build prerenders against the live API, so a prerender inside the window bakes the failure into the deployed output.',
+            'promote-to-production.yml is now the only thing that triggers on a push to main. It works out what changed, then calls the four deploy workflows as reusable workflows — backend first, then the three sites in parallel once the backend has succeeded or been skipped. The four keep workflow_dispatch and lose their push trigger. The four paths filters became scripts/promotion-targets.sh, one script that answers for all four, exercised against fourteen cases and five real commit ranges rather than only in anger.',
+            "Secrets are named rather than inherited: secrets: inherit would have handed each site workflow the Keycloak VM's SSH key and the Semgrep token to deploy one static site. The backend takes none at all — it authenticates with OIDC. A dry_run dispatch input, defaulting to true, proves the wiring without promoting: the four calls resolve when the run is parsed, so a bad reference or a missing secret fails loudly while nothing deploys. acc is left alone, because its ruleset names four build jobs and a reusable workflow's check renames every required context.",
+          ],
+        },
+        {
+          sha: '36e06d8',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'A missing Chromium fails once, readably, instead of 28 times',
+          details: [
+            'A lockfile maintenance pull request bumped @playwright/test to 1.63.0. Installing it with npm ci left the machine holding browser builds 1228 and 1234 while 1.63.0 wants 1243, because Playwright keeps its browsers outside node_modules and npm never touches them. Every one of the 28 specs then died in browserType.launch before a single assertion ran, and the banner explaining it sat inside the first of 28 identical failures. A dependency bump read as the whole suite breaking.',
+            'globalSetup now launches Chromium once before anything else and, if it cannot, stops with one message naming the missing executable and the command that fixes it — the same shape as the dev-stack and process-bundle gates already there. It launches rather than comparing versions against directory names: the launch is the operation that has to work, it costs about a second, and it stays correct when Playwright changes which binary headless mode uses. It moved to the headless shell, which is exactly why this machine could hold a chromium build and still fail.',
+          ],
+        },
+        {
+          sha: 'ae83054',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'check-previews reports preview environments that outlived their pull request',
+          details: [
+            "A pull request's preview is deleted by a close job when the pull request closes, and that job cannot catch everything: GitHub does not run pull_request workflows while a pull request has a merge conflict, closing included. On 12 September 2026 three Renovate security pull requests left eight previews behind across three apps. Nothing reported them; they were found by listing environments from Azure by hand on 15 September, and again on 20 September when they were still there — eight public URLs serving old code, each holding a slot on a plan with a ceiling this repository has already hit.",
+            "Ported from ttl-editor rather than copied. That script derives each app from its workflow's file name, which this repository's naming does not allow, so the apps are found by their repositoryUrl — which names no app, resource group or subscription, and means an app added later is checked without editing the script. It also reads every subscription az account list returns, because these six apps span two of them and ttl-editor's script queries only the logged-in one.",
+            'Anything unchecked is reported rather than passed over, and that rule earned its place while the script was being written: an expired Azure refresh token made az staticwebapp list fail, and with stderr discarded it returned an empty list — indistinguishable from a subscription holding no apps. So the session is proven with a real ARM call rather than az account show, which reads cached state and succeeds against a token that expired days ago; a subscription that cannot be read fails the command; and finding no apps at all fails too, because it means nothing was compared. Like check-mirror, it never deletes — it prints the exact command and stops.',
+          ],
+        },
+        {
+          sha: '64d8f3f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "A pull request's preview can reach the acceptance backend",
+          details: [
+            'A Static Web Apps preview gets an ephemeral origin that is not in CORS_ORIGIN, and there is a new one per pull request, so it cannot be listed. Every call the preview made to the backend was refused — which meant a preview could only ever demonstrate that static pages render, on an environment the pull request had already paid to build and deploy. CORS_ORIGIN is handed to cors as an array matched by exact equality, so adding an origin per pull request would have meant an App Service settings write, and a restart of the shared acceptance backend, for every preview. So origin becomes a function.',
+            "Matched on the app's stable slug, not the domain. A *.azurestaticapps.net pattern would have let any Azure Static Web App in the world make credentialed cross-origin requests to the tier. Azure derives a preview hostname from the app's stable slug — confirmed against live previews on a neighbouring app rather than from documentation — so CORS_PREVIEW_SLUGS carries slugs and the pattern anchors on them. Tests pin the cases that matter: another tenant's app, a slug that merely starts the same, a look-alike domain, the app's own default hostname, and a non-numeric environment.",
+            'Never in production, enforced in code rather than by trusting the setting to be empty, so a value that finds its way onto the production App Service changes nothing about what production accepts. The guard reads deploymentEnv, not nodeEnv: acceptance deliberately runs NODE_ENV=production, so keying on nodeEnv would have treated it as production and refused every preview, leaving the feature silently doing nothing. Verified live afterwards on both tiers — the three registered slugs allowed on acceptance, refused on production, and five near-miss origins refused on both.',
+          ],
+        },
+        {
+          sha: '097ff84',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A tier that signs for real is a skip, not a failure',
+          details: [
+            'The R2.1 journey refused to sign against acceptance and reported that refusal as a failure. Acceptance runs ValidSign live on purpose, with a real sender address, so the refusal is correct and the tier is behaving as intended; what was wrong was calling it red. It now skips with a reason naming VALIDSIGN_STUB_MODE and the target. The guard stays before the package call so nothing is created, and afterEach still runs on a skip, so the instance the journey started is cleaned up rather than left to block the next run. Flipping acceptance to stub mode for a green tick would disable the very thing acceptance exists to exercise, and the comment says so where someone would reach for it.',
+            'Two more, both environment rather than code. The login helper used a flat 10s wait for Keycloak\'s form, which against a deployed tier made a slow-but-healthy login look broken; it is now 10s/15s local and 30s/45s remote, the same split the reachability probes already draw. And the cleanup prompt offered keys that could not delete anything — the journey deletes its own history in afterEach, so by teardown the backstop key is spent and the prompt could only ever report "Deleted 0". The teardown now asks the engine first and drops keys with no history left, keeping any whose own cleanup genuinely failed.',
+          ],
+        },
+        {
+          sha: '01c531e',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: "Acceptance's raised rate limit is recorded, and why it is per client",
+          details: [
+            "Acceptance's RATE_LIMIT_MAX_REQUESTS was raised from 100 to 1000 so a full E2E run from one machine stops throttling in the PA cockpit specs, which spend about twenty requests per authoring journey. The settings table said acceptance ran 100 and justified production's value as parity with it. Both halves were wrong, and that table is what the promotion is read from.",
+            'It now carries the reasoning the table left implicit: TRUST_PROXY is true on both tiers, so the limiter buckets per client rather than once per deployment, which is what makes a raise a convenience decision rather than a safety one. That is the thing a reader needs in order to judge whether production should follow — and it should not follow automatically, since a tenfold ceiling per client is a much weaker defence on a public tier.',
+          ],
+        },
+        {
+          sha: '1e1d16c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: "The RIP journey asks the target's engine, not localhost",
+          details: [
+            'rip-r21-journey.spec.ts was the one spec never migrated to the target helper: it pinned localhost:8081 and used it for the skip guard, the instance polling, the task counts and its own cleanup. Against acceptance the two halves therefore pointed at different engines. The skip guard counted instances on localhost, found none, and let the run proceed where it should have refused — acceptance had four in flight, and the guard exists precisely because the UI cannot tell a foreign instance from its own.',
+            "The browser then started a real instance on acceptance while the poller watched localhost for a process id that only exists there, so the task count stayed 0, the history lookup 404'd, and the journey waited out its full 90 seconds and failed with nothing to say for itself — leaving the instance it started running on the tier. Resolving the engine from the target helper fixes all of it at once, including the cleanup command the skip message prints.",
+            "The rate-limit helper's advice is target-aware for the same reason. It told every reader to raise RATE_LIMIT_MAX_REQUESTS in a local .env file, which does nothing for a run against a deployed tier, where that budget lives in the App Service settings. The message now says which of the two applies.",
+          ],
+        },
+        {
+          sha: '32ddf67',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A preview environment is created only when someone asks for one',
+          details: [
+            "Every pull request that touched an app's paths deployed a public copy of it to a Static Web Apps slot. Most showed nothing a build had not already proved, and each one is a public URL and a slot on a plan with a ceiling this repository has hit. The clearest case: three Renovate security pull requests claimed eight preview environments between them, because each path filter matches its own package.json and a dependency bump therefore looks exactly like a source change. All eight then leaked.",
+            'A preview is now created only when the pull request changed something other than a manifest and carries the preview label; adding the label starts a run. Both conditions gate the deploy step, not the job — and that distinction is the whole design. build_and_deploy_job is the only place the frontend, PA demo and public site are linted, type-checked, unit-tested and built on a pull request. Gating the job would have made labelling a precondition for verifying the code at all, and because a skipped job reports success, the required check would have passed having tested nothing.',
+            'The two decisions fail safe in opposite directions, deliberately. The build filter errs towards building when the GitHub API call fails, because an error must never be a free pass. The preview decision withholds, because the risk it guards is publishing a copy of an unreviewed branch rather than failing to test one.',
+          ],
+        },
+        {
+          sha: 'd7f6231',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'Lock-file maintenance',
+          details: [
+            "Renovate's weekly refresh of package-lock.json: 62 packages moved, among them @playwright/test 1.63.0, the typescript-eslint 8.70.0 family, jose 6.2.12, undici 7.29.1 and altcha-lib 2.4.0.",
+            'Every version it introduced was at least 14 days old when the branch was written, measured against the npm registry\'s own publish dates — the confirmation the cooldown work had been waiting for. Worth knowing: the renovate/stability-days status read "Updates have not met minimum release age requirement" on the branch anyway, because lockFileMaintenance is flagged rather than evaluated. The measurement is the thing to read, not the status.',
+          ],
+        },
+        {
+          sha: '2497eb7',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The precondition gate fails on a missing or tenant-pinned decision',
+          details: [
+            'verifyRequiredProcesses asked Operaton which process definitions are deployed and under which tenant, and said nothing about decisions — a gap the comment above it named. On 20 September a stack rebuilt from the documented fixture bundle deployed cleanly, served its start forms cleanly, and then failed at the first business rule task. Through the UI it read as "De aanvraag kon niet worden ingediend"; through a spec it would read as a failed assertion halfway down a journey. Neither mentions a decision. Finding it meant reading the backend error log.',
+            "verifyRequiredDecisions now asks the same engine for the seven keys the suite's processes call, and asserts an untenanted version of each exists. Tenancy is asserted rather than mere existence because the confusing failure is not the absent DMN — it is the present one. A decision imported with the Organization field filled in, which is the natural thing to do since the BPMN beside it is tenant-scoped, is deployed, visible in Cockpit, and still invisible to a ${null} lookup.",
+            'Proven against both engines: localhost has five of seven untenanted and legitimately lacks the two Thuisbatterij decisions, so the gate fails naming both; acceptance has all seven untenanted, two of them also pinned to a tenant, so it passes. The failure message differs per target, because the fix does — on a local target it names the files to import and that the Organization field stays empty; on a tier it says to look in Cockpit for a decision listed under an Organization.',
+          ],
+        },
+        {
+          sha: 'f260c03',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'E2E cleanup happens per engine, and zorgtoeslag scopes its own tasks',
+          details: [
+            "The pending-cleanup file recorded a businessKey and nothing else, from when there was only ever one engine. Now that the suite is target-aware, a run against acceptance creates its instances there while the teardown deleted against whatever engine the next run happened to point at. A local run following an acceptance run looked acceptance's keys up on localhost, matched nothing, deleted nothing, and still treated the file as handled — losing the only record that history had been left behind. Entries now carry their engine, and old bare-string entries are reported by name for manual cleanup rather than deleted against the wrong one.",
+            'zorgtoeslag-journey.spec.ts still picked its caseworker tasks with .first(). Acceptance carries a legacy untenanted instance with an open "Phase 6" task, so .first() picked a stranger\'s task and timed out on a field belonging to an older form schema; its review step passed only because that task name happened to be unique in the queue. It now resolves its own instances from its businessKey and matches on those, like the other two journeys.',
+          ],
+        },
+        {
+          sha: 'ac70f64',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The repo-root test-results/ Playwright writes is ignored',
+          details: [
+            'playwright.config.ts pins the html report to the repository root, and Playwright resolves its default outputDir there too, so an E2E run leaves an untracked /test-results/. .gitignore covered the packages/frontend copies and the root-level /playwright-report/, but not this one, so the pre-push check-format hook failed on test-results/.last-run.json after any run.',
+          ],
+        },
+        {
+          sha: '91195ac',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'A Thuisbatterij journey, and a suite that can run against a tier',
+          details: [
+            'A third deep journey alongside the kapvergunning and zorgtoeslag ones: citizen applies, the six-decision RechtEnHoogteSubsidieThuisbatterij decision requirement diagram is evaluated, the caseworker reviews and closes the notify task. It exists to catch the failure that took Kapvergunning down on acceptance — a tenant-scoped process that cannot resolve its untenanted decisions refuses to instantiate, surfacing as a 500 on process start and an unexplained "aanvraag kon niet worden ingediend" in the UI.',
+            'The harness is now target-aware. Every endpoint used to be hard-coded to localhost; a target helper resolves the frontend, backend, Keycloak, LDE and Operaton URLs, each defaulting to the value the harness used to hard-code, so a plain local run is unchanged. The journeys refuse to run against production without CONFIRM_PROD=1 — they submit applications and complete tasks, which on production is real case data. Required processes vary their key per target while treating tenancy as invariant, deliberately: an earlier draft varied the tenant too, which would have let a tier keep running untenanted definitions while this suite reported green.',
+            'The caseworker steps no longer take the first task with a matching name. The queue is shared, and on acceptance that selector found five open "Phase 6" tasks, four of them foreign. Nothing in the visible text can separate them, so TakenInbox renders the task\'s process-instance id as a data attribute and the helper resolves the run\'s own instances from its businessKey. The attribute is invisible and changes no behaviour. When a target serves a frontend built before it, the helper says so and stops instead of spending the full timeout naming the wrong cause.',
+          ],
+        },
+        {
+          sha: '50e4d37',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The backend workflows are named for what they now do',
+          details: [
+            'They deploy. "Build Backend for ACC" was accurate while the workflow ended at upload-artifact and a person ran a script afterwards, and a workflow whose name understates it is how "the build fired, so I should deploy" became a habit. They are now "Deploy Backend to Azure ACC" and "... to Azure Production", matching the four sibling workflows.',
+            'An earlier note claimed renaming would silently un-require a check. That was wrong: the acc ruleset requires job names, not workflow names. The job ids are untouched, so the ruleset sees exactly what it saw before; renaming the job is what would break it, and nothing here does.',
+            'Three documents named the old workflows, and two asserted something this work falsifies — that the backend workflow deploys nothing, and that the backend deploy is still a manual script — so renaming alone would have left them wrong in a more confident-sounding way. One paragraph is rewritten rather than renamed, because its point changes: the manual step is gone, the ordering problem is not.',
+          ],
+        },
+        {
+          sha: '743d76a',
+          author: 'Peter de Ruijter',
+          type: 'fix',
+          subject: 'The backend deploy handles un-hoisted dependencies instead of failing on them',
+          details: [
+            "The staging install's guard asserted that no production dependency is installed under packages/backend/node_modules, on the reasoning that none is today. altcha-lib has been recorded there by the lockfile since it was added, so the guard failed every run.",
+            "The guard becomes packaging. deploy/ is the backend's root, so an un-hoisted entry belongs in deploy/node_modules and is merged in after the hoisted tree is copied. Where the same package is also hoisted the two versions cannot both live there — something else resolves to the hoisted one, and overwriting it would break that instead — so that case still fails rather than guessing. Scope directories are expanded to the packages inside them, and npm's own dot entries are skipped.",
+            "@ronl/shared's own prepare script is dropped from the staged copy too. It is tsc, which under --omit=dev npm runs with no TypeScript installed, failing the install. Only the root prepare had been dropped before.",
+          ],
+        },
+        {
+          sha: '3636ecd',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'set-secret.sh stores a GitHub secret without the whitespace that breaks deploys',
+          details: [
+            'Piping a token straight out of the Azure CLI into gh secret set stores a trailing newline — 120 bytes where the key is 119. Both halves are the documented way to do their job; the composition is what goes wrong. It cost the public site its first production deploy, and the failure named nothing: everything passed, then "An unknown exception has occurred" with a DeploymentId printed first, which reads as an upload that began and failed rather than an authentication that never happened.',
+            'The script reads the value from stdin, strips leading and trailing whitespace, refuses an empty result, and reports the byte count it stored. The byte count is the point: a secret cannot be read back, so nothing about a stored secret can afterwards confirm or deny a stray newline. Which is why stdin is read with a sentinel rather than plain command substitution — that strips trailing newlines itself, so it would store the right value while reporting "read 6, storing 6" for exactly the case this exists to catch.',
+            'The value is never echoed, never passed as an argument — it is piped, so it does not appear in the process list — and never written to a file.',
+          ],
+        },
+        {
+          sha: 'add3619',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: "tk.client's unreachable multi-term filter arm is gone",
+          details: [
+            'buildFilter carried a branch joining clauses with "or". It had no caller: both helpers are module-private, and the only path in splits on the term count first, so every call arrives with a single-element array.',
+            'Removing it is not tidying. The arm built precisely the request the fan-out exists to avoid: measured against the live API, a five-term OR query took 23–48 seconds and blew the 15-second abort every time, so every multi-term criterion — which is what the whole seeded taxonomy uses — silently retrieved nothing and looked like a source with no matches. A working implementation of that, one call site away from being live again and with nothing in the code saying so, is worse than no implementation.',
+            'No new test. The invariant is already pinned behaviourally by the test asserting that no request URL contains an OR clause, and nothing can be written to exercise the deleted arm because nothing could reach it. Branch coverage on the file rises to 98%.',
+          ],
+        },
+        {
+          sha: '00ebfec',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The API stops advertising documentation that was never served',
+          details: [
+            'The root response promised documentation at /v1/docs, and the startup log repeated the claim. Nothing ever mounted it, and the advertisement traces to the initial commit — so the service has promised documentation since day one and never served it. There is no Swagger, OpenAPI or Scalar dependency in the backend either: this was planned and not built, not a mount that regressed. Serving real documentation is the better answer for a service with 17 route groups and external consumers, and it stays open; until something serves it, saying nothing beats pointing a consumer at a 404.',
+            'The banner moves into its own route module, the shape health.routes.ts already has. The root response had no test and could not have one: index.ts calls startServer() at import, so a test cannot load it without starting a server. That is why a false claim survived from the initial commit to now — a claim nothing exercises is a claim nothing can contradict. Four tests now cover it, including that nothing in the payload mentions /v1/docs.',
+            'What this deliberately does not fix: nothing enforces that every advertised path is mounted, because index.ts still cannot be imported by a test. Keeping the two in step remains a human job, and the docstring says so rather than implying a guarantee that is not there.',
+          ],
+        },
+        {
+          sha: 'e3c7dd6',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The backend deploys from the workflow, over OIDC',
+          details: [
+            'One change, three items. The cheap fix would have been a publish profile, as a neighbouring repository uses — but SCM basic auth is disabled on both of these App Services, measured rather than assumed, so a publish-profile deploy would be rejected. OIDC is not a new mechanism here: the hand-run scripts already deploy with az webapp deploy over an ARM token from az login. This is that same call with a machine identity instead of a human session, which removes the failure that stopped an earlier release reaching acceptance — an expired login, discovered after the merge.',
+            'The deploy bundle now installs from the lockfile. It used to be npm install --production in a directory that had a package.json and no lockfile, so it re-resolved every caret range at deploy time: on 2026-08-29 an acceptance deploy ran with @anthropic-ai/sdk freshly jumped 42 minor versions and uuid five majors, none of it matching what any build had verified. The install now runs in a staging copy holding the root manifest and lockfile, filtered to the backend workspace with production dependencies only.',
+            'A build-info.json in the artifact records which commit and run produced it, /v1/health reports it, and the workflow polls that value until it matches the commit it just deployed. The previous build keeps answering while Azure starts the new one, so a liveness check passes against either; without this, a deploy that silently left the old artifact serving would have passed every check above it. On acceptance the deploy steps are gated so a pull request builds and tests without shipping, keeping the build check required.',
+          ],
+        },
+        {
+          sha: 'aadedfc',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'R2.1 starts with a project identity, and R5.3 re-entry is covered',
+          details: [
+            'Projectnummer and Projectnaam became required when R2.1 is started from its own detail page, and the button is gated on both. The spec still clicked it with no input, so it waited 90 seconds for a control that can never become enabled. The behaviour is correct and was confirmed by hand: this was the test lagging the feature. Both fields are now filled from fixtures, deliberately unmistakable rather than realistic, and toBeEnabled() before the click makes the gate an assertion instead of an implicit wait, so a future regression names the gate rather than timing out.',
+            'A new assertion checks the instance carries the number and name it was started with. Without it the spec would pass just as happily against a build that dropped both values: the process would start, the tasks would appear, and the board would show an em dash — the state the naming was introduced to remove.',
+            'A latent failure in the same spec, found while verifying: the closing assertion compared an absolute Klaar count, but Klaar is derived, so the form held only on an engine with nothing in flight. With one live instance a correct application reports one less, and the spec fails while nothing is wrong. It now baselines before the journey and asserts the delta, which is what the comment above it already described.',
+          ],
+        },
+        {
+          sha: 'c7886f2',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The smoke script has a prod target, behind CONFIRM_PROD',
+          details: [
+            'TARGET accepted local and acc only, so verifying anything on production meant overriding two URLs by hand — which is how a client-secret rotation was verified on production. The one environment where a verified smoke run matters most was the one the script could not name.',
+            'A production run refuses to start without CONFIRM_PROD=1, and the guard is checked against the resolved URLs rather than against TARGET, so it holds however production was reached: through the new preset, or through the URLs set by hand, which is both the older route and the likelier way to arrive there by accident. The host patterns are anchored, so the acceptance host does not match.',
+            "The guard is not about damage — the run never mutates anything. It is about the tier being real: the run authenticates as a confidential client, so a mistyped target leaves a token and a trail of requests in production's audit log for no reason.",
+          ],
+        },
+        {
+          sha: '439f265',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The vestigial KEYCLOAK_CLIENT_SECRET is gone, and placeholders fail the boot',
+          details: [
+            'ronl-business-api is a public client: the realm export gives it publicClient true, no secret and no service account, so there is no client secret to configure — and nothing in the backend ever read one. The setting was declared on Config, populated from the environment, required in production, and consumed by no code path. Requiring a value nobody reads is how the production App Service came to hold the literal "not-used".',
+            'The issue reported this as "production still has the realm-export placeholder", which was wrong on every count: the value there was different, the placeholder belongs to the three confidential clients, and the flows the issue called degraded authenticate as a different client entirely. So the setting is removed rather than corrected, with a comment at the site recording why there is nothing to put back, and a test asserting production starts with the variable set to an arbitrary value.',
+            'The same investigation found the shape of a real problem, which this keeps. A boot-time check now rejects an unfilled value in production, not only an empty one, and ANTHROPIC_API_KEY uses it — that key is genuinely consumed, so an unfilled value currently boots healthy and fails at the first call. Matching is anchored, never by substring: "exchange-mechanism-2026" contains "change-me", and failing a boot over a legitimate secret would be worse than the fault being prevented. Production only, because failing a developer\'s boot over an unfilled .env would be hostile.',
+          ],
+        },
+        {
+          sha: 'da31955',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: "The understand-anything plugin's leftovers are removed",
+          details: [
+            'The plugin has been uninstalled locally, so nothing generates or reads these files any more. The generated artefacts were already ignored and are simply gone from the working tree — 736K in total.',
+            'Two things were in the repository and needed a commit: the one tracked file in the directory, which predates the ignore rule that now covers everything beside it, and the ignore rule itself. Nothing else in the repository referenced the directory or the plugin.',
+          ],
+        },
+        {
+          sha: 'ce955b6',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: '@testing-library/user-event moves to ^14.6.7',
+          details: [
+            'A routine Renovate update, held for the 14-day cooldown like everything else. It touches the frontend, pa-cockpit and pa-demo manifests.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.9',
       status: 'Released',
       date: '19 sep 2026',

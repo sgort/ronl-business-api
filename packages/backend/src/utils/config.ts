@@ -72,11 +72,11 @@ interface Config {
   port: number;
   host: string;
   corsOrigin: string[];
+  corsPreviewSlugs: string[];
   keycloak: {
     url: string;
     realm: string;
     clientId: string;
-    clientSecret: string;
   };
   jwt: {
     issuer: string;
@@ -228,11 +228,21 @@ export const config: Config = {
     'http://localhost:5175', // public-site dev server
     'http://localhost:3002',
   ]),
+  // Static Web Apps slugs whose NUMBERED PREVIEWS may call this backend (#37).
+  // Empty everywhere by default, and ignored outright in production — see
+  // utils/cors-origin.ts. These are the stable per-app slugs Azure derives
+  // preview hostnames from, not hostnames themselves:
+  //   ashy-pebble-0d80dbe03  (frontend)
+  //   red-river-0ce4c9803    (pa-demo)
+  //   calm-water-068f8b303   (public site)
+  corsPreviewSlugs: parseEnvArray(process.env.CORS_PREVIEW_SLUGS, []),
   keycloak: {
     url: process.env.KEYCLOAK_URL || 'http://localhost:8080',
     realm: process.env.KEYCLOAK_REALM || 'ronl',
+    // No clientSecret: ronl-business-api is a public client (#96). The realm
+    // export gives it publicClient: true, no secret and no service account, so
+    // there is none to configure -- and nothing here ever read one.
     clientId: process.env.KEYCLOAK_CLIENT_ID || 'ronl-business-api',
-    clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || '',
   },
 
   jwt: {
@@ -421,12 +431,36 @@ export const config: Config = {
 };
 
 // Validate required configuration
+/**
+ * Values that satisfy a non-empty check while meaning "nobody filled this in".
+ *
+ * Investigating #96 found the shape of the problem even though that issue had
+ * the wrong setting: a non-empty check passes an unfilled value, so the backend
+ * boots, /v1/health reports healthy, and the breakage surfaces at first use
+ * rather than at startup. `.env.example` ships exactly such values.
+ *
+ * Matching is anchored rather than by substring: `exchange-mechanism-2026`
+ * contains `change-me`, and rejecting a legitimate secret at boot would be a
+ * worse failure than the one this prevents.
+ */
+const PLACEHOLDER_EXACT = new Set(['placeholder', 'todo', 'secret', 'xxx', 'none', 'unset']);
+
+function isPlaceholder(value: string): boolean {
+  const normalised = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+  if (normalised === '') return true;
+  // change-me, changeme, CHANGE_ME, change-me-in-keycloak-console.
+  if (normalised.startsWith('changeme')) return true;
+  // The .env.example house style: your-client-secret-here, your-anthropic-api-key-here.
+  if (normalised.startsWith('your') && normalised.endsWith('here')) return true;
+  return PLACEHOLDER_EXACT.has(normalised);
+}
+
 function validateConfig() {
   const errors: string[] = [];
-
-  if (!config.keycloak.clientSecret && config.nodeEnv === 'production') {
-    errors.push('KEYCLOAK_CLIENT_SECRET is required in production');
-  }
 
   // These two check process.env rather than the resolved config on purpose.
   // Both settings fall back to a local/shared default above, so the resolved
@@ -444,6 +478,8 @@ function validateConfig() {
 
   if (!config.anthropic.apiKey) {
     errors.push('ANTHROPIC_API_KEY is required');
+  } else if (config.nodeEnv === 'production' && isPlaceholder(config.anthropic.apiKey)) {
+    errors.push('ANTHROPIC_API_KEY is still a placeholder in production');
   }
 
   // Only when live signing is switched on. Unconditional requirements here

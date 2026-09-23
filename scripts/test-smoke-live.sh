@@ -13,9 +13,11 @@
 #   bash scripts/test-smoke-live.sh                     # localhost: full run
 #   CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh          # explicit creds
 #   TARGET=acc CLIENT_SECRET=<secret> bash scripts/test-smoke-live.sh   # acc env
+#   CONFIRM_PROD=1 TARGET=prod CLIENT_SECRET=<secret> \
+#     bash scripts/test-smoke-live.sh                                  # production
 #
-# On TARGET=local, Tier 2 credentials are taken from KEYCLOAK_CLIENT_ID /
-# KEYCLOAK_CLIENT_SECRET in packages/backend/.env.<NODE_ENV> when CLIENT_SECRET is
+# On TARGET=local, Tier 2 credentials are taken from OPERATON_MCP_CLIENT_ID /
+# OPERATON_MCP_CLIENT_SECRET in packages/backend/.env.<NODE_ENV> when CLIENT_SECRET is
 # not already set, so a plain `bash scripts/test-smoke-live.sh` runs everything.
 #
 # eDOCS gets TWO checks: 1/2 direct (in-process, packages/backend/.env, no
@@ -23,16 +25,23 @@
 # needs CLIENT_SECRET). Comparing them exposes backend-vs-.env config drift.
 #
 # ── Config ────────────────────────────────────────────────────────────────────
-#   TARGET=local|acc     picks a preset pair of URLs (default: local)
+#   TARGET=local|acc|prod  picks a preset pair of URLs (default: local)
 #                          local → http://localhost:3002  + http://localhost:8080
 #                          acc   → https://acc.api.open-regels.nl
 #                                  + https://acc.keycloak.open-regels.nl
+#                          prod  → https://api.open-regels.nl
+#                                  + https://keycloak.open-regels.nl
 #   BASE_URL / KEYCLOAK_URL   set either explicitly to override the TARGET preset
+#   CONFIRM_PROD=1       required whenever the resolved URLs are production, by
+#                          preset or by override. Without it the run refuses to
+#                          start. Production is read-only here, but it is a real
+#                          tier: the run authenticates, and a token minted by a
+#                          mistyped TARGET is a token in production audit logs.
 #   Tier 2a — CLIENT flow (M2M) → eDOCS 2/2 gated status:
-#     CLIENT_ID          confidential client (default: .env KEYCLOAK_CLIENT_ID on
+#     CLIENT_ID          confidential client (default: .env OPERATON_MCP_CLIENT_ID on
 #                          local, else operaton-mcp-client)
 #     CLIENT_SECRET      its secret; on local, auto-loaded from .env
-#                          KEYCLOAK_CLIENT_SECRET when not exported
+#                          OPERATON_MCP_CLIENT_SECRET when not exported
 #   Tier 2b — USER flow (role) → MCP /sources:
 #     USER_CLIENT_ID     public client for the password grant (default: ronl-business-api)
 #     SMOKE_USER         role-bearing user (default: test-caseworker-flevoland)
@@ -56,8 +65,12 @@ case "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" in
     DEFAULT_BASE_URL="https://acc.api.open-regels.nl"
     DEFAULT_KEYCLOAK_URL="https://acc.keycloak.open-regels.nl"
     ;;
+  prod)
+    DEFAULT_BASE_URL="https://api.open-regels.nl"
+    DEFAULT_KEYCLOAK_URL="https://keycloak.open-regels.nl"
+    ;;
   *)
-    echo "ERROR: unknown TARGET='$TARGET' (expected 'local' or 'acc')."
+    echo "ERROR: unknown TARGET='$TARGET' (expected 'local', 'acc' or 'prod')."
     exit 1
     ;;
 esac
@@ -65,6 +78,27 @@ esac
 # Explicit BASE_URL / KEYCLOAK_URL always win over the preset.
 BASE_URL="${BASE_URL:-$DEFAULT_BASE_URL}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-$DEFAULT_KEYCLOAK_URL}"
+
+# ── Production guard ──────────────────────────────────────────────────────────
+#
+# Checked against the RESOLVED urls, not against TARGET, so it holds however
+# production was reached -- the preset, or BASE_URL/KEYCLOAK_URL set by hand,
+# which is how production was smoke-tested before the preset existed. The host
+# patterns are anchored so that acc.api.open-regels.nl does not match.
+#
+# This run never mutates anything. The guard is about the tier being real: it
+# authenticates as a confidential client, so a mistyped TARGET puts a token and
+# a trail of requests in production's audit log for no reason.
+if [[ "$BASE_URL" =~ ^https://api\.open-regels\.nl(/|$) ||
+      "$KEYCLOAK_URL" =~ ^https://keycloak\.open-regels\.nl(/|$) ]]; then
+  if [[ "${CONFIRM_PROD:-}" != "1" ]]; then
+    echo "ERROR: this run targets PRODUCTION:"
+    echo "         backend : $BASE_URL"
+    echo "         keycloak: $KEYCLOAK_URL"
+    echo "       Re-run with CONFIRM_PROD=1 if that is what you meant."
+    exit 1
+  fi
+fi
 
 # Repo layout — used to run the Keycloak-free eDOCS probe in-process.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,7 +138,7 @@ ENV_FILE="$BACKEND_DIR/.env.${NODE_ENV:-development}"
 REALM_FILE="$REPO_ROOT/config/keycloak/ronl-realm.json"
 CREDS_SOURCE="environment"
 if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -z "${CLIENT_SECRET:-}" ]]; then
-  CLIENT_ID="${CLIENT_ID:-$(read_env_var KEYCLOAK_CLIENT_ID "$ENV_FILE")}"
+  CLIENT_ID="${CLIENT_ID:-$(read_env_var OPERATON_MCP_CLIENT_ID "$ENV_FILE")}"
   CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
 
   if [[ -f "$REALM_FILE" ]]; then
@@ -116,8 +150,8 @@ if [[ "$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')" == "local" && -z "${CLIEN
   fi
 
   if [[ -z "${CLIENT_SECRET:-}" && -f "$ENV_FILE" ]]; then
-    _env_secret="$(read_env_var KEYCLOAK_CLIENT_SECRET "$ENV_FILE")"
-    if [[ -n "$_env_secret" && "$_env_secret" != "your-client-secret-here" ]]; then
+    _env_secret="$(read_env_var OPERATON_MCP_CLIENT_SECRET "$ENV_FILE")"
+    if [[ -n "$_env_secret" && "$_env_secret" != "your-m2m-client-secret-here" ]]; then
       CLIENT_SECRET="$_env_secret"
       CREDS_SOURCE="$ENV_FILE"
     fi
@@ -367,7 +401,7 @@ echo ""
 echo "── Tier 2a — client flow (M2M) → eDOCS 2/2 JWT-gated ──────────────────────"
 
 if [[ -z "${CLIENT_SECRET:-}" ]]; then
-  skip "eDOCS 2/2 (JWT-gated, M2M client) — no CLIENT_SECRET (export it, or add KEYCLOAK_CLIENT_SECRET to $ENV_FILE for TARGET=local; direct check 1/2 ran above)"
+  skip "eDOCS 2/2 (JWT-gated, M2M client) — no CLIENT_SECRET (export it, or add OPERATON_MCP_CLIENT_SECRET to $ENV_FILE for TARGET=local; direct check 1/2 ran above)"
 else
   [[ "$CREDS_SOURCE" != "environment" ]] && \
     echo "  · CLIENT_SECRET loaded from $(basename "$CREDS_SOURCE") (client: ${CLIENT_ID})"

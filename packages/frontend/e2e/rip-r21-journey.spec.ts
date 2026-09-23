@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAsMedewerker } from './helpers/auth';
 import { recordPendingCleanup } from './helpers/operaton-cleanup';
 import { watchForRateLimit } from './helpers/rate-limit';
+import { OPERATON_URL, targetLabel } from './helpers/target';
 
 /**
  * RIP fase 1 (R2.1) end to end — start the phase, work every task, reach
@@ -263,6 +264,28 @@ async function liveCount(page: Page, phase: RegExp, column: 'klaar' | 'gereed'):
 }
 
 /**
+ * Reads a live badge once it has actually rendered.
+ *
+ * openFaseladder waits for GET /rip/phases/counts to answer, but the badges
+ * paint after that response is applied, and liveCount reports a missing badge
+ * as 0. Sampling a baseline the instant the faseladder opens therefore reads 0
+ * and turns a correct application into a failing delta -- the same trap the
+ * openFaseladder docstring below records for the gereed figure. Assertions at
+ * the end of the journey are already inside expect.poll, so only the baseline
+ * needs this.
+ */
+async function liveCountWhenRendered(
+  page: Page,
+  phase: RegExp,
+  column: 'klaar' | 'gereed'
+): Promise<number> {
+  const row = page.locator('table tr', { hasText: phase }).first();
+  const cell = row.locator('td').nth(column === 'klaar' ? 4 : 6);
+  await expect(cell.locator('.pb-live-badge')).toBeVisible({ timeout: 20_000 });
+  return liveCount(page, phase, column);
+}
+
+/**
  * Opens the Faseladder and waits for its live counts to arrive.
  *
  * The heading renders before GET /rip/phases/counts answers, and the live
@@ -286,7 +309,27 @@ async function openFaseladder(page: Page): Promise<number> {
   return body.data?.counts?.RipR21Process?.gereed ?? 0;
 }
 
-const OPERATON = 'http://localhost:8081/engine-rest';
+/**
+ * Identity for the project this spec starts.
+ *
+ * aac0357 (v2026.09.8) made Projectnummer and Projectnaam required when R2.1 is
+ * started from its own detail page, and gated the button on both. Before that a
+ * fallback-started instance carried no identity at all and the board fell back
+ * to "Nieuw R2.1-project · intake open" with the instance id prefix as its
+ * number, which is what the assertions below used to have to settle for.
+ *
+ * Deliberately unmistakable rather than realistic: anyone finding this project
+ * in the board should be able to see at a glance that a test left it behind.
+ */
+const PROJECT_NUMBER = 'E2E-26014';
+const PROJECT_NAME = 'E2E — R2.1 journey (test, safe to delete)';
+
+// Resolved per target (see helpers/target.ts). Pinned to localhost this spec
+// would start its instance on the target under test and then poll a different
+// engine for it: the skip guard below counts instances that are not the ones
+// the run could pick, nextStep() never sees the task it is waiting for, and
+// the journey times out with nothing to say for itself.
+const OPERATON = OPERATON_URL;
 
 /**
  * How many R2.1 instances are in flight.
@@ -437,11 +480,25 @@ async function signPhaseApproval(page: Page, name: string): Promise<void> {
   // licence -- the guard stopped the signature, not the request. The panel
   // publishes the backend's mode (SigningPanel, from the spec endpoint) so
   // this can be settled while nothing has been created yet.
-  await expect(
-    panel,
-    'refusing to request a LIVE ValidSign signature from a test — set ' +
-      'VALIDSIGN_STUB_MODE=true and restart the backend'
-  ).toHaveAttribute('data-validsign-stub', 'true');
+  //
+  // Skipped rather than failed, for the same reason the foreign-instance guard
+  // above skips: a tier that signs for real is a fact about the environment,
+  // not a defect in the journey, and reporting the two alike teaches people to
+  // read red as noise. ACC is deliberately live (VALIDSIGN_LIVE_TIERS=
+  // acceptance), so against it this is the expected outcome — flipping that
+  // setting to get a green tick would disable the very thing acceptance exists
+  // to exercise. The afterEach still runs on a skip, so the instance this
+  // journey started is cleaned up rather than left to block the next run.
+  const stub = await panel.getAttribute('data-validsign-stub');
+  if (stub !== 'true') {
+    const reason =
+      `${targetLabel} signs with the real ValidSign (VALIDSIGN_STUB_MODE=false), and this ` +
+      `journey will not request a binding signature. Nothing was created — the refusal ` +
+      `happens before POST /task/:id/package. Run it against a target where ` +
+      `VALIDSIGN_STUB_MODE=true.`;
+    console.warn(`[rip-r21-journey] SKIPPED — ${reason}`);
+    test.skip(true, reason);
+  }
 
   await page.getByRole('button', { name: 'Onderteken nu' }).click();
 
@@ -535,15 +592,42 @@ test.describe('RIP fase 1 (R2.1)', () => {
     // rendered badge: the badge paints a tick later, so reading it here caught
     // an empty cell and made "before" 0 against a real "after".
     const gereedBefore = await openFaseladder(page);
+    // R2.2's Klaar is a DERIVED figure: gereed[R2.1] - wip[R2.2] - gereed[R2.2].
+    // Only its delta belongs to this journey, so baseline it rather than
+    // assuming R2.2 has no instances of its own. Asserting the absolute
+    // gereedBefore + 1 passes only on an engine where nothing is in flight for
+    // R2.2 -- one live R2.2 instance is enough to make a correct application
+    // report one less, which is exactly what it should do.
+    const klaarR22Before = await liveCountWhenRendered(page, /R2\.2/, 'klaar');
 
     // ── start the phase from its own detail page ────────────────────────
     await page.locator('.v2-rail button', { hasText: 'R2.1' }).first().click();
-    await expect(page.getByRole('button', { name: /R2\.1 starten/ })).toBeVisible();
+
+    // Two buttons in this tab read "R2.1 starten" — this one, and the bulk
+    // "start the selected projects" button in the other branch of the ternary
+    // in PhaseDetail. They never render together today, so a bare getByRole
+    // resolves; pinning it to the block the step means keeps that true if the
+    // branches ever converge, rather than turning into a strict-mode violation
+    // in whichever run happens to hit that state.
+    const startForm = page.locator('.pb-new-project');
+    const startButton = page.locator('.pb-new-project + button');
+    await expect(startForm).toBeVisible();
+    // A structural locator, so assert what it found before clicking it: if the
+    // markup ever moves the button out from beside the form, this fails naming
+    // the control it did find, instead of quietly clicking a different one.
+    await expect(startButton).toHaveText(/R2\.1 starten/);
+
+    // Required since aac0357: the button stays disabled until both are filled.
+    // Filling them is also what gives the assertions below something to check —
+    // an unnamed instance renders an em dash and a generic state label.
+    await startForm.getByLabel('Projectnummer').fill(PROJECT_NUMBER);
+    await startForm.getByLabel('Projectnaam').fill(PROJECT_NAME);
+    await expect(startButton).toBeEnabled();
 
     const started = page.waitForResponse(
       (r) => r.url().includes('/process/RipR21Process/start') && r.request().method() === 'POST'
     );
-    await page.getByRole('button', { name: /R2\.1 starten/ }).click();
+    await startButton.click();
     const startBody = (await (await started).json()) as {
       data?: { businessKey?: string; processInstanceId?: string };
     };
@@ -555,6 +639,17 @@ test.describe('RIP fase 1 (R2.1)', () => {
     recordPendingCleanup(businessKey!);
 
     await expect(page.getByText(/R2\.1 gestart/)).toBeVisible({ timeout: 15_000 });
+
+    // ── the instance carries the identity it was started with ───────────
+    // The point of aac0357, asserted rather than assumed. Without this the
+    // spec would pass just as happily against a build that dropped both
+    // values on the floor: the process would start, the tasks would appear,
+    // and the board would show an em dash and "Nieuw R2.1-project · intake
+    // open" — the exact state the naming was introduced to remove.
+    await page.locator('.pb-tabs button', { hasText: 'WIP' }).first().click();
+    const wipRow = page.locator('.pb-instance-table tbody tr', { hasText: PROJECT_NUMBER });
+    await expect(wipRow).toBeVisible({ timeout: 15_000 });
+    await expect(wipRow).toContainText(PROJECT_NAME);
 
     // ── work every task the engine offers, in whatever order it offers ──
     await openInstanceDetail(page);
@@ -693,6 +788,6 @@ test.describe('RIP fase 1 (R2.1)', () => {
     // project ready for R2.2.
     await expect
       .poll(() => liveCount(page, /R2\.2/, 'klaar'), { timeout: 20_000 })
-      .toBe(gereedBefore + 1);
+      .toBe(klaarR22Before + 1);
   });
 });

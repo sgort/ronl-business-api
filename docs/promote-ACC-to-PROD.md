@@ -290,13 +290,13 @@ the rollback backup ([3.1](#31-take-a-rollback-artifact)) and for issue #35.
 **What fires when the promotion lands on `main`** — every production workflow,
 because the delta touches every path filter (including each workflow's own file):
 
-| Workflow                          | On push to `main` | Effect if left enabled                                      |
-| --------------------------------- | ----------------- | ----------------------------------------------------------- |
-| Supply-chain audit (`zizmor.yml`) | fires             | read-only; harmless                                         |
-| Build Backend for Production      | fires             | lint + 2008 tests + build + artifact; **deploys nothing**   |
-| Deploy Frontend to Production     | fires             | **deploys `mijn` immediately**, possibly before the backend |
-| Deploy Public Site to Production  | fires             | prerender against the 3.8.2 API → 404 → fails; and no token |
-| Deploy PA Demo to Production      | fires             | builds, then fails at deploy — no token                     |
+| Workflow                           | On push to `main` | Effect if left enabled                                                     |
+| ---------------------------------- | ----------------- | -------------------------------------------------------------------------- |
+| Supply-chain audit (`zizmor.yml`)  | fires             | read-only; harmless                                                        |
+| Deploy Backend to Azure Production | fires             | lint + tests + build + artifact, then **deploys** and verifies `build.sha` |
+| Deploy Frontend to Production      | fires             | **deploys `mijn` immediately**, possibly before the backend                |
+| Deploy Public Site to Production   | fires             | prerender against the 3.8.2 API → 404 → fails; and no token                |
+| Deploy PA Demo to Production       | fires             | builds, then fails at deploy — no token                                    |
 
 `workflow_dispatch` is present on all four production workflows (verified), which
 is what makes the disable → dispatch ordering in Phase 6 possible.
@@ -366,7 +366,9 @@ drawer on `acc.mijn.open-regels.nl` or read
 - Deploys gated on lint, tests and a performance budget.
 - **Required-env checks now actually fire** (2026.08.21): `DATABASE_URL`,
   `OPERATON_BASE_URL`, `KEYCLOAK_CLIENT_SECRET` and `ANTHROPIC_API_KEY` are
-  checked at import, so a missing one is a backend that does not boot. `/v1/health`
+  checked at import, so a missing one is a backend that does not boot.
+  _(`KEYCLOAK_CLIENT_SECRET` has since been removed from that list: the client it
+  names is public and nothing read the value — #96.)_ `/v1/health`
   reports the deployment tier.
 - Backend branch and function coverage above 80 % for every file.
 - PA: Europarl gets a User-Agent and an empty `202` is no longer read as a feed;
@@ -377,6 +379,8 @@ drawer on `acc.mijn.open-regels.nl` or read
   signals with it.
 - The rate-limit **code default** went 100 → 1000. Both App Services pin
   `RATE_LIMIT_MAX_REQUESTS=100` explicitly, so neither tier picks this up (§4.1).
+  (ACC was since raised to `1000` by hand, on 22 September — see §4.1. PROD
+  still pins `100`.)
 
 **28 August — 2026.08.24 → 2026.08.32 (PA demo, the cockpit package, the supply chain)**
 
@@ -469,7 +473,7 @@ for non-secret keys.
 | `LDE_API_URL`                                                                                                            | unset                                   | unset (ACC is happy with the ACC default)     | **set `https://backend.linkeddata.open-regels.nl/v1`** — the default is the _ACC_ LDE, so PROD's process library would silently proxy ACC data. Target verified live: LDE `2026.09.4`, `production`                            |
 | `CORS_ORIGIN`                                                                                                            | `mijn`, `localhost:5173`                | `acc.mijn`, `iou-architectuur`, `acc.publiek` | **set to `mijn` + `publiek`, dropping `localhost:5173`** (D5)                                                                                                                                                                  |
 | `DEPLOYMENT_ENV`                                                                                                         | `production` ✅                         | `acceptance`                                  | none                                                                                                                                                                                                                           |
-| `DATABASE_URL`, `OPERATON_BASE_URL`, `KEYCLOAK_CLIENT_SECRET`, `ANTHROPIC_API_KEY`                                       | present ✅                              | present                                       | none — `validateConfig()` throws at import without them                                                                                                                                                                        |
+| `DATABASE_URL`, `OPERATON_BASE_URL`, `ANTHROPIC_API_KEY`                                                                 | present ✅                              | present                                       | none — `validateConfig()` throws at import without them                                                                                                                                                                        |
 | `CPRMV_URL`                                                                                                              | `https://cprmv.open-regels.nl/mcp` ✅   | unset (default is `acc.cprmv`)                | none                                                                                                                                                                                                                           |
 | `EDOCS_MCP_*`                                                                                                            | unset → disabled                        | `ENABLED=false`, client id + secret           | none — leave off                                                                                                                                                                                                               |
 | `VALIDSIGN_*`                                                                                                            | unset → stub (default `true`)           | `STUB_MODE=true`                              | none                                                                                                                                                                                                                           |
@@ -477,9 +481,26 @@ for non-secret keys.
 | `PUBLIC_PROCESS_BOARDS`                                                                                                  | unset → `caseworker`                    | unset → `caseworker`                          | none — widen only if a board beyond `caseworker` (e.g. `caseworker,infra-board`) should also be public. Replaces the removed `PUBLIC_SHOW_WIP_PROCESSES` escape hatch (#111): the public site no longer gates on status at all |
 | `PA_SEED_DEMO_DATA`                                                                                                      | unset → `false`                         | unset                                         | none                                                                                                                                                                                                                           |
 | `EU_SOURCE_ENABLED`, `EP_TEXTS_SUBMITTED_ENABLED`, `EU_API_BASE`                                                         | unset → on, on, `data.europarl…/api/v2` | same                                          | none                                                                                                                                                                                                                           |
-| `RATE_LIMIT_MAX_REQUESTS`                                                                                                | `100`                                   | `100`                                         | none — parity with ACC (see §3.3)                                                                                                                                                                                              |
+| `RATE_LIMIT_MAX_REQUESTS`                                                                                                | `100`                                   | `1000` (raised 22 Sep)                        | **decide** — ACC was raised so the E2E suite can run against it; the old "parity with ACC" reason no longer holds. `TRUST_PROXY=true` on both tiers, so the budget is per client, not one pot — see the note under this table. |
 | `TRUST_PROXY`                                                                                                            | `true`                                  | `true`                                        | none — so the "one shared budget per deployment" caveat in PUBLIC-SITE-GO-LIVE §7b does **not** apply                                                                                                                          |
 | PROD-only legacy (`DSO_*`, `ENABLE_*`, `OPENAI_API_KEY`, `OPERATON_URL`, `RONL_SPARQL_ENDPOINT`, `MEDIA_AGGREGATOR_*` …) | present                                 | absent                                        | leave                                                                                                                                                                                                                          |
+
+**On the rate limit.** `TRUST_PROXY=true` on both tiers, so Express reads
+`req.ip` from X-Forwarded-For and the limiter buckets **per client**, not once
+per deployment — confirmed three ways on 22 September: this table, the real
+client address in the ACC request log quoted in `utils/client-ip.ts`, and a
+probe returning `RateLimit-Remaining: 99` on its first call. A heavy caller
+therefore spends its own budget and does not throttle anyone else, which is what
+made raising ACC to `1000` a convenience decision rather than a safety one: a
+full E2E run from one machine exceeds 100/min in the PA cockpit specs. The same
+reasoning does not automatically carry to PROD — a tenfold ceiling per client is
+a much weaker defence on a public tier, and nothing there needs the headroom
+unless the suite is meant to run against it.
+
+Note also that `client-ip.ts` strips the `address:port` Azure writes into
+X-Forwarded-For (commit `3ad8c7b`). Before that the key was per _connection_, so
+the limit read as per-client and behaved as per-connection — softer by whatever
+number of connections a browser happened to open.
 
 Two cosmetic observations. Neither blocks, but both are worth an issue:
 
@@ -778,10 +799,10 @@ az webapp config appsettings list -n ronl-business-api-prod -g rg-ronl-prod \
 
 ```bash
 az webapp config appsettings list -n ronl-business-api-prod -g rg-ronl-prod --query "[].name" -o tsv \
-  | grep -xE 'DATABASE_URL|OPERATON_BASE_URL|KEYCLOAK_CLIENT_SECRET|ANTHROPIC_API_KEY' | sort
+  | grep -xE 'DATABASE_URL|OPERATON_BASE_URL|ANTHROPIC_API_KEY' | sort
 ```
 
-- [ ] All four listed (they were on 11 Sep).
+- [ ] All three listed.
 
 ### Phase 4 — PROD Keycloak (additive; do before anyone tests)
 
@@ -854,6 +875,17 @@ gh pr create --base main --head promote/2026-09-12 \
       identical backend tree last passed its full suite on `acc` at `04e38c8`.
 
 ### Phase 6 — The merge window (in this order)
+
+> **Superseded on 22 September 2026 by #177.** Phase 6's disable → merge →
+> dispatch dance was this document's answer to the race in the table above:
+> three workflows taken out of the push's way by hand so the backend could go
+> first. That ordering is now in the repository rather than in a runbook.
+> `promote-to-production.yml` is the only thing that fires on a push to `main`,
+> and it calls the four deploy workflows — backend first, then the three sites
+> in parallel once it has succeeded or been skipped. Nothing needs disabling.
+>
+> The rest of this document is the record of the 12 September 2026 promotion and
+> is left as it was written.
 
 #### 6.1 Disable the three production SWA workflows
 
@@ -1342,11 +1374,14 @@ removed and verified by request (D5), and the RIP roles went to
 
 ### Left open
 
-- `KEYCLOAK_CLIENT_SECRET` on the PROD App Service is still
-  `change-me-in-keycloak-console`. It does not block boot, and it does not affect
-  the MCP providers (all four connected), but anything authenticating **as** the
-  `ronl-business-api` client — the smoke script's Tier 2 leg, `/v1/m2m` — will
-  fail until it is regenerated in Keycloak and set on the App Service.
+- ~~`KEYCLOAK_CLIENT_SECRET` on the PROD App Service.~~ **Withdrawn (#96, 20 Sep).**
+  `ronl-business-api` is a public client — the realm export gives it
+  `publicClient: true`, no secret and no service account — so it has no secret to
+  configure, and nothing in the backend ever read the setting. PROD held `not-used`,
+  not the placeholder. The setting has been removed rather than corrected. The
+  placeholder in the realm export belongs to the three **confidential** clients
+  (`operaton-mcp-client`, `edocs-mcp-client`, `copilot-studio-edocs`); Tier 2a and
+  `/v1/m2m` authenticate as the first of those, not as `ronl-business-api`.
 - `EP teksten fetch complete, total: 0` on PROD — relevant to #57, which assumed
   that host is reachable from PROD's egress range.
 - The startup log still advertises `/v1/docs`, which is never mounted (#67).
