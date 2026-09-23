@@ -24,7 +24,12 @@
     "Lock-file maintenance is exempt from this cap and from prHourlyLimit; its",
     "packageRule below says why."
   ],
-  "extends": ["config:recommended", ":dependencyDashboard", "helpers:pinGitHubActionDigests"],
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests"
+  ],
   "minimumReleaseAge": "14 days",
   "internalChecksFilter": "strict",
   "vulnerabilityAlerts": {

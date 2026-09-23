@@ -193,6 +193,70 @@ on the Dependency Dashboard before relying on that.
 **Reachable from our side:** the release, yes, and done; the image, no.
 **Accepted risk** for the image, reviewed when this document is next revised.
 
+### The App Service runtime — `NODE|22-lts` pins a major, and that is all Azure offers
+
+Both App Services run `NODE|22-lts`, and so do Linked Data Explorer's two. ICTU
+recommendation 2 asks for a pin at the highest precision the platform allows.
+Here the platform allows very little: `az webapp list-runtimes --os linux`
+returns, for Node, exactly
+
+```
+NODE|22-lts   NODE|24-lts   NODE|26
+```
+
+Major-level only. There is no `NODE|22.23.2`, no digest, and no setting that
+takes one. **So the answer to "pin exactly" is that it cannot be done, and this
+paragraph is the record of why** — the resolution linked-data-explorer#119 asks
+for when the platform will not cooperate.
+
+What remains reachable is the thing that actually bites: keeping the App
+Service's major in step with `.nvmrc`'s. Today both are 22 and they agree. They
+can disagree, and the failure is quiet — the build runs on one major and the
+host runs the artifact on another, which is the mismatch #36 closed for the
+workflows and this document's `node-version` section describes. It is live right
+now in the other repository: linked-data-explorer#80 bumps `.nvmrc` from 22 to
+24 and is held open precisely because merging it alone would build on 24 and run
+on 22.
+
+**The ordering is therefore part of the pin.** A Node major bump changes two
+things in two places, and the App Service must move first:
+
+1. switch both App Services to the new `NODE|<major>-lts`,
+2. then merge the `.nvmrc` bump.
+
+No pull-request check runs against an App Service, so nothing enforces this. It
+is a written rule, and it is written here because this is the file that is read
+before a promotion.
+
+**Reachable from our side:** the major, yes; an exact version, no — Azure does
+not offer one. **Accepted**, with the ordering rule above as the compensating
+control.
+
+### Container images — pinned by digest where this repository applies them
+
+The local development stack in `docker-compose.yml` pins all five of its images
+by tag **and** digest, and Renovate maintains them: `docker:pinDigests` is in
+`renovate.json`'s `extends`, beside `helpers:pinGitHubActionDigests`. The same
+rule that file already states for actions applies here — pinning without
+automated updates decays into an unpatched tree, which is worse than floating.
+
+Two of those five were `:latest` before, and they are the reason this mattered
+more than it looked. **A floating tag is invisible to Renovate**: it has no
+version to compare, so `alpine:latest` and `operaton/operaton:latest` were the
+only images in the tree that nothing was watching at all. The other three were
+already tracked by version and merely unpinned by digest.
+
+The digests recorded are the **index** digests, not per-platform ones, so the
+pin stays correct on an amd64 and an arm64 workstation alike.
+
+**The three compose files under `deployment/vm/` are deliberately not pinned
+yet**, and that is #196. Nothing in this repository applies them — no workflow,
+no script reads them — so a digest there would record a value no deploy
+consults, against a host whose running image cannot be read from here. A pin
+that cannot be verified is a pin that can be wrong with nothing saying so. That
+issue brings the ACC and PROD VM deployment under action control first, and pins
+second.
+
 ### The package-manager cooldown — `.npmrc`, and where it does not reach
 
 Renovate's `minimumReleaseAge` covers only the updates Renovate proposes.
