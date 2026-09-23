@@ -112,6 +112,47 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.11',
+      status: 'Released',
+      date: '23 sep 2026',
+      scope: ['backend', 'public-site', 'ci'],
+      commits: [
+        {
+          sha: '417cd53',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: "The config validator's Node moves to 24.21.0",
+          details: [
+            "One line in zizmor.yml, and deliberately not shared with .nvmrc. The renovate-config-validator step runs on its own exact Node 24 because renovate@44.50.3 declares engines.node ^24.11.0, and npm accepts a mismatch with an EBADENGINE warning rather than refusing — so before that pin the validator had been running unsupported and green. Everything else in CI builds, tests and ships on the repository's single .nvmrc, still 22.23.2, which the App Service plans match.",
+            'Renovate maintains this pin behind the same 14-day cooldown as every other dependency. v24.21.0 was released on 7 September, sixteen days before this release, checked against the Node release index rather than taken from the stability-days status — the day before, that status read "not met" on three lock-file maintenance branches that were in fact compliant.',
+          ],
+        },
+        {
+          sha: 'f89062e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: "A service's input concepts are told apart from its output ones",
+          details: [
+            'A regel detail page listed every concept of a service in one alphabetical row, so nothing said which values the rules consume and which ones they produce. The distinction was already in the knowledge graph; it was being dropped on the way out.',
+            "The concept query carries it two ways, one per generation of export: an older export states it as the variable's edge to the DMN (cpsv:isRequiredBy / cpsv:produces), a CPRMV 0.4.1 export only as the /input/N or /output/N tail of the variable URI. The query already matched both to find the DMN, then selected neither. It now selects both, and conceptDirection() reads the edge first and falls back to the URI. Across the live graph the two agree wherever both appear — 193 of 193 rows — and all 241 concept rows of all 14 services resolve to a side.",
+            'PublicIndexItem gains begrippenIO, the same concepts each with its direction. The flat begrippen array is left exactly as it was, because it is part of the open, anonymous API and outside consumers read it. Both lists are now deduplicated: one concept can reach a service through more than one variable, as Aanspraken does in Digital Twin Inkomensregelingen, and neither list may name it twice. The page keeps its heading and the count of every concept, and divides the chips into "Invoer — gegevens die de regels nodig hebben" and "Uitvoer — wat de regels bepalen". Two fallbacks keep a concept from going missing: a response with no directions at all, from a backend older than the field, renders the one undivided row it always did, and a concept the graph leaves undirected gets a group of its own rather than being filtered away. The grouping is per service, not per rule — all 21 concepts of the thuisbatterij service hang off a single DMN, so Recht Op Subsidie reads as an output of the service even though the third rule plausibly consumes it. Per-rule attribution is not in the graph.',
+          ],
+        },
+        {
+          sha: '2d1cf27',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: '/bump-release runs the tests before it commits',
+          details: [
+            'The release command normalised formatting and ran lint. It did not run the tests — and the step immediately above edits source files: five package.json manifests and the lockfile. Lint and Prettier read a package.json as data; a test can read it as input, and then a version bump is a behaviour change.',
+            "v2026.09.10 is what proved it. That release bumped packages/pa-cockpit from 1.0.0 for the first time, which is what #152's rule says to do, while the package's own scaffold test still asserted the opposite — expect(pkg.version).toBe('1.0.0') — because #152 changed the command file and nothing else. Format, lint and type-check were all clean, and the release was committed, pushed and opened as a pull request before anything said otherwise. pa-cockpit has no deploy workflow, so its suite runs in CI only inside Build and Deploy ACC Frontend: audit, scan, build and the PA demo deploy were all green beside the one red check.",
+            "Step 6 now runs npm test at the root, which covers the workspaces with no deploy workflow of their own. The step records the reasoning, including the honest ratio — four test files here read a package.json and two assert on a version, but only one asserted a literal — and says to decide which side is wrong before changing either. Step 7's report must now state that format, lint and test are clean with the suite's counts, because a step nothing reports on is a step that gets skipped.",
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.10',
       status: 'Released',
       date: '22 sep 2026',
