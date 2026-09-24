@@ -11,6 +11,13 @@
 import { createHash } from 'node:crypto';
 
 function sha1(input: string): string {
+  // SHA-1 for content-addressing, not security: this derives a stable
+  // identity from a canonical URL. Nothing is signed, authenticated or kept
+  // secret, and a collision would merge two articles rather than forge
+  // anything. SHA-256 would be a drop-in -- and would change every id and
+  // duplicate_group_id once, re-surfacing every story as new, which is the
+  // exact churn this module exists to stop.
+  // nosemgrep: javascript.node-stdlib.cryptography.crypto-weak-algorithm.crypto-weak-algorithm
   return createHash('sha1').update(input).digest('hex').slice(0, 16);
 }
 

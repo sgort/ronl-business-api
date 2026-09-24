@@ -101,6 +101,11 @@ export function injectIntoShell(
     const json = JSON.stringify(opts.embeddedData).replace(/</g, '\\u003c');
     html = html.replace(
       '</body>',
+      // `json` has every `<` replaced with \u003c two lines above, which is
+      // what stops a string value containing "</script>" from closing the tag.
+      // The rule does not model that escape. Build-time only: this script is
+      // not a request handler.
+      // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag
       `  <script id="__PUB_DATA__" type="application/json">${json}</script>\n</body>`
     );
   }

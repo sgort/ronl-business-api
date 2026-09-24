@@ -625,8 +625,14 @@ export class OperatonService {
     attribute: string
   ): string | null {
     const escaped = taskDefinitionKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // `taskDefinitionKey` is regex-escaped on the line above.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const element = new RegExp(`<bpmn:userTask\\b[^>]*\\bid="${escaped}"[^>]*>`).exec(bpmnXml);
     if (!element) return null;
+    // `attribute` is not escaped. The method is private and has one caller,
+    // which passes the literal 'ronl:signatureRef' -- no metacharacter in it.
+    // Escape it here if a second caller ever appears.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const attr = new RegExp(`\\b${attribute}="([^"]+)"`).exec(element[0]);
     return attr ? attr[1] : null;
   }
