@@ -6,24 +6,14 @@ import { rateLimitKey } from '@utils/client-ip';
 import { config } from '@utils/config';
 import logger, { createLogger } from '@utils/logger';
 import { corsOriginCallback } from '@utils/cors-origin';
-import rootRoutes from '@routes/root.routes';
-import healthRoutes from '@routes/health.routes';
-import processRoutes from '@routes/process.routes';
-import decisionRoutes from '@routes/decision.routes';
+import { createRootRouter } from '@routes/root.routes';
+import { advertisedEndpoints, routeRegistry } from '@routes/registry';
 import { auditMiddleware } from '@middleware/audit.middleware';
+import { versionMiddleware } from '@middleware/version.middleware';
 import packageJson from '../package.json';
-import brpRoutes from './routes/brp.routes';
-import taskRoutes from '@routes/task.routes';
-import publicRoutes from '@routes/public.routes';
-import hrRoutes from './routes/hr.routes';
-import capacityRoutes from './routes/capacity.routes';
-import ripRoutes from './routes/rip.routes';
-import edocsRoutes from './routes/edocs.routes';
-import doccleRoutes from './routes/doccle.routes';
-import validsignRoutes, {
-  callbackRouter as validsignCallbackRoutes,
-  isCallbackPath,
-} from './routes/validsign.routes';
+// The routers themselves come from the registry; this is the callback-path
+// predicate the JSON body parser needs to exempt /v1/validsign/callback.
+import { isCallbackPath } from '@routes/validsign.routes';
 import { externalTaskWorker } from '@services/externalTaskWorker.service';
 import { validsignPoller } from '@services/validsignPoller.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
@@ -39,12 +29,6 @@ import { initDb } from '@services/audit.service';
 import { initPaDb } from './pa-monitoring/pa-monitoring.db';
 import { initDossiersDb } from './pa-monitoring/pa-dossiers.db';
 import { runCurationCycle } from './pa-monitoring/curation.service';
-import paRoutes from './pa-monitoring/pa.routes';
-import paDossiersRoutes from './pa-monitoring/pa-dossiers.routes';
-import mediaAggregatorRoutes from './media-aggregator/media-aggregator.routes';
-import adminRoutes from '@routes/admin.routes';
-import m2mRoutes from './routes/m2m.routes';
-import mcpRoutes from './routes/mcp.routes';
 
 const appLogger = createLogger('app');
 
@@ -162,32 +146,26 @@ app.use((req: Request, res: Response, next) => {
 });
 
 // Audit logging middleware
+// Sets API-Version on every response (NL ADR API-57). Before the mounts, so
+// it covers the banner and every /v1 route. See #200.
+app.use(versionMiddleware);
+
 app.use(auditMiddleware);
 
-// Mount routes. The service banner at / lives in its own router so it can be
-// tested; it promised documentation at /v1/docs that nothing served (#67).
-app.use('/', rootRoutes);
-app.use('/v1/health', healthRoutes);
-app.use('/v1/process', processRoutes);
-app.use('/v1/decision', decisionRoutes);
-app.use('/v1/task', taskRoutes);
-app.use('/v1/brp', brpRoutes);
-app.use('/v1/public', publicRoutes);
-app.use('/v1/hr', hrRoutes);
-app.use('/v1/hr-capacity', capacityRoutes);
-app.use('/v1/rip', ripRoutes);
-app.use('/v1/edocs', edocsRoutes);
-app.use('/v1/doccle', doccleRoutes);
-// The callback router mounts on its own, BEFORE any auth: ValidSign carries no
-// token. The authenticated router applies jwtMiddleware internally.
-app.use('/v1/validsign', validsignCallbackRoutes);
-app.use('/v1/validsign', validsignRoutes);
-app.use('/v1/pa', paRoutes);
-app.use('/v1/pa', paDossiersRoutes);
-app.use('/v1/media-aggregator', mediaAggregatorRoutes);
-app.use('/v1/admin', adminRoutes);
-app.use('/v1/m2m', m2mRoutes);
-app.use('/v1/mcp', mcpRoutes);
+// Mount routes. The banner at / lives in its own router so it can be tested.
+//
+// Everything under /v1 is mounted from routes/registry.ts, which is also what
+// the banner advertises and what the OpenAPI coverage gate compares against
+// (#200). The three used to be maintained separately and drifted: the banner
+// promised /v1/docs from the initial commit and nothing ever served it (#67).
+//
+// Mount ORDER is the registry array order, and it is load-bearing -- the
+// ValidSign callback router must precede the authenticated one on the same
+// path. See the note there.
+app.use('/', createRootRouter(advertisedEndpoints));
+for (const { mount, router } of routeRegistry) {
+  app.use(mount, router);
+}
 
 // 404 handler
 app.use((req: Request, res: Response) => {

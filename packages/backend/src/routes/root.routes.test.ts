@@ -16,11 +16,21 @@ jest.mock('@utils/config', () => ({
 
 import express from 'express';
 import request from 'supertest';
-import rootRouter, { ADVERTISED_ENDPOINTS } from './root.routes';
+import { createRootRouter } from './root.routes';
 import packageJson from '../../package.json';
 
+// A fixture rather than the real registry: importing that would pull in all 19
+// route modules to test a JSON literal, which is the coupling root.routes.ts is
+// written to avoid. That every advertised path is really mounted is checked in
+// routes/registry.test.ts (#200).
+const ADVERTISED_ENDPOINTS = {
+  health: '/v1/health',
+  documentation: '/v1/openapi.json',
+  process: '/v1/process',
+};
+
 const app = express();
-app.use('/', rootRouter);
+app.use('/', createRootRouter(ADVERTISED_ENDPOINTS));
 
 describe('GET /', () => {
   it('identifies the service, its release and its tier', async () => {
@@ -35,17 +45,18 @@ describe('GET /', () => {
     });
   });
 
-  it('advertises no documentation endpoint, because none is served', async () => {
-    // #67: the banner carried `documentation: '/v1/docs'` and nothing ever
-    // mounted it — `git log -S "app.use('/v1/docs'"` finds no handler added and
-    // later removed, and there is no OpenAPI or Swagger dependency anywhere in
-    // the backend. A consumer following the field got a 404.
+  it('advertises the OpenAPI document, which is now served', async () => {
+    // The other half of #67, closed by #200. The banner carried
+    // `documentation: '/v1/docs'` from the initial commit and nothing ever
+    // mounted it, so the field was REMOVED rather than left pointing at a 404.
     //
-    // Serving real documentation is the better answer and remains open; until
-    // something serves it, saying nothing beats pointing at a 404.
+    // This test asserted that absence. It now asserts the opposite, because the
+    // document is served: /v1/openapi.json. The old assertion would still pass
+    // untouched -- `documentation` lives under `endpoints`, not at the top
+    // level -- which is exactly why it is replaced rather than left green.
     const res = await request(app).get('/');
 
-    expect(res.body).not.toHaveProperty('documentation');
+    expect(res.body.endpoints).toHaveProperty('documentation', '/v1/openapi.json');
     expect(JSON.stringify(res.body)).not.toContain('/v1/docs');
   });
 
@@ -61,10 +72,12 @@ describe('GET /', () => {
     }
   });
 
-  it('exports the advertised endpoints, so index.ts mounts from one list', async () => {
-    // The banner and the mounts drifting apart is the defect in #67. Exporting
-    // the map is what lets a reader check them against each other in one place
-    // instead of two hundred lines apart.
+  it('advertises exactly the endpoint map it is given', async () => {
+    // The banner and the mounts drifting apart is the defect in #67. The map is
+    // no longer exported from here: index.ts passes in routes/registry.ts's,
+    // which is the same array it mounts from, and registry.test.ts checks that
+    // every advertised path is mounted. What is left to test here is that the
+    // banner renders what it was handed, whole and unaltered.
     const res = await request(app).get('/');
     expect(res.body.endpoints).toEqual(ADVERTISED_ENDPOINTS);
   });

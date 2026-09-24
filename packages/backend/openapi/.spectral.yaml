@@ -1,0 +1,39 @@
+# packages/backend/openapi/.spectral.yaml
+#
+# Lints the built openapi.json (npm run lint:openapi) against the NL API Design
+# Rules 2.2.1 ruleset vendored beside this file. Every rule in it gates except
+# the exceptions below. Each states its reason and is scoped as narrowly as the
+# rule allows; add one only with a reason a reviewer can check.
+
+extends:
+  - ./adr-ruleset-2.2.1.yaml
+
+rules:
+  # The release version is calendar-based, YYYY.MM.N with a zero-padded month
+  # (2026.09.11), and info.version is that same string, set from package.json by
+  # scripts/build-openapi.cjs. A zero-padded month is not valid semver, and
+  # rewriting it in the document would make the document disagree with the
+  # release it describes. linked-data-explorer disables this rule for the same
+  # reason and the same scheme.
+  nlgov:semver: 'off'
+
+  # THE ONE DEVIATION THAT IS NOT COSMETIC.
+  #
+  # This API answers errors with its own envelope,
+  # `{ "success": false, "error": { "code", "message" } }`, in 289 places. The
+  # ADR ruleset requires RFC 9457 `application/problem+json` for 4xx and 5xx.
+  #
+  # Documenting what the API actually answers was chosen over changing what it
+  # answers, because changing it is a breaking change for the frontend, public
+  # site, pa-demo, pa-cockpit and every /v1/m2m consumer -- and publishing a
+  # truthful contract should not wait on that. The migration is tracked
+  # separately; linked-data-explorer did it in its own #131 before documenting.
+  #
+  # These are OFF GLOBALLY rather than per operation on purpose: a per-operation
+  # list would have to name all 130 operations and would grow with every new
+  # one, which turns a recorded decision into maintenance. When the migration
+  # lands, these three lines come out together and the rule gates everywhere at
+  # once.
+  nlgov:use-problem-schema: 'off'
+  nlgov:problem-schema-members: 'off'
+  nlgov:problem-invalid-input: 'off'

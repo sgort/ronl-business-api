@@ -157,6 +157,14 @@ export function pruneAuditQueue(): void {
   }
 }
 
-setInterval(pruneAuditQueue, 60000);
+// unref()'d so this timer alone cannot keep the Node event loop alive.
+//
+// In the running service nothing changes: the HTTP server holds the loop open,
+// and the timer fires exactly as before. It matters when the module is merely
+// IMPORTED -- which routes/registry.ts now does transitively, via five route
+// modules, so src/routes/registry.test.ts and src/openapi/coverage.test.ts
+// import it too (#200). Without this, Jest reported "A worker process has
+// failed to exit gracefully" on every run and force-exited the worker.
+setInterval(pruneAuditQueue, 60000).unref();
 
 export default auditMiddleware;
