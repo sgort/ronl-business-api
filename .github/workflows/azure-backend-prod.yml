@@ -24,13 +24,24 @@ on:
   # nothing new about the code -- while `audit`, which IS required on `main`,
   # reports there on every pull request regardless of base.
   #
-  # Note that linked-data-explorer excludes its production workflow for a
-  # DIFFERENT reason that does not apply here: there, the production
-  # environment carries required reviewers, so a pull_request trigger would put
-  # a human approval in front of the very tests meant to inform it. Both
-  # environments in this repository have no protection rules at all. The
-  # exclusion stands on the promotion argument alone, and would want revisiting
-  # if protection rules were ever added.
+  # This used to add that linked-data-explorer excludes its production workflow
+  # for a DIFFERENT reason -- that its production environment carries required
+  # reviewers, so a pull_request trigger would put a human approval in front of
+  # the very tests meant to inform it. That reason no longer exists: the
+  # reviewer was removed from that environment on 24 September 2026
+  # (sgort/linked-data-explorer#210), because it guarded the one path already
+  # carrying the most automated checks while both of its production SITE
+  # workflows deployed with no approval at all -- and, on a pull request, to the
+  # production Static Web App.
+  #
+  # So the two repositories now exclude it for the same reason, the promotion
+  # argument above, rather than for two. Worth knowing before copying either
+  # one's shape: what looked like a deliberate divergence was one repository
+  # working around a gate it has since dropped.
+  #
+  # Both environments in THIS repository still have no protection rules at all.
+  # The exclusion stands on the promotion argument alone, and would want
+  # revisiting if protection rules were ever added.
   workflow_dispatch:
 
 # This workflow had no concurrency group while a push to main was its only
