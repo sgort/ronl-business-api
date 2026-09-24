@@ -61,14 +61,24 @@ jobs:
           # reads in the run.
           AUDIT_REPORT_FILE: ${{ runner.temp }}/audit.md
         run: |
+          # The loop checks out each branch, which REPLACES the working tree --
+          # including this script, which exists on the branch under review before
+          # it exists on acc or main. Copy it somewhere the checkout cannot
+          # touch and run it from there. Found the hard way: the first run lost
+          # the script at the first checkout, and node exited 1 for a missing
+          # module, which this step then read as "a high advisory was found".
+          script="$RUNNER_TEMP/audit-tree.mjs"
+          cp scripts/audit-tree.mjs "$script"
           git fetch --no-tags --quiet origin acc main
           status=0
           for ref in acc main; do
             git checkout --force --quiet "origin/$ref"
-            node scripts/audit-tree.mjs "$ref ($(git rev-parse --short HEAD))" || rc=$?
-            rc=${rc:-0}
-            if [ "$rc" -gt "$status" ]; then status=$rc; fi
             rc=0
+            node "$script" "$ref ($(git rev-parse --short HEAD))" || rc=$?
+            # 0 clean, 1 a production high or critical, 2 the audit could not
+            # run. Anything else is also "could not run": never a clean tree.
+            if [ "$rc" -gt 2 ]; then rc=2; fi
+            if [ "$rc" -gt "$status" ]; then status=$rc; fi
           done
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "Worst exit status across both branches: $status"
