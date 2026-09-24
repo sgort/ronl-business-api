@@ -39,15 +39,15 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**34 `uses:` references across 11 workflows, all 34 digest-pinned.** Verified on
-`acc` at `65850f9`, 22 September 2026 — by `npm run check-supply-chain`, which
+**36 `uses:` references across 12 workflows, all 36 digest-pinned.** Verified on
+`acc` at `829dc27`, 24 September 2026 — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| `actions/checkout` (×11)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
-| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `actions/checkout` (×12)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×10)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
 | `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
@@ -98,6 +98,42 @@ So the `sha512` integrity row above covers **what is shipped**, not merely what
 is tested. In `ttl-editor` the opposite holds: Oryx builds inside the floating
 container there, so its lockfile integrity covers only the test run. The
 difference is `skip_app_build`, and it is worth preserving deliberately.
+
+## Dependency audit, daily
+
+Every gate above runs on a commit. A new advisory lands against code that has
+not changed, so a pipeline that only reacts to commits never sees it — and
+Dependabot alerts watch the default branch, `acc`, not the `main` that
+production deploys from. ICTU recommendation 10, tracked in [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119).
+
+`.github/workflows/dependency-audit.yml` runs at 05:17 UTC daily, and on
+demand. It audits **both `acc` and `main`**, reading each branch's lockfile
+with `npm audit --package-lock-only`, so it installs nothing.
+
+|                           |                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Job / check context       | `dependency-audit` — deliberately not `audit`, which is zizmor's required check in every one of these repositories |
+| Fails on                  | a **high or critical** advisory in **production** dependencies                                                     |
+| Reports but does not fail | moderate and low advisories, and everything dev-only                                                               |
+| Where it reports          | the run's step summary, and one tracking issue it opens, updates and closes                                        |
+| Node                      | an exact literal, not `.nvmrc` — it audits a branch that need not carry one                                        |
+
+**It counts advisories, not packages.** `npm audit` reports one entry per
+affected package, so one advisory on a widely-used package looks like dozens of
+findings: on 24 September 2026 linked-data-explorer's 28 "moderate" entries were
+three advisories, 24 of them the same `@tiptap/core` reached through its
+extensions. `scripts/audit-tree.mjs` groups by advisory before reporting.
+A number that overstates the problem gets ignored, which is the failure mode a
+daily audit exists to avoid.
+
+**A run that cannot audit exits 2, and is treated like a finding.** A tool that
+fails to run must not report a clean tree — the same rule `--no-suppress-errors`
+enforces for Semgrep.
+
+**What it will report here on its first runs:** one production high,
+`adm-zip` 0.6.0, reached only through the unused `keycloak-connect` (#204).
+`adm-zip` 0.6.1 clears the 14-day cooldown on 25 September, so the next
+lock-file maintenance closes it and the issue closes itself.
 
 ## Exceptions
 
