@@ -28,7 +28,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  audit:
+  # NOT "audit": that is zizmor.yml's job, and a required check in every one
+  # of these repositories. Required checks match by NAME, so a second job
+  # called audit makes that context ambiguous -- one passing and one failing
+  # check under one name, which no ruleset can satisfy. It blocked a pull
+  # request the first time this workflow ran. Same lesson as the two jobs that
+  # were both called "Build and Deploy Job".
+  dependency-audit:
     runs-on: ubuntu-24.04
     permissions:
       contents: read

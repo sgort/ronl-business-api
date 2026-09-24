@@ -110,12 +110,13 @@ production deploys from. ICTU recommendation 10, tracked in [linked-data-explore
 demand. It audits **both `acc` and `main`**, reading each branch's lockfile
 with `npm audit --package-lock-only`, so it installs nothing.
 
-|                           |                                                                             |
-| ------------------------- | --------------------------------------------------------------------------- |
-| Fails on                  | a **high or critical** advisory in **production** dependencies              |
-| Reports but does not fail | moderate and low advisories, and everything dev-only                        |
-| Where it reports          | the run's step summary, and one tracking issue it opens, updates and closes |
-| Node                      | an exact literal, not `.nvmrc` — it audits a branch that need not carry one |
+|                           |                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Job / check context       | `dependency-audit` — deliberately not `audit`, which is zizmor's required check in every one of these repositories |
+| Fails on                  | a **high or critical** advisory in **production** dependencies                                                     |
+| Reports but does not fail | moderate and low advisories, and everything dev-only                                                               |
+| Where it reports          | the run's step summary, and one tracking issue it opens, updates and closes                                        |
+| Node                      | an exact literal, not `.nvmrc` — it audits a branch that need not carry one                                        |
 
 **It counts advisories, not packages.** `npm audit` reports one entry per
 affected package, so one advisory on a widely-used package looks like dozens of
