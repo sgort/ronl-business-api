@@ -53,7 +53,6 @@
     "jose": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "jwks-rsa": "^3.2.2",
-    "keycloak-connect": "^23.0.7",
     "multer": "^2.3.0",
     "node-cache": "^5.1.2",
     "openai": "^6.49.0",
