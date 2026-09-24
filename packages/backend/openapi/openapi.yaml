@@ -1,0 +1,388 @@
+# packages/backend/openapi/openapi.yaml
+#
+# The published contract for the RONL Business API (#200). Hand-written, as in
+# linked-data-explorer: this backend carries no decorators or schema
+# annotations to generate from, and generating would mean adding them to 130
+# handlers before anything could be published.
+#
+# Served as JSON at /v1/openapi.json. scripts/build-openapi.cjs builds
+# openapi.json from this file and sets info.version from package.json, so the
+# version is never edited here and never drifts from the release.
+#
+# EVERY /v1 operation must appear here or in openapi/pending.json:
+# src/openapi/coverage.test.ts fails when a served operation is in neither, and
+# when a documented operation is not served. pending.json may only shrink.
+#
+# After editing, run `npm run build:openapi` and restart the dev server -- the
+# document is read once at module load, so a running process will not pick it
+# up.
+openapi: '3.1.0'
+
+info:
+  title: RONL Business API
+  # NO `version` here, deliberately. scripts/build-openapi.cjs sets it from
+  # package.json and REFUSES TO BUILD if this file sets one, so the published
+  # document and the release can never disagree.
+  summary: Process, decision and document services for Regels.overheid.nl
+  contact:
+    name: Steven Gort
+    email: steven.gort@ictu.nl
+    url: https://iou-architectuur.open-regels.nl/
+  description: |
+    Business API behind Regels.overheid.nl: Operaton process and decision
+    execution, task handling, document generation and signing, and the
+    machine-to-machine surface consumed outside the browser applications.
+
+    ## Authentication
+
+    Most operations require a Keycloak-issued JWT as a bearer token, applied by
+    `jwtMiddleware` inside each router rather than at the mount. A tenant is
+    derived from the token and enforced per operation; some operations
+    additionally require a role.
+
+    The unauthenticated surface is deliberate and small: `/v1/health`,
+    `/v1/openapi.json`, `/v1/public`, `/v1/media-aggregator`, and the ValidSign
+    callback, which carries no token because ValidSign does not send one.
+
+    ## Error responses
+
+    4xx and 5xx answer this service's own envelope,
+    `{ "success": false, "error": { "code", "message" } }` -- NOT the
+    `application/problem+json` of RFC 9457 that the NL API Design Rules
+    require. That deviation is recorded as a Spectral exception rather than
+    hidden, and migrating to problem details is tracked separately: it is a
+    breaking change for every consumer, so it is not folded into publishing a
+    description of what the API answers today.
+
+    ## Coverage
+
+    This document is being written per mount group. Operations not yet
+    described are listed in `openapi/pending.json`, which only shrinks. A
+    consumer should read an absent operation as undocumented, not as absent
+    from the API.
+
+# The major version lives in the server URL, so every path below is written
+# without its /v1 prefix -- nlgov:include-major-version-in-uri requires the
+# version in the URI, and putting it here rather than on 130 paths is how
+# linked-data-explorer does it too.
+servers:
+  - url: https://api.open-regels.nl/v1
+    description: Production
+  - url: https://acc.api.open-regels.nl/v1
+    description: Acceptance
+
+tags:
+  - name: Health
+    description: Liveness, readiness and dependency checks. Unauthenticated.
+  - name: Discovery
+    description: What this service is and where its contract lives.
+
+paths:
+  /openapi.json:
+    get:
+      operationId: getOpenApiDocument
+      tags: [Discovery]
+      summary: This API's OpenAPI description
+      description: |
+        Returns this document. Served with fully open CORS so a browser-based
+        viewer on any origin can fetch it, as `/core/publish-openapi` requires.
+      security: []
+      responses:
+        '200':
+          description: The OpenAPI document.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: An OpenAPI 3.1 document.
+                additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Service health and dependency latency
+      description: |
+        Reports the running build and the reachability of Operaton, Keycloak
+        and the cache.
+
+        Answers **503** when any dependency is down, with the same body shape
+        and `status: degraded`. `success` mirrors that: it is `false` on a 503.
+      security: []
+      responses:
+        '200':
+          description: All dependencies are up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '503':
+          description: A dependency is down, or the check itself failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [Health]
+      summary: Liveness probe
+      description: |
+        Answers 200 whenever the process is running. Checks no dependency, so
+        it stays 200 while the service is degraded -- use `/health/ready` to
+        decide whether to send traffic.
+      security: []
+      responses:
+        '200':
+          description: The process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    required: [status, timestamp]
+                    properties:
+                      status:
+                        type: string
+                        const: alive
+                      timestamp:
+                        type: string
+                        format: date-time
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /health/ready:
+    get:
+      operationId: getReadiness
+      tags: [Health]
+      summary: Readiness probe
+      description: |
+        Answers 200 when the service can accept traffic, and 503 when it
+        cannot -- today that means Operaton is unavailable.
+      security: []
+      responses:
+        '200':
+          description: Ready to accept traffic.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '503':
+          description: Not ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    const: false
+                  data:
+                    type: object
+                    required: [status, timestamp]
+                    properties:
+                      status:
+                        type: string
+                        const: not ready
+                      reason:
+                        type: string
+                        description: Which dependency made it not ready.
+                      timestamp:
+                        type: string
+                        format: date-time
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /health/external:
+    get:
+      operationId: getExternalHealth
+      tags: [Health]
+      summary: Reachability of the external services this API depends on
+      description: |
+        HEAD-probes CPRMV, TriplyDB and the Linked Data Explorer with a 5 second
+        timeout each, and reports status and latency per target.
+
+        Always answers 200: an unreachable target is reported in the body as
+        `down`, not as a failure of this endpoint.
+      security: []
+      responses:
+        '200':
+          description: Probe results, one entry per target.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, timestamp]
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/DependencyStatus'
+                  timestamp:
+                    type: string
+                    format: date-time
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+components:
+  headers:
+    ApiVersion:
+      description: |
+        The full released version of this API, set on every response by
+        version.middleware.ts. NL API Design Rules, API-57.
+      schema:
+        type: string
+        examples: ['2026.09.11']
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A Keycloak-issued access token. Verified against the realm's JWKS by
+        `jwtMiddleware`; the tenant and roles are read from its claims.
+
+  schemas:
+    DependencyStatus:
+      type: object
+      description: Reachability of one external dependency.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [up, down]
+        latency:
+          type: integer
+          description: Round-trip time in milliseconds.
+        error:
+          type: string
+          description: Present only when the probe failed.
+
+    HealthResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          description: False when any dependency is down; mirrors the 503.
+        data:
+          type: object
+          required: [name, version, status, timestamp, uptime, environment]
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+              description: The released version, from package.json.
+            build:
+              description: |
+                Which BUILD is running, as opposed to which release. Null in a
+                working tree; the deploy workflow writes it into the artifact
+                and reads it back to prove the deploy took effect.
+              oneOf:
+                - type: 'null'
+                - type: object
+                  properties:
+                    sha:
+                      type: string
+                    run:
+                      type: string
+                    runId:
+                      type: string
+            status:
+              type: string
+              enum: [healthy, degraded, unhealthy]
+            timestamp:
+              type: string
+              format: date-time
+            uptime:
+              type: number
+              description: Process uptime in seconds.
+            environment:
+              type: string
+            duration:
+              type: integer
+              description: How long the check took, in milliseconds.
+            dependencies:
+              type: object
+              properties:
+                keycloak:
+                  $ref: '#/components/schemas/DependencyStatus'
+                operaton:
+                  $ref: '#/components/schemas/DependencyStatus'
+                cache:
+                  $ref: '#/components/schemas/DependencyStatus'
+
+    ErrorEnvelope:
+      type: object
+      description: |
+        This service's error shape. NOT RFC 9457 problem details, which the NL
+        API Design Rules require -- see the deviation recorded in the
+        description above.
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: A stable, machine-readable code.
+            message:
+              type: string
+              description: A human-readable explanation.
+
+  responses:
+    Error:
+      description: The request failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
+
+# Applied to every operation that does not override it with `security: []`.
+# The unauthenticated surface is the exception and says so per operation.
+security:
+  - bearerAuth: []

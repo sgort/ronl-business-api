@@ -2,6 +2,12 @@
 module.exports = {
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.test.ts'],
+  // Builds openapi/openapi.json before any test runs. src/openapi/coverage.test.ts
+  // reads it, and CI runs the tests before the build (#200).
+  globalSetup: '<rootDir>/scripts/jest-global-setup.cjs',
+  // Sets ANTHROPIC_API_KEY before any import, so a test may load the real
+  // config instead of stubbing it. See the file for why (#200).
+  setupFiles: ['<rootDir>/scripts/jest-setup-env.cjs'],
   // Report every source file, not just the ones a test happens to import, so
   // untested features surface as 0% instead of being omitted from the table.
   collectCoverageFrom: [

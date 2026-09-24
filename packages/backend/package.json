@@ -20,7 +20,13 @@
     "test:unit": "jest --testPathPattern=tests/unit",
     "test:integration": "jest --testPathPattern=tests/integration",
     "test:watch": "jest --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "build:openapi": "node scripts/build-openapi.cjs",
+    "prebuild": "npm run build:openapi",
+    "predev": "npm run build:openapi",
+    "test:openapi-coverage": "jest --config jest.config.js src/openapi --coverage=false",
+    "test:contract": "jest --config jest.config.js src/openapi src/routes --coverage=false",
+    "lint:openapi": "npm run build:openapi && spectral lint openapi/openapi.json --ruleset openapi/.spectral.yaml --fail-severity error"
   },
   "keywords": [
     "bpmn",
@@ -67,6 +73,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@stoplight/spectral-cli": "^6.16.3",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.25",
     "@types/jest": "^29.5.14",
@@ -85,7 +92,8 @@
     "tsc-alias": "^1.9.3",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.69.0"
+    "typescript-eslint": "^8.69.0",
+    "yaml": "^2.9.0"
   },
   "engines": {
     "node": ">=22",
