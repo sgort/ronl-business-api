@@ -100,6 +100,9 @@ function collapseEpMotions(items: FeedItem[]): FeedItem[] {
     const lowest = refs[0];
     out.push({
       ...first,
+      // SHA-1 for a deterministic group id, not security. See stable-id.ts for
+      // the same judgement written out in full.
+      // nosemgrep: javascript.node-stdlib.cryptography.crypto-weak-algorithm.crypto-weak-algorithm
       id: `eu-motion-${createHash('sha1').update(normalise(first.title)).digest('hex').slice(0, 16)}`,
       number: `${lowest} +${refs.length - 1}`,
     });

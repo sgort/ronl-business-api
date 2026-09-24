@@ -32,6 +32,8 @@
 /** `<slug>-<environment number>.<region>.<n>.azurestaticapps.net`, and nothing else. */
 function previewPattern(slug: string): RegExp {
   const escaped = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // `slug` is regex-escaped on the line above before it is interpolated.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   return new RegExp(`^https://${escaped}-\\d+\\.[a-z0-9-]+\\.\\d+\\.azurestaticapps\\.net$`);
 }
 

@@ -68,7 +68,14 @@ class BRPApiService {
 
       return null;
     } catch (error) {
-      console.error(`Failed to fetch person with BSN ${bsn}:`, error);
+      // The BSN is deliberately NOT logged. Today `bsn` is a test number from
+      // bsn.mapping.ts (the reserved 99999xxxx range), but getUserBSN returns
+      // `user.bsn` from the JWT first, and that field is what DigiD will fill
+      // in production -- so this line would log a real burgerservicenummer to
+      // the browser console the day DigiD is wired up, and nothing would flag
+      // it again. The error alone says which call failed; the caller knows
+      // which BSN it passed.
+      console.error('Failed to fetch person from BRP:', error);
       throw error;
     }
   }
