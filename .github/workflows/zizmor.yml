@@ -126,7 +126,13 @@ jobs:
         # if: always() for the same reason as the steps around it -- one run
         # should report on every half of the policy.
         if: always()
-        run: npm ci --dry-run
+        # --ignore-scripts because a dry run never creates node_modules, and the
+        # root postinstall (scripts/write-deps-marker.mjs) copies the lockfile
+        # into it: without this the step fails ENOENT on a clean checkout and
+        # reads as a lockfile problem, which is precisely the confusion it
+        # exists to remove. Lifecycle scripts have no bearing on whether the
+        # lockfile satisfies package.json.
+        run: npm ci --dry-run --ignore-scripts
 
       - name: Install dependencies for the formatter
         # Needed because the check below must run THIS repository's Prettier,
