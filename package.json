@@ -54,7 +54,7 @@
   "author": "RONL Team",
   "license": "EUPL-1.2",
   "devDependencies": {
-    "concurrently": "^8.2.2",
+    "concurrently": "^10.0.5",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2",
     "prettier": "3.9.6",
