@@ -76,6 +76,14 @@ tags:
     description: Liveness, readiness and dependency checks. Unauthenticated.
   - name: Discovery
     description: What this service is and where its contract lives.
+  - name: Public
+    description: |
+      The unauthenticated citizen-facing surface. Read operations are cached;
+      the three write operations are rate limited and ALTCHA-protected.
+  - name: Media aggregator
+    description: |
+      Aggregated media articles for the PA cockpit. Conditionally
+      authenticated, and the one group not using this API's response envelope.
 
 paths:
   /openapi.json:
@@ -259,6 +267,816 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
 
+  # ── /v1/public ────────────────────────────────────────────────────────────
+  #
+  # Every operation below answers without a token. The three WRITE operations
+  # additionally pass through publicWriteLimiter: 10 requests per 15 minutes per
+  # IP, answering 429 with the usual envelope and a RATE_LIMIT_EXCEEDED code.
+  #
+  # `meta.generatedAt` on the read operations is the moment the response was
+  # built, not the moment the upstream data was fetched -- these services cache.
+
+  /public/altcha/challenge:
+    get:
+      operationId: getAltchaChallenge
+      tags: [Public]
+      summary: Issue a proof-of-work challenge
+      description: |
+        Issues a fresh ALTCHA challenge for the public write forms. The solved
+        token is sent back as the `altcha` field on `POST /public/feedback` and
+        `POST /public/use-case`.
+
+        **This is the one public operation that does NOT use the
+        `{ success, data }` envelope** -- it answers the ALTCHA challenge object
+        directly, because the widget consumes it as-is.
+
+        When the server has no ALTCHA HMAC key configured the verification step
+        on the write operations is skipped entirely, and this endpoint answers
+        503.
+      security: []
+      responses:
+        '200':
+          description: A challenge for the ALTCHA widget.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: An ALTCHA challenge, passed to the widget unaltered.
+                additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '503':
+          description: ALTCHA is not configured on this server.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/nieuws:
+    get:
+      operationId: listPublicNieuws
+      tags: [Public]
+      summary: Government news items
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: 'Items to return. Values above 20 are clamped to 20.'
+          schema: { type: integer, default: 10, minimum: 1, maximum: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        '200':
+          description: A page of news items.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicPagedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [items, pagination]
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/NieuwsItem' }
+                          pagination: { $ref: '#/components/schemas/PublicPagination' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/nieuws/{slug}:
+    get:
+      operationId: getPublicNieuwsItem
+      tags: [Public]
+      summary: One news item from the federated index
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PublicSlug'
+      responses:
+        '200':
+          description: The item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PublicIndexItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No item of this type with that slug.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/berichten:
+    get:
+      operationId: listPublicBerichten
+      tags: [Public]
+      summary: Service announcements
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: 'Items to return. Values above 20 are clamped to 20.'
+          schema: { type: integer, default: 10, minimum: 1, maximum: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        '200':
+          description: A page of announcements.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicPagedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [items, pagination]
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/BerichtItem' }
+                          pagination: { $ref: '#/components/schemas/PublicPagination' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/berichten/{id}:
+    get:
+      operationId: getPublicBericht
+      tags: [Public]
+      summary: One announcement by id
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The announcement's id, as returned by the list operation.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The announcement.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/BerichtItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No announcement with that id.
+          $ref: '#/components/responses/Error'
+
+  /public/producten-diensten:
+    get:
+      operationId: listPublicProductenDiensten
+      tags: [Public]
+      summary: Products and services offered to citizens and businesses
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: 'Items to return. Values above 200 are clamped to 200.'
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        '200':
+          description: A page of products and services.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicPagedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [items, pagination]
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/ProductDienstItem' }
+                          pagination: { $ref: '#/components/schemas/PublicPagination' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/producten/{slug}:
+    get:
+      operationId: getPublicProduct
+      tags: [Public]
+      summary: One product from the federated index
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PublicSlug'
+      responses:
+        '200':
+          description: The item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PublicIndexItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No product with that slug.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/regelcatalogus:
+    get:
+      operationId: getPublicRegelcatalogus
+      tags: [Public]
+      summary: The rule catalogue
+      description: |
+        Served from a cache. `refresh=true` forces the upstream to be re-read
+        rather than serving what is held.
+      security: []
+      parameters:
+        - name: refresh
+          in: query
+          description: |
+            `true` or `1` forces a refresh. Any other value, including absent,
+            serves the cached copy.
+          schema: { type: string, enum: ['true', '1'] }
+      responses:
+        '200':
+          description: The catalogue, with cache metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [services, organizations, concepts, rules]
+                    properties:
+                      services: { type: array, items: { type: object, additionalProperties: true } }
+                      organizations:
+                        { type: array, items: { type: object, additionalProperties: true } }
+                      concepts: { type: array, items: { type: object, additionalProperties: true } }
+                      rules: { type: array, items: { type: object, additionalProperties: true } }
+                  meta:
+                    allOf:
+                      - $ref: '#/components/schemas/PublicMeta'
+                      - type: object
+                        required: [cache]
+                        properties:
+                          cache:
+                            type: object
+                            description: |
+                              Whether this response came from cache, and how old it is.
+                              Only this operation reports it.
+                            required: [cached, fetchedAt, ageMs]
+                            properties:
+                              cached: { type: boolean }
+                              fetchedAt: { type: string, format: date-time }
+                              ageMs: { type: integer }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/regels/{slug}:
+    get:
+      operationId: getPublicRegel
+      tags: [Public]
+      summary: One rule from the federated index
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PublicSlug'
+      responses:
+        '200':
+          description: The item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PublicIndexItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No rule with that slug.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/processen:
+    get:
+      operationId: listPublicProcessen
+      tags: [Public]
+      summary: Publicly visible processes
+      security: []
+      responses:
+        '200':
+          description: Every published process.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/processen/{key}:
+    get:
+      operationId: getPublicProces
+      tags: [Public]
+      summary: One process by its definition key
+      security: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: |
+            The process definition key. Any non-empty value is a legitimate
+            lookup; a miss is a 404, never a 400.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The process.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No published process with that key.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/zoeken:
+    get:
+      operationId: searchPublicIndex
+      tags: [Public]
+      summary: Search the federated public index
+      description: |
+        Searches across all five item types. Every term is regex-escaped before
+        matching, so no value of `q` is invalid and this operation never answers
+        400 -- an unmatched query returns an empty list.
+
+        `soort`, `bron` and `doelgroep` are comma-separated lists.
+      security: []
+      parameters:
+        - name: q
+          in: query
+          description: Free-text query. Absent or empty returns the unfiltered index.
+          schema: { type: string }
+        - name: soort
+          in: query
+          description: 'Comma-separated item types, e.g. `regel,product`.'
+          schema: { type: string }
+        - name: bron
+          in: query
+          description: Comma-separated source organisations.
+          schema: { type: string }
+        - name: doelgroep
+          in: query
+          description: Comma-separated audiences.
+          schema: { type: string }
+        - name: sort
+          in: query
+          description: 'Relevance, date, or alphabetical.'
+          schema: { type: string, enum: [rel, date, az] }
+      responses:
+        '200':
+          description: Matching items, with facet counts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [items, total, facets]
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: '#/components/schemas/PublicIndexItem' }
+                          total:
+                            type: integer
+                            description: Matches before any paging.
+                          facets:
+                            type: object
+                            description: Counts per facet value, for the current result set.
+                            required: [soort, bron, doelgroep]
+                            properties:
+                              soort: { type: object, additionalProperties: { type: integer } }
+                              bron: { type: object, additionalProperties: { type: integer } }
+                              doelgroep: { type: object, additionalProperties: { type: integer } }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /public/use-cases:
+    get:
+      operationId: listPublicUseCases
+      tags: [Public]
+      summary: Submitted use cases
+      description: |
+        Read-only view of the use-case work items in the IOU Architecture
+        GitLab project.
+      security: []
+      parameters:
+        - name: state
+          in: query
+          description: |
+            Any value other than `closed` is treated as `opened`, so this
+            operation never answers 400 for this parameter.
+          schema: { type: string, enum: [opened, closed], default: opened }
+      responses:
+        '200':
+          description: The work items.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PublicItemEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '503':
+          description: GitLab integration is not configured on this server.
+          $ref: '#/components/responses/Error'
+        '500':
+          description: |
+            GitLab was reachable but the listing failed
+            (`USE_CASES_FETCH_FAILED`).
+          $ref: '#/components/responses/Error'
+
+  /public/use-case:
+    post:
+      operationId: submitPublicUseCase
+      tags: [Public]
+      summary: Submit a use case
+      description: |
+        Creates a work item in the IOU Architecture GitLab project. Open to
+        external contributors, who have no GitLab account of their own.
+
+        Rate limited to 10 requests per 15 minutes per IP. Requires a solved
+        ALTCHA token in `altcha` **when the server has an ALTCHA key
+        configured**; where it does not, the check is skipped.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                  description: Issue title. Prefixed with `[Use Case]` server-side.
+                description:
+                  type: string
+                  description: Full Markdown body.
+                altcha:
+                  type: string
+                  description: A solved ALTCHA token from `/public/altcha/challenge`.
+      responses:
+        '201':
+          description: The work item was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    properties:
+                      iid: { type: integer, description: The work item's number. }
+                      web_url: { type: string, format: uri }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            `title` or `description` missing or blank (`USE_CASE_INVALID`), or
+            ALTCHA verification failed (`ALTCHA_MISSING`, `ALTCHA_INVALID`,
+            `ALTCHA_ERROR`).
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          description: GitLab is not configured on this server.
+          $ref: '#/components/responses/Error'
+        '502':
+          description: GitLab was unreachable or rejected the request.
+          $ref: '#/components/responses/Error'
+
+  /public/upload-file:
+    post:
+      operationId: uploadPublicFile
+      tags: [Public]
+      summary: Upload an attachment for a use-case submission
+      description: |
+        Uploads one file to the GitLab project and returns the Markdown
+        reference to embed in a later `POST /public/use-case` body.
+
+        **Limits, enforced server-side:** at most 10 MB, and the file must match
+        both an allowed MIME type and an allowed extension —
+        `jpg/jpeg, png, gif, webp, svg, pdf, txt, doc, docx, odt, xls, xlsx,
+        xml`. Executables, scripts and HTML are rejected. A file failing the
+        filter arrives as no file at all, so it answers `NO_FILE`.
+
+        Rate limited to 10 requests per 15 minutes per IP. No ALTCHA check.
+      security: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The attachment. Maximum 10 MB.
+      responses:
+        '200':
+          description: The upload's Markdown reference.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: No file was provided, or it failed the type filter (`NO_FILE`).
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          description: GitLab integration is not configured on this server.
+          $ref: '#/components/responses/Error'
+        '502':
+          description: GitLab was unreachable or rejected the upload.
+          $ref: '#/components/responses/Error'
+
+  /public/feedback:
+    post:
+      operationId: submitPublicFeedback
+      tags: [Public]
+      summary: Submit feedback, with optional screenshots
+      description: |
+        Creates a work item in the IOU Architecture GitLab project. Screenshots
+        are uploaded to GitLab first and embedded in the body as Markdown.
+
+        **Limits:** up to 5 files, 10 MB each, **images only** — a non-image is
+        dropped by the filter rather than rejected with an error.
+
+        Rate limited to 10 requests per 15 minutes per IP. Requires a solved
+        ALTCHA token when the server has an ALTCHA key configured.
+      security: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, contact, description]
+              properties:
+                name: { type: string }
+                org: { type: string, description: Organisation. Optional. }
+                role: { type: string, description: The submitter's role. Optional. }
+                contact: { type: string, description: How to reach the submitter. }
+                description: { type: string, description: The feedback itself. }
+                altcha:
+                  type: string
+                  description: A solved ALTCHA token from `/public/altcha/challenge`.
+                screenshots:
+                  type: array
+                  description: Up to 5 images, 10 MB each. Non-images are dropped.
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: The work item was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            `name`, `contact` or `description` missing or blank
+            (`MISSING_FIELDS`), or ALTCHA verification failed.
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          description: GitLab integration is not configured on this server.
+          $ref: '#/components/responses/Error'
+        '502':
+          description: GitLab was unreachable or rejected the request.
+          $ref: '#/components/responses/Error'
+
+  # ── /v1/media-aggregator ──────────────────────────────────────────────────
+  #
+  # NOT unconditionally public, unlike everything above, and NOT using the
+  # { success, data } envelope either. Both differences are in the handlers:
+  #
+  #   authorized(req) -> if MEDIA_AGGREGATOR_ACCEPT_KEY is unset, everything is
+  #   allowed ("open in dev"); when it is set, /search requires
+  #   `Authorization: Bearer <key>` and answers 401 otherwise.
+  #
+  # /health carries no such check at all -- only /search does.
+
+  /media-aggregator/search:
+    get:
+      operationId: searchMediaAggregator
+      tags: [Media aggregator]
+      summary: Search aggregated media articles
+      description: |
+        The PA cockpit's only dependency on the aggregator.
+
+        **Authentication is conditional.** When the server sets
+        `MEDIA_AGGREGATOR_ACCEPT_KEY`, a matching bearer token is required and a
+        mismatch answers 401. When it is unset the operation is open — the
+        development default, intended for loopback only.
+
+        Answers a bare `{ articles }` object, not the `{ success, data }`
+        envelope the rest of this API uses.
+      security:
+        - {}
+        - mediaAggregatorKey: []
+      parameters:
+        - name: q
+          in: query
+          description: Free-text query. Absent means unfiltered.
+          schema: { type: string, default: '' }
+        - name: region
+          in: query
+          schema: { type: string, default: '' }
+        - name: sort
+          in: query
+          schema: { type: string, default: 'published_at:desc' }
+        - name: top
+          in: query
+          description: Maximum articles to return.
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Matching articles.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [articles]
+                properties:
+                  articles:
+                    type: array
+                    items:
+                      type: object
+                      description: An aggregated article.
+                      additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          description: |
+            The bearer token was missing or did not match
+            `MEDIA_AGGREGATOR_ACCEPT_KEY`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaAggregatorError' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          description: The search failed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaAggregatorError' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /media-aggregator/health:
+    get:
+      operationId: getMediaAggregatorHealth
+      tags: [Media aggregator]
+      summary: Aggregator cache health
+      description: |
+        Reports whether the aggregator can read its store, and how many articles
+        are cached. Unlike `/media-aggregator/search`, this carries no
+        authentication check at all.
+
+        Distinct from `/v1/health`, which answers for the service as a whole.
+      security: []
+      responses:
+        '200':
+          description: The store is readable.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, cached]
+                properties:
+                  ok: { type: boolean, const: true }
+                  cached:
+                    type: integer
+                    description: Articles currently held.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '503':
+          description: The store could not be read.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: false }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
 components:
   headers:
     ApiVersion:
@@ -270,6 +1088,14 @@ components:
         examples: ['2026.09.11']
 
   securitySchemes:
+    mediaAggregatorKey:
+      type: http
+      scheme: bearer
+      description: |
+        A shared secret for the media aggregator, NOT a Keycloak token. Checked
+        only when the server sets MEDIA_AGGREGATOR_ACCEPT_KEY; when it does not,
+        /media-aggregator/search is open. Applies to that operation alone.
+
     bearerAuth:
       type: http
       scheme: bearer
@@ -277,6 +1103,16 @@ components:
       description: |
         A Keycloak-issued access token. Verified against the realm's JWKS by
         `jwtMiddleware`; the tenant and roles are read from its claims.
+
+  parameters:
+    PublicSlug:
+      name: slug
+      in: path
+      required: true
+      description: |
+        The item's slug, as returned by /public/zoeken. Any non-empty value is a
+        legitimate lookup, so a miss is a 404 rather than a 400.
+      schema: { type: string }
 
   schemas:
     DependencyStatus:
@@ -371,7 +1207,196 @@ components:
               type: string
               description: A human-readable explanation.
 
+    PublicMeta:
+      type: object
+      description: |
+        Built when the response is assembled, NOT when the upstream data was
+        fetched -- these services cache, so `generatedAt` can be newer than the
+        data it accompanies.
+      required: [generatedAt]
+      properties:
+        generatedAt: { type: string, format: date-time }
+
+    PublicPagination:
+      type: object
+      description: |
+        Paging state for the three paged lists. `total` counts everything
+        available upstream, not the page.
+      required: [limit, offset, total, hasMore]
+      properties:
+        limit: { type: integer, description: The clamped limit actually applied. }
+        offset: { type: integer }
+        total: { type: integer }
+        hasMore: { type: boolean }
+
+    PublicPagedEnvelope:
+      type: object
+      description: |
+        The shape the three PAGED lists answer: `data` is an OBJECT carrying
+        `items` and `pagination`, not a bare array. `/public/processen` differs
+        -- it answers a bare array, because it is not paged.
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, const: true }
+        data:
+          type: object
+          required: [items, pagination]
+          properties:
+            items: { type: array, items: { type: object } }
+            pagination: { $ref: '#/components/schemas/PublicPagination' }
+        meta: { $ref: '#/components/schemas/PublicMeta' }
+
+    PublicItemEnvelope:
+      type: object
+      description: The unpaged shape the public read operations answer.
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, const: true }
+        data: {}
+        meta: { $ref: '#/components/schemas/PublicMeta' }
+
+    NieuwsItem:
+      type: object
+      required: [id, title, summary, category, publishedAt, url, source]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        category: { type: [string, 'null'] }
+        publishedAt: { type: string, format: date-time }
+        url: { type: [string, 'null'], format: uri }
+        source:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+
+    BerichtItem:
+      type: object
+      required:
+        [
+          id,
+          subject,
+          preview,
+          content,
+          type,
+          status,
+          audience,
+          sender,
+          publishedAt,
+          expiresAt,
+          priority,
+          isRead,
+          action,
+        ]
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        preview: { type: string }
+        content: { type: [string, 'null'] }
+        type: { type: string, enum: [announcement, maintenance, update] }
+        status: { type: string, const: published }
+        audience: { type: string, const: all }
+        sender:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        publishedAt: { type: string, format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        priority: { type: string, enum: [low, normal, high] }
+        isRead:
+          type: boolean
+          description: |
+            Always false on this unauthenticated surface: there is no user to
+            have read it. Present because the shape is shared with the
+            authenticated view.
+        action:
+          description: An optional call to action. Null when there is none.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [label, url]
+              properties:
+                label: { type: string }
+                url: { type: string, format: uri }
+
+    ProductDienstItem:
+      type: object
+      required: [id, title, description, url, audience, onlineAanvragen, modified, soort]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        url: { type: string, format: uri }
+        audience:
+          type: array
+          items: { type: string, enum: [ondernemer, particulier] }
+        onlineAanvragen:
+          type: boolean
+          description: Whether the product can be applied for online.
+        modified: { type: [string, 'null'], format: date-time }
+        soort: { type: string }
+
+    PublicIndexItem:
+      type: object
+      description: |
+        One entry in the federated index that `/public/zoeken` searches and the
+        three `{slug}` reads resolve against.
+      required: [id, slug, type, title, summary, org, date, audience, external, facts, tech]
+      properties:
+        id:
+          type: string
+          description: 'Unique across the whole federated index, e.g. `regel-zorgtoeslag`.'
+        slug:
+          type: string
+          description: Path segment for this item's per-type detail route.
+        type: { type: string, enum: [bericht, nieuws, product, regel, proces] }
+        title: { type: string }
+        summary: { type: string }
+        org: { type: string, description: The source organisation. }
+        date: { type: [string, 'null'], format: date-time }
+        audience: { type: array, items: { type: string } }
+        external: { type: [string, 'null'], format: uri }
+        facts:
+          type: array
+          description: Label/value pairs shown to a reader.
+          items: { type: array, items: { type: string }, minItems: 2, maxItems: 2 }
+        tech:
+          type: array
+          description: Label/value pairs of technical detail.
+          items: { type: array, items: { type: string }, minItems: 2, maxItems: 2 }
+        rules:
+          type: array
+          description: Present on `regel` items.
+          items:
+            type: object
+            properties:
+              naam: { type: string }
+              geldig: { type: [string, 'null'] }
+
+    MediaAggregatorError:
+      type: object
+      description: |
+        The media aggregator's own error shape. Neither RFC 9457 problem details
+        NOR this API's `{ success, error }` envelope -- a bare `{ error }` with a
+        machine-readable slug. Recorded as it is rather than tidied, because a
+        consumer reads what the handler sends.
+      required: [error]
+      properties:
+        error: { type: string, enum: [unauthorized, search_failed] }
+
   responses:
+    RateLimited:
+      description: |
+        More than 10 requests in 15 minutes from this IP. Sent by
+        publicWriteLimiter, which answers before the handler runs.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
     Error:
       description: The request failed.
       content:

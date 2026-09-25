@@ -37,3 +37,22 @@ rules:
   nlgov:use-problem-schema: 'off'
   nlgov:problem-schema-members: 'off'
   nlgov:problem-invalid-input: 'off'
+
+overrides:
+  # PublicIndexItem.date is NAMED `date` but carries a full timestamp, so
+  # `format: date-time` is the honest description and the rule is wrong here.
+  #
+  # Checked against the running ACC service rather than inferred:
+  #
+  #   GET /v1/public/zoeken?q=zorg  ->  "date": "2026-08-14T12:41:03.000Z"
+  #
+  # In the source it is assigned straight from each item type's own timestamp --
+  # `publishedAt` for berichten and nieuws, `modified` for producten,
+  # `gepubliceerd` for processen (search.service.ts). Setting `format: date`
+  # would make the document claim a precision the data does not have; renaming
+  # the field would break every consumer of the public search API for a naming
+  # nit. Scoped to this one property.
+  - files:
+      - 'openapi.json#/components/schemas/PublicIndexItem/properties/date'
+    rules:
+      nlgov:use-date-instead-of-datetime: 'off'
