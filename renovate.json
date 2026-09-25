@@ -151,6 +151,39 @@
     },
     {
       "description": [
+        "ubuntu 26.04 is deferred. The runner pins exist to stop the image drifting",
+        "under us (ICTU recommendation 2), not to be on the newest release: today",
+        "`ubuntu-latest` still resolves to 24.04, so taking 26.04 would put every",
+        "job ahead of GitHub’s own default for no benefit, on an image the rest of",
+        "the ecosystem has not settled on. Checked on 2026-09-24: the ubuntu26",
+        "images are published and the `ubuntu-26.04` label carries no beta marker,",
+        "so this is a choice rather than an impossibility.",
+        "Revisit when `ubuntu-latest` moves to 26.04, and move deliberately then —",
+        "one pull request, all workflows at once, the way 24.04 arrived."
+      ],
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["ubuntu"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": [
+        "Node 24 is deferred here while both App Services run NODE|22-lts.",
+        "Verified on 2026-09-24: ronl-business-api-acc and ronl-business-api-prod",
+        "are both NODE|22-lts, and .nvmrc is 22.23.2, so the tree is consistent",
+        "today. Taking 24 in .nvmrc alone would build the deployed backend on a",
+        "major the host does not run — the exact mismatch #36 closed.",
+        "linked-data-explorer did take Node 24, in that order: its App Services",
+        "moved to NODE|24-lts first, then the bump merged.",
+        "Revisit by switching both App Services to NODE|24-lts, then removing this",
+        "rule in the same change as the .nvmrc bump."
+      ],
+      "matchDepNames": ["node"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": [
         "Major updates wait in the Dependency Dashboard (#16) as checkboxes and",
         "hold no slot in prConcurrentLimit until someone ticks one. This is what",
         "replaces the global dependencyDashboardApproval that governed every",
