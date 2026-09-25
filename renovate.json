@@ -170,6 +170,31 @@
     },
     {
       "description": [
+        "ICTU recommendation 7: do not take a new major's first release. Renovate",
+        "never proposes X.0.0 for an npm package, so the earliest a major can be",
+        "offered is X.0.1 — the first patch, by which point the release has been",
+        "used by others. Majors still wait for Dependency Dashboard approval as",
+        "well (the rule above): this decides WHICH version may be offered, that",
+        "one decides WHETHER it is raised at all, and the assessment R7 asks for is",
+        "what the person ticking the box is doing.",
+        "allowedVersions applies to every update type of a matched package, not",
+        "only majors, which is why the pattern is written to match X.0.0 alone: no",
+        "minor or patch release can look like that. Scoped to npm deliberately —",
+        "the same pattern against Docker tags (18-alpine) or the github-runner",
+        "datasource (ubuntu 26.04) would mean something else entirely.",
+        "The cost, stated plainly: a package that publishes X.0.0 and never a patch",
+        "is never offered that major. Add a per-package exception with the reason,",
+        "the way a deferral is recorded.",
+        "minimumReleaseAge repeats the top-level 14 days and changes nothing; it is",
+        "here because Semgrep's renovate-missing-minimum-release-age flags a rule",
+        "that does not set it locally."
+      ],
+      "matchManagers": ["npm"],
+      "allowedVersions": "!/^\\d+\\.0\\.0$/",
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": [
         "Below 1.0.0 a minor bump is a major in all but name: semver gives 0.x",
         "no compatibility promise, but Renovate classifies 0.4 -> 0.5 as minor,",
         "so the rule above lets it through. On 2026-09-14 that opened #138,",
