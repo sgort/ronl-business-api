@@ -104,6 +104,30 @@ jobs:
         # nothing useful.
         run: npx --yes --package renovate@44.50.3 renovate-config-validator --strict
 
+      - name: Lockfile matches package.json
+        # `npm ci` refuses to install when package-lock.json and package.json
+        # disagree, so this was already detectable -- but only as an EUSAGE
+        # error inside "Install dependencies for the formatter", three steps
+        # into a job about pinning, where nobody reads it as a lockfile
+        # problem. It happened on 2026-09-25: three dependency pull requests
+        # merged back to back, each with a lockfile computed against an older
+        # acc, produced a lockfile matching no package.json (#225).
+        #
+        # --dry-run resolves and validates without writing node_modules, so
+        # this costs seconds and fails with the cause in its own name.
+        #
+        # What it CANNOT do: the check runs on this pull request's merge
+        # commit, so it proves the lockfile is consistent with THIS base. A
+        # pull request that is green against a stale base and merges into a
+        # moved one is not caught here -- nothing on the pull request can catch
+        # that. Merge dependency pull requests one at a time, and rebase each
+        # onto the merged acc first.
+        #
+        # if: always() for the same reason as the steps around it -- one run
+        # should report on every half of the policy.
+        if: always()
+        run: npm ci --dry-run
+
       - name: Install dependencies for the formatter
         # Needed because the check below must run THIS repository's Prettier,
         # not a version named here. An `npx prettier@<pinned>` would be a second
