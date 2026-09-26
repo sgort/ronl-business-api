@@ -39,17 +39,17 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**36 `uses:` references across 12 workflows, all 36 digest-pinned.** Verified on
-`acc` at `829dc27`, 24 September 2026 — by `npm run check-supply-chain`, which
+**39 `uses:` references across 13 workflows, all 39 digest-pinned.** Verified on
+`acc` at `4e9bd9d`, 26 September 2026 — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| `actions/checkout` (×12)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
-| `actions/setup-node` (×10)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `actions/checkout` (×13)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×11)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
-| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `actions/upload-artifact` (×3)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
 | `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
