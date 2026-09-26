@@ -93,6 +93,18 @@ tags:
     description: |
       User tasks. Organisation-scoped throughout, with no applicant exception:
       a task is work for staff, not a view of the case.
+  - name: Documents
+    description: |
+      The eDOCS document library. A proxy onto an external system, so failures
+      are 502 rather than 500, and responses carry a `timestamp`.
+  - name: Delivery
+    description: |
+      Doccle delivery. Same envelope and failure model as Documents.
+  - name: Signing
+    description: |
+      ValidSign. Two routers on one mount with opposite security: the callback
+      and ceremony routes are unauthenticated and some answer HTML, while the
+      three task operations are organisation-checked.
   - name: Media aggregator
     description: |
       Aggregated media articles for the PA cockpit. Conditionally
@@ -1874,6 +1886,851 @@ paths:
             gateway cannot evaluate.
           $ref: '#/components/responses/Error'
 
+  # ── /v1/edocs and /v1/doccle ──────────────────────────────────────────────
+  #
+  # Both are proxies onto external systems, and both answer a THIRD envelope
+  # shape: { success, data, timestamp }. The public surface uses
+  # { success, data, meta.generatedAt }, the execution core uses
+  # { success, data } alone. Three variants in one API; each is recorded as it
+  # is rather than normalised.
+  #
+  # Both routers apply jwtMiddleware but NOT tenantMiddleware: a document
+  # library and a delivery channel are infrastructure, not cases, so there is no
+  # organisation label to check. `502` means the upstream refused or could not
+  # be reached -- it is the usual failure here, not `500`.
+  #
+  # ON ACCEPTANCE BOTH RUN IN STUB MODE (`status: "stub"`), so the shapes below
+  # were captured from stubs. The envelope and the status codes are the
+  # service's own and are real; the payloads a live eDOCS returns may carry more
+  # fields than the examples suggest.
+
+  /edocs/status:
+    get:
+      operationId: getEdocsStatus
+      tags: [Documents]
+      summary: Whether the document library is reachable
+      responses:
+        '200':
+          description: The library's state, including whether it is stubbed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [status, library, baseUrl, stubMode, reachable, authenticated]
+                        properties:
+                          status:
+                            {
+                              type: string,
+                              description: '`stub` when no live library is configured.',
+                            }
+                          library: { type: string }
+                          baseUrl: { type: string }
+                          stubMode: { type: boolean }
+                          reachable: { type: boolean }
+                          authenticated: { type: boolean }
+                          latencyMs: { type: integer, description: Present only when measured. }
+                          error: { type: string, description: Present only when the check failed. }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /edocs/workspaces:
+    get:
+      operationId: listEdocsWorkspaces
+      tags: [Documents]
+      summary: Workspaces in the document library
+      responses:
+        '200':
+          description: The workspaces.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/EdocsWorkspace' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/workspaces/ensure:
+    post:
+      operationId: ensureEdocsWorkspace
+      tags: [Documents]
+      summary: Create a workspace for a project, or return the existing one
+      description: Idempotent — an existing workspace for the project is returned
+        rather than duplicated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectNumber, projectName]
+              properties:
+                projectNumber: { type: string }
+                projectName: { type: string }
+      responses:
+        '200':
+          description: The workspace.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [workspaceId, workspaceName, created]
+                        properties:
+                          workspaceId: { type: string }
+                          workspaceName: { type: string }
+                          created:
+                            type: boolean
+                            description: |
+                              False when the workspace already existed — this
+                              operation is idempotent.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`projectNumber` or `projectName` missing (`MISSING_FIELDS`).'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/documents:
+    post:
+      operationId: createEdocsDocument
+      tags: [Documents]
+      summary: Store a document in the library
+      description: |
+        The content is sent base64-encoded in the JSON body, not as multipart.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentBase64, metadata]
+              properties:
+                filename: { type: string }
+                contentBase64: { type: string, format: byte }
+                metadata:
+                  type: object
+                  required: [docName, department]
+                  properties:
+                    docName: { type: string }
+                    department: { type: string }
+                  additionalProperties: true
+      responses:
+        '200':
+          description: |
+            The stored document. Note 200, not 201 — this proxies the library's
+            own answer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [documentId, documentNumber]
+                        properties:
+                          documentId: { type: string }
+                          documentNumber:
+                            type: string
+                            description: The library's own reference for the document.
+                          workspaceId:
+                            type: [string, 'null']
+                            description: Null when the document is not filed in a workspace.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            `filename`, `contentBase64`, `metadata.docName` or
+            `metadata.department` missing (`MISSING_FIELDS`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/workspaces/{workspaceId}/documents:
+    get:
+      operationId: listEdocsWorkspaceDocuments
+      tags: [Documents]
+      summary: Documents in a workspace
+      description: |
+        `data` is an OBJECT carrying the workspace id alongside the list, not a
+        bare array.
+      parameters:
+        - $ref: '#/components/parameters/EdocsWorkspaceId'
+      responses:
+        '200':
+          description: The workspace's documents.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [workspaceId, documents]
+                        properties:
+                          workspaceId: { type: string }
+                          documents:
+                            type: array
+                            items: { $ref: '#/components/schemas/EdocsDocument' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/documents/{documentId}/profile:
+    get:
+      operationId: getEdocsDocumentProfile
+      tags: [Documents]
+      summary: A document's metadata profile
+      description: |
+        The library's own field names, in its own casing (`DOCNAME`,
+        `DOCNUMBER`, `APP_ID`). Passed through unaltered rather than mapped, so
+        the set of fields depends on the library's configuration.
+      parameters:
+        - $ref: '#/components/parameters/EdocsDocumentId'
+      responses:
+        '200':
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: The library's profile fields, verbatim.
+                        additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/documents/{documentId}/versions:
+    get:
+      operationId: listEdocsDocumentVersions
+      tags: [Documents]
+      summary: A document's versions
+      description: '`data` wraps the list with the document id, as the workspace read does.'
+      parameters:
+        - $ref: '#/components/parameters/EdocsDocumentId'
+      responses:
+        '200':
+          description: The versions.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [documentId, versions]
+                        properties:
+                          documentId: { type: string }
+                          versions:
+                            type: array
+                            items:
+                              type: object
+                              required: [id, version]
+                              properties:
+                                id: { type: string }
+                                version: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/documents/{documentId}/versions/{version}:
+    get:
+      operationId: getEdocsDocumentVersion
+      tags: [Documents]
+      summary: The content of one document version
+      description: |
+        The bytes come back base64-encoded inside the JSON envelope, not as a
+        binary body — a caller decodes `data.contentBase64` itself.
+      parameters:
+        - $ref: '#/components/parameters/EdocsDocumentId'
+        - name: version
+          in: path
+          required: true
+          description: The version identifier, as the versions list reports it.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [contentBase64]
+                        properties:
+                          contentBase64: { type: string, format: byte }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/documents/{documentId}:
+    delete:
+      operationId: deleteEdocsDocument
+      tags: [Documents]
+      summary: Remove a document from the library
+      parameters:
+        - $ref: '#/components/parameters/EdocsDocumentId'
+      responses:
+        '200':
+          description: The document was removed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [documentId, deleted]
+                        properties:
+                          documentId: { type: string }
+                          deleted: { type: boolean }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /edocs/workspaces/{workspaceId}:
+    delete:
+      operationId: deleteEdocsWorkspace
+      tags: [Documents]
+      summary: Remove a workspace from the library
+      parameters:
+        - $ref: '#/components/parameters/EdocsWorkspaceId'
+      responses:
+        '200':
+          description: The workspace was removed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [workspaceId, deleted]
+                        properties:
+                          workspaceId: { type: string }
+                          deleted: { type: boolean }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /doccle/status:
+    get:
+      operationId: getDoccleStatus
+      tags: [Delivery]
+      summary: Whether the delivery channel is reachable
+      responses:
+        '200':
+          description: The channel's state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [status, stubMode, reachable]
+                        properties:
+                          status: { type: string }
+                          stubMode: { type: boolean }
+                          reachable: { type: boolean }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /doccle/senders/{senderName}/receivers/{externalReference}:
+    put:
+      operationId: upsertDoccleReceiver
+      tags: [Delivery]
+      summary: Register or update a receiver
+      description: |
+        `externalReference` is the sender's own identifier for the recipient.
+        Note the spelling differs from the delivery operations below, which use
+        `externalReferenceId` for the same thing.
+      parameters:
+        - $ref: '#/components/parameters/DoccleSenderName'
+        - name: externalReference
+          in: path
+          required: true
+          description: The sender's identifier for this receiver.
+          schema: { type: string }
+      requestBody:
+        required: true
+        description: |
+          The body IS the receiver — it is not wrapped in a `receiver` key.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+              additionalProperties: true
+      responses:
+        '200':
+          description: The receiver was registered or updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [created]
+                        properties:
+                          created:
+                            type: boolean
+                            description: False when the receiver already existed.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`receiver.id` missing (`MISSING_FIELDS`).'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /doccle/senders/{senderName}/receivers/{externalReferenceId}/documents/{documentId}:
+    post:
+      operationId: deliverDoccleDocument
+      tags: [Delivery]
+      summary: Deliver a document to a receiver
+      parameters:
+        - $ref: '#/components/parameters/DoccleSenderName'
+        - $ref: '#/components/parameters/DoccleExternalReferenceId'
+        - $ref: '#/components/parameters/DoccleDocumentId'
+      requestBody:
+        required: true
+        description: |
+          The body IS the document — it is not wrapped in a `document` key.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentFile]
+              properties:
+                documentFile:
+                  type: object
+                  required: [contentBase64, mimeType]
+                  properties:
+                    contentBase64: { type: string, format: byte }
+                    mimeType: { type: string }
+              additionalProperties: true
+      responses:
+        '200':
+          description: The document was delivered.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TimestampedEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [documentUri, remPickupUrl]
+                        properties:
+                          documentUri: { type: string }
+                          remPickupUrl:
+                            type: string
+                            format: uri
+                            description: Where the receiver collects the document.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            `document.documentFile.contentBase64` or `.mimeType` missing
+            (`MISSING_FIELDS`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  /doccle/senders/{senderName}/receivers/{externalReferenceId}/documents/{documentId}/paid:
+    post:
+      operationId: markDoccleDocumentPaid
+      tags: [Delivery]
+      summary: Mark a delivered document as paid
+      parameters:
+        - $ref: '#/components/parameters/DoccleSenderName'
+        - $ref: '#/components/parameters/DoccleExternalReferenceId'
+        - $ref: '#/components/parameters/DoccleDocumentId'
+      responses:
+        '200':
+          description: |
+            The document was marked paid. **This response carries no `data`** —
+            just `success` and `timestamp`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, timestamp]
+                properties:
+                  success: { type: boolean, const: true }
+                  timestamp: { type: string, format: date-time }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamFailed'
+
+  # ── /v1/validsign ─────────────────────────────────────────────────────────
+  #
+  # TWO routers answer on this mount, with opposite security, and
+  # routes/registry.ts mounts the callback one FIRST because ValidSign sends no
+  # token and the authenticated router would reject its callback.
+  #
+  #   callbackRouter   POST /callback, GET /ceremony/complete,
+  #                    GET+POST /stub/ceremony/*        — no bearer token
+  #   router           GET /task/{taskId}/spec, /status,
+  #                    POST /task/{taskId}/package      — bearer + organisation
+  #
+  # Unlike eDOCS and Doccle these use the PLAIN { success, data } envelope, with
+  # no `timestamp`. Three ceremony routes answer text/html rather than JSON.
+  #
+  # The three authenticated operations gained an organisation check in #227.
+  # They had none, and /package could send a real signature request on another
+  # organisation's case.
+
+  /validsign/callback:
+    post:
+      operationId: receiveValidsignCallback
+      tags: [Signing]
+      summary: ValidSign delivers a signing event
+      description: |
+        A webhook, not an operation a consumer calls. **Deliberately
+        unauthenticated**: ValidSign sends no bearer token. It is rate limited,
+        and the JSON body parser is bypassed for this path so an oversized or
+        malformed body cannot silently drop a signature.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: ValidSign's event payload.
+              additionalProperties: true
+      responses:
+        '200':
+          description: The event was accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, const: true }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: The body could not be read (`INVALID_BODY`).
+          $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            The callback's own shared-secret check failed (`UNAUTHORIZED`) —
+            not a bearer token.
+          $ref: '#/components/responses/Error'
+
+  /validsign/ceremony/complete:
+    get:
+      operationId: getValidsignCeremonyComplete
+      tags: [Signing]
+      summary: The page a signer lands on after signing
+      description: |
+        Returns an HTML page, not JSON. Unauthenticated, because the signer
+        arrives from ValidSign's own ceremony with no token.
+      security: []
+      responses:
+        '200':
+          description: The confirmation page.
+          content:
+            text/html:
+              schema: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /validsign/stub/ceremony/{packageId}:
+    get:
+      operationId: getValidsignStubCeremony
+      tags: [Signing]
+      summary: A stand-in signing ceremony, for stub mode
+      description: |
+        Only meaningful when `VALIDSIGN_STUB_MODE` is on, which it is on
+        acceptance. Returns an HTML page standing in for ValidSign's own
+        ceremony. **Not part of the production contract** — a live tier sends
+        signers to ValidSign.
+
+        Note the content type varies by outcome: the page is `text/html`, but
+        an unknown package answers JSON.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ValidsignPackageId'
+      responses:
+        '200':
+          description: The stand-in ceremony page.
+          content:
+            text/html:
+              schema: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No such package (`NOT_FOUND`). Answered as JSON.
+          $ref: '#/components/responses/Error'
+
+  /validsign/stub/ceremony/{packageId}/sign:
+    post:
+      operationId: signValidsignStubCeremony
+      tags: [Signing]
+      summary: Complete or decline a stand-in ceremony
+      description: |
+        The stub counterpart to signing in ValidSign. **Not part of the
+        production contract.** Answers HTML on both the success and failure
+        paths, and JSON for an unknown package.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ValidsignPackageId'
+      responses:
+        '200':
+          description: The ceremony was completed or declined.
+          content:
+            text/html:
+              schema: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '404':
+          description: No such package (`NOT_FOUND`). Answered as JSON.
+          $ref: '#/components/responses/Error'
+        '500':
+          description: The stand-in ceremony failed. Answered as HTML.
+          content:
+            text/html:
+              schema: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /validsign/task/{taskId}/spec:
+    get:
+      operationId: getValidsignTaskSpec
+      tags: [Signing]
+      summary: Whether a task needs a signature, and its state
+      description: |
+        **The response shape is fixed by contract with the frontend** — the
+        handler carries a comment saying not to rename or add fields:
+
+        ```
+        { required: false }
+        { required: true, templateId, status, packageId?, signingUrl? }
+        ```
+
+        Organisation-checked since #227.
+      parameters:
+        - $ref: '#/components/parameters/ValidsignTaskId'
+      responses:
+        '200':
+          description: Whether a signature is required, and where it stands.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ValidsignSpec' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`SIGNATURE_SPEC_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /validsign/task/{taskId}/status:
+    get:
+      operationId: getValidsignTaskStatus
+      tags: [Signing]
+      summary: The signing status of a task
+      description: Organisation-checked since #227.
+      parameters:
+        - $ref: '#/components/parameters/ValidsignTaskId'
+      responses:
+        '200':
+          description: The status.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [status]
+                    properties:
+                      status: { $ref: '#/components/schemas/ValidsignStatus' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: '`SIGNATURE_STATUS_NOT_FOUND`.'
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`SIGNATURE_STATUS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /validsign/task/{taskId}/package:
+    post:
+      operationId: createValidsignPackage
+      tags: [Signing]
+      summary: Create a signature request for a task
+      description: |
+        **This sends a real signature request** on a live tier, which is why
+        #227 gave it an organisation check: before that it could send one on
+        another organisation's case.
+
+        It is the operation with the most distinct refusals in this API, and
+        each means something different — see the responses.
+
+        Organisation-checked since #227.
+      parameters:
+        - $ref: '#/components/parameters/ValidsignTaskId'
+      responses:
+        '200':
+          description: The signature request was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The delivery details are not usable (`INVALID_DELIVERY`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: |
+            The task carries no signature template, so there is nothing to sign
+            (`NOT_SIGNATURE_TASK`).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: |
+            A signature request already exists for this task
+            (`VALIDSIGN_PACKAGE_EXISTS`). Creating a second would send the
+            signer a duplicate.
+          $ref: '#/components/responses/Error'
+        '422':
+          description: |
+            The signer has no e-mail address, so the request cannot be
+            delivered (`MISSING_SIGNER_EMAIL`). The only 422 in this API.
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`SIGNATURE_PACKAGE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
 components:
   headers:
     ApiVersion:
@@ -1902,6 +2759,58 @@ components:
         `jwtMiddleware`; the tenant and roles are read from its claims.
 
   parameters:
+    EdocsWorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      description: The workspace's id in the document library.
+      schema: { type: string }
+
+    EdocsDocumentId:
+      name: documentId
+      in: path
+      required: true
+      description: The document's id in the library, not its documentNumber.
+      schema: { type: string }
+
+    DoccleSenderName:
+      name: senderName
+      in: path
+      required: true
+      description: The sending organisation, as Doccle knows it.
+      schema: { type: string }
+
+    DoccleExternalReferenceId:
+      name: externalReferenceId
+      in: path
+      required: true
+      description: |
+        The sender's own identifier for the receiver. Spelled
+        `externalReference` on the receiver upsert -- the same thing under two
+        names.
+      schema: { type: string }
+
+    DoccleDocumentId:
+      name: documentId
+      in: path
+      required: true
+      description: The sender's own identifier for the document.
+      schema: { type: string }
+
+    ValidsignPackageId:
+      name: packageId
+      in: path
+      required: true
+      description: The signature package's id.
+      schema: { type: string }
+
+    ValidsignTaskId:
+      name: taskId
+      in: path
+      required: true
+      description: The task the signature belongs to.
+      schema: { type: string }
+
     ProcessKey:
       name: key
       in: path
@@ -2462,6 +3371,73 @@ components:
             - 'null'
           description: CMMN. Always null.
 
+    TimestampedEnvelope:
+      type: object
+      description: |
+        The envelope /v1/edocs and /v1/doccle answer on SUCCESS. `timestamp` is
+        when this service built the response, not when the upstream acted.
+
+        A third variant: the public surface carries `meta.generatedAt`, the
+        execution core carries neither. ERROR responses on these two mounts
+        drop `timestamp` and use the plain error envelope.
+      required: [success, data, timestamp]
+      properties:
+        success: { type: boolean, const: true }
+        data: {}
+        timestamp: { type: string, format: date-time }
+
+    EdocsWorkspace:
+      type: object
+      description: A workspace in the document library.
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+
+    EdocsDocument:
+      type: object
+      description: |
+        A document as the library lists it. `documentNumber` is the library's
+        own reference, distinct from `id`.
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        documentNumber: { type: string }
+
+    ValidsignStatus:
+      type: string
+      description: |
+        Where a task's signature stands. `none` means no signature has been
+        requested — it is the answer for every task that needs none.
+      enum: [none, sent, completed, declined, failed]
+
+    ValidsignSpec:
+      type: object
+      description: |
+        Whether a task needs a signature. The shape is FIXED BY CONTRACT with
+        the frontend; the handler carries a comment saying not to rename or add
+        fields. Two forms, discriminated by `required`.
+      required: [required]
+      properties:
+        required:
+          type: boolean
+          description: False for a task that needs no signature, and then nothing else is
+            present.
+        templateId:
+          type: string
+          description: Present when `required` is true.
+        status:
+          $ref: '#/components/schemas/ValidsignStatus'
+        packageId:
+          type: string
+          description: Present once a signature request exists.
+        signingUrl:
+          type: string
+          format: uri
+          description: Where the signer completes the ceremony. Present once a request
+            exists.
+
     MediaAggregatorError:
       type: object
       description: |
@@ -2474,6 +3450,17 @@ components:
         error: { type: string, enum: [unauthorized, search_failed] }
 
   responses:
+    UpstreamFailed:
+      description: |
+        The external system refused the request or could not be reached
+        (`EDOCS_ERROR`, `DOCCLE_ERROR`). A 502 rather than a 500: the fault is
+        upstream, not in this service.
+
+        Error responses on these mounts carry no `timestamp`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
     Unauthorized:
       description: |
         No bearer token, or one this service could not verify against the
