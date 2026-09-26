@@ -91,7 +91,6 @@ describe('passthrough queries', () => {
 describe('resolveDeployedTenant', () => {
   it('returns the tenantId of the deployed definition', async () => {
     mockClient.get.mockResolvedValue({ data: [{ tenantId: 'toeslagen' }] });
-    // @ts-expect-error -- private method, exercised directly for this unit test
     await expect(svc.resolveDeployedTenant('AwbZorgtoeslagProcess')).resolves.toBe('toeslagen');
     expect(mockClient.get).toHaveBeenCalledWith('/process-definition', {
       params: { key: 'AwbZorgtoeslagProcess', latestVersion: true },
@@ -102,19 +101,16 @@ describe('resolveDeployedTenant', () => {
     mockClient.get.mockResolvedValue({
       data: [{ tenantId: null }, { tenantId: 'flevoland' }],
     });
-    // @ts-expect-error -- private method
     await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBe('flevoland');
   });
 
   it('returns null when the key is not deployed at all', async () => {
     mockClient.get.mockResolvedValue({ data: [] });
-    // @ts-expect-error -- private method
     await expect(svc.resolveDeployedTenant('NotDeployed')).resolves.toBeNull();
   });
 
   it('returns null on lookup failure rather than throwing', async () => {
     mockClient.get.mockRejectedValue(new Error('network down'));
-    // @ts-expect-error -- private method
     await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBeNull();
   });
 });
@@ -214,6 +210,42 @@ describe('startProcess', () => {
       '/process-definition/key/SomeProcess/tenant-id/flevoland/start',
       expect.anything()
     );
+  });
+
+  it('uses a pre-resolved deployed tenant without looking it up again', async () => {
+    mockClient.post.mockResolvedValue({ data: { id: 'pi-4' } });
+
+    await svc.startProcess('AwbShellProcess', req(), 'unive', 'flevoland');
+
+    expect(mockClient.get).not.toHaveBeenCalled();
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/AwbShellProcess/tenant-id/flevoland/start',
+      expect.anything()
+    );
+  });
+
+  it('treats a pre-resolved null as untenanted and scopes to the caller tenant', async () => {
+    mockClient.post.mockResolvedValue({ data: { id: 'pi-5' } });
+    const request = req();
+
+    await svc.startProcess('P', request, 'utrecht', null);
+
+    expect(mockClient.get).not.toHaveBeenCalled();
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/P/tenant-id/utrecht/start',
+      expect.anything()
+    );
+    expect(request.variables.municipality).toEqual({ value: 'utrecht', type: 'String' });
+  });
+
+  it('labels an unlabelled start with the deployed tenant, not the caller tenant (M2M)', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: 'flevoland' }] });
+    mockClient.post.mockResolvedValue({ data: { id: 'pi-6' } });
+    const request = req();
+
+    await svc.startProcess('AwbShellProcess', request, 'm2m');
+
+    expect(request.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
   });
 });
 
