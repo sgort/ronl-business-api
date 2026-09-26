@@ -56,3 +56,18 @@ overrides:
       - 'openapi.json#/components/schemas/PublicIndexItem/properties/date'
     rules:
       nlgov:use-date-instead-of-datetime: 'off'
+
+  # PaFeedItem.date is the same case as PublicIndexItem.date above: named
+  # `date`, carrying a full timestamp. Checked against acceptance rather than
+  # assumed:
+  #
+  #   GET /v1/pa/feed  ->  "date": "2026-09-25T22:47:20.137+02:00"
+  #
+  # These come from the upstream parliamentary sources with sub-second
+  # precision and an offset, and are passed through unaltered. `format: date`
+  # would claim a precision the data does not have, and truncating it here
+  # would lose information the cockpit orders by. Scoped to this one property.
+  - files:
+      - 'openapi.json#/components/schemas/PaFeedItem/properties/date'
+    rules:
+      nlgov:use-date-instead-of-datetime: 'off'
