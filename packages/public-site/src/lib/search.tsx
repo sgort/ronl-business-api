@@ -19,6 +19,8 @@ export function highlight(text: string, q: string): ReactNode {
     .map(escapeRegExp);
   if (!terms.length) return text;
 
+  // Every term is mapped through escapeRegExp where `terms` is built.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const re = new RegExp(`(${terms.join('|')})`, 'ig');
   return text
     .split(re)

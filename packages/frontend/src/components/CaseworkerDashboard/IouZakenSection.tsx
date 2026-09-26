@@ -22,6 +22,8 @@ const WORK_ITEM_FIELDS: WorkItemField[] = [
 
 function extractSection(body: string, heading: string): string {
   // Match a ## heading line containing the search string (case-insensitive)
+  // `heading` is regex-escaped inline, two lines below.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const headingPattern = new RegExp(
     `##[^\\n]*${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\n]*\\n`,
     'i'

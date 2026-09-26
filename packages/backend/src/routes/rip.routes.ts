@@ -2,6 +2,7 @@ import express from 'express';
 import type { Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
+import { denyTenant, tenantAllows } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
@@ -301,10 +302,10 @@ router.get('/instances/:instanceId/documents', async (req, res) => {
     const result = await operatonService.getRipInstanceDocuments(instanceId);
 
     // Tenant isolation
-    if (result.variables.municipality && result.variables.municipality !== req.user.tenantId) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: organisation mismatch' },
+    if (!tenantAllows(req.user, result.variables.municipality)) {
+      return denyTenant(req, res, {
+        processInstanceId: instanceId,
+        processTenant: result.variables.municipality,
       });
     }
 

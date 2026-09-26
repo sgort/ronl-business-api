@@ -1,6 +1,6 @@
 {
   "name": "ronl-business-api",
-  "version": "2026.09.11",
+  "version": "2026.09.12",
   "description": "Secure, multi-tenant Business API for Dutch municipality BPMN/DMN services",
   "private": true,
   "workspaces": [
@@ -39,7 +39,8 @@
     "docker:logs:postgres": "docker compose logs -f postgres",
     "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
     "setup": "npm install && npm run docker:up",
-    "prepare": "husky"
+    "prepare": "husky",
+    "sbom": "node scripts/write-sbom.mjs"
   },
   "keywords": [
     "bpmn",
@@ -54,9 +55,9 @@
   "author": "RONL Team",
   "license": "EUPL-1.2",
   "devDependencies": {
-    "concurrently": "^8.2.2",
+    "concurrently": "^10.0.5",
     "husky": "^9.1.7",
-    "lint-staged": "^15.5.2",
+    "lint-staged": "^17.5.1",
     "prettier": "3.9.6",
     "typescript": "^5.9.3"
   },

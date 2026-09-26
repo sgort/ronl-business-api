@@ -34,6 +34,10 @@ let cache: Cache | null = null;
 
 function extractTag(xml: string, tag: string): string {
   const match = xml.match(
+    // `tag` is never escaped, and does not need to be: extractTag is not
+    // exported, and all five call sites pass literals ('guid', 'title',
+    // 'description', 'pubDate', 'link').
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tag}>`, 'i')
   );
   return (match?.[1] ?? match?.[2] ?? '').trim();

@@ -34,9 +34,16 @@ export default class SectionErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    // Constant format string, values as arguments. With `error` and
+    // `componentStack` passed alongside it, the first argument is what
+    // console hands to util.format -- so interpolating `sectionId` into it
+    // makes a caller-supplied prop the format string, and a `%s` in it would
+    // consume the error. Harmless while every sectionId is a literal; the
+    // point is not to depend on that.
     // eslint-disable-next-line no-console
     console.error(
-      `[SectionErrorBoundary] ${this.props.sectionId} crashed:`,
+      '[SectionErrorBoundary] %s crashed:',
+      this.props.sectionId,
       error,
       info.componentStack
     );

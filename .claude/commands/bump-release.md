@@ -351,6 +351,29 @@ not "whichever ran last."
 - Skip this step if scope does **not** include `'backend'` (no backend routes
   could have changed)
 
+### Regenerate the release SBOM
+
+```bash
+npm run sbom
+```
+
+Writes `docs/sbom/<name>-<version>.cdx.json` — CycloneDX, production
+dependencies only, read from the lockfile without installing. **Run it after
+the version bump**, because the filename carries the version, and commit it
+with the release.
+
+ICTU recommendation 10 asks for SBOMs of released versions, kept analysable:
+when an advisory lands against something that shipped months ago, the question
+is what that version contained, and only a document written at the time can
+answer it. `.github/workflows/sbom.yml` uploads the same document as an
+artifact on the promotion, and checks there that the committed copy matches
+the lockfile — a stale file fails the promotion rather than quietly
+misdescribing what shipped. Artifacts expire after 90 days on a public
+repository; the committed copy is the durable one.
+
+The previous release's file stays where it is. One document per released
+version is the point.
+
 ### 6. Normalize formatting, then lint and test, before committing
 
 Windows checkouts drift package.json/changelog-data.ts line endings (LF vs

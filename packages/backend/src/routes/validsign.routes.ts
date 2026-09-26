@@ -43,10 +43,11 @@
  */
 import crypto from 'node:crypto';
 import axios from 'axios';
-import express from 'express';
+import express, { type Request } from 'express';
 import rateLimit, { MemoryStore } from 'express-rate-limit';
 import type { OperatonVariable } from '@ronl/shared';
 import { jwtMiddleware } from '@auth/jwt.middleware';
+import { denyTenant, tenantAllows } from '@auth/tenant-access';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { config } from '@utils/config';
 import { formatDutchDateTime } from '@utils/dutch-datetime';
@@ -648,6 +649,15 @@ function statusFromVariables(variables: Record<string, unknown>): SignatureStatu
 }
 
 /**
+ * A task belongs to the organisation named by its process instance's
+ * municipality variable -- the one tenant label every access check reads
+ * (#218). Checked before anything is looked up, sent or written (#227).
+ */
+function taskTenantAllowed(req: Request, variables: Record<string, unknown>): boolean {
+  return req.user !== undefined && tenantAllows(req.user, variables['municipality']);
+}
+
+/**
  * GET /task/:taskId/spec
  * Response shape is fixed by contract with a later frontend task — do not
  * rename or add fields:
@@ -658,6 +668,10 @@ router.get('/task/:taskId/spec', async (req, res) => {
   const { taskId } = req.params;
   try {
     const task = await operatonService.getTask(taskId);
+    const variables = await operatonService.getTaskVariables(taskId);
+    if (!taskTenantAllowed(req, variables)) {
+      return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
+    }
     const spec = await operatonService.getTaskSignatureSpec(
       task.processInstanceId,
       task.taskDefinitionKey
@@ -665,7 +679,6 @@ router.get('/task/:taskId/spec', async (req, res) => {
     if (!spec) {
       return res.json({ success: true, data: { required: false } });
     }
-    const variables = await operatonService.getTaskVariables(taskId);
     const status = statusFromVariables(variables);
     const packageId = variables['validsignPackageId'] as string | undefined;
     const signingUrl = variables['validsignSigningUrl'] as string | undefined;
@@ -755,6 +768,13 @@ router.post('/task/:taskId/package', async (req, res) => {
 
   try {
     const task = await operatonService.getTask(taskId);
+    const variables = await operatonService.getTaskVariables(taskId);
+    // Before anything else touches the task: a package sent on another
+    // organisation's case is a real signature request that cannot be
+    // recalled (#227).
+    if (!taskTenantAllowed(req, variables)) {
+      return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
+    }
     const spec = await operatonService.getTaskSignatureSpec(
       task.processInstanceId,
       task.taskDefinitionKey
@@ -765,8 +785,6 @@ router.post('/task/:taskId/package', async (req, res) => {
         error: { code: 'NOT_SIGNATURE_TASK', message: 'This task has no signature template' },
       });
     }
-
-    const variables = await operatonService.getTaskVariables(taskId);
 
     // Guard against creating a second package for a task that already has
     // one. A sent ValidSign package puts a real signature request in a real
@@ -895,6 +913,9 @@ router.get('/task/:taskId/status', async (req, res) => {
   const { taskId } = req.params;
   try {
     const variables = await operatonService.getTaskVariables(taskId);
+    if (!taskTenantAllowed(req, variables)) {
+      return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
+    }
     return res.json({ success: true, data: { status: statusFromVariables(variables) } });
   } catch (error) {
     if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
@@ -911,6 +932,9 @@ router.get('/task/:taskId/status', async (req, res) => {
     try {
       const historicVariables = await operatonService.getHistoricTaskVariables(taskId);
       if (historicVariables) {
+        if (!taskTenantAllowed(req, historicVariables)) {
+          return denyTenant(req, res, { taskId, taskTenant: historicVariables['municipality'] });
+        }
         return res.json({
           success: true,
           data: { status: statusFromVariables(historicVariables) },

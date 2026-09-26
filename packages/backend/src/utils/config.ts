@@ -125,7 +125,6 @@ interface Config {
     trustProxy: boolean;
   };
   features: {
-    swagger: boolean;
     metrics: boolean;
     healthChecks: boolean;
   };
@@ -314,7 +313,6 @@ export const config: Config = {
   },
 
   features: {
-    swagger: parseEnvBool(process.env.ENABLE_SWAGGER, true),
     metrics: parseEnvBool(process.env.ENABLE_METRICS, true),
     healthChecks: parseEnvBool(process.env.ENABLE_HEALTH_CHECKS, true),
   },

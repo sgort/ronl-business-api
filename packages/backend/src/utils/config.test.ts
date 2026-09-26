@@ -79,7 +79,6 @@ const ALL_OVERRIDES: Record<string, string> = {
   HELMET_ENABLED: 'false',
   SECURE_COOKIES: 'true',
   TRUST_PROXY: 'true',
-  ENABLE_SWAGGER: 'false',
   ENABLE_METRICS: 'false',
   ENABLE_HEALTH_CHECKS: 'false',
   DEFAULT_MAX_PROCESS_INSTANCES: '25',
@@ -203,7 +202,7 @@ describe('config defaults (empty environment)', () => {
       secureCookies: false,
       trustProxy: false,
     });
-    expect(config.features).toEqual({ swagger: true, metrics: true, healthChecks: true });
+    expect(config.features).toEqual({ metrics: true, healthChecks: true });
     expect(config.tenant).toEqual({ defaultMaxProcessInstances: 1000, enableIsolation: true });
   });
 
@@ -325,7 +324,7 @@ describe('config overrides (every variable set)', () => {
       secureCookies: true,
       trustProxy: true,
     });
-    expect(config.features).toEqual({ swagger: false, metrics: false, healthChecks: false });
+    expect(config.features).toEqual({ metrics: false, healthChecks: false });
     expect(config.tenant).toEqual({ defaultMaxProcessInstances: 25, enableIsolation: false });
   });
 

@@ -1,0 +1,140 @@
+name: Dependency audit
+
+# ICTU recommendation 10: audit dependencies daily, and not only the branch
+# being developed. Dependabot alerts cover the default branch, `acc`; nothing
+# watched `main`, which is what production deploys from. A new advisory lands
+# against code that has not changed, so "nothing changed" is not "nothing to
+# check" -- this is the one check here that runs on a clock rather than on a
+# commit. Tracked in sgort/linked-data-explorer#119.
+on:
+  schedule:
+    # 05:17 UTC, daily. Off the hour deliberately: GitHub queues scheduled
+    # workflows and the top of the hour is the busiest slot.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+  # So a change to the audit itself is exercised before it is merged, rather
+  # than first running at 05:17 the next morning. The issue step is skipped on
+  # a pull request; see its `if:`.
+  pull_request:
+    paths:
+      - '.github/workflows/dependency-audit.yml'
+      - 'scripts/audit-tree.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # NOT "audit": that is zizmor.yml's job, and a required check in every one
+  # of these repositories. Required checks match by NAME, so a second job
+  # called audit makes that context ambiguous -- one passing and one failing
+  # check under one name, which no ruleset can satisfy. It blocked a pull
+  # request the first time this workflow ran. Same lesson as the two jobs that
+  # were both called "Build and Deploy Job".
+  dependency-audit:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # To open, update and close the tracking issue below. A scheduled run
+      # that only fails a job reports to an Actions page nobody opens.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Both branches are audited, so the checkout needs more than the ref
+          # that triggered it.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # An exact literal rather than .nvmrc, deliberately, for the same
+          # reason zizmor.yml pins its own: this job audits BOTH branches, and
+          # `main` need not carry the same .nvmrc as `acc` -- it did not until
+          # sgort/linked-data-explorer#179 was promoted (linked-data-explorer). The tool that reads the lockfile should not
+          # change with the tree it is reading. Renovate maintains this pin.
+          node-version: '24.20.0'
+
+      - name: Audit acc and main
+        id: audit
+        env:
+          # scripts/audit-tree.mjs appends its report here as well as to the
+          # step summary, so the issue body below is the same text a human
+          # reads in the run.
+          AUDIT_REPORT_FILE: ${{ runner.temp }}/audit.md
+        run: |
+          # The loop checks out each branch, which REPLACES the working tree --
+          # including this script, which exists on the branch under review before
+          # it exists on acc or main. Copy it somewhere the checkout cannot
+          # touch and run it from there. Found the hard way: the first run lost
+          # the script at the first checkout, and node exited 1 for a missing
+          # module, which this step then read as "a high advisory was found".
+          script="$RUNNER_TEMP/audit-tree.mjs"
+          cp scripts/audit-tree.mjs "$script"
+          git fetch --no-tags --quiet origin acc main
+          status=0
+          for ref in acc main; do
+            git checkout --force --quiet "origin/$ref"
+            rc=0
+            node "$script" "$ref ($(git rev-parse --short HEAD))" || rc=$?
+            # 0 clean, 1 a production high or critical, 2 the audit could not
+            # run. Anything else is also "could not run": never a clean tree.
+            if [ "$rc" -gt 2 ]; then rc=2; fi
+            if [ "$rc" -gt "$status" ]; then status=$rc; fi
+          done
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "Worst exit status across both branches: $status"
+
+      # Exit 2 means the audit could not run at all, which must not be reported
+      # as a clean tree. It is handled with the same weight as a finding.
+      - name: Open, update or close the tracking issue
+        if: ${{ always() && github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.audit.outputs.status }}
+          TITLE: 'Daily dependency audit: production high or critical advisory'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT: ${{ runner.temp }}/audit.md
+        run: |
+          existing=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty")
+          {
+            echo "Opened by the daily dependency audit on $(date -u '+%Y-%m-%d %H:%M UTC')."
+            echo
+            echo "It fails on a **high or critical advisory in production dependencies**, on \`acc\` or \`main\`."
+            echo "Advisories below moderate severity, and dev-only ones, are listed but do not fail it."
+            echo
+            cat "$REPORT" 2>/dev/null || echo '_The audit produced no report; see the run._'
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+          if [ "${STATUS:-2}" = "0" ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "The audit is clean as of $(date -u '+%Y-%m-%d'): no high or critical advisory in production dependencies on either branch. Closing. Run: $RUN_URL"
+              gh issue close "$existing"
+              echo "Closed #$existing"
+            else
+              echo "Clean, and no open issue to close."
+            fi
+          else
+            if [ -n "$existing" ]; then
+              gh issue edit "$existing" --body-file body.md
+              echo "Updated #$existing"
+            else
+              gh issue create --title "$TITLE" --body-file body.md --label dependencies --label security
+              echo "Opened a new issue"
+            fi
+          fi
+
+      # The expression goes through env rather than into the run block: an
+      # expression interpolated into a shell is the shape zizmor flags, and the
+      # habit is worth keeping even where the value is a digit this workflow set.
+      - name: Fail when a production high or critical advisory is present
+        if: ${{ always() }}
+        env:
+          STATUS: ${{ steps.audit.outputs.status }}
+        run: exit "${STATUS:-2}"

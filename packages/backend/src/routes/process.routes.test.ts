@@ -43,6 +43,7 @@ jest.mock('@services/operaton.service', () => ({
     getDeployedStartForm: jest.fn(),
     getVariableHints: jest.fn(),
     deleteProcessInstance: jest.fn(),
+    resolveDeployedTenant: jest.fn(),
   },
 }));
 jest.mock('@middleware/audit.middleware', () => ({ auditLog: jest.fn() }));
@@ -60,6 +61,7 @@ jest.mock('@utils/logger', () => ({
 import express from 'express';
 import request from 'supertest';
 import processRouter from './process.routes';
+import { AmbiguousDeploymentError } from '@utils/errors';
 import { operatonService } from '@services/operaton.service';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
@@ -71,7 +73,11 @@ const auth = (r: request.Test) => r.set('x-test-auth', '1');
 /** Operaton-format process variables owned by the caller's tenant. */
 const ownedVars = { municipality: { value: 'flevoland', type: 'String' } };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: the process is deployed under the caller's own tenant.
+  svc.resolveDeployedTenant.mockResolvedValue('flevoland');
+});
 
 describe('POST /:key/start', () => {
   it('401 without a token', async () => {
@@ -92,19 +98,114 @@ describe('POST /:key/start', () => {
       note: { value: 'hi', type: 'String' },
       payload: { value: { a: 1 }, type: 'Json' },
       empty: { value: null, type: 'Null' },
+      municipality: { value: 'flevoland', type: 'String' },
+      originTenantId: { value: 'flevoland', type: 'String' },
     });
   });
 
-  it('applies AwbZorgtoeslag coercions and authority override', async () => {
+  it('applies AwbZorgtoeslag coercions; a citizen case goes to the toeslagen deployment', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
     svc.startProcess.mockResolvedValue({ id: 'pi-2' });
-    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start')).send({
-      variables: { toetsingsinkomen: '30000', overlijdensdatum: '' },
-    });
+    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: { toetsingsinkomen: '30000', overlijdensdatum: '' } });
     const vars = svc.startProcess.mock.calls[0][1].variables;
     expect(vars.toetsingsinkomen).toEqual({ value: 30000, type: 'Double' });
     expect(vars.overlijdensdatum).toBeUndefined(); // blank stripped
-    expect(vars.municipality).toEqual({ value: 'toeslagen', type: 'String' }); // authority override
+    expect(vars.municipality).toEqual({ value: 'toeslagen', type: 'String' });
     expect(vars.originTenantId).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  // #234: the business key is the human-facing handle, so its prefix names the
+  // organisation that owns the case -- the same one municipality names.
+  it("mints the business key with the owning organisation for a citizen's cross-tenant case", async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    svc.startProcess.mockResolvedValue({ id: 'pi-k1' });
+    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: {} });
+    expect(svc.startProcess.mock.calls[0][1].businessKey).toMatch(/^toeslagen-\d+$/);
+  });
+
+  it("mints the business key with the caller's organisation when it owns the case", async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-k2' });
+    await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({ variables: {} });
+    expect(svc.startProcess.mock.calls[0][1].businessKey).toMatch(/^flevoland-\d+$/);
+  });
+
+  it('keeps a caller-supplied business key unchanged', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    svc.startProcess.mockResolvedValue({ id: 'pi-k3' });
+    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ businessKey: 'unive-1790000000000', variables: {} });
+    expect(svc.startProcess.mock.calls[0][1].businessKey).toBe('unive-1790000000000');
+  });
+
+  it('stamps the caller tenant and passes the resolved deployed tenant on', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-7' });
+    await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({ variables: {} });
+    expect(svc.resolveDeployedTenant).toHaveBeenCalledTimes(1);
+    expect(svc.resolveDeployedTenant).toHaveBeenCalledWith('AwbShellProcess', 'flevoland');
+    const [key, body, tenantId, deployedTenant] = svc.startProcess.mock.calls[0];
+    expect([key, tenantId, deployedTenant]).toEqual(['AwbShellProcess', 'flevoland', 'flevoland']);
+    expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+    expect(body.variables.originTenantId).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('403 TENANT_MISMATCH when staff start a process deployed under another tenant', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    const res = await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start')).send({
+      variables: {},
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toEqual({
+      code: 'TENANT_MISMATCH',
+      message: 'Access denied: organisation mismatch',
+    });
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
+  it('treats a token without a roles claim as staff: refused across tenants', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    const res = await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-no-roles', '1')
+      .send({ variables: {} });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
+  it('ignores a municipality supplied in the request body', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-8' });
+    await auth(request(app).post('/v1/process/P/start')).send({
+      variables: { municipality: 'utrecht' },
+    });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('falls back to the caller tenant when the deployed tenant cannot be resolved', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue(null);
+    svc.startProcess.mockResolvedValue({ id: 'pi-9' });
+    const res = await auth(request(app).post('/v1/process/P/start')).send({ variables: {} });
+    expect(res.status).toBe(201);
+    const [, body, , deployedTenant] = svc.startProcess.mock.calls[0];
+    expect(deployedTenant).toBeNull();
+    expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('409 AMBIGUOUS_DEPLOYMENT when several other organisations deploy the key (#228)', async () => {
+    svc.resolveDeployedTenant.mockRejectedValue(
+      new AmbiguousDeploymentError('AwbShellProcess', ['toeslagen', 'utrecht'])
+    );
+    const res = await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({
+      variables: {},
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
+    expect(res.body.error.message).toContain('AwbShellProcess');
+    expect(svc.startProcess).not.toHaveBeenCalled();
   });
 
   it('500 preferring the Operaton error message', async () => {
@@ -131,6 +232,27 @@ describe('GET /history', () => {
       'citizen'
     );
     expect(res.status).toBe(403);
+  });
+
+  it('returns a citizen their own history (#229)', async () => {
+    svc.getProcessHistory.mockResolvedValue([{ id: 'p' }]);
+    const res = await auth(request(app).get('/v1/process/history?applicantId=u-1')).set(
+      'x-test-roles',
+      'citizen'
+    );
+    expect(res.status).toBe(200);
+    expect(svc.getProcessHistory).toHaveBeenCalledWith('u-1', 'flevoland', 'province', false);
+  });
+
+  it('refuses staff without the caseworker role, even for their own id (#229)', async () => {
+    const res = await auth(request(app).get('/v1/process/history?applicantId=u-1')).set(
+      'x-test-roles',
+      'public-affairs,pa-author'
+    );
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.message).toBe('Only citizens and caseworkers may read process history');
+    expect(svc.getProcessHistory).not.toHaveBeenCalled();
   });
 
   it('returns history for a caseworker', async () => {
@@ -161,7 +283,9 @@ describe('GET /:id/status', () => {
     svc.getProcessVariables.mockResolvedValue({
       municipality: { value: 'utrecht', type: 'String' },
     });
-    expect((await auth(request(app).get('/v1/process/pi/status'))).status).toBe(403);
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 when the instance is missing', async () => {
@@ -184,7 +308,9 @@ describe('GET /:id/variables', () => {
     svc.getProcessVariables.mockResolvedValue({
       municipality: { value: 'utrecht', type: 'String' },
     });
-    expect((await auth(request(app).get('/v1/process/pi/variables'))).status).toBe(403);
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 on failure', async () => {
@@ -208,7 +334,9 @@ describe('GET /:id/historic-variables', () => {
 
   it('403 for a foreign tenant/process', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'other' });
-    expect((await auth(request(app).get('/v1/process/pi/historic-variables'))).status).toBe(403);
+    const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on failure', async () => {
@@ -228,7 +356,9 @@ describe('GET /:id/activity-history', () => {
 
   it('403 on a tenant mismatch', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'utrecht' });
-    expect((await auth(request(app).get('/v1/process/pi/activity-history'))).status).toBe(403);
+    const res = await auth(request(app).get('/v1/process/pi/activity-history'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on failure', async () => {
@@ -247,7 +377,9 @@ describe('GET /:instanceId/decision-document', () => {
 
   it('403 on a tenant/process mismatch', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'utrecht', applicantId: 'other' });
-    expect((await auth(request(app).get('/v1/process/pi/decision-document'))).status).toBe(403);
+    const res = await auth(request(app).get('/v1/process/pi/decision-document'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 for an axios 404', async () => {
@@ -300,6 +432,15 @@ describe('GET /:key/start-form', () => {
     svc.getDeployedStartForm.mockRejectedValue(new Error('boom'));
     expect((await auth(request(app).get('/v1/process/P/start-form'))).status).toBe(500);
   });
+
+  it('409 AMBIGUOUS_DEPLOYMENT when several other organisations deploy the key (#228)', async () => {
+    svc.getDeployedStartForm.mockRejectedValue(
+      new AmbiguousDeploymentError('P', ['toeslagen', 'utrecht'])
+    );
+    const res = await auth(request(app).get('/v1/process/P/start-form'));
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
+  });
 });
 
 describe('GET /:key/variable-hints', () => {
@@ -326,7 +467,9 @@ describe('DELETE /:id', () => {
     svc.getProcessVariables.mockResolvedValue({
       municipality: { value: 'utrecht', type: 'String' },
     });
-    expect((await auth(request(app).delete('/v1/process/pi')).send({})).status).toBe(403);
+    const res = await auth(request(app).delete('/v1/process/pi')).send({});
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on failure', async () => {
@@ -388,8 +531,11 @@ describe('inferType, via the variables submitted on process start', () => {
           toelichting: { value: 'ok', type: 'String' },
           bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
           reden: { value: null, type: 'Null' },
+          municipality: { value: 'flevoland', type: 'String' },
+          originTenantId: { value: 'flevoland', type: 'String' },
         }),
       }),
+      'flevoland',
       'flevoland'
     );
   });
@@ -446,14 +592,14 @@ describe('POST /:key/start failure causes', () => {
 });
 
 describe('GET /history for a token without a roles claim', () => {
-  it('treats the caller as role-less rather than crashing', async () => {
-    svc.getProcessHistory.mockResolvedValue([]);
+  it('refuses a role-less caller rather than crashing: neither citizen nor caseworker (#229)', async () => {
     const res = await request(app)
-      // A role-less caller is treated as a citizen, so may only ask for their own.
       .get('/v1/process/history?applicantId=u-1')
       .set('x-test-auth', '1')
       .set('x-test-no-roles', '1');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(svc.getProcessHistory).not.toHaveBeenCalled();
   });
 });
 
@@ -493,5 +639,104 @@ describe('GET /:key/start-form error mapping', () => {
     const res = await auth(request(app).get('/v1/process/SomeProcess/start-form'));
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('FORM_NOT_FOUND');
+  });
+});
+
+describe('detail checks refuse an instance with no municipality (#218 D3)', () => {
+  it('GET /:id/historic-variables refuses a non-applicant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ applicantId: 'other' });
+    const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('GET /:id/historic-variables still serves the applicant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ applicantId: 'u-1' });
+    const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /:id/activity-history refuses', async () => {
+    svc.getHistoricVariables.mockResolvedValue({});
+    const res = await auth(request(app).get('/v1/process/pi/activity-history'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.getActivityHistory).not.toHaveBeenCalled();
+  });
+
+  it('GET /:id/status refuses', async () => {
+    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false });
+    svc.getProcessVariables.mockResolvedValue({});
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('DELETE /:id refuses and deletes nothing', async () => {
+    svc.getProcessVariables.mockResolvedValue({});
+    const res = await auth(request(app).delete('/v1/process/pi'));
+    expect(res.status).toBe(403);
+    expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
+  });
+});
+
+// #229: a citizen follows their own case on every process read, including a
+// case another tenant owns (an AWB claim under toeslagen) -- but never
+// deletes it, and never reads another applicant's.
+describe('the applicant reads their own case on every process read (#229)', () => {
+  const runtime = (applicantId: string) => ({
+    municipality: { value: 'toeslagen', type: 'String' },
+    applicantId: { value: applicantId, type: 'String' },
+  });
+
+  it('GET /:id/status admits the applicant', async () => {
+    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false, suspended: false });
+    svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /:id/status refuses another applicant', async () => {
+    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false, suspended: false });
+    svc.getProcessVariables.mockResolvedValue(runtime('u-2'));
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('GET /:id/variables admits the applicant', async () => {
+    svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ municipality: 'toeslagen', applicantId: 'u-1' });
+  });
+
+  it('GET /:id/variables refuses another applicant', async () => {
+    svc.getProcessVariables.mockResolvedValue(runtime('u-2'));
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('GET /:id/activity-history admits the applicant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'u-1' });
+    svc.getActivityHistory.mockResolvedValue([{ id: 'a1' }]);
+    const res = await auth(request(app).get('/v1/process/pi/activity-history'));
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /:id/activity-history refuses another applicant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'u-2' });
+    const res = await auth(request(app).get('/v1/process/pi/activity-history'));
+    expect(res.status).toBe(403);
+    expect(svc.getActivityHistory).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /:id refuses the applicant: deleting stays with the owning tenant', async () => {
+    svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
+    const res = await auth(request(app).delete('/v1/process/pi'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
   });
 });

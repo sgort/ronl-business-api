@@ -2,61 +2,44 @@ import express, { Request, Response } from 'express';
 import { config } from '@utils/config';
 import packageJson from '../../package.json';
 
-const router = express.Router();
-
 /**
- * The paths this service advertises at `/`.
+ * Service banner at `/`.
  *
- * Exported so the banner and index.ts's mounts can be read against each other.
- * They drifted once and nothing noticed: the banner promised documentation at
- * `/v1/docs` from the initial commit onwards and nothing ever mounted it, so a
- * consumer following the field got a 404 (#67).
+ * Takes the endpoint map rather than importing it, and that is deliberate.
  *
- * Nothing enforces that every entry here is mounted — index.ts calls
- * startServer() at import, so a test cannot load it to compare. Keeping the two
- * in step is still a human job; this at least puts one of them somewhere a test
- * can reach.
+ * This module exists to be importable WITHOUT side effects -- the banner used
+ * to be inline in index.ts, where importing it starts a server, so nothing
+ * could test it. That is how it promised documentation at /v1/docs from the
+ * initial commit while nothing ever served it (#67).
+ *
+ * routes/registry.ts is now the single source of both what is mounted and what
+ * is advertised (#200), but importing it here would pull in all 19 route
+ * modules -- and with them the Operaton service, the Anthropic SDK and the
+ * database pools -- to render a JSON literal. That would give this module back
+ * exactly the property it was split out to avoid. index.ts passes the map in
+ * instead; registry.test.ts is what checks every advertised path is mounted.
+ *
+ * The `documentation` field is back, and there is something behind it:
+ * /v1/openapi.json, served by openapi.routes.ts. #67 removed the field because
+ * it pointed at a 404, which was the one option that was definitely wrong.
  */
-export const ADVERTISED_ENDPOINTS = {
-  health: '/v1/health',
-  process: '/v1/process',
-  decision: '/v1/decision',
-  tasks: '/v1/task',
-  brp: '/v1/brp',
-  public: '/v1/public',
-  hr: '/v1/hr',
-  hrCapacity: '/v1/hr-capacity',
-  rip: '/v1/rip',
-  edocs: '/v1/edocs',
-  doccle: '/v1/doccle',
-  validsign: '/v1/validsign',
-  curator: '/v1/pa',
-  mediaAggregator: '/v1/media-aggregator',
-  admin: '/v1/admin',
-  m2m: '/v1/m2m',
-  mcp: '/v1/mcp',
-} as const;
+export function createRootRouter(endpoints: Readonly<Record<string, string>>): express.Router {
+  const router = express.Router();
 
-/**
- * Service banner.
- *
- * No `documentation` field: there is no documentation endpoint. Serving one is
- * worth doing and stays open in #67; pointing at a 404 was the one option that
- * was definitely wrong.
- */
-router.get('/', (req: Request, res: Response) => {
-  res.json({
-    name: 'RONL Business API',
-    version: packageJson.version,
-    status: 'running',
-    environment: config.deploymentEnv,
-    endpoints: ADVERTISED_ENDPOINTS,
-    security: {
-      authentication: 'JWT (Keycloak)',
-      authorization: 'Role-based + Tenant isolation',
-      compliance: ['BIO', 'NEN 7510', 'AVG/GDPR', 'eIDAS'],
-    },
+  router.get('/', (req: Request, res: Response) => {
+    res.json({
+      name: 'RONL Business API',
+      version: packageJson.version,
+      status: 'running',
+      environment: config.deploymentEnv,
+      endpoints,
+      security: {
+        authentication: 'JWT (Keycloak)',
+        authorization: 'Role-based + Tenant isolation',
+        compliance: ['BIO', 'NEN 7510', 'AVG/GDPR', 'eIDAS'],
+      },
+    });
   });
-});
 
-export default router;
+  return router;
+}

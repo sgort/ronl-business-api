@@ -103,7 +103,7 @@ describe('GET /:instanceId/documents', () => {
     });
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on service failure', async () => {
@@ -156,14 +156,14 @@ describe('non-Error rejections', () => {
 });
 
 describe('tenant isolation when the instance has no municipality', () => {
-  it('serves the documents rather than 403, since there is nothing to mismatch', async () => {
+  it('refuses with TENANT_MISMATCH: an unlabelled instance belongs to no tenant', async () => {
     svc.getCapacityClaimDocuments.mockResolvedValue({
       variables: {},
       boardDecisionNotification: { doc: 'a' },
       capacityClaimHandover: null,
     });
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
-    expect(res.status).toBe(200);
-    expect(res.body.data.boardDecisionNotification).toEqual({ doc: 'a' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 });

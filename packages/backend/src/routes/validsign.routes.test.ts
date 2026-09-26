@@ -182,6 +182,8 @@ beforeEach(async () => {
     processInstanceId: 'pi-1',
     taskDefinitionKey: 'signTask',
   });
+  // Default: the task's instance belongs to the caller's tenant (#227).
+  mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
   // Every test starts with a fresh callback-limiter budget: without this,
   // the test below that deliberately exhausts it would leave every later
   // test in this file that hits /callback observing a stale 429, making
@@ -521,6 +523,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
   it('reports required:true with status/packageId/signingUrl from process variables', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
     mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
       validsignStatus: 'sent',
       validsignPackageId: 'pkg-1',
       validsignSigningUrl: '/v1/validsign/stub/ceremony/pkg-1',
@@ -539,7 +542,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
 
   it('defaults status to none and omits packageId/signingUrl when unset', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({
@@ -552,7 +555,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
 
   it('reports stubMode false when the backend is live, so a caller can refuse up front', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockValidsign.isStub = false;
     try {
       const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
@@ -591,7 +594,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({ projectNumber: 'RIP-1' });
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland', projectNumber: 'RIP-1' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-1', roleId: 'role-1' });
@@ -631,7 +634,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-2', roleId: 'role-1' });
@@ -651,7 +654,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-3', roleId: 'role-1' });
@@ -673,7 +676,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-4', roleId: 'role-1' });
@@ -719,6 +722,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
         template: { name: 'Uitgangspunten VO-fase' },
       });
       mockGetTaskVariables.mockResolvedValue({
+        municipality: 'flevoland',
         validsignStatus: status,
         validsignPackageId: existingPackageId,
       });
@@ -740,6 +744,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       template: { name: 'Uitgangspunten VO-fase' },
     });
     mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
       validsignStatus: 'failed',
       validsignPackageId: 'pkg-old-failed',
     });
@@ -763,7 +768,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({ projectNumber: 'RIP-1' });
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland', projectNumber: 'RIP-1' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-none', roleId: 'role-1' });
@@ -797,7 +802,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-fwd', roleId: 'role-1' });
@@ -819,7 +824,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-empty', roleId: 'role-1' });
@@ -833,7 +838,10 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
 
 describe('GET /v1/validsign/task/:taskId/status', () => {
   it('returns the status from process variables', async () => {
-    mockGetTaskVariables.mockResolvedValue({ validsignStatus: 'completed' });
+    mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      validsignStatus: 'completed',
+    });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ status: 'completed' });
@@ -841,7 +849,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
   });
 
   it('defaults to none when unset', async () => {
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.body.data).toEqual({ status: 'none' });
   });
@@ -853,6 +861,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
   it('falls back to history and reports completed status when the runtime task is gone', async () => {
     mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
     mockGetHistoricTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
       validsignStatus: 'completed',
       approvalStatus: 'approved',
     });
@@ -1049,7 +1058,10 @@ describe('stub ceremony framing headers (iframe embed from a different origin)',
   });
 
   it('leaves every OTHER route with its restrictive headers intact -- proving the relaxation is narrow', async () => {
-    mockGetTaskVariables.mockResolvedValue({ validsignStatus: 'completed' });
+    mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      validsignStatus: 'completed',
+    });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(200);
     expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
@@ -1189,7 +1201,7 @@ describe('POST /v1/validsign/task/:taskId/package, further cases', () => {
       templateId: 'tpl-1',
       template: { name: 'Uitgangspunten VO-fase' },
     });
-    mockGetTaskVariables.mockResolvedValue({});
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
     mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
     mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-1', roleId: 'role-1' });
@@ -1278,5 +1290,55 @@ describe('POST /v1/validsign/callback, body edge cases', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('INVALID_BODY');
     expect(mockCompleteSignature).not.toHaveBeenCalled();
+  });
+});
+
+// #227: the task endpoints decide tenant by the instance's municipality
+// variable, like every other task route (#218) -- a caller from another
+// organisation, or a task whose instance carries no label, is refused before
+// anything is looked up, sent or written.
+describe('tenant isolation on the task endpoints (#227)', () => {
+  const foreign = { municipality: 'utrecht', validsignStatus: 'sent' };
+  const unlabelled = { validsignStatus: 'sent' };
+
+  describe.each([
+    ['another tenant', foreign],
+    ['no municipality', unlabelled],
+  ])('a task whose instance has %s', (_label, variables) => {
+    it('GET /spec answers 403 TENANT_MISMATCH without resolving the signature spec', async () => {
+      mockGetTaskVariables.mockResolvedValue(variables);
+      const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+      expect(mockGetTaskSignatureSpec).not.toHaveBeenCalled();
+    });
+
+    it('POST /package answers 403 TENANT_MISMATCH and sends and writes nothing', async () => {
+      mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
+      mockGetTaskVariables.mockResolvedValue(variables);
+      const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+      expect(mockGetTaskSignatureSpec).not.toHaveBeenCalled();
+      expect(mockRenderTemplate).not.toHaveBeenCalled();
+      expect(mockValidsign.createPackage).not.toHaveBeenCalled();
+      expect(mockValidsign.sendPackage).not.toHaveBeenCalled();
+      expect(mockSetProcessVariables).not.toHaveBeenCalled();
+    });
+
+    it('GET /status answers 403 TENANT_MISMATCH for a running task', async () => {
+      mockGetTaskVariables.mockResolvedValue(variables);
+      const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    });
+
+    it('GET /status answers 403 TENANT_MISMATCH for a completed task found in history', async () => {
+      mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+      mockGetHistoricTaskVariables.mockResolvedValue(variables);
+      const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    });
   });
 });

@@ -39,17 +39,17 @@ carries commits that already passed every check on `acc`.
 
 ## Pinned
 
-**34 `uses:` references across 11 workflows, all 34 digest-pinned.** Verified on
-`acc` at `65850f9`, 22 September 2026 — by `npm run check-supply-chain`, which
+**39 `uses:` references across 13 workflows, all 39 digest-pinned.** Verified on
+`acc` at `4e9bd9d`, 26 September 2026 — by `npm run check-supply-chain`, which
 blocks the `audit` job, so this headline cannot drift from the workflows without
 failing a merge.
 
 | Dependency                          | Pin                                                 | Version           | Maintained by                                                                                 |
 | ----------------------------------- | --------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| `actions/checkout` (×11)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
-| `actions/setup-node` (×9)           | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
+| `actions/checkout` (×13)            | `3d3c42e5aac5ba805825da76410c181273ba90b1`          | v7.0.1            | Renovate                                                                                      |
+| `actions/setup-node` (×11)          | `820762786026740c76f36085b0efc47a31fe5020`          | v7.0.0            | Renovate                                                                                      |
 | `Azure/static-web-apps-deploy` (×9) | `4d27395796ac319302594769cfe812bd207490b1`          | v1                | **manual** — Renovate updates are disabled for it, see below                                  |
-| `actions/upload-artifact` (×2)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
+| `actions/upload-artifact` (×3)      | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`          | v7.0.1            | Renovate                                                                                      |
 | `azure/login` (×2)                  | `a641126d1b8aa4d1fa005f4f92df94a3a4c4c906`          | v3.1.0            | Renovate                                                                                      |
 | `zizmorcore/zizmor-action`          | `cc914d7f3750a2d13d75c7f184a1060aa0e9d482`          | v0.6.4            | Renovate                                                                                      |
 | zizmor itself                       | `version: '1.29.0'` input, not `latest`             | 1.29.0            | Renovate — as the image `ghcr.io/zizmorcore/zizmor`, in the `github actions` group; see below |
@@ -98,6 +98,42 @@ So the `sha512` integrity row above covers **what is shipped**, not merely what
 is tested. In `ttl-editor` the opposite holds: Oryx builds inside the floating
 container there, so its lockfile integrity covers only the test run. The
 difference is `skip_app_build`, and it is worth preserving deliberately.
+
+## Dependency audit, daily
+
+Every gate above runs on a commit. A new advisory lands against code that has
+not changed, so a pipeline that only reacts to commits never sees it — and
+Dependabot alerts watch the default branch, `acc`, not the `main` that
+production deploys from. ICTU recommendation 10, tracked in [linked-data-explorer#119](https://github.com/sgort/linked-data-explorer/issues/119).
+
+`.github/workflows/dependency-audit.yml` runs at 05:17 UTC daily, and on
+demand. It audits **both `acc` and `main`**, reading each branch's lockfile
+with `npm audit --package-lock-only`, so it installs nothing.
+
+|                           |                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Job / check context       | `dependency-audit` — deliberately not `audit`, which is zizmor's required check in every one of these repositories |
+| Fails on                  | a **high or critical** advisory in **production** dependencies                                                     |
+| Reports but does not fail | moderate and low advisories, and everything dev-only                                                               |
+| Where it reports          | the run's step summary, and one tracking issue it opens, updates and closes                                        |
+| Node                      | an exact literal, not `.nvmrc` — it audits a branch that need not carry one                                        |
+
+**It counts advisories, not packages.** `npm audit` reports one entry per
+affected package, so one advisory on a widely-used package looks like dozens of
+findings: on 24 September 2026 linked-data-explorer's 28 "moderate" entries were
+three advisories, 24 of them the same `@tiptap/core` reached through its
+extensions. `scripts/audit-tree.mjs` groups by advisory before reporting.
+A number that overstates the problem gets ignored, which is the failure mode a
+daily audit exists to avoid.
+
+**A run that cannot audit exits 2, and is treated like a finding.** A tool that
+fails to run must not report a clean tree — the same rule `--no-suppress-errors`
+enforces for Semgrep.
+
+**What it will report here on its first runs:** one production high,
+`adm-zip` 0.6.0, reached only through the unused `keycloak-connect` (#204).
+`adm-zip` 0.6.1 clears the 14-day cooldown on 25 September, so the next
+lock-file maintenance closes it and the issue closes itself.
 
 ## Exceptions
 
@@ -192,6 +228,70 @@ on the Dependency Dashboard before relying on that.
 
 **Reachable from our side:** the release, yes, and done; the image, no.
 **Accepted risk** for the image, reviewed when this document is next revised.
+
+### The App Service runtime — `NODE|22-lts` pins a major, and that is all Azure offers
+
+Both App Services run `NODE|22-lts`, and so do Linked Data Explorer's two. ICTU
+recommendation 2 asks for a pin at the highest precision the platform allows.
+Here the platform allows very little: `az webapp list-runtimes --os linux`
+returns, for Node, exactly
+
+```
+NODE|22-lts   NODE|24-lts   NODE|26
+```
+
+Major-level only. There is no `NODE|22.23.2`, no digest, and no setting that
+takes one. **So the answer to "pin exactly" is that it cannot be done, and this
+paragraph is the record of why** — the resolution linked-data-explorer#119 asks
+for when the platform will not cooperate.
+
+What remains reachable is the thing that actually bites: keeping the App
+Service's major in step with `.nvmrc`'s. Today both are 22 and they agree. They
+can disagree, and the failure is quiet — the build runs on one major and the
+host runs the artifact on another, which is the mismatch #36 closed for the
+workflows and this document's `node-version` section describes. It is live right
+now in the other repository: linked-data-explorer#80 bumps `.nvmrc` from 22 to
+24 and is held open precisely because merging it alone would build on 24 and run
+on 22.
+
+**The ordering is therefore part of the pin.** A Node major bump changes two
+things in two places, and the App Service must move first:
+
+1. switch both App Services to the new `NODE|<major>-lts`,
+2. then merge the `.nvmrc` bump.
+
+No pull-request check runs against an App Service, so nothing enforces this. It
+is a written rule, and it is written here because this is the file that is read
+before a promotion.
+
+**Reachable from our side:** the major, yes; an exact version, no — Azure does
+not offer one. **Accepted**, with the ordering rule above as the compensating
+control.
+
+### Container images — pinned by digest where this repository applies them
+
+The local development stack in `docker-compose.yml` pins all five of its images
+by tag **and** digest, and Renovate maintains them: `docker:pinDigests` is in
+`renovate.json`'s `extends`, beside `helpers:pinGitHubActionDigests`. The same
+rule that file already states for actions applies here — pinning without
+automated updates decays into an unpatched tree, which is worse than floating.
+
+Two of those five were `:latest` before, and they are the reason this mattered
+more than it looked. **A floating tag is invisible to Renovate**: it has no
+version to compare, so `alpine:latest` and `operaton/operaton:latest` were the
+only images in the tree that nothing was watching at all. The other three were
+already tracked by version and merely unpinned by digest.
+
+The digests recorded are the **index** digests, not per-platform ones, so the
+pin stays correct on an amd64 and an arm64 workstation alike.
+
+**The three compose files under `deployment/vm/` are deliberately not pinned
+yet**, and that is #196. Nothing in this repository applies them — no workflow,
+no script reads them — so a digest there would record a value no deploy
+consults, against a host whose running image cannot be read from here. A pin
+that cannot be verified is a pin that can be wrong with nothing saying so. That
+issue brings the ACC and PROD VM deployment under action control first, and pins
+second.
 
 ### The package-manager cooldown — `.npmrc`, and where it does not reach
 

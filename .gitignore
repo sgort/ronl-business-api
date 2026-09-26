@@ -161,3 +161,7 @@ docs/overview.md
 # way. It also kept `deploy-backend-to-acc.sh` from running, since that script
 # requires a clean tree and `git status --porcelain` counts untracked files.
 .semgrep/
+
+# Generated from packages/backend/openapi/openapi.yaml by build-openapi.cjs.
+# A committed copy of a generated file is a second source waiting to drift (#200).
+packages/backend/openapi/openapi.json

@@ -1,9 +1,17 @@
 import axios from 'axios';
-import express from 'express';
+import express, { type Response } from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
+import {
+  caseReadAllowed,
+  denyTenant,
+  isCitizen,
+  resolveStartTenant,
+  tenantAllows,
+} from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { AmbiguousDeploymentError } from '@utils/errors';
 import { auditLog } from '@middleware/audit.middleware';
 import { config } from '@utils/config';
 import { OperatonVariable } from '@ronl/shared';
@@ -11,6 +19,18 @@ import { inferType } from '@utils/operaton-variables';
 
 const router = express.Router();
 const logger = createLogger('process-routes');
+
+/**
+ * 409 for a key deployed under several organisations, none of them the
+ * caller's (#228): there is no basis for choosing which one handles the case.
+ */
+function ambiguousDeployment(res: Response, error: AmbiguousDeploymentError): Response {
+  logger.warn('Ambiguous deployment', { processKey: error.processKey, tenants: error.tenants });
+  return res.status(409).json({
+    success: false,
+    error: { code: 'AMBIGUOUS_DEPLOYMENT', message: error.message },
+  });
+}
 
 // Apply authentication and tenant isolation to all routes
 router.use(jwtMiddleware);
@@ -61,9 +81,9 @@ router.post(
 
       // AwbZorgtoeslagProcess: coerce variable types that the DRD expects as Double
       // and strip overlijdensdatum when left blank (DRD expects absence, not empty string).
-      // AwbZorgtoeslagProcess: type coercions + processing authority override.
-      // The AWB process always runs under the toeslagen authority regardless of
-      // which channel (municipality, commercial org) the citizen came from.
+      // Which authority handles the case is not decided here: the process is
+      // deployed under toeslagen, and resolveStartTenant below sends a
+      // citizen's case to the deployment's tenant.
       if (key === 'AwbZorgtoeslagProcess') {
         for (const field of ['toetsingsinkomen', 'woonlandfactorBuitenland'] as const) {
           if (operatonVariables[field] !== undefined) {
@@ -80,26 +100,41 @@ router.post(
         ) {
           delete operatonVariables.overlijdensdatum;
         }
-        // Record originating channel, then override municipality to the
-        // processing authority so the toeslagen caseworker queue picks it up.
-        operatonVariables.originTenantId = {
-          value: req.user.tenantId,
-          type: 'String',
-        };
-        operatonVariables.municipality = {
-          value: 'toeslagen',
-          type: 'String',
-        };
       }
+
+      // Tenant rule (#218): the municipality variable is the only tenant label
+      // access checks read, so it must equal the tenant Operaton runs the
+      // instance under. Staff may start only their own tenant's processes; a
+      // citizen's case goes to the deployment's tenant.
+      const deployedTenant = await operatonService.resolveDeployedTenant(key, req.user.tenantId);
+      const startTenant = resolveStartTenant(req.user, deployedTenant);
+      if (!startTenant.allowed) {
+        auditLog(req, `process.start.${key}`, 'failure', {
+          reason: 'TENANT_MISMATCH',
+          deployedTenant,
+        });
+        return denyTenant(req, res, { processKey: key, deployedTenant });
+      }
+      operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
+      operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
+
+      // The business key is the case's human-facing handle, so it names the
+      // organisation that owns the case (#234). A caller-supplied key is kept:
+      // a RIP phase started for a project inherits the key its R2.1 run
+      // minted, so every phase instance of one project shares it. Safe to
+      // honour -- businessKey grants nothing; access runs on municipality.
+      const businessKey: string =
+        req.body.businessKey || `${startTenant.municipality}-${Date.now()}`;
 
       // Start process
       const processInstance = await operatonService.startProcess(
         key,
         {
-          businessKey: req.body.businessKey,
+          businessKey,
           variables: operatonVariables,
         },
-        req.user.tenantId
+        req.user.tenantId,
+        deployedTenant
       );
 
       // Audit log
@@ -121,6 +156,13 @@ router.post(
         },
       });
     } catch (error) {
+      if (error instanceof AmbiguousDeploymentError) {
+        auditLog(req, `process.start.${key}`, 'failure', {
+          reason: 'AMBIGUOUS_DEPLOYMENT',
+          tenants: error.tenants,
+        });
+        return ambiguousDeployment(res, error);
+      }
       // Prefer Operaton's own error message (e.g. "no matching process definition
       // deployed with key ...") over the generic axios message, so the caller can
       // tell a missing deployment apart from a connection failure.
@@ -181,10 +223,20 @@ router.get('/history', async (req, res) => {
     });
   }
 
-  // Citizens can only request their own history
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const roles: string[] = (req.user as any).roles ?? [];
-  const isCaseworker = roles.includes('caseworker');
+  // A citizen reads their own history; a caseworker reads any applicant's in
+  // their tenant. Any other role -- public affairs, Woo -- reads none (#229):
+  // those users file no applications, and their role gives them no business
+  // in citizens' cases.
+  const isCaseworker = (req.user.roles ?? []).includes('caseworker');
+  if (!isCaseworker && !isCitizen(req.user)) {
+    return res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Only citizens and caseworkers may read process history',
+      },
+    });
+  }
   if (!isCaseworker && applicantId !== req.user.userId) {
     return res.status(403).json({
       success: false,
@@ -244,24 +296,12 @@ router.get('/:id/status', async (req, res) => {
   try {
     const processInstance = await operatonService.getProcessInstance(id);
 
-    // Verify tenant ownership
+    // The owning tenant, or the applicant themselves (#229)
     const variables = await operatonService.getProcessVariables(id);
     const processTenant = variables.municipality?.value;
 
-    if (processTenant !== req.user.tenantId) {
-      logger.warn('Tenant mismatch on process access', {
-        processInstanceId: id,
-        userTenant: req.user.tenantId,
-        processTenant,
-      });
-
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Access denied: municipality mismatch',
-        },
-      });
+    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
     res.json({
@@ -316,23 +356,11 @@ router.get('/:id/variables', async (req, res) => {
   try {
     const variables = await operatonService.getProcessVariables(id);
 
-    // Verify tenant ownership
+    // The owning tenant, or the applicant themselves (#229)
     const processTenant = variables.municipality?.value;
 
-    if (processTenant !== req.user.tenantId) {
-      logger.warn('Tenant mismatch on process variable access', {
-        processInstanceId: id,
-        userTenant: req.user.tenantId,
-        processTenant,
-      });
-
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Access denied: municipality mismatch',
-        },
-      });
+    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
     // Extract plain values
@@ -379,16 +407,11 @@ router.get('/:id/historic-variables', async (req, res) => {
   try {
     const variables = await operatonService.getHistoricVariables(id);
 
-    // Tenant check: allow if municipality matches OR if this is the citizen's own process
-    // (commercial org citizens have processes running under toeslagen, not their own tenantId).
-    const municipality = variables['municipality'];
-    const ownTenant = !municipality || municipality === req.user.tenantId;
-    const ownProcess = variables['applicantId'] === req.user.userId;
-    if (!ownTenant && !ownProcess) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: organisation mismatch' },
-      });
+    // Tenant check: the owning tenant, or the applicant themselves (a citizen
+    // whose case was sent to another tenant's deployment still reads it).
+    const processTenant = variables['municipality'];
+    if (!caseReadAllowed(req.user, processTenant, variables['applicantId'])) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
     res.json({ success: true, data: variables });
@@ -426,18 +449,11 @@ router.get('/:id/activity-history', async (req, res) => {
 
   try {
     // Tenant check via the instance's municipality variable (history-based so it
-    // resolves for both running and completed instances).
+    // resolves for both running and completed instances) -- or the applicant
+    // themselves (#229).
     const vars = await operatonService.getHistoricVariables(id);
-    if (vars.municipality && vars.municipality !== req.user.tenantId) {
-      logger.warn('Tenant mismatch on activity-history access', {
-        processInstanceId: id,
-        userTenant: req.user.tenantId,
-        processTenant: vars.municipality,
-      });
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
-      });
+    if (!caseReadAllowed(req.user, vars.municipality, vars['applicantId'])) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant: vars.municipality });
     }
 
     const activities = await operatonService.getActivityHistory(id);
@@ -473,19 +489,8 @@ router.get('/:instanceId/decision-document', async (req, res) => {
     // Tenant isolation: reuse the same flat-value historic variables map
     const vars = await operatonService.getHistoricVariables(instanceId);
     const processTenant = vars.municipality;
-
-    const ownTenant = processTenant === req.user.tenantId;
-    const ownProcess = vars['applicantId'] === req.user.userId;
-    if (!ownTenant && !ownProcess) {
-      logger.warn('Tenant mismatch on decision-document access', {
-        instanceId,
-        userTenant: req.user.tenantId,
-        processTenant,
-      });
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: organisation mismatch' },
-      });
+    if (!caseReadAllowed(req.user, processTenant, vars['applicantId'])) {
+      return denyTenant(req, res, { processInstanceId: instanceId, processTenant });
     }
 
     const template = await operatonService.getDecisionDocument(instanceId);
@@ -561,6 +566,9 @@ router.get('/:key/start-form', async (req, res) => {
     const schema = JSON.parse(data);
     res.json({ success: true, data: schema });
   } catch (error) {
+    if (error instanceof AmbiguousDeploymentError) {
+      return ambiguousDeployment(res, error);
+    }
     logger.error('Failed to fetch start form', {
       processKey: key,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -646,20 +654,8 @@ router.delete('/:id', async (req, res) => {
     const variables = await operatonService.getProcessVariables(id);
     const processTenant = variables.municipality?.value;
 
-    if (processTenant !== req.user.tenantId) {
-      logger.warn('Tenant mismatch on process deletion', {
-        processInstanceId: id,
-        userTenant: req.user.tenantId,
-        processTenant,
-      });
-
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Access denied: municipality mismatch',
-        },
-      });
+    if (!tenantAllows(req.user, processTenant)) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
     await operatonService.deleteProcessInstance(id, reason);

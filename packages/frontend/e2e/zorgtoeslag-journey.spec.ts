@@ -8,9 +8,9 @@ import { instanceIdsForBusinessKey, openOwnTask } from './helpers/tasks';
 // Citizen (test-citizen-unive, a commercial org) submits a Zorgtoeslag
 // (health care allowance) claim via AwbZorgtoeslagProcess -> DMN
 // evaluation -> ZorgtoeslagProvisionalSubProcessE2E creates a "Case review"
-// task. AwbZorgtoeslagProcess always runs under the toeslagen processing
-// authority regardless of which channel the citizen came from
-// (process.routes.ts overrides the municipality variable explicitly), so
+// task. AwbZorgtoeslagProcess is deployed under the toeslagen processing
+// authority, and a citizen's case goes to the deployment's tenant whichever
+// channel they came from (tenant-access.ts resolveStartTenant), so
 // test-caseworker-toeslagen — not test-caseworker-unive, which doesn't
 // exist — claims and completes it, which advances the shell to its own
 // follow-up notify task, completed too for a finalized roundtrip. See

@@ -296,6 +296,10 @@ export function searchPublicIndex(
     const hay = `${it.title} ${it.summary || ''} ${it.org}`.toLowerCase();
     let score = 0;
     for (const t of terms) {
+      // `t` comes from the user-supplied query, and is mapped through
+      // escapeRegExp where `terms` is built -- so it is a literal string by the
+      // time it reaches here, and cannot inject or backtrack.
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
       const re = new RegExp(t);
       if (re.test(it.title.toLowerCase())) score += 10;
       if (re.test(hay)) score += 4;

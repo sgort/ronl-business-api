@@ -5,8 +5,9 @@ import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
-import { OperatonVariable } from '@ronl/shared';
+import { OperatonVariable, Task } from '@ronl/shared';
 import { inferType } from '@utils/operaton-variables';
+import { denyTenant, reservedVariablesIn, tenantAllows } from '@auth/tenant-access';
 
 const router = express.Router();
 const logger = createLogger('task-routes');
@@ -14,6 +15,18 @@ const logger = createLogger('task-routes');
 // All task routes require authentication and tenant context
 router.use(jwtMiddleware);
 router.use(tenantMiddleware);
+
+/**
+ * The tenant a task belongs to is its process instance's municipality
+ * variable -- the only tenant label access checks read (#218, #219) -- not
+ * Operaton's task.tenantId, which is the deployment's. For a task in a
+ * called subprocess this is the child instance's copy, inherited through
+ * <camunda:in variables="all"/>.
+ */
+async function taskMunicipality(task: Task): Promise<unknown> {
+  const variables = await operatonService.getProcessVariables(task.processInstanceId);
+  return variables.municipality?.value;
+}
 
 /**
  * GET /v1/task
@@ -105,17 +118,9 @@ router.get('/:id', async (req, res) => {
   try {
     const task = await operatonService.getTask(id);
 
-    // Tenant check via task's tenantId claim from Operaton
-    if (task.tenantId && task.tenantId !== req.user.tenantId) {
-      logger.warn('Tenant mismatch on task access', {
-        taskId: id,
-        userTenant: req.user.tenantId,
-        taskTenant: task.tenantId,
-      });
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
-      });
+    const taskTenant = await taskMunicipality(task);
+    if (!tenantAllows(req.user, taskTenant)) {
+      return denyTenant(req, res, { taskId: id, taskTenant });
     }
 
     res.json({ success: true, data: task });
@@ -149,14 +154,11 @@ router.get('/:id/variables', async (req, res) => {
   try {
     const task = await operatonService.getTask(id);
 
-    if (task.tenantId && task.tenantId !== req.user.tenantId) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
-      });
-    }
-
     const variables = await operatonService.getProcessVariables(task.processInstanceId);
+    const taskTenant = variables.municipality?.value;
+    if (!tenantAllows(req.user, taskTenant)) {
+      return denyTenant(req, res, { taskId: id, taskTenant });
+    }
 
     // Return plain values
     const plainVariables: Record<string, unknown> = {};
@@ -199,11 +201,9 @@ router.get('/:id/form-schema', async (req, res) => {
   try {
     const task = await operatonService.getTask(id);
 
-    if (task.tenantId && task.tenantId !== req.user.tenantId) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
-      });
+    const taskTenant = await taskMunicipality(task);
+    if (!tenantAllows(req.user, taskTenant)) {
+      return denyTenant(req, res, { taskId: id, taskTenant });
     }
 
     const { data, contentType } = await operatonService.getDeployedTaskForm(id);
@@ -260,11 +260,9 @@ router.post('/:id/claim', async (req, res) => {
   try {
     const task = await operatonService.getTask(id);
 
-    if (task.tenantId && task.tenantId !== req.user.tenantId) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
-      });
+    const taskTenant = await taskMunicipality(task);
+    if (!tenantAllows(req.user, taskTenant)) {
+      return denyTenant(req, res, { taskId: id, taskTenant });
     }
 
     await operatonService.claimTask(id, req.user.userId);
@@ -302,10 +300,27 @@ router.post('/:id/complete', async (req, res) => {
   try {
     const task = await operatonService.getTask(id);
 
-    if (task.tenantId && task.tenantId !== req.user.tenantId) {
-      return res.status(403).json({
+    const taskTenant = await taskMunicipality(task);
+    if (!tenantAllows(req.user, taskTenant)) {
+      return denyTenant(req, res, { taskId: id, taskTenant });
+    }
+
+    // The tenant label and the applicant are set at start and must not be
+    // rewritten by a completion (#218): Operaton would store them on the
+    // process instance and move the case.
+    const reserved = reservedVariablesIn(variables);
+    if (reserved.length > 0) {
+      auditLog(req, 'task.complete', 'failure', {
+        taskId: id,
+        reason: 'RESERVED_VARIABLE',
+        reserved,
+      });
+      return res.status(400).json({
         success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied: municipality mismatch' },
+        error: {
+          code: 'RESERVED_VARIABLE',
+          message: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
+        },
       });
     }
 

@@ -31,12 +31,18 @@ let cache: Cache | null = null;
 
 function extractTag(xml: string, tag: string): string {
   const match = xml.match(
+    // `tag` is never escaped, and does not need to be: extractTag is not
+    // exported and every call site passes a literal ('productID',
+    // 'dcterms:title', ...). ':' is not a regex metacharacter.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tag}>`, 'i')
   );
   return (match?.[1] ?? match?.[2] ?? '').trim();
 }
 
 function extractAllTags(xml: string, tag: string): string[] {
+  // Same as extractTag above: not exported, literal callers only.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const re = new RegExp(
     `<${tag}[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tag}>`,
     'gi'

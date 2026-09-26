@@ -112,6 +112,363 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.12',
+      status: 'Released',
+      date: '26 sep 2026',
+      scope: ['backend', 'frontend', 'public-site', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: 'dfed8f3',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'OpenAPI: the remaining mounts are described — everything except /v1/m2m',
+          details: [
+            'Phase 7 of #200, closing #215: 17 operations across /v1/rip (7), /v1/mcp (3), /v1/hr-capacity (3), /v1/hr (2), /v1/brp (1) and /v1/admin (1), all exercised against acceptance. Pending drops from 35 to 18, and 113 of 131 operations are now described. The ceiling goes to 18 rather than 0: /v1/m2m is deferred to #214 pending #237, so openapi/pending.json stays, and deleting it — with the three pending rules and the ceiling — becomes #214’s job.',
+            'Live testing corrected what reading did not: 404 UNKNOWN_PHASE was absent from the static extract and phase codes are dotted (R2.1, not R21); /hr/onboarding/profile requires employeeId; POST /mcp/chat takes message and modelId rather than a messages array; and BRP_API_ERROR carries an extra details.invalidParams, the only error in this API with a third field. POST /mcp/chat is the one streaming operation — text/event-stream with delta and done events — so the 200 types the body as a string and the framing lives in the description; its refusals are ordinary JSON sent before the stream opens.',
+            '/v1/admin requires the admin realm role and /v1/mcp caseworker or admin; both answer 403 FORBIDDEN, a role refusal rather than TENANT_MISMATCH. /v1/brp applies jwtMiddleware per route, so it is authenticated without a router.use. Raised while writing this: #241, brp.routes.ts logging the whole request body, BSN included, at info level.',
+          ],
+        },
+        {
+          sha: '38232fd',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'OpenAPI: policy analysis is described, 33 operations in one mount',
+          details: [
+            'Phase 5 of #200, closing #213: pa.routes.ts and pa-dossiers.routes.ts, a quarter of this API. Pending drops from 68 to 35; 32 of the 33 operations were exercised against acceptance. Three are declared before the router-level middleware: /pa/curator/run and /pa/curator/status carry jwt and role inline with no tenantMiddleware, and /pa/signals.rss has no middleware at all — it authenticates by a token query parameter, the only operation that does, because RSS readers cannot send headers, and its refusals are plain text. /pa/curator/run hardcodes flevoland.',
+            'Dossiers, searches and feed tokens filter on tenant_id; signals do not, because pa_signals has no tenant column. The RSS feed returning every confirmed signal to any valid token follows from that design, and is written down so it is not later “fixed” by someone reading only the endpoint.',
+            'Live testing corrected two request shapes: POST /pa/searches takes query as an object { q, types?, source? } with scope tenant|user, and POST /pa/dossiers requires naam and onderwerp. A dossier has two representations — reads return the rendered view, writes the authoring model — and both are documented. Several writes answer a bare { success }, meta differs within the mount, and /pa/searches answers snake_case where /pa/signals answers camelCase; all recorded as they are. One new Spectral exception: PaFeedItem.date carries a full timestamp, like PublicIndexItem.date.',
+          ],
+        },
+        {
+          sha: 'c43de59',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Every release now carries an SBOM, committed and uploaded',
+          details: [
+            'ICTU recommendation 10 asks for SBOMs of released versions, kept analysable: when an advisory lands against something that shipped months ago, only a document written at the time can say what that version contained. scripts/write-sbom.mjs writes docs/sbom/<name>-<version>.cdx.json — CycloneDX, production dependencies only, and --package-lock-only, so it describes the lockfile rather than whatever is in node_modules. npm run sbom is a bump-release step, after the version bump, since the filename carries the version.',
+            '.github/workflows/sbom.yml runs on a push to main, on demand, and on a pull request that touches the tooling; a promotion to main is the release here. It uploads the document as an artifact — which a public repository keeps for ninety days — while the committed copy is what answers a question about a version that shipped a year ago.',
+            'Three modes: writing; --check, strict, where the release is cut; and --verify-release, which a promotion can honestly assert — a missing document fails and drift only warns, because a promotion carries every commit merged since the release. Both comparisons parse JSON and ignore serialNumber and metadata.timestamp, so Prettier reformatting the document does not break them.',
+          ],
+        },
+        {
+          sha: '9cce1ca',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'OpenAPI: documents, delivery and signing are described',
+          details: [
+            'Phase 4 of #200, closing #212: 21 operations across /v1/edocs (10), /v1/validsign (7) and /v1/doccle (4). Pending drops from 89 to 68. /v1/edocs and /v1/doccle answer { success, data, timestamp } — a fourth response envelope in one API, recorded rather than normalised — with timestamp on success only. 502 is the usual failure, because the fault is upstream, and neither mount applies tenantMiddleware: a document library and a delivery channel are infrastructure, not cases.',
+            'Live verification caught three wrong request bodies that reading the handlers had produced: the Doccle receiver and document writes take the object as the body rather than nested under a key, and the paid endpoint answers { success, timestamp } with no data. The local stack has eDOCS configured but down, which exercised 502 EDOCS_ERROR; acceptance has it stubbed, which gave the 200s — both halves verified, and the document says the eDOCS shapes came from stubs.',
+            'ValidSign has two routers on one mount with opposite security, the callback mounted first because ValidSign sends no token. Three ceremony routes answer text/html, and the content type varies by outcome within one operation. #227 was verified on acceptance: both task reads now answer TENANT_MISMATCH for another organisation. POST /task/{taskId}/package has the most distinct refusals in the API, including its only 422.',
+          ],
+        },
+        {
+          sha: 'c32a1a7',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'OpenAPI: the execution core is described, with the settled access rules',
+          details: [
+            'Phase 3 of #200, closing #211: 19 operations across /v1/process (10), /v1/task (7) and /v1/decision (2). Pending drops from 108 to 89. It was paused until #218 settled the access rules, so the 403s are documented as final: 403 TENANT_MISMATCH on eleven operations; the five process reads admit the case’s own applicant while DELETE and every task operation admit the owning organisation only; 403 FORBIDDEN survives only for role refusals on /process/history; plus 400 RESERVED_VARIABLE on task completion and 409 AMBIGUOUS_DEPLOYMENT on start and start-form.',
+            'Every shape was captured from ACC. TENANT_MISMATCH appears in no route file — it is raised through auth/tenant-access.ts, so a static sweep misses it on all eleven operations — and GET /process/{key}/variable-hints answers { success, variables }, the only operation with that envelope. A mechanical comparison of required fields against live samples caught 20 omitted fields across four schemas, including boardOwner and the always-null CMMN case* fields. 409 AMBIGUOUS_DEPLOYMENT, not reproducible on ACC, was validated on the local stack with two throwaway tenants.',
+            'businessKey is documented as fixed by #235: a minted key carries the owning organisation, a caller-supplied key is kept verbatim. Verified on ACC after the fix deployed — the exact #234 case now mints flevoland-… where it minted utrecht-….',
+          ],
+        },
+        {
+          sha: 'fb551f0',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A minted business key is prefixed with the owning organisation (#234)',
+          details: [
+            'addTenantToProcessVariables minted `${caller tenant}-${Date.now()}` before the start route knew which organisation owns the case. Since #218 a citizen’s case goes to the tenant the process is deployed under, so a utrecht citizen’s AwbShellProcess case, owned by flevoland, got a key starting utrecht-. The business key is the handle people see in Cockpit, support and exports, and read as ownership.',
+            'The start route now mints the key after resolveStartTenant, prefixed with startTenant.municipality; the middleware no longer mints one. A caller-supplied key is kept unchanged, as RIP phases inherit their R2.1 key. Nothing parses the prefix, and existing keys are not rewritten.',
+          ],
+        },
+        {
+          sha: 'd780fc4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'The applicant reads their own case; process history is for citizens and caseworkers only (#229)',
+          details: [
+            'A citizen whose case went to another tenant’s deployment — a unive citizen’s AWB claim under toeslagen — could read it through /historic-variables and /decision-document only; /status, /variables and /activity-history refused them. caseReadAllowed in tenant-access.ts admits the owning tenant or the case’s own applicant, and every process read now goes through it. DELETE stays with the owning tenant.',
+            'GET /v1/process/history treated anyone without the caseworker role as a citizen, so public-affairs and Woo staff passed as citizens. It now uses isCitizen: a citizen reads their own history, a caseworker any applicant’s within their tenant, and any other role gets 403 FORBIDDEN.',
+          ],
+        },
+        {
+          sha: '2b4fe41',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A start picks the caller’s own deployment and refuses an ambiguous one (#228)',
+          details: [
+            'resolveDeployedTenant returned the first tenant-scoped definition Operaton listed. Since #218 that tenant decides access at start — staff of another tenant are refused, a citizen’s case goes to it — so with a key deployed under two organisations the outcome depended on row order.',
+            'It now takes the caller’s own tenant when that tenant deploys the key, otherwise the single tenant that does, and throws AmbiguousDeploymentError when several other tenants do. POST /v1/process/:key/start and GET /v1/process/:key/start-form answer 409 AMBIGUOUS_DEPLOYMENT and start nothing; the M2M start fails the same way through its existing 500. With no tenant-scoped deployment, or a failed lookup, it returns null as before.',
+          ],
+        },
+        {
+          sha: '5174a9e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'ValidSign task endpoints refuse another tenant’s task (#227)',
+          details: [
+            'GET /v1/validsign/task/:taskId/spec, POST …/package and GET …/status authenticated the caller but never compared their organisation with the task’s. Anyone who knew a task id could read its signing state, and POST /package could send a real, unrecallable signature request on another organisation’s case and write validsign* variables onto it.',
+            'Each endpoint now checks the task instance’s municipality variable through tenantAllows/denyTenant, the check every other task route uses since #218: 403 TENANT_MISMATCH for another tenant or no label. The check runs before the spec lookup, the duplicate-package guard, rendering, createPackage and any variable write; /status checks on both the runtime and the history path. The callback stays system-to-system.',
+          ],
+        },
+        {
+          sha: 'db87be7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A task completion cannot rewrite the tenant label or the applicant (#218)',
+          details: [
+            'POST /v1/task/:id/complete forwarded every body variable to Operaton, which stores completion variables on the process instance. With the municipality variable now the only tenant label, a completion carrying municipality would hand the case to another tenant, or to none, and one carrying applicantId would unlock the applicant exception for someone else.',
+            'municipality, originTenantId and applicantId are reserved. A user completion that includes any of them gets 400 RESERVED_VARIABLE, after the tenant check and before anything reaches Operaton. The M2M complete route is trusted and unchanged, as with the M2M start.',
+          ],
+        },
+        {
+          sha: '80dcc62',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Process, capacity and RIP routes share one tenant check that fails closed (#218)',
+          details: [
+            'The process-detail handlers (status, variables, DELETE, historic-variables, activity-history, decision-document) and the capacity and RIP document routes each compared the municipality variable inline, answered FORBIDDEN with one of two messages, and four of them let an instance with no label through to every tenant. All eight now go through tenantAllows/denyTenant: one answer, 403 TENANT_MISMATCH, and no label means no access.',
+            'The applicant exception stays where it was, on historic-variables and decision-document, so a citizen whose case went to another tenant’s deployment still reads it.',
+          ],
+        },
+        {
+          sha: 'd722de4',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'Task access is decided by the instance’s municipality, not Operaton’s tenant (#218, #219)',
+          details: [
+            'The five task-detail endpoints compared Operaton’s task.tenantId — the deployment’s tenant — while the task list filtered on the municipality process variable. When the two disagreed, GET /v1/task offered a task that GET /v1/task/:id then refused (#219), and the process and task endpoints split one instance between two tenants (#218).',
+            'GET /:id, /:id/variables, /:id/form-schema, POST /:id/claim and /:id/complete now read municipality from the task’s process instance and refuse through tenantAllows/denyTenant: 403 TENANT_MISMATCH, including when the instance carries no label. The check runs before any claim, completion or form fetch.',
+          ],
+        },
+        {
+          sha: 'b762a13',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'A start is stamped with the deployed tenant; staff are refused across tenants (#218)',
+          details: [
+            'POST /v1/process/:key/start now resolves the tenant the process is deployed under and applies resolveStartTenant before anything reaches Operaton. Staff starting another tenant’s process get 403 TENANT_MISMATCH and no instance is created — the utrecht-caseworker/AwbShellProcess case from #218. A citizen’s case goes to the deployment’s tenant, with originTenantId recording their own. The stamped municipality always comes from the rule, never from the request body.',
+            'The AwbZorgtoeslagProcess override that hardcoded municipality = toeslagen is removed: the process is deployed under toeslagen, so the general rule yields the same values. Its type coercions stay.',
+          ],
+        },
+        {
+          sha: '72df271',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'An unlabelled start is labelled with the deployed tenant (#218)',
+          details: [
+            'startProcess filled an absent municipality variable with the caller’s tenant while starting the instance under the deployment’s tenant. For the M2M start that meant municipality = m2m on an instance whose tasks Operaton labels with the deployment’s tenant — the #218 split. The default is now the scope tenant (the deployed tenant, or the caller’s for an untenanted deployment); an explicitly supplied municipality is kept.',
+            'resolveDeployedTenant becomes public, and startProcess accepts an already resolved deployed tenant (null meaning untenanted), so the start route can apply the tenant rule first without looking the tenant up twice.',
+          ],
+        },
+        {
+          sha: 'f172cf3',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'tenant-access: the one place tenant decisions are made (#218, #219)',
+          details: [
+            'isCitizen, tenantAllows, denyTenant and resolveStartTenant decide every tenant question for process and task access from the municipality process variable alone. A missing label refuses, every refusal answers 403 TENANT_MISMATCH, and a start under another tenant’s deployment is allowed for citizens — the case goes to the deployment’s tenant — and refused for staff. Nothing called it yet at this commit; the fixes above wire it in.',
+            'The spec now also covers the M2M start: an unlabelled start takes the deployed tenant, so its variable agrees with the tenant Operaton gives its tasks.',
+          ],
+        },
+        {
+          sha: 'b214b77',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Plan for a single tenant source for process and task access (#218, #219)',
+          details: [
+            'Six tasks: the tenant-access module, startProcess labelling by the deployed tenant (which also covers the M2M start), the start-route tenant rule, task checks on the instance variable, process/capacity/RIP checks through the shared helper, and verification on the local stack.',
+          ],
+        },
+        {
+          sha: '707e826',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Design for a single tenant source for process and task access (#218, #219)',
+          details: [
+            'The process routes decided tenant from the municipality process variable; the task routes decided it from Operaton’s deployment tenantId. The two diverge whenever a caller starts a process deployed under another tenant, leaving an instance half-readable by each tenant (#218) and task lists that offer tasks the detail endpoint refuses (#219).',
+            'The spec settles the variable as the only source, stamps the deployed tenant into it at start (citizens allowed across tenants, staff refused), fails closed on a missing label, and gives every tenant refusal one code: 403 TENANT_MISMATCH. It also records what #211 documents for these 403s.',
+          ],
+        },
+        {
+          sha: 'c81098b',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The lockfile-sync check ignores lifecycle scripts',
+          details: [
+            'The new step failed on every pull request, and not for the reason it exists: npm ci --dry-run still runs lifecycle scripts, and the root postinstall (scripts/write-deps-marker.mjs) copies package-lock.json into node_modules, which a dry run never creates. On a clean checkout that is ENOENT, reported under a step named “Lockfile matches package.json” — precisely the confusion the step was added to remove. It passed where it was written because that machine already had node_modules; CI does not.',
+            '--ignore-scripts skips the postinstall. Whether the lockfile satisfies package.json is decided before any script runs, so the check keeps its meaning.',
+          ],
+        },
+        {
+          sha: 'b2e9bf1',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'A lockfile out of step with package.json fails under its own name',
+          details: [
+            'npm ci refuses to install when package-lock.json and package.json disagree, so this was already detectable — but only as an EUSAGE error inside “Install dependencies for the formatter”, three steps into a job about pinning, where it does not read as a lockfile problem. It happened on 25 September 2026: three dependency pull requests merged back to back, each with a lockfile computed against an older acc, produced a lockfile matching no package.json, while every one had been green against its own base.',
+            'An npm ci --dry-run step now runs before that install: it resolves and validates without writing node_modules, costs seconds, and fails with the cause in its own name. What it cannot do is recorded beside it — it proves the lockfile consistent with the pull request’s own base, not with a base that has since moved — so dependency pull requests are merged one at a time, each rebased onto the merged acc first.',
+          ],
+        },
+        {
+          sha: '05d76bd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The lockfile is complete again after three dependency merges',
+          details: [
+            'npm ci on acc failed with EUSAGE: string-width, strip-ansi, wrap-ansi, emoji-regex, get-east-asian-width, ansi-regex and a nested ansi-styles — lint-staged 17’s transitive dependencies — were missing from the lockfile. #221, #222 and #223 were merged one after another without rebasing between them; each computed its lockfile against the acc of its own moment, the ruleset does not require a branch to be up to date, and the three merged without textual conflict into a lockfile that no longer matched package.json.',
+            'npm install --package-lock-only adds the seven missing entries and nothing else: package.json is untouched, the diff is additive, and the .npmrc cooldown applied during the resolve, so nothing younger than fourteen days entered. npm ci resolves cleanly again.',
+          ],
+        },
+        {
+          sha: '0a75676',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Ubuntu 26.04 and Node 24 are deferred, with the reasons recorded',
+          details: [
+            'ICTU recommendation 7 asks for a major to be assessed rather than taken or ignored, and for the decision to be recorded. Both were assessed on 24 September 2026 and held, each as a Renovate rule that disables the update and carries its reason and the condition that ends it. Ubuntu 26.04: the runner pins exist to stop drift, not to be newest, and ubuntu-latest still resolves to 24.04 — revisit when it moves. Node 24: both App Services run NODE|22-lts against an .nvmrc of 22.23.2, and taking 24 in .nvmrc alone would build the backend on a major the host does not run; switch the App Services first, then drop the rule in the same change as the bump.',
+            'Deliberately not deferred by rule: react-router-dom 7, vitest 5, jsdom 30, vite 8 with @vitejs/plugin-react 6, typescript 7, eslint 10, the React monorepo and the grouped workspace majors. Disabling those would hide them; they stay queued behind Dependency Dashboard approval, where a person sees them.',
+          ],
+        },
+        {
+          sha: '77d7268',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'lint-staged moves to v17',
+        },
+        {
+          sha: 'fa44ed1',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'concurrently moves to v10',
+        },
+        {
+          sha: 'ea01976',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: '@testing-library/jest-dom moves to v7',
+        },
+        {
+          sha: '617d105',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Renovate never offers a new major’s first release',
+          details: [
+            'ICTU recommendation 7 asks for the risk of a major to be assessed, and for the first or second patch release to be waited for. Majors already waited for Dependency Dashboard approval here; nothing said which version may be offered once someone approves. A packageRules entry now sets allowedVersions to !/^\\d+\\.0\\.0$/ for the npm manager, so the earliest a major can arrive is X.0.1.',
+            'Scoped to npm deliberately: allowedVersions applies to every update type of a matched package, and the same pattern against Docker tags or the github-runner datasource would mean something else. Verified with renovate-config-validator --strict and against fourteen versions; every major queued today is unaffected. The cost is recorded in the rule: a package that publishes X.0.0 and never a patch is never offered that major, and the remedy is a per-package exception carrying its reason.',
+          ],
+        },
+        {
+          sha: 'e1281a5',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'OpenAPI: the unauthenticated surface is described',
+          details: [
+            'Phase 2 of #200, closing #210: 18 operations across /v1/public (16) and /v1/media-aggregator (2). Pending drops from 126 to 108. A draft written from the handlers was contradicted by the running service in five places — four lists answer { items, pagination } or { items, total, facets } rather than a bare array, /public/regelcatalogus has a structured body with a cache block in meta, BerichtItem has 13 fields, and /public/use-cases fails with USE_CASES_FETCH_FAILED — so the whole splice was reverted and redone against live responses.',
+            '#210 framed this group as uniformly unauthenticated; the aggregator is not. /media-aggregator/search requires a matching bearer token when MEDIA_AGGREGATOR_ACCEPT_KEY is set and is open otherwise, now a second security scheme, mediaAggregatorKey; and it answers a bare { error } — a third response shape, recorded as MediaAggregatorError.',
+            'Also documented: publicWriteLimiter (10 requests per 15 minutes per IP), the upload limits and allowlists, ALTCHA’s three 400 codes and that the check is skipped without an HMAC key, and that meta.generatedAt is when the response was built rather than when upstream data was fetched. One Spectral exception, for PublicIndexItem.date carrying a full timestamp; API-Version was added to all 21 new responses.',
+          ],
+        },
+        {
+          sha: '3c8d0b3',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The backend publishes an OpenAPI description, and the banner points at it',
+          details: [
+            'Phase 1 of #200. GET /v1/openapi.json is served at the location /core/publish-openapi prescribes, and the root banner advertises it again, closing the other half of #67. The document is read once at module load, not lazily: a zip deploy overwrites files before it restarts the process, so a lazy read lets an old process serve a document from an artifact it is not running. The other 126 operations are listed in openapi/pending.json, which only shrinks.',
+            'routes/registry.ts is now one array driving three things: index.ts mounts from it, the banner advertises from it, and src/openapi/coverage.test.ts compares the document against it — failing when a served operation is neither documented nor pending, when a documented one is not served, or when pending grows. Mount order, which was a comment, is data with a test: the ValidSign callback router must precede the authenticated one. root.routes.ts takes the endpoint map as an argument so its test stays free of the route modules.',
+            'The NL API design rules found two real gaps: the servers needed /v1 in the URI, and API-Version was not sent at all, so version.middleware.ts now sets it. Spectral passes with three recorded exceptions — nlgov:semver, because releases are CalVer, and the three problem-details rules, because the API answers its own { success, error } envelope; every error response is a $ref to one shared component, so a later swap is one change. npm run lint:openapi runs in both backend workflows, the artifact carries openapi/openapi.json, audit.middleware.ts’s interval is now unref()’d, and the unused ENABLE_SWAGGER is gone.',
+          ],
+        },
+        {
+          sha: 'dfb6ace',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The daily audit’s job is called dependency-audit, not audit',
+          details: [
+            'audit is zizmor.yml’s job and a required status check. Required checks match by name, so a second job of that name made the required context ambiguous — one passing and one failing check under one name, which no ruleset can satisfy — and its first run blocked #206 outright. The job is renamed, with the reason recorded beside it, and SECURITY-PIPELINE.md names the check.',
+          ],
+        },
+        {
+          sha: '9ded0aa',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'The audit script runs from a path the branch checkouts cannot remove',
+          details: [
+            'The audit loop checks out origin/acc and origin/main in turn, replacing the working tree — including scripts/audit-tree.mjs, which exists on the branch under review before it exists on either target. The first run lost the script at the first checkout, and the missing-module exit read as a high or critical advisory: a failure reported as a finding that did not exist.',
+            'The script is copied to $RUNNER_TEMP before the loop and run from there. Each iteration resets its own status, and anything above 2 is clamped to 2, so “the audit could not run” can never be mistaken for a finding or for a clean tree.',
+          ],
+        },
+        {
+          sha: '34a5a57',
+          author: 'Steven Gort',
+          type: 'ci',
+          subject: 'Dependencies are audited daily, on acc and on main',
+          details: [
+            'Every other gate runs on a commit, so a new advisory against unchanged code was seen by nothing, and Dependabot watches acc, not the main that production deploys from (ICTU recommendation 10). .github/workflows/dependency-audit.yml runs at 05:17 UTC and on demand, reading each branch’s lockfile with npm audit --package-lock-only. It fails on a high or critical advisory in production dependencies, reports the rest, and opens, updates and closes one tracking issue so a scheduled failure reaches someone.',
+            'scripts/audit-tree.mjs groups findings by advisory rather than by package, because npm reports one entry per affected package — linked-data-explorer’s 28 moderate entries were three advisories. An audit that cannot run exits 2 and is treated as a finding, never as a clean tree. Node is pinned as a literal because the job audits both branches, which need not share an .nvmrc.',
+          ],
+        },
+        {
+          sha: 'bae66c9',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'keycloak-connect is dropped from the backend — nothing imported it',
+          details: [
+            'Declared since the initial commit and referenced by no code: Keycloak authentication is done by src/auth/jwt.middleware.ts with jsonwebtoken and jwks-rsa. It sat under dependencies, so the production install carried 43 packages that existed only because of it — among them chromedriver, adm-zip 0.6.0, jwk-to-pem, elliptic and proxy-agent — and the production tree loses 48, since five more were reachable only through keycloak-connect → chromedriver → escodegen. chromedriver arrived at a floating tag: keycloak-connect declares it as an optionalDependency on latest.',
+            'Three Dependabot alerts came in through it — the open high on adm-zip and two dismissed ones with no patch — and all can no longer arrive by this route. The lockfile diff was checked rather than assumed: 43 entries removed, none added, six changed at identical versions. Closes #204.',
+          ],
+        },
+        {
+          sha: 'cbbb57c',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The frontend stops logging a BSN; the other Semgrep findings are triaged',
+          details: [
+            'brp.api.ts logged the burgerservicenummer to the browser console on a failed person fetch. Harmless today, since test users map to the reserved test range, but getUserBSN returns the JWT’s bsn first — the field DigiD fills in production — so the day DigiD is wired up this would log a real citizen service number. The BSN is dropped from the message, and bsn.mapping.ts logs the username instead of the whole claims object on its no-BSN path.',
+            'SectionErrorBoundary.tsx interpolated a prop into the first argument of a console.error that also passes the error, so a %s in the prop would consume it; it now uses a constant format string. The other fifteen findings are false positives, each annotated with its own reason — escaped or module-private regexes, SHA-1 for content addressing rather than security, a prerender value already escaped two lines above, and a read-only dig() that cannot pollute a prototype.',
+            'The first verification scan used a ruleset that did not contain these rules and reported 0 findings on the old tree too, which proved nothing. Re-run with the five exact rule ids: 14 before, 0 after.',
+          ],
+        },
+        {
+          sha: '7ed9ba7',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject:
+            'The production workflow comment no longer cites linked-data-explorer’s removed reviewer',
+          details: [
+            'azure-backend-prod.yml explained that linked-data-explorer excluded pull_request from its production workflow for a different reason — a required reviewer on its production environment. That reviewer was removed on 24 September 2026, so both repositories now exclude the trigger for the same reason, the promotion argument, and the comment says so. Comment only.',
+          ],
+        },
+        {
+          sha: '0e71fd3',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The Thuisbatterij E2E journey matches its tasks by their Dutch names as well',
+          details: [
+            'linked-data-explorer renames “Case review: recht en hoogte subsidie” and “Phase 6: Notify applicant of decision” in the Thuisbatterij processes. The journey accepts both names, so it passes on engines still running the old definitions and on those running the new ones.',
+          ],
+        },
+        {
+          sha: '08a988a',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject:
+            'The local dev stack’s images are pinned by digest; the App Service runtime is recorded',
+          details: [
+            'docker-compose.yml pins all five images by tag and index digest, and Renovate maintains them through docker:pinDigests. Two were :latest — alpine and operaton/operaton — and a floating tag is invisible to Renovate, so they were the only images nothing watched. They are now alpine 3.24.2 and operaton 2.1.5. The compose files under deployment/vm/ are deliberately not pinned: nothing here applies them, so a digest would record a value no deploy consults (#196).',
+            'The App Service runtime cannot be pinned: az webapp list-runtimes offers NODE|22-lts, NODE|24-lts and NODE|26, major-level only. SECURITY-PIPELINE.md records that and what is reachable — keeping the App Service’s major in step with .nvmrc, switching the App Service first and merging the .nvmrc bump second.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.11',
       status: 'Released',
       date: '23 sep 2026',

@@ -1,0 +1,82 @@
+name: Release SBOM
+
+# ICTU recommendation 10 asks for SBOMs of released versions, kept analysable.
+# A promotion to `main` IS a release here: there are no tags and no GitHub
+# Releases in this repository, so the commit on `main` is the released thing.
+#
+# Two copies, deliberately, because neither is sufficient alone:
+#
+#   - docs/sbom/<name>-<version>.cdx.json, committed at release time by
+#     `npm run sbom` and kept honest by the check below. Durable: a question
+#     about a version that shipped a year ago is answerable from git.
+#   - the artifact this workflow uploads, which is what a scanner or a
+#     Dependency-Track import can fetch without a checkout. This repository is
+#     public, so GitHub caps artifact retention at 90 days — hence the
+#     committed copy.
+#
+# Tracked in sgort/linked-data-explorer#119.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  # So a change to the SBOM tooling is exercised on its own pull request,
+  # rather than first running at a promotion.
+  pull_request:
+    paths:
+      - '.github/workflows/sbom.yml'
+      - 'scripts/write-sbom.mjs'
+      - 'docs/sbom/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # NOT "audit" and not "sbom" alone colliding with anything else: required
+  # checks match by name, and a second job sharing a required context makes it
+  # ambiguous. Learned the hard way when the daily audit's job was called
+  # `audit` and blocked a pull request (sgort/linked-data-explorer#119).
+  release-sbom:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # An exact literal rather than .nvmrc, for the same reason the daily
+          # audit pins one: this reads a lockfile and should not change with
+          # the tree it reads. Renovate maintains it.
+          node-version: '24.20.0'
+
+      - name: Generate the SBOM
+        # --package-lock-only, so no install is needed; production
+        # dependencies only, because that is what the released artifact holds.
+        run: node scripts/write-sbom.mjs
+
+      - name: The released version has an SBOM
+        # Only on a promotion, and deliberately NOT the strict --check: a
+        # promotion carries every commit merged into acc since the release, so
+        # the lockfile may have moved while the committed document is still the
+        # right one for the version being released. --verify-release fails when
+        # the file for this version is missing, and warns when it has drifted,
+        # naming which. The strict check belongs where the release is cut, in
+        # the bump-release step that writes the file.
+        if: ${{ github.event_name == 'push' }}
+        run: node scripts/write-sbom.mjs --verify-release
+
+      - name: Upload the SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-${{ github.sha }}
+          path: docs/sbom/*.cdx.json
+          # The maximum GitHub allows on a public repository. The committed
+          # copy is what survives beyond it.
+          retention-days: 90
+          if-no-files-found: error

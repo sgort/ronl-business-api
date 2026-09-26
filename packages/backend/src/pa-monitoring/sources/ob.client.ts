@@ -77,6 +77,10 @@ function dig(obj: unknown, ...keys: string[]): unknown {
   let cur = obj;
   for (const k of keys) {
     if (cur == null || typeof cur !== 'object') return undefined;
+    // This loop only READS. Prototype pollution needs an assignment into the
+    // traversed object, and dig() never writes -- it walks keys and returns
+    // what it lands on. Every call site passes literal element names.
+    // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop
     cur = (cur as Record<string, unknown>)[k];
   }
   return cur;

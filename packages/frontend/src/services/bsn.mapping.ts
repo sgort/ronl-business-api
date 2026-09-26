@@ -32,7 +32,10 @@ export function getUserBSN(user: {
     return testUserBSNMapping[user.preferred_username];
   }
 
-  // No BSN available
-  console.warn('No BSN found for user', user);
+  // No BSN available. Logs the username only, not the whole claims object:
+  // this branch cannot carry a BSN (it is the one where there isn't one), but
+  // `user` also holds `sub` and whatever else the token brought, and none of
+  // that is needed to explain the warning.
+  console.warn('No BSN found for user', user.preferred_username ?? '(no username)');
   return null;
 }
