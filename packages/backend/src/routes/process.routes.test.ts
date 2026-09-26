@@ -208,6 +208,27 @@ describe('GET /history', () => {
     expect(res.status).toBe(403);
   });
 
+  it('returns a citizen their own history (#229)', async () => {
+    svc.getProcessHistory.mockResolvedValue([{ id: 'p' }]);
+    const res = await auth(request(app).get('/v1/process/history?applicantId=u-1')).set(
+      'x-test-roles',
+      'citizen'
+    );
+    expect(res.status).toBe(200);
+    expect(svc.getProcessHistory).toHaveBeenCalledWith('u-1', 'flevoland', 'province', false);
+  });
+
+  it('refuses staff without the caseworker role, even for their own id (#229)', async () => {
+    const res = await auth(request(app).get('/v1/process/history?applicantId=u-1')).set(
+      'x-test-roles',
+      'public-affairs,pa-author'
+    );
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.message).toBe('Only citizens and caseworkers may read process history');
+    expect(svc.getProcessHistory).not.toHaveBeenCalled();
+  });
+
   it('returns history for a caseworker', async () => {
     svc.getProcessHistory.mockResolvedValue([{ id: 'p' }]);
     const res = await auth(request(app).get('/v1/process/history?applicantId=any'));
@@ -545,14 +566,14 @@ describe('POST /:key/start failure causes', () => {
 });
 
 describe('GET /history for a token without a roles claim', () => {
-  it('treats the caller as role-less rather than crashing', async () => {
-    svc.getProcessHistory.mockResolvedValue([]);
+  it('refuses a role-less caller rather than crashing: neither citizen nor caseworker (#229)', async () => {
     const res = await request(app)
-      // A role-less caller is treated as a citizen, so may only ask for their own.
       .get('/v1/process/history?applicantId=u-1')
       .set('x-test-auth', '1')
       .set('x-test-no-roles', '1');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(svc.getProcessHistory).not.toHaveBeenCalled();
   });
 });
 
@@ -629,6 +650,67 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     svc.getProcessVariables.mockResolvedValue({});
     const res = await auth(request(app).delete('/v1/process/pi'));
     expect(res.status).toBe(403);
+    expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
+  });
+});
+
+// #229: a citizen follows their own case on every process read, including a
+// case another tenant owns (an AWB claim under toeslagen) -- but never
+// deletes it, and never reads another applicant's.
+describe('the applicant reads their own case on every process read (#229)', () => {
+  const runtime = (applicantId: string) => ({
+    municipality: { value: 'toeslagen', type: 'String' },
+    applicantId: { value: applicantId, type: 'String' },
+  });
+
+  it('GET /:id/status admits the applicant', async () => {
+    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false, suspended: false });
+    svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /:id/status refuses another applicant', async () => {
+    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false, suspended: false });
+    svc.getProcessVariables.mockResolvedValue(runtime('u-2'));
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('GET /:id/variables admits the applicant', async () => {
+    svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ municipality: 'toeslagen', applicantId: 'u-1' });
+  });
+
+  it('GET /:id/variables refuses another applicant', async () => {
+    svc.getProcessVariables.mockResolvedValue(runtime('u-2'));
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('GET /:id/activity-history admits the applicant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'u-1' });
+    svc.getActivityHistory.mockResolvedValue([{ id: 'a1' }]);
+    const res = await auth(request(app).get('/v1/process/pi/activity-history'));
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /:id/activity-history refuses another applicant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'u-2' });
+    const res = await auth(request(app).get('/v1/process/pi/activity-history'));
+    expect(res.status).toBe(403);
+    expect(svc.getActivityHistory).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /:id refuses the applicant: deleting stays with the owning tenant', async () => {
+    svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
+    const res = await auth(request(app).delete('/v1/process/pi'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
     expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
   });
 });
