@@ -80,6 +80,19 @@ tags:
     description: |
       The unauthenticated citizen-facing surface. Read operations are cached;
       the three write operations are rate limited and ALTCHA-protected.
+  - name: Process
+    description: |
+      Starting, following and cancelling Operaton process instances. Every
+      operation is organisation-scoped; the five instance reads also admit the
+      case's own applicant.
+  - name: Decision
+    description: |
+      DMN decision definitions and evaluation. Definitions are templates, not
+      cases, so these carry no organisation check.
+  - name: Task
+    description: |
+      User tasks. Organisation-scoped throughout, with no applicant exception:
+      a task is work for staff, not a view of the case.
   - name: Media aggregator
     description: |
       Aggregated media articles for the PA cockpit. Conditionally
@@ -1077,6 +1090,790 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
 
+  # ── /v1/process, /v1/decision, /v1/task ───────────────────────────────────
+  #
+  # The Operaton execution core. Unlike the public surface, EVERY operation here
+  # is authenticated and organisation-scoped: all three routers apply
+  # jwtMiddleware and tenantMiddleware at the mount, so the document-level
+  # bearerAuth applies with no per-operation override.
+  #
+  # ORGANISATION ACCESS, settled in #218 and implemented in
+  # src/auth/tenant-access.ts, which is the only place these decisions are made:
+  #
+  #   - The `municipality` process variable is the ONE label access is decided
+  #     by. Operaton's own task.tenantId is read by no check.
+  #   - 403 TENANT_MISMATCH means the resource belongs to another organisation,
+  #     or carries no label at all. Failing closed on a missing label is
+  #     deliberate.
+  #   - The five process READS also admit the case's own applicant, so a citizen
+  #     can follow a case an organisation is handling for them. DELETE does not:
+  #     it admits the owning organisation alone.
+  #   - 403 FORBIDDEN is now only for ROLE refusals. The two are different
+  #     answers to different questions and no longer share a code.
+
+  /process/{key}/start:
+    post:
+      operationId: startProcess
+      tags: [Process]
+      summary: Start a process instance
+      description: |
+        Starts the process deployed under the caller's own organisation.
+
+        **Which organisation gets the case** depends on who is asking:
+
+        - **Staff** may only start a process deployed under their own
+          organisation. Starting another's answers `403 TENANT_MISMATCH`.
+        - **Citizens** are not refused. Their case is assigned to the
+          organisation the process is deployed under, and `originTenantId`
+          records their own.
+
+        Every instance is stamped with two variables that cannot be changed
+        afterwards: `municipality` (the owning organisation, which every access
+        check enforces) and `originTenantId` (the caller's organisation at
+        start).
+
+        A minted `businessKey` is prefixed with the OWNING organisation, so
+        the case's human-facing handle names whoever is handling it (#234). A
+        caller-supplied `businessKey` is kept exactly as given — a RIP phase
+        inherits the key its R2.1 run minted, so every phase of one project
+        shares it. Either way the key grants nothing: access runs on
+        `municipality` alone.
+      parameters:
+        - $ref: '#/components/parameters/ProcessKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                businessKey:
+                  type: string
+                  description: |
+                    Optional. When absent the service mints one, prefixed with the
+                    OWNING organisation. When supplied it is kept verbatim, which is
+                    how a RIP phase inherits the key its R2.1 run minted (#234).
+                variables:
+                  $ref: '#/components/schemas/OperatonVariableMap'
+      responses:
+        '201':
+          description: The instance was started.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ProcessStartResult' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '409':
+          $ref: '#/components/responses/AmbiguousDeployment'
+        '500':
+          description: Operaton refused the start (`PROCESS_START_FAILED`).
+          $ref: '#/components/responses/Error'
+
+  /process/history:
+    get:
+      operationId: getProcessHistory
+      tags: [Process]
+      summary: Completed instances for one applicant
+      description: |
+        Requires `applicantId` — there is no unfiltered history.
+
+        Restricted by ROLE, not by organisation, so it answers `403 FORBIDDEN`
+        rather than `TENANT_MISMATCH`:
+
+        - a citizen may request only their own history;
+        - a caller who is neither a citizen nor a caseworker is refused
+          outright.
+      parameters:
+        - name: applicantId
+          in: query
+          required: true
+          description: The applicant whose history to return.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The applicant's completed instances.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: A historic process instance as Operaton reports it.
+                      additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`applicantId` was not supplied (`VALIDATION_ERROR`).'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            A role refusal (`FORBIDDEN`): a citizen asking for another
+            applicant's history, or a caller who is neither citizen nor
+            caseworker.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /process/{id}/status:
+    get:
+      operationId: getProcessStatus
+      tags: [Process]
+      summary: Whether an instance is running
+      description: Admits the owning organisation and the case's own applicant.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The instance.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ProcessStatus' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: No such instance (`PROCESS_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+
+  /process/{id}/variables:
+    get:
+      operationId: getProcessVariables
+      tags: [Process]
+      summary: Current variables of a running instance
+      description: |
+        Admits the owning organisation and the case's own applicant.
+
+        Values are returned PLAIN — Operaton's `{value, type}` wrapper is
+        unwrapped. Requests that SET variables use the wrapped form; see
+        `OperatonVariableMap`.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The variables.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PlainVariableMap' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: No such instance (`PROCESS_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+
+  /process/{id}/historic-variables:
+    get:
+      operationId: getProcessHistoricVariables
+      tags: [Process]
+      summary: Variables of a finished instance
+      description: |
+        The same shape as the live read, for an instance that has ended.
+        Admits the owning organisation and the case's own applicant.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The variables.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PlainVariableMap' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`HISTORIC_VARIABLES_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/{id}/activity-history:
+    get:
+      operationId: getProcessActivityHistory
+      tags: [Process]
+      summary: Which activities an instance has passed through
+      description: Admits the owning organisation and the case's own applicant.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The activities, in Operaton's order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ActivityHistoryEntry' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`ACTIVITY_HISTORY_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/{instanceId}/decision-document:
+    get:
+      operationId: getProcessDecisionDocument
+      tags: [Process]
+      summary: The decision document generated for a case
+      description: |
+        Admits the owning organisation and the case's own applicant. Most
+        processes have no document template, in which case this answers 404
+        rather than an empty document.
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          description: The process instance id.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The generated document.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    description: The rendered document.
+                    additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: |
+            No document template for this process (`DOCUMENT_NOT_FOUND`). The
+            usual answer for a process that generates none.
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`DOCUMENT_FETCH_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/{key}/start-form:
+    get:
+      operationId: getProcessStartForm
+      tags: [Process]
+      summary: The deployed start form for a process
+      description: |
+        Returns the form-js schema a caller renders to start this process.
+
+        No organisation check: a form is a template, not a case. It can still
+        answer `409` when the key is deployed under several organisations and
+        none is the caller's, because there is then no form to choose.
+      parameters:
+        - $ref: '#/components/parameters/ProcessKey'
+      responses:
+        '200':
+          description: The form schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FormSchema' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: The process has no deployed start form (`FORM_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/AmbiguousDeployment'
+        '415':
+          description: |
+            The deployed form is not a form-js schema — an embedded or external
+            form this service cannot serve (`UNSUPPORTED_FORM_TYPE`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`FORM_FETCH_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/{key}/variable-hints:
+    get:
+      operationId: getProcessVariableHints
+      tags: [Process]
+      summary: Variable names and types a process expects
+      description: |
+        **This operation does not use the `{ success, data }` envelope.** It
+        answers `{ success, variables }`. Recorded as it is rather than
+        normalised, because a consumer reads what the handler sends.
+      parameters:
+        - $ref: '#/components/parameters/ProcessKey'
+      responses:
+        '200':
+          description: The hints.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, variables]
+                properties:
+                  success: { type: boolean, const: true }
+                  variables:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, type]
+                      properties:
+                        name: { type: string }
+                        type: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`VARIABLE_HINTS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/{id}:
+    delete:
+      operationId: deleteProcessInstance
+      tags: [Process]
+      summary: Cancel a running instance
+      description: |
+        Admits the OWNING organisation only. Unlike the five reads above, the
+        case's own applicant is refused — withdrawing a case is not the same as
+        following it.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The instance was cancelled.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [message, processInstanceId]
+                    properties:
+                      message: { type: string }
+                      processInstanceId: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`PROCESS_DELETE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /decision/{key}:
+    get:
+      operationId: getDecisionDefinition
+      tags: [Decision]
+      summary: A DMN decision definition
+      description: |
+        No organisation check: a decision definition is a template, not a case.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The DMN decision key, for example `TreeFellingDecision`.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The definition.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/DecisionDefinition' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No such decision (`DECISION_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+
+  /decision/{key}/evaluate:
+    post:
+      operationId: evaluateDecision
+      tags: [Decision]
+      summary: Evaluate a DMN decision
+      description: |
+        Evaluates the decision against the supplied variables and returns
+        Operaton's result rows unaltered.
+
+        Input uses Operaton's WRAPPED variable form (`{value, type}`), and the
+        output keeps it too — unlike the variable reads elsewhere, which unwrap.
+        An input set that matches no rule answers `200` with an empty array, not
+        a 404.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variables]
+              properties:
+                variables: { $ref: '#/components/schemas/OperatonVariableMap' }
+      responses:
+        '200':
+          description: |
+            The matched rules, one object per row. Empty when nothing matched.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: One result row, keyed by output name.
+                      additionalProperties:
+                        $ref: '#/components/schemas/OperatonVariable'
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`DECISION_EVALUATION_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /task:
+    get:
+      operationId: listTasks
+      tags: [Task]
+      summary: Tasks the caller can work on
+      description: |
+        Filtered by the caller's organisation AND by their realm roles, which
+        map one-to-one to the candidate groups in the BPMN.
+
+        Both filters matter: until #219 only the role filter was applied, so
+        this listed tasks that `GET /task/{id}` then refused.
+      responses:
+        '200':
+          description: The caller's tasks.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`TASK_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /task/history:
+    get:
+      operationId: listCompletedTasks
+      tags: [Task]
+      summary: Tasks the caller has completed
+      responses:
+        '200':
+          description: Completed tasks.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/HistoricTask' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`TASK_HISTORY_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /task/{id}:
+    get:
+      operationId: getTask
+      tags: [Task]
+      summary: One task
+      description: |
+        Admits the owning organisation only. The applicant exception that
+        applies to the process reads does not apply to tasks: a task is work
+        for staff, not a view of the case.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The task.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/Task' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: No such task (`TASK_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+
+  /task/{id}/variables:
+    get:
+      operationId: getTaskVariables
+      tags: [Task]
+      summary: Variables visible to a task
+      description: |
+        The variables of the task's process instance, returned PLAIN. Admits the
+        owning organisation only.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The variables.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PlainVariableMap' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`TASK_VARIABLES_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /task/{id}/form-schema:
+    get:
+      operationId: getTaskFormSchema
+      tags: [Task]
+      summary: The deployed form for a task
+      description: Admits the owning organisation only.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The form schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FormSchema' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: The task has no deployed form (`FORM_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '415':
+          description: |
+            The deployed form is not a form-js schema
+            (`UNSUPPORTED_FORM_TYPE`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`FORM_FETCH_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /task/{id}/claim:
+    post:
+      operationId: claimTask
+      tags: [Task]
+      summary: Claim a task for the caller
+      description: |
+        Assigns the task to the calling user. Admits the owning organisation
+        only. The body is ignored; the assignee is taken from the token.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The task was claimed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [taskId, assignee]
+                    properties:
+                      taskId: { type: string }
+                      assignee:
+                        type: string
+                        description: The Keycloak subject the task is now assigned to.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`TASK_CLAIM_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /task/{id}/complete:
+    post:
+      operationId: completeTask
+      tags: [Task]
+      summary: Complete a task
+      description: |
+        Completes the task with the supplied variables, advancing the process.
+        Admits the owning organisation only.
+
+        **Three variables are set once at start and can never be written here**:
+        `municipality`, `originTenantId` and `applicantId`. A body containing any
+        of them is refused with `400 RESERVED_VARIABLE`, naming the offender —
+        rewriting the organisation label would move a case between
+        organisations.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variables]
+              properties:
+                variables: { $ref: '#/components/schemas/OperatonVariableMap' }
+      responses:
+        '200':
+          description: The task was completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [taskId, status]
+                    properties:
+                      taskId: { type: string }
+                      status: { type: string, const: completed }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The body tried to write `municipality`, `originTenantId` or
+            `applicantId` (`RESERVED_VARIABLE`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: |
+            Operaton refused the completion (`TASK_COMPLETE_FAILED`) — for
+            example when a required form field is missing, or a downstream
+            gateway cannot evaluate.
+          $ref: '#/components/responses/Error'
+
 components:
   headers:
     ApiVersion:
@@ -1105,6 +1902,29 @@ components:
         `jwtMiddleware`; the tenant and roles are read from its claims.
 
   parameters:
+    ProcessKey:
+      name: key
+      in: path
+      required: true
+      description: |
+        The process definition key. Resolved against the deployment for the
+        caller's organisation; see the 409 on the operations that can raise it.
+      schema: { type: string }
+
+    ProcessInstanceId:
+      name: id
+      in: path
+      required: true
+      description: The process instance id.
+      schema: { type: string }
+
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: The task id.
+      schema: { type: string }
+
     PublicSlug:
       name: slug
       in: path
@@ -1377,6 +2197,271 @@ components:
               naam: { type: string }
               geldig: { type: [string, 'null'] }
 
+    OperatonVariable:
+      type: object
+      description: |
+        Operaton's wrapped variable form. Used when SENDING variables (start,
+        evaluate, complete) and in decision RESULTS. The variable reads unwrap
+        it; see PlainVariableMap.
+      required: [value]
+      properties:
+        value:
+          description: The value itself. Any JSON type.
+        type:
+          type: string
+          description: "Operaton's type name, for example String, Integer, Boolean."
+        valueInfo:
+          type: object
+          additionalProperties: true
+
+    OperatonVariableMap:
+      type: object
+      description: Variables to send, keyed by name, in Operaton's wrapped form.
+      additionalProperties: { $ref: '#/components/schemas/OperatonVariable' }
+
+    PlainVariableMap:
+      type: object
+      description: |
+        Variables as the READ operations return them: keyed by name, with the
+        value only. Operaton's `{value, type}` wrapper is removed.
+
+        Every instance started since #218 carries `municipality` (the owning
+        organisation, which access checks enforce) and `originTenantId` (the
+        caller's organisation at start). Both, with `applicantId`, are
+        rejected if a task completion tries to write them.
+      additionalProperties: true
+
+    ProcessStartResult:
+      type: object
+      description: |
+        Deliberately not the full instance — a start returns what a caller needs
+        to follow the case.
+      required: [processInstanceId, businessKey, status, startTime]
+      properties:
+        processInstanceId: { type: string }
+        businessKey:
+          type: string
+          description: |
+            When minted by this service, prefixed with the OWNING organisation
+            and a timestamp (#234). When supplied by the caller it is kept
+            verbatim, so it may follow any convention. Never an access
+            control: that is `municipality`.
+        status: { type: string, enum: [active, suspended, ended] }
+        startTime: { type: string, format: date-time }
+
+    ProcessStatus:
+      type: object
+      required: [processInstanceId, definitionId, businessKey, status, ended, suspended]
+      properties:
+        processInstanceId: { type: string }
+        definitionId:
+          type: string
+          description: 'The versioned definition, for example
+            `AwbShellProcess:2:5235cc40-…`.'
+        businessKey: { type: string }
+        status: { type: string, enum: [active, suspended, ended] }
+        ended: { type: boolean }
+        suspended: { type: boolean }
+
+    ActivityHistoryEntry:
+      type: object
+      description: One activity an instance passed through, as Operaton reports it.
+      required: [id, activityId, activityType, startTime]
+      properties:
+        id: { type: string }
+        activityId: { type: string }
+        activityName: { type: [string, 'null'] }
+        activityType: { type: string }
+        assignee: { type: [string, 'null'] }
+        startTime: { type: string, format: date-time }
+        endTime: { type: [string, 'null'], format: date-time }
+        durationInMillis:
+          type:
+            - integer
+            - 'null'
+        canceled:
+          type: boolean
+
+    FormSchema:
+      type: object
+      description: |
+        A form-js schema, served unaltered for a renderer to consume. Its
+        `components` are the fields; a form of any other kind answers 415
+        rather than being converted.
+      required: [id, type, components]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        components:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        schemaVersion: { type: integer }
+        executionPlatform: { type: string }
+        executionPlatformVersion: { type: string }
+
+    DecisionDefinition:
+      type: object
+      description: A DMN decision definition as Operaton reports it.
+      required: [id, key, name, version]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        category: { type: [string, 'null'] }
+        name: { type: string }
+        version: { type: integer }
+        resource: { type: string }
+        deploymentId: { type: string }
+        tenantId: { type: [string, 'null'] }
+        versionTag:
+          type:
+            - string
+            - 'null'
+        historyTimeToLive:
+          type:
+            - integer
+            - 'null'
+        decisionRequirementsDefinitionId:
+          type:
+            - string
+            - 'null'
+        decisionRequirementsDefinitionKey:
+          type:
+            - string
+            - 'null'
+
+    Task:
+      type: object
+      description: |
+        A live Operaton task. `tenantId` is present but is NOT what access is
+        decided by — since #218 that is the instance's `municipality` variable.
+
+        Operaton's CMMN fields (`caseInstanceId`, `caseExecutionId`,
+        `caseDefinitionId`) are passed through and are always null here: this
+        platform deploys BPMN only.
+      required: [id, name, created, processInstanceId, taskDefinitionKey]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        assignee: { type: [string, 'null'] }
+        created: { type: string, format: date-time }
+        due: { type: [string, 'null'], format: date-time }
+        followUp: { type: [string, 'null'], format: date-time }
+        description: { type: [string, 'null'] }
+        owner: { type: [string, 'null'] }
+        priority: { type: integer }
+        executionId: { type: string }
+        processDefinitionId: { type: string }
+        processDefinitionKey: { type: [string, 'null'] }
+        processInstanceId: { type: string }
+        taskDefinitionKey: { type: string }
+        suspended: { type: boolean }
+        formKey: { type: [string, 'null'] }
+        tenantId:
+          type: [string, 'null']
+          description: Operaton's deployment tenant. Read by no access check.
+        taskState:
+          type:
+            - string
+            - 'null'
+        parentTaskId:
+          type:
+            - string
+            - 'null'
+        delegationState:
+          type:
+            - string
+            - 'null'
+        lastUpdated:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        operatonFormRef:
+          type:
+            - object
+            - 'null'
+          additionalProperties: true
+          description: A reference to a deployed form, when the task uses one.
+        caseInstanceId:
+          type:
+            - string
+            - 'null'
+          description: 'CMMN. Always null: this platform deploys BPMN only.'
+        caseExecutionId:
+          type:
+            - string
+            - 'null'
+          description: CMMN. Always null.
+        caseDefinitionId:
+          type:
+            - string
+            - 'null'
+          description: CMMN. Always null.
+
+    HistoricTask:
+      type: object
+      description: |
+        A completed task, as Operaton's history reports it. Carries more than
+        the live Task — timing, the reason it ended, and the business key.
+      required: [id, processInstanceId, taskDefinitionKey, startTime]
+      properties:
+        id: { type: string }
+        name: { type: [string, 'null'] }
+        assignee: { type: [string, 'null'] }
+        owner: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+        deleteReason: { type: [string, 'null'] }
+        startTime: { type: string, format: date-time }
+        endTime: { type: [string, 'null'], format: date-time }
+        duration: { type: [integer, 'null'] }
+        priority: { type: integer }
+        due: { type: [string, 'null'], format: date-time }
+        followUp: { type: [string, 'null'], format: date-time }
+        parentTaskId: { type: [string, 'null'] }
+        processDefinitionKey: { type: [string, 'null'] }
+        processDefinitionId: { type: string }
+        processInstanceId: { type: string }
+        executionId: { type: string }
+        taskDefinitionKey: { type: string }
+        taskState: { type: [string, 'null'] }
+        businessKey: { type: [string, 'null'] }
+        tenantId: { type: [string, 'null'] }
+        removalTime: { type: [string, 'null'], format: date-time }
+        rootProcessInstanceId: { type: [string, 'null'] }
+        activityInstanceId:
+          type:
+            - string
+            - 'null'
+        boardOwner:
+          type:
+            - string
+            - 'null'
+          description: 'Added by this service, not Operaton: which board the task belongs
+            to, read from the process-definition XML and cached per definition
+            key.'
+        caseDefinitionKey:
+          type:
+            - string
+            - 'null'
+          description: CMMN. Always null.
+        caseDefinitionId:
+          type:
+            - string
+            - 'null'
+          description: CMMN. Always null.
+        caseInstanceId:
+          type:
+            - string
+            - 'null'
+          description: CMMN. Always null.
+        caseExecutionId:
+          type:
+            - string
+            - 'null'
+          description: CMMN. Always null.
+
     MediaAggregatorError:
       type: object
       description: |
@@ -1389,6 +2474,37 @@ components:
         error: { type: string, enum: [unauthorized, search_failed] }
 
   responses:
+    Unauthorized:
+      description: |
+        No bearer token, or one this service could not verify against the
+        realm's JWKS (`UNAUTHORIZED`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+    TenantMismatch:
+      description: |
+        The resource belongs to another organisation, or carries no
+        organisation label at all (`TENANT_MISMATCH`, message
+        "Access denied: organisation mismatch").
+
+        Failing closed on a missing label is deliberate (#218). This is NOT
+        used for role refusals, which answer `FORBIDDEN`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+    AmbiguousDeployment:
+      description: |
+        The process key is deployed under several organisations and none of
+        them is the caller's, so there is no basis for choosing which one
+        handles the case (`AMBIGUOUS_DEPLOYMENT`). The message names the
+        organisations. When the caller's own organisation is among them, it
+        wins and no 409 is raised.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
     RateLimited:
       description: |
         More than 10 requests in 15 minutes from this IP. Sent by
