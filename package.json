@@ -39,7 +39,8 @@
     "docker:logs:postgres": "docker compose logs -f postgres",
     "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
     "setup": "npm install && npm run docker:up",
-    "prepare": "husky"
+    "prepare": "husky",
+    "sbom": "node scripts/write-sbom.mjs"
   },
   "keywords": [
     "bpmn",
