@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
-import { getErrorMessage } from '@utils/errors';
+import { AmbiguousDeploymentError, getErrorMessage } from '@utils/errors';
 import {
   OperatonVariable,
   ProcessStartRequest,
@@ -199,21 +199,27 @@ export class OperatonService {
    * different from the calling citizen's own (e.g. AwbZorgtoeslagProcess,
    * always handled under toeslagen regardless of which tenant's citizen is
    * calling) instead of assuming the citizen's tenant is the process's
-   * tenant. If the same key has coexisting rows under multiple tenants (a
-   * legacy untenanted deployment alongside a newer tenant-scoped one), the
-   * tenant-scoped row wins. Returns null if the key isn't deployed, is
-   * deployed untenanted, or the lookup itself fails — callers should fall
-   * back to their own best guess. Public so the start route can decide the
-   * tenant rule (tenant-access.resolveStartTenant) before starting.
+   * tenant. A tenant-scoped deployment wins over a legacy untenanted one.
+   *
+   * Among tenant-scoped deployments (#228): the caller's own tenant if it
+   * deploys the key; otherwise the single tenant that does. Several other
+   * tenants and none of them the caller's throws AmbiguousDeploymentError --
+   * the start rule sends a citizen's case to this tenant, so it must never
+   * depend on the order Operaton lists the rows in.
+   *
+   * Returns null if the key isn't deployed, is deployed untenanted, or the
+   * lookup itself fails — callers should fall back to their own best guess.
+   * Public so the start route can decide the tenant rule
+   * (tenant-access.resolveStartTenant) before starting.
    */
-  async resolveDeployedTenant(processKey: string): Promise<string | null> {
+  async resolveDeployedTenant(processKey: string, callerTenant?: string): Promise<string | null> {
+    let tenants: string[];
     try {
       const response = await this.client.get('/process-definition', {
         params: { key: processKey, latestVersion: true },
       });
       const defs = response.data as Array<{ tenantId: string | null }>;
-      const tenantScoped = defs.find((d) => d.tenantId !== null);
-      return tenantScoped?.tenantId ?? defs[0]?.tenantId ?? null;
+      tenants = [...new Set(defs.map((d) => d.tenantId).filter((t): t is string => t !== null))];
     } catch (error) {
       logger.warn('Failed to resolve deployed tenant; falling back to caller-provided tenant', {
         processKey,
@@ -221,6 +227,10 @@ export class OperatonService {
       });
       return null;
     }
+    if (callerTenant !== undefined && tenants.includes(callerTenant)) return callerTenant;
+    if (tenants.length === 1) return tenants[0];
+    if (tenants.length > 1) throw new AmbiguousDeploymentError(processKey, tenants);
+    return null;
   }
 
   /**
@@ -253,7 +263,7 @@ export class OperatonService {
       const resolvedTenant =
         deployedTenant !== undefined
           ? deployedTenant
-          : await this.resolveDeployedTenant(processKey);
+          : await this.resolveDeployedTenant(processKey, tenantId);
       const scopeTenant = resolvedTenant ?? tenantId;
 
       // Label an unlabelled start with the tenant it runs under, so the
@@ -1316,7 +1326,7 @@ export class OperatonService {
     tenantId?: string
   ): Promise<{ data: string; contentType: string }> {
     try {
-      const deployedTenant = await this.resolveDeployedTenant(processKey);
+      const deployedTenant = await this.resolveDeployedTenant(processKey, tenantId);
       const response = await this.getByKeyWithTenantFallback<string>(
         processKey,
         deployedTenant ?? tenantId,

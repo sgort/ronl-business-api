@@ -1,6 +1,19 @@
-/** Unit tests for getErrorMessage. */
+/** Unit tests for getErrorMessage and AmbiguousDeploymentError. */
 
-import { getErrorMessage } from './errors';
+import { AmbiguousDeploymentError, getErrorMessage } from './errors';
+
+describe('AmbiguousDeploymentError', () => {
+  it('carries the key and the tenants, and names both in its message', () => {
+    const error = new AmbiguousDeploymentError('AwbShellProcess', ['flevoland', 'utrecht']);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe('AmbiguousDeploymentError');
+    expect(error.processKey).toBe('AwbShellProcess');
+    expect(error.tenants).toEqual(['flevoland', 'utrecht']);
+    expect(error.message).toBe(
+      "Process 'AwbShellProcess' is deployed under several organisations (flevoland, utrecht), none of them the caller's"
+    );
+  });
+});
 
 describe('getErrorMessage', () => {
   it('returns the message of an Error', () => {

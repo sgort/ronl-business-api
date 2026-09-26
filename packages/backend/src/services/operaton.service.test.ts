@@ -37,6 +37,7 @@ jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { OperatonService } from './operaton.service';
+import { AmbiguousDeploymentError } from '@utils/errors';
 import type { OperatonVariable, ProcessStartRequest } from '@ronl/shared';
 
 let svc: OperatonService;
@@ -112,6 +113,54 @@ describe('resolveDeployedTenant', () => {
   it('returns null on lookup failure rather than throwing', async () => {
     mockClient.get.mockRejectedValue(new Error('network down'));
     await expect(svc.resolveDeployedTenant('AwbShellProcess')).resolves.toBeNull();
+  });
+
+  // #228: with the key deployed under several organisations, the answer must
+  // not depend on the order Operaton lists them in.
+  it("prefers the caller's own deployment, whichever row it is", async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }],
+    });
+    await expect(svc.resolveDeployedTenant('AwbShellProcess', 'utrecht')).resolves.toBe('utrecht');
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: 'utrecht' }, { tenantId: 'flevoland' }],
+    });
+    await expect(svc.resolveDeployedTenant('AwbShellProcess', 'flevoland')).resolves.toBe(
+      'flevoland'
+    );
+  });
+
+  it('takes the single other tenant when the caller has no deployment of its own', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: null }, { tenantId: 'toeslagen' }] });
+    await expect(svc.resolveDeployedTenant('AwbZorgtoeslagProcess', 'unive')).resolves.toBe(
+      'toeslagen'
+    );
+  });
+
+  it('refuses to guess between several other tenants', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }],
+    });
+    const attempt = svc.resolveDeployedTenant('AwbShellProcess', 'denhaag');
+    await expect(attempt).rejects.toBeInstanceOf(AmbiguousDeploymentError);
+    await expect(attempt).rejects.toMatchObject({
+      processKey: 'AwbShellProcess',
+      tenants: ['flevoland', 'utrecht'],
+    });
+  });
+
+  it('refuses to guess between several tenants when there is no caller tenant', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }],
+    });
+    await expect(svc.resolveDeployedTenant('AwbShellProcess')).rejects.toBeInstanceOf(
+      AmbiguousDeploymentError
+    );
+  });
+
+  it('returns null for a key deployed only untenanted', async () => {
+    mockClient.get.mockResolvedValue({ data: [{ tenantId: null }] });
+    await expect(svc.resolveDeployedTenant('Legacy', 'utrecht')).resolves.toBeNull();
   });
 });
 
@@ -246,6 +295,31 @@ describe('startProcess', () => {
     await svc.startProcess('AwbShellProcess', request, 'm2m');
 
     expect(request.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it("resolves the caller's own deployment among several when it looks the tenant up (#228)", async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }],
+    });
+    mockClient.post.mockResolvedValue({ data: { id: 'pi-7' } });
+
+    await svc.startProcess('AwbShellProcess', req(), 'utrecht');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/process-definition/key/AwbShellProcess/tenant-id/utrecht/start',
+      expect.anything()
+    );
+  });
+
+  it('starts nothing when the deployment is ambiguous (#228)', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }],
+    });
+
+    await expect(svc.startProcess('AwbShellProcess', req(), 'm2m')).rejects.toBeInstanceOf(
+      AmbiguousDeploymentError
+    );
+    expect(mockClient.post).not.toHaveBeenCalled();
   });
 });
 
@@ -957,6 +1031,31 @@ describe('deployed forms', () => {
       '/process-definition/key/K/tenant-id/flevoland/deployed-start-form',
       { responseType: 'text' }
     );
+  });
+
+  it("getDeployedStartForm picks the caller's own deployment among several (#228)", async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }] })
+      .mockResolvedValueOnce({ data: '{}', headers: { 'content-type': 'application/json' } });
+
+    await svc.getDeployedStartForm('AwbShellProcess', 'utrecht');
+
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/key/AwbShellProcess/tenant-id/utrecht/deployed-start-form',
+      { responseType: 'text' }
+    );
+  });
+
+  it('getDeployedStartForm rethrows an ambiguous deployment without fetching a form (#228)', async () => {
+    mockClient.get.mockResolvedValueOnce({
+      data: [{ tenantId: 'flevoland' }, { tenantId: 'utrecht' }],
+    });
+
+    await expect(svc.getDeployedStartForm('AwbShellProcess', 'denhaag')).rejects.toBeInstanceOf(
+      AmbiguousDeploymentError
+    );
+    expect(mockClient.get).toHaveBeenCalledTimes(1);
   });
 
   it('getDeployedStartForm scopes to the resolved deployed tenant, not the passed-in citizen tenant', async () => {
