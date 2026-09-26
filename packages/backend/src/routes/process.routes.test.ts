@@ -61,6 +61,7 @@ jest.mock('@utils/logger', () => ({
 import express from 'express';
 import request from 'supertest';
 import processRouter from './process.routes';
+import { AmbiguousDeploymentError } from '@utils/errors';
 import { operatonService } from '@services/operaton.service';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
@@ -119,7 +120,7 @@ describe('POST /:key/start', () => {
     svc.startProcess.mockResolvedValue({ id: 'pi-7' });
     await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({ variables: {} });
     expect(svc.resolveDeployedTenant).toHaveBeenCalledTimes(1);
-    expect(svc.resolveDeployedTenant).toHaveBeenCalledWith('AwbShellProcess');
+    expect(svc.resolveDeployedTenant).toHaveBeenCalledWith('AwbShellProcess', 'flevoland');
     const [key, body, tenantId, deployedTenant] = svc.startProcess.mock.calls[0];
     expect([key, tenantId, deployedTenant]).toEqual(['AwbShellProcess', 'flevoland', 'flevoland']);
     expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
@@ -166,6 +167,19 @@ describe('POST /:key/start', () => {
     const [, body, , deployedTenant] = svc.startProcess.mock.calls[0];
     expect(deployedTenant).toBeNull();
     expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('409 AMBIGUOUS_DEPLOYMENT when several other organisations deploy the key (#228)', async () => {
+    svc.resolveDeployedTenant.mockRejectedValue(
+      new AmbiguousDeploymentError('AwbShellProcess', ['toeslagen', 'utrecht'])
+    );
+    const res = await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({
+      variables: {},
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
+    expect(res.body.error.message).toContain('AwbShellProcess');
+    expect(svc.startProcess).not.toHaveBeenCalled();
   });
 
   it('500 preferring the Operaton error message', async () => {
@@ -370,6 +384,15 @@ describe('GET /:key/start-form', () => {
   it('500 for other failures', async () => {
     svc.getDeployedStartForm.mockRejectedValue(new Error('boom'));
     expect((await auth(request(app).get('/v1/process/P/start-form'))).status).toBe(500);
+  });
+
+  it('409 AMBIGUOUS_DEPLOYMENT when several other organisations deploy the key (#228)', async () => {
+    svc.getDeployedStartForm.mockRejectedValue(
+      new AmbiguousDeploymentError('P', ['toeslagen', 'utrecht'])
+    );
+    const res = await auth(request(app).get('/v1/process/P/start-form'));
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
   });
 });
 

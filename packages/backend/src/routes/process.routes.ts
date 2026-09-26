@@ -1,10 +1,11 @@
 import axios from 'axios';
-import express from 'express';
+import express, { type Response } from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
 import { denyTenant, resolveStartTenant, tenantAllows } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { AmbiguousDeploymentError } from '@utils/errors';
 import { auditLog } from '@middleware/audit.middleware';
 import { config } from '@utils/config';
 import { OperatonVariable } from '@ronl/shared';
@@ -12,6 +13,18 @@ import { inferType } from '@utils/operaton-variables';
 
 const router = express.Router();
 const logger = createLogger('process-routes');
+
+/**
+ * 409 for a key deployed under several organisations, none of them the
+ * caller's (#228): there is no basis for choosing which one handles the case.
+ */
+function ambiguousDeployment(res: Response, error: AmbiguousDeploymentError): Response {
+  logger.warn('Ambiguous deployment', { processKey: error.processKey, tenants: error.tenants });
+  return res.status(409).json({
+    success: false,
+    error: { code: 'AMBIGUOUS_DEPLOYMENT', message: error.message },
+  });
+}
 
 // Apply authentication and tenant isolation to all routes
 router.use(jwtMiddleware);
@@ -87,7 +100,7 @@ router.post(
       // access checks read, so it must equal the tenant Operaton runs the
       // instance under. Staff may start only their own tenant's processes; a
       // citizen's case goes to the deployment's tenant.
-      const deployedTenant = await operatonService.resolveDeployedTenant(key);
+      const deployedTenant = await operatonService.resolveDeployedTenant(key, req.user.tenantId);
       const startTenant = resolveStartTenant(req.user, deployedTenant);
       if (!startTenant.allowed) {
         auditLog(req, `process.start.${key}`, 'failure', {
@@ -129,6 +142,13 @@ router.post(
         },
       });
     } catch (error) {
+      if (error instanceof AmbiguousDeploymentError) {
+        auditLog(req, `process.start.${key}`, 'failure', {
+          reason: 'AMBIGUOUS_DEPLOYMENT',
+          tenants: error.tenants,
+        });
+        return ambiguousDeployment(res, error);
+      }
       // Prefer Operaton's own error message (e.g. "no matching process definition
       // deployed with key ...") over the generic axios message, so the caller can
       // tell a missing deployment apart from a connection failure.
@@ -523,6 +543,9 @@ router.get('/:key/start-form', async (req, res) => {
     const schema = JSON.parse(data);
     res.json({ success: true, data: schema });
   } catch (error) {
+    if (error instanceof AmbiguousDeploymentError) {
+      return ambiguousDeployment(res, error);
+    }
     logger.error('Failed to fetch start form', {
       processKey: key,
       error: error instanceof Error ? error.message : 'Unknown error',
