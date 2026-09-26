@@ -116,6 +116,32 @@ describe('POST /:key/start', () => {
     expect(vars.originTenantId).toEqual({ value: 'flevoland', type: 'String' });
   });
 
+  // #234: the business key is the human-facing handle, so its prefix names the
+  // organisation that owns the case -- the same one municipality names.
+  it("mints the business key with the owning organisation for a citizen's cross-tenant case", async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    svc.startProcess.mockResolvedValue({ id: 'pi-k1' });
+    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: {} });
+    expect(svc.startProcess.mock.calls[0][1].businessKey).toMatch(/^toeslagen-\d+$/);
+  });
+
+  it("mints the business key with the caller's organisation when it owns the case", async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-k2' });
+    await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({ variables: {} });
+    expect(svc.startProcess.mock.calls[0][1].businessKey).toMatch(/^flevoland-\d+$/);
+  });
+
+  it('keeps a caller-supplied business key unchanged', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    svc.startProcess.mockResolvedValue({ id: 'pi-k3' });
+    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ businessKey: 'unive-1790000000000', variables: {} });
+    expect(svc.startProcess.mock.calls[0][1].businessKey).toBe('unive-1790000000000');
+  });
+
   it('stamps the caller tenant and passes the resolved deployed tenant on', async () => {
     svc.startProcess.mockResolvedValue({ id: 'pi-7' });
     await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({ variables: {} });

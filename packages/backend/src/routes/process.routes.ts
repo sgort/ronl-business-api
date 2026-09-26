@@ -118,11 +118,19 @@ router.post(
       operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
       operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
 
+      // The business key is the case's human-facing handle, so it names the
+      // organisation that owns the case (#234). A caller-supplied key is kept:
+      // a RIP phase started for a project inherits the key its R2.1 run
+      // minted, so every phase instance of one project shares it. Safe to
+      // honour -- businessKey grants nothing; access runs on municipality.
+      const businessKey: string =
+        req.body.businessKey || `${startTenant.municipality}-${Date.now()}`;
+
       // Start process
       const processInstance = await operatonService.startProcess(
         key,
         {
-          businessKey: req.body.businessKey,
+          businessKey,
           variables: operatonVariables,
         },
         req.user.tenantId,
