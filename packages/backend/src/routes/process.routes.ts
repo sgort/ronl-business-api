@@ -2,7 +2,13 @@ import axios from 'axios';
 import express, { type Response } from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
-import { denyTenant, resolveStartTenant, tenantAllows } from '@auth/tenant-access';
+import {
+  caseReadAllowed,
+  denyTenant,
+  isCitizen,
+  resolveStartTenant,
+  tenantAllows,
+} from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { AmbiguousDeploymentError } from '@utils/errors';
@@ -209,10 +215,20 @@ router.get('/history', async (req, res) => {
     });
   }
 
-  // Citizens can only request their own history
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const roles: string[] = (req.user as any).roles ?? [];
-  const isCaseworker = roles.includes('caseworker');
+  // A citizen reads their own history; a caseworker reads any applicant's in
+  // their tenant. Any other role -- public affairs, Woo -- reads none (#229):
+  // those users file no applications, and their role gives them no business
+  // in citizens' cases.
+  const isCaseworker = (req.user.roles ?? []).includes('caseworker');
+  if (!isCaseworker && !isCitizen(req.user)) {
+    return res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Only citizens and caseworkers may read process history',
+      },
+    });
+  }
   if (!isCaseworker && applicantId !== req.user.userId) {
     return res.status(403).json({
       success: false,
@@ -272,11 +288,11 @@ router.get('/:id/status', async (req, res) => {
   try {
     const processInstance = await operatonService.getProcessInstance(id);
 
-    // Verify tenant ownership
+    // The owning tenant, or the applicant themselves (#229)
     const variables = await operatonService.getProcessVariables(id);
     const processTenant = variables.municipality?.value;
 
-    if (!tenantAllows(req.user, processTenant)) {
+    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
@@ -332,10 +348,10 @@ router.get('/:id/variables', async (req, res) => {
   try {
     const variables = await operatonService.getProcessVariables(id);
 
-    // Verify tenant ownership
+    // The owning tenant, or the applicant themselves (#229)
     const processTenant = variables.municipality?.value;
 
-    if (!tenantAllows(req.user, processTenant)) {
+    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
@@ -386,8 +402,7 @@ router.get('/:id/historic-variables', async (req, res) => {
     // Tenant check: the owning tenant, or the applicant themselves (a citizen
     // whose case was sent to another tenant's deployment still reads it).
     const processTenant = variables['municipality'];
-    const ownProcess = variables['applicantId'] === req.user.userId;
-    if (!tenantAllows(req.user, processTenant) && !ownProcess) {
+    if (!caseReadAllowed(req.user, processTenant, variables['applicantId'])) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
@@ -426,9 +441,10 @@ router.get('/:id/activity-history', async (req, res) => {
 
   try {
     // Tenant check via the instance's municipality variable (history-based so it
-    // resolves for both running and completed instances).
+    // resolves for both running and completed instances) -- or the applicant
+    // themselves (#229).
     const vars = await operatonService.getHistoricVariables(id);
-    if (!tenantAllows(req.user, vars.municipality)) {
+    if (!caseReadAllowed(req.user, vars.municipality, vars['applicantId'])) {
       return denyTenant(req, res, { processInstanceId: id, processTenant: vars.municipality });
     }
 
@@ -465,8 +481,7 @@ router.get('/:instanceId/decision-document', async (req, res) => {
     // Tenant isolation: reuse the same flat-value historic variables map
     const vars = await operatonService.getHistoricVariables(instanceId);
     const processTenant = vars.municipality;
-    const ownProcess = vars['applicantId'] === req.user.userId;
-    if (!tenantAllows(req.user, processTenant) && !ownProcess) {
+    if (!caseReadAllowed(req.user, processTenant, vars['applicantId'])) {
       return denyTenant(req, res, { processInstanceId: instanceId, processTenant });
     }
 

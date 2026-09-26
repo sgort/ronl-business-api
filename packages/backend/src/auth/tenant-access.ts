@@ -36,6 +36,22 @@ export function tenantAllows(
   return typeof municipality === 'string' && municipality !== '' && municipality === user.tenantId;
 }
 
+/**
+ * Who may READ a process instance (#229): its owning tenant, or the
+ * applicant themselves -- a citizen whose case went to another tenant's
+ * deployment (an AWB claim under toeslagen) still follows it. Reads only:
+ * deleting, and every task operation, stay with the owning tenant.
+ */
+export function caseReadAllowed(
+  user: Pick<AuthenticatedUser, 'tenantId' | 'userId'>,
+  municipality: unknown,
+  applicantId: unknown
+): boolean {
+  const isApplicant =
+    typeof applicantId === 'string' && applicantId !== '' && applicantId === user.userId;
+  return tenantAllows(user, municipality) || isApplicant;
+}
+
 /** Log a tenant refusal and answer 403 TENANT_MISMATCH. */
 export function denyTenant(
   req: Request,

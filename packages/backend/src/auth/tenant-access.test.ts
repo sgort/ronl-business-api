@@ -13,6 +13,7 @@ import request from 'supertest';
 import {
   RESERVED_PROCESS_VARIABLES,
   TENANT_MISMATCH_MESSAGE,
+  caseReadAllowed,
   denyTenant,
   isCitizen,
   reservedVariablesIn,
@@ -115,6 +116,38 @@ describe('resolveStartTenant', () => {
     expect(resolveStartTenant({ tenantId: 'utrecht' } as never, 'flevoland')).toEqual({
       allowed: false,
     });
+  });
+});
+
+describe('caseReadAllowed (#229)', () => {
+  const user = { userId: 'u-1', tenantId: 'utrecht' };
+
+  it('admits the owning tenant, whoever the applicant is', () => {
+    expect(caseReadAllowed(user, 'utrecht', 'someone-else')).toBe(true);
+    expect(caseReadAllowed(user, 'utrecht', undefined)).toBe(true);
+  });
+
+  it('admits the applicant on a case another tenant owns', () => {
+    expect(caseReadAllowed(user, 'flevoland', 'u-1')).toBe(true);
+  });
+
+  it('refuses another applicant on a case another tenant owns', () => {
+    expect(caseReadAllowed(user, 'flevoland', 'u-2')).toBe(false);
+  });
+
+  it('refuses when the case carries no applicant and another tenant owns it', () => {
+    expect(caseReadAllowed(user, 'flevoland', undefined)).toBe(false);
+    expect(caseReadAllowed(user, 'flevoland', '')).toBe(false);
+    expect(caseReadAllowed(user, 'flevoland', null)).toBe(false);
+  });
+
+  it('never matches an empty applicant against a caller with an empty id', () => {
+    expect(caseReadAllowed({ userId: '', tenantId: 'utrecht' }, 'flevoland', '')).toBe(false);
+  });
+
+  it('refuses an unlabelled case to anyone but its applicant', () => {
+    expect(caseReadAllowed(user, undefined, 'u-2')).toBe(false);
+    expect(caseReadAllowed(user, undefined, 'u-1')).toBe(true);
   });
 });
 
