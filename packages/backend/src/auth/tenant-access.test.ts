@@ -11,9 +11,11 @@ jest.mock('@utils/logger', () => ({
 import express from 'express';
 import request from 'supertest';
 import {
+  RESERVED_PROCESS_VARIABLES,
   TENANT_MISMATCH_MESSAGE,
   denyTenant,
   isCitizen,
+  reservedVariablesIn,
   resolveStartTenant,
   tenantAllows,
 } from './tenant-access';
@@ -113,6 +115,24 @@ describe('resolveStartTenant', () => {
     expect(resolveStartTenant({ tenantId: 'utrecht' } as never, 'flevoland')).toEqual({
       allowed: false,
     });
+  });
+});
+
+describe('reservedVariablesIn', () => {
+  it('returns [] for no variables and for none reserved', () => {
+    expect(reservedVariablesIn({})).toEqual([]);
+    expect(reservedVariablesIn({ decision: 'x', amount: 5 })).toEqual([]);
+  });
+
+  it('returns each reserved key present, in the maps own order', () => {
+    expect(reservedVariablesIn({ applicantId: 'u', decision: 'x', municipality: 'm' })).toEqual([
+      'applicantId',
+      'municipality',
+    ]);
+  });
+
+  it('RESERVED_PROCESS_VARIABLES is exactly the three tenant-decision keys', () => {
+    expect(RESERVED_PROCESS_VARIABLES).toEqual(['municipality', 'originTenantId', 'applicantId']);
   });
 });
 

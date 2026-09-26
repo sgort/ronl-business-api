@@ -54,6 +54,24 @@ export function denyTenant(
   });
 }
 
+/**
+ * Process variables that decide access, set only at process start
+ * (resolveStartTenant, addTenantToProcessVariables). A user may not
+ * overwrite them afterwards -- a task completion that carried
+ * `municipality` would relabel the whole instance, handing the case to
+ * another tenant (or to none).
+ */
+export const RESERVED_PROCESS_VARIABLES: readonly string[] = [
+  'municipality',
+  'originTenantId',
+  'applicantId',
+];
+
+/** The reserved keys present in a variables map, in the map's own order. */
+export function reservedVariablesIn(variables: Record<string, unknown>): string[] {
+  return Object.keys(variables).filter((key) => RESERVED_PROCESS_VARIABLES.includes(key));
+}
+
 export type StartTenant =
   { allowed: true; municipality: string; originTenantId: string } | { allowed: false };
 

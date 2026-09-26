@@ -7,7 +7,7 @@ import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable, Task } from '@ronl/shared';
 import { inferType } from '@utils/operaton-variables';
-import { denyTenant, tenantAllows } from '@auth/tenant-access';
+import { denyTenant, reservedVariablesIn, tenantAllows } from '@auth/tenant-access';
 
 const router = express.Router();
 const logger = createLogger('task-routes');
@@ -303,6 +303,25 @@ router.post('/:id/complete', async (req, res) => {
     const taskTenant = await taskMunicipality(task);
     if (!tenantAllows(req.user, taskTenant)) {
       return denyTenant(req, res, { taskId: id, taskTenant });
+    }
+
+    // The tenant label and the applicant are set at start and must not be
+    // rewritten by a completion (#218): Operaton would store them on the
+    // process instance and move the case.
+    const reserved = reservedVariablesIn(variables);
+    if (reserved.length > 0) {
+      auditLog(req, 'task.complete', 'failure', {
+        taskId: id,
+        reason: 'RESERVED_VARIABLE',
+        reserved,
+      });
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'RESERVED_VARIABLE',
+          message: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
+        },
+      });
     }
 
     // Transform plain values to Operaton variable format

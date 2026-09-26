@@ -245,6 +245,7 @@ describe('POST /v1/task/:id/claim', () => {
     const res = await auth(request(app).post('/v1/task/t1/claim'));
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.claimTask).not.toHaveBeenCalled();
   });
 
   it('claims the task for the caller and audits', async () => {
@@ -280,6 +281,55 @@ describe('POST /v1/task/:id/complete', () => {
     const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.completeTask).not.toHaveBeenCalled();
+  });
+
+  it.each(['municipality', 'originTenantId', 'applicantId'])(
+    '400 RESERVED_VARIABLE when the body variables include %s',
+    async (key) => {
+      svc.getTask.mockResolvedValue({ id: 't1' });
+
+      const res = await auth(request(app).post('/v1/task/t1/complete')).send({
+        variables: { [key]: 'x', decision: 'granted' },
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('RESERVED_VARIABLE');
+      expect(res.body.error.message).toBe(
+        `Variables set at process start cannot be changed: ${key}`
+      );
+      expect(svc.completeTask).not.toHaveBeenCalled();
+    }
+  );
+
+  it('400 RESERVED_VARIABLE lists two offending keys in body order', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1' });
+
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({
+      variables: { applicantId: 'u', decision: 'granted', municipality: 'utrecht' },
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('RESERVED_VARIABLE');
+    expect(res.body.error.message).toBe(
+      'Variables set at process start cannot be changed: applicantId, municipality'
+    );
+    expect(svc.completeTask).not.toHaveBeenCalled();
+  });
+
+  it('403 TENANT_MISMATCH wins over a reserved key on a foreign-tenant task', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'utrecht', type: 'String' },
+    });
+
+    const res = await auth(request(app).post('/v1/task/t1/complete')).send({
+      variables: { municipality: 'flevoland' },
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.completeTask).not.toHaveBeenCalled();
   });
 
   it('infers variable types, completes the task, and audits', async () => {

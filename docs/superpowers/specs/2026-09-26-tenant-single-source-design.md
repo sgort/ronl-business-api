@@ -175,6 +175,20 @@ The logged context keeps what each site logs today (`processInstanceId`,
 No change. They already filter on the variable, and after §2 the variable is the
 deployed tenant for tenant-scoped deployments, which is what closes #219.
 
+### 5. The label is immutable after start
+
+The whole-branch review found that `POST /v1/task/:id/complete` forwarded
+every body variable to Operaton, which stores completion variables on the
+process instance: a completion carrying `municipality` would relabel the
+case, and one carrying `applicantId` would unlock the applicant exception for
+another user. Under D1 that is a tenant bypass.
+
+`municipality`, `originTenantId` and `applicantId` are reserved
+(`RESERVED_PROCESS_VARIABLES` in `tenant-access.ts`). A user completion whose
+variables contain any of them is refused with `400 RESERVED_VARIABLE`, after
+the tenant check and before anything reaches Operaton. The M2M complete route
+is trusted and unchanged, as with the M2M start.
+
 ## Verified facts
 
 Read-only checks against the local Operaton (`localhost:8081`, which holds the
@@ -215,6 +229,8 @@ at #218" plan:
   (the caller's organisation at start).
 - `FORBIDDEN` remains for non-tenant refusals (for example, a citizen requesting
   another applicant's `/process/history`).
+- `POST /v1/task/{id}/complete`: `400 RESERVED_VARIABLE` when the body's
+  variables include `municipality`, `originTenantId` or `applicantId`.
 
 #216 (problem details) later maps `TENANT_MISMATCH` to its own `type`.
 
