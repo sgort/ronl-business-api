@@ -105,6 +105,11 @@ tags:
       ValidSign. Two routers on one mount with opposite security: the callback
       and ceremony routes are unauthenticated and some answer HTML, while the
       three task operations are organisation-checked.
+  - name: Policy analysis
+    description: |
+      Signals, dossiers, saved searches and the curation board. Every
+      operation needs the `public-affairs` realm role on top of a valid
+      token. Dossiers and searches are organisation-scoped; signals are not.
   - name: Media aggregator
     description: |
       Aggregated media articles for the PA cockpit. Conditionally
@@ -2731,6 +2736,1206 @@ paths:
           description: '`SIGNATURE_PACKAGE_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  # ── /v1/pa ────────────────────────────────────────────────────────────────
+  #
+  # Policy analysis: two routers on one mount, pa.routes.ts and
+  # pa-dossiers.routes.ts. Thirty-three operations, a quarter of this API.
+  #
+  # SECURITY. Both routers apply jwtMiddleware, tenantMiddleware and
+  # requireRoles('public-affairs'), so every operation below needs that realm
+  # role on top of a valid token. That is a different posture from the
+  # execution core, which is organisation-scoped but not role-gated.
+  #
+  # THREE OPERATIONS ARE DECLARED BEFORE THAT MIDDLEWARE and do not get all of
+  # it -- pa.routes.ts lines 33, 43 and 88 against `router.use` at 126-128:
+  #
+  #   POST /pa/curator/run      jwt + role inline, NO tenantMiddleware
+  #   GET  /pa/curator/status   jwt + role inline, NO tenantMiddleware
+  #   GET  /pa/signals.rss      NO middleware at all -- a query-parameter token
+  #
+  # WHAT IS AND IS NOT ORGANISATION-SCOPED. Dossiers, searches and feed tokens
+  # are: their queries filter on tenant_id. SIGNALS ARE NOT -- pa_signals has
+  # no tenant_id column at all, which the code states at
+  # pa-dossiers.routes.ts:593. So a signal is shared across organisations by
+  # design, and /pa/signals.rss returning every confirmed signal to any valid
+  # token holder follows from that rather than being a leak.
+  #
+  # ENVELOPES. This mount uses three of its own on top of the four elsewhere:
+  # { success, data }, { success, data, meta } with a DIFFERENT meta per
+  # operation, and a bare { success } with no data at all on several writes.
+
+  /pa/curator/run:
+    post:
+      operationId: runPaCurator
+      tags: [Policy analysis]
+      summary: Trigger a curation cycle
+      description: |
+        Starts curation in the background and returns immediately — the work is
+        not awaited, and a failure after this response is logged rather than
+        reported.
+
+        **It runs for `flevoland` regardless of the caller.** The organisation
+        is hardcoded in the handler, and the response says `flevoland` whoever
+        asked. This operation also skips `tenantMiddleware`.
+
+        Not exercised when this was written: it fetches from external sources
+        and writes signals. The shape below is read from the handler.
+      responses:
+        '200':
+          description: Curation was started.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [started, tenantId]
+                    properties:
+                      started: { type: boolean, const: true }
+                      tenantId:
+                        type: string
+                        const: flevoland
+                        description: Always `flevoland`, whoever called.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /pa/curator/status:
+    get:
+      operationId: getPaCuratorStatus
+      tags: [Policy analysis]
+      summary: How many signals and searches exist
+      description: Skips `tenantMiddleware`; counts are across the whole table.
+      responses:
+        '200':
+          description: The counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [signals, searches]
+                    properties:
+                      signals:
+                        type: object
+                        description: Totals as strings, straight from the count query.
+                        additionalProperties: true
+                      searches:
+                        type: object
+                        additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`STATUS_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/signals.rss:
+    get:
+      operationId: getPaSignalsRss
+      tags: [Policy analysis]
+      summary: Confirmed signals as an RSS feed
+      description: |
+        **Authenticated by a `token` QUERY PARAMETER, not a bearer token** —
+        this is the one operation in the API that works that way. It carries no
+        `jwtMiddleware`, and RSS readers cannot send headers, which is why.
+
+        The token comes from `GET /pa/feed-token`, which hands back a URL with
+        it already embedded. It does not expire and is not rotated.
+
+        **Its refusals are plain text, not JSON** — `Missing token`,
+        `Invalid token`, `Internal error` — so a consumer cannot parse them as
+        the error envelope.
+
+        Any valid token reads every confirmed signal. That follows from signals
+        not being organisation-scoped, rather than from a missing check.
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: |
+            A feed token from `GET /pa/feed-token`. A long-lived secret in a
+            URL: it will appear in logs, browser history and referrers.
+          schema: { type: string }
+        - name: tab
+          in: query
+          description: Restrict to one tab, for example `politiek`.
+          schema: { type: string }
+        - name: dossierId
+          in: query
+          description: Restrict to signals linked to one dossier.
+          schema: { type: string }
+      responses:
+        '200':
+          description: 'Up to 100 confirmed signals, newest and most relevant first.'
+          content:
+            application/rss+xml:
+              schema: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          description: |
+            The token was missing or unknown. **Plain text**, not JSON.
+          content:
+            text/plain:
+              schema: { type: string, examples: ['Missing token', 'Invalid token'] }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          description: Plain text, not JSON.
+          content:
+            text/plain:
+              schema: { type: string, examples: ['Internal error'] }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /pa/feed-token:
+    get:
+      operationId: getPaFeedToken
+      tags: [Policy analysis]
+      summary: The caller's RSS feed token and URL
+      description: |
+        Returns the caller's token, minting one on first use and returning the
+        same one thereafter — **one per user and organisation, never rotated
+        and with no expiry**. Anyone holding the URL can read the feed until
+        the row is deleted.
+      responses:
+        '200':
+          description: The token and a ready-made feed URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [token, url]
+                    properties:
+                      token: { type: string, description: 48 hex characters. }
+                      url:
+                        type: string
+                        format: uri
+                        description: The feed URL with the token already in the query string.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`FEED_TOKEN_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/types:
+    get:
+      operationId: getPaTypes
+      tags: [Policy analysis]
+      summary: The document types each source publishes
+      description: A static map, used to populate filters. Takes no parameters and
+        cannot fail.
+      responses:
+        '200':
+          description: Types per source.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    description: 'Keyed by source (`tk`, `ob`, `media`, `eu`), each a list of type
+                      names.'
+                    additionalProperties:
+                      type: array
+                      items: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /pa/sources/status:
+    get:
+      operationId: getPaSourcesStatus
+      tags: [Policy analysis]
+      summary: Which upstream sources are configured
+      responses:
+        '200':
+          description: Per-source state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    description: 'Keyed by source: `tk`, `ob`, `eu`, `epTeksten`, `media`, `feeds`.'
+                    additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  /pa/feed:
+    get:
+      operationId: getPaFeed
+      tags: [Policy analysis]
+      summary: Items from the upstream sources, before curation
+      description: |
+        The raw feed a curator promotes from. Paged in the upstream's own style:
+        `data` carries `items` with `total`, `skip` and `top`.
+      responses:
+        '200':
+          description: A page of feed items.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [items, total, skip, top]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/PaFeedItem' }
+                      total: { type: integer }
+                      skip: { type: integer }
+                      top: { type: integer }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: The upstream source failed (`UPSTREAM_ERROR`).
+          $ref: '#/components/responses/Error'
+
+  /pa/agenda:
+    get:
+      operationId: getPaAgenda
+      tags: [Policy analysis]
+      summary: Upcoming parliamentary agenda items
+      responses:
+        '200':
+          description: The agenda.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaAgendaItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: '`AGENDA_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/signals:
+    get:
+      operationId: listPaSignals
+      tags: [Policy analysis]
+      summary: Curated signals
+      description: |
+        `meta` reports whether the result hit the cap: `{ total, cap, capped }`.
+        A different `meta` from `/pa/notifications` on the same mount.
+      responses:
+        '200':
+          description: The signals.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaSignal' }
+                  meta:
+                    type: object
+                    required: [total, cap, capped]
+                    properties:
+                      total: { type: integer }
+                      cap: { type: integer, description: The maximum this operation will return. }
+                      capped:
+                        { type: boolean, description: True when results were truncated at `cap`. }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`SIGNALS_ERROR`.'
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: promotePaSignal
+      tags: [Policy analysis]
+      summary: Promote a feed item to a signal
+      description: |
+        Takes a feed item and creates a signal from it. The signal's id is
+        derived from the item's, so promoting the same item twice is not
+        idempotent — check before calling.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, title, source]
+              properties:
+                id: { type: string, description: The feed item's id. }
+                title: { type: string }
+                source: { type: string }
+              additionalProperties: true
+      responses:
+        '201':
+          description: The signal that was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaSignal' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`id`, `title` or `source` missing (`MISSING_FIELDS`).'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`PROMOTE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/signals/counts:
+    get:
+      operationId: getPaSignalCounts
+      tags: [Policy analysis]
+      summary: Signal counts per tab
+      responses:
+        '200':
+          description: Counts keyed by tab.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    description: 'For example `{ media, politiek, regionaal }`.'
+                    additionalProperties: { type: integer }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`SIGNAL_COUNTS_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/signals/{id}/confirm:
+    post:
+      operationId: confirmPaSignal
+      tags: [Policy analysis]
+      summary: Confirm a signal
+      description: |
+        Moves the signal to `confirmed`, which is what puts it in the RSS feed.
+        There is no operation that undoes this; `dismiss` is the way back.
+      parameters:
+        - $ref: '#/components/parameters/PaSignalId'
+      responses:
+        '200':
+          description: The updated signal.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaSignal' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`CONFIRM_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/signals/{id}/dismiss:
+    post:
+      operationId: dismissPaSignal
+      tags: [Policy analysis]
+      summary: Dismiss a signal
+      parameters:
+        - $ref: '#/components/parameters/PaSignalId'
+      responses:
+        '200':
+          description: The updated signal.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaSignal' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`DISMISS_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/signals/{id}:
+    patch:
+      operationId: linkPaSignalToDossier
+      tags: [Policy analysis]
+      summary: Link a signal to a dossier
+      description: The only field this accepts is the dossier to link to.
+      parameters:
+        - $ref: '#/components/parameters/PaSignalId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dossierId]
+              properties:
+                dossierId: { type: string }
+      responses:
+        '200':
+          description: The updated signal.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaSignal' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`dossierId` missing (`MISSING_DOSSIER_ID`).'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`LINK_DOSSIER_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/searches:
+    get:
+      operationId: listPaSearches
+      tags: [Policy analysis]
+      summary: Saved searches
+      description: |
+        **This operation answers snake_case** — `tenant_id`, `user_id`,
+        `dossier_id`, `created_at`, `updated_at` — where `/pa/signals` on the
+        same mount answers camelCase. It also returns `tenant_id` and `user_id`
+        in the payload.
+      responses:
+        '200':
+          description: The caller's organisation's saved searches.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaSearch' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`SEARCHES_ERROR`.'
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createPaSearch
+      tags: [Policy analysis]
+      summary: Save a search
+      description: '`query` is an OBJECT, not a string.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: object
+                  required: [q]
+                  properties:
+                    q: { type: string }
+                    types: { type: array, items: { type: string } }
+                    source: { type: array, items: { type: string } }
+                scope:
+                  type: string
+                  enum: [tenant, user]
+                  description: Whether the search is shared with the organisation or private.
+                tags: { type: array, items: { type: string } }
+                dossierId: { type: string }
+      responses:
+        '201':
+          description: The new search's id.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`query.q` missing (`MISSING_QUERY`).'
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`SEARCH_CREATE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/searches/{id}:
+    patch:
+      operationId: updatePaSearch
+      tags: [Policy analysis]
+      summary: Change a saved search
+      description: |
+        The body is validated BEFORE the search is looked up, so a bad `scope`
+        or an empty query answers 400 even for an id that does not exist.
+      parameters:
+        - $ref: '#/components/parameters/PaSearchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: object
+                  properties:
+                    q: { type: string }
+                scope: { type: string, enum: [tenant, user] }
+                tags: { type: array, items: { type: string } }
+                notify: { type: boolean }
+      responses:
+        '200':
+          description: |
+            Updated. **No `data`** — the response is `{ success: true }` alone.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BareSuccess' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            Nothing to change (`MISSING_FIELDS`), an unknown `scope`
+            (`BAD_SCOPE`), or a blank query (`EMPTY_QUERY`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deletePaSearch
+      tags: [Policy analysis]
+      summary: Remove a saved search
+      parameters:
+        - $ref: '#/components/parameters/PaSearchId'
+      responses:
+        '200':
+          description: 'Removed. **No `data`.**'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BareSuccess' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`SEARCH_DELETE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/notifications:
+    get:
+      operationId: listPaNotifications
+      tags: [Policy analysis]
+      summary: The caller's notifications
+      description: '`meta` is `{ unseenCount }` — a different `meta` from `/pa/signals`.'
+      responses:
+        '200':
+          description: The notifications.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  meta:
+                    type: object
+                    required: [unseenCount]
+                    properties:
+                      unseenCount: { type: integer }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`NOTIFICATIONS_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/notifications/ack:
+    post:
+      operationId: ackPaNotifications
+      tags: [Policy analysis]
+      summary: Mark the caller's notifications as seen
+      responses:
+        '200':
+          description: 'Acknowledged. **No `data`.**'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BareSuccess' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`NOTIFICATIONS_ACK_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/dossiers:
+    get:
+      operationId: listPaDossiers
+      tags: [Policy analysis]
+      summary: Dossiers for the caller's organisation
+      description: |
+        Organisation-scoped, unlike signals: the query filters on `tenant_id`.
+
+        Returns the READ model — a different shape from what `POST` and `PATCH`
+        answer. See `PaDossier` and `PaDossierAuthoring`.
+      responses:
+        '200':
+          description: The dossiers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaDossier' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`DOSSIERS_ERROR`.'
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createPaDossier
+      tags: [Policy analysis]
+      summary: Create a dossier
+      description: |
+        The id is slugified from `naam`, so two dossiers with the same name
+        collide — that is the 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [naam, onderwerp]
+              properties:
+                naam: { type: string, minLength: 3 }
+                onderwerp: { type: string, minLength: 1 }
+                status: { type: string, enum: [actief, sluimerend], default: actief }
+                momentum: { type: string, default: flat }
+                gepubliceerd:
+                  type: boolean
+                  description: Requires the publish capability; otherwise 403.
+                kompas: { type: object, additionalProperties: true }
+                md: { type: object, additionalProperties: true }
+      responses:
+        '201':
+          description: 'The new dossier, in the AUTHORING shape.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaDossierAuthoring' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            `naam` shorter than 3 characters, or `onderwerp` empty
+            (`INVALID_FIELDS`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            `gepubliceerd` was true and the caller lacks the publish capability
+            (`FORBIDDEN_PUBLISH`). A capability refusal, not an organisation
+            one — it is not `TENANT_MISMATCH`.
+          $ref: '#/components/responses/Error'
+        '409':
+          description: |
+            A dossier with the same slugified name already exists
+            (`ID_CONFLICT`).
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+
+  /pa/dossiers/{id}:
+    get:
+      operationId: getPaDossier
+      tags: [Policy analysis]
+      summary: One dossier
+      description: Returns the READ model, as the list does.
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      responses:
+        '200':
+          description: The dossier.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaDossier' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`DOSSIER_ERROR`.'
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updatePaDossier
+      tags: [Policy analysis]
+      summary: Change a dossier
+      description: Answers the AUTHORING shape, as create does.
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                naam: { type: string, minLength: 3 }
+                onderwerp: { type: string, minLength: 1 }
+                status: { type: string, enum: [actief, sluimerend] }
+                momentum: { type: string }
+                gepubliceerd: { type: boolean }
+                kompas: { type: object, additionalProperties: true }
+                md: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: The updated dossier.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaDossierAuthoring' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            An unknown `status` (`INVALID_STATUS`), or a name or subject that
+            fails the same rules as create (`INVALID_FIELDS`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: '`FORBIDDEN_PUBLISH`, as on create.'
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '409':
+          description: A concurrent change was detected.
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deletePaDossier
+      tags: [Policy analysis]
+      summary: Delete a dossier
+      description: |
+        Reports how many linked rows it touched — signals are unlinked rather
+        than deleted, since a signal is not owned by one dossier.
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      responses:
+        '200':
+          description: Deleted, with a count of what was unlinked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [signals, searches]
+                    properties:
+                      signals: { type: integer }
+                      searches: { type: integer }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`DOSSIER_DELETE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/dossiers/{id}/watch:
+    post:
+      operationId: watchPaDossier
+      tags: [Policy analysis]
+      summary: Follow a dossier
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      responses:
+        '201':
+          description: The watch that was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`DOSSIER_WATCH_ERROR`.'
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: unwatchPaDossier
+      tags: [Policy analysis]
+      summary: Stop following a dossier
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      responses:
+        '200':
+          description: 'Removed. **No `data`.**'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BareSuccess' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`DOSSIER_WATCH_DELETE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/dossiers/{id}/archive:
+    post:
+      operationId: archivePaDossier
+      tags: [Policy analysis]
+      summary: Archive a dossier
+      description: |
+        Archiving requires retention metadata — the Archives Act classification
+        and term, and a reason. All three are mandatory and constrained.
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [classificatie, bewaartermijn, reden]
+              properties:
+                classificatie: { type: string, enum: [openbaar, intern, vertrouwelijk] }
+                bewaartermijn:
+                  type: string
+                  enum: [V5, V10, V20, B]
+                  description: 'Retention: five, ten or twenty years, or permanent.'
+                reden: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: 'The archived dossier, status `gearchiveerd`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaDossierAuthoring' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            A missing, blank or unrecognised value among the three
+            (`INVALID_ARCHIVE_METADATA`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`DOSSIER_ARCHIVE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/dossiers/{id}/unarchive:
+    post:
+      operationId: unarchivePaDossier
+      tags: [Policy analysis]
+      summary: Return an archived dossier to active
+      parameters:
+        - $ref: '#/components/parameters/PaDossierId'
+      responses:
+        '200':
+          description: 'The dossier, status `actief`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaDossierAuthoring' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: The dossier is not archived (`NOT_ARCHIVED`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PaNotFound'
+        '500':
+          description: '`DOSSIER_UNARCHIVE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/templates:
+    get:
+      operationId: listPaTemplates
+      tags: [Policy analysis]
+      summary: Document templates
+      responses:
+        '200':
+          description: The templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaTemplate' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          description: '`TEMPLATES_ERROR`.'
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createPaTemplate
+      tags: [Policy analysis]
+      summary: Add a template
+      description: There is no operation to delete or change a template.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [naam]
+              properties:
+                naam: { type: string }
+                cat: { type: string }
+                beschrijving: { type: string }
+      responses:
+        '201':
+          description: The template that was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaTemplate' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`naam` missing (`MISSING_NAAM`).'
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`TEMPLATE_CREATE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  /pa/snippets:
+    get:
+      operationId: listPaSnippets
+      tags: [Policy analysis]
+      summary: Reusable text snippets
+      responses:
+        '200':
+          description: The snippets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaSnippet' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '500':
+          description: '`SNIPPETS_ERROR`.'
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createPaSnippet
+      tags: [Policy analysis]
+      summary: Add a snippet
+      description: There is no operation to delete or change a snippet.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [naam, md]
+              properties:
+                naam: { type: string }
+                md: { type: string, description: The snippet body, in Markdown. }
+                cat: { type: string }
+      responses:
+        '201':
+          description: The snippet that was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PaSnippet' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`naam` or `md` missing (`MISSING_FIELDS`).'
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`SNIPPET_CREATE_ERROR`.'
+          $ref: '#/components/responses/Error'
+
 components:
   headers:
     ApiVersion:
@@ -2759,6 +3964,27 @@ components:
         `jwtMiddleware`; the tenant and roles are read from its claims.
 
   parameters:
+    PaSignalId:
+      name: id
+      in: path
+      required: true
+      description: The signal's id.
+      schema: { type: string }
+
+    PaSearchId:
+      name: id
+      in: path
+      required: true
+      description: The saved search's id.
+      schema: { type: string }
+
+    PaDossierId:
+      name: id
+      in: path
+      required: true
+      description: The dossier's id, slugified from its name at creation.
+      schema: { type: string }
+
     EdocsWorkspaceId:
       name: workspaceId
       in: path
@@ -3438,6 +4664,176 @@ components:
           description: Where the signer completes the ceremony. Present once a request
             exists.
 
+    BareSuccess:
+      type: object
+      description: |
+        Several /v1/pa writes answer this and nothing else — no `data`, no
+        `meta`, no `timestamp`. A sixth response shape in this API.
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
+
+    PaSignal:
+      type: object
+      description: |
+        A curated signal. NOT organisation-scoped: `pa_signals` carries no
+        tenant column, so a signal is shared across organisations by design.
+      required: [id, tab, title, status]
+      properties:
+        id: { type: string }
+        tab:
+          { type: string, description: 'Which board the signal sits on, for example `politiek`.' }
+        dossierId: { type: [string, 'null'], description: The dossier it is linked to, if any. }
+        title: { type: string }
+        src: { type: [string, 'null'], description: The source system's display name. }
+        bron: { type: [string, 'null'] }
+        subbron: { type: [string, 'null'] }
+        commissie: { type: [string, 'null'] }
+        regio: { type: [string, 'null'] }
+        sentiment: { type: [string, 'null'] }
+        ref: { type: [string, 'null'] }
+        rel: { type: [number, 'null'], description: Relevance, used for ordering. }
+        impact: { type: [number, 'null'] }
+        impactLabel: { type: [string, 'null'] }
+        duiding: { type: [string, 'null'], description: The curator's interpretation. }
+        status:
+          type: string
+          enum: [candidate, ai_drafted, confirmed, dismissed]
+          description: Only `confirmed` signals reach the RSS feed.
+        aiDraft: { type: [string, 'null'] }
+        confirmedBy: { type: [string, 'null'] }
+        confirmedAt: { type: [string, 'null'], format: date-time }
+        routing: { type: [object, 'null'], additionalProperties: true }
+
+    PaFeedItem:
+      type: object
+      description: An uncurated item from an upstream source.
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        type: { type: [string, 'null'] }
+        number: { type: [string, 'null'] }
+        date:
+          {
+            type: [string, 'null'],
+            format: date-time,
+            description: 'A full timestamp with offset, despite the field name — for
+              example 2026-09-25T22:47:20.137+02:00.',
+          }
+        url: { type: [string, 'null'], format: uri }
+        source: { type: [string, 'null'] }
+
+    PaAgendaItem:
+      type: object
+      description: A parliamentary agenda entry.
+      required: [id, titel]
+      properties:
+        id: { type: string }
+        nummer: { type: [string, 'null'] }
+        soort: { type: [string, 'null'] }
+        soortLabel: { type: [string, 'null'] }
+        titel: { type: string }
+        iso: { type: [string, 'null'], description: The date, ISO-formatted. }
+        tijd: { type: [string, 'null'] }
+        commissie: { type: [string, 'null'] }
+        status: { type: [string, 'null'] }
+        dossier: { type: [string, 'null'] }
+        matchTerm: { type: [string, 'null'], description: Which saved-search term matched. }
+        url: { type: [string, 'null'], format: uri }
+        live: { type: [boolean, 'null'] }
+        stream: { type: [string, 'null'], format: uri }
+
+    PaSearch:
+      type: object
+      description: |
+        A saved search. **This schema is snake_case**, because the operation
+        answers the database row rather than a mapped object — unlike
+        `PaSignal` on the same mount. It also exposes `tenant_id` and
+        `user_id`.
+      required: [id, query]
+      properties:
+        id: { type: string }
+        tenant_id: { type: [string, 'null'] }
+        user_id: { type: [string, 'null'] }
+        scope: { type: [string, 'null'], enum: [tenant, user, null] }
+        dossier_id: { type: [string, 'null'] }
+        query: { type: object, additionalProperties: true }
+        tags: { type: [array, 'null'], items: { type: string } }
+        created_at: { type: [string, 'null'], format: date-time }
+        updated_at: { type: [string, 'null'], format: date-time }
+        notify: { type: [boolean, 'null'] }
+
+    PaDossier:
+      type: object
+      description: |
+        A dossier as the READS return it — the rendered view, with the
+        narrative and planning fields the cockpit displays.
+
+        `POST` and `PATCH` answer a DIFFERENT shape; see `PaDossierAuthoring`.
+        One resource, two representations.
+      required: [id, naam, status]
+      properties:
+        id: { type: string }
+        naam: { type: string }
+        onderwerp: { type: [string, 'null'] }
+        doel: { type: [string, 'null'] }
+        next: { type: [string, 'null'] }
+        status: { type: string }
+        momentum: { type: [string, 'null'] }
+        progressPct: { type: [number, 'null'] }
+        ritme: { type: [object, 'null'], additionalProperties: true }
+        kompas: { type: [object, 'null'], additionalProperties: true }
+        kompasLog: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        overleg: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        timeline: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        mijlpalen: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        interventies: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        intervLog: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        stakeholders: { type: [array, 'null'], items: { type: object, additionalProperties: true } }
+        waaromNu: { type: [string, 'null'] }
+        waarover: { type: [string, 'null'] }
+        narratief: { type: [string, 'null'] }
+
+    PaDossierAuthoring:
+      type: object
+      description: |
+        A dossier as the WRITES return it — what was stored, rather than the
+        rendered view. Returned by create, update, archive and unarchive.
+      required: [id, naam, onderwerp, status]
+      properties:
+        id: { type: string, description: Slugified from `naam` at creation. }
+        naam: { type: string }
+        onderwerp: { type: string }
+        status: { type: string, enum: [actief, sluimerend, gearchiveerd] }
+        momentum: { type: [string, 'null'] }
+        eigenaar: { type: [string, 'null'], description: Who created it. }
+        kompas: { type: [object, 'null'], additionalProperties: true }
+        md: { type: [object, 'null'], additionalProperties: true }
+      additionalProperties: true
+
+    PaTemplate:
+      type: object
+      required: [id, naam]
+      properties:
+        id: { type: string }
+        naam: { type: string }
+        cat: { type: [string, 'null'] }
+        beschrijving: { type: [string, 'null'] }
+        versie: { type: [string, 'null'] }
+        eigenaar: { type: [string, 'null'] }
+        gebruikt: { type: [integer, 'null'], description: How often it has been used. }
+        seed: { type: [boolean, 'null'], description: True for the rows shipped with the platform. }
+
+    PaSnippet:
+      type: object
+      required: [id, naam, md]
+      properties:
+        id: { type: string }
+        naam: { type: string }
+        cat: { type: [string, 'null'] }
+        md: { type: string, description: The snippet body, in Markdown. }
+
     MediaAggregatorError:
       type: object
       description: |
@@ -3450,6 +4846,15 @@ components:
         error: { type: string, enum: [unauthorized, search_failed] }
 
   responses:
+    PaNotFound:
+      description: |
+        No such signal, search or dossier for this organisation (`NOT_FOUND`).
+        Dossiers and searches are organisation-scoped, so a row belonging to
+        another organisation is reported as absent rather than forbidden.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
     UpstreamFailed:
       description: |
         The external system refused the request or could not be reached
