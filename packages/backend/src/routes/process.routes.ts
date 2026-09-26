@@ -2,6 +2,7 @@ import axios from 'axios';
 import express from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
+import { denyTenant, resolveStartTenant } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
@@ -61,9 +62,9 @@ router.post(
 
       // AwbZorgtoeslagProcess: coerce variable types that the DRD expects as Double
       // and strip overlijdensdatum when left blank (DRD expects absence, not empty string).
-      // AwbZorgtoeslagProcess: type coercions + processing authority override.
-      // The AWB process always runs under the toeslagen authority regardless of
-      // which channel (municipality, commercial org) the citizen came from.
+      // Which authority handles the case is not decided here: the process is
+      // deployed under toeslagen, and resolveStartTenant below sends a
+      // citizen's case to the deployment's tenant.
       if (key === 'AwbZorgtoeslagProcess') {
         for (const field of ['toetsingsinkomen', 'woonlandfactorBuitenland'] as const) {
           if (operatonVariables[field] !== undefined) {
@@ -80,17 +81,23 @@ router.post(
         ) {
           delete operatonVariables.overlijdensdatum;
         }
-        // Record originating channel, then override municipality to the
-        // processing authority so the toeslagen caseworker queue picks it up.
-        operatonVariables.originTenantId = {
-          value: req.user.tenantId,
-          type: 'String',
-        };
-        operatonVariables.municipality = {
-          value: 'toeslagen',
-          type: 'String',
-        };
       }
+
+      // Tenant rule (#218): the municipality variable is the only tenant label
+      // access checks read, so it must equal the tenant Operaton runs the
+      // instance under. Staff may start only their own tenant's processes; a
+      // citizen's case goes to the deployment's tenant.
+      const deployedTenant = await operatonService.resolveDeployedTenant(key);
+      const startTenant = resolveStartTenant(req.user, deployedTenant);
+      if (!startTenant.allowed) {
+        auditLog(req, `process.start.${key}`, 'failure', {
+          reason: 'TENANT_MISMATCH',
+          deployedTenant,
+        });
+        return denyTenant(req, res, { processKey: key, deployedTenant });
+      }
+      operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
+      operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
 
       // Start process
       const processInstance = await operatonService.startProcess(
@@ -99,7 +106,8 @@ router.post(
           businessKey: req.body.businessKey,
           variables: operatonVariables,
         },
-        req.user.tenantId
+        req.user.tenantId,
+        deployedTenant
       );
 
       // Audit log

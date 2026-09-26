@@ -43,6 +43,7 @@ jest.mock('@services/operaton.service', () => ({
     getDeployedStartForm: jest.fn(),
     getVariableHints: jest.fn(),
     deleteProcessInstance: jest.fn(),
+    resolveDeployedTenant: jest.fn(),
   },
 }));
 jest.mock('@middleware/audit.middleware', () => ({ auditLog: jest.fn() }));
@@ -71,7 +72,11 @@ const auth = (r: request.Test) => r.set('x-test-auth', '1');
 /** Operaton-format process variables owned by the caller's tenant. */
 const ownedVars = { municipality: { value: 'flevoland', type: 'String' } };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: the process is deployed under the caller's own tenant.
+  svc.resolveDeployedTenant.mockResolvedValue('flevoland');
+});
 
 describe('POST /:key/start', () => {
   it('401 without a token', async () => {
@@ -92,19 +97,75 @@ describe('POST /:key/start', () => {
       note: { value: 'hi', type: 'String' },
       payload: { value: { a: 1 }, type: 'Json' },
       empty: { value: null, type: 'Null' },
+      municipality: { value: 'flevoland', type: 'String' },
+      originTenantId: { value: 'flevoland', type: 'String' },
     });
   });
 
-  it('applies AwbZorgtoeslag coercions and authority override', async () => {
+  it('applies AwbZorgtoeslag coercions; a citizen case goes to the toeslagen deployment', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
     svc.startProcess.mockResolvedValue({ id: 'pi-2' });
-    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start')).send({
-      variables: { toetsingsinkomen: '30000', overlijdensdatum: '' },
-    });
+    await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start'))
+      .set('x-test-roles', 'citizen')
+      .send({ variables: { toetsingsinkomen: '30000', overlijdensdatum: '' } });
     const vars = svc.startProcess.mock.calls[0][1].variables;
     expect(vars.toetsingsinkomen).toEqual({ value: 30000, type: 'Double' });
     expect(vars.overlijdensdatum).toBeUndefined(); // blank stripped
-    expect(vars.municipality).toEqual({ value: 'toeslagen', type: 'String' }); // authority override
+    expect(vars.municipality).toEqual({ value: 'toeslagen', type: 'String' });
     expect(vars.originTenantId).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('stamps the caller tenant and passes the resolved deployed tenant on', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-7' });
+    await auth(request(app).post('/v1/process/AwbShellProcess/start')).send({ variables: {} });
+    expect(svc.resolveDeployedTenant).toHaveBeenCalledTimes(1);
+    expect(svc.resolveDeployedTenant).toHaveBeenCalledWith('AwbShellProcess');
+    const [key, body, tenantId, deployedTenant] = svc.startProcess.mock.calls[0];
+    expect([key, tenantId, deployedTenant]).toEqual(['AwbShellProcess', 'flevoland', 'flevoland']);
+    expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
+    expect(body.variables.originTenantId).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('403 TENANT_MISMATCH when staff start a process deployed under another tenant', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    const res = await auth(request(app).post('/v1/process/AwbZorgtoeslagProcess/start')).send({
+      variables: {},
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toEqual({
+      code: 'TENANT_MISMATCH',
+      message: 'Access denied: organisation mismatch',
+    });
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
+  it('treats a token without a roles claim as staff: refused across tenants', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue('toeslagen');
+    const res = await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-no-roles', '1')
+      .send({ variables: {} });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.startProcess).not.toHaveBeenCalled();
+  });
+
+  it('ignores a municipality supplied in the request body', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-8' });
+    await auth(request(app).post('/v1/process/P/start')).send({
+      variables: { municipality: 'utrecht' },
+    });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.municipality).toEqual({ value: 'flevoland', type: 'String' });
+  });
+
+  it('falls back to the caller tenant when the deployed tenant cannot be resolved', async () => {
+    svc.resolveDeployedTenant.mockResolvedValue(null);
+    svc.startProcess.mockResolvedValue({ id: 'pi-9' });
+    const res = await auth(request(app).post('/v1/process/P/start')).send({ variables: {} });
+    expect(res.status).toBe(201);
+    const [, body, , deployedTenant] = svc.startProcess.mock.calls[0];
+    expect(deployedTenant).toBeNull();
+    expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
   });
 
   it('500 preferring the Operaton error message', async () => {
@@ -388,8 +449,11 @@ describe('inferType, via the variables submitted on process start', () => {
           toelichting: { value: 'ok', type: 'String' },
           bijlage: { value: { naam: 'a.pdf' }, type: 'Json' },
           reden: { value: null, type: 'Null' },
+          municipality: { value: 'flevoland', type: 'String' },
+          originTenantId: { value: 'flevoland', type: 'String' },
         }),
       }),
+      'flevoland',
       'flevoland'
     );
   });
