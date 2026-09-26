@@ -1,11 +1,5 @@
 [
   "DELETE /m2m/process/{id}",
-  "GET /admin/audit",
-  "GET /hr-capacity/active",
-  "GET /hr-capacity/completed",
-  "GET /hr-capacity/{instanceId}/documents",
-  "GET /hr/onboarding/completed",
-  "GET /hr/onboarding/profile",
   "GET /m2m/decision/{key}",
   "GET /m2m/process",
   "GET /m2m/process/history",
@@ -19,19 +13,8 @@
   "GET /m2m/task/{id}",
   "GET /m2m/task/{id}/form-schema",
   "GET /m2m/task/{id}/variables",
-  "GET /mcp/models",
-  "GET /mcp/sources",
-  "GET /rip/instances/{instanceId}/documents",
-  "GET /rip/phases/active",
-  "GET /rip/phases/counts",
-  "GET /rip/phases/deployment-status",
-  "GET /rip/phases/{code}/active",
-  "GET /rip/phases/{code}/completed",
-  "GET /rip/phases/{code}/model",
-  "POST /brp/personen",
   "POST /m2m/decision/{key}/evaluate",
   "POST /m2m/process/{key}/start",
   "POST /m2m/task/{id}/claim",
-  "POST /m2m/task/{id}/complete",
-  "POST /mcp/chat"
+  "POST /m2m/task/{id}/complete"
 ]

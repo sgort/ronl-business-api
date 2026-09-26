@@ -110,6 +110,25 @@ tags:
       Signals, dossiers, saved searches and the curation board. Every
       operation needs the `public-affairs` realm role on top of a valid
       token. Dossiers and searches are organisation-scoped; signals are not.
+  - name: RIP
+    description: |
+      The RIP phase boards. Organisation-scoped; the document reads are
+      checked through tenant-access.
+  - name: Capacity
+    description: Capacity claims, with the same shape and scoping as RIP.
+  - name: HR
+    description: Onboarding runs and employee profiles.
+  - name: Personal records
+    description: |
+      A pass-through proxy to the BRP Haal Centraal API. Carries
+      burgerservicenummers; examples use the reserved test range.
+  - name: Admin
+    description: |
+      The audit log. The only operations requiring the `admin` realm role.
+  - name: MCP
+    description: |
+      Model Context Protocol sources and chat. Requires `caseworker` or
+      `admin`. Chat is the only streaming operation in this API.
   - name: Media aggregator
     description: |
       Aggregated media articles for the PA cockpit. Conditionally
@@ -3936,6 +3955,670 @@ paths:
           description: '`SNIPPET_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
 
+  # ── /v1/rip and /v1/hr-capacity ───────────────────────────────────────────
+  #
+  # Two board views onto Operaton, both jwt + tenantMiddleware. The two
+  # `{id}/documents` reads are organisation-checked through tenant-access and
+  # answer TENANT_MISMATCH; the list reads are not, because they query by the
+  # caller's own organisation to begin with.
+
+  /rip/phases/active:
+    get:
+      operationId: listRipActivePhases
+      tags: [RIP]
+      summary: Active instances across every RIP phase
+      responses:
+        '200':
+          description: One entry per running instance.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RipInstance' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`RIP_ACTIVE_AGGREGATE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/phases/counts:
+    get:
+      operationId: getRipPhaseCounts
+      tags: [RIP]
+      summary: How many instances sit in each phase
+      responses:
+        '200':
+          description: Counts, keyed by phase code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [counts]
+                        properties:
+                          counts:
+                            type: object
+                            additionalProperties: { type: integer }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`PHASE_COUNTS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/phases/deployment-status:
+    get:
+      operationId: getRipDeploymentStatus
+      tags: [RIP]
+      summary: Which phase processes are deployed
+      description: |
+        Tells a caller which phases can be started at all, as against which are
+        merely defined.
+      responses:
+        '200':
+          description: The deployed process definition keys.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [deployedKeys]
+                        properties:
+                          deployedKeys:
+                            type: array
+                            items: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`DEPLOYMENT_STATUS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/phases/{code}/active:
+    get:
+      operationId: listRipPhaseActive
+      tags: [RIP]
+      summary: Active instances of one phase
+      parameters:
+        - $ref: '#/components/parameters/RipPhaseCode'
+      responses:
+        '200':
+          description: The running instances.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RipInstance' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/UnknownPhase'
+        '500':
+          description: '`RIP_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/phases/{code}/completed:
+    get:
+      operationId: listRipPhaseCompleted
+      tags: [RIP]
+      summary: Completed instances of one phase
+      parameters:
+        - $ref: '#/components/parameters/RipPhaseCode'
+      responses:
+        '200':
+          description: The finished instances, carrying an `endTime`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RipInstance' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/UnknownPhase'
+        '500':
+          description: '`RIP_COMPLETED_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/phases/{code}/model:
+    get:
+      operationId: getRipPhaseModel
+      tags: [RIP]
+      summary: The phase's process model, as lanes, nodes and edges
+      description: |
+        A rendering-ready graph rather than raw BPMN — the board draws from
+        this directly.
+      parameters:
+        - $ref: '#/components/parameters/RipPhaseCode'
+      responses:
+        '200':
+          description: The model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [phaseCode, lanes, nodes, edges]
+                        properties:
+                          phaseCode: { type: string }
+                          lanes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          nodes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          edges:
+                            { type: array, items: { type: object, additionalProperties: true } }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/UnknownPhase'
+        '500':
+          description: '`PHASE_MODEL_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /rip/instances/{instanceId}/documents:
+    get:
+      operationId: getRipInstanceDocuments
+      tags: [RIP]
+      summary: The documents a RIP instance has produced
+      description: |
+        Organisation-checked: answers `TENANT_MISMATCH` for an instance
+        belonging to another organisation.
+
+        `data` carries the instance's variables alongside each known document
+        slot, so a slot that has not been produced yet is present and null
+        rather than absent.
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The documents and the variables they came from.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [variables]
+                        properties:
+                          variables: { $ref: '#/components/schemas/PlainVariableMap' }
+                          intakeReport: { type: [object, 'null'], additionalProperties: true }
+                          psuReport: { type: [object, 'null'], additionalProperties: true }
+                          pdp: { type: [object, 'null'], additionalProperties: true }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`RIP_DOCUMENTS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /hr-capacity/active:
+    get:
+      operationId: listCapacityActive
+      tags: [Capacity]
+      summary: Open capacity claims
+      responses:
+        '200':
+          description: The open claims.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/CapacityClaim' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`CAPACITY_CLAIM_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /hr-capacity/completed:
+    get:
+      operationId: listCapacityCompleted
+      tags: [Capacity]
+      summary: Settled capacity claims
+      responses:
+        '200':
+          description: The settled claims.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/CapacityClaim' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`CAPACITY_CLAIM_COMPLETED_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /hr-capacity/{instanceId}/documents:
+    get:
+      operationId: getCapacityDocuments
+      tags: [Capacity]
+      summary: The documents a capacity claim has produced
+      description: Organisation-checked, as the RIP equivalent is.
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The documents and the variables they came from.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [variables]
+                        properties:
+                          variables: { $ref: '#/components/schemas/PlainVariableMap' }
+                          boardDecisionNotification:
+                            { type: [object, 'null'], additionalProperties: true }
+                          capacityClaimHandover:
+                            { type: [object, 'null'], additionalProperties: true }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '500':
+          description: '`CAPACITY_CLAIM_DOCUMENTS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  # ── /v1/hr ────────────────────────────────────────────────────────────────
+
+  /hr/onboarding/completed:
+    get:
+      operationId: listHrOnboardingCompleted
+      tags: [HR]
+      summary: Completed onboarding runs
+      responses:
+        '200':
+          description: The completed runs.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/HrOnboarding' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`ONBOARDING_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /hr/onboarding/profile:
+    get:
+      operationId: getHrOnboardingProfile
+      tags: [HR]
+      summary: One employee's onboarding profile
+      parameters:
+        - name: employeeId
+          in: query
+          required: true
+          description: Required — there is no unfiltered profile read.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: object, additionalProperties: true }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: '`employeeId` was not supplied (`VALIDATION_ERROR`).'
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`HR_PROFILE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  # ── /v1/brp ───────────────────────────────────────────────────────────────
+
+  /brp/personen:
+    post:
+      operationId: searchBrpPersonen
+      tags: [Personal records]
+      summary: Look up a person in the municipal records
+      description: |
+        A pass-through proxy to the BRP Haal Centraal API, so the frontend does
+        not have to reach it across origins. The request and response are the
+        upstream's own shapes, forwarded unaltered.
+
+        **This carries a burgerservicenummer**, a national identifier. Examples
+        here use the reserved `99999xxxx` test range, never a real one.
+
+        `jwtMiddleware` is applied on the route rather than the router, so this
+        is authenticated — there is no `router.use` on this mount.
+      requestBody:
+        required: true
+        description: The upstream's request shape, forwarded as sent.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type:
+                  type: string
+                  description: 'The BRP query type, for example
+                    `RaadpleegMetBurgerservicenummer`.'
+                burgerservicenummer:
+                  type: array
+                  items: { type: string }
+                  description: 'One or more BSNs. Use the reserved 99999xxxx range in examples.'
+                fields:
+                  type: array
+                  items: { type: string }
+                  description: Which fields to return.
+              additionalProperties: true
+      responses:
+        '200':
+          description: The upstream's answer, forwarded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: The BRP response, unaltered.
+                        additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The upstream rejected the query (`BRP_API_ERROR`). **This error
+            carries an extra `details`** holding the upstream's own
+            `invalidParams`, which no other error in this API does.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BrpError' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: The upstream could not be reached (`BRP_API_ERROR`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BrpError' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+
+  # ── /v1/admin ─────────────────────────────────────────────────────────────
+
+  /admin/audit:
+    get:
+      operationId: getAuditLog
+      tags: [Admin]
+      summary: Recent audit entries
+      description: |
+        The in-memory audit queue. **Requires the `admin` realm role** — the
+        only operation in this API that does — and answers `403 FORBIDDEN` to
+        anyone else, a ROLE refusal rather than an organisation one.
+
+        Entries carry `userId`, `tenantId`, `azp`, IP addresses and user
+        agents, which is why the role gate is here.
+      responses:
+        '200':
+          description: The most recent entries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          description: One audit entry.
+                          additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            The caller lacks the `admin` role (`FORBIDDEN`). Not
+            `TENANT_MISMATCH`: this is about role, not organisation.
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`DB_ERROR`.'
+          $ref: '#/components/responses/Error'
+
+  # ── /v1/mcp ───────────────────────────────────────────────────────────────
+  #
+  # Requires `caseworker` OR `admin`. /chat is the only streaming operation in
+  # this API.
+
+  /mcp/sources:
+    get:
+      operationId: listMcpSources
+      tags: [MCP]
+      summary: The MCP sources this service can reach
+      responses:
+        '200':
+          description: The sources and whether each is connected.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/McpSource' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller has neither `caseworker` nor `admin` (`FORBIDDEN`).
+          $ref: '#/components/responses/Error'
+
+  /mcp/models:
+    get:
+      operationId: listMcpModels
+      tags: [MCP]
+      summary: The language models available for chat
+      responses:
+        '200':
+          description: The models.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/McpModel' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller has neither `caseworker` nor `admin` (`FORBIDDEN`).
+          $ref: '#/components/responses/Error'
+
+  /mcp/chat:
+    post:
+      operationId: mcpChat
+      tags: [MCP]
+      summary: Ask a question across the connected MCP sources
+      description: |
+        **The only streaming operation in this API.** A successful call answers
+        `text/event-stream` with `Cache-Control: no-cache` and
+        `X-Accel-Buffering: no`, then writes one SSE `data:` line per event:
+
+        ```
+        data: {"type":"delta","text":"ok"}
+
+        data: {"type":"done"}
+        ```
+
+        A `delta` carries the next fragment of the answer; `done` ends the
+        stream. OpenAPI cannot describe an event sequence, so the 200 below
+        types the body as a string and the framing is given here.
+
+        The REFUSALS are ordinary JSON, not events — they are sent before the
+        stream begins, so a caller must check the status and content type
+        before reading.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, modelId]
+              properties:
+                message: { type: string, description: The question. Must not be blank. }
+                modelId:
+                  type: string
+                  description: 'One of the ids from `GET /mcp/models`.'
+                history:
+                  type: array
+                  description: Earlier turns, oldest first.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { type: string, enum: [user, assistant] }
+                      content: { type: string }
+                sources:
+                  type: array
+                  description: |
+                    Restrict to these source ids. Absent or empty means every
+                    connected source.
+                  items: { type: string }
+      responses:
+        '200':
+          description: The answer, streamed as server-sent events.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: 'A sequence of `data:` lines; see the description for the event
+                  shapes.'
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            `message` is blank or `modelId` is absent (`INVALID_REQUEST`). The
+            message names which.
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller has neither `caseworker` nor `admin` (`FORBIDDEN`).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: |
+            MCP is switched off (`MCP_DISABLED`), or none of the selected
+            sources is connected (`MCP_NOT_CONNECTED`).
+          $ref: '#/components/responses/Error'
+
 components:
   headers:
     ApiVersion:
@@ -3964,6 +4647,15 @@ components:
         `jwtMiddleware`; the tenant and roles are read from its claims.
 
   parameters:
+    RipPhaseCode:
+      name: code
+      in: path
+      required: true
+      description: |
+        The phase code, dotted -- `R2.1`, not `R21`. An unrecognised code
+        answers 404 UNKNOWN_PHASE.
+      schema: { type: string, examples: ['R2.1'] }
+
     PaSignalId:
       name: id
       in: path
@@ -4718,8 +5410,8 @@ components:
           {
             type: [string, 'null'],
             format: date-time,
-            description: 'A full timestamp with offset, despite the field name — for
-              example 2026-09-25T22:47:20.137+02:00.',
+            description: 'A full timestamp with offset, despite the field name — for example
+              2026-09-25T22:47:20.137+02:00.',
           }
         url: { type: [string, 'null'], format: uri }
         source: { type: [string, 'null'] }
@@ -4834,6 +5526,105 @@ components:
         cat: { type: [string, 'null'] }
         md: { type: string, description: The snippet body, in Markdown. }
 
+    PlainEnvelope:
+      type: object
+      description: |
+        The plainest envelope in this API: success and a payload, with no
+        `meta` and no `timestamp`. Used by the execution core and by the board
+        views here.
+      required: [success, data]
+      properties:
+        success: { type: boolean, const: true }
+        data: {}
+
+    RipInstance:
+      type: object
+      description: |
+        A RIP phase instance as the boards show it. `endTime` is present on
+        completed instances and absent on active ones.
+      required: [id, businessKey, startTime]
+      properties:
+        id: { type: string }
+        businessKey: { type: string }
+        startTime: { type: string, format: date-time }
+        endTime: { type: [string, 'null'], format: date-time }
+        projectNumber: { type: [string, 'null'] }
+        projectName: { type: [string, 'null'] }
+        edocsWorkspaceId: { type: [string, 'null'] }
+        leadRole: { type: [string, 'null'] }
+        phaseCode:
+          type:
+            - string
+            - 'null'
+          description: Which phase the instance belongs to. Present on the cross-phase
+            aggregate; the per-phase reads already have it in the path.
+
+    CapacityClaim:
+      type: object
+      description: A capacity claim as the board shows it.
+      required: [id, startTime]
+      properties:
+        id: { type: string }
+        startTime: { type: string, format: date-time }
+        endTime: { type: [string, 'null'], format: date-time }
+        jobTitle: { type: [string, 'null'] }
+        requestType: { type: [string, 'null'] }
+        boardDecision: { type: [string, 'null'] }
+        advisoryGroup: { type: [string, 'null'] }
+
+    HrOnboarding:
+      type: object
+      description: A completed onboarding run.
+      required: [id, startTime]
+      properties:
+        id: { type: string }
+        startTime: { type: string, format: date-time }
+        endTime: { type: [string, 'null'], format: date-time }
+        employeeId: { type: [string, 'null'] }
+        firstName: { type: [string, 'null'] }
+        lastName: { type: [string, 'null'] }
+
+    McpSource:
+      type: object
+      required: [id, displayName, connected]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        description: { type: [string, 'null'] }
+        connected:
+          type: boolean
+          description: |
+            False means chat cannot use it; selecting only disconnected
+            sources answers 503.
+
+    McpModel:
+      type: object
+      required: [id, displayName, providerId]
+      properties:
+        id: { type: string, description: 'Pass to `POST /mcp/chat` as `modelId`.' }
+        displayName: { type: string }
+        providerId: { type: string }
+        providerDisplayName: { type: [string, 'null'] }
+
+    BrpError:
+      type: object
+      description: |
+        The error envelope plus a `details` object carrying the upstream's own
+        validation report. No other error in this API has that field.
+      required: [success, error]
+      properties:
+        success: { type: boolean, const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, const: BRP_API_ERROR }
+            message: { type: string }
+            details:
+              type: object
+              description: "The upstream's report, typically `{ invalidParams: [...] }`."
+              additionalProperties: true
+
     MediaAggregatorError:
       type: object
       description: |
@@ -4846,6 +5637,14 @@ components:
         error: { type: string, enum: [unauthorized, search_failed] }
 
   responses:
+    UnknownPhase:
+      description: |
+        No RIP phase with that code (`UNKNOWN_PHASE`). Codes are dotted --
+        `R2.1`, not `R21`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
     PaNotFound:
       description: |
         No such signal, search or dossier for this organisation (`NOT_FOUND`).
