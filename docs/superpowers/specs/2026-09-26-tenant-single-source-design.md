@@ -139,8 +139,14 @@ is left as it is; the new module does not import from it.
    values, because `AwbZorgtoeslagProcess` is deployed under `toeslagen` (see
    Verified facts).
 
-The `municipality` fallback inside `startProcess` (set it when absent) stays as
-defence in depth for internal callers; the route always sets it first.
+The `municipality` fallback inside `startProcess` changes from the caller's
+tenant to the **scope tenant** (deployed tenant, or the caller's tenant for an
+untenanted deployment). The user route always sets `municipality` first, so this
+only decides the M2M start (`POST /v1/m2m/process/:key/start`), which calls
+`startProcess` with tenant `'m2m'` and no user: without this, an M2M-started
+instance would carry `municipality = 'm2m'` while its tasks carry the deployed
+tenant — the #218 split again. An M2M client that supplies `municipality`
+explicitly is trusted, as today.
 
 ### 3. Detail checks
 
