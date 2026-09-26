@@ -59,7 +59,14 @@ app.use(express.json());
 app.use('/v1/task', taskRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 
-beforeEach(() => jest.clearAllMocks());
+/** Operaton-format process variables owned by the caller's tenant. */
+const ownedVars = { municipality: { value: 'flevoland', type: 'String' } };
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: the task's process instance belongs to the caller's tenant.
+  svc.getProcessVariables.mockResolvedValue(ownedVars);
+});
 
 describe('GET /v1/task', () => {
   it('401 without a token', async () => {
@@ -113,11 +120,29 @@ describe('GET /v1/task/:id', () => {
     expect(res.body.data).toMatchObject({ id: 't1' });
   });
 
-  it('403 on a tenant mismatch', async () => {
-    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+  it('403 TENANT_MISMATCH when the instance variable names another tenant', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'utrecht', type: 'String' },
+    });
     const res = await auth(request(app).get('/v1/task/t1'));
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('opens a task whose Operaton tenant disagrees but whose variable is the caller tenant', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht', processInstanceId: 'pi-1' });
+    const res = await auth(request(app).get('/v1/task/t1'));
+    expect(res.status).toBe(200);
+    expect(svc.getProcessVariables).toHaveBeenCalledWith('pi-1');
+  });
+
+  it('403 TENANT_MISMATCH when the instance carries no municipality', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({});
+    const res = await auth(request(app).get('/v1/task/t1'));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 when the task is not found', async () => {
@@ -131,18 +156,30 @@ describe('GET /v1/task/:id', () => {
 describe('GET /v1/task/:id/variables', () => {
   it('flattens process variables to plain values', async () => {
     svc.getTask.mockResolvedValue({ id: 't1', processInstanceId: 'pi-1' });
-    svc.getProcessVariables.mockResolvedValue({ amount: { value: 42, type: 'Integer' } });
+    svc.getProcessVariables.mockResolvedValue({
+      amount: { value: 42, type: 'Integer' },
+      municipality: { value: 'flevoland', type: 'String' },
+    });
     const res = await auth(request(app).get('/v1/task/t1/variables'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ amount: 42 });
+    expect(res.body.data).toEqual({ amount: 42, municipality: 'flevoland' });
     expect(svc.getProcessVariables).toHaveBeenCalledWith('pi-1');
   });
 
-  it('403 on a tenant mismatch', async () => {
-    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht', processInstanceId: 'pi-1' });
+  it('reads the variables once, for both the check and the response', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', processInstanceId: 'pi-1' });
+    await auth(request(app).get('/v1/task/t1/variables'));
+    expect(svc.getProcessVariables).toHaveBeenCalledTimes(1);
+  });
+
+  it('403 TENANT_MISMATCH when the instance variable names another tenant', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'utrecht', type: 'String' },
+    });
     const res = await auth(request(app).get('/v1/task/t1/variables'));
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 when variables cannot be retrieved', async () => {
@@ -157,11 +194,14 @@ describe('GET /v1/task/:id/variables', () => {
 describe('GET /v1/task/:id/form-schema', () => {
   beforeEach(() => svc.getTask.mockResolvedValue({ id: 't1' }));
 
-  it('403 on a tenant mismatch', async () => {
-    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+  it('403 TENANT_MISMATCH when the instance variable names another tenant', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'utrecht', type: 'String' },
+    });
     const res = await auth(request(app).get('/v1/task/t1/form-schema'));
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('parses and returns a Camunda (JSON) form', async () => {
@@ -197,11 +237,14 @@ describe('GET /v1/task/:id/form-schema', () => {
 });
 
 describe('POST /v1/task/:id/claim', () => {
-  it('403 on a tenant mismatch', async () => {
-    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+  it('403 TENANT_MISMATCH when the instance variable names another tenant', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'utrecht', type: 'String' },
+    });
     const res = await auth(request(app).post('/v1/task/t1/claim'));
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('claims the task for the caller and audits', async () => {
@@ -229,11 +272,14 @@ describe('POST /v1/task/:id/claim', () => {
 });
 
 describe('POST /v1/task/:id/complete', () => {
-  it('403 on a tenant mismatch', async () => {
-    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'utrecht' });
+  it('403 TENANT_MISMATCH when the instance variable names another tenant', async () => {
+    svc.getTask.mockResolvedValue({ id: 't1', tenantId: 'flevoland', processInstanceId: 'pi-1' });
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'utrecht', type: 'String' },
+    });
     const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('infers variable types, completes the task, and audits', async () => {
@@ -336,7 +382,7 @@ describe('non-Error rejections', () => {
     ['completeTask', 'post', '/v1/task/t-1/complete', 500],
   ] as const)('%s rejecting with a string still answers %s', async (fn, method, path, status) => {
     svc.getTask.mockResolvedValue({ id: 't-1', tenantId: 'flevoland' });
-    svc.getProcessVariables.mockResolvedValue({});
+    svc.getProcessVariables.mockResolvedValue(ownedVars);
     svc[fn].mockRejectedValue('socket hang up');
     const res = await auth(request(app)[method](path));
     expect(res.status).toBe(status);
