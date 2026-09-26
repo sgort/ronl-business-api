@@ -61,6 +61,6 @@ describe('OpenAPI coverage of the /v1 routes', () => {
   // description. Lower this number as phases land -- it is the only assertion
   // here that measures progress rather than consistency.
   test('the pending list only shrinks', () => {
-    expect(pending.length).toBeLessThanOrEqual(108);
+    expect(pending.length).toBeLessThanOrEqual(89);
   });
 });
