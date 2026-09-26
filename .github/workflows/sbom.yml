@@ -53,7 +53,7 @@ jobs:
           # An exact literal rather than .nvmrc, for the same reason the daily
           # audit pins one: this reads a lockfile and should not change with
           # the tree it reads. Renovate maintains it.
-          node-version: '24.20.0'
+          node-version: '24.21.0'
 
       - name: Generate the SBOM
         # --package-lock-only, so no install is needed; production
