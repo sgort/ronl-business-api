@@ -112,22 +112,14 @@ export const addTenantToProcessVariables = (req: Request, res: Response, next: N
       req.body.variables = {};
     }
 
-    // Mint a business key only when the caller has none. A caller that
-    // supplies one is asserting a relationship the server cannot
-    // reconstruct: a RIP phase started for a project inherits the key its
-    // originating R2.1 run minted, so every phase instance of one project
-    // shares it and the board can tell which projects are already past a
-    // rung. Overwriting it unconditionally silently broke that -- each
-    // phase got a fresh key and no instance was ever recognisably related
-    // to another.
+    // No business key is minted here (#234): its prefix names the
+    // organisation that owns the case, which is only known once the start
+    // route has resolved the deployed tenant. The route mints it, and keeps
+    // one the caller supplied.
     //
-    // Safe to honour: businessKey grants nothing. Tenant isolation runs on
-    // the municipality variable set immediately below, which is always
-    // taken from the token and never from the request body.
-    if (!req.body.businessKey) {
-      req.body.businessKey = `${req.user.tenantId}-${Date.now()}`;
-    }
-
+    // municipality is provisional too: the start route overwrites it with
+    // the owning organisation from resolveStartTenant (#218), never with a
+    // value from the request body.
     req.body.variables.municipality = req.user.tenantId;
     req.body.variables.organisationType = req.user.organisationType;
     req.body.variables.initiator = req.user.userId;
@@ -137,7 +129,6 @@ export const addTenantToProcessVariables = (req: Request, res: Response, next: N
     logger.debug('Added tenant context to process variables', {
       tenantId: req.user.tenantId,
       organisationType: req.user.organisationType,
-      businessKey: req.body.businessKey,
     });
   }
 

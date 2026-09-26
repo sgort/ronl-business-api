@@ -144,7 +144,7 @@ describe('addTenantToProcessVariables', () => {
     expect(next).toHaveBeenCalled();
   });
 
-  it('injects businessKey and tenant-scoped variables', () => {
+  it('injects tenant-scoped variables but mints no business key (#234)', () => {
     const req = {
       user: {
         userId: 'u-1',
@@ -156,8 +156,9 @@ describe('addTenantToProcessVariables', () => {
     } as unknown as Request;
     const next = jest.fn();
     addTenantToProcessVariables(req, makeRes(), next as NextFunction);
-    const body = req.body as { businessKey: string; variables: Record<string, unknown> };
-    expect(body.businessKey).toMatch(/^flevoland-\d+$/);
+    const body = req.body as { businessKey?: string; variables: Record<string, unknown> };
+    // The start route mints it, once it knows which organisation owns the case.
+    expect(body.businessKey).toBeUndefined();
     expect(body.variables).toMatchObject({
       municipality: 'flevoland',
       organisationType: 'province',
