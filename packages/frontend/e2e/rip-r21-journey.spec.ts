@@ -264,37 +264,18 @@ async function liveCount(page: Page, phase: RegExp, column: 'klaar' | 'gereed'):
 }
 
 /**
- * Reads a live badge once it has actually rendered.
+ * Opens the Faseladder and returns the live baselines this spec measures
+ * against, taken from the GET /rip/phases/counts response the table is built
+ * from.
  *
- * openFaseladder waits for GET /rip/phases/counts to answer, but the badges
- * paint after that response is applied, and liveCount reports a missing badge
- * as 0. Sampling a baseline the instant the faseladder opens therefore reads 0
- * and turns a correct application into a failing delta -- the same trap the
- * openFaseladder docstring below records for the gereed figure. Assertions at
- * the end of the journey are already inside expect.poll, so only the baseline
- * needs this.
+ * Not from the rendered badges. The heading renders before the counts answer
+ * and the badges paint a tick after, so sampling the table read 0 against a
+ * real "after". Waiting for a badge instead is no better: FaseladderOverview
+ * renders none at all when a live count is 0, which on a fresh engine -- no R2.1
+ * ever completed -- is R2.2's Klaar, so the wait can never end. From the
+ * response, 0 is just 0.
  */
-async function liveCountWhenRendered(
-  page: Page,
-  phase: RegExp,
-  column: 'klaar' | 'gereed'
-): Promise<number> {
-  const row = page.locator('table tr', { hasText: phase }).first();
-  const cell = row.locator('td').nth(column === 'klaar' ? 4 : 6);
-  await expect(cell.locator('.pb-live-badge')).toBeVisible({ timeout: 20_000 });
-  return liveCount(page, phase, column);
-}
-
-/**
- * Opens the Faseladder and waits for its live counts to arrive.
- *
- * The heading renders before GET /rip/phases/counts answers, and the live
- * badges are exactly what this spec measures. Sampling on the heading alone
- * read a table with no badges yet, so "before" came back 0 while "after" came
- * back the real figure — an assertion that failed while the application was
- * behaving perfectly correctly.
- */
-async function openFaseladder(page: Page): Promise<number> {
+async function openFaseladder(page: Page): Promise<{ gereedR21: number; klaarR22: number }> {
   const counts = page.waitForResponse(
     (r) => r.url().includes('/rip/phases/counts') && r.request().method() === 'GET',
     { timeout: 30_000 }
@@ -306,7 +287,14 @@ async function openFaseladder(page: Page): Promise<number> {
     data?: { counts?: Record<string, { wip: number; gereed: number }> };
   };
   // Keyed by process definition key, not phase code.
-  return body.data?.counts?.RipR21Process?.gereed ?? 0;
+  const r21 = body.data?.counts?.RipR21Process ?? { wip: 0, gereed: 0 };
+  const r22 = body.data?.counts?.RipR22Process ?? { wip: 0, gereed: 0 };
+  return {
+    gereedR21: r21.gereed,
+    // R2.2's Klaar is derived, as getKlaarCounts derives it:
+    // gereed[R2.1] - wip[R2.2] - gereed[R2.2], floored at 0.
+    klaarR22: Math.max(0, r21.gereed - r22.wip - r22.gereed),
+  };
 }
 
 /**
@@ -591,14 +579,13 @@ test.describe('RIP fase 1 (R2.1)', () => {
     // Taken from the response the table is built from rather than from the
     // rendered badge: the badge paints a tick later, so reading it here caught
     // an empty cell and made "before" 0 against a real "after".
-    const gereedBefore = await openFaseladder(page);
     // R2.2's Klaar is a DERIVED figure: gereed[R2.1] - wip[R2.2] - gereed[R2.2].
     // Only its delta belongs to this journey, so baseline it rather than
     // assuming R2.2 has no instances of its own. Asserting the absolute
     // gereedBefore + 1 passes only on an engine where nothing is in flight for
     // R2.2 -- one live R2.2 instance is enough to make a correct application
     // report one less, which is exactly what it should do.
-    const klaarR22Before = await liveCountWhenRendered(page, /R2\.2/, 'klaar');
+    const { gereedR21: gereedBefore, klaarR22: klaarR22Before } = await openFaseladder(page);
 
     // ── start the phase from its own detail page ────────────────────────
     await page.locator('.v2-rail button', { hasText: 'R2.1' }).first().click();

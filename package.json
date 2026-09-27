@@ -37,6 +37,7 @@
     "docker:logs": "docker compose logs -f",
     "docker:logs:keycloak": "docker compose logs -f keycloak",
     "docker:logs:postgres": "docker compose logs -f postgres",
+    "e2e:deploy-fixtures": "node scripts/deploy-e2e-fixtures.mjs",
     "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
     "setup": "npm install && npm run docker:up",
     "prepare": "husky",
