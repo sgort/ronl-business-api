@@ -124,6 +124,32 @@ async function assertLocalTarget() {
   return operatonUrl;
 }
 
+/**
+ * Confirms the engine LDE deploys to is answering, before the first deploy.
+ *
+ * Without this, a stopped or still-starting Operaton surfaces as LDE's generic
+ * DMN_DEPLOY_FAILED on the first decision, which does not say the engine is
+ * the problem. Asked directly, at the URL LDE itself reported: the one that
+ * matters is the engine LDE talks to, not whichever one this machine maps to
+ * :8081.
+ */
+async function assertOperatonUp(operatonUrl) {
+  const hint =
+    'Start it from this repo with `npm run docker:up`; a fresh container needs ' +
+    'about half a minute before it answers.';
+  let res;
+  try {
+    res = await fetch(`${operatonUrl.replace(/\/$/, '')}/version`, {
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    fail(`Operaton not reachable at ${operatonUrl} (${err.cause?.code ?? err.name}). ${hint}`);
+  }
+  if (!res.ok) fail(`Operaton at ${operatonUrl} answered HTTP ${res.status}. ${hint}`);
+  const { version } = await res.json().catch(() => ({}));
+  return version ?? 'unknown version';
+}
+
 async function deployDecisionFile(path, label) {
   const filename = basename(path);
   const { deploymentId } = await ldeRequest('POST', '/v1/dmns/deploy', {
@@ -205,7 +231,10 @@ async function main() {
   const manifest = readJson(join(FIXTURES, 'manifest.json'));
 
   const operatonUrl = await assertLocalTarget();
-  console.log(`Deploying ${FIXTURES}\n  via ${LDE_URL} → ${operatonUrl}\n`);
+  const operatonVersion = await assertOperatonUp(operatonUrl);
+  console.log(
+    `Deploying ${FIXTURES}\n  via ${LDE_URL} → ${operatonUrl} (Operaton ${operatonVersion})\n`
+  );
 
   // Build every payload before deploying anything, so a broken fixture stops
   // the run before it leaves the engine half-populated.
