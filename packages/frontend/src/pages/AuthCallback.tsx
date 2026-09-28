@@ -69,10 +69,12 @@ function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean })
  * such restriction, so it's the only safe way to trigger a real redirect
  * from more than one call site.)
  *
- * Citizen flows (digid / eherkenning / eidas):
+ * External-IdP flows (digid / eherkenning / eidas / entra-flevoland):
  *   Not authenticated → keycloak.login({ idpHint }) redirects to the
- *   external IdP. In dev (no real IdPs configured) it falls back to the
- *   native login form without a context banner.
+ *   external IdP. entra-flevoland is Provincie Flevoland's Entra ID, brokered
+ *   by Keycloak (scripts/keycloak-add-entra-idp.sh). Where the hinted
+ *   provider is not configured, Keycloak falls back to its native login form
+ *   without a context banner.
  *
  * Medewerker flow:
  *   Not authenticated → keycloak.login({ loginHint: '__medewerker__' }) so

@@ -1,0 +1,88 @@
+{
+  "provider": {
+    "alias": "entra-flevoland",
+    "displayName": "Flevoland (Entra ID)",
+    "providerId": "oidc",
+    "enabled": true,
+    "trustEmail": true,
+    "storeToken": false,
+    "addReadTokenRoleOnCreate": false,
+    "firstBrokerLoginFlowAlias": "first broker login",
+    "config": {
+      "clientAuthMethod": "client_secret_post",
+      "defaultScope": "openid profile email",
+      "validateSignature": "true",
+      "useJwksUrl": "true",
+      "disableUserInfo": "true",
+      "pkceEnabled": "true",
+      "pkceMethod": "S256",
+      "syncMode": "FORCE",
+      "backchannelSupported": "false"
+    }
+  },
+  "mappers": [
+    {
+      "name": "municipality",
+      "identityProviderMapper": "hardcoded-attribute-idp-mapper",
+      "config": { "syncMode": "FORCE", "attribute": "municipality", "attribute.value": "flevoland" }
+    },
+    {
+      "name": "organisation-type",
+      "identityProviderMapper": "hardcoded-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute": "organisation_type",
+        "attribute.value": "province"
+      }
+    },
+    {
+      "name": "assurance-level",
+      "identityProviderMapper": "hardcoded-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute": "assurance_level",
+        "attribute.value": "substantieel"
+      }
+    },
+    {
+      "name": "role-iou-admin",
+      "identityProviderMapper": "oidc-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "roles",
+        "claim.value": "IOU_ADMIN",
+        "role": "admin"
+      }
+    },
+    {
+      "name": "role-iou-user",
+      "identityProviderMapper": "oidc-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "roles",
+        "claim.value": "IOU_USERS",
+        "role": "caseworker"
+      }
+    },
+    {
+      "name": "role-iou-pa",
+      "identityProviderMapper": "oidc-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "roles",
+        "claim.value": "IOU_PA",
+        "role": "public-affairs"
+      }
+    },
+    {
+      "name": "role-iou-infra",
+      "identityProviderMapper": "oidc-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "roles",
+        "claim.value": "IOU_INFRA",
+        "role": "infra-projectteam"
+      }
+    }
+  ]
+}

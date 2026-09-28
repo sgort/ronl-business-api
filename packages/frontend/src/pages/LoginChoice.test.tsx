@@ -44,7 +44,7 @@ describe('LoginChoice', () => {
     const user = userEvent.setup();
     render(<LoginChoice />);
 
-    await user.click(screen.getByRole('button', { name: /Inloggen/ }));
+    await user.click(screen.getByRole('button', { name: 'Inloggen' }));
 
     expect(sessionStorage.getItem('selected_idp')).toBe('medewerker');
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull();
@@ -59,6 +59,38 @@ describe('LoginChoice', () => {
 
     expect(sessionStorage.getItem('selected_idp')).toBe('digid');
     expect(mockNavigate).toHaveBeenCalledWith('/auth');
+  });
+
+  it('the Flevoland button starts an Entra ID login and navigates to /auth', async () => {
+    const user = userEvent.setup();
+    render(<LoginChoice />);
+
+    await user.click(screen.getByRole('button', { name: /Inloggen met uw Flevoland-account/ }));
+
+    expect(sessionStorage.getItem('selected_idp')).toBe('entra-flevoland');
+    expect(mockNavigate).toHaveBeenCalledWith('/auth');
+  });
+
+  it('the Flevoland button clears a redirect and username hint left by an earlier board click', async () => {
+    sessionStorage.setItem('post_login_redirect', '/dashboard/woo');
+    sessionStorage.setItem('username_hint', 'test-woo-flevoland');
+    const user = userEvent.setup();
+    render(<LoginChoice />);
+
+    await user.click(screen.getByRole('button', { name: /Inloggen met uw Flevoland-account/ }));
+
+    expect(sessionStorage.getItem('post_login_redirect')).toBeNull();
+    expect(sessionStorage.getItem('username_hint')).toBeNull();
+    expect(sessionStorage.getItem('selected_idp')).toBe('entra-flevoland');
+  });
+
+  it('"Bekijk de borden" remains as a link to the boards section', () => {
+    render(<LoginChoice />);
+
+    expect(screen.getByRole('link', { name: 'Bekijk de borden' })).toHaveAttribute(
+      'href',
+      '#boards'
+    );
   });
 
   it('opening a board sets the post-login redirect target and username hint', async () => {
