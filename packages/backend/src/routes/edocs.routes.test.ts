@@ -48,6 +48,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import edocsRouter from './edocs.routes';
 import { edocsService } from '@services/edocs.service';
 
@@ -65,7 +67,12 @@ const svc = edocsService as unknown as {
 };
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/edocs', edocsRouter);
 
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
@@ -76,6 +83,7 @@ describe('auth gate', () => {
   it('rejects an unauthenticated request with 401', async () => {
     const res = await request(app).get('/v1/edocs/status');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/edocs/status');
     expect(res.body.error.code).toBe('MISSING_TOKEN');
     expect(svc.healthCheck).not.toHaveBeenCalled();
   });
@@ -86,6 +94,7 @@ describe('GET /status', () => {
     svc.healthCheck.mockResolvedValue({ status: 'stub', reachable: true, authenticated: true });
     const res = await auth(request(app).get('/v1/edocs/status'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/edocs/status');
     expect(res.body.data).toMatchObject({
       status: 'stub',
       stubMode: true,
@@ -143,16 +152,23 @@ describe('GET /status', () => {
 
 describe('GET /workspaces', () => {
   it('returns the workspace list on success', async () => {
-    svc.listWorkspaces.mockResolvedValue([{ id: 'ws-1' }]);
+    // EdocsWorkspace names `name` as required; `{ id: 'ws-1' }` was a workspace
+    // with no name, which nothing consuming this could render (#269).
+    svc.listWorkspaces.mockResolvedValue([{ id: 'ws-1', name: 'Dossier 2026-001' }]);
     const res = await auth(request(app).get('/v1/edocs/workspaces'));
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, data: [{ id: 'ws-1' }] });
+    expectToMatchOperation(res, 'get', '/edocs/workspaces');
+    expect(res.body).toMatchObject({
+      success: true,
+      data: [{ id: 'ws-1', name: 'Dossier 2026-001' }],
+    });
   });
 
   it('maps a service failure to 502 EDOCS_ERROR', async () => {
     svc.listWorkspaces.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/edocs/workspaces'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'get', '/edocs/workspaces');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -163,6 +179,7 @@ describe('POST /workspaces/ensure', () => {
       projectNumber: 'P-1',
     });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/edocs/workspaces/ensure');
     expect(res.body.error.code).toBe('MISSING_FIELDS');
     expect(svc.ensureWorkspace).not.toHaveBeenCalled();
   });
@@ -178,6 +195,7 @@ describe('POST /workspaces/ensure', () => {
       projectName: 'Proj',
     });
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/edocs/workspaces/ensure');
     expect(res.body.data).toMatchObject({ workspaceId: 'ws-9', created: true });
     expect(svc.ensureWorkspace).toHaveBeenCalledWith('P-1', 'Proj');
   });
@@ -189,6 +207,7 @@ describe('POST /workspaces/ensure', () => {
       projectName: 'Proj',
     });
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'post', '/edocs/workspaces/ensure');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -207,6 +226,7 @@ describe('POST /documents', () => {
       metadata: { department: 'IVR' },
     });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/edocs/documents');
     expect(res.body.error.code).toBe('MISSING_FIELDS');
     expect(svc.uploadDocument).not.toHaveBeenCalled();
   });
@@ -217,6 +237,7 @@ describe('POST /documents', () => {
       metadata: { docName: 'Doc' },
     });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/edocs/documents');
     expect(res.body.error.code).toBe('MISSING_FIELDS');
     expect(svc.uploadDocument).not.toHaveBeenCalled();
   });
@@ -229,6 +250,7 @@ describe('POST /documents', () => {
     });
     const res = await auth(request(app).post('/v1/edocs/documents')).send(valid);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/edocs/documents');
     expect(res.body.data).toMatchObject({ documentId: 'doc-1', documentNumber: '555' });
     expect(svc.uploadDocument).toHaveBeenCalledWith('ws-1', 'a.pdf', 'YmFzZTY0', {
       docName: 'Doc',
@@ -245,6 +267,7 @@ describe('POST /documents', () => {
     const { workspaceId: _omit, ...withoutWorkspace } = valid;
     const res = await auth(request(app).post('/v1/edocs/documents')).send(withoutWorkspace);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/edocs/documents');
     expect(res.body.data).toMatchObject({ documentId: 'doc-2', workspaceId: null });
     expect(svc.uploadDocument).toHaveBeenCalledWith(null, 'a.pdf', 'YmFzZTY0', {
       docName: 'Doc',
@@ -256,6 +279,7 @@ describe('POST /documents', () => {
     svc.uploadDocument.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).post('/v1/edocs/documents')).send(valid);
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'post', '/edocs/documents');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -267,6 +291,7 @@ describe('GET /workspaces/:workspaceId/documents', () => {
     ]);
     const res = await auth(request(app).get('/v1/edocs/workspaces/ws-1/documents'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/edocs/workspaces/{workspaceId}/documents');
     expect(res.body.data).toMatchObject({
       workspaceId: 'ws-1',
       documents: [{ id: 'd1', documentNumber: '111' }],
@@ -278,6 +303,7 @@ describe('GET /workspaces/:workspaceId/documents', () => {
     svc.getWorkspaceDocuments.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/edocs/workspaces/ws-1/documents'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'get', '/edocs/workspaces/{workspaceId}/documents');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -287,6 +313,7 @@ describe('GET /documents/:documentId/profile', () => {
     svc.getDocumentProfile.mockResolvedValue({ DOCNAME: 'a.pdf', DOCNUMBER: '111' });
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/profile'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/profile');
     expect(res.body.data).toMatchObject({ DOCNUMBER: '111' });
     expect(svc.getDocumentProfile).toHaveBeenCalledWith('doc-1');
   });
@@ -295,6 +322,7 @@ describe('GET /documents/:documentId/profile', () => {
     svc.getDocumentProfile.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/profile'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/profile');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -304,6 +332,7 @@ describe('GET /documents/:documentId/versions', () => {
     svc.getDocumentVersions.mockResolvedValue([{ id: 'v1', version: '1' }]);
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/versions');
     expect(res.body.data).toMatchObject({
       documentId: 'doc-1',
       versions: [{ id: 'v1', version: '1' }],
@@ -314,6 +343,7 @@ describe('GET /documents/:documentId/versions', () => {
     svc.getDocumentVersions.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/versions');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -323,6 +353,7 @@ describe('GET /documents/:documentId/versions/:version', () => {
     svc.downloadDocumentVersion.mockResolvedValue({ contentBase64: 'YmFzZTY0' });
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions/1'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/versions/{version}');
     expect(res.body.data).toEqual({ contentBase64: 'YmFzZTY0' });
     expect(svc.downloadDocumentVersion).toHaveBeenCalledWith('doc-1', '1');
   });
@@ -331,6 +362,7 @@ describe('GET /documents/:documentId/versions/:version', () => {
     svc.downloadDocumentVersion.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions/1'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/versions/{version}');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -340,6 +372,7 @@ describe('DELETE /documents/:documentId', () => {
     svc.deleteDocument.mockResolvedValue(undefined);
     const res = await auth(request(app).delete('/v1/edocs/documents/doc-1'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/edocs/documents/{documentId}');
     expect(res.body.data).toEqual({ documentId: 'doc-1', deleted: true });
     expect(svc.deleteDocument).toHaveBeenCalledWith('doc-1');
   });
@@ -348,6 +381,7 @@ describe('DELETE /documents/:documentId', () => {
     svc.deleteDocument.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).delete('/v1/edocs/documents/doc-1'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'delete', '/edocs/documents/{documentId}');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });
@@ -357,6 +391,7 @@ describe('DELETE /workspaces/:workspaceId', () => {
     svc.deleteWorkspace.mockResolvedValue(undefined);
     const res = await auth(request(app).delete('/v1/edocs/workspaces/ws-1'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/edocs/workspaces/{workspaceId}');
     expect(res.body.data).toEqual({ workspaceId: 'ws-1', deleted: true });
     expect(svc.deleteWorkspace).toHaveBeenCalledWith('ws-1');
   });
@@ -365,6 +400,7 @@ describe('DELETE /workspaces/:workspaceId', () => {
     svc.deleteWorkspace.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).delete('/v1/edocs/workspaces/ws-1'));
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'delete', '/edocs/workspaces/{workspaceId}');
     expect(res.body.error.code).toBe('EDOCS_ERROR');
   });
 });

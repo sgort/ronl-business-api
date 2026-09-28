@@ -42,6 +42,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import doccleRouter from './doccle.routes';
 import { doccleService } from '@services/doccle.service';
 
@@ -53,7 +55,12 @@ const svc = doccleService as unknown as {
 };
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/doccle', doccleRouter);
 
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
@@ -64,6 +71,7 @@ describe('auth gate', () => {
   it('rejects an unauthenticated request with 401', async () => {
     const res = await request(app).get('/v1/doccle/status');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/doccle/status');
     expect(res.body.error.code).toBe('MISSING_TOKEN');
     expect(svc.healthCheck).not.toHaveBeenCalled();
   });
@@ -74,6 +82,7 @@ describe('GET /status', () => {
     svc.healthCheck.mockResolvedValue({ status: 'stub', reachable: true });
     const res = await auth(request(app).get('/v1/doccle/status'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/doccle/status');
     expect(res.body.data).toMatchObject({ status: 'stub', stubMode: true, reachable: true });
   });
 
@@ -109,6 +118,11 @@ describe('PUT /senders/:senderName/receivers/:externalReference', () => {
   it('400s when receiver.id is missing', async () => {
     const res = await auth(request(app).put('/v1/doccle/senders/acme/receivers/ref-1')).send({});
     expect(res.status).toBe(400);
+    expectToMatchOperation(
+      res,
+      'put',
+      '/doccle/senders/{senderName}/receivers/{externalReference}'
+    );
     expect(res.body.error.code).toBe('MISSING_FIELDS');
     expect(svc.createOrUpdateReceiver).not.toHaveBeenCalled();
   });
@@ -120,6 +134,11 @@ describe('PUT /senders/:senderName/receivers/:externalReference', () => {
       personalInformation: { firstName: 'Jane' },
     });
     expect(res.status).toBe(200);
+    expectToMatchOperation(
+      res,
+      'put',
+      '/doccle/senders/{senderName}/receivers/{externalReference}'
+    );
     expect(res.body.data).toEqual({ created: true });
     expect(svc.createOrUpdateReceiver).toHaveBeenCalledWith('acme', 'ref-1', {
       id: 'ref-1',
@@ -133,6 +152,11 @@ describe('PUT /senders/:senderName/receivers/:externalReference', () => {
       id: 'ref-1',
     });
     expect(res.status).toBe(502);
+    expectToMatchOperation(
+      res,
+      'put',
+      '/doccle/senders/{senderName}/receivers/{externalReference}'
+    );
     expect(res.body.error.code).toBe('DOCCLE_ERROR');
   });
 });

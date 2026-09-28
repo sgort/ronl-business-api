@@ -52,6 +52,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import axios from 'axios';
 import publicRouter from './public.routes';
 import { createChallenge, verifySolution } from '@utils/altcha';
@@ -85,7 +87,12 @@ const m = {
 };
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/public', publicRouter);
 
 beforeEach(() => {
@@ -96,12 +103,57 @@ beforeEach(() => {
   delete process.env.GITLAB_PROJECT_PATH;
 });
 
+// The public surface's item shapes, as the public site receives them. These
+// tests passed `{ id: '1' }` for a NieuwsItem and `{ id: 'b' }` for a
+// BerichtItem -- which names THIRTEEN required fields -- until #269. Each
+// satisfied its own assertions while describing nothing a renderer could use.
+const nieuwsItem = (over: Record<string, unknown> = {}) => ({
+  id: '1',
+  title: 'Nieuwe regeling gepubliceerd',
+  summary: 'Een korte samenvatting.',
+  category: 'beleid',
+  publishedAt: '2026-09-28T08:00:00.000Z',
+  url: 'https://open-regels.nl/nieuws/1',
+  source: { id: 'ronl', name: 'Regels.overheid.nl' },
+  ...over,
+});
+
+const berichtItem = (over: Record<string, unknown> = {}) => ({
+  id: 'b',
+  subject: 'Onderhoud aangekondigd',
+  preview: 'Op 1 oktober is de dienst korte tijd niet bereikbaar.',
+  content: 'Op 1 oktober is de dienst korte tijd niet bereikbaar.',
+  type: 'maintenance',
+  status: 'published',
+  audience: 'all',
+  sender: { id: 'beheer', name: 'Beheer' },
+  publishedAt: '2026-09-28T08:00:00.000Z',
+  expiresAt: null,
+  priority: 'normal',
+  isRead: false,
+  action: null,
+  ...over,
+});
+
+const productItem = (over: Record<string, unknown> = {}) => ({
+  id: 'p',
+  title: 'Kapvergunning',
+  description: 'Aanvragen van een vergunning voor het kappen van een boom.',
+  url: 'https://open-regels.nl/producten/kapvergunning',
+  audience: ['burgers'],
+  onlineAanvragen: true,
+  modified: '2026-09-28T08:00:00.000Z',
+  soort: 'product',
+  ...over,
+});
+
 describe('content feeds', () => {
   it('GET /nieuws returns items + pagination', async () => {
-    m.nieuws.mockResolvedValue({ items: [{ id: '1' }], total: 1 });
+    m.nieuws.mockResolvedValue({ items: [nieuwsItem()], total: 1 });
     const res = await request(app).get('/v1/public/nieuws');
     expect(res.status).toBe(200);
-    expect(res.body.data.items).toEqual([{ id: '1' }]);
+    expectToMatchOperation(res, 'get', '/public/nieuws');
+    expect(res.body.data.items).toEqual([nieuwsItem()]);
     expect(res.body.data.pagination).toMatchObject({ limit: 10, offset: 0, total: 1 });
   });
 
@@ -111,9 +163,10 @@ describe('content feeds', () => {
   });
 
   it('GET /berichten returns items', async () => {
-    m.berichten.mockResolvedValue({ items: [{ id: 'b' }], total: 1 });
+    m.berichten.mockResolvedValue({ items: [berichtItem()], total: 1 });
     const res = await request(app).get('/v1/public/berichten');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/berichten');
     expect(res.body.data.items).toHaveLength(1);
   });
 
@@ -128,11 +181,12 @@ describe('content feeds', () => {
     m.berichtById.mockReturnValueOnce(null);
     const res = await request(app).get('/v1/public/berichten/nope');
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/public/berichten/{id}');
     expect(res.body.error.code).toBe('BERICHT_NOT_FOUND');
   });
 
   it('GET /producten-diensten returns items', async () => {
-    m.producten.mockResolvedValue({ items: [{ id: 'p' }], total: 1 });
+    m.producten.mockResolvedValue({ items: [productItem()], total: 1 });
     expect((await request(app).get('/v1/public/producten-diensten')).status).toBe(200);
   });
 
@@ -145,6 +199,7 @@ describe('content feeds', () => {
     m.regels.mockResolvedValue({ services: [], organizations: [], concepts: [], rules: [] });
     const res = await request(app).get('/v1/public/regelcatalogus');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/regelcatalogus');
     expect(res.body.data).toHaveProperty('services');
   });
 
@@ -170,6 +225,7 @@ describe('GET /altcha/challenge', () => {
   it('503 when ALTCHA is not configured', async () => {
     const res = await request(app).get('/v1/public/altcha/challenge');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/public/altcha/challenge');
     expect(res.body.error.code).toBe('ALTCHA_NOT_CONFIGURED');
   });
 
@@ -178,6 +234,7 @@ describe('GET /altcha/challenge', () => {
     m.createChallenge.mockResolvedValue({ challenge: 'abc', salt: 's' });
     const res = await request(app).get('/v1/public/altcha/challenge');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/altcha/challenge');
     expect(res.body).toEqual({ challenge: 'abc', salt: 's' });
   });
 
@@ -192,6 +249,7 @@ describe('POST /use-case', () => {
   it('400 when title/description are missing', async () => {
     const res = await request(app).post('/v1/public/use-case').send({ title: 'only title' });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/public/use-case');
     expect(res.body.error.code).toBe('USE_CASE_INVALID');
   });
 
@@ -238,6 +296,7 @@ describe('GET /use-cases', () => {
   it('503 when GitLab env is missing', async () => {
     const res = await request(app).get('/v1/public/use-cases');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/public/use-cases');
   });
 
   it('maps GitLab issues when configured', async () => {
@@ -255,6 +314,7 @@ describe('GET /use-cases', () => {
     });
     const res = await request(app).get('/v1/public/use-cases?state=opened');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/use-cases');
     expect(res.body.data[0]).toMatchObject({ iid: 1, assignees: ['Alice'], description: '' });
   });
 
@@ -346,6 +406,7 @@ describe('POST /upload-file and /feedback (validation branches)', () => {
   it('upload-file → 503 when GitLab env is missing', async () => {
     const res = await request(app).post('/v1/public/upload-file').send({});
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'post', '/public/upload-file');
   });
 
   it('upload-file → 400 when no file is provided', async () => {
@@ -353,12 +414,14 @@ describe('POST /upload-file and /feedback (validation branches)', () => {
     process.env.GITLAB_PROJECT_PATH = 'proj';
     const res = await request(app).post('/v1/public/upload-file').send({});
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/public/upload-file');
     expect(res.body.error.code).toBe('NO_FILE');
   });
 
   it('feedback → 503 when GitLab env is missing', async () => {
     const res = await request(app).post('/v1/public/feedback').send({});
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'post', '/public/feedback');
   });
 
   it('feedback → 400 when required fields are missing', async () => {
@@ -366,6 +429,7 @@ describe('POST /upload-file and /feedback (validation branches)', () => {
     process.env.GITLAB_PROJECT_PATH = 'proj';
     const res = await request(app).post('/v1/public/feedback').send({ name: 'Bob' });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/public/feedback');
     expect(res.body.error.code).toBe('MISSING_FIELDS');
   });
 });
@@ -375,6 +439,7 @@ describe('GET /processen', () => {
     m.processenList.mockResolvedValue([{ key: 'zorgtoeslag-process', naam: 'Zorgtoeslag' }]);
     const res = await request(app).get('/v1/public/processen');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/processen');
     expect(res.body.data).toEqual([{ key: 'zorgtoeslag-process', naam: 'Zorgtoeslag' }]);
   });
 
@@ -391,19 +456,37 @@ describe('GET /processen/:key', () => {
     m.processByKey.mockResolvedValueOnce(null);
     const res = await request(app).get('/v1/public/processen/nope');
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/public/processen/{key}');
     expect(res.body.error.code).toBe('PROCES_NOT_FOUND');
   });
 });
 
 describe('GET /zoeken', () => {
   it('returns hits + facets computed on the base (pre-facet-filter) query', async () => {
-    const indexed = [{ id: 'a', type: 'regel', org: 'X', audience: ['Inwoner'] }];
+    // PublicIndexItem names eleven required fields; the four here described
+    // nothing the search page could render (#269).
+    const indexed = [
+      {
+        id: 'a',
+        slug: 'een-regel',
+        type: 'regel',
+        title: 'Een regel',
+        summary: 'Waar de regel over gaat.',
+        org: 'X',
+        date: '2026-09-28T08:00:00.000Z',
+        audience: ['Inwoner'],
+        external: null,
+        facts: [],
+        tech: [],
+      },
+    ];
     m.index.mockResolvedValue(indexed);
     m.doSearch.mockReturnValue(indexed);
     m.facets.mockReturnValue([['X', 1]]);
 
     const res = await request(app).get('/v1/public/zoeken?q=zorg&soort=regel');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/zoeken');
     expect(res.body.data.items).toEqual(indexed);
     expect(res.body.data.total).toBe(1);
     expect(res.body.data.facets).toHaveProperty('soort');
@@ -429,9 +512,22 @@ describe('GET /zoeken', () => {
 describe('GET /nieuws/:slug, /producten/:slug, /regels/:slug', () => {
   it('returns the item when found', async () => {
     m.index.mockResolvedValue([]);
-    m.bySlug.mockReturnValue({ id: 'nieuws-n1', slug: 'n1', type: 'nieuws', title: 'X' });
+    m.bySlug.mockReturnValue({
+      id: 'nieuws-n1',
+      slug: 'n1',
+      type: 'nieuws',
+      title: 'X',
+      summary: 'Waar het over gaat.',
+      org: 'Regels.overheid.nl',
+      date: '2026-09-28T08:00:00.000Z',
+      audience: ['Inwoner'],
+      external: null,
+      facts: [],
+      tech: [],
+    });
     const res = await request(app).get('/v1/public/nieuws/n1');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/nieuws/{slug}');
     expect(res.body.data.title).toBe('X');
   });
 
@@ -440,6 +536,7 @@ describe('GET /nieuws/:slug, /producten/:slug, /regels/:slug', () => {
     m.bySlug.mockReturnValue(undefined);
     const res = await request(app).get('/v1/public/regels/nope');
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/public/regels/{slug}');
     expect(res.body.error.code).toBe('ITEM_NOT_FOUND');
   });
 

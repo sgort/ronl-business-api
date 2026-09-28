@@ -29,6 +29,8 @@ jest.mock('../pa-monitoring/pa-cache', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import healthRouter from './health.routes';
 import { operatonService } from '@services/operaton.service';
 import { cacheHealth } from '../pa-monitoring/pa-cache';
@@ -36,7 +38,12 @@ import { cacheHealth } from '../pa-monitoring/pa-cache';
 const opHealth = (operatonService as unknown as { healthCheck: jest.Mock }).healthCheck;
 const mockCacheHealth = cacheHealth as jest.Mock;
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 app.use('/v1/health', healthRouter);
 
 const mockFetch = jest.fn();
@@ -56,6 +63,7 @@ describe('GET /v1/health', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('healthy');
     expect(res.body.data.dependencies.operaton.status).toBe('up');
@@ -68,6 +76,7 @@ describe('GET /v1/health', () => {
 
     const res = await request(app).get('/v1/health');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.status).toBe('degraded');
   });
 
@@ -77,6 +86,7 @@ describe('GET /v1/health', () => {
 
     const res = await request(app).get('/v1/health');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.dependencies.keycloak).toMatchObject({
       status: 'down',
       error: 'HTTP 500',
@@ -96,6 +106,7 @@ describe('GET /v1/health', () => {
 
     const res = await request(app).get('/v1/health');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.success).toBe(false);
     expect(res.body.data.status).toBe('unhealthy');
     expect(res.body.data.error).toBe('operaton exploded');
@@ -120,6 +131,7 @@ describe('GET /v1/health/live', () => {
   it('always returns 200 alive without touching dependencies', async () => {
     const res = await request(app).get('/v1/health/live');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health/live');
     expect(res.body.data.status).toBe('alive');
     expect(opHealth).not.toHaveBeenCalled();
   });
@@ -130,6 +142,7 @@ describe('GET /v1/health/ready', () => {
     opHealth.mockResolvedValue({ status: 'up' });
     const res = await request(app).get('/v1/health/ready');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health/ready');
     expect(res.body.data.status).toBe('ready');
   });
 
@@ -137,6 +150,7 @@ describe('GET /v1/health/ready', () => {
     opHealth.mockResolvedValue({ status: 'down' });
     const res = await request(app).get('/v1/health/ready');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health/ready');
     expect(res.body.data.reason).toBe('Operaton unavailable');
   });
 
@@ -144,6 +158,7 @@ describe('GET /v1/health/ready', () => {
     opHealth.mockRejectedValue(new Error('boom'));
     const res = await request(app).get('/v1/health/ready');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health/ready');
     expect(res.body.data.error).toBe('boom');
   });
 });
@@ -158,6 +173,7 @@ describe('GET /v1/health/external', () => {
     const res = await request(app).get('/v1/health/external');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health/external');
     expect(res.body.data.cprmv.status).toBe('up');
     expect(res.body.data.triplydb.status).toBe('down');
     expect(res.body.data.lde.status).toBe('down');
@@ -187,6 +203,7 @@ describe('GET /v1/health — the PA cache', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.dependencies.cache).toEqual({ status: 'up' });
   });
 
@@ -202,6 +219,7 @@ describe('GET /v1/health — the PA cache', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('healthy');
     expect(res.body.data.dependencies.cache).toEqual({
@@ -220,6 +238,7 @@ describe('GET /v1/health — the PA cache', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.dependencies.cache.status).toBe('down');
   });
 });
@@ -232,6 +251,7 @@ describe('GET /v1/health — failure paths', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.status).toBe('degraded');
     expect(res.body.data.dependencies.keycloak).toEqual({
       status: 'down',
@@ -246,6 +266,7 @@ describe('GET /v1/health — failure paths', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.dependencies.keycloak).toEqual({ status: 'down', error: 'HTTP 500' });
   });
 
@@ -258,6 +279,7 @@ describe('GET /v1/health — failure paths', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.success).toBe(false);
     expect(res.body.data.status).toBe('unhealthy');
     expect(res.body.data.error).toBe('operaton client exploded');
@@ -273,6 +295,7 @@ describe('GET /v1/health — failure paths', () => {
     const res = await request(app).get('/v1/health');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/health');
     expect(res.body.data.dependencies.cache).toEqual({
       status: 'down',
       error: 'socket closed',
