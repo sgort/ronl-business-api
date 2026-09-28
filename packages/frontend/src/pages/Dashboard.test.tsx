@@ -63,7 +63,7 @@ vi.mock('../components/ProcessStartFormViewer', () => ({
   default: function MockProcessStartFormViewer(props: {
     processKey: string;
     onStarted: (dossier: string) => void;
-    onError: () => void;
+    onError: (failure: { cause?: string; instance?: string }) => void;
   }) {
     return (
       <div data-testid="process-start-form">
@@ -71,7 +71,10 @@ vi.mock('../components/ProcessStartFormViewer', () => ({
         <button type="button" onClick={() => props.onStarted('D-123')}>
           simulate-success
         </button>
-        <button type="button" onClick={() => props.onError()}>
+        <button
+          type="button"
+          onClick={() => props.onError({ cause: 'engine said no', instance: 'http://op.test' })}
+        >
           simulate-error
         </button>
       </div>
@@ -274,6 +277,8 @@ describe('Dashboard service forms', () => {
     expect(
       screen.getByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
     ).toBeInTheDocument();
+    // The backend's cause reaches the screen outside production (#171).
+    expect(screen.getByText('engine said no')).toBeInTheDocument();
   });
 
   it('starts the subsidy process under its own process key, and reports its failures', async () => {
@@ -289,6 +294,8 @@ describe('Dashboard service forms', () => {
     expect(
       screen.getByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
     ).toBeInTheDocument();
+    // The backend's cause reaches the screen outside production (#171).
+    expect(screen.getByText('engine said no')).toBeInTheDocument();
   });
 
   it('confirms a successful subsidy submission with its dossier number', async () => {
@@ -455,6 +462,8 @@ describe('Dashboard zorgtoeslag application', () => {
     expect(
       screen.getByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
     ).toBeInTheDocument();
+    // The backend's cause reaches the screen outside production (#171).
+    expect(screen.getByText('engine said no')).toBeInTheDocument();
 
     // Going back to the calculator and forward again must not carry the old
     // failure notice with it.

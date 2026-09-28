@@ -6,11 +6,22 @@ import { businessApi } from '../services/api';
 
 type FormStatus = 'loading' | 'ready' | 'no-form' | 'error';
 
+/**
+ * Why a process start failed, as far as anything said. `cause` is the
+ * backend's own explanation (Operaton's message when the engine refused) or a
+ * thrown error's message; `instance` is the engine base URL the backend
+ * targeted. Both are absent when nothing usable came back (#171).
+ */
+export interface StartFailure {
+  cause?: string;
+  instance?: string;
+}
+
 interface ProcessStartFormViewerProps {
   processKey: string;
   initialData?: Record<string, unknown>;
   onStarted: (dossier: string) => void;
-  onError: () => void;
+  onError: (failure: StartFailure) => void;
 }
 
 export default function ProcessStartFormViewer({
@@ -35,6 +46,14 @@ export default function ProcessStartFormViewer({
 
   useEffect(() => {
     let cancelled = false;
+
+    // Always to the console, on every tier, so a developer can reach the cause
+    // without the server's log files. Whether it also reaches the screen is the
+    // caller's decision. Constant message, values as arguments (#203).
+    const reportFailure = (failure: StartFailure) => {
+      console.error('Process start failed', { processKey, ...failure });
+      onErrorRef.current(failure);
+    };
 
     const init = async () => {
       try {
@@ -73,10 +92,16 @@ export default function ProcessStartFormViewer({
                   '—';
                 onStartedRef.current(dossier);
               } else {
-                onErrorRef.current();
+                reportFailure({
+                  cause: startRes.error?.details ?? startRes.error?.message,
+                  instance: startRes.error?.instance,
+                });
               }
-            } catch {
-              onErrorRef.current();
+            } catch (err: unknown) {
+              reportFailure({
+                cause: err instanceof Error ? err.message : undefined,
+                instance: undefined,
+              });
             } finally {
               setSubmitting(false);
             }
