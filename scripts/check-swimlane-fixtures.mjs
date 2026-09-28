@@ -36,10 +36,36 @@
  * backed up by a byte-for-byte comparison, because a hash tells you something
  * changed while the real file tells you what.
  *
- * `--sync` copies the twelve models and the fingerprint file from
- * linked-data-explorer. `LDE_PATH` overrides where that is; it defaults to a
- * sibling checkout. Exit 0 when the fixtures match their source, 1 otherwise;
- * a failure names the file and the command that fixes it.
+ * DRIFT HAS TWO DIRECTIONS, AND ONLY ONE OF THEM IS FIXED BY `--sync`.
+ *
+ * `--sync` copies linked-data-explorer -> here. That is right when a phase
+ * model changed upstream and these copies are stale. It is WRONG, and
+ * destructive, when the checkout at LDE_PATH is the stale one: behind its own
+ * origin, on another branch, or dirty. Then syncing overwrites correct
+ * fixtures with older content and takes the parser tests down with them.
+ *
+ * Until #268 this script suggested `--sync` for any difference at all, so the
+ * second case was advice to break the build. It happened: a checkout five
+ * commits behind LDE's acc still had R2.2's "Opstellen concept VO" carrying
+ * one document, while the fixture here already carried the two that
+ * bpmn-swimlane.test.ts asserts.
+ *
+ * The fingerprint file tells the two apart with no git and no network, which
+ * is the point of committing it identically in both repositories:
+ *
+ *   - fixture DISAGREES with the fingerprint -> the fixture is stale. `--sync`.
+ *   - fixture AGREES with the fingerprint but differs from the file at
+ *     LDE_PATH -> that checkout is out of step. Update it; do NOT sync.
+ *
+ * When LDE_PATH carries its own copy of the fingerprint file, the second case
+ * is not an inference but a demonstration: its file disagrees with the hash it
+ * committed itself.
+ *
+ * `--sync` enforces the same thing rather than trusting the caller to have
+ * read this, and `--force` overrides it for someone mid-edit upstream who
+ * knows why. `LDE_PATH` overrides where linked-data-explorer is; it defaults
+ * to a sibling checkout. Exit 0 when the fixtures match their source, 1
+ * otherwise; a failure names the file and the command that actually fixes it.
  */
 
 import { createHash } from 'node:crypto';
@@ -51,8 +77,44 @@ const FINGERPRINTS = 'rip-bpmn-fingerprints.json';
 const LDE = process.env.LDE_PATH ?? join('..', 'linked-data-explorer');
 
 const sync = process.argv.includes('--sync');
+const force = process.argv.includes('--force');
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
+
+/** Upstream's own copy of the fingerprint file, or null when it has none. */
+function readUpstreamFingerprints() {
+  const path = join(LDE, FINGERPRINTS);
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The fixtures whose file at LDE_PATH disagrees with the hash UPSTREAM ITSELF
+ * recorded for it. Upstream is the source of truth for the content AND for the
+ * fingerprint, so when the two disagree the checkout is stale, on another
+ * branch, or has uncommitted edits -- it is not evidence about this repository
+ * at all, and copying from it would be copying from a tree upstream does not
+ * consider current.
+ *
+ * Returns [] when nothing disagrees, and null when upstream has no fingerprint
+ * file to ask (an older checkout, from before it carried one).
+ */
+function upstreamOutOfStep(names, upstream) {
+  if (!upstream) return null;
+  const stale = [];
+  for (const name of names) {
+    const source = upstreamPath(name);
+    if (!source || !existsSync(source)) continue;
+    const entry = upstream[name];
+    if (!entry) continue;
+    if (sha256(source) !== entry.sha256) stale.push(name);
+  }
+  return stale;
+}
 
 /** Where a phase model lives upstream: RipR22Process.bpmn -> rip-phase-22. */
 function upstreamPath(name) {
@@ -80,6 +142,41 @@ if (sync) {
     );
     process.exit(1);
   }
+  // Everything is checked BEFORE anything is copied. The old order copied the
+  // twelve models first and only then looked for the fingerprint file, so a
+  // checkout without one -- which is every checkout from before upstream
+  // started committing it -- left the tree half synced and exited 1.
+  const upstreamFingerprintsPath = join(LDE, FINGERPRINTS);
+  if (!existsSync(upstreamFingerprintsPath)) {
+    console.error(
+      `\nNothing copied: ${upstreamFingerprintsPath} does not exist.\n\n` +
+        `The fingerprint file is committed in both repositories and a sync has to\n` +
+        `bring it along, or the two sides stop agreeing about what the source is.\n` +
+        `A checkout without one is usually simply old.\n\n` +
+        `  in ${LDE}:  git pull --ff-only\n` +
+        `  or, if the models really did change there:\n` +
+        `                node scripts/check-rip-bpmn-copies.mjs --write\n`
+    );
+    process.exit(1);
+  }
+
+  const upstream = readUpstreamFingerprints();
+  const stale = upstreamOutOfStep(fixtures, upstream);
+
+  if (stale && stale.length > 0 && !force) {
+    console.error(
+      `\nRefusing to sync: the checkout at ${LDE} disagrees with its OWN\n` +
+        `fingerprints for ${stale.length} model(s):\n\n` +
+        stale.map((n) => `  - ${n}`).join('\n') +
+        `\n\nThat makes it the stale side, not this repository, so copying from it\n` +
+        `would overwrite correct fixtures with older content. It usually means the\n` +
+        `checkout is behind, on another branch, or has uncommitted edits.\n\n` +
+        `  in ${LDE}:  git status && git pull --ff-only\n\n` +
+        `If those edits are deliberate and not committed yet, --force says so.\n`
+    );
+    process.exit(1);
+  }
+
   let copied = 0;
   for (const name of fixtures) {
     const source = upstreamPath(name);
@@ -90,21 +187,25 @@ if (sync) {
     copyFileSync(source, join(FIXTURES, name));
     copied += 1;
   }
-  const upstreamFingerprints = join(LDE, FINGERPRINTS);
-  if (existsSync(upstreamFingerprints)) {
-    copyFileSync(upstreamFingerprints, FINGERPRINTS);
-    console.log(`Copied ${copied} fixture(s) and ${FINGERPRINTS} from ${LDE}.`);
-  } else {
-    console.error(
-      `Copied ${copied} fixture(s), but ${upstreamFingerprints} does not exist.\n` +
-        `Run this first, upstream:  node scripts/check-rip-bpmn-copies.mjs --write`
-    );
-    process.exit(1);
-  }
+  copyFileSync(upstreamFingerprintsPath, FINGERPRINTS);
+  console.log(
+    `Copied ${copied} fixture(s) and ${FINGERPRINTS} from ${LDE}.` +
+      (stale && stale.length > 0
+        ? `  (--force: ${stale.length} disagreed with upstream's own hashes)`
+        : '')
+  );
   process.exit(0);
 }
 
 const problems = [];
+
+// This repository's own recorded hashes, read below and read again by the file
+// comparison, which needs to know whether upstream's differ from them.
+let recorded = null;
+
+// Fixtures the fingerprint file says are stale HERE. The file comparison below
+// reads this to tell the two directions of drift apart.
+const staleHere = new Set();
 
 // ── against the fingerprints, which work with nothing else checked out ─────
 if (!existsSync(FINGERPRINTS)) {
@@ -113,7 +214,7 @@ if (!existsSync(FINGERPRINTS)) {
       `      npm run check-swimlane-fixtures -- --sync`
   );
 } else {
-  const recorded = JSON.parse(readFileSync(FINGERPRINTS, 'utf8'));
+  recorded = JSON.parse(readFileSync(FINGERPRINTS, 'utf8'));
   for (const name of fixtures) {
     const entry = recorded[name];
     if (!entry) {
@@ -121,6 +222,7 @@ if (!existsSync(FINGERPRINTS)) {
       continue;
     }
     if (sha256(join(FIXTURES, name)) !== entry.sha256) {
+      staleHere.add(name);
       problems.push(
         `- ${join(FIXTURES, name)} does not match the recorded source fingerprint.\n` +
           `    These are COPIES; the source of truth is linked-data-explorer's\n` +
@@ -143,14 +245,55 @@ if (!existsSync(FINGERPRINTS)) {
 // ── and, when the source is actually here, against the files themselves ────
 let compared = 0;
 if (existsSync(LDE)) {
+  const upstream = readUpstreamFingerprints();
+  const stale = upstreamOutOfStep(fixtures, upstream) ?? [];
+
   for (const name of fixtures) {
     const source = upstreamPath(name);
     if (!source || !existsSync(source)) continue;
     compared += 1;
     if (readFileSync(join(FIXTURES, name)).equals(readFileSync(source))) continue;
+
+    // The fingerprint block already reported this one and already named
+    // `--sync`, which is the right remedy: the fixture here is the stale side.
+    if (staleHere.has(name)) continue;
+
+    // It is NOT stale here -- it matches the hash both repositories committed.
+    // So the difference is upstream's, and `--sync` would overwrite a correct
+    // fixture with older content. Say what to do instead of what not to do.
+    // Upstream self-consistent AND recording a different hash from ours is the
+    // ORDINARY case: the model changed there, upstream regenerated, and these
+    // copies have not caught up. That is what --sync is for.
+    const upstreamHash = upstream?.[name]?.sha256;
+    const ourHash = recorded?.[name]?.sha256;
+    if (upstream && !stale.includes(name) && upstreamHash && ourHash && upstreamHash !== ourHash) {
+      problems.push(
+        `- ${join(FIXTURES, name)} differs from ${source}.\n` +
+          `    Upstream agrees with the hash it recorded for itself and that hash is\n` +
+          `    not ours, so the model moved there and these copies are behind:\n` +
+          `      npm run check-swimlane-fixtures -- --sync`
+      );
+      continue;
+    }
+
+    // Otherwise the fixture matches the hash BOTH repositories committed, so it
+    // is not the stale side, and --sync would overwrite it with older content.
+    // Say what to do instead of only what not to do.
     problems.push(
-      `- ${join(FIXTURES, name)} differs from ${source}\n` +
-        `      npm run check-swimlane-fixtures -- --sync`
+      `- ${join(FIXTURES, name)} differs from ${source},\n` +
+        `    but MATCHES the fingerprint both repositories committed. The checkout\n` +
+        `    at ${LDE} is the one out of step` +
+        (stale.includes(name)
+          ? `: its copy disagrees with the\n    hash it recorded for itself.`
+          : upstream
+            ? `.`
+            : ` (it carries no ${FINGERPRINTS}, which\n    upstream has committed since -- so it is an older checkout).`) +
+        `\n\n    Update it, do NOT sync -- syncing would copy the older file over this\n` +
+        `    one and break the parser tests that pin against it:\n` +
+        `      git -C ${LDE} status && git -C ${LDE} pull --ff-only\n` +
+        `\n    If the model really did change upstream, commit it and regenerate the\n` +
+        `    fingerprints there first:\n` +
+        `      node scripts/check-rip-bpmn-copies.mjs --write`
     );
   }
 }
