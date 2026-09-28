@@ -65,15 +65,35 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '../openapi/testing/conformance';
 import m2mRouter, { M2M_ALLOWED_OPERATIONS } from './m2m.routes';
 import { operatonService } from '@services/operaton.service';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/m2m', m2mRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
+
+// A running instance as Operaton's own /process-instance list reports it. The
+// ProcessInstanceSummary schema names five required fields; `{ id: 'pi' }` met
+// none of them and passed anyway until #269.
+const instance = (over: Record<string, unknown> = {}) => ({
+  id: 'pi',
+  definitionId: 'MyProc:1:def-1',
+  definitionKey: 'MyProc',
+  businessKey: null,
+  ended: false,
+  suspended: false,
+  ...over,
+});
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -94,6 +114,7 @@ describe('client allow-list (#237)', () => {
     const res = await auth(request(app).get('/v1/m2m/process')).set('x-test-azp', azp);
 
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/m2m/process');
     expect(res.body).toEqual({
       success: false,
       error: {
@@ -129,21 +150,24 @@ describe('client allow-list (#237)', () => {
       'operaton-mcp-client'
     );
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/m2m/process');
   });
 });
 
 describe('process endpoints', () => {
   it('GET /process lists instances', async () => {
-    svc.listProcessInstances.mockResolvedValue([{ id: 'pi' }]);
+    svc.listProcessInstances.mockResolvedValue([instance()]);
     const res = await auth(request(app).get('/v1/m2m/process'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([{ id: 'pi' }]);
+    expectToMatchOperation(res, 'get', '/m2m/process');
+    expect(res.body.data).toEqual([instance()]);
   });
 
   it('GET /process → 500 on failure', async () => {
     svc.listProcessInstances.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/m2m/process'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/m2m/process');
     expect(res.body.error.code).toBe('PROCESS_LIST_FAILED');
   });
 
@@ -160,6 +184,7 @@ describe('process endpoints', () => {
       businessKey: 'bk',
     });
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/m2m/process/{key}/start');
     expect(res.body.data).toEqual({ processInstanceId: 'pi-1', businessKey: 'bk' });
     expect(svc.startProcess).toHaveBeenCalledWith(
       'MyProc',
@@ -181,6 +206,7 @@ describe('process endpoints', () => {
     svc.startProcess.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({});
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/m2m/process/{key}/start');
     expect(res.body.error.code).toBe('PROCESS_START_FAILED');
   });
 
@@ -188,12 +214,14 @@ describe('process endpoints', () => {
     svc.queryProcessHistory.mockResolvedValue([{ id: 'h' }]);
     const res = await auth(request(app).get('/v1/m2m/process/history'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/m2m/process/history');
   });
 
   it('GET /process/history → 500 on failure', async () => {
     svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/m2m/process/history'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/m2m/process/history');
     expect(res.body.error.code).toBe('PROCESS_HISTORY_FAILED');
   });
 
@@ -216,6 +244,7 @@ describe('process endpoints', () => {
     svc.getProcessInstance.mockRejectedValue(new Error('nope'));
     const res = await auth(request(app).get('/v1/m2m/process/pi/status'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/m2m/process/{id}/status');
     expect(res.body.error.code).toBe('PROCESS_NOT_FOUND');
   });
 
@@ -263,6 +292,7 @@ describe('process endpoints', () => {
     svc.getDeployedStartForm.mockResolvedValueOnce({ data: '<form/>', contentType: 'text/html' });
     const res = await auth(request(app).get('/v1/m2m/process/MyProc/start-form'));
     expect(res.status).toBe(415);
+    expectToMatchOperation(res, 'get', '/m2m/process/{key}/start-form');
   });
 
   it('GET /process/:key/start-form → 404 on failure', async () => {
@@ -287,6 +317,7 @@ describe('process endpoints', () => {
     svc.deleteProcessInstance.mockResolvedValue(undefined);
     const res = await auth(request(app).delete('/v1/m2m/process/pi')).send({ reason: 'obsolete' });
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/m2m/process/{id}');
     expect(svc.deleteProcessInstance).toHaveBeenCalledWith('pi', 'obsolete');
   });
 
@@ -358,16 +389,18 @@ describe('task endpoints', () => {
     svc.completeTask.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).post('/v1/m2m/task/t1/complete')).send({ variables: {} });
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/m2m/task/{id}/complete');
   });
 });
 
 describe('decision endpoints', () => {
   it('POST /decision/:key/evaluate evaluates with m2m tenant', async () => {
-    svc.evaluateDecision.mockResolvedValue([{ result: 1 }]);
+    svc.evaluateDecision.mockResolvedValue([{ result: { value: 1, type: 'Integer' } }]);
     const res = await auth(request(app).post('/v1/m2m/decision/Dec/evaluate')).send({
       variables: { x: 1 },
     });
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/m2m/decision/{key}/evaluate');
     expect(svc.evaluateDecision).toHaveBeenCalledWith(
       'Dec',
       { x: { value: 1, type: 'Integer' } },
@@ -381,6 +414,7 @@ describe('decision endpoints', () => {
       variables: {},
     });
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/m2m/decision/{key}/evaluate');
     expect(res.body.error.message).toBe('DMN broke');
   });
 
@@ -465,9 +499,10 @@ describe('non-Error rejections', () => {
 
 describe('request bodies that leave fields out', () => {
   it('starts a process with no variables when the body omits them', async () => {
-    svc.startProcess.mockResolvedValue({ id: 'pi-1' });
+    svc.startProcess.mockResolvedValue({ id: 'pi-1', businessKey: null });
     const res = await auth(request(app).post('/v1/m2m/process/K/start').send({}));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/m2m/process/{key}/start');
     expect(svc.startProcess).toHaveBeenCalledWith(
       'K',
       expect.objectContaining({ variables: {} }),
@@ -479,6 +514,7 @@ describe('request bodies that leave fields out', () => {
     svc.queryProcessHistory.mockResolvedValue([]);
     const res = await auth(request(app).get('/v1/m2m/process/history'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/m2m/process/history');
     expect(svc.queryProcessHistory).toHaveBeenCalledWith({});
   });
 
@@ -486,6 +522,7 @@ describe('request bodies that leave fields out', () => {
     svc.completeTask.mockResolvedValue(undefined);
     const res = await auth(request(app).post('/v1/m2m/task/t-1/complete').send({}));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/m2m/task/{id}/complete');
     expect(svc.completeTask).toHaveBeenCalledWith('t-1', { variables: {} });
   });
 
@@ -493,6 +530,7 @@ describe('request bodies that leave fields out', () => {
     svc.evaluateDecision.mockResolvedValue([]);
     const res = await auth(request(app).post('/v1/m2m/decision/K/evaluate').send({}));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/m2m/decision/{key}/evaluate');
   });
 });
 

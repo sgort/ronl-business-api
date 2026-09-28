@@ -6223,7 +6223,17 @@ components:
           type: string
           description: 'The versioned definition, for example
             `AwbShellProcess:2:5235cc40-…`.'
-        businessKey: { type: string }
+        businessKey:
+          type: [string, 'null']
+          description: |
+            NULL for an instance that has none. `POST /process/{key}/start`
+            always mints one, so a case started through this API has a key --
+            but this field is the ENGINE's value, passed straight through, and
+            the engine holds instances started other ways: through `/v1/m2m`
+            with no key in the body, or directly against Operaton.
+
+            Was `type: string` until #269. The first thing the response
+            conformance check caught.
         status: { type: string, enum: [active, suspended, ended] }
         ended: { type: boolean }
         suspended: { type: boolean }

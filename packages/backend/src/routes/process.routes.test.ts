@@ -61,13 +61,20 @@ jest.mock('@utils/logger', () => ({
 import express from 'express';
 import request from 'supertest';
 import processRouter from './process.routes';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '../openapi/testing/conformance';
 import { AmbiguousDeploymentError } from '@utils/errors';
 import { operatonService } from '@services/operaton.service';
 
 const svc = operatonService as unknown as Record<string, jest.Mock>;
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test app
+// that mounts the router alone answers without API-Version -- and
+// expectToMatchOperation checks for it on every 2xx (ADR API-57). Mounting it
+// here keeps the test app answering what the real one does (#269).
 const app = express();
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/process', processRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 /** Operaton-format process variables owned by the caller's tenant. */
@@ -91,6 +98,7 @@ describe('POST /:key/start', () => {
       variables: { amount: 5, ratio: 1.5, note: 'hi', payload: { a: 1 }, empty: null },
     });
     expect(res.status).toBe(201);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.data).toMatchObject({ processInstanceId: 'pi-1', status: 'active' });
     expect(svc.startProcess.mock.calls[0][1].variables).toEqual({
       amount: { value: 5, type: 'Integer' },
@@ -159,6 +167,7 @@ describe('POST /:key/start', () => {
       variables: {},
     });
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.error).toEqual({
       code: 'TENANT_MISMATCH',
       message: 'Access denied: organisation mismatch',
@@ -172,6 +181,7 @@ describe('POST /:key/start', () => {
       .set('x-test-no-roles', '1')
       .send({ variables: {} });
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
     expect(svc.startProcess).not.toHaveBeenCalled();
   });
@@ -187,9 +197,12 @@ describe('POST /:key/start', () => {
 
   it('falls back to the caller tenant when the deployed tenant cannot be resolved', async () => {
     svc.resolveDeployedTenant.mockResolvedValue(null);
-    svc.startProcess.mockResolvedValue({ id: 'pi-9' });
+    // The engine echoes back the businessKey it was sent, so a realistic
+    // mock carries one -- ProcessStartResult requires it (#269).
+    svc.startProcess.mockResolvedValue({ id: 'pi-9', businessKey: 'flevoland-1', ended: false });
     const res = await auth(request(app).post('/v1/process/P/start')).send({ variables: {} });
     expect(res.status).toBe(201);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     const [, body, , deployedTenant] = svc.startProcess.mock.calls[0];
     expect(deployedTenant).toBeNull();
     expect(body.variables.municipality).toEqual({ value: 'flevoland', type: 'String' });
@@ -203,6 +216,7 @@ describe('POST /:key/start', () => {
       variables: {},
     });
     expect(res.status).toBe(409);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
     expect(res.body.error.message).toContain('AwbShellProcess');
     expect(svc.startProcess).not.toHaveBeenCalled();
@@ -215,6 +229,7 @@ describe('POST /:key/start', () => {
     });
     const res = await auth(request(app).post('/v1/process/P/start')).send({ variables: {} });
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.error.details).toBe('no matching process definition deployed with key P');
   });
 });
@@ -223,6 +238,7 @@ describe('GET /history', () => {
   it('400 without applicantId', async () => {
     const res = await auth(request(app).get('/v1/process/history'));
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'get', '/process/history');
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
@@ -232,6 +248,7 @@ describe('GET /history', () => {
       'citizen'
     );
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/history');
   });
 
   it('returns a citizen their own history (#229)', async () => {
@@ -241,6 +258,7 @@ describe('GET /history', () => {
       'citizen'
     );
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/history');
     expect(svc.getProcessHistory).toHaveBeenCalledWith('u-1', 'flevoland', 'province', false);
   });
 
@@ -250,6 +268,7 @@ describe('GET /history', () => {
       'public-affairs,pa-author'
     );
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/history');
     expect(res.body.error.code).toBe('FORBIDDEN');
     expect(res.body.error.message).toBe('Only citizens and caseworkers may read process history');
     expect(svc.getProcessHistory).not.toHaveBeenCalled();
@@ -259,6 +278,7 @@ describe('GET /history', () => {
     svc.getProcessHistory.mockResolvedValue([{ id: 'p' }]);
     const res = await auth(request(app).get('/v1/process/history?applicantId=any'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/history');
     expect(svc.getProcessHistory).toHaveBeenCalledWith('any', 'flevoland', 'province', true);
   });
 
@@ -266,15 +286,23 @@ describe('GET /history', () => {
     svc.getProcessHistory.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/process/history?applicantId=any'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/process/history');
   });
 });
 
 describe('GET /:id/status', () => {
   it('returns status for an owned instance', async () => {
-    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false, suspended: false });
+    svc.getProcessInstance.mockResolvedValue({
+      id: 'pi',
+      definitionId: 'P:1:def-1',
+      businessKey: 'flevoland-1',
+      ended: false,
+      suspended: false,
+    });
     svc.getProcessVariables.mockResolvedValue(ownedVars);
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/status');
     expect(res.body.data.status).toBe('active');
   });
 
@@ -285,6 +313,7 @@ describe('GET /:id/status', () => {
     });
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/status');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -310,6 +339,7 @@ describe('GET /:id/variables', () => {
     });
     const res = await auth(request(app).get('/v1/process/pi/variables'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/variables');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -324,6 +354,7 @@ describe('GET /:id/historic-variables', () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'flevoland', decision: 'granted' });
     const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
     expect(res.body.data.decision).toBe('granted');
   });
 
@@ -336,6 +367,7 @@ describe('GET /:id/historic-variables', () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'other' });
     const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -348,16 +380,24 @@ describe('GET /:id/historic-variables', () => {
 describe('GET /:id/activity-history', () => {
   it('returns activities for an owned instance', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'flevoland' });
-    svc.getActivityHistory.mockResolvedValue([{ id: 'a1' }]);
+    const activity = {
+      id: 'a1',
+      activityId: 'StartEvent_1',
+      activityType: 'startEvent',
+      startTime: '2026-09-28T12:00:00.000Z',
+    };
+    svc.getActivityHistory.mockResolvedValue([activity]);
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([{ id: 'a1' }]);
+    expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
+    expect(res.body.data).toEqual([activity]);
   });
 
   it('403 on a tenant mismatch', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'utrecht' });
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -379,6 +419,7 @@ describe('GET /:instanceId/decision-document', () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'utrecht', applicantId: 'other' });
     const res = await auth(request(app).get('/v1/process/pi/decision-document'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{instanceId}/decision-document');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -387,6 +428,7 @@ describe('GET /:instanceId/decision-document', () => {
     svc.getDecisionDocument.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
     const res = await auth(request(app).get('/v1/process/pi/decision-document'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/process/{instanceId}/decision-document');
   });
 
   it('404 for DOCUMENT_NOT_FOUND', async () => {
@@ -394,6 +436,7 @@ describe('GET /:instanceId/decision-document', () => {
     svc.getDecisionDocument.mockRejectedValue(new Error('DOCUMENT_NOT_FOUND'));
     const res = await auth(request(app).get('/v1/process/pi/decision-document'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/process/{instanceId}/decision-document');
     expect(res.body.error.code).toBe('DOCUMENT_NOT_FOUND');
   });
 
@@ -406,13 +449,17 @@ describe('GET /:instanceId/decision-document', () => {
 
 describe('GET /:key/start-form', () => {
   it('returns a JSON form', async () => {
+    // A form-js schema, which is what a deployed form is. `{"x":1}` passed
+    // every assertion here while matching nothing the renderer could use.
+    const form = { id: 'start-form', type: 'default', components: [] };
     svc.getDeployedStartForm.mockResolvedValue({
-      data: '{"x":1}',
+      data: JSON.stringify(form),
       contentType: 'application/json',
     });
     const res = await auth(request(app).get('/v1/process/P/start-form'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ x: 1 });
+    expectToMatchOperation(res, 'get', '/process/{key}/start-form');
+    expect(res.body.data).toEqual(form);
     expect(svc.getDeployedStartForm).toHaveBeenCalledWith('P', 'flevoland');
   });
 
@@ -425,6 +472,7 @@ describe('GET /:key/start-form', () => {
     svc.getDeployedStartForm.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
     const res = await auth(request(app).get('/v1/process/P/start-form'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/process/{key}/start-form');
     expect(res.body.error.code).toBe('FORM_NOT_FOUND');
   });
 
@@ -439,6 +487,7 @@ describe('GET /:key/start-form', () => {
     );
     const res = await auth(request(app).get('/v1/process/P/start-form'));
     expect(res.status).toBe(409);
+    expectToMatchOperation(res, 'get', '/process/{key}/start-form');
     expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
   });
 });
@@ -460,6 +509,7 @@ describe('DELETE /:id', () => {
     svc.deleteProcessInstance.mockResolvedValue(undefined);
     const res = await auth(request(app).delete('/v1/process/pi')).send({ reason: 'obsolete' });
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/process/{id}');
     expect(svc.deleteProcessInstance).toHaveBeenCalledWith('pi', 'obsolete');
   });
 
@@ -469,6 +519,7 @@ describe('DELETE /:id', () => {
     });
     const res = await auth(request(app).delete('/v1/process/pi')).send({});
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'delete', '/process/{id}');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -550,6 +601,7 @@ describe('instance status mapping', () => {
     svc.startProcess.mockResolvedValue({ id: 'pi-1', businessKey: 'bk', ...flags });
     const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
     expect(res.status).toBe(201);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.data.status).toBe(expected);
   });
 
@@ -567,6 +619,7 @@ describe('instance status mapping', () => {
     });
     const res = await auth(request(app).get('/v1/process/pi-1/status'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/status');
     expect(res.body.data.status).toBe(expected);
   });
 });
@@ -580,6 +633,7 @@ describe('POST /:key/start failure causes', () => {
     );
     const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.success).toBe(false);
   });
 
@@ -587,6 +641,7 @@ describe('POST /:key/start failure causes', () => {
     svc.startProcess.mockRejectedValue('socket hang up');
     const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/process/{key}/start');
     expect(res.body.success).toBe(false);
   });
 });
@@ -638,6 +693,7 @@ describe('GET /:key/start-form error mapping', () => {
     svc.getDeployedStartForm.mockRejectedValue({ isAxiosError: true, response: { status: 400 } });
     const res = await auth(request(app).get('/v1/process/SomeProcess/start-form'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/process/{key}/start-form');
     expect(res.body.error.code).toBe('FORM_NOT_FOUND');
   });
 });
@@ -647,6 +703,7 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     svc.getHistoricVariables.mockResolvedValue({ applicantId: 'other' });
     const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -654,12 +711,14 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     svc.getHistoricVariables.mockResolvedValue({ applicantId: 'u-1' });
     const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
   });
 
   it('GET /:id/activity-history refuses', async () => {
     svc.getHistoricVariables.mockResolvedValue({});
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
     expect(svc.getActivityHistory).not.toHaveBeenCalled();
   });
@@ -669,6 +728,7 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     svc.getProcessVariables.mockResolvedValue({});
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/status');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -676,6 +736,7 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     svc.getProcessVariables.mockResolvedValue({});
     const res = await auth(request(app).delete('/v1/process/pi'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'delete', '/process/{id}');
     expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
   });
 });
@@ -690,10 +751,17 @@ describe('the applicant reads their own case on every process read (#229)', () =
   });
 
   it('GET /:id/status admits the applicant', async () => {
-    svc.getProcessInstance.mockResolvedValue({ id: 'pi', ended: false, suspended: false });
+    svc.getProcessInstance.mockResolvedValue({
+      id: 'pi',
+      definitionId: 'P:1:def-1',
+      businessKey: 'toeslagen-1',
+      ended: false,
+      suspended: false,
+    });
     svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/status');
   });
 
   it('GET /:id/status refuses another applicant', async () => {
@@ -701,6 +769,7 @@ describe('the applicant reads their own case on every process read (#229)', () =
     svc.getProcessVariables.mockResolvedValue(runtime('u-2'));
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/status');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -708,6 +777,7 @@ describe('the applicant reads their own case on every process read (#229)', () =
     svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
     const res = await auth(request(app).get('/v1/process/pi/variables'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/variables');
     expect(res.body.data).toEqual({ municipality: 'toeslagen', applicantId: 'u-1' });
   });
 
@@ -715,20 +785,30 @@ describe('the applicant reads their own case on every process read (#229)', () =
     svc.getProcessVariables.mockResolvedValue(runtime('u-2'));
     const res = await auth(request(app).get('/v1/process/pi/variables'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/variables');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
   it('GET /:id/activity-history admits the applicant', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'u-1' });
-    svc.getActivityHistory.mockResolvedValue([{ id: 'a1' }]);
+    svc.getActivityHistory.mockResolvedValue([
+      {
+        id: 'a1',
+        activityId: 'StartEvent_1',
+        activityType: 'startEvent',
+        startTime: '2026-09-28T12:00:00.000Z',
+      },
+    ]);
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
   });
 
   it('GET /:id/activity-history refuses another applicant', async () => {
     svc.getHistoricVariables.mockResolvedValue({ municipality: 'toeslagen', applicantId: 'u-2' });
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
     expect(svc.getActivityHistory).not.toHaveBeenCalled();
   });
 
@@ -736,6 +816,7 @@ describe('the applicant reads their own case on every process read (#229)', () =
     svc.getProcessVariables.mockResolvedValue(runtime('u-1'));
     const res = await auth(request(app).delete('/v1/process/pi'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'delete', '/process/{id}');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
     expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
   });
