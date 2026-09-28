@@ -29,9 +29,9 @@ module.exports = {
   // package-wide average hides exactly the regression this is for, since one
   // file falling to 40% barely moves 92%.
   //
-  // BRANCHES ONLY, deliberately. A functions floor at 80 would fail 31 files
-  // across the other four workspaces today (frontend 11, pa-cockpit 10,
-  // pa-demo 7, public-site 3; backend happens to be 0). Adding `functions: 80`
+  // BRANCHES ONLY, deliberately. A functions floor at 80 would fail 26 files
+  // across the other four workspaces (frontend 10, pa-cockpit 8, pa-demo 5,
+  // public-site 3; backend happens to be 0 — measured 28 September 2026). Adding `functions: 80`
   // here would pass and mislead the next person into adding it there.
   //
   // `npm test` is `jest --coverage`, and both backend deploy workflows run it,
