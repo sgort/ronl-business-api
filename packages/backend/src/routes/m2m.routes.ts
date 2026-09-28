@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { config } from '@utils/config';
 import { operatonService, OperatonService } from '@services/operaton.service';
@@ -68,10 +68,30 @@ function notAllowed(res: Response): void {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 //
-// jwtMiddleware only — no tenantMiddleware. M2M clients are system actors,
-// not scoped to a single organisation.
+// No tenantMiddleware: M2M clients are system actors, not scoped to a single
+// organisation. A valid token is not enough to be one, though — every person
+// in the realm holds a token for this audience. The caller must be a client on
+// M2M_ALLOWED_CLIENTS, identified by the token's `azp` (#237).
 //
-router.use(jwtMiddleware);
+function requireM2mClient(req: Request, res: Response, next: NextFunction) {
+  const azp = req.auth?.azp;
+  if (azp && config.operaton.m2mAllowedClients.includes(azp)) return next();
+
+  logger.warn('M2M request from a client not on the allow-list', {
+    azp,
+    userId: req.user?.userId,
+    path: req.path,
+  });
+  res.status(403).json({
+    success: false,
+    error: {
+      code: 'M2M_CLIENT_NOT_ALLOWED',
+      message: 'This API is only available to registered M2M clients.',
+    },
+  });
+}
+
+router.use(jwtMiddleware, requireM2mClient);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
