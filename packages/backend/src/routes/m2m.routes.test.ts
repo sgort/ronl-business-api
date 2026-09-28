@@ -14,6 +14,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     if (!req.headers['x-test-auth'])
       return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
     req.user = { userId: 'm2m-user' } as Request['user'];
+    // `azp` is the Keycloak client the token was issued to. Default to the
+    // allow-listed M2M client; x-test-azp stands in for any other caller, and
+    // an empty value for a token that carries no azp at all.
+    const azp = req.headers['x-test-azp'];
+    req.auth = {
+      userId: 'm2m-user',
+      azp: azp === undefined ? 'operaton-mcp-client' : String(azp) || undefined,
+    } as Request['auth'];
     next();
   },
 }));
@@ -42,7 +50,14 @@ jest.mock('@services/operaton.service', () => ({
 }));
 jest.mock('@middleware/audit.middleware', () => ({ auditLog: jest.fn() }));
 jest.mock('@utils/config', () => ({
-  config: { operaton: { m2mBaseUrl: '', m2mUsername: undefined, m2mPassword: undefined } },
+  config: {
+    operaton: {
+      m2mBaseUrl: '',
+      m2mUsername: undefined,
+      m2mPassword: undefined,
+      m2mAllowedClients: ['operaton-mcp-client'],
+    },
+  },
 }));
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
@@ -65,6 +80,55 @@ beforeEach(() => jest.clearAllMocks());
 describe('auth gate', () => {
   it('401 without a token', async () => {
     expect((await request(app).get('/v1/m2m/process')).status).toBe(401);
+  });
+});
+
+describe('client allow-list (#237)', () => {
+  // ronl-business-api is the client every person signs in through — citizens
+  // and caseworkers alike; edocs-mcp-client is a machine client for other routes.
+  it.each([
+    ['a user token (citizen or caseworker)', 'ronl-business-api'],
+    ['another machine client', 'edocs-mcp-client'],
+    ['a token without azp', ''],
+  ])('403 M2M_CLIENT_NOT_ALLOWED for %s, before any engine call', async (_label, azp) => {
+    const res = await auth(request(app).get('/v1/m2m/process')).set('x-test-azp', azp);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      success: false,
+      error: {
+        code: 'M2M_CLIENT_NOT_ALLOWED',
+        message: 'This API is only available to registered M2M clients.',
+      },
+    });
+    expect(svc.listProcessInstances).not.toHaveBeenCalled();
+  });
+
+  it('gates the write operations too', async () => {
+    const start = await auth(request(app).post('/v1/m2m/process/MyProc/start'))
+      .set('x-test-azp', 'ronl-business-api')
+      .send({ variables: {} });
+    const del = await auth(request(app).delete('/v1/m2m/process/pi-1')).set(
+      'x-test-azp',
+      'ronl-business-api'
+    );
+    const complete = await auth(request(app).post('/v1/m2m/task/t-1/complete'))
+      .set('x-test-azp', 'ronl-business-api')
+      .send({ variables: {} });
+
+    expect([start.status, del.status, complete.status]).toEqual([403, 403, 403]);
+    expect(svc.startProcess).not.toHaveBeenCalled();
+    expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
+    expect(svc.completeTask).not.toHaveBeenCalled();
+  });
+
+  it('lets an allow-listed client through', async () => {
+    svc.listProcessInstances.mockResolvedValue([]);
+    const res = await auth(request(app).get('/v1/m2m/process')).set(
+      'x-test-azp',
+      'operaton-mcp-client'
+    );
+    expect(res.status).toBe(200);
   });
 });
 

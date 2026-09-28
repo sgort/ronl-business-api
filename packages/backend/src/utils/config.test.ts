@@ -59,6 +59,7 @@ const ALL_OVERRIDES: Record<string, string> = {
   OPERATON_PASSWORD: 'op-pass',
   OPERATON_M2M_USERNAME: 'm2m-user',
   OPERATON_M2M_PASSWORD: 'm2m-pass',
+  M2M_ALLOWED_CLIENTS: 'client-a, client-b',
   DATABASE_URL: 'postgresql://u:p@db.test:5432/audit',
   DATABASE_POOL_MIN: '3',
   DATABASE_POOL_MAX: '20',
@@ -174,6 +175,7 @@ describe('config defaults (empty environment)', () => {
       password: undefined,
       m2mUsername: undefined,
       m2mPassword: undefined,
+      m2mAllowedClients: ['operaton-mcp-client'],
     });
   });
 
@@ -299,6 +301,7 @@ describe('config overrides (every variable set)', () => {
       password: 'op-pass',
       m2mUsername: 'm2m-user',
       m2mPassword: 'm2m-pass',
+      m2mAllowedClients: ['client-a', 'client-b'],
     });
   });
 

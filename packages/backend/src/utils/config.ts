@@ -91,6 +91,7 @@ interface Config {
     password?: string;
     m2mUsername?: string;
     m2mPassword?: string;
+    m2mAllowedClients: string[];
   };
   database: {
     url: string;
@@ -259,6 +260,10 @@ export const config: Config = {
     password: process.env.OPERATON_PASSWORD,
     m2mUsername: process.env.OPERATON_M2M_USERNAME,
     m2mPassword: process.env.OPERATON_M2M_PASSWORD,
+    // Keycloak client ids (the token's `azp`) that may call /v1/m2m. Every
+    // person signs in through ronl-business-api, which is deliberately absent:
+    // the M2M surface is for system actors only (#237).
+    m2mAllowedClients: parseEnvArray(process.env.M2M_ALLOWED_CLIENTS, ['operaton-mcp-client']),
   },
 
   database: {
