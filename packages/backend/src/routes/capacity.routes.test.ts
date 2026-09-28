@@ -32,6 +32,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import capacityRouter from './capacity.routes';
 import { operatonService } from '@services/operaton.service';
 
@@ -41,7 +43,12 @@ const svc = operatonService as unknown as {
   getCapacityClaimDocuments: jest.Mock;
 };
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 app.use('/v1/hr-capacity', capacityRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 
@@ -51,13 +58,19 @@ describe('lists', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/hr-capacity/active');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/hr-capacity/active');
   });
 
   it('GET /active returns the tenant list', async () => {
-    svc.getCapacityClaimActiveList.mockResolvedValue([{ id: 'i1' }]);
+    svc.getCapacityClaimActiveList.mockResolvedValue([
+      { id: 'i1', businessKey: 'flevoland-1', startTime: '2026-09-28T10:00:00.000Z' },
+    ]);
     const res = await auth(request(app).get('/v1/hr-capacity/active'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([{ id: 'i1' }]);
+    expectToMatchOperation(res, 'get', '/hr-capacity/active');
+    expect(res.body.data).toEqual([
+      { id: 'i1', businessKey: 'flevoland-1', startTime: '2026-09-28T10:00:00.000Z' },
+    ]);
     expect(svc.getCapacityClaimActiveList).toHaveBeenCalledWith('flevoland');
   });
 
@@ -65,13 +78,17 @@ describe('lists', () => {
     svc.getCapacityClaimActiveList.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/hr-capacity/active'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr-capacity/active');
     expect(res.body.error.code).toBe('CAPACITY_CLAIM_LIST_FAILED');
   });
 
   it('GET /completed returns the tenant list', async () => {
-    svc.getCapacityClaimCompletedList.mockResolvedValue([{ id: 'c1' }]);
+    svc.getCapacityClaimCompletedList.mockResolvedValue([
+      { id: 'c1', businessKey: 'flevoland-2', startTime: '2026-09-28T09:00:00.000Z' },
+    ]);
     const res = await auth(request(app).get('/v1/hr-capacity/completed'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/hr-capacity/completed');
     expect(svc.getCapacityClaimCompletedList).toHaveBeenCalledWith('flevoland');
   });
 
@@ -79,6 +96,7 @@ describe('lists', () => {
     svc.getCapacityClaimCompletedList.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/hr-capacity/completed'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr-capacity/completed');
     expect(res.body.error.code).toBe('CAPACITY_CLAIM_COMPLETED_LIST_FAILED');
   });
 });
@@ -92,6 +110,7 @@ describe('GET /:instanceId/documents', () => {
     });
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
     expect(res.body.data.boardDecisionNotification).toEqual({ doc: 'a' });
   });
 
@@ -103,6 +122,7 @@ describe('GET /:instanceId/documents', () => {
     });
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -110,6 +130,7 @@ describe('GET /:instanceId/documents', () => {
     svc.getCapacityClaimDocuments.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
     expect(res.body.error.code).toBe('CAPACITY_CLAIM_DOCUMENTS_FAILED');
   });
 });
@@ -137,6 +158,7 @@ describe('non-Error rejections', () => {
     svc.getCapacityClaimActiveList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/hr-capacity/active'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr-capacity/active');
     expect(res.body.error.code).toBe('CAPACITY_CLAIM_LIST_FAILED');
   });
 
@@ -144,6 +166,7 @@ describe('non-Error rejections', () => {
     svc.getCapacityClaimCompletedList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/hr-capacity/completed'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr-capacity/completed');
     expect(res.body.error.code).toBe('CAPACITY_CLAIM_COMPLETED_LIST_FAILED');
   });
 
@@ -151,6 +174,7 @@ describe('non-Error rejections', () => {
     svc.getCapacityClaimDocuments.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
     expect(res.body.error.code).toBe('CAPACITY_CLAIM_DOCUMENTS_FAILED');
   });
 });
@@ -164,6 +188,7 @@ describe('tenant isolation when the instance has no municipality', () => {
     });
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 });

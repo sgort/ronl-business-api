@@ -89,6 +89,8 @@ jest.mock('@utils/logger', () => {
 import express from 'express';
 import helmet from 'helmet';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import validsignRouter, {
   callbackRouter,
   deriveBoardHandOverUrl,
@@ -125,7 +127,12 @@ const mockToPdf = toPdf as jest.Mock;
 // The real app mounts the callback router BEFORE any body-parsing/auth
 // concerns of its own, and relies on the app-wide body parsers -- mirror that
 // here rather than mounting an isolated parser per router (see index.ts).
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 // Mirror index.ts's helmet() call exactly (same directives config) so the
 // framing-header tests below observe the SAME headers a real request would
 // carry: without this, there would be no X-Frame-Options / CSP on any
@@ -195,6 +202,7 @@ describe('POST /v1/validsign/callback', () => {
   it('rejects a request with no shared secret', async () => {
     const res = await request(app).post('/v1/validsign/callback').send({ packageId: 'pkg-1' });
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/validsign/callback');
     expect(mockCompleteSignature).not.toHaveBeenCalled();
   });
 
@@ -517,6 +525,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
     mockGetTaskSignatureSpec.mockResolvedValue(null);
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
     expect(res.body.data).toEqual({ required: false });
   });
 
@@ -530,6 +539,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
     });
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
     expect(res.body.data).toEqual({
       required: true,
       templateId: 'tpl-1',
@@ -545,6 +555,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
     mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
     expect(res.body.data).toEqual({
       required: true,
       templateId: 'tpl-1',
@@ -568,12 +579,14 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/validsign/task/task-1/spec');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
   });
 
   it('500 when the spec lookup fails', async () => {
     mockGetTaskSignatureSpec.mockRejectedValue(new Error('SIGNATURE_TEMPLATE_NOT_FOUND'));
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
     expect(res.body.error.code).toBe('SIGNATURE_SPEC_FAILED');
   });
 });
@@ -603,6 +616,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
     expect(res.body.data).toEqual({
       packageId: 'pkg-1',
       signingUrl: '/v1/validsign/stub/ceremony/pkg-1',
@@ -664,6 +678,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
     expect(res.body.data).toEqual({
       packageId: 'pkg-3',
       signingUrl: '/v1/validsign/stub/ceremony/pkg-3',
@@ -730,6 +745,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
 
       expect(res.status).toBe(409);
+      expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
       expect(res.body.error.code).toBe('VALIDSIGN_PACKAGE_EXISTS');
       expect(res.body.data).toEqual({ packageId: existingPackageId });
       expect(mockValidsign.createPackage).not.toHaveBeenCalled();
@@ -756,6 +772,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
     expect(mockValidsign.createPackage).toHaveBeenCalledTimes(1);
     expect(res.body.data).toEqual({
       packageId: 'pkg-retry',
@@ -777,6 +794,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
     expect(mockValidsign.createPackage).toHaveBeenCalledTimes(1);
     expect(res.body.data).toEqual({
       packageId: 'pkg-none',
@@ -788,12 +806,14 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     mockGetTaskSignatureSpec.mockResolvedValue(null);
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
     expect(res.body.error.code).toBe('NOT_SIGNATURE_TASK');
   });
 
   it('401 without a token', async () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
   });
 
   it('derives an absolute handOverUrl at the infra board when corsOrigin is a public origin', async () => {
@@ -844,6 +864,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.body.data).toEqual({ status: 'completed' });
     expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
   });
@@ -867,6 +888,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.body.data).toEqual({ status: 'completed' });
     expect(mockGetHistoricTaskVariables).toHaveBeenCalledWith('task-1');
   });
@@ -876,6 +898,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     mockGetHistoricTaskVariables.mockResolvedValue(null);
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.body.error.code).toBe('SIGNATURE_STATUS_NOT_FOUND');
   });
 
@@ -888,6 +911,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     mockGetTaskVariables.mockRejectedValue(new Error('ECONNREFUSED'));
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
     expect(res.body.data?.status).not.toBe('completed');
     expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
@@ -897,6 +921,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     mockGetTaskVariables.mockRejectedValue({ isAxiosError: true, response: { status: 500 } });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
     expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
   });
@@ -906,6 +931,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     mockGetHistoricTaskVariables.mockRejectedValue(new Error('history unreachable'));
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
   });
 });
@@ -915,12 +941,14 @@ describe('the stub ceremony', () => {
     mockValidsign.isStub = false;
     const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/validsign/stub/ceremony/{packageId}');
   });
 
   it('POST sign is 404 when stub mode is off', async () => {
     mockValidsign.isStub = false;
     const res = await request(app).post('/v1/validsign/stub/ceremony/pkg-1/sign');
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'post', '/validsign/stub/ceremony/{packageId}/sign');
     expect(mockValidsign.stubSign).not.toHaveBeenCalled();
   });
 
@@ -928,6 +956,7 @@ describe('the stub ceremony', () => {
     mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
     const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/stub/ceremony/{packageId}');
     expect(res.type).toBe('text/html');
     expect(res.text).toContain('Onderteken');
     expect(res.text).toContain('Weigeren');
@@ -990,6 +1019,7 @@ describe('GET /v1/validsign/ceremony/complete', () => {
     mockValidsign.isStub = false;
     const res = await request(app).get('/v1/validsign/ceremony/complete');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/ceremony/complete');
     expect(res.type).toBe('text/html');
     expect(res.headers['x-frame-options']).toBeUndefined();
     expect(res.headers['content-security-policy']).toContain(
@@ -1001,6 +1031,7 @@ describe('GET /v1/validsign/ceremony/complete', () => {
     mockValidsign.isStub = true;
     const res = await request(app).get('/v1/validsign/ceremony/complete');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/ceremony/complete');
   });
 
   it('tells the signer the signature is recorded and the window can be closed', async () => {
@@ -1022,6 +1053,7 @@ describe('stub ceremony framing headers (iframe embed from a different origin)',
     mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
     const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/stub/ceremony/{packageId}');
     expect(res.headers['x-frame-options']).toBeUndefined();
   });
 
@@ -1064,6 +1096,7 @@ describe('stub ceremony framing headers (iframe embed from a different origin)',
     });
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
     expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
     expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self'");
   });
@@ -1158,6 +1191,9 @@ describe('ceremony framing headers with no CSP already on the response', () => {
   // helmet, or any ordering that puts this router first, hands it none.
   const bareApp = express();
   bareApp.use(express.json());
+  // Also app-wide in index.ts, and expectToMatchOperation checks for the header
+  // it sets on every 2xx (#269).
+  bareApp.use(versionMiddleware);
   // The stub ceremony lives on callbackRouter -- it is unauthenticated by
   // design, so it is registered alongside the callback rather than behind the
   // jwt/tenant middleware the authenticated router carries.
@@ -1167,6 +1203,7 @@ describe('ceremony framing headers with no CSP already on the response', () => {
     mockValidsign.stubSignerName.mockReturnValue('Jan van der Berg');
     const res = await request(bareApp).get('/v1/validsign/stub/ceremony/pkg-1');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/stub/ceremony/{packageId}');
     expect(res.headers['content-security-policy']).toBe(
       'frame-ancestors http://localhost:5173 http://localhost:3000'
     );
@@ -1187,6 +1224,7 @@ describe('the stub ceremony page escapes what it interpolates', () => {
     const res = await request(app).get('/v1/validsign/stub/ceremony/pkg-1');
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/stub/ceremony/{packageId}');
     expect(res.text).not.toContain('<script>alert');
     expect(res.text).toContain('&lt;script&gt;');
     expect(res.text).toContain('&amp;');
@@ -1224,6 +1262,7 @@ describe('POST /v1/validsign/task/:taskId/package, further cases', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
     expect(mockValidsign.createPackage.mock.calls[0][0].senderEmail).toBe('signer@flevoland.nl');
   });
 
@@ -1309,6 +1348,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       mockGetTaskVariables.mockResolvedValue(variables);
       const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
       expect(res.body.error.code).toBe('TENANT_MISMATCH');
       expect(mockGetTaskSignatureSpec).not.toHaveBeenCalled();
     });
@@ -1318,6 +1358,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       mockGetTaskVariables.mockResolvedValue(variables);
       const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
       expect(res.body.error.code).toBe('TENANT_MISMATCH');
       expect(mockGetTaskSignatureSpec).not.toHaveBeenCalled();
       expect(mockRenderTemplate).not.toHaveBeenCalled();
@@ -1330,6 +1371,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       mockGetTaskVariables.mockResolvedValue(variables);
       const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
       expect(res.body.error.code).toBe('TENANT_MISMATCH');
     });
 
@@ -1338,6 +1380,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       mockGetHistoricTaskVariables.mockResolvedValue(variables);
       const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
       expect(res.body.error.code).toBe('TENANT_MISMATCH');
     });
   });

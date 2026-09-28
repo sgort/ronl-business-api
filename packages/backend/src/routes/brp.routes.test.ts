@@ -33,6 +33,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import axios from 'axios';
 import brpRouter from './brp.routes';
 import { auditLog } from '@middleware/audit.middleware';
@@ -41,7 +43,12 @@ const mockPost = (axios as unknown as { post: jest.Mock }).post;
 const mockAuditLog = auditLog as jest.Mock;
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/brp', brpRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 
@@ -51,6 +58,7 @@ describe('POST /v1/brp/personen', () => {
   it('401 without a token', async () => {
     const res = await request(app).post('/v1/brp/personen').send({});
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/brp/personen');
   });
 
   it('proxies a successful response and audits it', async () => {
@@ -61,6 +69,7 @@ describe('POST /v1/brp/personen', () => {
     });
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/brp/personen');
     expect(res.body).toEqual({ success: true, data: { personen: [{ bsn: '1' }] } });
     expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'success', {
       bsn: '999990019',
@@ -73,6 +82,7 @@ describe('POST /v1/brp/personen', () => {
     const res = await auth(request(app).post('/v1/brp/personen')).send({});
 
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'post', '/brp/personen');
     expect(res.body.error.code).toBe('BRP_API_ERROR');
     expect(res.body.error.details).toEqual({ message: 'not found' });
   });
@@ -86,6 +96,7 @@ describe('POST /v1/brp/personen', () => {
     const res = await auth(request(app).post('/v1/brp/personen')).send({});
 
     expect(res.status).toBe(502);
+    expectToMatchOperation(res, 'post', '/brp/personen');
     expect(res.body.error.message).toBe('upstream boom');
     expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'error', {
       error: expect.any(String),
@@ -98,6 +109,7 @@ describe('POST /v1/brp/personen', () => {
     const res = await auth(request(app).post('/v1/brp/personen')).send({});
 
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/brp/personen');
     expect(res.body.error.message).toBe('BRP API request failed');
   });
 });

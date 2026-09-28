@@ -11,6 +11,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import mediaRouter from './media-aggregator.routes';
 import { searchArticles } from './search';
 import { getArticles } from './store';
@@ -18,7 +20,12 @@ import { getArticles } from './store';
 const mockSearch = searchArticles as jest.Mock;
 const mockGetArticles = getArticles as jest.Mock;
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 app.use('/v1/media-aggregator', mediaRouter);
 
 beforeEach(() => {
@@ -31,6 +38,7 @@ describe('GET /search — auth gate', () => {
     mockSearch.mockResolvedValue([{ id: 'a' }]);
     const res = await request(app).get('/v1/media-aggregator/search');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/media-aggregator/search');
     expect(res.body.articles).toEqual([{ id: 'a' }]);
   });
 
@@ -71,6 +79,7 @@ describe('GET /search — behaviour', () => {
     mockSearch.mockRejectedValue(new Error('boom'));
     const res = await request(app).get('/v1/media-aggregator/search');
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/media-aggregator/search');
     expect(res.body.error).toBe('search_failed');
   });
 });
@@ -80,6 +89,7 @@ describe('GET /health', () => {
     mockGetArticles.mockResolvedValue([{ id: '1' }, { id: '2' }]);
     const res = await request(app).get('/v1/media-aggregator/health');
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/media-aggregator/health');
     expect(res.body).toEqual({ ok: true, cached: 2 });
   });
 
@@ -87,6 +97,7 @@ describe('GET /health', () => {
     mockGetArticles.mockRejectedValue(new Error('down'));
     const res = await request(app).get('/v1/media-aggregator/health');
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/media-aggregator/health');
     expect(res.body).toEqual({ ok: false });
   });
 });

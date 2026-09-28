@@ -620,8 +620,21 @@ paths:
                             required: [cached, fetchedAt, ageMs]
                             properties:
                               cached: { type: boolean }
-                              fetchedAt: { type: string, format: date-time }
-                              ageMs: { type: integer }
+                              fetchedAt:
+                                type: [string, 'null']
+                                format: date-time
+                                description: |
+                                  NULL when nothing is cached yet, which is the
+                                  state of the FIRST request after a deploy --
+                                  `getRegelcatalogusCacheInfo()` returns
+                                  `{ cached: false, fetchedAt: null, ageMs: null }`
+                                  and its own signature says `string | null`.
+                                  Typed non-nullable until #269.
+                              ageMs:
+                                type: [integer, 'null']
+                                description: |
+                                  Null on a cold cache, alongside `fetchedAt`.
+                                  See above.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -774,12 +787,24 @@ paths:
                             description: Matches before any paging.
                           facets:
                             type: object
-                            description: Counts per facet value, for the current result set.
+                            description: |
+                              Counts per facet value, for the current result
+                              set.
+
+                              **Each facet is an ORDERED ARRAY of
+                              `[value, count]` pairs, not an object.**
+                              `facetCounts()` returns `[string, number][]`,
+                              sorted by count descending -- the order is the
+                              point, since the search page renders the
+                              commonest values first. This described them as
+                              objects keyed by value until #269, which would
+                              have had a consumer iterate keys and lose the
+                              ordering.
                             required: [soort, bron, doelgroep]
                             properties:
-                              soort: { type: object, additionalProperties: { type: integer } }
-                              bron: { type: object, additionalProperties: { type: integer } }
-                              doelgroep: { type: object, additionalProperties: { type: integer } }
+                              soort: { $ref: '#/components/schemas/FacetCounts' }
+                              bron: { $ref: '#/components/schemas/FacetCounts' }
+                              doelgroep: { $ref: '#/components/schemas/FacetCounts' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -3830,6 +3855,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`STATUS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3881,13 +3908,18 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           description: |
-            The token was missing or unknown. **Plain text**, not JSON.
+            The token was missing or unknown. **Not JSON**, and not
+            `text/plain` either: the handler calls `res.status(401).send(...)`
+            with a string, and Express types a string body as `text/html`.
+            Documented as `text/plain` until #269, which compared the two.
           content:
-            text/plain:
+            text/html:
               schema: { type: string, examples: ['Missing token', 'Invalid token'] }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: Plain text, not JSON.
           content:
@@ -3931,6 +3963,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`FEED_TOKEN_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4019,6 +4053,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '502':
           description: The upstream source failed (`UPSTREAM_ERROR`).
           $ref: '#/components/responses/Error'
@@ -4046,6 +4082,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '502':
           description: '`AGENDA_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4084,6 +4122,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SIGNALS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4126,6 +4166,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`PROMOTE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4154,6 +4196,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SIGNAL_COUNTS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4184,6 +4228,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4213,6 +4259,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4255,6 +4303,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4289,6 +4339,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SEARCHES_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4341,6 +4393,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SEARCH_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4386,6 +4440,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4407,6 +4463,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4442,6 +4500,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`NOTIFICATIONS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4462,6 +4522,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`NOTIFICATIONS_ACK_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4494,6 +4556,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`DOSSIERS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4580,6 +4644,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4667,6 +4733,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4681,6 +4749,27 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PaDossierId'
       responses:
+        '200':
+          description: |
+            The watch ALREADY EXISTED and was re-enabled in place. The handler
+            answers `res.status(existing ? 200 : 201)`, so a repeat follow is a
+            200 and only the first is a 201. Only the 201 was documented until
+            #269, whose conformance check found the route test asserting a 200.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
         '201':
           description: The watch that was created.
           content:
@@ -4700,6 +4789,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`DOSSIER_WATCH_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4720,6 +4811,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`DOSSIER_WATCH_DELETE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4769,6 +4862,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4801,6 +4896,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -4828,6 +4925,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`TEMPLATES_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4864,6 +4963,8 @@ paths:
         '400':
           description: '`naam` missing (`MISSING_NAAM`).'
           $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`TEMPLATE_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4889,6 +4990,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SNIPPETS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4906,7 +5009,7 @@ paths:
               required: [naam, md]
               properties:
                 naam: { type: string }
-                md: { type: string, description: The snippet body, in Markdown. }
+                md: { type: string, description: 'The snippet body, in Markdown.' }
                 cat: { type: string }
       responses:
         '201':
@@ -4925,6 +5028,8 @@ paths:
         '400':
           description: '`naam` or `md` missing (`MISSING_FIELDS`).'
           $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SNIPPET_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4984,7 +5089,24 @@ paths:
                         properties:
                           counts:
                             type: object
-                            additionalProperties: { type: integer }
+                            description: |
+                              Keyed by process definition key. Each value is a
+                              PAIR of counts, not a single number: `wip` is the
+                              running instances and `gereed` the finished ones.
+                              The service's own signature says so --
+                              `Record<string, { wip: number; gereed: number }>`
+                              -- while this said `integer` until #269, whose
+                              conformance check compared the two.
+                            additionalProperties:
+                              type: object
+                              required: [wip, gereed]
+                              properties:
+                                wip:
+                                  type: integer
+                                  description: Running instances of this phase.
+                                gereed:
+                                  type: integer
+                                  description: Finished instances of this phase.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -5330,6 +5452,8 @@ paths:
         '400':
           description: '`employeeId` was not supplied (`VALIDATION_ERROR`).'
           $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           description: '`HR_PROFILE_FAILED`.'
           $ref: '#/components/responses/Error'
@@ -5411,6 +5535,26 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        default:
+          description: |
+            **Any other status the upstream returned, forwarded verbatim.** Both
+            failure branches of this handler answer
+            `res.status(<the BRP API's status>)`, so the status on this
+            operation is the upstream's rather than this service's -- a `404`
+            for an unknown burgerservicenummer and a `502` from the gateway in
+            front of it are both reachable. The body is always this service's
+            own `BrpError`.
+
+            Documented as `default` rather than as a longer list, because the
+            list is not this service's to close. #269's conformance check
+            surfaced it: two route tests asserted statuses the document did not
+            have.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BrpError' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
 
   # ── /v1/admin ─────────────────────────────────────────────────────────────
 
@@ -5437,11 +5581,30 @@ paths:
                   - type: object
                     properties:
                       data:
-                        type: array
-                        items:
-                          type: object
-                          description: One audit entry.
-                          additionalProperties: true
+                        type: object
+                        description: |
+                          A PAGED envelope, not a bare array. `admin.routes.ts`
+                          answers `data: { items, pagination }`; this said
+                          `data` WAS the array until #269, whose conformance
+                          check is what compared the two.
+                        required: [items, pagination]
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              type: object
+                              description: One audit entry.
+                              additionalProperties: true
+                          pagination:
+                            type: object
+                            required: [limit, offset, total, hasMore]
+                            properties:
+                              limit: { type: integer }
+                              offset: { type: integer }
+                              total: { type: integer }
+                              hasMore:
+                                type: boolean
+                                description: Whether another page follows.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -5811,8 +5974,24 @@ components:
           description: False when any dependency is down; mirrors the 503.
         data:
           type: object
-          required: [name, version, status, timestamp, uptime, environment]
+          # `uptime` and `environment` are NOT required, and neither are
+          # `dependencies` or `duration`. health.routes.ts has TWO 503 paths and
+          # they answer different bodies: when a dependency is down it sends the
+          # full report, but when the check itself THROWS, the catch branch
+          # sends only { name, version, status, timestamp, error }.
+          #
+          # Listing them as required described the first path and not the
+          # second, so the document was wrong for every 503 raised by a failing
+          # CHECK rather than a failing dependency. #269's conformance check
+          # found it; the route test for that branch had been green throughout.
+          required: [name, version, status, timestamp]
           properties:
+            error:
+              type: string
+              description: |
+                Present ONLY on the catch-branch 503, carrying the message of
+                the error that stopped the check. The fields reporting on
+                dependencies are absent on that path.
             name:
               type: string
             version:
@@ -6011,6 +6190,21 @@ components:
           description: Whether the product can be applied for online.
         modified: { type: [string, 'null'], format: date-time }
         soort: { type: string }
+
+    FacetCounts:
+      type: array
+      description: |
+        One facet's values with their counts, ordered by count descending. Each
+        entry is a two-element tuple: the value, then how many items carry it.
+      items:
+        type: array
+        minItems: 2
+        maxItems: 2
+        prefixItems:
+          - type: string
+            description: The facet value.
+          - type: integer
+            description: How many items in the result set carry it.
 
     PublicIndexItem:
       type: object
@@ -6500,9 +6694,18 @@ components:
           description: Present once a signature request exists.
         signingUrl:
           type: string
-          format: uri
-          description: Where the signer completes the ceremony. Present once a request
+          format: uri-reference
+          description: |
+            Where the signer completes the ceremony. Present once a request
             exists.
+
+            A `uri-reference`, not an absolute `uri`: against a live ValidSign
+            this is that service's absolute URL, but in STUB MODE -- which is
+            what acceptance runs -- it is the relative
+            `/v1/validsign/stub/ceremony/{packageId}` served by this API's own
+            callback router. Declared `format: uri` until #269, which would
+            have had a consumer validating the document reject the acceptance
+            value.
 
     BareSuccess:
       type: object
@@ -6523,7 +6726,7 @@ components:
         id: { type: string }
         tab:
           { type: string, description: 'Which board the signal sits on, for example `politiek`.' }
-        dossierId: { type: [string, 'null'], description: The dossier it is linked to, if any. }
+        dossierId: { type: [string, 'null'], description: 'The dossier it is linked to, if any.' }
         title: { type: string }
         src: { type: [string, 'null'], description: The source system's display name. }
         bron: { type: [string, 'null'] }
@@ -6532,8 +6735,13 @@ components:
         regio: { type: [string, 'null'] }
         sentiment: { type: [string, 'null'] }
         ref: { type: [string, 'null'] }
-        rel: { type: [number, 'null'], description: Relevance, used for ordering. }
-        impact: { type: [number, 'null'] }
+        rel: { type: [number, 'null'], description: 'Relevance, used for ordering.' }
+        impact:
+          type: [string, 'null']
+          description: |
+            The analyst's impact judgement, a free-text label such as `kans`
+            or `risico` -- NOT a number. `PATCH /pa/signals/{id}` types the
+            field it writes as `impact?: string`. Typed as a number until #269.
         impactLabel: { type: [string, 'null'] }
         duiding: { type: [string, 'null'], description: The curator's interpretation. }
         status:
@@ -6543,7 +6751,16 @@ components:
         aiDraft: { type: [string, 'null'] }
         confirmedBy: { type: [string, 'null'] }
         confirmedAt: { type: [string, 'null'], format: date-time }
-        routing: { type: [object, 'null'], additionalProperties: true }
+        routing:
+          type: [string, 'null']
+          description: |
+            Where a confirmed signal was routed. A STRING, not an object: the
+            only value the SQL ever writes is `watchlist`, set when a signal is
+            confirmed without a dossier
+            (`routing = CASE WHEN dossier_id IS NULL THEN 'watchlist' ELSE NULL END`),
+            and cleared to null on dismissal or when a dossier is linked.
+            Typed as an object until #269.
+          enum: [watchlist, null]
 
     PaFeedItem:
       type: object
@@ -6574,7 +6791,7 @@ components:
         soort: { type: [string, 'null'] }
         soortLabel: { type: [string, 'null'] }
         titel: { type: string }
-        iso: { type: [string, 'null'], description: The date, ISO-formatted. }
+        iso: { type: [string, 'null'], description: 'The date, ISO-formatted.' }
         tijd: { type: [string, 'null'] }
         commissie: { type: [string, 'null'] }
         status: { type: [string, 'null'] }
@@ -6663,7 +6880,18 @@ components:
         versie: { type: [string, 'null'] }
         eigenaar: { type: [string, 'null'] }
         gebruikt: { type: [integer, 'null'], description: How often it has been used. }
-        seed: { type: [boolean, 'null'], description: True for the rows shipped with the platform. }
+        seed:
+          type: [object, 'null']
+          additionalProperties: true
+          description: |
+            The template's SEED CONTENT -- the fields a new dossier starts
+            with, for example
+            `{ onderwerp, waaromNu, waarover, onsVerhaal }`. Stored as JSONB
+            (`JSON.stringify(seed ?? {})` on write) and returned as an object.
+
+            Documented as a boolean meaning "shipped with the platform" until
+            #269. That was doubly wrong: the type, and the meaning -- which
+            belongs to `status`, not to this field.
 
     PaSnippet:
       type: object
@@ -6672,7 +6900,7 @@ components:
         id: { type: string }
         naam: { type: string }
         cat: { type: [string, 'null'] }
-        md: { type: string, description: The snippet body, in Markdown. }
+        md: { type: string, description: 'The snippet body, in Markdown.' }
 
     PlainEnvelope:
       type: object
@@ -6845,6 +7073,28 @@ components:
 
         `TENANT_MISMATCH` never appears on this group: no organisation is
         derived, so there is nothing to mismatch.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
+
+    PaForbidden:
+      description: |
+        A CAPABILITY refusal, not an organisation one -- it is never
+        `TENANT_MISMATCH`. Two codes reach it:
+
+        - **`FORBIDDEN`** -- the token lacks the `public-affairs` realm role.
+          `pa.routes.ts` applies `requireRoles('public-affairs')` with a
+          `router.use`, so this is reachable on EVERY operation in this group,
+          before the handler runs.
+        - **`FORBIDDEN_PUBLISH`** -- on the two operations that can publish a
+          dossier, when the caller holds the role but not the publish
+          capability.
+
+        Only the second was documented, on two operations, until #269 -- so the
+        role refusal that guards all 33 appeared nowhere.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
