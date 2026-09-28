@@ -10,21 +10,35 @@
  * changelog-data there would take the real-history assertions with it, so the
  * fixtures live here instead.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const mockChangelog = vi.hoisted(() => ({
   changelog: { versions: [] as unknown[] },
 }));
-vi.mock('./changelog-data', async (importActual) => ({
-  ...(await importActual<typeof import('./changelog-data')>()),
+// No importActual here, on purpose (#199). changelog-data.ts is the real
+// release history — 660 KB at v2026.09.13 and larger every release — and
+// `changelog` is its only runtime export; everything else ChangelogPanelContent
+// takes from it is a type, erased at build. Spreading the actual module loaded
+// all of it only to throw the data away, inside the lazy() import the first
+// findByRole was waiting on.
+vi.mock('./changelog-data', () => ({
   get changelog() {
     return mockChangelog.changelog;
   },
 }));
 
 import ChangelogPanel from './ChangelogPanel';
+
+// Resolve the lazy() chunk once, up front, under the hook timeout. Otherwise the
+// first test's findByRole pays for the import, and findBy* is capped by
+// testing-library's own 1000 ms asyncUtilTimeout — which testTimeout does not
+// raise — so a busy parallel run failed it with an empty body (#199).
+// ChangelogPanel.test.tsx gets the same effect from its static imports.
+beforeAll(async () => {
+  await import('./ChangelogPanelContent');
+});
 
 const feedback = [
   { type: 'feedback' as const, iid: 12, title: 'Trage takenlijst', url: 'https://git/12' },
