@@ -60,7 +60,7 @@
       "config": {
         "syncMode": "FORCE",
         "claim": "roles",
-        "claim.value": "IOU_USER",
+        "claim.value": "IOU_USERS",
         "role": "caseworker"
       }
     },

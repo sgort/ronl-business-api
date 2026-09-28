@@ -56,7 +56,7 @@ Flevoland IT registered the application **IOU-demonstrator**:
 | Tenant ID                               | `95f3a7d8-730c-4f35-a909-867d3fbde8fe`                                                                                                                |
 | Application (client) ID                 | `ef967eb0-3902-408f-8161-4e294c826473`                                                                                                                |
 | Client secret                           | Held outside the repository; entered into Keycloak only                                                                                               |
-| App roles, emitted in the `roles` claim | `IOU_ADMIN`, `IOU_USER`, `IOU_PA`, `IOU_INFRA`                                                                                                        |
+| App roles, emitted in the `roles` claim | `IOU_ADMIN`, `IOU_USERS`, `IOU_PA`, `IOU_INFRA`                                                                                                       |
 | Role assignment                         | Through Entra groups: `flv-role-iou-poc-admin`, `flv-role-iou-poc-user`, `Flv-role-IOU-publicAffairs-contributors`, `Flv-role-IOU-infra-contributors` |
 | Conditional access                      | MFA required                                                                                                                                          |
 
@@ -112,7 +112,7 @@ across logins, so `applicantId` and `initiator` on cases stay consistent.
 | `organisation-type` | Hardcoded attribute | `organisation_type = province`                                |
 | `assurance-level`   | Hardcoded attribute | `assurance_level = substantieel`                              |
 | `role-iou-admin`    | Claim to role       | `roles` contains `IOU_ADMIN` → realm role `admin`             |
-| `role-iou-user`     | Claim to role       | `roles` contains `IOU_USER` → realm role `caseworker`         |
+| `role-iou-user`     | Claim to role       | `roles` contains `IOU_USERS` → realm role `caseworker`        |
 | `role-iou-pa`       | Claim to role       | `roles` contains `IOU_PA` → realm role `public-affairs`       |
 | `role-iou-infra`    | Claim to role       | `roles` contains `IOU_INFRA` → realm role `infra-projectteam` |
 
