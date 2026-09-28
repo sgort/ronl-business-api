@@ -112,6 +112,141 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.13',
+      status: 'Released',
+      date: '28 sep 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: '1ae2b94',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Caseworker card lands users who also hold infra-projectteam',
+          details: [
+            'canAccessRedirect refused /dashboard/caseworker to infra-projectteam members. The exception dates from when the caseworker dashboard was the only login entry and stored that redirect on every login. Since the landing page has board cards, a stored redirect is a choice, and AuthCallback clears it on read.',
+            'A user holding both roles — the Flevoland Entra account — who picked the Caseworker card was sent to the default board instead. The default board, without a card choice, is unchanged: Woo, then Infra-board, then PA-Cockpit, then Caseworker.',
+          ],
+        },
+        {
+          sha: '39176bd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Entra’s IOU_USERS app role maps to caseworker',
+          details: [
+            'Entra emits the user role as IOU_USERS; the role-iou-user mapper expected IOU_USER, never matched, and so never granted caseworker. Found in the live test with a temporary attribute-importer mapper that showed roles = [IOU_ADMIN, IOU_USERS, IOU_PA, IOU_INFRA].',
+          ],
+        },
+        {
+          sha: '328f502',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Entra IDs are lowercased, so an upper-case paste cannot break the issuer check',
+          details: [
+            'Entra issues tokens with the tenant id in lower case, and Keycloak compares the token’s iss to the configured issuer as an exact string. An upper-case paste passed the script’s GUID check and then failed every login. Found in the whole-branch review of #250.',
+          ],
+        },
+        {
+          sha: 'caa8e0e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Sign in with a Flevoland account from the landing page',
+          details: [
+            'The hero’s primary action becomes “Inloggen met uw Flevoland-account”, which sends idpHint entra-flevoland through the existing AuthCallback path, so Keycloak goes straight to Entra ID; on a Flevoland-managed laptop Entra signs in silently. “Bekijk de borden” stays as a secondary link, and the Keycloak login page shows a “Flevoland (Entra ID)” button as a fallback.',
+            'Choosing an identity provider — Flevoland or DigiD — now clears a redirect and username hint left by an earlier board click.',
+          ],
+        },
+        {
+          sha: '8e36b93',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Keycloak brokers Flevoland’s Entra ID: a provisioning script',
+          details: [
+            'scripts/keycloak-add-entra-idp.sh creates or updates the OIDC identity provider entra-flevoland in realm ronl, with mappers that set municipality=flevoland, organisation_type=province and assurance_level=substantieel, and map the Entra app roles to admin, caseworker, public-affairs and infra-projectteam. The backend keeps trusting only Keycloak and does not change.',
+            'The script is idempotent — a re-run updates in place, which is also how a rotated secret goes in — checks the mapped roles exist before creating anything, and never puts the client secret in argv, a file or its output. The realm export stays secret-free, so it carries no provider.',
+          ],
+        },
+        {
+          sha: '36eb5a5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Deployed-BPMN derivations are cached by definition id, not by key',
+          details: [
+            'A process-definition key is not a version: Operaton answers /process-definition/key/{key} with whatever is newest, so a redeploy changes what the key means while the key stays put. Three caches — the phase BPMN, the parsed swimlane model and the boardOwner tag — were keyed by `${tenantId}::${processKey}` and could not see that happen. On ACC on 28 September R2.2 was redeployed three minutes after a backend restart, and the swimlane kept rendering one document however often it was reloaded. Localhost never showed it, because the dev server restarts on every file change.',
+            'A definition id is the version: Operaton mints a new one per deployment, so a redeploy misses the cache by construction. getCurrentDefinitionId resolves key and tenant to the id it currently means — deliberately uncached, since caching it would put the staleness back one level up — and everything downstream is keyed by that id. phaseBpmnCache is gone rather than re-keyed; the XML fetch is getCachedBpmnXml, already keyed by definition id. A boardOwner lookup that threw is no longer cached.',
+            'The regression test replays the ACC sequence — the R2.2 fixture cut back to one document, then a redeploy of the full fixture under the same key — and fails alone when the old cache key is restored. 2202 tests pass across 96 suites.',
+          ],
+        },
+        {
+          sha: '4d0dc73',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'E2E fixtures deploy through linked-data-explorer’s deployer, not a copy',
+          details: [
+            'The deploy script read everything out of linked-data-explorer and posted it to linked-data-explorer’s backend; only the script itself lived here. It now lives there, and scripts/deploy-e2e-fixtures.mjs is a shim that resolves the checkout (LDE_PATH, defaulting to a sibling), runs the real script and passes arguments and exit code through, so npm run e2e:deploy-fixtures and the command global-setup prints keep working.',
+            'Two copies had already drifted once: when ronl:documentRef became a list, one copy stopped matching any template and the bundle would have failed to deploy — found by reading, not by a test. One deployer means one place to change.',
+          ],
+        },
+        {
+          sha: 'dfa325a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'E2E fixture deploy splits the documentRef list',
+          details: [
+            'deploy-e2e-fixtures.mjs treated each ronl:documentRef match as one template id. With the attribute now a comma-separated list, a task with two documents yielded one id matching no template, and the script’s unmatched-reference check stopped the whole bundle. Verified by deploying against the local engine: R2.2 now deploys 15 resources, including rip-objectenboom.document, which no deploy had included before.',
+          ],
+        },
+        {
+          sha: '2bdff69',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The swimlane shows every document a task carries; the BPMN fixtures are pinned',
+          details: [
+            'Pairs with linked-data-explorer’s many-document-refs change, which makes ronl:documentRef a comma-separated list: R2.2’s “Opstellen concept VO” yields both an Ontwerptoelichting and an Objectenboom. SwimNode.doc becomes SwimNode.docs, a single-id attribute parses to a one-element list unchanged, and the swimlane renders one badge per document.',
+            'The twelve BPMN fixtures copied from linked-data-explorer were kept in step by hand, so the parser tests could stay green against a model the engine no longer runs. check-swimlane-fixtures.mjs now verifies committed sha256 fingerprints, backed by a byte-for-byte comparison when linked-data-explorer is checked out alongside; --sync copies from upstream. It runs in pre-push ahead of the type checks. The R2.2 fixture is refreshed to match upstream.',
+          ],
+        },
+        {
+          sha: '71b76a9',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'E2E fixture deploy checks that Operaton answers first',
+          details: [
+            'With linked-data-explorer up but its Operaton stopped or still starting, the first decision deploy failed with a generic DMN_DEPLOY_FAILED that did not name the engine. The script now asks the local engine for GET /version (5 s timeout) and stops with a message naming the engine and how to start it; the reported version is shown in the run header.',
+          ],
+        },
+        {
+          sha: 'f6fd206',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'rip-r21-journey takes R2.2’s Klaar baseline from the counts response',
+          details: [
+            'The journey waited up to 20 s for R2.2’s Klaar badge, but FaseladderOverview renders no badge when a count is 0 — so on a fresh engine the wait could never end; it passed only while the engine held R2.1 history. openFaseladder now returns both baselines from GET /rip/phases/counts, deriving R2.2’s Klaar as getKlaarCounts does, and the badge-waiting helper is removed.',
+          ],
+        },
+        {
+          sha: 'b4c3176',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Deploy the E2E fixture bundle with one command',
+          details: [
+            'A fresh local Operaton has none of the processes and decisions the E2E global-setup requires, and they could only be deployed by hand, file by file, through the BPMN Modeler. npm run e2e:deploy-fixtures deploys linked-data-explorer/e2e-fixtures/manifest.json in full through the running LDE backend: the shared decisions without a tenant, and each process with its sub-processes, forms and documents in one request under its tenant.',
+            'It refuses a deploy target that is not on this machine, and validates every fixture before deploying any, so a missing form or document reference stops the run instead of leaving the engine half-populated.',
+          ],
+        },
+        {
+          sha: '80e34a2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'check-previews strips the carriage returns az writes on Windows',
+          details: [
+            'The Azure CLI on Windows ends every -o tsv line with \\r\\n, and check-previews fed those values back into later calls, so subscription ids and resource groups carried a trailing \\r and every call built from them failed. During the v2026.09.12 release it reported three items NOT CHECKED straight after a fresh az login and exited 1.',
+            'An az() wrapper now strips \\r from every call and keeps the exit status, because telling “could not ask” apart from “nothing there” is what every check in the script depends on. Verified: all six apps checked and exit 0; a failing az call still returns 1.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.12',
       status: 'Released',
       date: '26 sep 2026',
