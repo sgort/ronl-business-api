@@ -109,6 +109,17 @@ describe('AuthCallback', () => {
     await vi.waitFor(() => expect(mockKeycloak.login).toHaveBeenCalledWith({ idpHint: 'digid' }));
   });
 
+  it('Flevoland flow calls keycloak.login with the entra-flevoland idp hint when not authenticated', async () => {
+    sessionStorage.setItem('selected_idp', 'entra-flevoland');
+    mockKeycloak.init.mockResolvedValue(false);
+
+    render(<AuthCallback />);
+
+    await vi.waitFor(() =>
+      expect(mockKeycloak.login).toHaveBeenCalledWith({ idpHint: 'entra-flevoland' })
+    );
+  });
+
   it('citizen flow with no stored idp calls keycloak.login with no idpHint when not authenticated', async () => {
     mockKeycloak.init.mockResolvedValue(false);
 

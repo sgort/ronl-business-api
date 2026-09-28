@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import ChangelogPanel from './ChangelogPanel';
 import { BOARDS } from './login-choice/boards.config';
 import BoardCard from '../components/LoginChoice/BoardCard';
+import { FLEVOLAND_IDP } from '../services/identity-providers';
 import './login-choice/login-portal.css';
 
 const POST_LOGIN_KEY = 'post_login_redirect';
@@ -23,8 +24,13 @@ export default function LoginChoice() {
     navigate('/auth');
   }
 
-  function startCitizenLogin(idp: 'digid' | 'eherkenning' | 'eidas') {
+  function startIdpLogin(idp: 'digid' | 'eherkenning' | 'eidas' | typeof FLEVOLAND_IDP) {
     try {
+      // A board click stores a redirect and a test-user hint before the user
+      // may come back and choose an identity provider instead. Neither belongs
+      // to this login: the landing page follows the role Entra/DigiD grants.
+      sessionStorage.removeItem(POST_LOGIN_KEY);
+      sessionStorage.removeItem('username_hint');
       sessionStorage.setItem('selected_idp', idp);
     } catch {
       /* non-fatal */
@@ -58,7 +64,7 @@ export default function LoginChoice() {
           </svg>
           Inloggen
         </button>
-        <button type="button" className="citizen-link" onClick={() => startCitizenLogin('digid')}>
+        <button type="button" className="citizen-link" onClick={() => startIdpLogin('digid')}>
           Inwoner? Log in met DigiD
         </button>
         <span className="tenant">
@@ -78,8 +84,12 @@ export default function LoginChoice() {
             medewerkersaccount om het bord te openen dat bij uw rol hoort.
           </p>
           <div className="hero-actions">
-            <a className="btn-primary" href="#boards">
-              Bekijk de borden
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => startIdpLogin(FLEVOLAND_IDP)}
+            >
+              Inloggen met uw Flevoland-account
               <svg
                 width="16"
                 height="16"
@@ -93,6 +103,9 @@ export default function LoginChoice() {
                 <line x1="5" y1="12" x2="19" y2="12" />
                 <polyline points="12 5 19 12 12 19" />
               </svg>
+            </button>
+            <a className="btn-secondary" href="#boards">
+              Bekijk de borden
             </a>
             <span className="hero-note">
               <svg
@@ -108,7 +121,7 @@ export default function LoginChoice() {
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              Inloggen vereist via medewerkersaccount
+              Met het account waarmee u op uw werkplek bent aangemeld
             </span>
           </div>
         </section>
