@@ -32,7 +32,8 @@ export default defineConfig({
       // azure-frontend-{acc,prod}.yml were given an explicit step for it —
       // it has no deploy workflow of its own.
       //
-      // BRANCHES ONLY. A functions floor at 80 would fail 10 files here today.
+      // BRANCHES ONLY. A functions floor at 80 would fail 8 files here
+      // (measured 28 September 2026).
       thresholds: {
         branches: 80,
         perFile: true,
