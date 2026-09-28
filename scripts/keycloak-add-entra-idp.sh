@@ -87,6 +87,11 @@ ENTRA_TENANT_ID="$(trim "${ENTRA_TENANT_ID:?set ENTRA_TENANT_ID (the Entra direc
 ENTRA_CLIENT_ID="$(trim "${ENTRA_CLIENT_ID:?set ENTRA_CLIENT_ID (the app registration client GUID)}")"
 [[ "$ENTRA_TENANT_ID" =~ $GUID_RE ]] || { echo "ENTRA_TENANT_ID is not a GUID: '${ENTRA_TENANT_ID}'" >&2; exit 2; }
 [[ "$ENTRA_CLIENT_ID" =~ $GUID_RE ]] || { echo "ENTRA_CLIENT_ID is not a GUID: '${ENTRA_CLIENT_ID}'" >&2; exit 2; }
+# Entra issues tokens with the tenant id in lower case, and Keycloak compares
+# the token's iss to the configured issuer as an exact string: an upper-case
+# paste would be accepted here and then fail every login ("wrong issuer").
+ENTRA_TENANT_ID="${ENTRA_TENANT_ID,,}"
+ENTRA_CLIENT_ID="${ENTRA_CLIENT_ID,,}"
 
 ALIAS=$(jqr -r '.provider.alias' "$IDP_FILE")
 AUTHORITY="https://login.microsoftonline.com/${ENTRA_TENANT_ID}"
