@@ -17,8 +17,13 @@ export interface SwimNode {
   col: number;
   row: number;
   label: string;
-  /** Resolved document label from `ronl:documentRef`, when the task carries one. */
-  doc?: string;
+  /**
+   * Resolved document labels from `ronl:documentRef`, when the task carries
+   * any. The attribute holds a comma-separated list because a task can produce
+   * several deliverables — R2.2's "Opstellen concept VO" yields both an
+   * Ontwerptoelichting and an Objectenboom.
+   */
+  docs?: string[];
   /** BPMN flowNode id — maps live activity history onto the node. */
   bpmnId: string;
 }

@@ -222,7 +222,11 @@ export default function PhaseSwimlane({
                 }}
               >
                 <span className="nlabel">{n.label}</span>
-                {n.doc && <span className="ndoc">{n.doc}</span>}
+                {n.docs?.map((doc) => (
+                  <span key={doc} className="ndoc">
+                    {doc}
+                  </span>
+                ))}
                 {n.kind === 'service' && <span className="nauto">automatisch</span>}
                 {claimed && (
                   <span className="pb-swim-inprogress" title="In behandeling">
