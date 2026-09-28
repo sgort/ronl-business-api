@@ -170,11 +170,24 @@ describe('AuthCallback', () => {
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull();
   });
 
-  it('falls back to the role dashboard when the stored redirect is not allowed for the role', async () => {
-    // infra-projectteam members carry caseworker too, but their home stays infra-board.
+  it('honours a chosen caseworker board for a user who also holds infra-projectteam', async () => {
+    // The Caseworker card on the landing page stores this redirect. A user with
+    // both roles who picks that card lands on it, not on their default board.
     sessionStorage.setItem('post_login_redirect', '/dashboard/caseworker');
     mockKeycloak.init.mockResolvedValue(true);
-    setRoles(['caseworker', 'infra-projectteam']);
+    setRoles(['caseworker', 'infra-projectteam', 'woo-coordinatie']);
+
+    render(<AuthCallback />);
+
+    await vi.waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard/caseworker', { replace: true })
+    );
+  });
+
+  it('falls back to the role dashboard when the stored redirect is not allowed for the role', async () => {
+    sessionStorage.setItem('post_login_redirect', '/dashboard/caseworker');
+    mockKeycloak.init.mockResolvedValue(true);
+    setRoles(['infra-projectteam']);
 
     render(<AuthCallback />);
 

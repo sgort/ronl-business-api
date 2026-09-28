@@ -39,11 +39,12 @@ function canAccessRedirect(path: string, roles: string[]): boolean {
   if (path === '/dashboard/woo') return roles.includes('woo-coordinatie');
   if (path === '/dashboard/infra-board') return roles.includes('infra-projectteam');
   if (path === '/dashboard/public-affairs') return roles.includes('public-affairs');
-  // infra-projectteam members also carry the caseworker role (they need the task
-  // API), but their home is /dashboard/infra-board — don't let a stale
-  // caseworker redirect override that.
-  if (path === '/dashboard/caseworker')
-    return roles.includes('caseworker') && !roles.includes('infra-projectteam');
+  // A stored redirect is a board the user chose (a landing-page card, or the
+  // dashboard they logged in from), so it wins over the default board. An
+  // earlier exception refused /dashboard/caseworker to infra-projectteam
+  // members: it dated from when the caseworker dashboard was the only login
+  // entry and stored that redirect on every login.
+  if (path === '/dashboard/caseworker') return roles.includes('caseworker');
   return true;
 }
 
