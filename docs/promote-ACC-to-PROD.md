@@ -544,6 +544,16 @@ and 2 clients. PROD received those by hand or not at all — nothing in the repo
 records which. The dry run below shows the RIP half. For the rest, check that
 the accounts you will test with on PROD actually exist.
 
+**Since 28 September 2026: Entra ID for Provincie Flevoland (#250).** The
+identity provider `entra-flevoland` is not in the realm file either: it carries a
+client secret, and `scripts/keycloak-add-entra-idp.sh` sets it per Keycloak. A
+promotion that includes #250 needs, before anyone tests on PROD: the PROD
+redirect URI registered by Flevoland IT, the script run against
+`https://keycloak.open-regels.nl`, and after each employee's first login their
+`rip-*` and other hand-assigned roles. The procedure is in the documentation
+site's runbook, _Developer → Deployment → Entra ID (Flevoland) → Rolling out to
+an environment_.
+
 ### 4.4 Operaton — nothing to do
 
 ACC and PROD point at the **same** engine (`OPERATON_BASE_URL` and
