@@ -15,10 +15,14 @@ const BRP_API_BASE_URL = 'https://brp-api-mock.open-regels.nl/haalcentraal/api/b
  */
 router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
   try {
+    // Never log req.body or an upstream body: both carry BSNs (#241). The audit
+    // log below records the subject on purpose; the application log must not.
+    const query = req.body as { type?: string; burgerservicenummer?: unknown };
     logger.info('BRP personen request', {
       userId: req.user?.userId,
       tenantId: req.user?.tenantId,
-      requestBody: req.body,
+      queryType: query?.type,
+      bsnCount: Array.isArray(query?.burgerservicenummer) ? query.burgerservicenummer.length : 0,
     });
 
     // Forward request to BRP API - match curl headers exactly
@@ -33,9 +37,10 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
 
     // Check if response was successful
     if (response.status >= 400) {
+      const upstreamCode = (response.data as { code?: unknown } | undefined)?.code;
       logger.error('BRP API returned error', {
         status: response.status,
-        data: response.data,
+        upstreamCode: typeof upstreamCode === 'string' ? upstreamCode : undefined,
       });
 
       return res.status(response.status).json({
@@ -61,12 +66,7 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
     logger.error('BRP API request failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       userId: req.user?.userId,
-      axiosError: axios.isAxiosError(error)
-        ? {
-            status: error.response?.status,
-            data: error.response?.data,
-          }
-        : null,
+      upstreamStatus: axios.isAxiosError(error) ? error.response?.status : undefined,
     });
 
     auditLog(req, 'brp.personen.fetch', 'error', {

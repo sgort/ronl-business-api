@@ -26,8 +26,9 @@ jest.mock('axios', () => ({
     isAxiosError: (e: unknown) => !!(e && (e as { isAxiosError?: boolean }).isAxiosError),
   },
 }));
+const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
+  createLogger: () => mockLogger,
 }));
 
 import express from 'express';
@@ -98,6 +99,73 @@ describe('POST /v1/brp/personen', () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error.message).toBe('BRP API request failed');
+  });
+});
+
+describe('BRP application logging (#241)', () => {
+  const BSN = '999992235';
+  const query = {
+    type: 'RaadpleegMetBurgerservicenummer',
+    burgerservicenummer: [BSN, '999990019'],
+    fields: ['burgerservicenummer', 'naam'],
+  };
+  const allLogged = () =>
+    JSON.stringify([...mockLogger.info.mock.calls, ...mockLogger.error.mock.calls]);
+
+  it('logs who asked, the query type and the subject count — never the BSN', async () => {
+    mockPost.mockResolvedValue({ status: 200, data: { personen: [] } });
+
+    await auth(request(app).post('/v1/brp/personen')).send(query);
+
+    expect(mockLogger.info).toHaveBeenCalledWith('BRP personen request', {
+      userId: 'u',
+      tenantId: 'flevoland',
+      queryType: 'RaadpleegMetBurgerservicenummer',
+      bsnCount: 2,
+    });
+    expect(allLogged()).not.toContain(BSN);
+  });
+
+  it('counts zero subjects when the query carries no burgerservicenummer list', async () => {
+    mockPost.mockResolvedValue({ status: 200, data: { personen: [] } });
+
+    await auth(request(app).post('/v1/brp/personen')).send({});
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'BRP personen request',
+      expect.objectContaining({ queryType: undefined, bsnCount: 0 })
+    );
+  });
+
+  it('does not log an upstream 4xx body that echoes the query', async () => {
+    mockPost.mockResolvedValue({
+      status: 400,
+      data: { code: 'paramsValidation', detail: `burgerservicenummer ${BSN} is ongeldig` },
+    });
+
+    await auth(request(app).post('/v1/brp/personen')).send(query);
+
+    expect(mockLogger.error).toHaveBeenCalledWith('BRP API returned error', {
+      status: 400,
+      upstreamCode: 'paramsValidation',
+    });
+    expect(allLogged()).not.toContain(BSN);
+  });
+
+  it('does not log the upstream body of a failed request', async () => {
+    mockPost.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 502, data: { message: `timeout for ${BSN}` } },
+    });
+
+    await auth(request(app).post('/v1/brp/personen')).send(query);
+
+    expect(mockLogger.error).toHaveBeenCalledWith('BRP API request failed', {
+      error: 'Unknown error',
+      userId: 'u',
+      upstreamStatus: 502,
+    });
+    expect(allLogged()).not.toContain(BSN);
   });
 });
 
