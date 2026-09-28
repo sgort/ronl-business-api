@@ -6,7 +6,8 @@ import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse } from '@ronl/shared';
 import { initializeTenantTheme, loadTenantConfigs, getTenantConfig } from '../services/tenant';
 import type { TenantConfig } from '../services/tenant';
-import ProcessStartFormViewer from '../components/ProcessStartFormViewer';
+import ProcessStartFormViewer, { type StartFailure } from '../components/ProcessStartFormViewer';
+import StartFailureNotice from '../components/StartFailureNotice';
 import DecisionViewer from '../components/DecisionViewer';
 import DvtpStartSection from '../components/CaseworkerDashboard/DvtpStartSection';
 import DvtpTakenSection from '../components/CaseworkerDashboard/DvtpTakenSection';
@@ -59,7 +60,7 @@ function VergunningForm({
   onSubmitted: () => void;
 }) {
   const [success, setSuccess] = useState<{ dossier: string } | null>(null);
-  const [error, setError] = useState(false);
+  const [startFailure, setStartFailure] = useState<StartFailure | null>(null);
 
   if (success) {
     return (
@@ -115,11 +116,7 @@ function VergunningForm({
             </p>
           </div>
         </div>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            De aanvraag kon niet worden ingediend. Probeer het opnieuw.
-          </div>
-        )}
+        {startFailure && <StartFailureNotice failure={startFailure} />}
         <ProcessStartFormViewer
           processKey="AwbShellProcess"
           initialData={{
@@ -127,7 +124,7 @@ function VergunningForm({
             productType: 'TreeFellingPermit',
           }}
           onStarted={(dossier) => setSuccess({ dossier })}
-          onError={() => setError(true)}
+          onError={setStartFailure}
         />
       </div>
     </div>
@@ -144,7 +141,7 @@ function SubsidieForm({
   onSubmitted: () => void;
 }) {
   const [success, setSuccess] = useState<{ dossier: string } | null>(null);
-  const [error, setError] = useState(false);
+  const [startFailure, setStartFailure] = useState<StartFailure | null>(null);
 
   if (success) {
     return (
@@ -200,11 +197,7 @@ function SubsidieForm({
             </p>
           </div>
         </div>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            De aanvraag kon niet worden ingediend. Probeer het opnieuw.
-          </div>
-        )}
+        {startFailure && <StartFailureNotice failure={startFailure} />}
         <ProcessStartFormViewer
           processKey="ThuisbatterijSubsidieAanvraagProcess"
           initialData={{
@@ -212,7 +205,7 @@ function SubsidieForm({
             productType: 'ThuisbatterijSubsidie',
           }}
           onStarted={(dossier) => setSuccess({ dossier })}
-          onError={() => setError(true)}
+          onError={setStartFailure}
         />
       </div>
     </div>
@@ -230,7 +223,7 @@ export default function Dashboard() {
   const [zorgtoeslagAanvraagSuccess, setZorgtoeslagAanvraagSuccess] = useState<{
     dossier: string;
   } | null>(null);
-  const [zorgtoeslagAanvraagError, setZorgtoeslagAanvraagError] = useState(false);
+  const [zorgtoeslagStartFailure, setZorgtoeslagStartFailure] = useState<StartFailure | null>(null);
 
   // DvTP sub-view state
   const [dvtpSubView, setDvtpSubView] = useState<DvtpSubView>('start');
@@ -500,7 +493,7 @@ export default function Dashboard() {
                 setCalcResult(null);
                 setZorgtoeslagView('calculator');
                 setZorgtoeslagAanvraagSuccess(null);
-                setZorgtoeslagAanvraagError(false);
+                setZorgtoeslagStartFailure(null);
               }}
               className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
             >
@@ -628,7 +621,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => {
                         setCalcResult(null);
-                        setZorgtoeslagAanvraagError(false);
+                        setZorgtoeslagStartFailure(null);
                         setZorgtoeslagView('aanvragen');
                       }}
                       className="flex-1 py-3 font-semibold rounded-lg border-2 transition-colors"
@@ -698,7 +691,7 @@ export default function Dashboard() {
                 <button
                   onClick={() => {
                     setZorgtoeslagView('calculator');
-                    setZorgtoeslagAanvraagError(false);
+                    setZorgtoeslagStartFailure(null);
                   }}
                   className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
                 >
@@ -745,10 +738,8 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    {zorgtoeslagAanvraagError && (
-                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                        De aanvraag kon niet worden ingediend. Probeer het opnieuw.
-                      </div>
+                    {zorgtoeslagStartFailure && (
+                      <StartFailureNotice failure={zorgtoeslagStartFailure} />
                     )}
                     <ProcessStartFormViewer
                       processKey="AwbZorgtoeslagProcess"
@@ -776,7 +767,7 @@ export default function Dashboard() {
                         };
                       })()}
                       onStarted={(dossier) => setZorgtoeslagAanvraagSuccess({ dossier })}
-                      onError={() => setZorgtoeslagAanvraagError(true)}
+                      onError={setZorgtoeslagStartFailure}
                     />
                   </div>
                 )}
