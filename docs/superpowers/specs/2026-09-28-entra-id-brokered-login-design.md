@@ -125,6 +125,18 @@ present and removes it when it is absent. It touches no other role, so roles
 assigned by hand in Keycloak (`pa-author`, `pa-editor`, `pa-admin`, the `rip-*`
 groups) persist.
 
+The four mapped roles are the exception: they cannot be assigned by hand. A
+hand-assigned `caseworker`, `admin`, `public-affairs` or `infra-projectteam` is
+removed at the user's next login whenever the token lacks the matching app
+role, so Entra group membership is the only way to grant them.
+
+An Infra-board user needs more than `infra-projectteam`: its task list is
+filtered by the `rip-*` candidate groups, and its seeded test user also holds
+`infra-medewerker`. Both are granted in Keycloak after the user's first login,
+with `GRANT_USER=<username> scripts/keycloak-add-rip-roles.sh` for the `rip-*`
+roles and a single role mapping for `infra-medewerker`. Found in the live test
+on 2026-09-28: without them the Infra-board showed no tasks.
+
 ### 3. The provisioning script
 
 `scripts/keycloak-add-entra-idp.sh`, in the style of
