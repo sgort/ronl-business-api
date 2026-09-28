@@ -38,6 +38,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '../openapi/testing/conformance';
 import decisionRouter from './decision.routes';
 import { operatonService } from '@services/operaton.service';
 import { auditLog } from '@middleware/audit.middleware';
@@ -47,7 +49,12 @@ const mockAuditLog = auditLog as jest.Mock;
 const mockFetch = jest.fn();
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/decision', decisionRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 
@@ -60,10 +67,11 @@ describe('POST /:key/evaluate', () => {
   it('401 without a token', async () => {
     const res = await request(app).post('/v1/decision/MyDec/evaluate').send({});
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
   });
 
   it('infers Operaton variable types and evaluates the decision', async () => {
-    svc.evaluateDecision.mockResolvedValue([{ approved: true }]);
+    svc.evaluateDecision.mockResolvedValue([{ approved: { value: true, type: 'Boolean' } }]);
 
     const res = await auth(request(app).post('/v1/decision/MyDec/evaluate')).send({
       variables: {
@@ -78,7 +86,8 @@ describe('POST /:key/evaluate', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([{ approved: true }]);
+    expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
+    expect(res.body.data).toEqual([{ approved: { value: true, type: 'Boolean' } }]);
 
     const [key, vars, tenantId] = svc.evaluateDecision.mock.calls[0];
     expect(key).toBe('MyDec');
@@ -108,6 +117,7 @@ describe('POST /:key/evaluate', () => {
     });
 
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
     expect(res.body.error).toEqual({
       code: 'DECISION_EVALUATION_FAILED',
       message: 'DMN configuratiefout',
@@ -123,12 +133,16 @@ describe('POST /:key/evaluate', () => {
 
 describe('GET /:key', () => {
   it('returns the decision definition', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ id: 'def-1', key: 'MyDec' }) });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'def-1', key: 'MyDec', name: 'My decision', version: 1 }),
+    });
 
     const res = await auth(request(app).get('/v1/decision/MyDec'));
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ id: 'def-1', key: 'MyDec' });
+    expectToMatchOperation(res, 'get', '/decision/{key}');
+    expect(res.body.data).toEqual({ id: 'def-1', key: 'MyDec', name: 'My decision', version: 1 });
     expect(mockFetch).toHaveBeenCalledWith(
       'http://operaton/decision-definition/key/MyDec',
       expect.any(Object)
@@ -139,6 +153,7 @@ describe('GET /:key', () => {
     mockFetch.mockResolvedValue({ ok: false, status: 404 });
     const res = await auth(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/decision/{key}');
     expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
   });
 
@@ -146,6 +161,7 @@ describe('GET /:key', () => {
     mockFetch.mockRejectedValue(new Error('network'));
     const res = await auth(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/decision/{key}');
     expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
   });
 });
@@ -158,12 +174,14 @@ describe('handler guards for an authenticated request without a user', () => {
   it('POST /:key/evaluate -> 401 UNAUTHORIZED', async () => {
     const res = await noUser(request(app).post('/v1/decision/MyDec/evaluate').send({}));
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
     expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('GET /:key -> 401 UNAUTHORIZED', async () => {
     const res = await noUser(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/decision/{key}');
     expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 });
@@ -175,6 +193,7 @@ describe('non-Error rejections', () => {
     svc.evaluateDecision.mockRejectedValue('socket hang up');
     const res = await auth(request(app).post('/v1/decision/MyDec/evaluate').send({}));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
     expect(res.body.error).toEqual({
       code: 'DECISION_EVALUATION_FAILED',
       message: 'Unknown error',
@@ -190,6 +209,7 @@ describe('non-Error rejections', () => {
     try {
       const res = await auth(request(app).get('/v1/decision/MyDec'));
       expect(res.status).toBe(404);
+      expectToMatchOperation(res, 'get', '/decision/{key}');
       expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
     } finally {
       fetchSpy.mockRestore();
@@ -202,6 +222,7 @@ describe('POST /:key/evaluate without a variables key', () => {
     svc.evaluateDecision.mockResolvedValue([{ resultaat: { value: true, type: 'Boolean' } }]);
     const res = await auth(request(app).post('/v1/decision/MyDec/evaluate').send({}));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
     expect(svc.evaluateDecision).toHaveBeenCalledWith('MyDec', {}, 'flevoland');
   });
 });
