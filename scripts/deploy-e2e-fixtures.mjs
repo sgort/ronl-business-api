@@ -191,7 +191,16 @@ function buildProcessDeploy(tenant, entry) {
   const formRefs = new Set(allXml.flatMap((x) => refsOf(x, /camunda:formRef="([^"]+)"/g)));
   const documentRefs = new Set(
     allXml.flatMap((x) => [
-      ...refsOf(x, /ronl:documentRef="([^"]+)"/g),
+      // documentRef holds a comma-separated LIST: a task can produce several
+      // deliverables, so the captured group is split rather than used whole.
+      // Used whole, a two-document task yields one id matching no template,
+      // and the unmatched-reference check below stops the deploy.
+      ...refsOf(x, /ronl:documentRef="([^"]+)"/g).flatMap((ref) =>
+        ref
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      ),
       // A signature task binds its template through signatureRef alone.
       ...refsOf(x, /ronl:signatureRef="([^"]+)"/g),
     ])
