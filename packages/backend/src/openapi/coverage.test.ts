@@ -1,8 +1,16 @@
-// Keeps openapi/openapi.yaml, openapi/pending.json and the Express routes in
-// step (#200). pending.json lists the operations not described yet; the list
-// may only shrink, and the last documentation phase empties it. When it is
-// empty the two `pending` rules become trivially true and can be deleted along
-// with the file.
+// Keeps openapi/openapi.yaml and the Express routes in step (#200).
+//
+// Until #214 this file also carried a pending list: the operations not yet
+// described, in openapi/pending.json, with a ceiling assertion that only ever
+// moved down. The last documentation phase emptied it, so the three rules that
+// read it became trivially true and were deleted along with the file. What is
+// left are the three rules that say something permanent — every served
+// operation is documented, every documented operation is served, and both
+// lists were actually loaded.
+//
+// There is no ceiling any more, and no way back to one: a route added without
+// a description now fails here rather than being allowed in with the number
+// bumped.
 
 // The registry imports every route module. The real @utils/config is used --
 // scripts/jest-setup-env.cjs provides the one variable validateConfig() demands --
@@ -12,16 +20,10 @@ jest.mock('@utils/logger', () => {
   return { __esModule: true, default: stub, createLogger: () => stub };
 });
 
-import fs from 'fs';
-import path from 'path';
-
 import { routeRegistry } from '../routes/registry';
 import { readOpenApiDocument } from './document';
 import { listDocumentedOperations, listServedOperations } from './testing/routeOperations';
 
-const PENDING_PATH = path.resolve(__dirname, '../../openapi/pending.json');
-
-const pending: string[] = JSON.parse(fs.readFileSync(PENDING_PATH, 'utf8'));
 const served = listServedOperations(routeRegistry);
 const documented = listDocumentedOperations(readOpenApiDocument());
 
@@ -36,31 +38,11 @@ describe('OpenAPI coverage of the /v1 routes', () => {
     expect(documented.length).toBeGreaterThan(0);
   });
 
-  test('every served operation is documented or pending', () => {
-    expect(served.filter((op) => !documented.includes(op) && !pending.includes(op))).toEqual([]);
-  });
-
-  test('no pending operation is already documented', () => {
-    expect(pending.filter((op) => documented.includes(op))).toEqual([]);
-  });
-
-  test('every pending operation is still served', () => {
-    expect(pending.filter((op) => !served.includes(op))).toEqual([]);
+  test('every served operation is documented', () => {
+    expect(served.filter((op) => !documented.includes(op))).toEqual([]);
   });
 
   test('every documented operation is served', () => {
     expect(documented.filter((op) => !served.includes(op))).toEqual([]);
-  });
-
-  test('pending lists each operation once', () => {
-    expect(new Set(pending).size).toBe(pending.length);
-  });
-
-  // The ceiling. Documenting a group removes its entries from pending; nothing
-  // may ever add one back, because that would mean a route shipped without a
-  // description. Lower this number as phases land -- it is the only assertion
-  // here that measures progress rather than consistency.
-  test('the pending list only shrinks', () => {
-    expect(pending.length).toBeLessThanOrEqual(18);
   });
 });
