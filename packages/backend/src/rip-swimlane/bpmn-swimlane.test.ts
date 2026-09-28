@@ -92,16 +92,26 @@ describe('parseSwimlane — nodes', () => {
     expect(kinds).toContain('gateway');
   });
 
-  it('resolves ronl:documentRef into a doc label', () => {
+  it('resolves ronl:documentRef into doc labels', () => {
     const model = parseSwimlane(xml('RipR21Process'), 'R2.1');
-    const withDocs = model.nodes.filter((n) => n.doc);
+    const withDocs = model.nodes.filter((n) => n.docs?.length);
     expect(withDocs.length).toBeGreaterThan(0);
-    expect(withDocs.every((n) => !n.doc!.startsWith('rip-'))).toBe(true);
+    expect(withDocs.every((n) => n.docs!.every((d) => !d.startsWith('rip-')))).toBe(true);
   });
 
   it('leaves untagged nodes without a doc badge', () => {
     const model = parseSwimlane(xml('RipR22Process'), 'R2.2');
-    expect(model.nodes.some((n) => n.doc === undefined)).toBe(true);
+    expect(model.nodes.some((n) => n.docs === undefined)).toBe(true);
+  });
+
+  it('reads every document of a task that carries more than one', () => {
+    // R2.2's "Opstellen concept VO" produces an Ontwerptoelichting and an
+    // Objectenboom. Before the attribute took a list, only the first was
+    // modelled and the second was an authored template no BPMN referenced.
+    const model = parseSwimlane(xml('RipR22Process'), 'R2.2');
+    const multi = model.nodes.filter((n) => (n.docs?.length ?? 0) > 1);
+    expect(multi.length).toBeGreaterThan(0);
+    expect(multi[0].docs).toEqual(['Ontwerptoelichting', 'Objectenboom']);
   });
 });
 

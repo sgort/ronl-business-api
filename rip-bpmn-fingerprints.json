@@ -1,0 +1,50 @@
+{
+  "RipR21Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-21/RipR21Process.bpmn",
+    "sha256": "05a41609ef9c36658cef5456502bc92561aa617fa4e8b17f4782d8d8712399f9"
+  },
+  "RipR22Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-22/RipR22Process.bpmn",
+    "sha256": "7adc69b39bfd831b6032b8a8349dc1b93a448d23bcfd6de903e93f7b7d7a004d"
+  },
+  "RipR23Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-23/RipR23Process.bpmn",
+    "sha256": "25fc0f773b19ff73d81b3a34a50c4baf8bf617838077db57dcaf95a60300040f"
+  },
+  "RipR24Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-24/RipR24Process.bpmn",
+    "sha256": "622a8d307dbf3d5a12360c532459fe81d30b39ac66ef4a9b1f7f385e1e496317"
+  },
+  "RipR31Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-31/RipR31Process.bpmn",
+    "sha256": "9a0b2fb36a2fd7e78111fb5cd5966ad3976a8851db018c8f84cbdac7b376f655"
+  },
+  "RipR32Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-32/RipR32Process.bpmn",
+    "sha256": "83ac4352163b362f40fc1047787390819c264c493c03b592b414f822c1d70e63"
+  },
+  "RipR41Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-41/RipR41Process.bpmn",
+    "sha256": "98271b78ae35b127a3970cfb77ce68c286031ba8bcc060aea8a7552d0a668b39"
+  },
+  "RipR51Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-51/RipR51Process.bpmn",
+    "sha256": "a91a476ff235913deb20c2b62ee31650f0976dde40dbbed4c58d65eaabaaa4f7"
+  },
+  "RipR52Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-52/RipR52Process.bpmn",
+    "sha256": "84dda5485e9e63df0a2e08609bea7d8cc57f4c88d429cb1fd48390ca9f77e188"
+  },
+  "RipR53Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-53/RipR53Process.bpmn",
+    "sha256": "24c82d5f9182bc26a91d9fa9e2825d69ee4e36a8deaab27497a3023e30da7920"
+  },
+  "RipR54Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-54/RipR54Process.bpmn",
+    "sha256": "9331db86cb06e36dc85c180df0f9efa18821a02c09d45f3d4b2f54c241a2bb4a"
+  },
+  "RipR61Process.bpmn": {
+    "source": "examples/organizations/flevoland/rip-phase-61/RipR61Process.bpmn",
+    "sha256": "ab3f09938a9bf40915cfe7910c056717efc337864e91b9bf0f878258c0fc8645"
+  }
+}

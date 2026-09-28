@@ -60,7 +60,7 @@ const RICH_MODEL: PhaseSwimlaneModel = {
       col: 3,
       row: 1,
       label: 'Doc Task',
-      doc: 'Doc X',
+      docs: ['Doc X', 'Doc Y'],
     },
     { id: 'claimed', bpmnId: 'claimed', kind: 'task', col: 4, row: 0, label: 'Claimed Task' },
   ],
@@ -160,9 +160,12 @@ describe('PhaseSwimlane', () => {
     }
   });
 
-  it('shows the resolved document label on a task that carries one', () => {
+  it('shows every resolved document label a task carries', () => {
+    // A task can produce more than one deliverable, so each gets its own
+    // badge rather than the first one standing in for the rest.
     const { getByText } = render(<PhaseSwimlane model={RICH_MODEL} statusById={{}} />);
     expect(getByText('Doc X')).toBeInTheDocument();
+    expect(getByText('Doc Y')).toBeInTheDocument();
   });
 
   it('marks a service task as automatic', () => {

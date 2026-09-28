@@ -316,7 +316,16 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
   for (const [elementName, kind] of Object.entries(KINDS)) {
     for (const el of childNodes(process, elementName)) {
       const id = String(el['@_id']);
+      // Comma-separated: one task can carry several documents. Splitting here
+      // rather than at the call site keeps the delimiter in one place, and a
+      // single-id attribute — which is what most of the 77 refs across the
+      // twelve phases still are — parses to a one-element list unchanged.
       const ref = el['@_ronl:documentRef'] ?? el['@_documentRef'];
+      const docs = String(ref ?? '')
+        .split(',')
+        .map((slug) => slug.trim())
+        .filter((slug) => slug.length > 0)
+        .map((slug) => docLabel(slug));
       nodes.push({
         id,
         bpmnId: id,
@@ -324,7 +333,7 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
         label: String(el['@_name'] ?? id),
         row: rowOf.get(id) ?? 0,
         col: 0, // filled in by layering
-        ...(ref ? { doc: docLabel(String(ref)) } : {}),
+        ...(docs.length > 0 ? { docs } : {}),
       });
     }
   }

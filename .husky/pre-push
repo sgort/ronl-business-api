@@ -10,6 +10,9 @@ npm run deps:check
 echo "🔨 Building shared package..."
 npm run build --workspace=@ronl/shared
 
+echo "📐 Checking swimlane parser fixtures against their source..."
+npm run check-swimlane-fixtures
+
 echo "🔍 Running type checks..."
 npm run type-check
 
