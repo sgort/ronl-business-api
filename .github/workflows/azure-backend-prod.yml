@@ -88,7 +88,7 @@ jobs:
           # >=20.13.0, and both App Service plans run NODE|22-lts. So the
           # deployed artifact was BUILT on a major the host does not run.
           #
-          # .nvmrc is pinned to an exact 22.22.0 rather than a bare 22,
+          # .nvmrc is pinned to an exact version rather than a bare 22,
           # deliberately: 'nothing a pipeline downloads may float' is the same
           # policy the action digests above follow, and a bare major resolves to
           # whatever 22.x the runner happens to carry. Renovate's node manager
@@ -282,12 +282,17 @@ jobs:
 
       # ── Deploy ────────────────────────────────────────────────────────────────
       #
-      # No event gate here: this workflow has no pull_request trigger, by the same
-      # reasoning linked-data-explorer records on its production workflow. main is
-      # promoted from acc, so the content has already run this suite on its acc
-      # pull request, and the `production` environment's protection rules would
-      # otherwise make every promotion wait on a human approval BEFORE the tests
-      # could run -- an approval gate in front of the check meant to inform it.
+      # No event gate here: this workflow has no pull_request trigger, for the
+      # reason the header gives -- main is promoted from acc, so the content has
+      # already run this suite on its acc pull request, and a second run on a
+      # promotion pull request would gate on what it had just proved.
+      #
+      # This used to add that the `production` environment's protection rules
+      # "would otherwise make every promotion wait on a human approval BEFORE the
+      # tests could run". That contradicted the header eight lines from the top of
+      # this file: both environments in THIS repository have no protection rules
+      # at all, which `gh api .../environments` confirms. The conclusion was right
+      # and the second reason was not (iou-architectuur#105).
       #
       # Authentication is OIDC rather than a publish profile. SCM basic auth is
       # DISABLED on this App Service (basicPublishingCredentialsPolicies/scm

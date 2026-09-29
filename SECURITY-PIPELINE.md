@@ -231,7 +231,11 @@ on the Dependency Dashboard before relying on that.
 
 ### The App Service runtime — `NODE|22-lts` pins a major, and that is all Azure offers
 
-Both App Services run `NODE|22-lts`, and so do Linked Data Explorer's two. ICTU
+This repository's two App Services run `NODE|22-lts`. Linked Data Explorer's
+two run `NODE|24-lts`, since its Node 24 move in sgort/linked-data-explorer#80 --
+read from Azure with `az webapp config show --query linuxFxVersion` on
+27 September 2026, after this sentence had claimed all four were `NODE|22-lts`
+(iou-architectuur#105). ICTU
 recommendation 2 asks for a pin at the highest precision the platform allows.
 Here the platform allows very little: `az webapp list-runtimes --os linux`
 returns, for Node, exactly
@@ -311,13 +315,20 @@ Three places it does not reach, all measured on 19 September 2026:
 - **npm older than 11.10** ignores it without a warning. Node 22.23.2, which
   `.nvmrc` names, bundles npm 10.9.8. `scripts/check-deps.sh` warns about this at
   every dev-server start and push, and names `npm install -g npm@11`.
-- **The backend deploy** installs in `packages/backend/deploy/`, which has its
-  own `package.json`, so npm treats it as a separate project and never reads the
-  root `.npmrc`. That install has no lockfile either; see the next section and
-  #34.
+- **The break-glass deploy scripts** install in `packages/backend/deploy/`,
+  which they create at run time with its own `package.json`, so npm treats it as
+  a separate project and never reads the root `.npmrc`. That install has no
+  lockfile either.
+
+  This bullet said "the backend deploy" and closed with #34. Neither holds now:
+  #35 moved the deploy that ships into `azure-backend-{acc,prod}.yml`, which
+  installs with `npm ci --omit=dev --workspace=@ronl/backend` from the root
+  lockfile, and #34 closed on 21 September 2026. What is left is the scripts'
+  install, described in full below (iou-architectuur#105).
 
 **Reachable from our side:** yes, and done for the first two as far as npm
-allows; the third closes with #34.
+allows. The third is narrowed rather than closed: it no longer touches anything
+that ships through CI, only the break-glass scripts below.
 
 ### The backend is deployed outside CI, and its dependencies are unpinned
 
@@ -325,9 +336,12 @@ allows; the third closes with #34.
 `upload-artifact`. **Neither contains a deploy step.** They are build-and-test
 gates; nothing consumes the artifact they produce.
 
-The backend actually reaches acceptance and production through
-`deploy-backend-to-{acc,prod}.sh`, run from a developer machine. They exist
-because a workflow-based App Service deploy could not be made to work.
+The backend now reaches acceptance and production through
+`azure-backend-{acc,prod}.yml`, which #35 added once a workflow-based App
+Service deploy was made to work. `deploy-backend-to-{acc,prod}.sh`, run from a
+developer machine, are what that replaced; they remain as the break-glass path.
+This paragraph said they were how the backend "actually reaches" the tiers
+until iou-architectuur#105.
 
 **Both scripts are tracked and reviewable in git.** `.gitignore` carries a broad
 `deploy-backend-to-*.sh` followed by an explicit `!` negation for each script that
@@ -438,7 +452,7 @@ Pinning the file is not the same as pinning the branch that runs it.
 The Pinned table is the only part of this document a machine reads.
 `scripts/check-supply-chain.mjs` runs in the `audit` job and compares it with
 the workflows — digests, versions, the `(×N)` multiplicities, and the
-`30 uses: references across 9 workflows` headline — then resolves every digest
+`39 uses: references across 13 workflows` headline — then resolves every digest
 against the GitHub API to confirm it is the version its comment claims. Run it
 by hand with `npm run check-supply-chain`; `--offline` skips the API and checks
 format and register agreement only.
