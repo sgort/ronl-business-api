@@ -85,6 +85,20 @@ const auth = (r: request.Test) => r.set('x-test-auth', '1');
 // A running instance as Operaton's own /process-instance list reports it. The
 // ProcessInstanceSummary schema names five required fields; `{ id: 'pi' }` met
 // none of them and passed anyway until #269.
+// A task as Operaton reports one -- the Task schema names five required
+// fields, and `{ id: 't1' }` supplied one (#269).
+const task = (over: Record<string, unknown> = {}) => ({
+  id: 't1',
+  name: 'Beoordelen aanvraag',
+  created: '2026-09-28T12:00:00.000Z',
+  processInstanceId: 'pi-1',
+  taskDefinitionKey: 'Task_Review',
+  ...over,
+});
+
+/** A form-js schema, which is what a deployed form is. */
+const form = { id: 'a-form', type: 'default', components: [] };
+
 const instance = (over: Record<string, unknown> = {}) => ({
   id: 'pi',
   definitionId: 'MyProc:1:def-1',
@@ -99,7 +113,9 @@ beforeEach(() => jest.clearAllMocks());
 
 describe('auth gate', () => {
   it('401 without a token', async () => {
-    expect((await request(app).get('/v1/m2m/process')).status).toBe(401);
+    const r1 = await request(app).get('/v1/m2m/process');
+    expect(r1.status).toBe(401);
+    expectToMatchOperation(r1, 'get', '/m2m/process');
   });
 });
 
@@ -256,13 +272,16 @@ describe('process endpoints', () => {
 
   it('GET /process/:id/variables → 404 on failure', async () => {
     svc.getProcessVariables.mockRejectedValue(new Error('nope'));
-    expect((await auth(request(app).get('/v1/m2m/process/pi/variables'))).status).toBe(404);
+    const r2 = await auth(request(app).get('/v1/m2m/process/pi/variables'));
+    expect(r2.status).toBe(404);
+    expectToMatchOperation(r2, 'get', '/m2m/process/{id}/variables');
   });
 
   it('GET /process/:id/historic-variables returns variables', async () => {
     svc.getHistoricVariables.mockResolvedValue({ a: 1 });
     const res = await auth(request(app).get('/v1/m2m/process/pi/historic-variables'));
     expect(res.body.data).toEqual({ a: 1 });
+    expectToMatchOperation(res, 'get', '/m2m/process/{id}/historic-variables');
   });
 
   it('GET /process/:id/historic-variables → 404 on failure', async () => {
@@ -280,15 +299,19 @@ describe('process endpoints', () => {
 
   it('GET /process/:id/decision-document → 404 on failure', async () => {
     svc.getDecisionDocument.mockRejectedValue(new Error('DOCUMENT_NOT_FOUND'));
-    expect((await auth(request(app).get('/v1/m2m/process/pi/decision-document'))).status).toBe(404);
+    const r3 = await auth(request(app).get('/v1/m2m/process/pi/decision-document'));
+    expect(r3.status).toBe(404);
+    expectToMatchOperation(r3, 'get', '/m2m/process/{id}/decision-document');
   });
 
   it('GET /process/:key/start-form returns JSON forms and 415 for HTML', async () => {
     svc.getDeployedStartForm.mockResolvedValueOnce({
-      data: '{"components":[]}',
+      data: JSON.stringify(form),
       contentType: 'application/json',
     });
-    expect((await auth(request(app).get('/v1/m2m/process/MyProc/start-form'))).status).toBe(200);
+    const r4 = await auth(request(app).get('/v1/m2m/process/MyProc/start-form'));
+    expect(r4.status).toBe(200);
+    expectToMatchOperation(r4, 'get', '/m2m/process/{key}/start-form');
     svc.getDeployedStartForm.mockResolvedValueOnce({ data: '<form/>', contentType: 'text/html' });
     const res = await auth(request(app).get('/v1/m2m/process/MyProc/start-form'));
     expect(res.status).toBe(415);
@@ -297,13 +320,16 @@ describe('process endpoints', () => {
 
   it('GET /process/:key/start-form → 404 on failure', async () => {
     svc.getDeployedStartForm.mockRejectedValue(new Error('nope'));
-    expect((await auth(request(app).get('/v1/m2m/process/MyProc/start-form'))).status).toBe(404);
+    const r5 = await auth(request(app).get('/v1/m2m/process/MyProc/start-form'));
+    expect(r5.status).toBe(404);
+    expectToMatchOperation(r5, 'get', '/m2m/process/{key}/start-form');
   });
 
   it('GET /process/:key/variable-hints returns hints', async () => {
     svc.getVariableHints.mockResolvedValue([{ name: 'a', type: 'String' }]);
     const res = await auth(request(app).get('/v1/m2m/process/MyProc/variable-hints'));
     expect(res.body.variables).toEqual([{ name: 'a', type: 'String' }]);
+    expectToMatchOperation(res, 'get', '/m2m/process/{key}/variable-hints');
   });
 
   it('GET /process/:key/variable-hints → 500 on failure', async () => {
@@ -323,7 +349,9 @@ describe('process endpoints', () => {
 
   it('DELETE /process/:id → 500 on failure', async () => {
     svc.deleteProcessInstance.mockRejectedValue(new Error('boom'));
-    expect((await auth(request(app).delete('/v1/m2m/process/pi')).send({})).status).toBe(500);
+    const r6 = await auth(request(app).delete('/v1/m2m/process/pi')).send({});
+    expect(r6.status).toBe(500);
+    expectToMatchOperation(r6, 'delete', '/m2m/process/{id}');
   });
 });
 
@@ -335,33 +363,47 @@ describe('task endpoints', () => {
 
   it('GET /task → 500 on failure', async () => {
     svc.getUserTasks.mockRejectedValue(new Error('boom'));
-    expect((await auth(request(app).get('/v1/m2m/task'))).status).toBe(500);
+    const r7 = await auth(request(app).get('/v1/m2m/task'));
+    expect(r7.status).toBe(500);
+    expectToMatchOperation(r7, 'get', '/m2m/task');
   });
 
   it('GET /task/:id returns a task; 404 on failure', async () => {
-    svc.getTask.mockResolvedValueOnce({ id: 't1' });
-    expect((await auth(request(app).get('/v1/m2m/task/t1'))).status).toBe(200);
+    svc.getTask.mockResolvedValueOnce(task());
+    const r8 = await auth(request(app).get('/v1/m2m/task/t1'));
+    expect(r8.status).toBe(200);
+    expectToMatchOperation(r8, 'get', '/m2m/task/{id}');
     svc.getTask.mockRejectedValueOnce(new Error('nope'));
-    expect((await auth(request(app).get('/v1/m2m/task/t1'))).status).toBe(404);
+    const r9 = await auth(request(app).get('/v1/m2m/task/t1'));
+    expect(r9.status).toBe(404);
+    expectToMatchOperation(r9, 'get', '/m2m/task/{id}');
   });
 
   it('GET /task/:id/variables returns variables; 500 on failure', async () => {
     svc.getTaskVariables.mockResolvedValueOnce({ a: 1 });
     expect((await auth(request(app).get('/v1/m2m/task/t1/variables'))).body.data).toEqual({ a: 1 });
     svc.getTaskVariables.mockRejectedValueOnce(new Error('boom'));
-    expect((await auth(request(app).get('/v1/m2m/task/t1/variables'))).status).toBe(500);
+    const r10 = await auth(request(app).get('/v1/m2m/task/t1/variables'));
+    expect(r10.status).toBe(500);
+    expectToMatchOperation(r10, 'get', '/m2m/task/{id}/variables');
   });
 
   it('GET /task/:id/form-schema returns JSON; 415 for HTML; 404 on failure', async () => {
     svc.getDeployedTaskForm.mockResolvedValueOnce({
-      data: '{"x":1}',
+      data: JSON.stringify(form),
       contentType: 'application/json',
     });
-    expect((await auth(request(app).get('/v1/m2m/task/t1/form-schema'))).status).toBe(200);
+    const r11 = await auth(request(app).get('/v1/m2m/task/t1/form-schema'));
+    expect(r11.status).toBe(200);
+    expectToMatchOperation(r11, 'get', '/m2m/task/{id}/form-schema');
     svc.getDeployedTaskForm.mockResolvedValueOnce({ data: '<f/>', contentType: 'text/html' });
-    expect((await auth(request(app).get('/v1/m2m/task/t1/form-schema'))).status).toBe(415);
+    const r12 = await auth(request(app).get('/v1/m2m/task/t1/form-schema'));
+    expect(r12.status).toBe(415);
+    expectToMatchOperation(r12, 'get', '/m2m/task/{id}/form-schema');
     svc.getDeployedTaskForm.mockRejectedValueOnce(new Error('nope'));
-    expect((await auth(request(app).get('/v1/m2m/task/t1/form-schema'))).status).toBe(404);
+    const r13 = await auth(request(app).get('/v1/m2m/task/t1/form-schema'));
+    expect(r13.status).toBe(404);
+    expectToMatchOperation(r13, 'get', '/m2m/task/{id}/form-schema');
   });
 
   it('POST /task/:id/claim uses the body userId, falling back to the token subject', async () => {
@@ -374,7 +416,9 @@ describe('task endpoints', () => {
 
   it('POST /task/:id/claim → 500 on failure', async () => {
     svc.claimTask.mockRejectedValue(new Error('boom'));
-    expect((await auth(request(app).post('/v1/m2m/task/t1/claim')).send({})).status).toBe(500);
+    const r14 = await auth(request(app).post('/v1/m2m/task/t1/claim')).send({});
+    expect(r14.status).toBe(500);
+    expectToMatchOperation(r14, 'post', '/m2m/task/{id}/claim');
   });
 
   it('POST /task/:id/complete infers variables', async () => {
@@ -419,26 +463,72 @@ describe('decision endpoints', () => {
   });
 
   it('GET /decision/:key returns the definition; 404 on failure', async () => {
-    svc.getDecisionDefinition.mockResolvedValueOnce({ id: 'd' });
-    expect((await auth(request(app).get('/v1/m2m/decision/Dec'))).status).toBe(200);
+    svc.getDecisionDefinition.mockResolvedValueOnce({
+      id: 'd',
+      key: 'Dec',
+      name: 'A decision',
+      version: 1,
+    });
+    const r15 = await auth(request(app).get('/v1/m2m/decision/Dec'));
+    expect(r15.status).toBe(200);
+    expectToMatchOperation(r15, 'get', '/m2m/decision/{key}');
     svc.getDecisionDefinition.mockRejectedValueOnce(new Error('nope'));
-    expect((await auth(request(app).get('/v1/m2m/decision/Dec'))).status).toBe(404);
+    const r16 = await auth(request(app).get('/v1/m2m/decision/Dec'));
+    expect(r16.status).toBe(404);
+    expectToMatchOperation(r16, 'get', '/m2m/decision/{key}');
   });
 });
 
-/** Every curated operation, with the route that fronts it and how it fails. */
+/**
+ * Every curated operation, with the route that fronts it, how it fails, and the
+ * path the OPENAPI DOCUMENT calls it.
+ *
+ * The last column is written out rather than derived from the URL. Deriving it
+ * would re-resolve silently when a route moved; written out, a route that moves
+ * without the document moving is an edit somebody has to make here, which is
+ * the point (#269).
+ */
 const OPERATIONS = [
-  ['process.list', 'get', '/v1/m2m/process', 'listProcessInstances', 500],
-  ['process.start', 'post', '/v1/m2m/process/K/start', 'startProcess', 500],
-  ['process.history', 'get', '/v1/m2m/process/history', 'queryProcessHistory', 500],
-  ['process.status', 'get', '/v1/m2m/process/pi-1/status', 'getProcessInstance', 404],
-  ['process.variables', 'get', '/v1/m2m/process/pi-1/variables', 'getProcessVariables', 404],
+  ['process.list', 'get', '/v1/m2m/process', 'listProcessInstances', 500, '/m2m/process'],
+  [
+    'process.start',
+    'post',
+    '/v1/m2m/process/K/start',
+    'startProcess',
+    500,
+    '/m2m/process/{key}/start',
+  ],
+  [
+    'process.history',
+    'get',
+    '/v1/m2m/process/history',
+    'queryProcessHistory',
+    500,
+    '/m2m/process/history',
+  ],
+  [
+    'process.status',
+    'get',
+    '/v1/m2m/process/pi-1/status',
+    'getProcessInstance',
+    404,
+    '/m2m/process/{id}/status',
+  ],
+  [
+    'process.variables',
+    'get',
+    '/v1/m2m/process/pi-1/variables',
+    'getProcessVariables',
+    404,
+    '/m2m/process/{id}/variables',
+  ],
   [
     'process.historic-variables',
     'get',
     '/v1/m2m/process/pi-1/historic-variables',
     'getHistoricVariables',
     404,
+    '/m2m/process/{id}/historic-variables',
   ],
   [
     'process.decision-document',
@@ -446,18 +536,75 @@ const OPERATIONS = [
     '/v1/m2m/process/pi-1/decision-document',
     'getDecisionDocument',
     404,
+    '/m2m/process/{id}/decision-document',
   ],
-  ['process.start-form', 'get', '/v1/m2m/process/K/start-form', 'getDeployedStartForm', 404],
-  ['process.variable-hints', 'get', '/v1/m2m/process/K/variable-hints', 'getVariableHints', 500],
-  ['process.delete', 'delete', '/v1/m2m/process/pi-1', 'deleteProcessInstance', 500],
-  ['task.list', 'get', '/v1/m2m/task', 'getUserTasks', 500],
-  ['task.get', 'get', '/v1/m2m/task/t-1', 'getTask', 404],
-  ['task.variables', 'get', '/v1/m2m/task/t-1/variables', 'getTaskVariables', 500],
-  ['task.form-schema', 'get', '/v1/m2m/task/t-1/form-schema', 'getDeployedTaskForm', 404],
-  ['task.claim', 'post', '/v1/m2m/task/t-1/claim', 'claimTask', 500],
-  ['task.complete', 'post', '/v1/m2m/task/t-1/complete', 'completeTask', 500],
-  ['decision.evaluate', 'post', '/v1/m2m/decision/K/evaluate', 'evaluateDecision', 500],
-  ['decision.get', 'get', '/v1/m2m/decision/K', 'getDecisionDefinition', 404],
+  [
+    'process.start-form',
+    'get',
+    '/v1/m2m/process/K/start-form',
+    'getDeployedStartForm',
+    404,
+    '/m2m/process/{key}/start-form',
+  ],
+  [
+    'process.variable-hints',
+    'get',
+    '/v1/m2m/process/K/variable-hints',
+    'getVariableHints',
+    500,
+    '/m2m/process/{key}/variable-hints',
+  ],
+  [
+    'process.delete',
+    'delete',
+    '/v1/m2m/process/pi-1',
+    'deleteProcessInstance',
+    500,
+    '/m2m/process/{id}',
+  ],
+  ['task.list', 'get', '/v1/m2m/task', 'getUserTasks', 500, '/m2m/task'],
+  ['task.get', 'get', '/v1/m2m/task/t-1', 'getTask', 404, '/m2m/task/{id}'],
+  [
+    'task.variables',
+    'get',
+    '/v1/m2m/task/t-1/variables',
+    'getTaskVariables',
+    500,
+    '/m2m/task/{id}/variables',
+  ],
+  [
+    'task.form-schema',
+    'get',
+    '/v1/m2m/task/t-1/form-schema',
+    'getDeployedTaskForm',
+    404,
+    '/m2m/task/{id}/form-schema',
+  ],
+  ['task.claim', 'post', '/v1/m2m/task/t-1/claim', 'claimTask', 500, '/m2m/task/{id}/claim'],
+  [
+    'task.complete',
+    'post',
+    '/v1/m2m/task/t-1/complete',
+    'completeTask',
+    500,
+    '/m2m/task/{id}/complete',
+  ],
+  [
+    'decision.evaluate',
+    'post',
+    '/v1/m2m/decision/K/evaluate',
+    'evaluateDecision',
+    500,
+    '/m2m/decision/{key}/evaluate',
+  ],
+  [
+    'decision.get',
+    'get',
+    '/v1/m2m/decision/K',
+    'getDecisionDefinition',
+    404,
+    '/m2m/decision/{key}',
+  ],
 ] as const;
 
 describe('the curation gate', () => {
@@ -467,7 +614,7 @@ describe('the curation gate', () => {
 
   it.each(OPERATIONS)(
     'answers 403 OPERATION_NOT_PERMITTED for %s once it is de-listed',
-    async (op, method, path) => {
+    async (op, method, path, _service, _status, documentPath) => {
       // The gate is operated by removing an entry from the list; do exactly that,
       // rather than asserting against a hard-coded copy of it.
       const index = M2M_ALLOWED_OPERATIONS.indexOf(op);
@@ -476,6 +623,9 @@ describe('the curation gate', () => {
         const res = await auth(request(app)[method](path));
         expect(res.status).toBe(403);
         expect(res.body.error.code).toBe('OPERATION_NOT_PERMITTED');
+        // Every one of the eighteen, against the document's own 403 -- which is
+        // the shared M2mForbidden, covering this code and M2M_CLIENT_NOT_ALLOWED.
+        expectToMatchOperation(res, method, documentPath);
       } finally {
         M2M_ALLOWED_OPERATIONS.splice(index, 0, op);
       }

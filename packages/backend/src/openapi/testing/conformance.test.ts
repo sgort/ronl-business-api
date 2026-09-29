@@ -1,3 +1,7 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
 import express from 'express';
 import request from 'supertest';
 
@@ -235,6 +239,56 @@ describe('expectToMatchOperation', () => {
     const bare: OpenApiDocument = { ...DOCUMENT, components: undefined };
 
     expect(() => expectToMatchOperation(res, 'get', '/things/{id}/xml', bare)).not.toThrow();
+  });
+
+  describe('recording what it was asked about', () => {
+    // scripts/check-conformance-coverage.cjs reads this log to fail a build
+    // where a documented operation was never compared against a response.
+    const LOG = path.join(os.tmpdir(), `conformance-record-${process.pid}.log`);
+    const original = process.env.CONFORMANCE_LOG;
+
+    afterEach(() => {
+      if (original === undefined) delete process.env.CONFORMANCE_LOG;
+      else process.env.CONFORMANCE_LOG = original;
+      fs.rmSync(LOG, { force: true });
+    });
+
+    test('appends the operation to CONFORMANCE_LOG', async () => {
+      process.env.CONFORMANCE_LOG = LOG;
+      fs.writeFileSync(LOG, '');
+
+      expectToMatchOperation(await get('/things'), 'get', '/things', DOCUMENT);
+
+      expect(fs.readFileSync(LOG, 'utf8')).toBe('get /things\n');
+    });
+
+    test('records an operation whose check then FAILS, so the gap is not hidden', async () => {
+      process.env.CONFORMANCE_LOG = LOG;
+      fs.writeFileSync(LOG, '');
+
+      const res = await get('/things?case=bad-shape');
+      expect(() => expectToMatchOperation(res, 'get', '/things', DOCUMENT)).toThrow(
+        /does not match the document/
+      );
+
+      expect(fs.readFileSync(LOG, 'utf8')).toBe('get /things\n');
+    });
+
+    test('an unwritable log does not fail the caller', async () => {
+      process.env.CONFORMANCE_LOG = path.join(LOG, 'not-a-directory', 'x.log');
+
+      const res = await get('/things');
+      expect(() => expectToMatchOperation(res, 'get', '/things', DOCUMENT)).not.toThrow();
+    });
+
+    test('records nothing when CONFORMANCE_LOG is unset', async () => {
+      delete process.env.CONFORMANCE_LOG;
+      fs.writeFileSync(LOG, '');
+
+      expectToMatchOperation(await get('/things'), 'get', '/things', DOCUMENT);
+
+      expect(fs.readFileSync(LOG, 'utf8')).toBe('');
+    });
   });
 
   test.each([

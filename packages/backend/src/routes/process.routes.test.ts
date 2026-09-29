@@ -497,11 +497,14 @@ describe('GET /:key/start-form', () => {
 describe('GET /:key/variable-hints', () => {
   it('returns hints; 500 on failure', async () => {
     svc.getVariableHints.mockResolvedValueOnce([{ name: 'a', type: 'String' }]);
-    expect((await auth(request(app).get('/v1/process/P/variable-hints'))).body.variables).toEqual([
-      { name: 'a', type: 'String' },
-    ]);
+    const ok = await auth(request(app).get('/v1/process/P/variable-hints'));
+    expect(ok.body.variables).toEqual([{ name: 'a', type: 'String' }]);
+    expectToMatchOperation(ok, 'get', '/process/{key}/variable-hints');
+
     svc.getVariableHints.mockRejectedValueOnce(new Error('boom'));
-    expect((await auth(request(app).get('/v1/process/P/variable-hints'))).status).toBe(500);
+    const failed = await auth(request(app).get('/v1/process/P/variable-hints'));
+    expect(failed.status).toBe(500);
+    expectToMatchOperation(failed, 'get', '/process/{key}/variable-hints');
   });
 });
 

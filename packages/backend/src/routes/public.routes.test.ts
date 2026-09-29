@@ -140,7 +140,7 @@ const productItem = (over: Record<string, unknown> = {}) => ({
   title: 'Kapvergunning',
   description: 'Aanvragen van een vergunning voor het kappen van een boom.',
   url: 'https://open-regels.nl/producten/kapvergunning',
-  audience: ['burgers'],
+  audience: ['particulier'],
   onlineAanvragen: true,
   modified: '2026-09-28T08:00:00.000Z',
   soort: 'product',
@@ -187,12 +187,16 @@ describe('content feeds', () => {
 
   it('GET /producten-diensten returns items', async () => {
     m.producten.mockResolvedValue({ items: [productItem()], total: 1 });
-    expect((await request(app).get('/v1/public/producten-diensten')).status).toBe(200);
+    const res = await request(app).get('/v1/public/producten-diensten');
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/producten-diensten');
   });
 
   it('GET /producten-diensten → 500 on failure', async () => {
     m.producten.mockRejectedValue(new Error('down'));
-    expect((await request(app).get('/v1/public/producten-diensten')).status).toBe(500);
+    const res = await request(app).get('/v1/public/producten-diensten');
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/public/producten-diensten');
   });
 
   it('GET /regelcatalogus returns data', async () => {
@@ -542,7 +546,9 @@ describe('GET /nieuws/:slug, /producten/:slug, /regels/:slug', () => {
 
   it('500 on failure', async () => {
     m.index.mockRejectedValue(new Error('down'));
-    expect((await request(app).get('/v1/public/producten/x')).status).toBe(500);
+    const res = await request(app).get('/v1/public/producten/x');
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/public/producten/{slug}');
   });
 });
 

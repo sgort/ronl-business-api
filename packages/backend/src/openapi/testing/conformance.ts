@@ -25,6 +25,8 @@
 // Never loaded at runtime. It lives under src/ so it is type-checked, linted
 // and held to the per-file branch floor like everything else.
 
+import fs from 'fs';
+
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import type { Response } from 'supertest';
@@ -58,6 +60,27 @@ function isJson(contentType: string): boolean {
 }
 
 /**
+ * Every operation this helper has been asked about, appended to the file named
+ * by CONFORMANCE_LOG. scripts/jest-conformance-teardown.cjs reads it and fails
+ * the run if an operation in the document was never checked.
+ *
+ * A file rather than a module-level Set, because Jest gives each test file its
+ * own module registry and worker -- nothing in-process can see across them.
+ * Recorded BEFORE the assertions below, so an operation still counts as
+ * covered when its check fails: the checker answers "is anything unchecked",
+ * and the failing test itself answers "is it right".
+ */
+function record(method: HttpMethod, path: string): void {
+  const log = process.env.CONFORMANCE_LOG;
+  if (!log) return;
+  try {
+    fs.appendFileSync(log, `${method} ${path}\n`);
+  } catch {
+    // A missing log is not a reason to fail somebody's test run.
+  }
+}
+
+/**
  * Throws with a message naming the operation when `res` disagrees with the
  * document. Checks four things, in order:
  *
@@ -76,6 +99,7 @@ export function expectToMatchOperation(
   document: OpenApiDocument = readOpenApiDocument()
 ): void {
   const label = `${method.toUpperCase()} ${path}`;
+  record(method, path);
 
   const operation = document.paths[path]?.[method] as OperationObject | undefined;
   if (!operation) throw new Error(`${label} is not documented`);
