@@ -155,7 +155,7 @@ jobs:
           # >=20.13.0, and both App Service plans run NODE|22-lts. So the
           # deployed artifact was BUILT on a major the host does not run.
           #
-          # .nvmrc is pinned to an exact 22.22.0 rather than a bare 22,
+          # .nvmrc is pinned to an exact version rather than a bare 22,
           # deliberately: 'nothing a pipeline downloads may float' is the same
           # policy the action digests above follow, and a bare major resolves to
           # whatever 22.x the runner happens to carry. Renovate's node manager
