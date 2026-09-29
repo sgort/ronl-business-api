@@ -256,6 +256,34 @@ describe('businessApi.process', () => {
     });
   });
 
+  it('lineage fetches where the instance sits in its call chain', async () => {
+    const lineage = {
+      processInstanceId: 'pi-1',
+      processDefinitionKey: 'TreeFellingPermitSubProcess',
+      processDefinitionId: 'TreeFellingPermitSubProcess:2:x',
+      superProcessInstanceId: 'parent-1',
+    };
+    server.use(
+      http.get('*/process/pi-1/lineage', () => HttpResponse.json({ success: true, data: lineage }))
+    );
+
+    expect(await businessApi.process.lineage('pi-1')).toEqual({ success: true, data: lineage });
+  });
+
+  it('swimlane fetches the model for the process key it is given, URL-encoded', async () => {
+    let seen = '';
+    const model = { phaseCode: 'Awb Shell', lanes: [], nodes: [], edges: [] };
+    server.use(
+      http.get('*/process/definition/key/:key/swimlane', ({ request }) => {
+        seen = new URL(request.url).pathname;
+        return HttpResponse.json({ success: true, data: model });
+      })
+    );
+
+    expect(await businessApi.process.swimlane('Awb Shell')).toEqual({ success: true, data: model });
+    expect(seen).toContain(`/process/definition/key/${encodeURIComponent('Awb Shell')}/swimlane`);
+  });
+
   it('decisionDocument fetches the document template envelope', async () => {
     server.use(
       http.get('*/process/pi-1/decision-document', () =>

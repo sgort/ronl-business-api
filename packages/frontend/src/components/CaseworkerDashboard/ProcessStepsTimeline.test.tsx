@@ -20,6 +20,9 @@ function makeStep(overrides: Partial<ActivityHistoryItem> = {}): ActivityHistory
     endTime: '2026-07-01T10:05:00Z',
     durationInMillis: 300000,
     canceled: false,
+    processDefinitionKey: null,
+    processDefinitionId: null,
+    calledProcessInstanceId: null,
     ...overrides,
   };
 }

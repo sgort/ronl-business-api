@@ -1,5 +1,7 @@
+import './process-view.css';
 import { STATUS, type StatusKey } from '../../pages/infra-board/rip-model';
-import type { PhaseSwimlaneModel } from '@ronl/shared';
+import { useEffect, useRef } from 'react';
+import type { NodeKind, PhaseSwimlaneModel, SwimNode } from '@ronl/shared';
 
 const COL_W = 190,
   ROW_H = 88,
@@ -7,19 +9,51 @@ const COL_W = 190,
   NODE_H = 54,
   GATE = 46;
 
-/** SVG swimlane for a RIP process phase. `model` supplies the lanes, nodes and
- *  edges to draw. `statusById` maps node id → status (live or derived).
- *  `claimedNodeIds` highlights nodes whose task is currently claimed/in progress. */
+/** Foot badge per node kind; the other kinds carry none. */
+const KIND_BADGE: Partial<Record<NodeKind, string>> = {
+  script: 'script',
+  rule: 'DMN',
+  call: 'deelproces',
+};
+
+/** SVG swimlane for a BPMN process: a RIP phase on the Infra-board, or a
+ *  caseworker process. `model` supplies the lanes, nodes and edges to draw.
+ *  `statusById` maps node id → status (live or derived).
+ *  `claimedNodeIds` highlights nodes whose task is currently claimed/in progress.
+ *
+ *  The remaining props are the caseworker procesweergave's and all default off.
+ *  Any one of them adds `cwp-swim` to the root, which scopes the caseworker
+ *  restyling (claimed-node tab, label clamp) so the Infra-board, which passes
+ *  none, renders exactly as before. */
 export default function PhaseSwimlane({
   model,
   statusById,
   claimedNodeIds = new Set(),
+  myLaneKeys,
+  claimedLabel,
+  onOpenCall,
+  scrollToNodeId,
 }: {
   model: PhaseSwimlaneModel;
   statusById: Record<string, StatusKey>;
   claimedNodeIds?: Set<string>;
+  /** Lanes the user works in: tinted, and marked "jouw rol". */
+  myLaneKeys?: ReadonlySet<string>;
+  /** Tab text on a claimed node (e.g. "jouw taak"), replacing the ✏ glyph. */
+  claimedLabel?: string;
+  /** Adds an "open ↘" button to each call node. */
+  onOpenCall?: (node: SwimNode) => void;
+  /** Centre this node horizontally on mount and whenever it changes. */
+  scrollToNodeId?: string | null;
 }) {
   const { lanes, nodes, edges } = model;
+  const caseworker =
+    myLaneKeys !== undefined ||
+    claimedLabel !== undefined ||
+    onOpenCall !== undefined ||
+    scrollToNodeId !== undefined;
+  const mine = (key: string) => myLaneKeys?.has(key) ?? false;
+  const scrollRef = useRef<HTMLDivElement>(null);
   const nodeById = Object.fromEntries(nodes.map((n) => [n.id, n]));
   const nCols = nodes.length ? Math.max(...nodes.map((n) => n.col)) + 1 : 1;
   const W = nCols * COL_W;
@@ -73,6 +107,15 @@ export default function PhaseSwimlane({
   const cy = (n: { id: string; row: number }) =>
     (laneTop[n.row] ?? n.row * ROW_H) + (slotByNodeId[n.id] ?? 0) * ROW_H + ROW_H / 2;
   const st = (id: string): StatusKey => statusById[id] ?? 'todo';
+
+  useEffect(() => {
+    if (scrollToNodeId === undefined || !scrollRef.current) return;
+    const target = scrollToNodeId === null ? undefined : nodeById[scrollToNodeId];
+    const el = scrollRef.current;
+    el.scrollLeft = target ? Math.max(0, cx(target) - el.clientWidth / 2) : 0;
+    // cx and nodeById derive from model, which is in the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToNodeId, model]);
   const edgeColor = (from: string) => (st(from) === 'done' ? '#3fa535' : '#c2c7d0');
 
   // Incremented only for back (rework-loop) edges, in edge order — never by
@@ -125,20 +168,25 @@ export default function PhaseSwimlane({
   }[];
 
   return (
-    <div className="pb-swim">
+    <div className={caseworker ? 'pb-swim cwp-swim' : 'pb-swim'}>
       <div className="pb-swim-lanes">
         {lanes.map((l, i) => (
-          <div className="pb-swim-lane-label" key={l.key} style={{ height: laneHeights[i] }}>
+          <div
+            className={`pb-swim-lane-label${mine(l.key) ? ' cwp-mine' : ''}`}
+            key={l.key}
+            style={{ height: laneHeights[i] }}
+          >
             {l.label}
+            {mine(l.key) && <span className="cwp-jij">jouw rol</span>}
           </div>
         ))}
       </div>
-      <div className="pb-swim-scroll">
+      <div className="pb-swim-scroll" ref={scrollRef}>
         <div className="pb-swim-canvas" style={{ width: W, height: H }}>
           {lanes.map((l, i) => (
             <div
               key={l.key}
-              className={`pb-swim-band ${i % 2 ? 'alt' : ''}`}
+              className={`pb-swim-band ${i % 2 ? 'alt' : ''}${mine(l.key) ? ' cwp-mine' : ''}`}
               style={{ top: laneTop[i], height: laneHeights[i], width: W }}
             />
           ))}
@@ -209,10 +257,15 @@ export default function PhaseSwimlane({
               );
             }
             const claimed = claimedNodeIds.has(n.id);
+            // Script and rule tasks run without a person: drawn dashed like a
+            // service task, and told apart by their foot badge.
+            const kindClass = n.kind === 'script' || n.kind === 'rule' ? 'service' : n.kind;
+            const badge = KIND_BADGE[n.kind];
             return (
               <div
                 key={n.id}
-                className={`pb-swim-node ${st(n.id)} ${n.kind}${claimed ? ' pb-swim-node-claimed' : ''}`}
+                {...(caseworker ? { title: n.dmn ? `${n.label} (${n.dmn})` : n.label } : {})}
+                className={`pb-swim-node ${st(n.id)} ${kindClass}${claimed ? ' pb-swim-node-claimed' : ''}`}
                 style={{
                   left: cx(n) - NODE_W / 2,
                   top: cy(n) - NODE_H / 2,
@@ -228,9 +281,20 @@ export default function PhaseSwimlane({
                   </span>
                 ))}
                 {n.kind === 'service' && <span className="nauto">automatisch</span>}
+                {badge && <span className="cwp-kind">{badge}</span>}
+                {n.kind === 'call' && onOpenCall && (
+                  <button
+                    type="button"
+                    className="cwp-callbtn"
+                    aria-label={`open deelproces ${n.label}`}
+                    onClick={() => onOpenCall(n)}
+                  >
+                    open ↘
+                  </button>
+                )}
                 {claimed && (
                   <span className="pb-swim-inprogress" title="In behandeling">
-                    ✏
+                    {claimedLabel ?? '✏'}
                   </span>
                 )}
               </div>
