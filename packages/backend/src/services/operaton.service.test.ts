@@ -1087,6 +1087,37 @@ describe('getPhaseSwimlaneModel', () => {
       phaseCode: 'R2.2',
     });
   });
+
+  /**
+   * The caseworker procesweergave reuses this exact path, keyed on the
+   * process key itself (GET /v1/process/definition/key/:key/swimlane), so the
+   * tenant-scoped lookup and the definition-id cache are the Infra-board's.
+   */
+  it('serves a caseworker process under its own key, with the new kinds and phases', async () => {
+    const awb = readFileSync(
+      join(__dirname, '../rip-swimlane/__fixtures__/awb/AwbShellProcess.bpmn'),
+      'utf-8'
+    );
+    routeGet([
+      [
+        '/process-definition/key/AwbShellProcess/tenant-id/flevoland',
+        { data: { id: 'AwbShellProcess:4:abc' } },
+      ],
+      ['/process-definition/AwbShellProcess:4:abc/xml', { data: { bpmn20Xml: awb } }],
+    ]);
+    const model = await svc.getPhaseSwimlaneModel(
+      'AwbShellProcess',
+      'AwbShellProcess',
+      'flevoland'
+    );
+    expect(model.phaseCode).toBe('AwbShellProcess');
+    expect(model.processKey).toBe('AwbShellProcess');
+    expect(model.nodes.find((n) => n.id === 'Task_Phase45_Process')).toMatchObject({
+      kind: 'call',
+      calls: 'TreeFellingPermitSubProcess',
+      awbPhase: '4+5',
+    });
+  });
 });
 
 describe('getCompletedTasks', () => {

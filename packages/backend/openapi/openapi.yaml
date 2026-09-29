@@ -1432,6 +1432,69 @@ paths:
           description: '`ACTIVITY_HISTORY_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  /process/definition/key/{key}/swimlane:
+    get:
+      operationId: getProcessDefinitionSwimlaneByKey
+      tags: [Process]
+      summary: A process's model, as lanes, nodes and edges
+      description: |
+        The Infra-board's phase model (`/rip/phases/{code}/model`) for any
+        process, keyed on its own process key, which is also the model's
+        `phaseCode`. Resolved under the caller's organisation, falling back
+        to a deployment without one, so another organisation's deployment is
+        never reached. Draws the newest deployed version of the key.
+
+        Carries what the caseworker process view needs: `script`, `rule` and
+        `call` nodes with their `dmn` / `calls` / `formRef`, each lane's
+        `candidateGroups`, and each node's `awbPhase` when the BPMN marks
+        phases with `ronl:awbPhase`. A process without a laneSet answers
+        `lanes: []`.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The process definition key, e.g. `AwbShellProcess`.
+          schema: { type: string, pattern: '^[A-Za-z_][A-Za-z0-9_.-]{0,254}$' }
+      responses:
+        '200':
+          description: The model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [phaseCode, lanes, nodes, edges]
+                        properties:
+                          phaseCode: { type: string }
+                          processKey: { type: string }
+                          processName: { type: string }
+                          lanes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          nodes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          edges:
+                            { type: array, items: { type: object, additionalProperties: true } }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: The key is not a process key (`INVALID_PROCESS_KEY`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |
+            No deployment of the key under the caller's organisation, nor one
+            without an organisation (`PROCESS_DEFINITION_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`SWIMLANE_MODEL_FAILED`.'
+          $ref: '#/components/responses/Error'
+
   /process/{instanceId}/decision-document:
     get:
       operationId: getProcessDecisionDocument

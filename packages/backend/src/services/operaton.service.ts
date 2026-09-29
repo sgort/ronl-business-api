@@ -82,6 +82,9 @@ export class OperatonService {
    * one today, because the model carries the code it was parsed with: were a
    * second code ever to share a process key, a key without it would serve the
    * wrong phase's model rather than fail.
+   *
+   * Also holds the caseworker process models, whose phaseCode IS their
+   * process key (GET /v1/process/definition/key/:key/swimlane).
    */
   private phaseSwimlaneCache = new Map<string, PhaseSwimlaneModel>();
 
@@ -1636,6 +1639,10 @@ export class OperatonService {
    * definition id. Checked before the XML fetch, not after, so a repeat view
    * neither re-transfers the document nor re-parses it -- it costs only the
    * definition lookup that proves the deployment has not moved.
+   *
+   * Not RIP-only: the caseworker procesweergave calls this with the process
+   * key as its own phaseCode, so both boards share one tenant-scoped lookup
+   * and one cache.
    */
   async getPhaseSwimlaneModel(
     processKey: string,
