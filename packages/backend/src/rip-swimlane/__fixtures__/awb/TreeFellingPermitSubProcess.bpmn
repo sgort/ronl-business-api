@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+  xmlns:ronl="http://ronl.nl/schema/1.0"
+  id="Definitions_TreeFellingSubProcess"
+  targetNamespace="http://example.com/tree-permit"
+  exporter="Camunda Modeler"
+  exporterVersion="5.36.0">
+
+  <!--
+    TreeFellingPermitSubProcess
+    ===========================
+    Material law layer for the Tree Felling Permit.
+    Called by the AWB Shell Process (AwbShellProcess) via a Call Activity.
+
+    Inputs  (from AWB parent via camunda:in variables="all"):
+      - treeDiameter   (Integer) : trunk diameter in cm at 1.30m height
+      - protectedArea  (Boolean) : whether tree is in a protected area
+
+    Outputs (to AWB parent via camunda:out variables="all"):
+      - permitDecision       (String)  : "Permit" or "Reject"
+      - replacementDecision  (Boolean) : true if replacement tree required
+      - status               (String)  : "Approved" or "Rejected"
+      - finalMessage         (String)  : human-readable decision message
+      - replacementInfo      (String)  : replacement requirement description
+      - decisionType         (String)  : "Granted" or "Rejected" (for Archives DMN)
+      - paymentRequired      (Boolean) : whether a fee is due
+      - chainProcessRequired (Boolean) : whether to forward to chain process
+
+    Caseworker review:
+      Sub_CaseReview is a userTask assigned to candidateGroups="caseworker".
+      The caseworker must claim the task before acting on it.
+      On completion, the task form submits:
+        - reviewAction         (String)  : "confirm" or "change"
+        - reviewPermitDecision (String)  : "Permit" or "Reject" (only when reviewAction="change")
+        - reviewReplacementDecision (Boolean) : override value (only when reviewAction="change")
+      Sub_ResolveDecision applies overrides when reviewAction="change".
+
+    Lanes: Sub_CaseReview in Behandelaar; every other node in Systeem.
+
+    Legal basis: APV (Local Government By-law) - material law
+  -->
+
+  <bpmn:collaboration id="Collaboration_TreeFelling_Sub">
+    <bpmn:participant id="Participant_TreeFelling_Sub" name="Kapvergunning - Behandeling en besluit" processRef="TreeFellingPermitSubProcess" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="TreeFellingPermitSubProcess" name="Kapvergunning - Behandeling en besluit" isExecutable="true" camunda:historyTimeToLive="180" ronl:dsoActiviteitUrn="nl.imow-gm0995.activiteit.HoutopstandVellen">
+
+    <bpmn:laneSet id="LaneSet_TreeFelling_Sub">
+      <bpmn:lane id="Lane_Behandelaar" name="Behandelaar">
+        <bpmn:flowNodeRef>Sub_CaseReview</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Systeem" name="Systeem">
+        <bpmn:flowNodeRef>SubStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_AssessPermit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_AssessReplacement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_ResolveDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_FinalGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetGranted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubEnd</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- No form on StartEvent - variables come from AWB parent Call Activity -->
+    <bpmn:startEvent id="SubStart" name="Start behandeling" ronl:awbPhase="4+5">
+      <bpmn:outgoing>Flow_Sub_Start_Assess</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:businessRuleTask id="Sub_AssessPermit" name="Kapvergunning beoordelen (APV)" camunda:resultVariable="permitDecision" camunda:decisionRef="TreeFellingDecision" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleEntry">
+      <bpmn:incoming>Flow_Sub_Start_Assess</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Assess_Replacement</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!-- Always evaluate replacement requirement so caseworker has full picture -->
+    <bpmn:businessRuleTask id="Sub_AssessReplacement" name="Herplantplicht beoordelen" camunda:resultVariable="replacementDecision" camunda:decisionRef="ReplacementTreeDecision" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleEntry">
+      <bpmn:incoming>Flow_Sub_Assess_Replacement</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Replacement_Review</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!--
+      Caseworker review task.
+      No camunda:assignee — task is unassigned on creation.
+      Caseworker must claim via POST /v1/task/:id/claim before completing.
+      candidateGroups routes this task to the caseworker group in Operaton.
+    -->
+    <bpmn:userTask id="Sub_CaseReview" name="Beoordeling behandelaar: besluit kapvergunning" camunda:formRef="tree-felling-review" camunda:formRefBinding="deployment" camunda:candidateGroups="caseworker">
+      <bpmn:incoming>Flow_Sub_Replacement_Review</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Review_Resolve</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!--
+      Apply caseworker override if reviewAction="change".
+      If reviewAction="confirm" (or not set), the DMN values are used as-is.
+    -->
+    <bpmn:scriptTask id="Sub_ResolveDecision" name="Definitief besluit kapvergunning vaststellen" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Review_Resolve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Resolve_Gateway</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        var reviewAction = execution.getVariable("reviewAction");
+        if (reviewAction === "change") {
+          var overrideDecision = execution.getVariable("reviewPermitDecision");
+          var overrideReplacement = execution.getVariable("reviewReplacementDecision");
+          if (overrideDecision != null) {
+            execution.setVariable("permitDecision", overrideDecision);
+          }
+          if (overrideReplacement != null) {
+            execution.setVariable("replacementDecision", overrideReplacement);
+          }
+        }
+        // permitDecision now holds the authoritative value for routing
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:exclusiveGateway id="Sub_FinalGateway" name="Vergunning verleend?">
+      <bpmn:incoming>Flow_Sub_Resolve_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Final_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Sub_Final_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:scriptTask id="Sub_SetGranted" name="Besluitvariabelen zetten: Verleend" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Final_Yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Granted_End</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        execution.setVariable("status", "Approved");
+        execution.setVariable("decisionType", "Granted");
+        execution.setVariable("finalMessage", "Your tree felling permit has been GRANTED.");
+        execution.setVariable("paymentRequired", false);
+        execution.setVariable("chainProcessRequired", false);
+
+        var replacement = execution.getVariable("replacementDecision");
+        var replacementText;
+        if (replacement === true || replacement === "true") {
+          replacementText = "Replacement tree REQUIRED - you are obligated to plant a replacement tree.";
+        } else {
+          replacementText = "No replacement tree required.";
+        }
+        execution.setVariable("replacementInfo", replacementText);
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:scriptTask id="Sub_SetRejected" name="Besluitvariabelen zetten: Geweigerd" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Final_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Rejected_End</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        execution.setVariable("status", "Rejected");
+        execution.setVariable("decisionType", "Rejected");
+        execution.setVariable("finalMessage", "Your tree felling permit has been REJECTED. You may appeal within 6 weeks (Awb 6:7).");
+        execution.setVariable("replacementInfo", "N/A - permit was rejected.");
+        execution.setVariable("paymentRequired", false);
+        execution.setVariable("chainProcessRequired", false);
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:endEvent id="SubEnd" name="Besluit gereed">
+      <bpmn:incoming>Flow_Sub_Granted_End</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Rejected_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Sub_Start_Assess"       sourceRef="SubStart"            targetRef="Sub_AssessPermit" />
+    <bpmn:sequenceFlow id="Flow_Sub_Assess_Replacement" sourceRef="Sub_AssessPermit"     targetRef="Sub_AssessReplacement" />
+    <bpmn:sequenceFlow id="Flow_Sub_Replacement_Review" sourceRef="Sub_AssessReplacement" targetRef="Sub_CaseReview" />
+    <bpmn:sequenceFlow id="Flow_Sub_Review_Resolve"     sourceRef="Sub_CaseReview"       targetRef="Sub_ResolveDecision" />
+    <bpmn:sequenceFlow id="Flow_Sub_Resolve_Gateway"    sourceRef="Sub_ResolveDecision"  targetRef="Sub_FinalGateway" />
+    <bpmn:sequenceFlow id="Flow_Sub_Final_Yes" sourceRef="Sub_FinalGateway" targetRef="Sub_SetGranted">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${permitDecision == "Permit"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Final_No" sourceRef="Sub_FinalGateway" targetRef="Sub_SetRejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${permitDecision == "Reject"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Granted_End"  sourceRef="Sub_SetGranted"  targetRef="SubEnd" />
+    <bpmn:sequenceFlow id="Flow_Sub_Rejected_End" sourceRef="Sub_SetRejected" targetRef="SubEnd" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Sub">
+    <bpmndi:BPMNPlane id="BPMNPlane_Sub" bpmnElement="Collaboration_TreeFelling_Sub">
+      <bpmndi:BPMNShape id="Participant_TreeFelling_Sub_di" bpmnElement="Participant_TreeFelling_Sub" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="1500" height="520" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Behandelaar_di" bpmnElement="Lane_Behandelaar" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="1470" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Systeem_di" bpmnElement="Lane_Systeem" isHorizontal="true">
+        <dc:Bounds x="130" y="220" width="1470" height="360" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubStart_di" bpmnElement="SubStart">
+        <dc:Bounds x="192" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="170" y="425" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_AssessPermit_di" bpmnElement="Sub_AssessPermit">
+        <dc:Bounds x="280" y="360" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_AssessReplacement_di" bpmnElement="Sub_AssessReplacement">
+        <dc:Bounds x="490" y="360" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_CaseReview_di" bpmnElement="Sub_CaseReview">
+        <dc:Bounds x="700" y="100" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_ResolveDecision_di" bpmnElement="Sub_ResolveDecision">
+        <dc:Bounds x="910" y="360" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_FinalGateway_di" bpmnElement="Sub_FinalGateway" isMarkerVisible="true">
+        <dc:Bounds x="1125" y="375" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1180" y="410" width="60" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetGranted_di" bpmnElement="Sub_SetGranted">
+        <dc:Bounds x="1240" y="250" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetRejected_di" bpmnElement="Sub_SetRejected">
+        <dc:Bounds x="1240" y="470" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubEnd_di" bpmnElement="SubEnd">
+        <dc:Bounds x="1462" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1505" y="393" width="75" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Sub_Start_Assess_di"       bpmnElement="Flow_Sub_Start_Assess">       <di:waypoint x="228" y="400" /><di:waypoint x="280" y="400" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Assess_Replacement_di" bpmnElement="Flow_Sub_Assess_Replacement"> <di:waypoint x="440" y="400" /><di:waypoint x="490" y="400" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Replacement_Review_di" bpmnElement="Flow_Sub_Replacement_Review"> <di:waypoint x="570" y="360" /><di:waypoint x="570" y="140" /><di:waypoint x="700" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_Resolve_di"     bpmnElement="Flow_Sub_Review_Resolve">     <di:waypoint x="860" y="140" /><di:waypoint x="990" y="140" /><di:waypoint x="990" y="360" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Resolve_Gateway_di"    bpmnElement="Flow_Sub_Resolve_Gateway">    <di:waypoint x="1070" y="400" /><di:waypoint x="1125" y="400" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Final_Yes_di"          bpmnElement="Flow_Sub_Final_Yes">          <di:waypoint x="1150" y="375" /><di:waypoint x="1150" y="290" /><di:waypoint x="1240" y="290" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Final_No_di"           bpmnElement="Flow_Sub_Final_No">           <di:waypoint x="1150" y="425" /><di:waypoint x="1150" y="510" /><di:waypoint x="1240" y="510" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Granted_End_di"        bpmnElement="Flow_Sub_Granted_End">        <di:waypoint x="1400" y="290" /><di:waypoint x="1480" y="290" /><di:waypoint x="1480" y="382" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Rejected_End_di"       bpmnElement="Flow_Sub_Rejected_End">       <di:waypoint x="1400" y="510" /><di:waypoint x="1480" y="510" /><di:waypoint x="1480" y="418" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

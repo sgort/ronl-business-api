@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
-import type { NodeKind, PhaseSwimlaneModel, SwimLane, SwimNode } from '@ronl/shared';
+import { AWB_PHASES } from '@ronl/shared';
+import type { AwbPhaseCode, NodeKind, PhaseSwimlaneModel, SwimLane, SwimNode } from '@ronl/shared';
 import { docLabel } from './doc-label';
 
 interface RawFlow {
@@ -39,6 +40,30 @@ function childNodes(parent: XmlNode, name: string): XmlNode[] {
  */
 function textOf(v: unknown): string {
   return (isNode(v) ? String(v['#text'] ?? '') : String(v ?? '')).trim();
+}
+
+/**
+ * A (possibly namespaced) attribute by its LOCAL name: removeNSPrefix turns
+ * `camunda:decisionRef` into `@_decisionRef` and `ronl:awbPhase` into
+ * `@_awbPhase`. Blank counts as absent.
+ */
+function attr(el: XmlNode, local: string): string | undefined {
+  const v = el[`@_${local}`];
+  if (v === undefined || v === null) return undefined;
+  const s = String(v).trim();
+  return s === '' ? undefined : s;
+}
+
+/**
+ * Literal group names from a candidateGroups attribute. An expression
+ * (`${…}` / `#{…}`) names no group until runtime, so it cannot tell the UI
+ * which lane is the user's; it is dropped rather than shown as a group.
+ */
+function literalGroups(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((g) => g.trim())
+    .filter((g) => g !== '' && !/^[$#]\{/.test(g));
 }
 
 function readFlows(process: XmlNode): RawFlow[] {
@@ -202,6 +227,60 @@ function assignColumns(nodes: SwimNode[], forward: RawFlow[], seeds: string[]): 
 }
 
 /**
+ * Awb phase codes in order. The table is data in @ronl/shared; these helpers
+ * live here, with their only caller, because shared holds no logic (it has no
+ * test runner, so nothing would measure them -- see check-shared-declarations).
+ */
+const AWB_CODES: readonly string[] = AWB_PHASES.map((p) => p.code);
+
+function isAwbPhaseCode(value: string): value is AwbPhaseCode {
+  return AWB_CODES.includes(value);
+}
+
+/** Position in AWB_PHASES; later phases compare greater. */
+function awbPhaseIndex(code: AwbPhaseCode): number {
+  return AWB_CODES.indexOf(code);
+}
+
+/**
+ * Awb phase per node. A node's own `ronl:awbPhase` wins; an unmarked node
+ * takes the LATEST phase among its forward predecessors, so a join after an
+ * optional step (payment) lands in the later phase. Back edges are excluded
+ * for the same reason they are excluded from layering: a rework loop must
+ * not drag an earlier step into a later phase.
+ *
+ * Visits nodes in column order. After assignColumns every forward edge
+ * points strictly rightwards, so each predecessor is settled before its
+ * successor is read. A process with no markers gets no phases at all,
+ * which is how the UI knows to hide the stepper.
+ */
+function assignAwbPhases(
+  nodes: SwimNode[],
+  forward: RawFlow[],
+  explicit: Map<string, AwbPhaseCode>
+): void {
+  if (explicit.size === 0) return;
+  const byId = new Map<string, SwimNode>(nodes.map((n) => [n.id, n]));
+  const preds = new Map<string, string[]>();
+  for (const f of forward) preds.set(f.to, [...(preds.get(f.to) ?? []), f.from]);
+  for (const n of [...nodes].sort((a, b) => a.col - b.col)) {
+    const own = explicit.get(n.id);
+    if (own) {
+      n.awbPhase = own;
+      continue;
+    }
+    let latest: AwbPhaseCode | undefined;
+    for (const p of preds.get(n.id) ?? []) {
+      const phase = byId.get(p)?.awbPhase;
+      if (phase && (latest === undefined || awbPhaseIndex(phase) > awbPhaseIndex(latest))) {
+        latest = phase;
+      }
+    }
+    if (latest) n.awbPhase = latest;
+  }
+}
+
+/**
  * Turn deployed BPMN into a swimlane model.
  *
  * Pure: no I/O, no Operaton, no config. That is what makes it testable
@@ -230,7 +309,11 @@ const parser = new XMLParser({
  * this map, so a `process` child element outside it (a `sequenceFlow`, the
  * `laneSet`, `extensionElements`, `documentation` — or a flow-node type not
  * yet added here) is omitted from the model rather than defaulted to
- * `'task'`. Everything currently deployed is covered; if a redeployed or
+ * `'task'`. scriptTask, businessRuleTask and callActivity are kinds of their
+ * own because the caseworker process view labels and styles them apart
+ * (SCRIPT / BESLISSING / CALLACTIVITY); no RIP phase uses any of them, which
+ * bpmn-swimlane.test.ts pins so the Infra-board drawing cannot change.
+ * Everything currently deployed is covered; if a redeployed or
  * future phase introduces an element type not listed here, its id would be
  * silently dropped from `nodes` while still appearing in a lane's
  * `flowNodeRef` — see the cross-fixture invariant test in
@@ -241,10 +324,10 @@ const KINDS: Record<string, NodeKind> = {
   endEvent: 'end',
   userTask: 'task',
   manualTask: 'task',
-  scriptTask: 'task',
-  businessRuleTask: 'task',
+  scriptTask: 'script',
+  businessRuleTask: 'rule',
   receiveTask: 'task',
-  callActivity: 'task',
+  callActivity: 'call',
   subProcess: 'task',
   // No dedicated NodeKind exists for an intermediate event (they render as
   // circles, distinct from both a task box and a start/end circle). 'task'
@@ -313,6 +396,9 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
 
   // ── nodes ────────────────────────────────────────────────────────────────
   const nodes: SwimNode[] = [];
+  // Phases are read here but assigned after layering: inheritance needs the
+  // forward edges and the column order, neither of which exists yet.
+  const explicitPhases = new Map<string, AwbPhaseCode>();
   for (const [elementName, kind] of Object.entries(KINDS)) {
     for (const el of childNodes(process, elementName)) {
       const id = String(el['@_id']);
@@ -326,6 +412,11 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
         .map((slug) => slug.trim())
         .filter((slug) => slug.length > 0)
         .map((slug) => docLabel(slug));
+      const dmn = kind === 'rule' ? attr(el, 'decisionRef') : undefined;
+      const calls = kind === 'call' ? attr(el, 'calledElement') : undefined;
+      const formRef = attr(el, 'formRef');
+      const marker = attr(el, 'awbPhase');
+      if (marker !== undefined && isAwbPhaseCode(marker)) explicitPhases.set(id, marker);
       nodes.push({
         id,
         bpmnId: id,
@@ -334,9 +425,28 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
         row: rowOf.get(id) ?? 0,
         col: 0, // filled in by layering
         ...(docs.length > 0 ? { docs } : {}),
+        ...(dmn ? { dmn } : {}),
+        ...(calls ? { calls } : {}),
+        ...(formRef ? { formRef } : {}),
       });
     }
   }
+
+  // ── lane → candidateGroups, from the user tasks drawn in each lane ───────
+  // Derived, never hard-coded: which lane is "the caseworker's" is whatever
+  // the BPMN assigns its user tasks to.
+  const groupsByRow = new Map<number, Set<string>>();
+  for (const el of childNodes(process, 'userTask')) {
+    const row = rowOf.get(String(el['@_id']));
+    if (row === undefined) continue;
+    const set = groupsByRow.get(row) ?? new Set<string>();
+    for (const g of literalGroups(attr(el, 'candidateGroups'))) set.add(g);
+    groupsByRow.set(row, set);
+  }
+  const lanesWithGroups: SwimLane[] = lanes.map((lane, row) => {
+    const groups = [...(groupsByRow.get(row) ?? [])].sort();
+    return groups.length > 0 ? { ...lane, candidateGroups: groups } : lane;
+  });
 
   const flows = readFlows(process);
   const declaredOrder = readOutgoingOrder(process);
@@ -347,11 +457,9 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
   // Classify first, layer second. Doing it the other way round cannot work:
   // see findBackEdges.
   const backIds = findBackEdges(nodes, flows, seeds, declaredOrder);
-  assignColumns(
-    nodes,
-    flows.filter((f) => !backIds.has(f.id)),
-    seeds
-  );
+  const forward = flows.filter((f) => !backIds.has(f.id));
+  assignColumns(nodes, forward, seeds);
+  assignAwbPhases(nodes, forward, explicitPhases);
 
   const edges = flows.map((f) => ({
     from: f.from,
@@ -360,5 +468,16 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
     ...(backIds.has(f.id) ? { back: true } : {}),
   }));
 
-  return { phaseCode, lanes, nodes, edges };
+  // Only when present, so a document without a process still yields exactly
+  // the four-key empty model.
+  const processKey = attr(process, 'id');
+  const processName = attr(process, 'name');
+  return {
+    phaseCode,
+    ...(processKey ? { processKey } : {}),
+    ...(processName ? { processName } : {}),
+    lanes: lanesWithGroups,
+    nodes,
+    edges,
+  };
 }
