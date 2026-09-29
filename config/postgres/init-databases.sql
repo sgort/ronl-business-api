@@ -1,5 +1,11 @@
 -- PostgreSQL initialization script
--- Creates databases for Keycloak, Operaton, and audit logs
+-- Creates databases for Keycloak, the audit log, and the Linked Data Explorer
+-- asset store the LDE MCP provider reads.
+--
+-- Postgres runs this ONCE, when it initialises an empty data directory. An
+-- existing ronl-postgres volume will not pick up anything added here; recreate
+-- it with `docker compose down -v && docker compose up -d postgres`, or create
+-- the object by hand.
 
 -- Create Keycloak database
 CREATE DATABASE keycloak;
@@ -92,5 +98,30 @@ ON CONFLICT (tenant_id) DO NOTHING;
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO audit_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO audit_user;
+
+\c postgres;
+
+-- Linked Data Explorer asset store
+--
+-- packages/backend/.env.example points LDE_DATABASE_URL at
+-- postgresql://lde_user:lde_password@localhost:5432/lde_assets and ships
+-- LDE_MCP_ENABLED=true, but this script created only keycloak and audit_logs --
+-- so on a fresh stack the LDE MCP provider could not connect, and said so on
+-- every start. Non-fatal, and noise (iou-architectuur#105).
+--
+-- The schema itself belongs to the Linked Data Explorer, which owns these
+-- tables; this only creates the database and the role its URL names, so the
+-- provider has something to connect to.
+CREATE DATABASE lde_assets;
+CREATE USER lde_user WITH PASSWORD 'lde_password';
+GRANT ALL PRIVILEGES ON DATABASE lde_assets TO lde_user;
+
+\c lde_assets;
+
+GRANT ALL ON SCHEMA public TO lde_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO lde_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO lde_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO lde_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO lde_user;
 
 \echo 'Databases and tables created successfully!'
