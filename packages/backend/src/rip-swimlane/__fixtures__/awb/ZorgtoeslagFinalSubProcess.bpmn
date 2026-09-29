@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+  xmlns:ronl="http://ronl.nl/schema/1.0"
+  id="Definitions_ZorgtoeslagFinal"
+  targetNamespace="http://example.com/zorgtoeslag"
+  exporter="Camunda Modeler"
+  exporterVersion="5.43.1">
+
+  <bpmn:message id="Message_FinalIncomeReceived" name="FinalIncomeReceived" />
+
+  <!--
+    ZorgtoeslagFinalSubProcess
+    ==========================
+    Material law layer: final settlement for Zorgtoeslag (Health Care Allowance).
+    Deployed as a standalone process. Started when final income data becomes available,
+    either via a message event from the Belastingdienst integration, or manually by
+    a caseworker triggering the FinalIncomeReceived message.
+
+    To call this process from an AWB Shell instance, wire a Call Activity
+    (calledElement="ZorgtoeslagFinalSubProcess") in the AWB Phase 4+5 slot, OR
+    use Task_Phase8_Forward to send the FinalIncomeReceived message that starts
+    this process as a standalone AWB-wrapped instance.
+
+    Inputs  (carried from ZorgtoeslagProvisionalSubProcess via process variables
+             or provided in the start message payload):
+      - applicantId          (String)  : BSN or applicant reference
+      - dossierReference     (String)  : provisional dossier reference
+      - provisionalAmount    (Number)  : monthly amount paid during provisional period
+      - finalIncome          (Number)  : confirmed annual income from Belastingdienst
+      - finalHouseholdSize   (Number)  : confirmed household size
+
+    Outputs (to AWB parent via camunda:out variables="all", or as standalone process vars):
+      - settlementOutcome    (String)  : "underpaid" | "overpaid" | "settled"
+      - settlementAmount     (Number)  : amount to pay (underpaid) or recover (overpaid); 0 if settled
+      - decisionType         (String)  : "Underpaid" | "Overpaid" | "Settled" (for Archives DMN)
+      - finalMessage         (String)  : human-readable decision message
+      - paymentRequired      (Boolean) : true → AWB Task_Phase7_Payment handles payment / recovery
+      - chainProcessRequired (Boolean) : always false — settlement is the end of the chain
+
+    Caseworker review:
+      Sub_CaseReview is a userTask assigned to candidateGroups="caseworker".
+      The caseworker must claim the task before acting on it.
+      On completion the form submits:
+        - reviewAction          (String) : "confirm" or "change"
+        - reviewSettlementOutcome (String) : "underpaid" | "overpaid" | "settled"
+                                            (only when reviewAction="change")
+      Sub_ResolveDecision applies the override when reviewAction="change".
+
+    Lanes: Sub_CaseReview in Behandelaar; every other node in Systeem.
+
+    Legal basis: Wet op de zorgtoeslag (Wzt) — material law.
+  -->
+
+  <bpmn:collaboration id="Collaboration_Zorgtoeslag_Final">
+    <bpmn:participant id="Participant_Zorgtoeslag_Final" name="Zorgtoeslag — Definitieve vaststelling" processRef="ZorgtoeslagFinalSubProcess" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="ZorgtoeslagFinalSubProcess"
+                name="Zorgtoeslag — Definitieve vaststelling"
+                isExecutable="true"
+                camunda:historyTimeToLive="365">
+
+    <bpmn:laneSet id="LaneSet_Zorgtoeslag_Final">
+      <bpmn:lane id="Lane_Behandelaar" name="Behandelaar">
+        <bpmn:flowNodeRef>Sub_CaseReview</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Systeem" name="Systeem">
+        <bpmn:flowNodeRef>SubStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_CalcFinal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_ResolveDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SettlementGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetUnderpaid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetSettled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetOverpaid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubEnd</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!--
+      Message start event: triggered by FinalIncomeReceived.
+      This message is sent either by the Belastingdienst integration worker
+      or manually by a caseworker via the LDE / MijnOmgeving interface.
+    -->
+    <bpmn:startEvent id="SubStart" name="Definitieve inkomensgegevens ontvangen" ronl:awbPhase="4+5">
+      <bpmn:outgoing>Flow_Sub_Start_Calc</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_FinalIncome"
+                                    messageRef="Message_FinalIncomeReceived" />
+    </bpmn:startEvent>
+
+    <!--
+      Evaluate final entitlement using the confirmed annual income.
+      The DMN compares finalIncome against the provisional amount paid
+      and returns settlementOutcome: "underpaid" | "overpaid" | "settled".
+    -->
+    <bpmn:businessRuleTask id="Sub_CalcFinal"
+                           name="Definitieve aanspraak berekenen (Wzt)"
+                           camunda:decisionRef="resultaat_zorgtoeslag"
+                           camunda:resultVariable="settlementOutcome"
+                           camunda:mapDecisionResult="singleEntry">
+      <bpmn:incoming>Flow_Sub_Start_Calc</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Calc_Review</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!--
+      Caseworker reviews the DMN settlement outcome before any payment or recovery action.
+      No camunda:assignee — task is unassigned on creation.
+      Caseworker must claim via POST /v1/task/:id/claim before completing.
+    -->
+    <bpmn:userTask id="Sub_CaseReview"
+                   name="Beoordeling behandelaar: besluit definitieve vaststelling"
+                   camunda:formRef="zorgtoeslag-final-review"
+                   camunda:formRefBinding="deployment"
+                   camunda:candidateGroups="caseworker">
+      <bpmn:incoming>Flow_Sub_Calc_Review</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Review_Resolve</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!--
+      Apply caseworker override if reviewAction="change".
+      If reviewAction="confirm" (or not set), the DMN value is used as-is.
+    -->
+    <bpmn:scriptTask id="Sub_ResolveDecision"
+                     name="Besluit definitieve vaststelling vaststellen"
+                     scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Review_Resolve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Resolve_Gateway</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        if (execution.hasVariable("reviewAction") &&
+            execution.getVariable("reviewAction") === "change") {
+          if (execution.hasVariable("reviewSettlementOutcome")) {
+            execution.setVariable(
+              "settlementOutcome",
+              execution.getVariable("reviewSettlementOutcome")
+            );
+          }
+        }
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:exclusiveGateway id="Sub_SettlementGateway" name="Uitkomst vaststelling?">
+      <bpmn:incoming>Flow_Sub_Resolve_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Underpaid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Sub_Overpaid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Sub_Settled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!--
+      Underpaid: citizen received less than entitled.
+      AWB Task_Phase7_Payment will pay the outstanding amount.
+    -->
+    <bpmn:scriptTask id="Sub_SetUnderpaid"
+                     name="Uitkomst zetten: te weinig betaald — nabetalen"
+                     scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Underpaid</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Underpaid_End</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        execution.setVariable("settlementOutcome", "underpaid");
+        execution.setVariable("decisionType", "Underpaid");
+        execution.setVariable("finalMessage",
+          "Final income data confirms underpayment. " +
+          "The outstanding zorgtoeslag amount will be paid to you. " +
+          "You may appeal within 6 weeks (Awb 6:7).");
+        execution.setVariable("paymentRequired", true);       // → AWB Task_Phase7_Payment: pay additional
+        execution.setVariable("chainProcessRequired", false);
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <!--
+      Overpaid: citizen received more than entitled.
+      AWB Task_Phase7_Payment will initiate recovery (invordering).
+    -->
+    <bpmn:scriptTask id="Sub_SetOverpaid"
+                     name="Uitkomst zetten: te veel betaald — terugvorderen"
+                     scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Overpaid</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Overpaid_End</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        execution.setVariable("settlementOutcome", "overpaid");
+        execution.setVariable("decisionType", "Overpaid");
+        execution.setVariable("finalMessage",
+          "Final income data shows overpayment. " +
+          "The excess zorgtoeslag will be recovered (Wzt art. 26). " +
+          "You may appeal within 6 weeks (Awb 6:7).");
+        execution.setVariable("paymentRequired", true);       // → AWB Task_Phase7_Payment: recover overpayment
+        execution.setVariable("chainProcessRequired", false);
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <!--
+      Settled: provisional payments were exactly correct. No adjustment needed.
+    -->
+    <bpmn:scriptTask id="Sub_SetSettled"
+                     name="Uitkomst zetten: vereffend — geen correctie"
+                     scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Settled</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Settled_End</bpmn:outgoing>
+      <bpmn:script><![CDATA[
+        execution.setVariable("settlementOutcome", "settled");
+        execution.setVariable("decisionType", "Settled");
+        execution.setVariable("finalMessage",
+          "Final income data confirms that provisional payments were correct. " +
+          "No further adjustment is required.");
+        execution.setVariable("paymentRequired", false);
+        execution.setVariable("chainProcessRequired", false);
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:endEvent id="SubEnd" name="Vaststellingsbesluit gereed">
+      <bpmn:incoming>Flow_Sub_Underpaid_End</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Overpaid_End</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Settled_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Sub_Start_Calc"     sourceRef="SubStart"           targetRef="Sub_CalcFinal" />
+    <bpmn:sequenceFlow id="Flow_Sub_Calc_Review"    sourceRef="Sub_CalcFinal"       targetRef="Sub_CaseReview" />
+    <bpmn:sequenceFlow id="Flow_Sub_Review_Resolve" sourceRef="Sub_CaseReview"      targetRef="Sub_ResolveDecision" />
+    <bpmn:sequenceFlow id="Flow_Sub_Resolve_Gateway" sourceRef="Sub_ResolveDecision" targetRef="Sub_SettlementGateway" />
+
+    <bpmn:sequenceFlow id="Flow_Sub_Underpaid" sourceRef="Sub_SettlementGateway" targetRef="Sub_SetUnderpaid">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${settlementOutcome == "underpaid"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Overpaid" sourceRef="Sub_SettlementGateway" targetRef="Sub_SetOverpaid">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${settlementOutcome == "overpaid"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Settled" sourceRef="Sub_SettlementGateway" targetRef="Sub_SetSettled">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${settlementOutcome == "settled"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_Sub_Underpaid_End" sourceRef="Sub_SetUnderpaid" targetRef="SubEnd" />
+    <bpmn:sequenceFlow id="Flow_Sub_Overpaid_End"  sourceRef="Sub_SetOverpaid"  targetRef="SubEnd" />
+    <bpmn:sequenceFlow id="Flow_Sub_Settled_End"   sourceRef="Sub_SetSettled"   targetRef="SubEnd" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Sub">
+    <bpmndi:BPMNPlane id="BPMNPlane_Sub" bpmnElement="Collaboration_Zorgtoeslag_Final">
+
+      <bpmndi:BPMNShape id="Participant_Zorgtoeslag_Final_di" bpmnElement="Participant_Zorgtoeslag_Final" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="1320" height="560" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Behandelaar_di" bpmnElement="Lane_Behandelaar" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="1290" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Systeem_di" bpmnElement="Lane_Systeem" isHorizontal="true">
+        <dc:Bounds x="130" y="220" width="1290" height="400" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubStart_di" bpmnElement="SubStart">
+        <dc:Bounds x="192" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="165" y="445" width="90" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_CalcFinal_di" bpmnElement="Sub_CalcFinal">
+        <dc:Bounds x="280" y="380" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_CaseReview_di" bpmnElement="Sub_CaseReview">
+        <dc:Bounds x="490" y="100" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_ResolveDecision_di" bpmnElement="Sub_ResolveDecision">
+        <dc:Bounds x="700" y="380" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SettlementGateway_di" bpmnElement="Sub_SettlementGateway" isMarkerVisible="true">
+        <dc:Bounds x="915" y="395" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="868" y="452" width="64" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetUnderpaid_di" bpmnElement="Sub_SetUnderpaid">
+        <dc:Bounds x="1030" y="250" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetSettled_di" bpmnElement="Sub_SetSettled">
+        <dc:Bounds x="1030" y="380" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetOverpaid_di" bpmnElement="Sub_SetOverpaid">
+        <dc:Bounds x="1030" y="510" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubEnd_di" bpmnElement="SubEnd">
+        <dc:Bounds x="1272" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1315" y="407" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Sub_Start_Calc_di" bpmnElement="Flow_Sub_Start_Calc">
+        <di:waypoint x="228" y="420" />
+        <di:waypoint x="280" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Calc_Review_di" bpmnElement="Flow_Sub_Calc_Review">
+        <di:waypoint x="360" y="380" />
+        <di:waypoint x="360" y="140" />
+        <di:waypoint x="490" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_Resolve_di" bpmnElement="Flow_Sub_Review_Resolve">
+        <di:waypoint x="650" y="140" />
+        <di:waypoint x="780" y="140" />
+        <di:waypoint x="780" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Resolve_Gateway_di" bpmnElement="Flow_Sub_Resolve_Gateway">
+        <di:waypoint x="860" y="420" />
+        <di:waypoint x="915" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Underpaid_di" bpmnElement="Flow_Sub_Underpaid">
+        <di:waypoint x="940" y="395" />
+        <di:waypoint x="940" y="290" />
+        <di:waypoint x="1030" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Settled_di" bpmnElement="Flow_Sub_Settled">
+        <di:waypoint x="965" y="420" />
+        <di:waypoint x="1030" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Overpaid_di" bpmnElement="Flow_Sub_Overpaid">
+        <di:waypoint x="940" y="445" />
+        <di:waypoint x="940" y="550" />
+        <di:waypoint x="1030" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Underpaid_End_di" bpmnElement="Flow_Sub_Underpaid_End">
+        <di:waypoint x="1190" y="290" />
+        <di:waypoint x="1290" y="290" />
+        <di:waypoint x="1290" y="402" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Settled_End_di" bpmnElement="Flow_Sub_Settled_End">
+        <di:waypoint x="1190" y="420" />
+        <di:waypoint x="1272" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Overpaid_End_di" bpmnElement="Flow_Sub_Overpaid_End">
+        <di:waypoint x="1190" y="550" />
+        <di:waypoint x="1290" y="550" />
+        <di:waypoint x="1290" y="438" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

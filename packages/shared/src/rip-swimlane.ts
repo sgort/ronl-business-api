@@ -4,11 +4,30 @@
  * drift from what the renderer expects.
  */
 
-export type NodeKind = 'start' | 'end' | 'task' | 'service' | 'gateway' | 'parallel';
+import type { AwbPhaseCode } from './awb-phases';
+
+export type NodeKind =
+  | 'start'
+  | 'end'
+  | 'task'
+  | 'service'
+  | 'gateway'
+  | 'parallel'
+  /** scriptTask: runs in the engine, no human involved. */
+  | 'script'
+  /** businessRuleTask: evaluates a DMN decision (see SwimNode.dmn). */
+  | 'rule'
+  /** callActivity: starts another process (see SwimNode.calls). */
+  | 'call';
 
 export interface SwimLane {
   key: string;
   label: string;
+  /**
+   * Literal candidateGroups of the user tasks in this lane, unique and
+   * sorted. Absent when the lane has none.
+   */
+  candidateGroups?: string[];
 }
 
 export interface SwimNode {
@@ -26,6 +45,17 @@ export interface SwimNode {
   docs?: string[];
   /** BPMN flowNode id — maps live activity history onto the node. */
   bpmnId: string;
+  /** decisionRef of a `rule` node. */
+  dmn?: string;
+  /** calledElement (process key) of a `call` node. */
+  calls?: string;
+  /** `camunda:formRef` of the node, when it has one. */
+  formRef?: string;
+  /**
+   * Explicit `ronl:awbPhase`, or inherited from the latest-phase forward
+   * predecessor. Absent throughout a process that carries no markers.
+   */
+  awbPhase?: AwbPhaseCode;
 }
 
 export interface SwimEdge {
@@ -38,6 +68,10 @@ export interface SwimEdge {
 
 export interface PhaseSwimlaneModel {
   phaseCode: string;
+  /** The `bpmn:process` id. */
+  processKey?: string;
+  /** The `bpmn:process` name. */
+  processName?: string;
   lanes: SwimLane[];
   nodes: SwimNode[];
   edges: SwimEdge[];

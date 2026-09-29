@@ -1,0 +1,658 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:ronl="http://ronl.nl/schema/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_Thuisbatterij_SubProcess" targetNamespace="https://regels.overheid.nl/services/recht-hoogte-subsidie-thuisbatterij-flevoland/bpmn/subprocess" exporter="Camunda Modeler" exporterVersion="5.43.1">
+  <bpmn:collaboration id="Collaboration_Thuisbatterij_Sub">
+    <bpmn:participant id="Participant_Thuisbatterij_Sub" name="Thuisbatterijsubsidie - Beoordeling recht en hoogte" processRef="ThuisbatterijSubsidieDecisionSubProcess" />
+  </bpmn:collaboration>
+  <bpmn:process id="ThuisbatterijSubsidieDecisionSubProcess" name="Thuisbatterijsubsidie - Beoordeling recht en hoogte" isExecutable="true" camunda:historyTimeToLive="365" ronl:organization="flevoland">
+    <bpmn:documentation>Called subprocess for the substantive subsidy decision. It mirrors the tree-felling permit subprocess pattern: DMN assessment, case review, final decision resolution, and setting process variables. First the DMN decision RechtOpSubsidieThuisbatterij decides eligibility/recht. Only if eligible, the DMN decision BehaalbareHoogteSubsidie calculates the amount/hoogte.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Thuisbatterij_Sub">
+      <bpmn:lane id="Lane_Behandelaar" name="Behandelaar">
+        <bpmn:flowNodeRef>Sub_CaseReview</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Systeem" name="Systeem">
+        <bpmn:flowNodeRef>SubStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_PrepareDmnInput</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_AssessRight</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_InterpretRight</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_EligibleGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_CalculateAmount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_ExtractAmount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_ResolveDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_FinalGateway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetGranted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Sub_SetRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>SubEnd</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="SubStart" name="Start beoordeling" ronl:awbPhase="4+5">
+      <bpmn:outgoing>Flow_Sub_Start_Prepare</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:scriptTask id="Sub_PrepareDmnInput" name="Prepareer DMN-invoer" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Start_Prepare</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Prepare_AssessRight</bpmn:outgoing>
+      <bpmn:script>// Prepare variables required by the thuisbatterij subsidy DMN decisions.
+//
+// Variable name map (process variable → DMN FEEL expression):
+//   datumVanAanvraag / "Datum van aanvraag"  →  aanvraagDatum        (RechtOpSubsidieThuisbatterij uses datumVanAanvraag directly via inputData; BerekenBeschikbaarSubsidiePlafond uses aanvraagDatum)
+//   relatieTotWoning / "Relatie tot woning"  →  relatieTotWoning     (RechtOpSubsidieThuisbatterij)
+//   aanvraagType / "Aanvraag type"           →  aanvragerType        (BerekenBeschikbaarSubsidiePlafond)
+//   aanvragerIsFailliet (boolean)            →  aanvragerFailliet    (RechtOpSubsidieThuisbatterij)
+//   toestemmingEigenaar (boolean)            →  toestemmingEigenaar  (RechtOpSubsidieThuisbatterij)
+//   naamOpEnergierekeningKomtOvereen (bool)  →  rekeningNaamKomtOvereen (RechtOpSubsidieThuisbatterij)
+//   reedsGesubsidieerdEigenaren (double)     →  reedsGesubsidieerdEigenaren
+//   reedsGesubsidieerdHuurders  (double)     →  reedsGesubsidieerdHuurders
+//   gemaakteKosten (double)                  →  gemaakteKosten
+
+function firstValue(keys, defaultValue) {
+  for (var i = 0; i &lt; keys.length; i++) {
+    var v = execution.getVariable(keys[i]);
+    if (v !== null &amp;&amp; v !== undefined &amp;&amp; v !== "") { return v; }
+  }
+  return defaultValue;
+}
+
+function asBoolean(v) {
+  if (v === true || v === false) { return v; }
+  if (v === null || v === undefined || v === "") { return false; }
+  var s = ("" + v).toLowerCase();
+  return s === "true" || s === "ja" || s === "yes" || s === "waar";
+}
+
+function asDouble(v) {
+  if (v === null || v === undefined || v === "") { return 0.0; }
+  var n = parseFloat(("" + v).replace(",", "."));
+  return isNaN(n) ? 0.0 : n;
+}
+
+// --- Date ---
+var applicationDate = firstValue(["datumVanAanvraag", "Datum van aanvraag", "receiptDate", "applicationDate"], new Date().toISOString()).substring(0, 10);
+// Set under both the process-facing name and the exact FEEL variable name used
+// by BerekenBeschikbaarSubsidiePlafond and jaarGebondenBudget.
+execution.setVariable("datumVanAanvraag", applicationDate);
+execution.setVariable("Datum van aanvraag", applicationDate);
+execution.setVariable("aanvraagDatum", applicationDate);      // ← BerekenBeschikbaarSubsidiePlafond input
+
+// --- Relatie tot woning / aanvragerType ---
+var relatie = firstValue(["relatieTotWoning", "Relatie tot woning", "aanvraagType", "Aanvraag type"], "eigenaar");
+// Normalise to lowercase so DMN string comparisons ("eigenaar", "huurder") match.
+var relatieNorm = ("" + relatie).toLowerCase();
+execution.setVariable("relatieTotWoning", relatieNorm);
+execution.setVariable("Relatie tot woning", relatieNorm);
+// BerekenBeschikbaarSubsidiePlafond reads aanvragerType, not relatieTotWoning.
+var aanvraagTypeRaw = firstValue(["aanvraagType", "Aanvraag type"], relatieNorm);
+var aanvragerTypeNorm = ("" + aanvraagTypeRaw).toLowerCase();
+execution.setVariable("aanvraagType", aanvragerTypeNorm);
+execution.setVariable("Aanvraag type", aanvragerTypeNorm);
+execution.setVariable("aanvragerType", aanvragerTypeNorm);    // ← BerekenBeschikbaarSubsidiePlafond input
+
+// --- Numeric inputs (must be double, not string) ---
+var eigenaren = asDouble(firstValue(["reedsGesubsidieerdEigenaren", "Reeds gesubsidieerd eigenaren"], 0));
+execution.setVariable("reedsGesubsidieerdEigenaren", eigenaren);
+execution.setVariable("Reeds gesubsidieerd eigenaren", eigenaren);
+
+var huurders = asDouble(firstValue(["reedsGesubsidieerdHuurders", "Reeds gesubsidieerd huurders"], 0));
+execution.setVariable("reedsGesubsidieerdHuurders", huurders);
+execution.setVariable("Reeds gesubsidieerd huurders", huurders);
+
+var kosten = asDouble(firstValue(["gemaakteKosten", "Gemaakte Kosten", "subsidiableCosts", "subsidiabeleKosten"], 0));
+execution.setVariable("gemaakteKosten", kosten);
+execution.setVariable("Gemaakte Kosten", kosten);
+
+// --- Boolean inputs (must be boolean, not string) ---
+// RechtOpSubsidieThuisbatterij uses aanvragerFailliet (not aanvragerIsFailliet).
+var failliet = asBoolean(firstValue(["aanvragerIsFailliet", "aanvragerFailliet", "Aanvrager is failliet"], false));
+execution.setVariable("aanvragerIsFailliet", failliet);
+execution.setVariable("aanvragerFailliet", failliet);         // ← RechtOpSubsidieThuisbatterij input
+execution.setVariable("Aanvrager is failliet", failliet);
+
+var toestemming = asBoolean(firstValue(["toestemmingEigenaar", "Toestemming eigenaar"], true));
+execution.setVariable("toestemmingEigenaar", toestemming);
+execution.setVariable("Toestemming eigenaar", toestemming);
+
+var rekeningNaam = asBoolean(firstValue(["naamOpEnergierekeningKomtOvereen", "rekeningNaamKomtOvereen", "Naam op energierekening komt overeen"], true));
+execution.setVariable("naamOpEnergierekeningKomtOvereen", rekeningNaam);
+execution.setVariable("rekeningNaamKomtOvereen", rekeningNaam); // ← RechtOpSubsidieThuisbatterij input
+execution.setVariable("Naam op energierekening komt overeen", rekeningNaam);
+
+// --- String inputs ---
+var provincie = firstValue(["provincieWoning", "Provincie woning"], "Flevoland");
+execution.setVariable("provincieWoning", provincie);
+execution.setVariable("Provincie woning", provincie);
+
+execution.setVariable("dmnInputPrepared", true);</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:businessRuleTask id="Sub_AssessRight" name="DMN: Beoordeel recht op subsidie" camunda:resultVariable="rechtOpSubsidieDMNOutput" camunda:decisionRef="RechtOpSubsidieThuisbatterij" camunda:mapDecisionResult="singleResult" camunda:decisionRefTenantId="${null}">
+      <bpmn:incoming>Flow_Sub_Prepare_AssessRight</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_AssessRight_Interpret</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:scriptTask id="Sub_InterpretRight" name="Interpreteer recht-uitkomst" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_AssessRight_Interpret</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Interpret_Eligible</bpmn:outgoing>
+      <bpmn:script>var result = execution.getVariable("rechtOpSubsidieDMNOutput");
+
+function unwrap(v) {
+  if (v === null || v === undefined) { return v; }
+  // DMN rule-result entries may be Camunda/Operaton TypedValue objects.
+  if (typeof v.getValue === "function") { return v.getValue(); }
+  return v;
+}
+
+function readValue(o, keys) {
+  if (o === null || o === undefined) { return null; }
+
+  for (var i = 0; i &lt; keys.length; i++) {
+    var k = keys[i];
+
+    // java.util.Map, used when the DMN result mapping is singleResult
+    if (typeof o.get === "function") {
+      var mapValue = unwrap(o.get(k));
+      if (mapValue !== null &amp;&amp; mapValue !== undefined) { return mapValue; }
+    }
+
+    // plain JavaScript object fallback
+    if (o[k] !== undefined) { return unwrap(o[k]); }
+  }
+
+  return null;
+}
+
+function firstMapValue(o) {
+  if (o === null || o === undefined || typeof o.values !== "function") { return null; }
+  var iterator = o.values().iterator();
+  return iterator.hasNext() ? unwrap(iterator.next()) : null;
+}
+
+function asBoolean(v) {
+  v = unwrap(v);
+  if (v === true) { return true; }
+  if (v === false || v === null || v === undefined || v === "") { return false; }
+
+  var s = String(v).toLowerCase();
+  return s === "true" || s === "ja" || s === "yes" || s === "waar" || s === "eligible" || s === "recht";
+}
+
+// mapDecisionResult="singleResult" is required because the DMN returns more than one output column:
+// rechtOpSubsidie and reden. The result variable is therefore a Map&lt;outputName, outputValue&gt;.
+var recht = readValue(result, [
+  "rechtOpSubsidie",
+  "Recht op subsidie",
+  "recht",
+  "eligible",
+  "Eligible",
+  "value"
+]);
+
+// Fallback for a one-output DMN where the exact output column name differs.
+if (recht === null || recht === undefined) {
+  recht = firstMapValue(result);
+}
+
+var motivering = readValue(result, ["motivering", "Motivering", "reden", "Reden"]);
+if (motivering !== null &amp;&amp; motivering !== undefined) {
+  execution.setVariable("rechtMotivering", motivering);
+}
+
+var eligible = asBoolean(recht);
+
+execution.setVariable("eligible", java.lang.Boolean.valueOf(eligible));
+execution.setVariable("rechtOpSubsidie", java.lang.Boolean.valueOf(eligible));</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="Sub_EligibleGateway" name="Recht op subsidie?">
+      <bpmn:incoming>Flow_Sub_Interpret_Eligible</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Eligible_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1ecxeub</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:businessRuleTask id="Sub_CalculateAmount" name="DMN: Bereken hoogte subsidie" camunda:resultVariable="behaalbareHoogteSubsidieResult" camunda:decisionRef="BehaalbareHoogteSubsidie" camunda:mapDecisionResult="singleEntry" camunda:decisionRefTenantId="${null}">
+      <bpmn:incoming>Flow_1ecxeub</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Amount_Extract</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:scriptTask id="Sub_ExtractAmount" name="Interpreteer hoogte-uitkomst" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Amount_Extract</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Amount_Review</bpmn:outgoing>
+      <bpmn:script>// hoogteResult is set by the Sub_CalculateAmount business rule task with
+// mapDecisionResult="singleResult". Camunda 7 stores the DMN output as a
+// DmnDecisionResultEntries (a Map&lt;String, Object&gt;) when using singleResult.
+// However, because BehaalbareHoogteSubsidie has exactly one output column
+// (hoogteSubsidie), the engine may also hand back a plain scalar or a
+// DmnDecisionResult list depending on the engine version and configuration.
+// This script handles all three shapes so hoogteSubsidie is always set
+// correctly before the review user task.
+var hoogteResultRaw = execution.getVariable("behaalbareHoogteSubsidieResult");
+
+function unwrap(v) {
+  if (v === null || v === undefined) { return v; }
+  // Camunda/Operaton TypedValue – unwrap to the Java primitive.
+  if (typeof v.getValue === "function") { return v.getValue(); }
+  return v;
+}
+
+function asAmount(v) {
+  v = unwrap(v);
+  if (v === null || v === undefined || v === "") { return null; }
+  // Java Number types (Double, BigDecimal) convert reliably via doubleValue().
+  if (typeof v.doubleValue === "function") { return v.doubleValue(); }
+  var n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+// Read a named key from a Java Map (DmnDecisionResultEntries).
+// Returns the unwrapped value, or null when the key is absent.
+function readFromMap(map, keys) {
+  if (map === null || map === undefined) { return null; }
+  for (var i = 0; i &lt; keys.length; i++) {
+    if (typeof map.containsKey === "function" &amp;&amp; map.containsKey(keys[i])) {
+      return unwrap(map.get(keys[i]));
+    }
+    // Nashorn JS-object fallback (plain JS object or Nashorn-wrapped Java map).
+    if (map[keys[i]] !== undefined) { return unwrap(map[keys[i]]); }
+  }
+  return null;
+}
+
+// Return the first value from a Java Map via its values() iterator.
+function firstMapValue(map) {
+  if (map === null || map === undefined) { return null; }
+  if (typeof map.values !== "function") { return null; }
+  var vals = map.values();
+  // Java Collection.iterator()
+  if (typeof vals.iterator === "function") {
+    var it = vals.iterator();
+    return it.hasNext() ? unwrap(it.next()) : null;
+  }
+  return null;
+}
+
+// Resolve the Map to use: when Camunda returns a DmnDecisionResult (List),
+// take its first entry (index 0); when it is already a Map, use it directly.
+function resolveMap(raw) {
+  if (raw === null || raw === undefined) { return null; }
+  // DmnDecisionResult is a List – it has a get(int) but no containsKey.
+  // Check for List-ness: has size() and get() but no entrySet().
+  if (typeof raw.size === "function" &amp;&amp; typeof raw.get === "function" &amp;&amp;
+      typeof raw.entrySet !== "function") {
+    // It is a List; take the first element (the single result row).
+    return raw.size() &gt; 0 ? raw.get(0) : null;
+  }
+  // Already a Map (DmnDecisionResultEntries or plain JS object).
+  return raw;
+}
+
+var knownAmountKeys = [
+  "hoogteSubsidie",
+  "Hoogte subsidie",
+  "behaalbareHoogteSubsidie",
+  "Behaalbare hoogte subsidie",
+  "subsidiebedrag",
+  "Subsidiebedrag",
+  "amount",
+  "bedrag"
+];
+
+var knownBudgetKeys = [
+  "resterendBudget",
+  "Resterend budget",
+  "beschikbaarSubsidiePlafond",
+  "Beschikbaar subsidieplafond"
+];
+
+var knownReasonKeys = [
+  "motivering",
+  "Motivering",
+  "reden",
+  "Reden",
+  "legalBasis",
+  "grondslag"
+];
+
+// --- Resolve the actual result map ---
+var resultMap = resolveMap(hoogteResultRaw);
+
+// --- Extract the subsidy amount ---
+// Priority 1: named key lookup in the map.
+var hoogteValue = readFromMap(resultMap, knownAmountKeys);
+
+// Priority 2: first value in the map (single-output DMN, key name unknown).
+if (hoogteValue === null || hoogteValue === undefined) {
+  hoogteValue = firstMapValue(resultMap);
+}
+
+// Priority 3: the raw result itself is a scalar (mapDecisionResult="singleEntry"
+// or engine returns the value directly).
+if (hoogteValue === null || hoogteValue === undefined) {
+  hoogteValue = unwrap(hoogteResultRaw);
+}
+
+var calculatedAmount = asAmount(hoogteValue);
+
+// Always set hoogteSubsidie before the review user task so Field_018_tb is
+// populated. Only fall back to 0 when no parseable value was found at all.
+var amountToStore = (calculatedAmount !== null) ? calculatedAmount : 0;
+execution.setVariable("hoogteSubsidie", amountToStore);
+execution.setVariable("subsidyAmount", amountToStore);
+execution.setVariable("calculatedSubsidyAmount", amountToStore);
+
+// Serialize the raw DMN result to a readable string for the hoogteResult
+// textarea (Field_017_tb). Done after amount extraction so the local
+// variable hoogteResultRaw is still the original Java object while we read
+// budget/reason below.
+function serializeForDisplay(raw) {
+  if (raw === null || raw === undefined) { return "null"; }
+  if (typeof raw.entrySet === "function") {
+    var parts = [];
+    var it = raw.entrySet().iterator();
+    while (it.hasNext()) {
+      var entry = it.next();
+      parts.push(entry.getKey() + ": " + unwrap(entry.getValue()));
+    }
+    return "{" + parts.join(", ") + "}";
+  }
+  if (typeof raw.size === "function" &amp;&amp; typeof raw.get === "function") {
+    // It was a list; serialize the first entry.
+    return raw.size() &gt; 0 ? serializeForDisplay(raw.get(0)) : "[]";
+  }
+  return "" + raw;
+}
+execution.setVariable("hoogteResult", serializeForDisplay(hoogteResultRaw));
+
+// --- Extract optional budget and reason from the same result map ---
+var budget = readFromMap(resultMap, knownBudgetKeys);
+if (budget !== null &amp;&amp; budget !== undefined) {
+  execution.setVariable("budgetResult", budget);
+}
+
+var hoogteReason = readFromMap(resultMap, knownReasonKeys);
+if (hoogteReason !== null &amp;&amp; hoogteReason !== undefined) {
+  execution.setVariable("hoogteMotivering", hoogteReason);
+}
+
+execution.setVariable("hoogteCalculated", java.lang.Boolean.TRUE);</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:userTask id="Sub_CaseReview" name="Beoordeling behandelaar: recht en hoogte subsidie" camunda:formRef="thuisbatterij-subsidie-review" camunda:formRefBinding="deployment" camunda:candidateGroups="caseworker">
+      <bpmn:incoming>Flow_Sub_Amount_Review</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Eligible_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Review_Resolve</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:scriptTask id="Sub_ResolveDecision" name="Definitief subsidiebesluit vaststellen" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Review_Resolve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Resolve_Gateway</bpmn:outgoing>
+      <bpmn:script>var reviewAction = execution.getVariable("reviewAction");
+
+function unwrap(v) {
+  if (v === null || v === undefined) { return v; }
+  if (typeof v.getValue === "function") { return v.getValue(); }
+  return v;
+}
+
+function read(o, keys) {
+  if (o == null) { return null; }
+  for (var i = 0; i &lt; keys.length; i++) {
+    var k = keys[i];
+    if (typeof o.get === "function") {
+      var gv = unwrap(o.get(k));
+      if (gv !== null &amp;&amp; gv !== undefined) { return gv; }
+    }
+    if (o[k] !== undefined) { return unwrap(o[k]); }
+  }
+  return null;
+}
+
+function firstValueFromMap(o) {
+  if (o == null || typeof o.values !== "function") { return null; }
+  var iterator = o.values().iterator();
+  return iterator.hasNext() ? unwrap(iterator.next()) : null;
+}
+
+function amount(v) {
+  v = unwrap(v);
+  if (v == null || v === "") { return null; }
+  var s = ("" + v).replace(/[^0-9,.-]/g, "").replace(",", ".");
+  var n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+function asBoolean(v) {
+  v = unwrap(v);
+  if (v === true) { return true; }
+  if (v === false) { return false; }
+  if (v == null || v === "") { return null; }
+  var s = ("" + v).toLowerCase();
+  if (s === "true" || s === "ja" || s === "yes" || s === "waar" || s === "toegekend" || s === "eligible" || s === "recht") { return true; }
+  if (s === "false" || s === "nee" || s === "no" || s === "onwaar" || s === "afgewezen") { return false; }
+  return null;
+}
+
+var eligible = asBoolean(execution.getVariable("eligible")) === true;
+var hoogteResult = execution.getVariable("hoogteResult");
+
+// mapDecisionResult="singleResult" stores the amount DMN output as Map&lt;outputName, outputValue&gt;.
+var hoogteValue = read(hoogteResult, [
+  "hoogteSubsidie",
+  "Hoogte subsidie",
+  "behaalbareHoogteSubsidie",
+  "Behaalbare hoogte subsidie",
+  "subsidiebedrag",
+  "Subsidiebedrag",
+  "amount",
+  "bedrag"
+]);
+if (hoogteValue === null || hoogteValue === undefined) {
+  hoogteValue = firstValueFromMap(hoogteResult);
+}
+if (hoogteValue === null || hoogteValue === undefined) {
+  hoogteValue = hoogteResult;
+}
+
+var calculatedAmount = amount(hoogteValue);
+var budget = read(hoogteResult, ["resterendBudget", "Resterend budget", "beschikbaarSubsidiePlafond", "Beschikbaar subsidieplafond"]);
+var hoogteReason = read(hoogteResult, ["motivering", "reden", "legalBasis", "grondslag"]);
+
+if (calculatedAmount !== null) {
+  execution.setVariable("subsidyAmount", calculatedAmount);
+  execution.setVariable("hoogteSubsidie", calculatedAmount);
+}
+if (budget !== null) { execution.setVariable("budgetResult", budget); }
+if (hoogteReason !== null) { execution.setVariable("hoogteMotivering", hoogteReason); }
+
+if (reviewAction === "change") {
+  var overrideEligible = asBoolean(execution.getVariable("reviewEligible"));
+  var overrideAmount = amount(execution.getVariable("reviewSubsidyAmount"));
+  var overrideReason = execution.getVariable("reviewMotivering");
+  if (overrideEligible !== null) {
+    eligible = overrideEligible;
+    execution.setVariable("eligible", java.lang.Boolean.valueOf(eligible));
+    execution.setVariable("rechtOpSubsidie", java.lang.Boolean.valueOf(eligible));
+  }
+  if (overrideAmount !== null) {
+    execution.setVariable("subsidyAmount", overrideAmount);
+    execution.setVariable("hoogteSubsidie", overrideAmount);
+  }
+  if (overrideReason !== null &amp;&amp; overrideReason !== undefined &amp;&amp; overrideReason !== "") {
+    execution.setVariable("reviewMotiveringVastgesteld", overrideReason);
+  }
+}
+
+var subsidyGranted = eligible === true;
+execution.setVariable("subsidyGranted", java.lang.Boolean.valueOf(subsidyGranted));
+execution.setVariable("decisionType", subsidyGranted ? "Toegekend" : "Afgewezen");
+execution.setVariable("phase5Complete", true);</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="Sub_FinalGateway" name="Subsidie toegekend?">
+      <bpmn:incoming>Flow_Sub_Resolve_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Final_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Sub_Final_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:scriptTask id="Sub_SetGranted" name="Besluitvariabelen zetten: Toegekend" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Final_Yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Granted_End</bpmn:outgoing>
+      <bpmn:script>var amount = execution.getVariable("subsidyAmount");
+if (amount === null || amount === undefined || amount === "") { amount = 0; }
+execution.setVariable("status", "Subsidie toegekend");
+execution.setVariable("decisionType", "Toegekend");
+execution.setVariable("paymentRequired", Number(amount) &gt; 0);
+execution.setVariable("chainProcessRequired", true);
+execution.setVariable("finalMessage", "Uw aanvraag voor subsidie voor een thuisbatterij is toegekend. Het subsidiebedrag bedraagt EUR " + amount + ".");</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Sub_SetRejected" name="Besluitvariabelen zetten: Afgewezen" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Sub_Final_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sub_Rejected_End</bpmn:outgoing>
+      <bpmn:script>var reason = execution.getVariable("reviewMotiveringVastgesteld") || execution.getVariable("rechtMotivering") || "Niet voldaan aan de voorwaarden voor subsidie thuisbatterij Flevoland.";
+execution.setVariable("status", "Geen recht op subsidie");
+execution.setVariable("decisionType", "Afgewezen");
+execution.setVariable("subsidyAmount", 0);
+execution.setVariable("hoogteSubsidie", 0);
+execution.setVariable("paymentRequired", false);
+execution.setVariable("chainProcessRequired", true);
+execution.setVariable("finalMessage", "Uw aanvraag voor subsidie voor een thuisbatterij is afgewezen. Reden: " + reason);</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="SubEnd" name="Besluit voorbereid">
+      <bpmn:incoming>Flow_Sub_Granted_End</bpmn:incoming>
+      <bpmn:incoming>Flow_Sub_Rejected_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Sub_Start_Prepare" sourceRef="SubStart" targetRef="Sub_PrepareDmnInput" />
+    <bpmn:sequenceFlow id="Flow_Sub_Prepare_AssessRight" sourceRef="Sub_PrepareDmnInput" targetRef="Sub_AssessRight" />
+    <bpmn:sequenceFlow id="Flow_Sub_AssessRight_Interpret" sourceRef="Sub_AssessRight" targetRef="Sub_InterpretRight" />
+    <bpmn:sequenceFlow id="Flow_Sub_Interpret_Eligible" sourceRef="Sub_InterpretRight" targetRef="Sub_EligibleGateway" />
+    <bpmn:sequenceFlow id="Flow_Sub_Eligible_No" sourceRef="Sub_EligibleGateway" targetRef="Sub_CaseReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${eligible != true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Amount_Extract" sourceRef="Sub_CalculateAmount" targetRef="Sub_ExtractAmount" />
+    <bpmn:sequenceFlow id="Flow_Sub_Amount_Review" sourceRef="Sub_ExtractAmount" targetRef="Sub_CaseReview" />
+    <bpmn:sequenceFlow id="Flow_Sub_Review_Resolve" sourceRef="Sub_CaseReview" targetRef="Sub_ResolveDecision" />
+    <bpmn:sequenceFlow id="Flow_Sub_Resolve_Gateway" sourceRef="Sub_ResolveDecision" targetRef="Sub_FinalGateway" />
+    <bpmn:sequenceFlow id="Flow_Sub_Final_Yes" sourceRef="Sub_FinalGateway" targetRef="Sub_SetGranted">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${subsidyGranted == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Final_No" sourceRef="Sub_FinalGateway" targetRef="Sub_SetRejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${subsidyGranted != true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sub_Granted_End" sourceRef="Sub_SetGranted" targetRef="SubEnd" />
+    <bpmn:sequenceFlow id="Flow_Sub_Rejected_End" sourceRef="Sub_SetRejected" targetRef="SubEnd" />
+    <bpmn:sequenceFlow id="Flow_1ecxeub" sourceRef="Sub_EligibleGateway" targetRef="Sub_CalculateAmount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${eligible == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Thuisbatterij_SubProcess">
+    <bpmndi:BPMNPlane id="BPMNPlane_Thuisbatterij_SubProcess" bpmnElement="Collaboration_Thuisbatterij_Sub">
+      <bpmndi:BPMNShape id="Participant_Thuisbatterij_Sub_di" bpmnElement="Participant_Thuisbatterij_Sub" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="1820" height="480" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Behandelaar_di" bpmnElement="Lane_Behandelaar" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="1790" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Systeem_di" bpmnElement="Lane_Systeem" isHorizontal="true">
+        <dc:Bounds x="130" y="220" width="1790" height="320" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubStart_di" bpmnElement="SubStart">
+        <dc:Bounds x="162" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="160" y="345" width="50" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_PrepareDmnInput_di" bpmnElement="Sub_PrepareDmnInput">
+        <dc:Bounds x="225" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_AssessRight_di" bpmnElement="Sub_AssessRight">
+        <dc:Bounds x="415" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_InterpretRight_di" bpmnElement="Sub_InterpretRight">
+        <dc:Bounds x="605" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_EligibleGateway_di" bpmnElement="Sub_EligibleGateway" isMarkerVisible="true">
+        <dc:Bounds x="815" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="800" y="352" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_CalculateAmount_di" bpmnElement="Sub_CalculateAmount">
+        <dc:Bounds x="925" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_ExtractAmount_di" bpmnElement="Sub_ExtractAmount">
+        <dc:Bounds x="1115" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_CaseReview_di" bpmnElement="Sub_CaseReview">
+        <dc:Bounds x="1115" y="100" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_ResolveDecision_di" bpmnElement="Sub_ResolveDecision">
+        <dc:Bounds x="1305" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_FinalGateway_di" bpmnElement="Sub_FinalGateway" isMarkerVisible="true">
+        <dc:Bounds x="1505" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1490" y="266" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetGranted_di" bpmnElement="Sub_SetGranted">
+        <dc:Bounds x="1615" y="280" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Sub_SetRejected_di" bpmnElement="Sub_SetRejected">
+        <dc:Bounds x="1615" y="420" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubEnd_di" bpmnElement="SubEnd">
+        <dc:Bounds x="1842" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1815" y="284" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Sub_Start_Prepare_di" bpmnElement="Flow_Sub_Start_Prepare">
+        <di:waypoint x="198" y="320" />
+        <di:waypoint x="225" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Prepare_AssessRight_di" bpmnElement="Flow_Sub_Prepare_AssessRight">
+        <di:waypoint x="375" y="320" />
+        <di:waypoint x="415" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_AssessRight_Interpret_di" bpmnElement="Flow_Sub_AssessRight_Interpret">
+        <di:waypoint x="565" y="320" />
+        <di:waypoint x="605" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Interpret_Eligible_di" bpmnElement="Flow_Sub_Interpret_Eligible">
+        <di:waypoint x="755" y="320" />
+        <di:waypoint x="815" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Eligible_No_di" bpmnElement="Flow_Sub_Eligible_No">
+        <di:waypoint x="840" y="295" />
+        <di:waypoint x="840" y="140" />
+        <di:waypoint x="1115" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ecxeub_di" bpmnElement="Flow_1ecxeub">
+        <di:waypoint x="865" y="320" />
+        <di:waypoint x="925" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Amount_Extract_di" bpmnElement="Flow_Sub_Amount_Extract">
+        <di:waypoint x="1075" y="320" />
+        <di:waypoint x="1115" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Amount_Review_di" bpmnElement="Flow_Sub_Amount_Review">
+        <di:waypoint x="1190" y="280" />
+        <di:waypoint x="1190" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Review_Resolve_di" bpmnElement="Flow_Sub_Review_Resolve">
+        <di:waypoint x="1265" y="140" />
+        <di:waypoint x="1380" y="140" />
+        <di:waypoint x="1380" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Resolve_Gateway_di" bpmnElement="Flow_Sub_Resolve_Gateway">
+        <di:waypoint x="1455" y="320" />
+        <di:waypoint x="1505" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Final_Yes_di" bpmnElement="Flow_Sub_Final_Yes">
+        <di:waypoint x="1555" y="320" />
+        <di:waypoint x="1615" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Final_No_di" bpmnElement="Flow_Sub_Final_No">
+        <di:waypoint x="1530" y="345" />
+        <di:waypoint x="1530" y="460" />
+        <di:waypoint x="1615" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Granted_End_di" bpmnElement="Flow_Sub_Granted_End">
+        <di:waypoint x="1765" y="320" />
+        <di:waypoint x="1842" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sub_Rejected_End_di" bpmnElement="Flow_Sub_Rejected_End">
+        <di:waypoint x="1765" y="460" />
+        <di:waypoint x="1860" y="460" />
+        <di:waypoint x="1860" y="338" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

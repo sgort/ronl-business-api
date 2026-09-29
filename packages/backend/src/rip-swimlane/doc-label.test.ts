@@ -24,4 +24,12 @@ describe('docLabel', () => {
   it('leaves a slug without the rip- prefix alone apart from casing', () => {
     expect(docLabel('weekrapport')).toBe('Weekrapport');
   });
+
+  it('labels the kapvergunning beschikking', () => {
+    expect(docLabel('example_treefelling_beschikking')).toBe('Beschikking kapvergunning');
+  });
+
+  it('humanises underscores as well as hyphens', () => {
+    expect(docLabel('some_other-doc')).toBe('Some other doc');
+  });
 });
