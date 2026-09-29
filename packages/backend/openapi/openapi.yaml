@@ -1432,6 +1432,44 @@ paths:
           description: '`ACTIVITY_HISTORY_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  /process/{id}/lineage:
+    get:
+      operationId: getProcessLineage
+      tags: [Process]
+      summary: The instance's process and the instance that called it
+      description: |
+        Where an instance sits in a call chain: its own process and, for a
+        subprocess started by a call activity, the calling instance
+        (`superProcessInstanceId`, null at the top). Read from history, so it
+        also answers for ended instances. Admits the owning organisation and
+        the case's own applicant.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The lineage.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ProcessLineage' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: No such instance (`PROCESS_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`PROCESS_LINEAGE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
   /process/definition/key/{key}/swimlane:
     get:
       operationId: getProcessDefinitionSwimlaneByKey
@@ -6495,6 +6533,18 @@ components:
         ended: { type: boolean }
         suspended: { type: boolean }
 
+    ProcessLineage:
+      type: object
+      description: An instance's place in a call chain.
+      required: [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
+      properties:
+        processInstanceId: { type: string }
+        processDefinitionKey: { type: string }
+        processDefinitionId: { type: string }
+        superProcessInstanceId:
+          type: [string, 'null']
+          description: The instance whose call activity started this one; null at the top.
+
     ActivityHistoryEntry:
       type: object
       description: One activity an instance passed through, as Operaton reports it.
@@ -6513,6 +6563,15 @@ components:
             - 'null'
         canceled:
           type: boolean
+        processDefinitionKey:
+          type: [string, 'null']
+          description: Key of the process this step ran in.
+        processDefinitionId:
+          type: [string, 'null']
+          description: Definition (version) of the process this step ran in.
+        calledProcessInstanceId:
+          type: [string, 'null']
+          description: For a `callActivity`, the child instance it started; null otherwise.
 
     FormSchema:
       type: object

@@ -471,6 +471,97 @@ describe('getActivityHistory', () => {
       params: { processInstanceId: 'pi', sortBy: 'startTime', sortOrder: 'asc', maxResults: 500 },
     });
   });
+
+  it('carries the process of each entry and the child instance a call activity started', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        {
+          id: 'a2',
+          activityId: 'Task_Phase45_Process',
+          activityName: 'Fase 4+5',
+          activityType: 'callActivity',
+          assignee: null,
+          startTime: 't0',
+          endTime: null,
+          durationInMillis: null,
+          canceled: false,
+          processDefinitionKey: 'AwbShellProcess',
+          processDefinitionId: 'AwbShellProcess:4:abc',
+          calledProcessInstanceId: 'child-1',
+        },
+      ],
+    });
+
+    const [entry] = await svc.getActivityHistory('pi');
+
+    expect(entry).toMatchObject({
+      processDefinitionKey: 'AwbShellProcess',
+      processDefinitionId: 'AwbShellProcess:4:abc',
+      calledProcessInstanceId: 'child-1',
+    });
+  });
+
+  it('reports the three optional fields as null, not undefined, when Operaton omits them', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        {
+          id: 'a3',
+          activityId: 'S',
+          activityName: null,
+          activityType: 'startEvent',
+          assignee: null,
+          startTime: 't0',
+          endTime: 't0',
+          durationInMillis: 0,
+          canceled: false,
+        },
+      ],
+    });
+
+    const [entry] = await svc.getActivityHistory('pi');
+
+    expect(entry.processDefinitionKey).toBeNull();
+    expect(entry.processDefinitionId).toBeNull();
+    expect(entry.calledProcessInstanceId).toBeNull();
+  });
+});
+
+describe('getProcessLineage', () => {
+  it('reads the historic instance: its process and the instance that called it', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        id: 'child-1',
+        processDefinitionKey: 'TreeFellingPermitSubProcess',
+        processDefinitionId: 'TreeFellingPermitSubProcess:2:def',
+        superProcessInstanceId: 'parent-1',
+      },
+    });
+
+    await expect(svc.getProcessLineage('child-1')).resolves.toEqual({
+      processInstanceId: 'child-1',
+      processDefinitionKey: 'TreeFellingPermitSubProcess',
+      processDefinitionId: 'TreeFellingPermitSubProcess:2:def',
+      superProcessInstanceId: 'parent-1',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/child-1');
+  });
+
+  it('reports a top-level instance with a null super', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        id: 'parent-1',
+        processDefinitionKey: 'AwbShellProcess',
+        processDefinitionId: 'AwbShellProcess:9:abc',
+      },
+    });
+
+    expect((await svc.getProcessLineage('parent-1')).superProcessInstanceId).toBeNull();
+  });
+
+  it('rethrows an upstream failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('down'));
+    await expect(svc.getProcessLineage('x')).rejects.toThrow('down');
+  });
 });
 
 describe('deleteProcessInstance', () => {

@@ -8,6 +8,7 @@ import {
   ProcessInstance,
   Task,
   ActivityHistoryItem,
+  ProcessLineage,
 } from '@ronl/shared';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 import type { DocumentTemplate } from '@services/document/documentTemplate.types';
@@ -413,6 +414,9 @@ export class OperatonService {
         endTime: string | null;
         durationInMillis: number | null;
         canceled: boolean;
+        processDefinitionKey?: string | null;
+        processDefinitionId?: string | null;
+        calledProcessInstanceId?: string | null;
       }>;
 
       return items.map((a) => ({
@@ -425,6 +429,9 @@ export class OperatonService {
         endTime: a.endTime,
         durationInMillis: a.durationInMillis,
         canceled: a.canceled,
+        processDefinitionKey: a.processDefinitionKey ?? null,
+        processDefinitionId: a.processDefinitionId ?? null,
+        calledProcessInstanceId: a.calledProcessInstanceId ?? null,
       }));
     } catch (error) {
       logger.error('Failed to get activity history', {
@@ -433,6 +440,27 @@ export class OperatonService {
       });
       throw error;
     }
+  }
+
+  /**
+   * The instance's place in a call chain, from the HISTORIC process instance:
+   * unlike runtime /process-instance/{id}, it carries superProcessInstanceId
+   * and still answers once the instance has ended.
+   */
+  async getProcessLineage(processInstanceId: string): Promise<ProcessLineage> {
+    const res = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const h = res.data as {
+      id: string;
+      processDefinitionKey: string;
+      processDefinitionId: string;
+      superProcessInstanceId?: string | null;
+    };
+    return {
+      processInstanceId: h.id,
+      processDefinitionKey: h.processDefinitionKey,
+      processDefinitionId: h.processDefinitionId,
+      superProcessInstanceId: h.superProcessInstanceId ?? null,
+    };
   }
 
   /**
