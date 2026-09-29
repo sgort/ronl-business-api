@@ -398,7 +398,10 @@ export class OperatonService {
       const response = await this.client.get('/history/activity-instance', {
         params: {
           processInstanceId,
-          sortBy: 'startTime',
+          // occurrence = startTime plus the engine's sequence counter. Steps
+          // that start in the same millisecond (a gateway, then the task after
+          // it) keep their causal order; on startTime alone the database picks.
+          sortBy: 'occurrence',
           sortOrder: 'asc',
           maxResults: 500,
         },

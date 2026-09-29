@@ -468,7 +468,10 @@ describe('getActivityHistory', () => {
 
     expect(res[0]).toMatchObject({ id: 'a1', activityType: 'serviceTask', durationInMillis: 5 });
     expect(mockClient.get).toHaveBeenCalledWith('/history/activity-instance', {
-      params: { processInstanceId: 'pi', sortBy: 'startTime', sortOrder: 'asc', maxResults: 500 },
+      // occurrence = startTime plus the engine's sequence counter: steps that
+      // start in the same millisecond (a gateway and the task after it) keep
+      // their causal order, which startTime alone leaves to the database.
+      params: { processInstanceId: 'pi', sortBy: 'occurrence', sortOrder: 'asc', maxResults: 500 },
     });
   });
 

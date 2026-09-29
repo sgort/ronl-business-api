@@ -20,12 +20,23 @@
  * show a badge in the left rail.
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import type { ActivityHistoryItem, KeycloakUser, Task } from '@ronl/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  ActivityHistoryItem,
+  AwbPhaseCode,
+  KeycloakUser,
+  PhaseSwimlaneModel,
+  Task,
+} from '@ronl/shared';
 import { businessApi } from '../../services/api';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import { activityTypeLabel, AUTOMATED_TYPES } from '../CaseworkerDashboard/processSteps';
 import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
+import { useTaskProcessContext } from '../process/useTaskProcessContext';
+import ProcessWhere from '../process/ProcessWhere';
+import ProcessLaneSteps from '../process/ProcessLaneSteps';
+import ProcessOverlay from '../process/ProcessOverlay';
+import { usePaletteAction } from './paletteActionsContext';
 
 type FilterId = 'all' | 'overdue' | 'mine' | 'today' | 'week' | 'unassigned';
 
@@ -92,6 +103,12 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
   const [activity, setActivity] = useState<ActivityHistoryItem[] | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  /** The process overlay: closed, open on the task's own phase, or open at a chosen phase. */
+  const [overlay, setOverlay] = useState<AwbPhaseCode | 'open' | null>(null);
+  /** Procesgegevens is a long table; it stays folded until asked for, per task. */
+  const [varsOpen, setVarsOpen] = useState(false);
+  /** Swimlane model per process key in the list, for the Awb-fase hint; null when it failed. */
+  const [listModels, setListModels] = useState<Record<string, PhaseSwimlaneModel | null>>({});
   const [actionMessage, setActionMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -128,6 +145,39 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
     setActiveFilter(initialFilter);
   }, [initialFilter]);
 
+  // One model per process key in the list, for the "Awb-fase" hint. Optional:
+  // a failed fetch just means no hint.
+  useEffect(() => {
+    const keys = [
+      ...new Set(tasks.map((t) => t.processDefinitionKey).filter((k): k is string => !!k)),
+    ].filter((k) => !(k in listModels));
+    if (keys.length === 0) return;
+    let alive = true;
+    Promise.all(
+      keys.map(async (k) => {
+        try {
+          const res = await businessApi.process.swimlane(k);
+          return [k, res.success && res.data ? res.data : null] as const;
+        } catch {
+          return [k, null] as const;
+        }
+      })
+    ).then(
+      (entries) => alive && setListModels((prev) => ({ ...prev, ...Object.fromEntries(entries) }))
+    );
+    return () => {
+      alive = false;
+    };
+    // listModels is read only to skip keys already fetched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
+
+  const awbHint = (t: Task): AwbPhaseCode | undefined => {
+    const model = t.processDefinitionKey ? listModels[t.processDefinitionKey] : undefined;
+    if (!model || model.lanes.length === 0) return undefined;
+    return model.nodes.find((n) => n.id === t.taskDefinitionKey)?.awbPhase;
+  };
+
   // ── Filter + sort ──────────────────────────────────────
   const ctx = useMemo(() => ({ now: new Date(), userSub: user?.sub }), [user?.sub]);
 
@@ -153,9 +203,35 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
 
   const selected = visible.find((t) => t.id === selectedId) ?? null;
 
+  // The procesweergave: lanes, Awb phase and history across the call chain.
+  // Without lanes (or while loading, or on failure) today's flat list stays.
+  const procCtx = useTaskProcessContext(selected);
+  const lanes = procCtx.data?.hasLanes ? procCtx.data : null;
+  const roles = useMemo(() => user?.roles ?? [], [user?.roles]);
+  const varString = (key: string) =>
+    typeof taskVariables?.[key] === 'string' ? (taskVariables[key] as string) : undefined;
+
+  usePaletteAction(
+    lanes
+      ? {
+          id: 'cwp-open-process',
+          label: 'Proces van deze taak bekijken',
+          run: () => setOverlay('open'),
+        }
+      : null
+  );
+
   // ── Load detail on selection ───────────────────────────
+  // The latest selection. A response for an earlier one is dropped: its
+  // variables would otherwise put that task's beslistermijn under this one.
+  const selectingRef = useRef<string | null>(null);
+  const detailTitleRef = useRef<HTMLHeadingElement>(null);
+
   const handleSelect = async (task: Task) => {
+    selectingRef.current = task.id;
     setSelectedId(task.id);
+    setOverlay(null);
+    setVarsOpen(false);
     setTaskVariables(null);
     setActivity(null);
     setActionMessage(null);
@@ -165,6 +241,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
         businessApi.task.variables(task.id),
         businessApi.process.activityHistory(task.processInstanceId),
       ]);
+      if (selectingRef.current !== task.id) return;
       if (varsRes.status === 'fulfilled' && varsRes.value.success) {
         setTaskVariables(varsRes.value.data as Record<string, unknown>);
       }
@@ -174,7 +251,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
     } catch {
       /* non-critical */
     } finally {
-      setDetailLoading(false);
+      if (selectingRef.current === task.id) setDetailLoading(false);
     }
   };
 
@@ -267,6 +344,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                   </div>
                   <div className="v2-taken-item-meta">
                     <code>{t.processDefinitionKey ?? t.processDefinitionId}</code>
+                    {awbHint(t) && <span className="cwp-awb-hint">Awb-fase {awbHint(t)}</span>}
                     {t.due && (
                       <span className={overdue ? 'due overdue' : 'due'}>
                         {overdue ? 'Te laat — ' : 'Deadline '}
@@ -302,9 +380,19 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
               <p className="v2-taken-eyebrow">
                 {selected.processDefinitionKey ?? selected.processDefinitionId}
               </p>
-              <h2>{selected.name}</h2>
+              <h2 ref={detailTitleRef} tabIndex={-1}>
+                {selected.name}
+              </h2>
               {selected.description && <p className="v2-taken-desc">{selected.description}</p>}
             </header>
+
+            {lanes && (
+              <ProcessWhere
+                ctx={lanes}
+                deadline={varString('awbDeadlineDate')}
+                onOpen={(phase) => setOverlay(phase)}
+              />
+            )}
 
             <dl className="v2-taken-meta">
               <div>
@@ -334,14 +422,38 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
             </dl>
 
             <section className="v2-taken-section">
-              <h3>Procesgegevens</h3>
-              <ProcessVarsSection variables={taskVariables} loading={detailLoading} />
+              <h3>
+                <button
+                  type="button"
+                  className="cwp-disclosure"
+                  aria-expanded={varsOpen}
+                  aria-controls="v2-taken-procesgegevens"
+                  onClick={() => setVarsOpen((open) => !open)}
+                >
+                  <span>Procesgegevens</span>
+                  <span className="cwp-disclosure-icon" aria-hidden="true">
+                    {varsOpen ? '▲' : '▼'}
+                  </span>
+                </button>
+              </h3>
+              {varsOpen && (
+                <div id="v2-taken-procesgegevens">
+                  <ProcessVarsSection variables={taskVariables} loading={detailLoading} />
+                </div>
+              )}
             </section>
 
             <section className="v2-taken-section">
               <h3>Processtappen</h3>
-              {detailLoading ? (
+              {detailLoading || procCtx.loading ? (
                 <p className="v2-taken-state">Laden…</p>
+              ) : lanes ? (
+                <ProcessLaneSteps
+                  key={selected.id}
+                  ctx={lanes}
+                  roles={roles}
+                  onOpen={(phase) => setOverlay(phase ?? 'open')}
+                />
               ) : activity && activity.length > 0 ? (
                 <ol className="v2-taken-steps">
                   {activity.map((a) => {
@@ -407,6 +519,17 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                 />
               )}
             </section>
+            {overlay && lanes && (
+              <ProcessOverlay
+                task={selected}
+                ctx={lanes}
+                roles={roles}
+                initialPhase={overlay === 'open' ? undefined : overlay}
+                dossierRef={varString('dossierReference')}
+                returnFocus={() => detailTitleRef.current}
+                onClose={() => setOverlay(null)}
+              />
+            )}
           </article>
         )}
       </section>

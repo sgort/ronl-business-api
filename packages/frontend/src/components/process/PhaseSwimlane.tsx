@@ -1,13 +1,18 @@
 import './process-view.css';
 import { STATUS, type StatusKey } from '../../pages/infra-board/rip-model';
 import { useEffect, useRef } from 'react';
+import { edgeLabelText } from './swimlaneText';
 import type { NodeKind, PhaseSwimlaneModel, SwimNode } from '@ronl/shared';
 
-const COL_W = 190,
-  ROW_H = 88,
-  NODE_W = 152,
-  NODE_H = 54,
-  GATE = 46;
+/**
+ * Grid and node sizes. compact is the Infra-board's, unchanged; roomy is the
+ * caseworker overlay's, which has the height to spare and needs it for
+ * longer labels plus the JOUW TAAK tab and the SCRIPT / DMN badges.
+ */
+const DENSITY = {
+  compact: { COL_W: 190, ROW_H: 88, NODE_W: 152, NODE_H: 54, GATE: 46 },
+  roomy: { COL_W: 240, ROW_H: 132, NODE_W: 184, NODE_H: 84, GATE: 52 },
+} as const;
 
 /** Foot badge per node kind; the other kinds carry none. */
 const KIND_BADGE: Partial<Record<NodeKind, string>> = {
@@ -33,6 +38,7 @@ export default function PhaseSwimlane({
   claimedLabel,
   onOpenCall,
   scrollToNodeId,
+  density = 'compact',
 }: {
   model: PhaseSwimlaneModel;
   statusById: Record<string, StatusKey>;
@@ -45,7 +51,10 @@ export default function PhaseSwimlane({
   onOpenCall?: (node: SwimNode) => void;
   /** Centre this node horizontally on mount and whenever it changes. */
   scrollToNodeId?: string | null;
+  /** Grid size; the Infra-board's compact by default. */
+  density?: keyof typeof DENSITY;
 }) {
+  const { COL_W, ROW_H, NODE_W, NODE_H, GATE } = DENSITY[density];
   const { lanes, nodes, edges } = model;
   const caseworker =
     myLaneKeys !== undefined ||
@@ -221,8 +230,9 @@ export default function PhaseSwimlane({
                 key={'l' + p.key}
                 className="pb-swim-edgelabel"
                 style={{ left: p.lx, top: p.ly }}
+                {...(caseworker ? { title: p.label } : {})}
               >
-                {p.label}
+                {caseworker && p.label ? edgeLabelText(p.label) : p.label}
               </span>
             ))}
           {nodes.map((n) => {
