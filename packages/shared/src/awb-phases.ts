@@ -16,14 +16,3 @@ export const AWB_PHASES = [
 ] as const;
 
 export type AwbPhaseCode = (typeof AWB_PHASES)[number]['code'];
-
-const CODES: readonly string[] = AWB_PHASES.map((p) => p.code);
-
-export function isAwbPhaseCode(value: string): value is AwbPhaseCode {
-  return CODES.includes(value);
-}
-
-/** Position in AWB_PHASES; later phases compare greater. */
-export function awbPhaseIndex(code: AwbPhaseCode): number {
-  return CODES.indexOf(code);
-}

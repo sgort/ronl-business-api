@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { awbPhaseIndex, isAwbPhaseCode } from '@ronl/shared';
+import { AWB_PHASES } from '@ronl/shared';
 import type { AwbPhaseCode, NodeKind, PhaseSwimlaneModel, SwimLane, SwimNode } from '@ronl/shared';
 import { docLabel } from './doc-label';
 
@@ -224,6 +224,22 @@ function assignColumns(nodes: SwimNode[], forward: RawFlow[], seeds: string[]): 
       }
     }
   }
+}
+
+/**
+ * Awb phase codes in order. The table is data in @ronl/shared; these helpers
+ * live here, with their only caller, because shared holds no logic (it has no
+ * test runner, so nothing would measure them -- see check-shared-declarations).
+ */
+const AWB_CODES: readonly string[] = AWB_PHASES.map((p) => p.code);
+
+function isAwbPhaseCode(value: string): value is AwbPhaseCode {
+  return AWB_CODES.includes(value);
+}
+
+/** Position in AWB_PHASES; later phases compare greater. */
+function awbPhaseIndex(code: AwbPhaseCode): number {
+  return AWB_CODES.indexOf(code);
 }
 
 /**
