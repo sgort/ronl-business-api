@@ -43,6 +43,7 @@ jest.mock('@services/operaton.service', () => ({
     getDeployedStartForm: jest.fn(),
     getVariableHints: jest.fn(),
     getPhaseSwimlaneModel: jest.fn(),
+    getProcessLineage: jest.fn(),
     deleteProcessInstance: jest.fn(),
     resolveDeployedTenant: jest.fn(),
   },
@@ -543,6 +544,7 @@ describe('handler guards for an authenticated request without a user', () => {
     ['get', '/v1/process/pi-1/variables'],
     ['get', '/v1/process/pi-1/historic-variables'],
     ['get', '/v1/process/pi-1/activity-history'],
+    ['get', '/v1/process/pi-1/lineage'],
     ['get', '/v1/process/pi-1/decision-document'],
     ['get', '/v1/process/SomeProcess/start-form'],
     ['get', '/v1/process/SomeProcess/variable-hints'],
@@ -881,5 +883,54 @@ describe('GET /definition/key/:key/swimlane', () => {
     expect(res.status).toBe(500);
     expectToMatchOperation(res, ...op);
     expect(res.body.error.code).toBe('SWIMLANE_MODEL_FAILED');
+  });
+});
+
+describe('GET /:id/lineage', () => {
+  const path = '/v1/process/child-1/lineage';
+  const op = ['get', '/process/{id}/lineage'] as const;
+  const lineage = {
+    processInstanceId: 'child-1',
+    processDefinitionKey: 'TreeFellingPermitSubProcess',
+    processDefinitionId: 'TreeFellingPermitSubProcess:2:def',
+    superProcessInstanceId: 'parent-1',
+  };
+
+  it('answers the lineage to the owning tenant', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'flevoland' });
+    svc.getProcessLineage.mockResolvedValue(lineage);
+    const res = await auth(request(app).get(path));
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, ...op);
+    expect(res.body.data).toEqual(lineage);
+  });
+
+  it('refuses another tenant before reading the lineage', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'utrecht' });
+    const res = await auth(request(app).get(path));
+    expect(res.status).toBe(403);
+    expectToMatchOperation(res, ...op);
+    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(svc.getProcessLineage).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the engine has no such historic instance', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'flevoland' });
+    svc.getProcessLineage.mockRejectedValue(
+      Object.assign(new Error('nf'), { isAxiosError: true, response: { status: 404 } })
+    );
+    const res = await auth(request(app).get(path));
+    expect(res.status).toBe(404);
+    expectToMatchOperation(res, ...op);
+    expect(res.body.error.code).toBe('PROCESS_NOT_FOUND');
+  });
+
+  it('answers 500 on any other failure, including a non-Error rejection', async () => {
+    svc.getHistoricVariables.mockResolvedValue({ municipality: 'flevoland' });
+    svc.getProcessLineage.mockRejectedValue('socket hang up');
+    const res = await auth(request(app).get(path));
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, ...op);
+    expect(res.body.error.code).toBe('PROCESS_LINEAGE_FAILED');
   });
 });

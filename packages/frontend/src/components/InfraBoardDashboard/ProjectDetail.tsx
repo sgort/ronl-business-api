@@ -18,7 +18,8 @@ import {
 import { businessApi } from '../../services/api';
 import type { SignatureSpec } from '../../services/api';
 import type { SwimNode, Task } from '@ronl/shared';
-import PhaseSwimlane from './PhaseSwimlane';
+import PhaseSwimlane from '../process/PhaseSwimlane';
+import PhaseStepper from '../process/PhaseStepper';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import ProcessVarsSection from '../CaseworkerDashboard/ProcessVarsSection';
 import SigningPanel from './SigningPanel';
@@ -331,25 +332,12 @@ export default function ProjectDetail({ projectRef, onBack }: Props) {
         </div>
       </div>
 
-      <div className="pb-stepper">
-        {RIP_PHASES.map((p, i) => {
-          const base = stepClass(p.code);
-          return (
-            <button
-              type="button"
-              key={p.code}
-              className={`pb-step ${base} ${p.code === selPhase ? 'selected' : ''}`}
-              onClick={() => setSelPhase(p.code)}
-            >
-              <span className="pb-step-dot">{base.includes('done') ? '✓' : i + 1}</span>
-              <span className="pb-step-name">
-                {p.name}
-                <span className="pb-step-code">{p.code}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <PhaseStepper
+        phases={RIP_PHASES}
+        stepClass={stepClass}
+        selected={selPhase}
+        onSelect={setSelPhase}
+      />
 
       {phaseModel ? (
         <>

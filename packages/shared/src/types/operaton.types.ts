@@ -76,6 +76,19 @@ export interface HistoricTask {
 }
 
 /**
+ * Where a process instance sits in a call chain: its own process, and the
+ * instance whose call activity started it. Lets a task in a subprocess be
+ * shown together with the main process around it.
+ */
+export interface ProcessLineage {
+  processInstanceId: string;
+  processDefinitionKey: string;
+  processDefinitionId: string;
+  /** The instance that called this one through a call activity; null at the top. */
+  superProcessInstanceId: string | null;
+}
+
+/**
  * A single step in a process instance's activity history (Operaton
  * /history/activity-instance). Covers user tasks, service/external tasks,
  * decisions, gateways and events — i.e. everything the engine executed,
@@ -93,4 +106,10 @@ export interface ActivityHistoryItem {
   endTime: string | null;
   durationInMillis: number | null;
   canceled: boolean;
+  /** Key of the process this step ran in; lets histories of a call chain be merged and told apart. */
+  processDefinitionKey: string | null;
+  /** Definition (version) of the process this step ran in. */
+  processDefinitionId: string | null;
+  /** For a callActivity: the child instance it started. null for every other step. */
+  calledProcessInstanceId: string | null;
 }

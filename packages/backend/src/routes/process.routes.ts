@@ -471,6 +471,49 @@ router.get('/:id/activity-history', async (req, res) => {
 });
 
 /**
+ * GET /v1/process/:id/lineage
+ * The instance's process and the instance that called it (superProcessInstanceId),
+ * so a caseworker task in a subprocess can be shown with its main process. Same
+ * tenant check as activity-history: the historic municipality (a called process
+ * inherits it through camunda:in variables="all"), or the applicant themselves.
+ */
+router.get('/:id/lineage', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const vars = await operatonService.getHistoricVariables(id);
+    if (!caseReadAllowed(req.user, vars.municipality, vars['applicantId'])) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant: vars.municipality });
+    }
+
+    const lineage = await operatonService.getProcessLineage(id);
+    res.json({ success: true, data: lineage });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+      });
+    }
+    logger.error('Failed to get process lineage', {
+      processInstanceId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_LINEAGE_FAILED', message: 'Failed to retrieve process lineage' },
+    });
+  }
+});
+
+/**
  * Operaton process keys are NCNames: a letter or underscore first, then
  * letters, digits, "_", "." or "-". The key ends up in an engine URL, and
  * encodeURIComponent leaves "." and ".." alone -- axios would resolve those as
