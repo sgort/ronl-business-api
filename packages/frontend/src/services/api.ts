@@ -9,6 +9,7 @@ import type {
   HistoricTask,
   ActivityHistoryItem,
   PhaseSwimlaneModel,
+  ProcessLineage,
 } from '@ronl/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -132,6 +133,22 @@ export const businessApi = {
     ): Promise<ApiResponse<ActivityHistoryItem[]>> => {
       const response = await api.get<ApiResponse<ActivityHistoryItem[]>>(
         `/process/${processInstanceId}/activity-history`
+      );
+      return response.data;
+    },
+
+    /** The instance's process and the instance that called it (subprocess → main process). */
+    lineage: async (processInstanceId: string): Promise<ApiResponse<ProcessLineage>> => {
+      const response = await api.get<ApiResponse<ProcessLineage>>(
+        `/process/${processInstanceId}/lineage`
+      );
+      return response.data;
+    },
+
+    /** Swimlane model of the process a key currently resolves to under the caller's tenant. */
+    swimlane: async (processKey: string): Promise<ApiResponse<PhaseSwimlaneModel>> => {
+      const response = await api.get<ApiResponse<PhaseSwimlaneModel>>(
+        `/process/definition/key/${encodeURIComponent(processKey)}/swimlane`
       );
       return response.data;
     },

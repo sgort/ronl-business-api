@@ -16,7 +16,11 @@ import { claimIfNeeded } from './helpers/tasks';
 // submits, and only test-caseworker-toeslagen should ever see the
 // resulting task; test-caseworker-flevoland must not.
 
-const REVIEW_TASK_NAME = 'Case review: provisional entitlement decision';
+// The review task was named "Case review: …" before the swimlane redesign and
+// "Beoordeling behandelaar: …" after it; both names are matched, so the
+// isolation check below stays meaningful against either deployment.
+const REVIEW_TASK_NAME =
+  /Case review: provisional entitlement decision|Beoordeling behandelaar: besluit voorlopige aanspraak/;
 
 test('a Zorgtoeslag task is only visible to the toeslagen caseworker, not other tenants', async ({
   browser,
@@ -59,10 +63,7 @@ test('a Zorgtoeslag task is only visible to the toeslagen caseworker, not other 
   await loginAsMedewerker(toeslagenPage, 'test-caseworker-toeslagen', 'test123');
   await expect(toeslagenPage).toHaveURL(/\/dashboard\/caseworker$/);
 
-  await toeslagenPage
-    .getByRole('button', { name: new RegExp(REVIEW_TASK_NAME) })
-    .first()
-    .click();
+  await toeslagenPage.getByRole('button', { name: REVIEW_TASK_NAME }).first().click();
   await claimIfNeeded(toeslagenPage);
 
   await toeslagenPage.locator('[id$="-Field_ReviewAction-display"]').click();
@@ -71,7 +72,9 @@ test('a Zorgtoeslag task is only visible to the toeslagen caseworker, not other 
   await expect(toeslagenPage.getByText('Taak voltooid')).toBeVisible({ timeout: 15_000 });
 
   await toeslagenPage
-    .getByRole('button', { name: /Phase 6: Notify applicant of decision/ })
+    .getByRole('button', {
+      name: /Phase 6: Notify applicant of decision|Fase 6: Aanvrager informeren over besluit/,
+    })
     .first()
     .click();
   await claimIfNeeded(toeslagenPage);

@@ -22,6 +22,9 @@ function historyItem(overrides: Partial<ActivityHistoryItem> = {}): ActivityHist
     endTime: null,
     durationInMillis: null,
     canceled: false,
+    processDefinitionKey: null,
+    processDefinitionId: null,
+    calledProcessInstanceId: null,
     ...overrides,
   };
 }
@@ -118,6 +121,9 @@ function activity(overrides: Partial<ActivityHistoryItem> = {}): ActivityHistory
     endTime: null,
     durationInMillis: null,
     canceled: false,
+    processDefinitionKey: null,
+    processDefinitionId: null,
+    calledProcessInstanceId: null,
     ...overrides,
   };
 }

@@ -1432,6 +1432,107 @@ paths:
           description: '`ACTIVITY_HISTORY_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  /process/{id}/lineage:
+    get:
+      operationId: getProcessLineage
+      tags: [Process]
+      summary: The instance's process and the instance that called it
+      description: |
+        Where an instance sits in a call chain: its own process and, for a
+        subprocess started by a call activity, the calling instance
+        (`superProcessInstanceId`, null at the top). Read from history, so it
+        also answers for ended instances. Admits the owning organisation and
+        the case's own applicant.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The lineage.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ProcessLineage' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: No such instance (`PROCESS_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`PROCESS_LINEAGE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/definition/key/{key}/swimlane:
+    get:
+      operationId: getProcessDefinitionSwimlaneByKey
+      tags: [Process]
+      summary: A process's model, as lanes, nodes and edges
+      description: |
+        The Infra-board's phase model (`/rip/phases/{code}/model`) for any
+        process, keyed on its own process key, which is also the model's
+        `phaseCode`. Resolved under the caller's organisation, falling back
+        to a deployment without one, so another organisation's deployment is
+        never reached. Draws the newest deployed version of the key.
+
+        Carries what the caseworker process view needs: `script`, `rule` and
+        `call` nodes with their `dmn` / `calls` / `formRef`, each lane's
+        `candidateGroups`, and each node's `awbPhase` when the BPMN marks
+        phases with `ronl:awbPhase`. A process without a laneSet answers
+        `lanes: []`.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The process definition key, e.g. `AwbShellProcess`.
+          schema: { type: string, pattern: '^[A-Za-z_][A-Za-z0-9_.-]{0,254}$' }
+      responses:
+        '200':
+          description: The model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [phaseCode, lanes, nodes, edges]
+                        properties:
+                          phaseCode: { type: string }
+                          processKey: { type: string }
+                          processName: { type: string }
+                          lanes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          nodes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          edges:
+                            { type: array, items: { type: object, additionalProperties: true } }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: The key is not a process key (`INVALID_PROCESS_KEY`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |
+            No deployment of the key under the caller's organisation, nor one
+            without an organisation (`PROCESS_DEFINITION_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`SWIMLANE_MODEL_FAILED`.'
+          $ref: '#/components/responses/Error'
+
   /process/{instanceId}/decision-document:
     get:
       operationId: getProcessDecisionDocument
@@ -6432,6 +6533,18 @@ components:
         ended: { type: boolean }
         suspended: { type: boolean }
 
+    ProcessLineage:
+      type: object
+      description: An instance's place in a call chain.
+      required: [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
+      properties:
+        processInstanceId: { type: string }
+        processDefinitionKey: { type: string }
+        processDefinitionId: { type: string }
+        superProcessInstanceId:
+          type: [string, 'null']
+          description: The instance whose call activity started this one; null at the top.
+
     ActivityHistoryEntry:
       type: object
       description: One activity an instance passed through, as Operaton reports it.
@@ -6450,6 +6563,15 @@ components:
             - 'null'
         canceled:
           type: boolean
+        processDefinitionKey:
+          type: [string, 'null']
+          description: Key of the process this step ran in.
+        processDefinitionId:
+          type: [string, 'null']
+          description: Definition (version) of the process this step ran in.
+        calledProcessInstanceId:
+          type: [string, 'null']
+          description: For a `callActivity`, the child instance it started; null otherwise.
 
     FormSchema:
       type: object

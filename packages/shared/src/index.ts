@@ -13,3 +13,4 @@ export * from './types/pa-geo';
 export * from './pa-dossiers.seed';
 export * from './rip-phases';
 export * from './rip-swimlane';
+export * from './awb-phases';

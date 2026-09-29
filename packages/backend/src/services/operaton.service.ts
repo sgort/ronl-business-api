@@ -8,6 +8,7 @@ import {
   ProcessInstance,
   Task,
   ActivityHistoryItem,
+  ProcessLineage,
 } from '@ronl/shared';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 import type { DocumentTemplate } from '@services/document/documentTemplate.types';
@@ -82,6 +83,9 @@ export class OperatonService {
    * one today, because the model carries the code it was parsed with: were a
    * second code ever to share a process key, a key without it would serve the
    * wrong phase's model rather than fail.
+   *
+   * Also holds the caseworker process models, whose phaseCode IS their
+   * process key (GET /v1/process/definition/key/:key/swimlane).
    */
   private phaseSwimlaneCache = new Map<string, PhaseSwimlaneModel>();
 
@@ -410,6 +414,9 @@ export class OperatonService {
         endTime: string | null;
         durationInMillis: number | null;
         canceled: boolean;
+        processDefinitionKey?: string | null;
+        processDefinitionId?: string | null;
+        calledProcessInstanceId?: string | null;
       }>;
 
       return items.map((a) => ({
@@ -422,6 +429,9 @@ export class OperatonService {
         endTime: a.endTime,
         durationInMillis: a.durationInMillis,
         canceled: a.canceled,
+        processDefinitionKey: a.processDefinitionKey ?? null,
+        processDefinitionId: a.processDefinitionId ?? null,
+        calledProcessInstanceId: a.calledProcessInstanceId ?? null,
       }));
     } catch (error) {
       logger.error('Failed to get activity history', {
@@ -430,6 +440,27 @@ export class OperatonService {
       });
       throw error;
     }
+  }
+
+  /**
+   * The instance's place in a call chain, from the HISTORIC process instance:
+   * unlike runtime /process-instance/{id}, it carries superProcessInstanceId
+   * and still answers once the instance has ended.
+   */
+  async getProcessLineage(processInstanceId: string): Promise<ProcessLineage> {
+    const res = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const h = res.data as {
+      id: string;
+      processDefinitionKey: string;
+      processDefinitionId: string;
+      superProcessInstanceId?: string | null;
+    };
+    return {
+      processInstanceId: h.id,
+      processDefinitionKey: h.processDefinitionKey,
+      processDefinitionId: h.processDefinitionId,
+      superProcessInstanceId: h.superProcessInstanceId ?? null,
+    };
   }
 
   /**
@@ -1636,6 +1667,10 @@ export class OperatonService {
    * definition id. Checked before the XML fetch, not after, so a repeat view
    * neither re-transfers the document nor re-parses it -- it costs only the
    * definition lookup that proves the deployment has not moved.
+   *
+   * Not RIP-only: the caseworker procesweergave calls this with the process
+   * key as its own phaseCode, so both boards share one tenant-scoped lookup
+   * and one cache.
    */
   async getPhaseSwimlaneModel(
     processKey: string,
