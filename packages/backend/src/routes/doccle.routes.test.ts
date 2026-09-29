@@ -172,6 +172,11 @@ describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:do
       request(app).post('/v1/doccle/senders/acme/receivers/ref-1/documents/doc-1')
     ).send({ documentFile: {} });
     expect(res.status).toBe(400);
+    expectToMatchOperation(
+      res,
+      'post',
+      '/doccle/senders/{senderName}/receivers/{externalReferenceId}/documents/{documentId}'
+    );
     expect(res.body.error.code).toBe('MISSING_FIELDS');
     expect(svc.putDocument).not.toHaveBeenCalled();
   });
@@ -203,6 +208,11 @@ describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:do
       request(app).post('/v1/doccle/senders/acme/receivers/ref-1/documents/doc-1/paid')
     );
     expect(res.status).toBe(200);
+    expectToMatchOperation(
+      res,
+      'post',
+      '/doccle/senders/{senderName}/receivers/{externalReferenceId}/documents/{documentId}/paid'
+    );
     expect(res.body.success).toBe(true);
     expect(svc.markDocumentPaid).toHaveBeenCalledWith('acme', 'ref-1', 'doc-1');
   });
