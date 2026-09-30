@@ -492,7 +492,9 @@ describe('TakenInbox procesweergave', () => {
     const { container } = render(<TakenInbox user={caseworker} />);
     expect(await screen.findByText('Awb-fase 4+5')).toBeInTheDocument();
     await user.click(screen.getByText('Beoordeling behandelaar'));
-    expect(await screen.findByText('Waar sta ik · Awb-fase 4 van 8')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Waar sta ik · Awb-fase 4+5 · stap 4 van 8')
+    ).toBeInTheDocument();
     expect(container.querySelector('.cwp-lanesteps')).not.toBeNull();
     expect(container.querySelector('.v2-taken-steps')).toBeNull();
     expect(container.querySelector('.cwp-where-cap')!.textContent).toContain(
@@ -624,7 +626,7 @@ describe('TakenInbox procesweergave', () => {
     const { container } = render(<TakenInbox user={caseworker} />);
     await user.click(await screen.findByText('Gewone taak'));
     await user.click(screen.getByText('Beoordeling behandelaar'));
-    await screen.findByText('Waar sta ik · Awb-fase 4 van 8');
+    await screen.findByText('Waar sta ik · Awb-fase 4+5 · stap 4 van 8');
     releaseFirst({ success: true, data: { awbDeadlineDate: '2026-12-31T00:00:00Z' } });
     await new Promise((r) => setTimeout(r, 0));
     expect(container.querySelector('.cwp-where-cap')!.textContent).toContain(

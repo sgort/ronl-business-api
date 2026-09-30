@@ -46,7 +46,16 @@ describe('ProcessWhere', () => {
 
   it('says which of the eight Awb phases the task is in', () => {
     render(<ProcessWhere ctx={ctx()} onOpen={vi.fn()} />);
-    expect(screen.getByText('Waar sta ik · Awb-fase 4 van 8')).toBeTruthy();
+    expect(screen.getByText('Waar sta ik · Awb-fase 4+5 · stap 4 van 8')).toBeTruthy();
+  });
+
+  it.each([
+    ['6', 'Waar sta ik · Awb-fase 6 · stap 5 van 8'],
+    ['1', 'Waar sta ik · Awb-fase 1 · stap 1 van 8'],
+    ['archivering', 'Waar sta ik · Awb-fase Archivering · stap 8 van 8'],
+  ] as const)('names phase %s by its Awb number and its step on the stepper', (phase, text) => {
+    render(<ProcessWhere ctx={ctx({ awbPhase: phase })} onOpen={vi.fn()} />);
+    expect(screen.getByText(text)).toBeTruthy();
   });
 
   it('marks earlier phases done and the current one active, each dot a named button', () => {

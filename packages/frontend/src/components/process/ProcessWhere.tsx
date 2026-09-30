@@ -29,7 +29,10 @@ export default function ProcessWhere({
     <div className="cwp-where pbd">
       <div className="cwp-where-head">
         <span className="cwp-eyebrow">
-          Waar sta ik · Awb-fase {at + 1} van {AWB_PHASES.length}
+          {/* The legal phase number, then the position on the stepper: 4+5 is
+              one step, so from Fase 6 on the two differ. */}
+          Waar sta ik · Awb-fase {phase === 'archivering' ? AWB_PHASES[at].name : phase} · stap{' '}
+          {at + 1} van {AWB_PHASES.length}
         </span>
         <button type="button" className="cwp-link" onClick={() => onOpen(phase)}>
           Bekijk proces →
