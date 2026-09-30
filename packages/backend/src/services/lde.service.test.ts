@@ -151,6 +151,24 @@ describe('getPublicProcesses', () => {
     expect(stale).toHaveLength(1);
   });
 
+  it('degrades the same way when the failure is not an Error instance', async () => {
+    mockAxios.get.mockRejectedValueOnce('socket hang up');
+    expect(await getPublicProcesses()).toEqual([]);
+  });
+
+  it('treats a response without a data array as no bundles', async () => {
+    mockAxios.get.mockResolvedValueOnce({ data: { success: true } });
+    expect(await getPublicProcesses()).toEqual([]);
+  });
+
+  it('maps a missing description to null', async () => {
+    mockAxios.get.mockResolvedValueOnce({
+      data: { success: true, data: [{ ...exampleCaseworkerBundle, description: undefined }] },
+    });
+    const [item] = await getPublicProcesses();
+    expect(item.beschrijving).toBeNull();
+  });
+
   it.each(['example', 'wip', 'e2e'])(
     "is visible on a caseworker board whatever its status label ('%s')",
     async (status) => {
@@ -266,5 +284,25 @@ describe('getPublicDmnsByService', () => {
   it('returns an empty map on fetch failure so the catalogue still renders', async () => {
     mockAxios.get.mockRejectedValueOnce(new Error('down'));
     expect((await getPublicDmnsByService()).size).toBe(0);
+  });
+
+  it('returns an empty map when the failure is not an Error instance', async () => {
+    mockAxios.get.mockRejectedValueOnce('socket hang up');
+    expect((await getPublicDmnsByService()).size).toBe(0);
+  });
+
+  it('treats a response without a dmns list as no DMNs', async () => {
+    mockAxios.get.mockResolvedValueOnce({ data: { success: true, data: {} } });
+    expect((await getPublicDmnsByService()).size).toBe(0);
+  });
+
+  it('titles a DMN by its identifier, then by a generic label, when fields are missing', async () => {
+    mockDmns([
+      { ...digitalTwinDmn, title: undefined },
+      { ...zorgtoeslagDmn, title: undefined, identifier: undefined },
+    ]);
+    const byService = await getPublicDmnsByService();
+    expect(byService.get(digitalTwinDmn.service)?.[0].title).toBe(digitalTwinDmn.identifier);
+    expect(byService.get(zorgtoeslagDmn.service)?.[0].title).toBe('DMN');
   });
 });

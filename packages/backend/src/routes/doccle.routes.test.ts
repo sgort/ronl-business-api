@@ -201,6 +201,38 @@ describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:do
   });
 });
 
+describe('service failures that are not Error instances', () => {
+  // A stray `throw 'oops'` or a rejected non-Error must map to the same 502 as
+  // a real Error, not crash the handler while it builds the log entry.
+  it.each([
+    [
+      'createOrUpdateReceiver',
+      () => auth(request(app).put('/v1/doccle/senders/acme/receivers/ref-1')).send({ id: 'ref-1' }),
+    ],
+    [
+      'putDocument',
+      () =>
+        auth(request(app).post('/v1/doccle/senders/acme/receivers/ref-1/documents/doc-1')).send({
+          senderDocumentType: 'INFO',
+          documentFile: {
+            reference: 'f.pdf',
+            contentBase64: 'YmFzZTY0',
+            mimeType: 'application/pdf',
+          },
+        }),
+    ],
+    [
+      'markDocumentPaid',
+      () => auth(request(app).post('/v1/doccle/senders/acme/receivers/ref-1/documents/doc-1/paid')),
+    ],
+  ] as const)('%s → 502 DOCCLE_ERROR', async (method, send) => {
+    svc[method].mockRejectedValue('upstream reset');
+    const res = await send();
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('DOCCLE_ERROR');
+  });
+});
+
 describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:documentId/paid', () => {
   it('marks the document paid on success', async () => {
     svc.markDocumentPaid.mockResolvedValue(undefined);

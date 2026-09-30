@@ -26,6 +26,12 @@ async function* asyncEvents(events: Array<Record<string, unknown>>) {
   for (const e of events) yield e;
 }
 
+/** A stream that fails before producing any event. */
+async function* throwingStream(err: unknown): AsyncGenerator<Record<string, unknown>> {
+  yield* [];
+  throw err;
+}
+
 function Wrapper({ initialMessages = [] as Message[] }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   return <McpChatSection user={user1} messages={messages} onMessagesChange={setMessages} />;
@@ -165,6 +171,113 @@ describe('McpChatSection', () => {
 
     expect(
       await screen.findByText('Selecteer hieronder een bron om te beginnen')
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['auth', '🔒'],
+    ['forbidden', '🔒'],
+    ['rate_limit', '⏳'],
+    ['overloaded', '⏳'],
+    ['llm_failure', '🐛'],
+    [undefined, '⚠️'],
+  ])('badges a stream error with code %s as %s', async (code, icon) => {
+    mockBusinessApi.mcp.chatStream.mockReturnValue(
+      asyncEvents([{ type: 'error', message: 'Er ging iets mis', code }])
+    );
+    const user = userEvent.setup();
+    render(<Wrapper />);
+
+    await user.type(await screen.findByPlaceholderText(/Stel een vraag/), 'Vraag{Enter}');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Er ging iets mis');
+    expect(alert).toHaveTextContent(icon);
+  });
+
+  it('shows the message of an error thrown by the stream', async () => {
+    mockBusinessApi.mcp.chatStream.mockReturnValue(
+      throwingStream(new Error('Verbinding verbroken'))
+    );
+    const user = userEvent.setup();
+    render(<Wrapper />);
+
+    await user.type(await screen.findByPlaceholderText(/Stel een vraag/), 'Vraag{Enter}');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Verbinding verbroken');
+  });
+
+  it('falls back to a generic message when the thrown value has none', async () => {
+    mockBusinessApi.mcp.chatStream.mockReturnValue(throwingStream({ name: 'TypeError' }));
+    const user = userEvent.setup();
+    render(<Wrapper />);
+
+    await user.type(await screen.findByPlaceholderText(/Stel een vraag/), 'Vraag{Enter}');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Verzoek mislukt. Probeer het opnieuw.'
+    );
+  });
+
+  it('stays silent when the stream is aborted', async () => {
+    mockBusinessApi.mcp.chatStream.mockReturnValue(
+      throwingStream(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }))
+    );
+    const user = userEvent.setup();
+    render(<Wrapper />);
+
+    const textarea = await screen.findByPlaceholderText(/Stel een vraag/);
+    await user.type(textarea, 'Vraag{Enter}');
+
+    // The user's own message is committed; no error banner follows the abort.
+    expect(await screen.findByText('Vraag')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('offers a model picker when several models exist and sends with the chosen one', async () => {
+    mockBusinessApi.mcp.getModels.mockResolvedValue({
+      data: [
+        { id: 'model-a', displayName: 'Model A', providerDisplayName: 'Anthropic' },
+        { id: 'model-b', displayName: 'Model B', providerDisplayName: 'Anthropic' },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<Wrapper />);
+
+    const picker = await screen.findByRole('combobox');
+    expect(picker).toHaveValue('model-a');
+    await user.selectOptions(picker, 'model-b');
+
+    await user.type(await screen.findByPlaceholderText(/Stel een vraag/), 'Vraag{Enter}');
+
+    expect(mockBusinessApi.mcp.chatStream).toHaveBeenCalledWith(
+      'Vraag',
+      [],
+      ['ops'],
+      'model-b',
+      expect.any(AbortSignal)
+    );
+  });
+
+  it('treats missing model/source payloads and a failed source fetch as "no sources"', async () => {
+    mockBusinessApi.mcp.getModels.mockResolvedValue({});
+    mockBusinessApi.mcp.getSources.mockResolvedValue({});
+    const { unmount } = render(<Wrapper />);
+
+    expect(
+      await screen.findByText('Selecteer hieronder een bron om te beginnen')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    unmount();
+
+    mockBusinessApi.mcp.getSources.mockRejectedValue(new Error('down'));
+    render(<Wrapper />);
+
+    expect(
+      await screen.findByText('Selecteer hieronder een bron om te beginnen')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByPlaceholderText('Selecteer minstens één bron om door te gaan')
     ).toBeInTheDocument();
   });
 });

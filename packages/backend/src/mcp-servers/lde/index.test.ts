@@ -137,4 +137,60 @@ describe('error handling', () => {
     expect(res.isError).toBe(true);
     expect(textOf(res)).toContain('Error: db exploded');
   });
+
+  it('a non-Error query failure is stringified into the error result', async () => {
+    mockPoolQuery.mockRejectedValue('connection reset');
+    const res = await call('bundle_list');
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toBe('Error: connection reset');
+  });
+
+  it('accepts a call that carries no arguments object at all', async () => {
+    mockPoolQuery.mockResolvedValue({ rows: [] });
+    const res = await callTool({ params: { name: 'bundle_list' } });
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(textOf(res))).toEqual([]);
+  });
+});
+
+describe('database configuration', () => {
+  const { Pool } = jest.requireMock('pg') as { Pool: jest.Mock };
+  const originalUrl = process.env.LDE_DATABASE_URL;
+  afterAll(() => {
+    process.env.LDE_DATABASE_URL = originalUrl;
+  });
+
+  /** Load a fresh copy of the server under the given env and return its CallTool handler. */
+  function loadWith(url: string | undefined): Handler {
+    if (url === undefined) delete process.env.LDE_DATABASE_URL;
+    else process.env.LDE_DATABASE_URL = url;
+    mockServer.setRequestHandler.mockClear();
+    Pool.mockClear();
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./index');
+    });
+    return mockServer.setRequestHandler.mock.calls.find((c) => c[0] === 'CallTool')![1];
+  }
+
+  it('connects without TLS when the URL carries no sslmode', () => {
+    loadWith('postgres://u:p@host/db');
+    expect(Pool).toHaveBeenCalledWith({ connectionString: 'postgres://u:p@host/db', ssl: false });
+  });
+
+  it('strips sslmode from the URL and verifies the certificate when TLS is required', () => {
+    loadWith('postgres://u:p@host/db?sslmode=require');
+    expect(Pool).toHaveBeenCalledWith({
+      connectionString: 'postgres://u:p@host/db',
+      ssl: { rejectUnauthorized: true },
+    });
+  });
+
+  it('answers every tool call with a configuration error when LDE_DATABASE_URL is unset', async () => {
+    const unconfiguredCall = loadWith(undefined);
+    expect(Pool).not.toHaveBeenCalled();
+    const res = await unconfiguredCall({ params: { name: 'bundle_list', arguments: {} } });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toBe('Error: LDE database not configured');
+  });
 });

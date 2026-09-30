@@ -105,4 +105,40 @@ describe('MdEditor', () => {
     render(<Wrapper readOnly />);
     expect(screen.getByTitle('Vet')).toBeDisabled();
   });
+
+  it('the Tabel toolbar button inserts a table scaffold at the caret', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Wrapper />);
+
+    await user.click(screen.getByTitle('Tabel'));
+
+    const textarea = container.querySelector('.pac-db-md-ta') as HTMLTextAreaElement;
+    expect(textarea.value).toBe('\n| Kolom | Kolom |\n| --- | --- |\n| … | … |\n');
+  });
+
+  it('toolbar buttons do nothing in the Voorbeeld view, where no textarea is mounted', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    const taRef = { current: null as unknown as HTMLTextAreaElement };
+    render(
+      <MdEditor
+        value="Bestaande tekst"
+        onChange={onChange}
+        taRef={taRef}
+        fieldKey="waaromNu"
+        onFocusField={vi.fn()}
+      />
+    );
+
+    // No readOnly prop: the editor starts editable, in the split view.
+    expect(screen.getByRole('button', { name: 'Split' })).toHaveClass('active');
+    await user.click(screen.getByRole('button', { name: 'Voorbeeld' }));
+    expect(taRef.current).toBeNull();
+
+    await user.click(screen.getByTitle('Vet'));
+    await user.click(screen.getByTitle('Kop'));
+    await user.click(screen.getByTitle('Tabel'));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

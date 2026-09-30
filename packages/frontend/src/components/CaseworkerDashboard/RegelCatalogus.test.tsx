@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RegelCatalogus from './RegelCatalogus';
 import type { RegelcatalogusData } from '../../services/api';
@@ -203,5 +203,100 @@ describe('RegelCatalogus', () => {
     await user.click(screen.getByRole('button', { name: /Vernieuwen/ }));
 
     expect(mockBusinessApi.portal.regelcatalogus).toHaveBeenCalledWith(true);
+  });
+
+  it('shows an empty state on every tab when the catalogue is empty', async () => {
+    mockBusinessApi.portal.regelcatalogus.mockResolvedValue({
+      success: true,
+      data: makeData({ services: [], organizations: [], concepts: [], rules: [] }),
+      meta: { cache: null },
+    });
+    const user = userEvent.setup();
+    render(<RegelCatalogus />);
+
+    expect(await screen.findByText('Geen organisaties gevonden.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Diensten/ }));
+    expect(screen.getByText('Geen diensten gevonden.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Begrippen/ }));
+    expect(screen.getByText('Geen concepten gevonden voor deze filter.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Regels/ }));
+    expect(screen.getByText('Geen regels gevonden.')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['a timestamp in the future', 60_000, 'Bijgewerkt zojuist'],
+    ['under ten seconds ago', -3_000, 'Bijgewerkt zojuist'],
+    ['under a minute ago', -30_000, /^Bijgewerkt \d+ sec geleden$/],
+    ['minutes ago', -5 * 60_000 - 5_000, 'Bijgewerkt 5 min geleden'],
+    ['hours ago', -3 * 3_600_000 - 5_000, 'Bijgewerkt 3 uur geleden'],
+  ])('labels a cache fetched %s', async (_label, offsetMs, expected) => {
+    mockBusinessApi.portal.regelcatalogus.mockResolvedValue({
+      success: true,
+      data: makeData(),
+      meta: { cache: { fetchedAt: new Date(Date.now() + offsetMs).toISOString() } },
+    });
+    render(<RegelCatalogus />);
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
+
+  it('shows an organisation logo, falling back to initials when the image fails to load', async () => {
+    mockBusinessApi.portal.regelcatalogus.mockResolvedValue({
+      success: true,
+      data: makeData({
+        organizations: [
+          {
+            uri: 'https://data.example.test/org/1',
+            identifier: 'org-1',
+            name: 'Provincie Flevoland',
+            homepage: null,
+            logo: 'https://data.example.test/logo.png',
+            services: [],
+          },
+        ],
+      }),
+      meta: { cache: null },
+    });
+    render(<RegelCatalogus />);
+
+    const logo = await screen.findByRole('img', { name: 'Provincie Flevoland' });
+    expect(screen.queryByText('PF')).not.toBeInTheDocument();
+
+    fireEvent.error(logo);
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByText('PF')).toBeInTheDocument();
+  });
+
+  it("links a concept's exact match and names an untitled service by its URI tail", async () => {
+    mockBusinessApi.portal.regelcatalogus.mockResolvedValue({
+      success: true,
+      data: makeData({
+        concepts: [
+          {
+            uri: 'c1',
+            prefLabel: 'Aanvrager',
+            exactMatch: 'https://begrippen.example.test/aanvrager',
+            serviceUri: 'https://data.example.test/svc/zonder-titel',
+            serviceTitle: '',
+          },
+        ],
+      }),
+      meta: { cache: null },
+    });
+    const user = userEvent.setup();
+    render(<RegelCatalogus />);
+    await screen.findByText('Provincie Flevoland');
+
+    await user.click(screen.getByRole('button', { name: /Begrippen/ }));
+
+    expect(screen.getByRole('option', { name: 'zonder-titel' })).toHaveValue(
+      'https://data.example.test/svc/zonder-titel'
+    );
+    const row = screen.getByText('Aanvrager').closest('tr')!;
+    expect(row.querySelector('a[href="https://begrippen.example.test/aanvrager"]')).not.toBeNull();
   });
 });

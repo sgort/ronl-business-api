@@ -69,4 +69,27 @@ describe('TemplateGallery', () => {
     await user.click(screen.getByRole('button', { name: 'Annuleren' }));
     expect(onCancel).toHaveBeenCalledTimes(2);
   });
+
+  it('"Doorgaan" does not call onPick when the selected template has left the list', async () => {
+    const onPick = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <TemplateGallery templates={[makeTemplate()]} onPick={onPick} onCancel={vi.fn()} />
+    );
+
+    await user.click(screen.getByText('Blanco dossier'));
+    // The library reloads without the selected template; the selection id is kept.
+    rerender(
+      <TemplateGallery
+        templates={[makeTemplate({ id: 't2', naam: 'Kamerbrief' })]}
+        onPick={onPick}
+        onCancel={vi.fn()}
+      />
+    );
+
+    const continueButton = screen.getByRole('button', { name: /Doorgaan met dit sjabloon/ });
+    expect(continueButton).toBeEnabled();
+    await user.click(continueButton);
+    expect(onPick).not.toHaveBeenCalled();
+  });
 });

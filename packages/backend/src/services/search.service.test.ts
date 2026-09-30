@@ -341,6 +341,62 @@ describe('getPublicIndex', () => {
     expect(proces.status).toBe('example');
   });
 
+  it('fills in defaults for optional source fields', async () => {
+    m.nieuws.mockResolvedValue({
+      items: [
+        {
+          id: 'n2',
+          title: 'Zonder categorie',
+          summary: 'Geen categorie meegegeven.',
+          category: undefined,
+          publishedAt: '2026-07-02T00:00:00.000Z',
+          url: 'https://rijksoverheid.nl/n2',
+          source: { id: 'government', name: 'Rijksoverheid' },
+        },
+      ],
+      total: 1,
+    });
+    m.producten.mockResolvedValue({
+      items: [
+        {
+          id: 'p2',
+          title: 'Subsidie ondernemers',
+          description: 'Alleen schriftelijk aan te vragen.',
+          url: 'https://flevoland.nl/p2',
+          audience: ['ondernemer', 'particulier'],
+          onlineAanvragen: false,
+          modified: '2026-06-15T00:00:00.000Z',
+          soort: 'subsidie',
+        },
+      ],
+      total: 1,
+    });
+    m.processen.mockResolvedValue([
+      {
+        key: 'zonder-beschrijving',
+        naam: 'Zonder beschrijving',
+        beschrijving: null,
+        gepubliceerd: '2026-06-01T00:00:00.000Z',
+        status: 'wip',
+        forms: [],
+        documents: [],
+        subprocesses: [],
+      },
+    ]);
+
+    const index = await search.getPublicIndex();
+
+    const nieuws = index.find((i) => i.type === 'nieuws')!;
+    expect(nieuws.facts).toContainEqual(['Categorie', '—']);
+
+    const product = index.find((i) => i.type === 'product')!;
+    expect(product.audience).toEqual(['Ondernemer', 'Inwoner']);
+    expect(product.facts).toContainEqual(['Online aanvragen', 'Nee']);
+
+    const proces = index.find((i) => i.type === 'proces')!;
+    expect(proces.summary).toMatch(/^Uitvoerbaar proces \(BPMN\)/);
+  });
+
   it('caches for 5 minutes and forceRefresh bypasses it', async () => {
     await search.getPublicIndex();
     await search.getPublicIndex();
@@ -452,6 +508,31 @@ describe('searchPublicIndex', () => {
     // then undated items last (a, b)
     expect(byDate.map((h) => h.id)).toEqual(['d', 'c', 'e', 'a', 'b']);
   });
+
+  it('keeps undated items in their original order when sorting by date', () => {
+    const undated = index.filter((i) => !i.date);
+    const byDate = search.searchPublicIndex(undated, '', { sort: 'date' });
+    expect(byDate.map((h) => h.id)).toEqual(['a', 'b']);
+  });
+
+  it('puts an undated item after a dated one whichever order they arrive in', () => {
+    const [undated, dated] = [index[0], index[2]];
+    for (const pair of [
+      [dated, undated],
+      [undated, dated],
+    ]) {
+      const byDate = search.searchPublicIndex(pair, '', { sort: 'date' });
+      expect(byDate.map((h) => h.id)).toEqual(['c', 'a']);
+    }
+  });
+
+  it('tolerates items without a summary or an audience', () => {
+    const sparse = [
+      { ...index[0], id: 's', summary: undefined, audience: undefined },
+    ] as unknown as import('./search.service').PublicIndexItem[];
+    expect(search.searchPublicIndex(sparse, 'zorgtoeslag', {}).map((h) => h.id)).toEqual(['s']);
+    expect(search.searchPublicIndex(sparse, '', { audience: ['Inwoner'] })).toEqual([]);
+  });
 });
 
 describe('facetCounts', () => {
@@ -476,6 +557,15 @@ describe('facetCounts', () => {
       ['Inwoner', 2],
       ['Ondernemer', 1],
     ]);
+  });
+
+  it('skips items whose getter yields nothing', () => {
+    const index = [
+      { external: 'flevoland.nl' },
+      { external: null },
+      { external: undefined },
+    ] as unknown as import('./search.service').PublicIndexItem[];
+    expect(search.facetCounts(index, (i) => i.external)).toEqual([['flevoland.nl', 1]]);
   });
 });
 

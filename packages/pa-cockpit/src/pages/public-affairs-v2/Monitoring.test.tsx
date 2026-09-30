@@ -706,3 +706,366 @@ describe('Monitoring raw feed rendering', () => {
     expect(await screen.findByRole('link', { name: /zonder-nummer/ })).toBeInTheDocument();
   });
 });
+
+describe('Monitoring view states', () => {
+  it('falls back to the first monitoring tab for an unknown tab id', async () => {
+    render(<Monitoring activeTab={'onbekend' as never} onOpenDossier={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: 'Agenda' })).toBeInTheDocument();
+    await waitFor(() => expect(paApi.fetchSignals).toHaveBeenCalledWith({ tab: 'agenda' }));
+  });
+
+  it('explains the news coverage on the Media & omgeving tab', async () => {
+    render(<Monitoring activeTab="media" onOpenDossier={vi.fn()} />);
+    expect(await screen.findByText(/volgt als tweede subbron/)).toBeInTheDocument();
+  });
+
+  it('shows 100+ and the cap banner when the inbox is capped', async () => {
+    paApi.fetchInbox.mockResolvedValue({
+      data: [makeSignal({ id: 'in-1', title: 'Inbox signal', status: 'candidate' })],
+      meta: { total: 240, cap: 100, capped: true },
+    });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+
+    await user.click(await screen.findByRole('button', { name: /Inbox\s*100\+/ }));
+
+    expect(screen.getByText('Top 100')).toBeInTheDocument();
+    expect(screen.getByText(/240 kandidaten in deze inbox/)).toBeInTheDocument();
+    expect(screen.getByText(/140 met lagere relevantie/)).toBeInTheDocument();
+  });
+
+  it('links the source reference of an inbox candidate', async () => {
+    paApi.fetchInbox.mockResolvedValue({
+      data: [
+        makeSignal({
+          id: 'in-1',
+          status: 'candidate',
+          ref: { type: 'Motie', nr: '36123-7', url: 'https://tk.nl/36123-7' },
+        }),
+      ],
+      meta: { total: 1, cap: 100, capped: false },
+    });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Inbox/ }));
+
+    expect(screen.getByRole('link', { name: /36123-7/ })).toHaveAttribute(
+      'href',
+      'https://tk.nl/36123-7'
+    );
+  });
+
+  it('filters the curated list down to watchlist signals and back', async () => {
+    paApi.fetchSignals.mockResolvedValue([
+      makeSignal({ id: 'a', title: 'Dossiersignaal' }),
+      makeSignal({ id: 'b', title: 'Zwevend signaal', routing: 'watchlist', dossierId: null }),
+    ]);
+    const user = userEvent.setup();
+    const { container } = render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await screen.findByText('Dossiersignaal');
+
+    // "Alle" is also the search band's source chip, so scope to the filter bar.
+    const [alle, watchlist] = Array.from(
+      container.querySelectorAll<HTMLElement>('.pac-orphan-fbtn')
+    );
+    expect(watchlist).toHaveTextContent(/⚑ Watchlist\s*1/);
+    expect(alle).toHaveClass('active');
+
+    await user.click(watchlist);
+    expect(watchlist).toHaveClass('active');
+    expect(screen.queryByText('Dossiersignaal')).not.toBeInTheDocument();
+    expect(screen.getByText('Zwevend signaal')).toBeInTheDocument();
+
+    await user.click(alle);
+    expect(screen.getByText('Dossiersignaal')).toBeInTheDocument();
+  });
+
+  it('keeps the other curated signals in place when one is linked to a dossier', async () => {
+    const orphan = makeSignal({
+      id: 'b',
+      title: 'Zwevend signaal',
+      routing: 'watchlist',
+      dossierId: null,
+    });
+    paApi.fetchSignals.mockResolvedValue([
+      makeSignal({ id: 'a', title: 'Dossiersignaal' }),
+      orphan,
+    ]);
+    const linkSignalDossier = vi
+      .fn()
+      .mockResolvedValue({ ...orphan, dossierId: 'stikstof', routing: null });
+    mockUsePaData.mockReturnValue(
+      defaultPaData({
+        linkSignalDossier,
+        dossiers: {
+          data: [{ id: 'stikstof', naam: 'Stikstofdossier' }] as never,
+          status: 'ok',
+          refetch: vi.fn(),
+        },
+      })
+    );
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await screen.findByText('Zwevend signaal');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'stikstof');
+    await user.click(screen.getByRole('button', { name: 'Koppelen' }));
+
+    expect(await screen.findByText('Gekoppeld aan Stikstofdossier')).toBeInTheDocument();
+    expect(screen.getByText('Dossiersignaal')).toBeInTheDocument();
+    // No watchlist signal is left, so the filter bar goes.
+    expect(screen.queryByRole('button', { name: /⚑ Watchlist/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Monitoring confirming an AI draft', () => {
+  it('adopts the AI draft fields as the patch and marks the card as just confirmed', async () => {
+    const full = makeSignal({
+      id: 'in-full',
+      title: 'Volledig concept',
+      status: 'ai_drafted',
+      aiDraft: { rel: 9, impact: 'risico', impactLabel: 'Risico', duiding: 'AI-duiding' },
+    });
+    // A draft whose fields are all empty must send no values, not nulls.
+    const empty = makeSignal({
+      id: 'in-empty',
+      title: 'Leeg concept',
+      status: 'ai_drafted',
+      aiDraft: { rel: null, impact: null, impactLabel: null, duiding: null } as never,
+    });
+    paApi.fetchInbox.mockResolvedValue({
+      data: [full, empty],
+      meta: { total: 2, cap: 100, capped: false },
+    });
+    const confirmSignal = vi.fn((id: string) =>
+      Promise.resolve({ ...(id === full.id ? full : empty), status: 'confirmed' })
+    );
+    mockUsePaData.mockReturnValue(defaultPaData({ confirmSignal }));
+    const user = userEvent.setup();
+    const { container } = render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: /Inbox/ }));
+
+    await user.click(screen.getAllByRole('button', { name: 'Bevestigen' })[0]);
+    await waitFor(() => expect(screen.queryByText('Volledig concept')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Bevestigen' }));
+
+    expect(confirmSignal).toHaveBeenNthCalledWith(1, 'in-full', {
+      duiding: 'AI-duiding',
+      impact: 'risico',
+      impactLabel: 'Risico',
+      rel: 9,
+    });
+    expect(confirmSignal).toHaveBeenNthCalledWith(2, 'in-empty', {
+      duiding: undefined,
+      impact: undefined,
+      impactLabel: undefined,
+      rel: undefined,
+    });
+
+    await user.click(screen.getByRole('button', { name: /Gecureerd/ }));
+    expect(await screen.findByText('Volledig concept')).toBeInTheDocument();
+    expect(container.querySelectorAll('.pac-signal-fresh')).toHaveLength(2);
+    expect(screen.getAllByText(/Zojuist bevestigd/)).toHaveLength(2);
+  });
+});
+
+describe('Monitoring search band interactions', () => {
+  const hit = (over: Partial<FeedItem> = {}): FeedItem =>
+    ({
+      id: 'h1',
+      title: 'Treffer',
+      type: 'Motie',
+      number: '1',
+      date: null,
+      url: null,
+      source: 'tk',
+      ...over,
+    }) as FeedItem;
+
+  const settle = async () => {
+    await waitFor(() => expect(paApi.fetchInbox).toHaveBeenCalled());
+  };
+
+  it('submits on Enter, and an empty query clears the results instead of searching', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [hit()], total: 1 });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await settle();
+
+    await user.click(screen.getByRole('button', { name: 'Zoek' }));
+    expect(paApi.fetchFeed).not.toHaveBeenCalled();
+    expect(screen.queryByText('Zoekresultaten')).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox'), 'stikstof{Enter}');
+    expect(await screen.findByText('Treffer')).toBeInTheDocument();
+    expect(paApi.fetchFeed).toHaveBeenCalledWith({ q: 'stikstof', source: 'both', top: 30 });
+  });
+
+  it('re-runs an active search on a source chip, and saves it scoped to that source', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [hit()], total: 1 });
+    paApi.createSavedSearch.mockResolvedValue({ id: 'srch-1' });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await settle();
+
+    await user.type(screen.getByRole('textbox'), 'stikstof{Enter}');
+    await screen.findByText('Treffer');
+    await user.click(screen.getByRole('button', { name: 'Off. Bekendmakingen' }));
+
+    await waitFor(() =>
+      expect(paApi.fetchFeed).toHaveBeenLastCalledWith({ q: 'stikstof', source: 'ob', top: 30 })
+    );
+    await user.click(screen.getByRole('button', { name: /Bewaar als zoekopdracht/ }));
+    await waitFor(() =>
+      expect(paApi.createSavedSearch).toHaveBeenCalledWith({ q: 'stikstof', source: ['ob'] })
+    );
+    expect(await screen.findByRole('button', { name: '✓ Bewaard' })).toBeDisabled();
+  });
+
+  it('shows a source key verbatim as a chip label when it has no display name', async () => {
+    paApi.fetchFeedSources.mockResolvedValue(['tk', 'rss-extra']);
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    expect(await screen.findByRole('button', { name: 'rss-extra' })).toBeInTheDocument();
+  });
+
+  it('counts the loaded hits when the source reports no total', async () => {
+    paApi.fetchFeed.mockResolvedValue({ items: [hit({ id: 'a' }), hit({ id: 'b' })], total: null });
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await settle();
+
+    await user.type(screen.getByRole('textbox'), 'energie{Enter}');
+
+    expect(await screen.findByText(/· 2 treffers/)).toBeInTheDocument();
+  });
+
+  it('re-runs a saved search in its stored scope: one source as-is, several as Alle', async () => {
+    paApi.fetchSearches.mockResolvedValue([
+      {
+        id: 'ss-1',
+        dossierId: null,
+        query: { q: 'windpark', types: [], source: ['ob'] },
+        tags: [],
+        scope: 'user',
+        notify: false,
+      },
+      {
+        id: 'ss-2',
+        dossierId: null,
+        query: { q: 'netcongestie', types: [], source: ['tk', 'ob'] },
+        tags: [],
+        scope: 'user',
+        notify: false,
+      },
+    ]);
+    const user = userEvent.setup();
+    render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+
+    await user.click(await screen.findByRole('button', { name: /windpark/ }));
+    await waitFor(() =>
+      expect(paApi.fetchFeed).toHaveBeenLastCalledWith({ q: 'windpark', source: 'ob', top: 30 })
+    );
+
+    await user.click(screen.getByRole('button', { name: /netcongestie/ }));
+    await waitFor(() =>
+      expect(paApi.fetchFeed).toHaveBeenLastCalledWith({
+        q: 'netcongestie',
+        source: 'both',
+        top: 30,
+      })
+    );
+  });
+
+  it('adds a hit promoted into the open tab to its inbox, counting it only once', async () => {
+    const existing = makeSignal({ id: 'in-1', title: 'Al in inbox', status: 'candidate' });
+    paApi.fetchInbox.mockResolvedValue({
+      data: [existing],
+      meta: { total: 1, cap: 100, capped: false },
+    });
+    paApi.fetchFeed.mockResolvedValue({
+      items: [
+        hit({ id: 'h1', title: 'Nieuwe treffer', type: 'Besluit', source: 'ob' }),
+        hit({ id: 'h2', title: 'Bekende treffer' }),
+      ],
+      total: 2,
+    });
+    paApi.promoteToInbox
+      .mockResolvedValueOnce(
+        makeSignal({ id: 'sig-new', title: 'Nieuw inboxsignaal', status: 'candidate' })
+      )
+      .mockResolvedValueOnce(existing);
+    const updateInboxCount = vi.fn();
+    mockUsePaData.mockReturnValue(defaultPaData({ updateInboxCount }));
+    const user = userEvent.setup();
+    const { container } = render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await settle();
+
+    await user.type(screen.getByRole('textbox'), 'energie{Enter}');
+    await screen.findByText('Nieuwe treffer');
+    // An OB hit's type chip carries the regional styling.
+    expect(container.querySelector('.pac-tag.regio')).toHaveTextContent('Besluit');
+
+    const [promoteNew, promoteKnown] = screen.getAllByRole('button', { name: 'Naar inbox' });
+    await user.click(promoteNew);
+    await waitFor(() => expect(updateInboxCount).toHaveBeenLastCalledWith('politiek', 2));
+    await user.click(promoteKnown);
+    await waitFor(() => expect(screen.getAllByText('In inbox ✓')).toHaveLength(2));
+    // The second one was already in the inbox, so the count stays at 2 and no
+    // other tab's inbox had to be re-read.
+    expect(updateInboxCount).toHaveBeenLastCalledWith('politiek', 2);
+    expect(paApi.fetchInbox).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Wis ✕' }));
+    await user.click(screen.getByRole('button', { name: /Inbox\s*2/ }));
+    expect(screen.getByText('Nieuw inboxsignaal')).toBeInTheDocument();
+    expect(screen.getByText('Al in inbox')).toBeInTheDocument();
+  });
+
+  it('names a raw hit by its source key when that source has no label', async () => {
+    paApi.fetchFeed.mockResolvedValue({
+      items: [hit({ id: 'm1', title: 'Nieuwsbericht', type: null, source: 'media' as never })],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    const { container } = render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await settle();
+
+    await user.type(screen.getByRole('textbox'), 'energie{Enter}');
+    await screen.findByText('Nieuwsbericht');
+
+    expect(container.querySelector('.pac-signal-raw .pac-signal-src')).toHaveTextContent(/^media$/);
+  });
+});
+
+describe('Monitoring curation-pipeline explainer', () => {
+  it('opens from the ? button and links to the Beheer page when navigation is available', async () => {
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <Monitoring activeTab="politiek" onOpenDossier={vi.fn()} onNavigate={onNavigate} />
+    );
+    await screen.findByRole('button', { name: /Gecureerd/ });
+    const toggle = container.querySelector('.pac-pipe-toggle') as HTMLElement;
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent('▸');
+
+    await user.click(screen.getByRole('button', { name: 'Hoe werkt de curatiepijplijn?' }));
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveTextContent('▾');
+
+    await user.click(screen.getByRole('button', { name: /Bekijk als pagina in Beheer/ }));
+    expect(onNavigate).toHaveBeenCalledWith('beheer', 'curatie-spec');
+  });
+
+  it('omits the Beheer link when there is no navigation handler', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Monitoring activeTab="politiek" onOpenDossier={vi.fn()} />);
+    await screen.findByRole('button', { name: /Gecureerd/ });
+
+    await user.click(container.querySelector('.pac-pipe-toggle') as HTMLElement);
+
+    expect(container.querySelector('.pac-pipe-body')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /Bekijk als pagina in Beheer/ })).toBeNull();
+  });
+});

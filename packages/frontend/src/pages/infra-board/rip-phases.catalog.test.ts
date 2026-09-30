@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getPhaseDeployStatus,
   previousModelledPhase,
@@ -56,6 +56,27 @@ describe('RIP_PHASES catalogue', () => {
   it('gives every one of the twelve a process definition key', () => {
     for (const phase of RIP_PHASES) {
       expect(phase.processDefinitionKey).toBeDefined();
+    }
+  });
+
+  it('fails loudly at module load when a phase has no key in @ronl/shared', async () => {
+    // The join guard: drop R5.3 from RIP_PHASE_KEYS and the catalogue must
+    // refuse to load rather than render that phase as "ontwerp" forever.
+    vi.resetModules();
+    vi.doMock('@ronl/shared', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('@ronl/shared')>();
+      return {
+        ...actual,
+        RIP_PHASE_KEYS: actual.RIP_PHASE_KEYS.filter((k) => k.code !== 'R5.3'),
+      };
+    });
+    try {
+      await expect(import('./rip-phases.catalog')).rejects.toThrow(
+        "RIP phase 'R5.3' is in the catalogue but has no processDefinitionKey"
+      );
+    } finally {
+      vi.doUnmock('@ronl/shared');
+      vi.resetModules();
     }
   });
 

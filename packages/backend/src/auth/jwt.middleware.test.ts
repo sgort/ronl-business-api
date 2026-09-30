@@ -25,6 +25,7 @@ jest.mock('@utils/logger', () => ({
 }));
 
 import jwt from 'jsonwebtoken';
+import jwksRsa from 'jwks-rsa';
 import {
   jwtMiddleware,
   optionalJwtMiddleware,
@@ -33,6 +34,10 @@ import {
 } from './jwt.middleware';
 
 const mockVerify = (jwt as unknown as { verify: jest.Mock }).verify;
+// The JWKS client is created once at module load; grab its getSigningKey
+// before the first clearAllMocks() wipes mock.results.
+const mockGetSigningKey = (jwksRsa as unknown as jest.Mock).mock.results[0].value
+  .getSigningKey as jest.Mock;
 
 function makeRes() {
   const res = {} as Response & { statusCode: number };
@@ -229,6 +234,81 @@ describe('jwtMiddleware', () => {
     expect(res.status).toHaveBeenCalledWith(401);
     expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('INVALID_TOKEN');
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('401 INVALID_TOKEN when verification fails with a non-Error', async () => {
+    mockVerify.mockImplementation(() => {
+      throw 'verifier blew up';
+    });
+    const req = {
+      headers: { authorization: 'Bearer bad.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('INVALID_TOKEN');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['absent', undefined],
+    ['whitespace-only', '   '],
+  ])('leaves given/family name unset when both name claims are %s', async (_label, value) => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) =>
+      cb(null, { ...basePayload, name: value, preferred_username: value })
+    );
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    const res = makeRes();
+    const next = jest.fn();
+    await jwtMiddleware(req, res, next as NextFunction);
+    expect(next).toHaveBeenCalled();
+    expect(req.user?.givenName).toBeUndefined();
+    expect(req.user?.familyName).toBeUndefined();
+  });
+});
+
+describe('signing-key lookup (getKey)', () => {
+  /** Run the middleware once so jwt.verify receives getKey, and return it. */
+  async function captureGetKey(): Promise<
+    (header: { kid?: string }, cb: (err: Error | null, key?: string) => void) => void
+  > {
+    mockVerify.mockImplementation((_t, _k, _o, cb) => cb(null, basePayload));
+    const req = { headers: { authorization: 'Bearer t' }, path: '/x' } as unknown as Request;
+    await jwtMiddleware(req, makeRes(), jest.fn() as NextFunction);
+    return mockVerify.mock.calls[0][1];
+  }
+
+  it('rejects a token header without a kid, without asking the JWKS endpoint', async () => {
+    const getKey = await captureGetKey();
+    const cb = jest.fn();
+    getKey({}, cb);
+    expect(cb.mock.calls[0][0]).toEqual(new Error('Missing kid in JWT header'));
+    expect(mockGetSigningKey).not.toHaveBeenCalled();
+  });
+
+  it('passes a JWKS lookup failure through to jwt.verify', async () => {
+    const getKey = await captureGetKey();
+    const failure = new Error('no key for kid');
+    mockGetSigningKey.mockImplementation((_kid, done) => done(failure));
+    const cb = jest.fn();
+    getKey({ kid: 'k1' }, cb);
+    expect(mockGetSigningKey).toHaveBeenCalledWith('k1', expect.any(Function));
+    expect(cb).toHaveBeenCalledWith(failure);
+  });
+
+  it('hands the public key of the matching JWKS entry to jwt.verify', async () => {
+    const getKey = await captureGetKey();
+    mockGetSigningKey.mockImplementation((_kid, done) =>
+      done(null, { getPublicKey: () => 'PUBLIC-KEY' })
+    );
+    const cb = jest.fn();
+    getKey({ kid: 'k1' }, cb);
+    expect(cb).toHaveBeenCalledWith(null, 'PUBLIC-KEY');
   });
 });
 
