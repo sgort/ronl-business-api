@@ -12,6 +12,7 @@ import {
   transitionLabel,
   type TrailStep,
 } from './laneSteps';
+import { edgeLabelText } from './swimlaneText';
 import './caseworker-process.css';
 
 const fmt = (d: string) =>
@@ -142,7 +143,7 @@ export default function ProcessLaneSteps({
                     <span className="cwp-st-dot" aria-hidden="true" />
                     <span className="cwp-st-body">
                       <span className="cwp-st-name">
-                        {s.outcome ? `${s.label} → ${s.outcome}` : s.label}
+                        {s.outcome ? `${s.label} → ${edgeLabelText(s.outcome)}` : s.label}
                       </span>
                       <StepMeta step={s} />
                     </span>

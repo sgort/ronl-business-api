@@ -431,8 +431,11 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                   onClick={() => setVarsOpen((open) => !open)}
                 >
                   <span>Procesgegevens</span>
-                  <span className="cwp-disclosure-icon" aria-hidden="true">
-                    {varsOpen ? '▲' : '▼'}
+                  <span className="cwp-disclosure-hint">
+                    {varsOpen ? 'Gegevens verbergen' : 'Gegevens tonen'}
+                    <span className="cwp-disclosure-icon" aria-hidden="true">
+                      {varsOpen ? '▲' : '▼'}
+                    </span>
                   </span>
                 </button>
               </h3>

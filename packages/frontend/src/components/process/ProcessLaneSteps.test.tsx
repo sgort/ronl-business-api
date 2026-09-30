@@ -138,4 +138,26 @@ describe('ProcessLaneSteps', () => {
     render(<ProcessLaneSteps ctx={REVIEW} roles={[]} onOpen={vi.fn()} />);
     expect(screen.queryAllByRole('region')).toHaveLength(0);
   });
+
+  it('reads a condition as its short form in a gateway’s outcome', () => {
+    const shell = REVIEW.models[REVIEW.chain[0].processKey];
+    const ctx = {
+      ...REVIEW,
+      models: {
+        ...REVIEW.models,
+        [shell.phaseCode]: {
+          ...shell,
+          edges: shell.edges.map((e) =>
+            e.from === 'Gateway_Complete' && e.label === 'ja'
+              ? { ...e, label: '${completenessResult.isComplete == true}' }
+              : e
+          ),
+        },
+      },
+    };
+    const { container } = render(<ProcessLaneSteps ctx={ctx} roles={[]} onOpen={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /eerdere stappen tonen/ }));
+    const names = [...container.querySelectorAll('.cwp-st-name')].map((n) => n.textContent);
+    expect(names).toContain('Aanvraag volledig? → isComplete = true');
+  });
 });

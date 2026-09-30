@@ -98,7 +98,9 @@
 .cwd-v2 .cwp-lg.mine .cwp-st.running .cwp-st-meta b{color:var(--v2-chrome,#0046ad)}
 
 /* Procesgegevens folds away behind its heading, like the Actieve zaken cards. */
-.cwd-v2 .cwp-disclosure{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:0;border:0;background:none;font:inherit;letter-spacing:inherit;color:inherit;text-align:left;cursor:pointer}
-.cwd-v2 .cwp-disclosure-icon{font-family:var(--v2-mono);font-size:12px;color:var(--v2-ink-3)}
-.cwd-v2 .cwp-disclosure:hover .cwp-disclosure-icon{color:var(--v2-ink)}
+.cwd-v2 .cwp-disclosure{display:flex;width:100%;box-sizing:border-box;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:1px solid var(--v2-rule);background:var(--v2-bg);font:inherit;letter-spacing:inherit;color:inherit;text-align:left;cursor:pointer}
+.cwd-v2 .cwp-disclosure:hover{border-color:var(--v2-ink-3)}
+.cwd-v2 .cwp-disclosure-hint{display:flex;align-items:center;gap:8px;font-family:var(--v2-sans);font-size:12.5px;font-weight:600;letter-spacing:0;color:var(--v2-chrome,#0046ad)}
+.cwd-v2 .cwp-disclosure-icon{font-size:11px}
+.cwd-v2 .cwp-disclosure:hover .cwp-disclosure-hint{text-decoration:underline}
 .cwd-v2 .cwp-disclosure:focus-visible{outline:2px solid var(--v2-accent);outline-offset:2px}

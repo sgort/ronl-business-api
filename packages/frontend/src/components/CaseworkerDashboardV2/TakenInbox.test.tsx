@@ -645,10 +645,12 @@ describe('TakenInbox Procesgegevens', () => {
     const toggle = screen.getByRole('button', { name: /Procesgegevens/ });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByText('process-vars')).toBeNull();
+    expect(toggle.textContent).toContain('Gegevens tonen');
 
     await user.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText('process-vars')).toBeInTheDocument();
+    expect(toggle.textContent).toContain('Gegevens verbergen');
     expect(document.getElementById(toggle.getAttribute('aria-controls')!)).not.toBeNull();
 
     await user.click(toggle);
