@@ -223,6 +223,9 @@ jobs:
           echo "Build output:"
           ls -la dist/
           test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
+          # The link-preview tags must be this environment's: an ACC build with
+          # the production card would be cached by every unfurler for days.
+          node scripts/check-og.mjs acceptance
           echo "✅ Build completed successfully"
 
       - name: Deploy to Azure Static Web Apps
