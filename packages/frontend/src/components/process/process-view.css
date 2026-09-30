@@ -152,3 +152,7 @@
 .pbd .pb-swim-node.call{border-width:1px 1px 1px 1px;border-top-width:3px;box-shadow:inset 0 0 0 3px var(--v2-paper),inset 0 0 0 4px var(--v2-rule)}
 .pbd .cwp-callbtn{position:absolute;bottom:-9px;right:8px;padding:0 6px;font:inherit;font-family:var(--v2-mono);font-size:9.5px;font-weight:700;color:#fff;background:var(--v2-chrome,#0046ad);border:0;cursor:pointer}
 .pbd .cwp-callbtn:focus-visible{outline:2px solid var(--v2-accent);outline-offset:2px}
+.pbd .cwp-swim .pb-swim-lane-label{flex-direction:column;align-items:flex-start;justify-content:center}
+.pbd .cwp-swim .pb-swim-edgelabel{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbd .cwp-swim .pb-swim-node{padding:12px 10px 14px}
+.pbd .cwp-swim .pb-swim-node .nlabel{font-size:12px}

@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 import PhaseSwimlane from './PhaseSwimlane';
+import { edgeLabelText } from './swimlaneText';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 
 const MODEL: PhaseSwimlaneModel = {
@@ -479,5 +480,61 @@ describe('PhaseSwimlane — caseworker additions', () => {
     rerender(<PhaseSwimlane model={AWB} statusById={{}} scrollToNodeId="s" />);
     expect(scroll.scrollLeft).toBe(0);
     width.mockRestore();
+  });
+});
+
+describe('edgeLabelText', () => {
+  it.each([
+    ['${completenessResult.isComplete == false}', 'isComplete = false'],
+    ['${eligible != true}', 'eligible ≠ true'],
+    ['${subsidyGranted == true && paymentRequired}', 'subsidyGranted = true en paymentRequired'],
+    ['#{a.b || c}', 'b of c'],
+    ['ja', 'ja'],
+    ['Aanvraag volledig', 'Aanvraag volledig'],
+  ])('%s → %s', (raw, shown) => {
+    expect(edgeLabelText(raw)).toBe(shown);
+  });
+});
+
+describe('PhaseSwimlane — roomy density and readable edge labels', () => {
+  const EXPR: PhaseSwimlaneModel = {
+    ...MODEL,
+    edges: [
+      { from: 's', to: 't', label: '${completenessResult.isComplete == false}' },
+      { from: 't', to: 'p', label: 'Ja' },
+    ],
+  };
+
+  it('keeps the Infra-board’s sizes by default', () => {
+    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
+    const node = container.querySelector('.pb-swim-node') as HTMLElement;
+    expect(node.style.width).toBe('152px');
+    expect(node.style.height).toBe('54px');
+  });
+
+  it('gives nodes, rows and columns more room when roomy', () => {
+    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} density="roomy" />);
+    const node = container.querySelector('.pb-swim-node') as HTMLElement;
+    expect(node.style.width).toBe('184px');
+    expect(node.style.height).toBe('84px');
+    const svg = container.querySelector('svg.pb-swim-svg')!;
+    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 132));
+  });
+
+  it('shows the Infra-board’s edge labels verbatim, without a tooltip', () => {
+    const { container } = render(<PhaseSwimlane model={EXPR} statusById={{}} />);
+    const labels = [...container.querySelectorAll('.pb-swim-edgelabel')];
+    expect(labels[0].textContent).toBe('${completenessResult.isComplete == false}');
+    expect(labels[0].hasAttribute('title')).toBe(false);
+  });
+
+  it('shortens expression labels in caseworker mode, with the full expression as tooltip', () => {
+    const { container } = render(
+      <PhaseSwimlane model={EXPR} statusById={{}} claimedLabel="jouw taak" />
+    );
+    const labels = [...container.querySelectorAll('.pb-swim-edgelabel')];
+    expect(labels[0].textContent).toBe('isComplete = false');
+    expect(labels[0].getAttribute('title')).toBe('${completenessResult.isComplete == false}');
+    expect(labels[1].textContent).toBe('Ja');
   });
 });
