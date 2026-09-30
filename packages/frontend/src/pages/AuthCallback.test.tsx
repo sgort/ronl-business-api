@@ -109,6 +109,17 @@ describe('AuthCallback', () => {
     await vi.waitFor(() => expect(mockKeycloak.login).toHaveBeenCalledWith({ idpHint: 'digid' }));
   });
 
+  it('Flevoland flow calls keycloak.login with the entra-flevoland idp hint when not authenticated', async () => {
+    sessionStorage.setItem('selected_idp', 'entra-flevoland');
+    mockKeycloak.init.mockResolvedValue(false);
+
+    render(<AuthCallback />);
+
+    await vi.waitFor(() =>
+      expect(mockKeycloak.login).toHaveBeenCalledWith({ idpHint: 'entra-flevoland' })
+    );
+  });
+
   it('citizen flow with no stored idp calls keycloak.login with no idpHint when not authenticated', async () => {
     mockKeycloak.init.mockResolvedValue(false);
 
@@ -159,11 +170,24 @@ describe('AuthCallback', () => {
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull();
   });
 
-  it('falls back to the role dashboard when the stored redirect is not allowed for the role', async () => {
-    // infra-projectteam members carry caseworker too, but their home stays infra-board.
+  it('honours a chosen caseworker board for a user who also holds infra-projectteam', async () => {
+    // The Caseworker card on the landing page stores this redirect. A user with
+    // both roles who picks that card lands on it, not on their default board.
     sessionStorage.setItem('post_login_redirect', '/dashboard/caseworker');
     mockKeycloak.init.mockResolvedValue(true);
-    setRoles(['caseworker', 'infra-projectteam']);
+    setRoles(['caseworker', 'infra-projectteam', 'woo-coordinatie']);
+
+    render(<AuthCallback />);
+
+    await vi.waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard/caseworker', { replace: true })
+    );
+  });
+
+  it('falls back to the role dashboard when the stored redirect is not allowed for the role', async () => {
+    sessionStorage.setItem('post_login_redirect', '/dashboard/caseworker');
+    mockKeycloak.init.mockResolvedValue(true);
+    setRoles(['infra-projectteam']);
 
     render(<AuthCallback />);
 

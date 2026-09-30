@@ -471,6 +471,103 @@ router.get('/:id/activity-history', async (req, res) => {
 });
 
 /**
+ * GET /v1/process/:id/lineage
+ * The instance's process and the instance that called it (superProcessInstanceId),
+ * so a caseworker task in a subprocess can be shown with its main process. Same
+ * tenant check as activity-history: the historic municipality (a called process
+ * inherits it through camunda:in variables="all"), or the applicant themselves.
+ */
+router.get('/:id/lineage', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const vars = await operatonService.getHistoricVariables(id);
+    if (!caseReadAllowed(req.user, vars.municipality, vars['applicantId'])) {
+      return denyTenant(req, res, { processInstanceId: id, processTenant: vars.municipality });
+    }
+
+    const lineage = await operatonService.getProcessLineage(id);
+    res.json({ success: true, data: lineage });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+      });
+    }
+    logger.error('Failed to get process lineage', {
+      processInstanceId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'PROCESS_LINEAGE_FAILED', message: 'Failed to retrieve process lineage' },
+    });
+  }
+});
+
+/**
+ * Operaton process keys are NCNames: a letter or underscore first, then
+ * letters, digits, "_", "." or "-". The key ends up in an engine URL, and
+ * encodeURIComponent leaves "." and ".." alone -- axios would resolve those as
+ * dot segments and call a different engine resource. Requiring a letter or
+ * underscore first rules out every dot-only key, so anything else is refused
+ * before it can reach the engine.
+ */
+const PROCESS_KEY = /^[A-Za-z_][A-Za-z0-9_.-]{0,254}$/;
+
+/**
+ * GET /v1/process/definition/key/:key/swimlane
+ * Swimlane model of the definition a key currently resolves to under the
+ * caller's tenant -- the Infra-board's path (`/v1/rip/phases/:code/model`),
+ * with the key itself as the model's phaseCode. The tenant is part of the
+ * lookup (getByKeyWithTenantFallback), so another tenant's deployment is
+ * unreachable and nothing is compared afterwards.
+ */
+router.get('/definition/key/:key/swimlane', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+  const { key } = req.params;
+  if (!PROCESS_KEY.test(key)) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_PROCESS_KEY', message: 'Invalid process definition key' },
+    });
+  }
+  try {
+    const model = await operatonService.getPhaseSwimlaneModel(key, key, req.user.tenantId);
+    res.json({ success: true, data: model });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'PROCESS_DEFINITION_NOT_FOUND', message: 'Process definition not found' },
+      });
+    }
+    logger.error('Failed to build process swimlane model', {
+      processKey: key,
+      tenantId: req.user.tenantId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'SWIMLANE_MODEL_FAILED', message: 'Failed to build process model' },
+    });
+  }
+});
+
+/**
  * GET /v1/process/:instanceId/decision-document
  * Returns the DocumentTemplate bundled in the deployment that is linked to this process instance
  * via camunda:documentRef on a UserTask. Works for completed instances.

@@ -157,6 +157,30 @@ describe('DossierRow', () => {
     expect(onDelete).toHaveBeenCalledWith(d);
   });
 
+  it('shows the concept badge for an unpublished dossier', () => {
+    renderRow({ gepubliceerd: false });
+    expect(screen.getByText('○ concept')).toBeInTheDocument();
+  });
+
+  it('falls back to the flat arrow for an unknown momentum', () => {
+    renderRow({ momentum: 'sideways' as AdminDossier['momentum'] });
+    expect(screen.getByText('→')).toBeInTheDocument();
+  });
+
+  it('treats a missing kompas as unscored', () => {
+    renderRow({ kompas: undefined as unknown as AdminDossier['kompas'] });
+    expect(screen.getByText('geen score')).toBeInTheDocument();
+  });
+
+  it('offers "Bekijken" and dispatches Herstellen for an archived dossier, even with edit rights', async () => {
+    const user = userEvent.setup();
+    const { onUnarchive, d } = renderRow({ status: 'gearchiveerd' }, FULL_CAPS);
+
+    expect(screen.getByRole('button', { name: 'Bekijken' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Herstellen' }));
+    expect(onUnarchive).toHaveBeenCalledWith(d);
+  });
+
   it('disables Archiveren and Verwijderen when the role lacks those caps', () => {
     renderRow({}, NO_CAPS);
     expect(screen.getByRole('button', { name: 'Archiveren' })).toBeDisabled();

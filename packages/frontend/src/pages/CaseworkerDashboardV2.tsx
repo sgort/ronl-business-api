@@ -48,6 +48,7 @@ import {
 import SectionRouter from '../components/CaseworkerDashboardV2/SectionRouter';
 import SectionErrorBoundary from '../components/CaseworkerDashboardV2/SectionErrorBoundary';
 import CommandPalette from '../components/CaseworkerDashboardV2/CommandPalette';
+import { PaletteActionsProvider } from '../components/CaseworkerDashboardV2/PaletteActions';
 import AssistantDock from '../components/CaseworkerDashboardV2/AssistantDock';
 import ChangelogPanel from './ChangelogPanel';
 import SessionExpiryWarning from '../components/SessionExpiryWarning';
@@ -57,7 +58,19 @@ import './caseworker-v2/regelsimulatie.css';
 
 const STORAGE_KEY_DOCK = 'cwdV2.dock.open';
 
+/**
+ * The shell inside the palette-action registry, so a section (the Taken
+ * inbox) can offer the ⌘K palette a command for what it has selected.
+ */
 export default function CaseworkerDashboardV2() {
+  return (
+    <PaletteActionsProvider>
+      <CaseworkerDashboardV2Shell />
+    </PaletteActionsProvider>
+  );
+}
+
+function CaseworkerDashboardV2Shell() {
   const navigate = useNavigate();
   // Auth lifecycle is owned by AuthCallback (it runs keycloak.init).
   // This page just observes keycloak.authenticated synchronously. If we

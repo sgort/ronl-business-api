@@ -7,9 +7,11 @@ import { instanceIdsForBusinessKey, openOwnTask } from './helpers/tasks';
 // flow, alongside caseworker-journey.spec.ts's Kapvergunning roundtrip.
 // Citizen (test-citizen-unive, a commercial org) submits a Zorgtoeslag
 // (health care allowance) claim via AwbZorgtoeslagProcess -> DMN
-// evaluation -> ZorgtoeslagProvisionalSubProcessE2E creates a "Case review"
-// task. AwbZorgtoeslagProcess is deployed under the toeslagen processing
-// authority, and a citizen's case goes to the deployment's tenant whichever
+// evaluation -> ZorgtoeslagProvisionalSubProcessE2E creates a review task
+// (named "Case review: …" before the swimlane redesign, "Beoordeling
+// behandelaar: …" after it — the regexes below accept both, as do the
+// notify task's). AwbZorgtoeslagProcess is deployed under the toeslagen
+// processing authority, and a citizen's case goes to the deployment's tenant whichever
 // channel they came from (tenant-access.ts resolveStartTenant), so
 // test-caseworker-toeslagen — not test-caseworker-unive, which doesn't
 // exist — claims and completes it, which advances the shell to its own
@@ -49,7 +51,11 @@ test('citizen submits a zorgtoeslag claim and the toeslagen caseworker reviews i
   await loginAsMedewerker(caseworkerPage, 'test-caseworker-toeslagen', 'test123');
   await expect(caseworkerPage).toHaveURL(/\/dashboard\/caseworker$/);
 
-  await openOwnTask(caseworkerPage, /Case review: provisional entitlement decision/, ownInstances);
+  await openOwnTask(
+    caseworkerPage,
+    /Case review: provisional entitlement decision|Beoordeling behandelaar: besluit voorlopige aanspraak/,
+    ownInstances
+  );
 
   // Same form-js custom-combobox quirk as caseworker-journey.spec.ts — the
   // accessible textbox/label both target a visually-hidden, zero-size
@@ -62,7 +68,11 @@ test('citizen submits a zorgtoeslag claim and the toeslagen caseworker reviews i
   // ── Caseworker: finish the roundtrip — AwbZorgtoeslagProcess's own
   // follow-up notify task (also candidateGroups="caseworker") is created
   // once the review completes; leaving it open would dangle the process.
-  await openOwnTask(caseworkerPage, /Phase 6: Notify applicant of decision/, ownInstances);
+  await openOwnTask(
+    caseworkerPage,
+    /Phase 6: Notify applicant of decision|Fase 6: Aanvrager informeren over besluit/,
+    ownInstances
+  );
 
   await caseworkerPage.locator('[id$="-Field_NotificationMethod-display"]').click();
   await caseworkerPage.getByText('Email', { exact: true }).click();

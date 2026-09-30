@@ -72,10 +72,17 @@ jest.mock('@utils/config', () => ({ config: { pa: { seedDemoData: false } } }));
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import router, { dossierCaps } from './pa-dossiers.routes';
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/pa', router);
 
 const ANON = {};
@@ -129,17 +136,20 @@ describe('GET /v1/pa/dossiers', () => {
   it('anonymous → 401', async () => {
     const res = await request(app).get('/v1/pa/dossiers').set(ANON);
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/pa/dossiers');
   });
 
   it('non-PA role → 403', async () => {
     const res = await request(app).get('/v1/pa/dossiers').set(NON_PA);
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/pa/dossiers');
   });
 
   it('public-affairs → 200 cockpit view (published, non-archived)', async () => {
     mockDb.any.mockResolvedValue([adminRow()]);
     const res = await request(app).get('/v1/pa/dossiers').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/dossiers');
     expect(res.body.data[0].id).toBe('stikstof');
     // cockpit query must exclude archived + unpublished
     const [sql] = mockDb.any.mock.calls[0];
@@ -152,6 +162,7 @@ describe('GET /v1/pa/dossiers', () => {
     mockDb.any.mockResolvedValue([adminRow()]);
     const res = await request(app).get('/v1/pa/dossiers').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/dossiers');
     const kompas = res.body.data[0].kompas;
     expect(Object.keys(kompas).sort()).toEqual(
       [
@@ -176,6 +187,7 @@ describe('GET /v1/pa/dossiers', () => {
       .mockResolvedValueOnce([{ v: 1, at: '2026-05-12', by: 'x', note: 'n' }]); // versions
     const res = await request(app).get('/v1/pa/dossiers?admin=1').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/dossiers');
     expect(res.body.data[0].versie).toBe(3);
     expect(res.body.data[0].versies).toHaveLength(1);
     expect(res.body.data[0].md.waaromNu).toBe('## Waarom nu');
@@ -185,6 +197,7 @@ describe('GET /v1/pa/dossiers', () => {
     mockDb.any.mockRejectedValue(new Error('boom'));
     const res = await request(app).get('/v1/pa/dossiers').set(PA);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/pa/dossiers');
     expect(res.body.error.code).toBe('DOSSIERS_ERROR');
   });
 });
@@ -195,18 +208,21 @@ describe('GET /v1/pa/dossiers/:id', () => {
   it('anonymous → 401', async () => {
     const res = await request(app).get('/v1/pa/dossiers/stikstof').set(ANON);
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
   });
 
   it('unknown id → 404', async () => {
     mockDb.oneOrNone.mockResolvedValue(null);
     const res = await request(app).get('/v1/pa/dossiers/unknown').set(PA);
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
   });
 
   it('public-affairs → 200 cockpit shape (no versies)', async () => {
     mockDb.oneOrNone.mockResolvedValue(adminRow());
     const res = await request(app).get('/v1/pa/dossiers/stikstof').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
     expect(res.body.data.id).toBe('stikstof');
     expect(res.body.data.versies).toBeUndefined();
   });
@@ -216,6 +232,7 @@ describe('GET /v1/pa/dossiers/:id', () => {
     mockDb.any.mockResolvedValue([{ v: 1, at: '2026-05-12', by: 'x', note: 'n' }]);
     const res = await request(app).get('/v1/pa/dossiers/stikstof?admin=1').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
     expect(res.body.data.versies).toHaveLength(1);
   });
 
@@ -223,6 +240,7 @@ describe('GET /v1/pa/dossiers/:id', () => {
     mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
     const res = await request(app).get('/v1/pa/dossiers/stikstof').set(PA);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
     expect(res.body.error.code).toBe('DOSSIER_ERROR');
   });
 });
@@ -234,11 +252,13 @@ describe('POST /v1/pa/dossiers (create)', () => {
   it('anonymous → 401', async () => {
     const res = await request(app).post('/v1/pa/dossiers').set(ANON).send(valid);
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/pa/dossiers');
   });
 
   it('public-affairs without pa-author → 403', async () => {
     const res = await request(app).post('/v1/pa/dossiers').set(PA).send(valid);
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/pa/dossiers');
   });
 
   it('author, invalid (naam too short) → 400', async () => {
@@ -270,6 +290,7 @@ describe('POST /v1/pa/dossiers (create)', () => {
     ]);
     const res = await request(app).post('/v1/pa/dossiers').set(AUTHOR).send(valid);
     expect(res.status).toBe(201);
+    expectToMatchOperation(res, 'post', '/pa/dossiers');
     expect(res.body.data.versie).toBe(1);
     const versionInsert = mockDb.none.mock.calls.find((c) =>
       /INSERT INTO pa_dossier_versions/.test(c[0] as string)
@@ -294,6 +315,7 @@ describe('POST /v1/pa/dossiers (create)', () => {
     mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
     const res = await request(app).post('/v1/pa/dossiers').set(AUTHOR).send(valid);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/pa/dossiers');
     expect(res.body.error.code).toBe('DOSSIER_CREATE_ERROR');
   });
 });
@@ -304,6 +326,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
   it('non-author → 403', async () => {
     const res = await request(app).patch('/v1/pa/dossiers/stikstof').set(PA).send({ naam: 'X yz' });
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'patch', '/pa/dossiers/{id}');
   });
 
   it('unknown id → 404', async () => {
@@ -452,6 +475,7 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
   it('anonymous → 401', async () => {
     const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').send({});
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/watch');
   });
 
   it('no watch-everything row exists yet → creates one, notify=true → 201', async () => {
@@ -459,6 +483,7 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
     mockDb.none.mockResolvedValue(undefined);
     const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
     expect(res.status).toBe(201);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/watch');
     expect(typeof res.body.data.id).toBe('string');
 
     const [sql, values] = mockDb.none.mock.calls[0];
@@ -481,6 +506,7 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
     mockDb.none.mockResolvedValue(undefined);
     const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/watch');
     expect(res.body.data.id).toBe('watch-existing');
     const [sql, values] = mockDb.none.mock.calls[0];
     expect(sql).toMatch(/SET notify = true/);
@@ -517,6 +543,7 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
 
     const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
     expect(res.status).toBe(201);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/watch');
     expect(mockDb.result).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO pa_notifications'),
       expect.arrayContaining(['flevoland', 'test-user', 'sig-old'])
@@ -527,6 +554,7 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
     mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
     const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/watch');
     expect(res.body.error.code).toBe('DOSSIER_WATCH_ERROR');
   });
 });
@@ -537,12 +565,14 @@ describe('DELETE /v1/pa/dossiers/:id/watch', () => {
   it('anonymous → 401', async () => {
     const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}/watch');
   });
 
   it("public-affairs role → 200, deletes only the caller's own watch-everything row", async () => {
     mockDb.none.mockResolvedValue(undefined);
     const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}/watch');
     const [sql, values] = mockDb.none.mock.calls[0];
     expect(sql).toMatch(/DELETE FROM pa_saved_searches/);
     expect(sql).toMatch(/scope = 'user'/);
@@ -553,6 +583,7 @@ describe('DELETE /v1/pa/dossiers/:id/watch', () => {
     mockDb.none.mockRejectedValue(new Error('boom'));
     const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch').set(PA);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}/watch');
     expect(res.body.error.code).toBe('DOSSIER_WATCH_DELETE_ERROR');
   });
 });
@@ -564,6 +595,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
   it('non-admin (editor) → 403', async () => {
     const res = await request(app).post('/v1/pa/dossiers/stikstof/archive').set(EDITOR).send(meta);
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/archive');
   });
 
   it('admin, missing reden → 400', async () => {
@@ -596,6 +628,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
     mockDb.oneOrNone.mockResolvedValue(null);
     const res = await request(app).post('/v1/pa/dossiers/unknown/archive').set(ADMIN).send(meta);
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/archive');
   });
 
   it('admin → 200, captures archief metadata and appends version', async () => {
@@ -618,6 +651,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
     mockDb.any.mockResolvedValue([]);
     const res = await request(app).post('/v1/pa/dossiers/stikstof/archive').set(ADMIN).send(meta);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/archive');
     expect(res.body.data.status).toBe('gearchiveerd');
     expect(res.body.data.archief.reden).toBe('Traject afgerond');
     // UPDATE stores archief JSON with the captured metadata
@@ -640,6 +674,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
     mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
     const res = await request(app).post('/v1/pa/dossiers/stikstof/archive').set(ADMIN).send(meta);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/archive');
     expect(res.body.error.code).toBe('DOSSIER_ARCHIVE_ERROR');
   });
 });
@@ -650,18 +685,21 @@ describe('POST /v1/pa/dossiers/:id/unarchive', () => {
   it('non-admin (editor) → 403', async () => {
     const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(EDITOR);
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
   });
 
   it('admin, unknown id → 404', async () => {
     mockDb.oneOrNone.mockResolvedValue(null);
     const res = await request(app).post('/v1/pa/dossiers/unknown/unarchive').set(ADMIN);
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
   });
 
   it('admin, dossier not archived → 400 NOT_ARCHIVED', async () => {
     mockDb.oneOrNone.mockResolvedValue({ versie: 3, status: 'actief' });
     const res = await request(app).post('/v1/pa/dossiers/stikstof/unarchive').set(ADMIN);
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
     expect(res.body.error.code).toBe('NOT_ARCHIVED');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
@@ -675,6 +713,7 @@ describe('POST /v1/pa/dossiers/:id/unarchive', () => {
     mockDb.any.mockResolvedValue([]);
     const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(ADMIN);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
     expect(res.body.data.status).toBe('actief');
     expect(res.body.data.archief).toBeNull();
     // UPDATE clears archief + unpublishes
@@ -710,6 +749,7 @@ describe('POST /v1/pa/dossiers/:id/unarchive', () => {
     mockDb.oneOrNone.mockRejectedValue(new Error('boom'));
     const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(ADMIN);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
     expect(res.body.error.code).toBe('DOSSIER_UNARCHIVE_ERROR');
   });
 });
@@ -720,12 +760,14 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
   it('non-admin (editor) → 403', async () => {
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(EDITOR);
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
   });
 
   it('admin, unknown id → 404', async () => {
     mockDb.result.mockResolvedValue({ rowCount: 0 });
     const res = await request(app).delete('/v1/pa/dossiers/unknown').set(ADMIN);
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
   });
 
   it('admin → 200, deletes row and its versions inside a transaction', async () => {
@@ -733,6 +775,7 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     mockDb.none.mockResolvedValue(undefined);
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
     expect(mockDb.tx).toHaveBeenCalled();
     const versionDelete = mockDb.none.mock.calls.find((c) =>
       /DELETE FROM pa_dossier_versions/.test(c[0] as string)
@@ -751,6 +794,7 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     mockDb.none.mockResolvedValue(undefined);
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
 
     const deletes = mockDb.result.mock.calls.map((c) => String(c[0]));
     expect(deletes.some((q) => /DELETE FROM pa_signals WHERE dossier_id/.test(q))).toBe(true);
@@ -786,6 +830,7 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
       .mockRejectedValueOnce(new Error('signals delete failed'));
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
     expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
   });
 
@@ -794,6 +839,7 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     mockDb.none.mockRejectedValue(new Error('versions delete failed'));
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
     expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
   });
 });
@@ -805,6 +851,7 @@ describe('templates + snippets', () => {
     mockDb.any.mockResolvedValue([]);
     const res = await request(app).get('/v1/pa/templates').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/templates');
     expect(res.body.data.some((t: { id: string }) => t.id === 'standaard')).toBe(true);
   });
 
@@ -823,6 +870,7 @@ describe('templates + snippets', () => {
     ]);
     const res = await request(app).get('/v1/pa/templates').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/templates');
     expect(res.body.data).toEqual([
       {
         id: 'tpl-live-1',
@@ -841,17 +889,20 @@ describe('templates + snippets', () => {
     mockDb.any.mockRejectedValue(new Error('boom'));
     const res = await request(app).get('/v1/pa/templates').set(PA);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/pa/templates');
     expect(res.body.error.code).toBe('TEMPLATES_ERROR');
   });
 
   it('POST /templates without editor → 403', async () => {
     const res = await request(app).post('/v1/pa/templates').set(AUTHOR).send({ naam: 'X' });
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'post', '/pa/templates');
   });
 
   it('POST /templates, missing naam → 400 MISSING_NAAM', async () => {
     const res = await request(app).post('/v1/pa/templates').set(EDITOR).send({ naam: '   ' });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/pa/templates');
     expect(res.body.error.code).toBe('MISSING_NAAM');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
@@ -880,6 +931,7 @@ describe('templates + snippets', () => {
     mockDb.any.mockResolvedValue([]);
     const res = await request(app).get('/v1/pa/snippets').set(PA);
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/snippets');
     expect(Array.isArray(res.body.data)).toBe(true);
   });
 
@@ -887,6 +939,7 @@ describe('templates + snippets', () => {
     mockDb.any.mockRejectedValue(new Error('boom'));
     const res = await request(app).get('/v1/pa/snippets').set(PA);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/pa/snippets');
     expect(res.body.error.code).toBe('SNIPPETS_ERROR');
   });
 
@@ -903,6 +956,7 @@ describe('templates + snippets', () => {
   it('POST /snippets, missing md → 400 MISSING_FIELDS', async () => {
     const res = await request(app).post('/v1/pa/snippets').set(EDITOR).send({ naam: 'Blok' });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/pa/snippets');
     expect(res.body.error.code).toBe('MISSING_FIELDS');
   });
 

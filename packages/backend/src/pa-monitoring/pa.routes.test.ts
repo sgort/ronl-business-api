@@ -106,6 +106,8 @@ jest.mock('@utils/config', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import { expectMockNamesRealExports } from '../test-utils/mockModule';
 import router from './pa.routes';
 import { fetchTkFeed } from './sources/tk.client';
@@ -122,7 +124,12 @@ const mockAgenda = fetchAgenda as jest.Mock;
 const mockRun = runCurationCycle as jest.Mock;
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/pa', router);
 
 const PA = { 'x-test-roles': 'public-affairs' };
@@ -150,11 +157,13 @@ describe('PA routes — role gating', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).get('/v1/pa/signals');
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'get', '/pa/signals');
     });
 
     it('authenticated non-PA role → 403', async () => {
       const res = await request(app).get('/v1/pa/signals').set(NON_PA);
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/pa/signals');
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
@@ -162,6 +171,7 @@ describe('PA routes — role gating', () => {
       mockDb.any.mockResolvedValue([]);
       const res = await request(app).get('/v1/pa/signals').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/signals');
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
     });
@@ -172,6 +182,7 @@ describe('PA routes — role gating', () => {
         .mockResolvedValueOnce([{ count: '42' }]); // COUNT(*) query
       const res = await request(app).get('/v1/pa/signals').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/signals');
       expect(res.body.meta).toEqual({ total: 42, cap: 100, capped: false });
     });
 
@@ -181,6 +192,7 @@ describe('PA routes — role gating', () => {
         .mockResolvedValueOnce([{ count: '142' }]); // COUNT(*) query
       const res = await request(app).get('/v1/pa/signals').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/signals');
       expect(res.body.meta).toEqual({ total: 142, cap: 100, capped: true });
     });
   });
@@ -191,17 +203,23 @@ describe('PA routes — role gating', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).post('/v1/pa/signals').send(rawHit);
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'post', '/pa/signals');
     });
 
     it('authenticated non-PA role → 403', async () => {
       const res = await request(app).post('/v1/pa/signals').set(NON_PA).send(rawHit);
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'post', '/pa/signals');
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
     it('public-affairs role, missing fields → 400', async () => {
-      const res = await request(app).post('/v1/pa/signals').set(PA).send({ id: 'ob-1' });
+      const res = await request(app)
+        .post('/v1/pa/signals')
+        .set(PA)
+        .send({ id: 'ob-1', title: 'Kamerstuk OB-1' });
       expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/pa/signals');
       expect(res.body.error.code).toBe('MISSING_FIELDS');
       expect(mockPromoteToInbox).not.toHaveBeenCalled();
     });
@@ -227,6 +245,7 @@ describe('PA routes — role gating', () => {
       });
       const res = await request(app).post('/v1/pa/signals').set(PA).send(rawHit);
       expect(res.status).toBe(201);
+      expectToMatchOperation(res, 'post', '/pa/signals');
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('candidate');
       expect(res.body.data.tab).toBe('regionaal');
@@ -238,6 +257,7 @@ describe('PA routes — role gating', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).patch('/v1/pa/searches/srch-1').send({ scope: 'tenant' });
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'patch', '/pa/searches/{id}');
     });
 
     it('authenticated non-PA role → 403', async () => {
@@ -307,11 +327,13 @@ describe('PA routes — role gating', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').send({});
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/dismiss');
     });
 
     it('authenticated non-PA role → 403', async () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(NON_PA).send({});
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/dismiss');
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
@@ -319,6 +341,7 @@ describe('PA routes — role gating', () => {
       mockDb.oneOrNone.mockResolvedValue(null);
       const res = await request(app).post('/v1/pa/signals/unknown-sig/dismiss').set(PA).send({});
       expect(res.status).toBe(404);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/dismiss');
     });
 
     it('known signal → 200 and the status sticks', async () => {
@@ -331,6 +354,7 @@ describe('PA routes — role gating', () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
 
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/dismiss');
       expect(res.body.data.status).toBe('dismissed');
       expect(String(mockDb.none.mock.calls[0][0])).toContain("status = 'dismissed'");
     });
@@ -352,6 +376,7 @@ describe('PA routes — role gating', () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/dismiss').set(PA).send({});
 
       expect(res.status).toBe(500);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/dismiss');
       expect(res.body.error.code).toBe('DISMISS_ERROR');
     });
   });
@@ -360,11 +385,13 @@ describe('PA routes — role gating', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/confirm').send({});
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
     });
 
     it('authenticated non-PA role → 403', async () => {
       const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(NON_PA).send({});
       expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
@@ -372,6 +399,7 @@ describe('PA routes — role gating', () => {
       mockDb.oneOrNone.mockResolvedValue(null);
       const res = await request(app).post('/v1/pa/signals/unknown-sig/confirm').set(PA).send({});
       expect(res.status).toBe(404);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
     });
 
     it('public-affairs role, known signal → 200', async () => {
@@ -397,6 +425,7 @@ describe('PA routes — role gating', () => {
       });
       const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('confirmed');
     });
@@ -439,6 +468,7 @@ describe('PA routes — role gating', () => {
 
       const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
       expect(mockDb.result).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO pa_notifications'),
         expect.arrayContaining(['flevoland', 'u1', 'sig-1'])
@@ -470,6 +500,7 @@ describe('PA routes — role gating', () => {
       });
       const res = await request(app).post('/v1/pa/signals/sig-eu/confirm').set(PA).send({});
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
       expect(res.body.data.routing).toBe('watchlist');
       expect(res.body.data.dossierId).toBeNull();
       // The UPDATE SQL must contain the CASE expression for routing
@@ -502,6 +533,7 @@ describe('PA routes — role gating', () => {
       ]);
       const res = await request(app).get('/v1/pa/signals?tab=europa').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/signals');
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].routing).toBe('watchlist');
       expect(res.body.data[0].dossierId).toBeNull();
@@ -515,6 +547,7 @@ describe('PA routes — role gating', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).patch('/v1/pa/signals/sig-eu').send({ dossierId: 'energie' });
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'patch', '/pa/signals/{id}');
     });
 
     it('authenticated non-PA role → 403', async () => {
@@ -528,6 +561,7 @@ describe('PA routes — role gating', () => {
     it('missing dossierId → 400', async () => {
       const res = await request(app).patch('/v1/pa/signals/sig-eu').set(PA).send({});
       expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'patch', '/pa/signals/{id}');
       expect(res.body.error.code).toBe('MISSING_DOSSIER_ID');
     });
 
@@ -631,10 +665,11 @@ describe('PA routes — feed & agenda', () => {
 
   describe('GET /v1/pa/feed', () => {
     it('merges TK + OB items and sums their totals by default', async () => {
-      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: 3 });
-      mockOb.mockResolvedValue({ items: [{ id: 'ob-1' }], total: 2 });
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1', title: 'Kamerstuk TK-1' }], total: 3 });
+      mockOb.mockResolvedValue({ items: [{ id: 'ob-1', title: 'Kamerstuk OB-1' }], total: 2 });
       const res = await request(app).get('/v1/pa/feed').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed');
       expect(res.body.data.items).toHaveLength(2);
       expect(res.body.data.total).toBe(5);
       expect(mockTk).toHaveBeenCalled();
@@ -642,24 +677,32 @@ describe('PA routes — feed & agenda', () => {
     });
 
     it('source=tk fetches only TK', async () => {
-      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: 1 });
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1', title: 'Kamerstuk TK-1' }], total: 1 });
       const res = await request(app).get('/v1/pa/feed?source=tk').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed');
       expect(res.body.data.items).toHaveLength(1);
       expect(mockOb).not.toHaveBeenCalled();
     });
 
     it('source=ob fetches only OB', async () => {
-      mockOb.mockResolvedValue({ items: [{ id: 'ob-1' }], total: 1 });
+      mockOb.mockResolvedValue({ items: [{ id: 'ob-1', title: 'Kamerstuk OB-1' }], total: 1 });
       const res = await request(app).get('/v1/pa/feed?source=ob').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed');
       expect(mockTk).not.toHaveBeenCalled();
     });
 
     it('source=eu fetches only EU (was silently empty before eu was wired in)', async () => {
-      mockEu.mockResolvedValue({ items: [{ id: 'eu-1' }], total: 1, skip: 0, top: 20 });
+      mockEu.mockResolvedValue({
+        items: [{ id: 'eu-1', title: 'Kamerstuk EU-1' }],
+        total: 1,
+        skip: 0,
+        top: 20,
+      });
       const res = await request(app).get('/v1/pa/feed?source=eu').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed');
       expect(res.body.data.items).toHaveLength(1);
       expect(res.body.data.total).toBe(1);
       expect(mockEu).toHaveBeenCalled();
@@ -675,17 +718,18 @@ describe('PA routes — feed & agenda', () => {
     });
 
     it('keeps total null when neither source reports a total', async () => {
-      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: null });
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1', title: 'Kamerstuk TK-1' }], total: null });
       mockOb.mockResolvedValue({ items: [], total: null });
       const res = await request(app).get('/v1/pa/feed').set(PA);
       expect(res.body.data.total).toBeNull();
     });
 
     it('tolerates one source rejecting (allSettled) — returns the other', async () => {
-      mockTk.mockResolvedValue({ items: [{ id: 'tk-1' }], total: 1 });
+      mockTk.mockResolvedValue({ items: [{ id: 'tk-1', title: 'Kamerstuk TK-1' }], total: 1 });
       mockOb.mockRejectedValue(new Error('ob down'));
       const res = await request(app).get('/v1/pa/feed').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed');
       expect(res.body.data.items).toHaveLength(1);
     });
 
@@ -695,6 +739,7 @@ describe('PA routes — feed & agenda', () => {
       });
       const res = await request(app).get('/v1/pa/feed?source=tk').set(PA);
       expect(res.status).toBe(502);
+      expectToMatchOperation(res, 'get', '/pa/feed');
       expect(res.body.error.code).toBe('UPSTREAM_ERROR');
     });
 
@@ -712,6 +757,7 @@ describe('PA routes — feed & agenda', () => {
     it('returns the TK + OB taxonomy arrays', async () => {
       const res = await request(app).get('/v1/pa/types').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/types');
       expect(res.body.data).toHaveProperty('tk');
       expect(res.body.data).toHaveProperty('ob');
     });
@@ -740,6 +786,7 @@ describe('PA routes — feed & agenda', () => {
       mockDb.any.mockResolvedValue([{ dossier_id: 'stikstof-dossier', query: { q: 'stikstof' } }]);
       const res = await request(app).get('/v1/pa/agenda').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/agenda');
       expect(res.body.data[0].dossier).toBe('stikstof-dossier');
       expect(res.body.data[0].matchTerm).toBe('stikstof');
     });
@@ -756,6 +803,7 @@ describe('PA routes — feed & agenda', () => {
       mockDb.any.mockResolvedValue([]);
       const res = await request(app).get('/v1/pa/agenda').set(PA);
       expect(res.status).toBe(502);
+      expectToMatchOperation(res, 'get', '/pa/agenda');
       expect(res.body.error.code).toBe('AGENDA_ERROR');
     });
   });
@@ -769,6 +817,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
       mockRun.mockResolvedValue(undefined);
       const res = await request(app).post('/v1/pa/curator/run').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/curator/run');
       expect(res.body.data).toEqual({ started: true, tenantId: 'flevoland' });
       expect(mockRun).toHaveBeenCalledWith('flevoland');
     });
@@ -777,6 +826,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
       mockRun.mockRejectedValue(new Error('cycle failed'));
       const res = await request(app).post('/v1/pa/curator/run').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/curator/run');
       await new Promise((r) => setImmediate(r)); // let the fire-and-forget .catch settle
       expect(mockLogger.error).toHaveBeenCalledWith('Curation cycle failed', expect.any(Object));
     });
@@ -789,6 +839,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
         .mockResolvedValueOnce({ total: '3', flevoland: '2' });
       const res = await request(app).get('/v1/pa/curator/status').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/curator/status');
       expect(res.body.data.signals).toEqual({ total: 10, inbox: 4, confirmed: 6 });
       expect(res.body.data.searches).toEqual({ total: 3, flevoland: 2 });
     });
@@ -797,22 +848,28 @@ describe('PA routes — curator, searches CRUD & status', () => {
       mockDb.one.mockRejectedValue(new Error('db down'));
       const res = await request(app).get('/v1/pa/curator/status').set(PA);
       expect(res.status).toBe(500);
+      expectToMatchOperation(res, 'get', '/pa/curator/status');
       expect(res.body.error.code).toBe('STATUS_ERROR');
     });
   });
 
   describe('GET /v1/pa/searches', () => {
     it('returns the tenant/user-scoped saved searches', async () => {
-      mockDb.any.mockResolvedValue([{ id: 'srch-1' }]);
+      // PaSearch names `query` as required, and a saved search without one
+      // is not a search (#269).
+      const search = { id: 'srch-1', query: { q: 'zorgtoeslag' } };
+      mockDb.any.mockResolvedValue([search]);
       const res = await request(app).get('/v1/pa/searches').set(PA);
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual([{ id: 'srch-1' }]);
+      expectToMatchOperation(res, 'get', '/pa/searches');
+      expect(res.body.data).toEqual([search]);
     });
 
     it('500s on a DB error', async () => {
       mockDb.any.mockRejectedValue(new Error('db down'));
       const res = await request(app).get('/v1/pa/searches').set(PA);
       expect(res.status).toBe(500);
+      expectToMatchOperation(res, 'get', '/pa/searches');
       expect(res.body.error.code).toBe('SEARCHES_ERROR');
     });
   });
@@ -821,6 +878,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
     it('400s when query.q is missing', async () => {
       const res = await request(app).post('/v1/pa/searches').set(PA).send({ tags: [] });
       expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/pa/searches');
       expect(res.body.error.code).toBe('MISSING_QUERY');
       expect(mockDb.none).not.toHaveBeenCalled();
     });
@@ -851,6 +909,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
       mockDb.result.mockResolvedValue({ rowCount: 1 });
       const res = await request(app).delete('/v1/pa/searches/srch-1').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'delete', '/pa/searches/{id}');
       expect(res.body.success).toBe(true);
     });
 
@@ -858,12 +917,14 @@ describe('PA routes — curator, searches CRUD & status', () => {
       mockDb.result.mockResolvedValue({ rowCount: 0 });
       const res = await request(app).delete('/v1/pa/searches/unknown').set(PA);
       expect(res.status).toBe(404);
+      expectToMatchOperation(res, 'delete', '/pa/searches/{id}');
     });
 
     it('500s on a DB error', async () => {
       mockDb.result.mockRejectedValue(new Error('delete failed'));
       const res = await request(app).delete('/v1/pa/searches/srch-1').set(PA);
       expect(res.status).toBe(500);
+      expectToMatchOperation(res, 'delete', '/pa/searches/{id}');
       expect(res.body.error.code).toBe('SEARCH_DELETE_ERROR');
     });
   });
@@ -872,6 +933,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
     it('400 MISSING_FIELDS when the body is empty', async () => {
       const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({});
       expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'patch', '/pa/searches/{id}');
       expect(res.body.error.code).toBe('MISSING_FIELDS');
     });
 
@@ -907,6 +969,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
       });
       const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'patch', '/pa/searches/{id}');
       const [sql, values] = mockDb.result.mock.calls[0];
       expect(sql).toMatch(/notify\s*=\s*CASE/i);
       expect(values).toEqual([true, 'srch-1', 'flevoland']);
@@ -942,6 +1005,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
 
       const res = await request(app).patch('/v1/pa/searches/srch-1').set(PA).send({ notify: true });
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'patch', '/pa/searches/{id}');
       expect(mockDb.result).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO pa_notifications'),
         expect.arrayContaining(['flevoland', 'u1', 'sig-old'])
@@ -1111,6 +1175,7 @@ describe('PA routes — curator, searches CRUD & status', () => {
     it('reflects the configured connector flags', async () => {
       const res = await request(app).get('/v1/pa/sources/status').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/sources/status');
       expect(res.body.data).toEqual({
         tk: true,
         ob: true,
@@ -1138,6 +1203,7 @@ describe('PA routes — notifications & personal feed', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).get('/v1/pa/notifications');
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'get', '/pa/notifications');
     });
 
     it('public-affairs role → 200 with unseenCount meta, and passes through the signal source', async () => {
@@ -1157,6 +1223,7 @@ describe('PA routes — notifications & personal feed', () => {
       ]);
       const res = await request(app).get('/v1/pa/notifications').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/notifications');
       expect(res.body.data).toHaveLength(1);
       expect(res.body.meta.unseenCount).toBe(1);
       expect(res.body.data[0].src).toBe('Officiële Bekendmakingen · Provinciaal blad · 3 dgn');
@@ -1186,6 +1253,7 @@ describe('PA routes — notifications & personal feed', () => {
       ]);
       const res = await request(app).get('/v1/pa/notifications').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/notifications');
       expect(res.body.data[0].ref).toEqual({
         type: 'Antwoord schriftelijke vragen',
         nr: '2020D08667',
@@ -1211,6 +1279,7 @@ describe('PA routes — notifications & personal feed', () => {
       ]);
       const res = await request(app).get('/v1/pa/notifications').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/notifications');
       expect(res.body.data[0].ref).toBeNull();
     });
 
@@ -1231,6 +1300,7 @@ describe('PA routes — notifications & personal feed', () => {
       ]);
       const res = await request(app).get('/v1/pa/notifications').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/notifications');
       expect(res.body.data[0].matchedSearches[0].label).toBe('Dossier: Luchthaven Lelystad');
     });
 
@@ -1253,6 +1323,7 @@ describe('PA routes — notifications & personal feed', () => {
       ]);
       const res = await request(app).get('/v1/pa/notifications').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/notifications');
       expect(res.body.data[0].matchedSearches[0].label).toBe('dossier:unknown-dossier');
     });
 
@@ -1268,12 +1339,14 @@ describe('PA routes — notifications & personal feed', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).post('/v1/pa/notifications/ack').send({});
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'post', '/pa/notifications/ack');
     });
 
     it('acks every unseen notification when ids is omitted', async () => {
       mockDb.none.mockResolvedValue(undefined);
       const res = await request(app).post('/v1/pa/notifications/ack').set(PA).send({});
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'post', '/pa/notifications/ack');
       const [sql, values] = mockDb.none.mock.calls[0];
       expect(sql).not.toMatch(/id = ANY/);
       expect(values).toEqual(['test-user', 'flevoland']);
@@ -1296,12 +1369,14 @@ describe('PA routes — notifications & personal feed', () => {
     it('anonymous → 401', async () => {
       const res = await request(app).get('/v1/pa/feed-token');
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'get', '/pa/feed-token');
     });
 
     it('returns the existing token when one is already minted', async () => {
       mockDb.oneOrNone.mockResolvedValue({ token: 'existing-token' });
       const res = await request(app).get('/v1/pa/feed-token').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed-token');
       expect(res.body.data.token).toBe('existing-token');
       expect(res.body.data.url).toContain('token=existing-token');
       expect(mockDb.none).not.toHaveBeenCalled();
@@ -1312,6 +1387,7 @@ describe('PA routes — notifications & personal feed', () => {
       mockDb.none.mockResolvedValue(undefined);
       const res = await request(app).get('/v1/pa/feed-token').set(PA);
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/feed-token');
       expect(typeof res.body.data.token).toBe('string');
       expect(res.body.data.token.length).toBeGreaterThan(0);
       expect(mockDb.none).toHaveBeenCalled();
@@ -1322,12 +1398,14 @@ describe('PA routes — notifications & personal feed', () => {
     it('missing token → 401', async () => {
       const res = await request(app).get('/v1/pa/signals.rss');
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'get', '/pa/signals.rss');
     });
 
     it('invalid token → 401', async () => {
       mockDb.oneOrNone.mockResolvedValue(null);
       const res = await request(app).get('/v1/pa/signals.rss?token=bogus');
       expect(res.status).toBe(401);
+      expectToMatchOperation(res, 'get', '/pa/signals.rss');
     });
 
     it('valid token → 200 with RSS XML, no JWT required', async () => {
@@ -1335,6 +1413,7 @@ describe('PA routes — notifications & personal feed', () => {
       mockDb.any.mockResolvedValue([]);
       const res = await request(app).get('/v1/pa/signals.rss?token=valid-token');
       expect(res.status).toBe(200);
+      expectToMatchOperation(res, 'get', '/pa/signals.rss');
       expect(res.headers['content-type']).toMatch(/rss\+xml/);
       expect(res.text).toContain('<rss version="2.0">');
     });
@@ -1372,6 +1451,7 @@ describe('PA routes — GET /v1/pa/signals query branches', () => {
     mockDb.any.mockRejectedValue(new Error('select failed'));
     const res = await request(app).get('/v1/pa/signals').set(PA);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/pa/signals');
     expect(res.body.error.code).toBe('SIGNALS_ERROR');
   });
 });
@@ -1394,6 +1474,7 @@ describe('PA routes — mutation error branches (500s)', () => {
     mockDb.none.mockRejectedValue(new Error('update failed'));
     const res = await request(app).post('/v1/pa/signals/sig-1/confirm').set(PA).send({});
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/pa/signals/{id}/confirm');
     expect(res.body.error.code).toBe('CONFIRM_ERROR');
   });
 
@@ -1411,6 +1492,7 @@ describe('PA routes — mutation error branches (500s)', () => {
     mockDb.result.mockRejectedValue(new Error('link failed'));
     const res = await request(app).patch('/v1/pa/signals/sig-1').set(PA).send({ dossierId: 'd1' });
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'patch', '/pa/signals/{id}');
     expect(res.body.error.code).toBe('LINK_DOSSIER_ERROR');
   });
 });
@@ -1489,6 +1571,7 @@ describe('GET /v1/pa/signals/counts', () => {
     const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/pa/signals/counts');
     expect(res.body.data).toEqual({ politiek: 165, europa: 44, regionaal: 62, media: 484 });
     // One grouped query, not one per tab — the whole point of the endpoint.
     const calls = mockDb.any.mock.calls.filter((c) => String(c[0]).includes('GROUP BY tab'));
@@ -1517,12 +1600,14 @@ describe('GET /v1/pa/signals/counts', () => {
   it('401s without a user', async () => {
     const res = await request(app).get('/v1/pa/signals/counts').set('x-test-no-user', '1');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/pa/signals/counts');
   });
 
   it('500s when the query fails', async () => {
     mockDb.any.mockRejectedValue(new Error('db down'));
     const res = await request(app).get('/v1/pa/signals/counts').set(PA_HDR);
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/pa/signals/counts');
     expect(res.body.error.code).toBe('SIGNAL_COUNTS_ERROR');
   });
 });

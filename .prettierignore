@@ -1,0 +1,4 @@
+# Design handoff folders (docs/<feature>-handoff/, <feature>-handoff/) are
+# scratch input that is never committed; their files are the design team's
+# and are not reformatted here.
+*-handoff/

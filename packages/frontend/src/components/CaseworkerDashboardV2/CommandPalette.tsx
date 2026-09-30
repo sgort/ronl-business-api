@@ -21,6 +21,7 @@ import {
   type ModeId,
   type RailItem,
 } from '../../pages/caseworker-v2/modes.config';
+import { usePaletteActions } from './paletteActionsContext';
 
 interface Props {
   open: boolean;
@@ -35,10 +36,14 @@ interface Props {
 }
 
 interface Hit extends RailItem {
-  mode: ModeId;
+  /** The owning mode; 'actie' for a registered action. */
+  mode: ModeId | 'actie';
+  /** A registered action (see PaletteActions) runs instead of navigating. */
+  run?: () => void;
 }
 
 export default function CommandPalette({ open, onClose, onSelect, gateContext }: Props) {
+  const actions = usePaletteActions();
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +53,7 @@ export default function CommandPalette({ open, onClose, onSelect, gateContext }:
   const items: Hit[] = useMemo(() => {
     return allSearchableSections()
       .filter((it) => isRailItemVisible(it, gateContext))
-      .map((it) => {
+      .map((it): Hit | null => {
         const mode = findModeForSection(it.id);
         return mode ? { ...it, mode } : null;
       })
@@ -57,14 +62,21 @@ export default function CommandPalette({ open, onClose, onSelect, gateContext }:
 
   const hits: Hit[] = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    const offered = actions.map((a): Hit => ({
+      id: `action:${a.id}`,
+      label: a.label,
+      mode: 'actie',
+      run: a.run,
+    }));
+    const all = [...offered, ...items];
+    if (!q) return all;
+    return all.filter(
       (it) =>
         it.label.toLowerCase().includes(q) ||
         it.id.toLowerCase().includes(q) ||
         it.mode.toLowerCase().includes(q)
     );
-  }, [items, query]);
+  }, [actions, items, query]);
 
   // Reset & focus when opened.
   useEffect(() => {
@@ -84,7 +96,8 @@ export default function CommandPalette({ open, onClose, onSelect, gateContext }:
   if (!open) return null;
 
   const choose = (h: Hit) => {
-    onSelect(h.mode, h.id);
+    if (h.run) h.run();
+    else onSelect(h.mode as ModeId, h.id);
     onClose();
   };
 

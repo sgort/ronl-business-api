@@ -2,7 +2,7 @@ name: skosmos
 
 services:
   skosmos-web:
-    image: quay.io/natlibfi/skosmos:latest
+    image: quay.io/natlibfi/skosmos:latest@sha256:c585569869892cbbaa88956fa3092df54262e7509062622fcec05a7278e6deb6
     container_name: skosmos-web
     restart: unless-stopped
     volumes:

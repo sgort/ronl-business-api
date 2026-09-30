@@ -163,6 +163,18 @@
 
 .lcp .btn-primary:hover { background: var(--blue-700); transform: translateY(-1px); }
 
+.lcp button.btn-primary { border: 0; cursor: pointer; font-family: inherit; }
+
+.lcp .btn-secondary {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--blue);
+  text-decoration: none;
+  padding: 13px 4px;
+}
+
+.lcp .btn-secondary:hover { color: var(--blue-700); text-decoration: underline; }
+
 .lcp .hero-note {
   display: inline-flex;
   align-items: center;

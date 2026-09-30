@@ -45,7 +45,8 @@ export default defineConfig({
       // The per-file 80% branch floor. See issue #80 and the fuller note in
       // packages/frontend/vite.config.ts.
       //
-      // BRANCHES ONLY. A functions floor at 80 would fail 3 files here today —
+      // BRANCHES ONLY. A functions floor at 80 would fail 3 files here (measured
+      // 28 September 2026) —
       // TopBar.tsx among them, which sits at 100% branches and 66% functions,
       // a good illustration of why the two are not interchangeable.
       thresholds: {

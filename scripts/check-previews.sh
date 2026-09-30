@@ -74,6 +74,23 @@ for tool in az gh; do
   fi
 done
 
+# The Azure CLI on Windows writes text mode: every line of `-o tsv` ends \r\n,
+# pipes included. Without this, each subscription id but the last carries a
+# trailing \r into `--subscription`, as does the resource group at the end of
+# each app row, and every call built from them fails. On 26 September 2026 that
+# reported three items NOT CHECKED straight after a fresh `az login`, and the
+# script exited 1 on a login that was fine; the same run checked all six apps
+# once the \r was stripped. It would also have put the \r into the printed
+# delete command, which is meant to be pasted as is.
+#
+# The exit status is kept rather than lost to the pipe: telling "could not ask"
+# apart from "nothing there" is what every check below depends on.
+az() {
+  local out
+  out=$(command az "$@") || return
+  printf '%s\n' "$out" | tr -d '\r'
+}
+
 # Deliberately NOT `az account show`: it reads cached local state and succeeds
 # against a refresh token that expired days ago. Only a real ARM call proves the
 # session works, and the subscription list is the first one this needs anyway.

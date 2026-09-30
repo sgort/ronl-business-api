@@ -6,7 +6,9 @@ import { instanceIdsForBusinessKey, openOwnTask } from './helpers/tasks';
 // Phase 1 item 4 — one deep journey against a real backend-backed flow.
 // Citizen submits a Kapvergunning (tree felling permit) request via
 // AwbShellProcess -> DMN evaluation -> TreeFellingPermitSubProcessE2E creates a
-// "Case review" task for the caseworker candidate group. Caseworker claims
+// review task (named "Case review: …" before the swimlane redesign,
+// "Beoordeling behandelaar: …" after it — the regexes below accept both, as do
+// the notify task's) for the caseworker candidate group. Caseworker claims
 // and completes it, which advances AwbShellProcess itself to its own
 // caseworker task (Task_Phase6_Notify, candidateGroups="caseworker") — that
 // one gets completed too, for a genuinely finalized roundtrip rather than
@@ -42,7 +44,11 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   await loginAsMedewerker(caseworkerPage, 'test-caseworker-flevoland', 'test123');
   await expect(caseworkerPage).toHaveURL(/\/dashboard\/caseworker$/);
 
-  await openOwnTask(caseworkerPage, /Case review: tree felling permit decision/, ownInstances);
+  await openOwnTask(
+    caseworkerPage,
+    /Case review: tree felling permit decision|Beoordeling behandelaar: besluit kapvergunning/,
+    ownInstances
+  );
 
   // form-js renders `select` fields as a custom combobox: the <label> and
   // accessible "textbox" role both target a visually-hidden, zero-size
@@ -60,7 +66,11 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   // ── Caseworker: finish the roundtrip — AwbShellProcess's own follow-up
   // notify task (also candidateGroups="caseworker") is created once the
   // review completes; leaving it open would dangle the process forever.
-  await openOwnTask(caseworkerPage, /Phase 6: Notify applicant of decision/, ownInstances);
+  await openOwnTask(
+    caseworkerPage,
+    /Phase 6: Notify applicant of decision|Fase 6: Aanvrager informeren over besluit/,
+    ownInstances
+  );
 
   await caseworkerPage.locator('[id$="-Field_NotificationMethod-display"]').click();
   await caseworkerPage.getByText('Email', { exact: true }).click();

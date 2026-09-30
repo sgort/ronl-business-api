@@ -38,12 +38,19 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import adminRouter from './admin.routes';
 import { db } from '@services/audit.service';
 
 const mockDb = db as unknown as { any: jest.Mock; one: jest.Mock };
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 app.use('/v1/admin', adminRouter);
 const asAdmin = (r: request.Test) => r.set('x-test-roles', 'admin');
 
@@ -53,11 +60,13 @@ describe('GET /v1/admin/audit', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/admin/audit');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/admin/audit');
   });
 
   it('403 for a non-admin role', async () => {
     const res = await request(app).get('/v1/admin/audit').set('x-test-roles', 'caseworker');
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/admin/audit');
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
@@ -68,6 +77,7 @@ describe('GET /v1/admin/audit', () => {
     const res = await asAdmin(request(app).get('/v1/admin/audit'));
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/admin/audit');
     expect(res.body.data.items).toHaveLength(1);
     expect(res.body.data.pagination).toEqual({ limit: 50, offset: 0, total: 1, hasMore: false });
   });
@@ -90,6 +100,7 @@ describe('GET /v1/admin/audit', () => {
     const res = await asAdmin(request(app).get('/v1/admin/audit'));
 
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/admin/audit');
     expect(res.body.error.code).toBe('DB_ERROR');
   });
 });

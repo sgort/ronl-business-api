@@ -46,7 +46,7 @@
       <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_UitvoerenConditionerendeOnderzoeken</bpmn:incoming>
       <bpmn:outgoing>Flow_Task_UitvoerenConditionerendeOnderzoeken_Gateway_UitgangspuntenJoin</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:userTask id="Task_OpstellenConceptVO" name="Opstellen concept VO" camunda:formRef="rip-concept-vo" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ontwerper" ronl:documentRef="rip-ontwerptoelichting">
+    <bpmn:userTask id="Task_OpstellenConceptVO" name="Opstellen concept VO" camunda:formRef="rip-concept-vo" camunda:formRefBinding="deployment" camunda:candidateGroups="rip-ontwerper" ronl:documentRef="rip-ontwerptoelichting,rip-objectenboom">
       <bpmn:incoming>Flow_Gateway_UitgangspuntenSplit_Task_OpstellenConceptVO</bpmn:incoming>
       <bpmn:outgoing>Flow_Task_OpstellenConceptVO_Gateway_UitgangspuntenJoin</bpmn:outgoing>
     </bpmn:userTask>

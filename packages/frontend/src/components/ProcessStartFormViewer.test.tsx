@@ -160,26 +160,85 @@ describe('ProcessStartFormViewer', () => {
       expect(onStarted2).toHaveBeenCalledWith('—');
     });
 
-    it('calls onError when starting the process is unsuccessful', async () => {
+    // #171: the backend's reason used to be dropped here, one line before
+    // anything could show it.
+    const ENGINE_CAUSE =
+      "Cannot instantiate process definition AwbShellProcess:1:x: no decision definition deployed with key 'AwbCompletenessCheck'";
+
+    async function submitFailing() {
+      await act(async () => {
+        await getSubmitHandler()({ data: {}, errors: {} });
+      });
+    }
+
+    it('passes the backend cause and engine instance on to onError, and logs them', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { onError } = await renderReady();
+      mockStart.mockResolvedValue({
+        success: false,
+        error: {
+          code: 'PROCESS_START_FAILED',
+          message: 'Failed to start process',
+          details: ENGINE_CAUSE,
+          instance: 'http://localhost:8081/engine-rest',
+        },
+      });
+
+      await submitFailing();
+
+      const failure = { cause: ENGINE_CAUSE, instance: 'http://localhost:8081/engine-rest' };
+      expect(onError).toHaveBeenCalledWith(failure);
+      // A constant message with the values as arguments, never interpolated (#203).
+      expect(consoleError).toHaveBeenCalledWith('Process start failed', {
+        processKey: 'pk1',
+        ...failure,
+      });
+    });
+
+    it('falls back to the error message when the backend gives no details', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { onError } = await renderReady();
+      mockStart.mockResolvedValue({
+        success: false,
+        error: { code: 'TENANT_MISMATCH', message: 'Process belongs to another organisation' },
+      });
+
+      await submitFailing();
+
+      expect(onError).toHaveBeenCalledWith({
+        cause: 'Process belongs to another organisation',
+        instance: undefined,
+      });
+    });
+
+    it('calls onError with no cause when the backend says nothing usable', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
       const { onError } = await renderReady();
       mockStart.mockResolvedValue({ success: false });
 
-      await act(async () => {
-        await getSubmitHandler()({ data: {}, errors: {} });
-      });
+      await submitFailing();
 
-      expect(onError).toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith({ cause: undefined, instance: undefined });
     });
 
-    it('calls onError when starting the process throws', async () => {
+    it('passes the thrown error message on when starting the process throws', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
       const { onError } = await renderReady();
       mockStart.mockRejectedValue(new Error('network down'));
 
-      await act(async () => {
-        await getSubmitHandler()({ data: {}, errors: {} });
-      });
+      await submitFailing();
 
-      expect(onError).toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith({ cause: 'network down', instance: undefined });
+    });
+
+    it('calls onError with no cause when something other than an Error is thrown', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { onError } = await renderReady();
+      mockStart.mockRejectedValue('not an Error');
+
+      await submitFailing();
+
+      expect(onError).toHaveBeenCalledWith({ cause: undefined, instance: undefined });
     });
   });
 

@@ -468,8 +468,102 @@ describe('getActivityHistory', () => {
 
     expect(res[0]).toMatchObject({ id: 'a1', activityType: 'serviceTask', durationInMillis: 5 });
     expect(mockClient.get).toHaveBeenCalledWith('/history/activity-instance', {
-      params: { processInstanceId: 'pi', sortBy: 'startTime', sortOrder: 'asc', maxResults: 500 },
+      // occurrence = startTime plus the engine's sequence counter: steps that
+      // start in the same millisecond (a gateway and the task after it) keep
+      // their causal order, which startTime alone leaves to the database.
+      params: { processInstanceId: 'pi', sortBy: 'occurrence', sortOrder: 'asc', maxResults: 500 },
     });
+  });
+
+  it('carries the process of each entry and the child instance a call activity started', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        {
+          id: 'a2',
+          activityId: 'Task_Phase45_Process',
+          activityName: 'Fase 4+5',
+          activityType: 'callActivity',
+          assignee: null,
+          startTime: 't0',
+          endTime: null,
+          durationInMillis: null,
+          canceled: false,
+          processDefinitionKey: 'AwbShellProcess',
+          processDefinitionId: 'AwbShellProcess:4:abc',
+          calledProcessInstanceId: 'child-1',
+        },
+      ],
+    });
+
+    const [entry] = await svc.getActivityHistory('pi');
+
+    expect(entry).toMatchObject({
+      processDefinitionKey: 'AwbShellProcess',
+      processDefinitionId: 'AwbShellProcess:4:abc',
+      calledProcessInstanceId: 'child-1',
+    });
+  });
+
+  it('reports the three optional fields as null, not undefined, when Operaton omits them', async () => {
+    mockClient.get.mockResolvedValue({
+      data: [
+        {
+          id: 'a3',
+          activityId: 'S',
+          activityName: null,
+          activityType: 'startEvent',
+          assignee: null,
+          startTime: 't0',
+          endTime: 't0',
+          durationInMillis: 0,
+          canceled: false,
+        },
+      ],
+    });
+
+    const [entry] = await svc.getActivityHistory('pi');
+
+    expect(entry.processDefinitionKey).toBeNull();
+    expect(entry.processDefinitionId).toBeNull();
+    expect(entry.calledProcessInstanceId).toBeNull();
+  });
+});
+
+describe('getProcessLineage', () => {
+  it('reads the historic instance: its process and the instance that called it', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        id: 'child-1',
+        processDefinitionKey: 'TreeFellingPermitSubProcess',
+        processDefinitionId: 'TreeFellingPermitSubProcess:2:def',
+        superProcessInstanceId: 'parent-1',
+      },
+    });
+
+    await expect(svc.getProcessLineage('child-1')).resolves.toEqual({
+      processInstanceId: 'child-1',
+      processDefinitionKey: 'TreeFellingPermitSubProcess',
+      processDefinitionId: 'TreeFellingPermitSubProcess:2:def',
+      superProcessInstanceId: 'parent-1',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/history/process-instance/child-1');
+  });
+
+  it('reports a top-level instance with a null super', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        id: 'parent-1',
+        processDefinitionKey: 'AwbShellProcess',
+        processDefinitionId: 'AwbShellProcess:9:abc',
+      },
+    });
+
+    expect((await svc.getProcessLineage('parent-1')).superProcessInstanceId).toBeNull();
+  });
+
+  it('rethrows an upstream failure', async () => {
+    mockClient.get.mockRejectedValue(new Error('down'));
+    await expect(svc.getProcessLineage('x')).rejects.toThrow('down');
   });
 });
 
@@ -783,30 +877,59 @@ describe('getUserTasks', () => {
 });
 
 describe('getBoardOwner', () => {
-  it('parses the boardOwner property and caches the result', async () => {
-    mockClient.get.mockResolvedValue({
-      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
-    });
+  const tagged = (owner: string) => ({
+    data: { bpmn20Xml: `<camunda:property name="boardOwner" value="${owner}" />` },
+  });
+  /** How many of the GETs so far asked for a BPMN document. */
+  const xmlFetches = () =>
+    mockClient.get.mock.calls.filter(([url]: [string]) => String(url).endsWith('/xml')).length;
+
+  it('resolves the key to a definition id, then parses and caches the tag under it', async () => {
+    routeGet([
+      ['/process-definition/key/K1', { data: { id: 'K1:1:aaa' } }],
+      ['/process-definition/K1:1:aaa/xml', tagged('rvo')],
+    ]);
     await expect(svc.getBoardOwner('K1')).resolves.toBe('rvo');
-    await svc.getBoardOwner('K1'); // cached
-    expect(mockClient.get).toHaveBeenCalledTimes(1);
+    await expect(svc.getBoardOwner('K1')).resolves.toBe('rvo');
+    // The definition lookup runs every time -- that is what makes a redeploy
+    // visible -- but the BPMN behind it is fetched and scanned only once.
+    expect(xmlFetches()).toBe(1);
   });
 
   it('matches the property with reversed attribute order', async () => {
-    mockClient.get.mockResolvedValue({
-      data: { bpmn20Xml: '<camunda:property value="waterschap" name="boardOwner"/>' },
-    });
+    routeGet([
+      ['/process-definition/key/K9', { data: { id: 'K9:1:aaa' } }],
+      [
+        '/process-definition/K9:1:aaa/xml',
+        { data: { bpmn20Xml: '<camunda:property value="waterschap" name="boardOwner"/>' } },
+      ],
+    ]);
     await expect(svc.getBoardOwner('K9')).resolves.toBe('waterschap');
   });
 
-  it('returns null for untagged BPMN', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<process/>' } });
+  it('returns null for untagged BPMN, and caches that null', async () => {
+    routeGet([
+      ['/process-definition/key/K2', { data: { id: 'K2:1:aaa' } }],
+      ['/process-definition/K2:1:aaa/xml', { data: { bpmn20Xml: '<process/>' } }],
+    ]);
     await expect(svc.getBoardOwner('K2')).resolves.toBeNull();
+    await expect(svc.getBoardOwner('K2')).resolves.toBeNull();
+    expect(xmlFetches()).toBe(1);
   });
 
-  it('returns null on lookup failure', async () => {
+  // Changed deliberately. The old code cached this null under the process key,
+  // so one bad response left the process untagged until the next restart --
+  // the same shape of defect as the stale swimlane, on the archive's board
+  // split. A failure now caches nothing.
+  it('returns null on lookup failure without caching it, so a retry recovers', async () => {
     mockClient.get.mockRejectedValue(new Error('xml down'));
     await expect(svc.getBoardOwner('K3')).resolves.toBeNull();
+
+    routeGet([
+      ['/process-definition/key/K3', { data: { id: 'K3:1:aaa' } }],
+      ['/process-definition/K3:1:aaa/xml', tagged('rvo')],
+    ]);
+    await expect(svc.getBoardOwner('K3')).resolves.toBe('rvo');
   });
 
   it('returns null for an empty key without hitting the API', async () => {
@@ -814,17 +937,19 @@ describe('getBoardOwner', () => {
     expect(mockClient.get).not.toHaveBeenCalled();
   });
 
-  it('tries the tenant-scoped XML lookup first when a tenantId is given', async () => {
-    mockClient.get.mockResolvedValue({
-      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
-    });
+  it('tries the tenant-scoped definition lookup first when a tenantId is given', async () => {
+    routeGet([
+      ['/process-definition/key/K10/tenant-id/flevoland', { data: { id: 'K10:1:aaa' } }],
+      ['/process-definition/K10:1:aaa/xml', tagged('rvo')],
+    ]);
     await expect(svc.getBoardOwner('K10', 'flevoland')).resolves.toBe('rvo');
-    expect(mockClient.get).toHaveBeenCalledWith(
-      '/process-definition/key/K10/tenant-id/flevoland/xml'
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/process-definition/key/K10/tenant-id/flevoland'
     );
   });
 
-  it('falls back to the untenanted XML lookup when the tenant-scoped one reports no matching definition', async () => {
+  it('falls back to the untenanted definition lookup when the tenant-scoped one finds nothing', async () => {
     mockClient.get
       .mockRejectedValueOnce({
         isAxiosError: true,
@@ -834,54 +959,80 @@ describe('getBoardOwner', () => {
           },
         },
       })
-      .mockResolvedValueOnce({
-        data: { bpmn20Xml: '<camunda:property name="boardOwner" value="waterschap" />' },
-      });
+      .mockResolvedValueOnce({ data: { id: 'K11:1:aaa' } })
+      .mockResolvedValueOnce(tagged('waterschap'));
     await expect(svc.getBoardOwner('K11', 'flevoland')).resolves.toBe('waterschap');
     expect(mockClient.get).toHaveBeenNthCalledWith(
       1,
-      '/process-definition/key/K11/tenant-id/flevoland/xml'
+      '/process-definition/key/K11/tenant-id/flevoland'
     );
-    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/K11/xml');
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/K11');
+    expect(mockClient.get).toHaveBeenNthCalledWith(3, '/process-definition/K11:1:aaa/xml');
   });
 
-  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
-    mockClient.get.mockResolvedValue({
-      data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo" />' },
-    });
-    await svc.getBoardOwner('K12'); // untenanted, caches under '::K12'
-    await svc.getBoardOwner('K12', 'flevoland'); // tenant-scoped, caches under 'flevoland::K12'
-    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  it('keeps tenant-scoped and untenanted deployments of one key apart', async () => {
+    routeGet([
+      ['/process-definition/key/K12', { data: { id: 'K12:1:untenanted' } }],
+      ['/process-definition/key/K12/tenant-id/flevoland', { data: { id: 'K12:1:flevoland' } }],
+      ['/process-definition/K12:1:untenanted/xml', tagged('rvo')],
+      ['/process-definition/K12:1:flevoland/xml', tagged('waterschap')],
+    ]);
+    await expect(svc.getBoardOwner('K12')).resolves.toBe('rvo');
+    await expect(svc.getBoardOwner('K12', 'flevoland')).resolves.toBe('waterschap');
+    expect(xmlFetches()).toBe(2);
+  });
+
+  it('picks up a redeploy that retags the board, without a restart', async () => {
+    routeGet([
+      ['/process-definition/key/K13', { data: { id: 'K13:1:aaa' } }],
+      ['/process-definition/K13:1:aaa/xml', tagged('rvo')],
+    ]);
+    await expect(svc.getBoardOwner('K13')).resolves.toBe('rvo');
+
+    routeGet([
+      ['/process-definition/key/K13', { data: { id: 'K13:2:bbb' } }],
+      ['/process-definition/K13:2:bbb/xml', tagged('waterschap')],
+    ]);
+    await expect(svc.getBoardOwner('K13')).resolves.toBe('waterschap');
   });
 });
 
 describe('getPhaseBpmnXml', () => {
-  it('fetches XML by key and caches the result', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<definitions/>' } });
+  it('resolves the key to a definition id and fetches the XML by that id, once', async () => {
+    routeGet([
+      ['/process-definition/key/RipR22Process', { data: { id: 'RipR22Process:1:aaa' } }],
+      ['/process-definition/RipR22Process:1:aaa/xml', { data: { bpmn20Xml: '<definitions/>' } }],
+    ]);
     await expect(svc.getPhaseBpmnXml('RipR22Process')).resolves.toBe('<definitions/>');
-    expect(mockClient.get).toHaveBeenCalledWith('/process-definition/key/RipR22Process/xml');
-    await svc.getPhaseBpmnXml('RipR22Process'); // cached
-    expect(mockClient.get).toHaveBeenCalledTimes(1);
+    expect(mockClient.get).toHaveBeenNthCalledWith(1, '/process-definition/key/RipR22Process');
+    expect(mockClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/process-definition/RipR22Process:1:aaa/xml'
+    );
+
+    await svc.getPhaseBpmnXml('RipR22Process');
+    // Three calls, not four: the second definition lookup happened, the second
+    // document transfer did not.
+    expect(mockClient.get).toHaveBeenCalledTimes(3);
   });
 
-  it('tries the tenant-scoped XML lookup first when a tenantId is given', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<definitions tenant="1"/>' } });
+  it('tries the tenant-scoped definition lookup first when a tenantId is given', async () => {
+    routeGet([
+      [
+        '/process-definition/key/RipR22Process/tenant-id/flevoland',
+        { data: { id: 'RipR22Process:1:fl' } },
+      ],
+      [
+        '/process-definition/RipR22Process:1:fl/xml',
+        { data: { bpmn20Xml: '<definitions tenant="1"/>' } },
+      ],
+    ]);
     await expect(svc.getPhaseBpmnXml('RipR22Process', 'flevoland')).resolves.toBe(
       '<definitions tenant="1"/>'
     );
-    expect(mockClient.get).toHaveBeenCalledWith(
-      '/process-definition/key/RipR22Process/tenant-id/flevoland/xml'
-    );
   });
 
-  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: '<definitions/>' } });
-    await svc.getPhaseBpmnXml('RipR22Process'); // caches under '-:RipR22Process'
-    await svc.getPhaseBpmnXml('RipR22Process', 'flevoland'); // caches under 'flevoland:RipR22Process'
-    expect(mockClient.get).toHaveBeenCalledTimes(2);
-  });
-
-  it('falls back to the untenanted lookup when the tenant-scoped one reports no matching definition', async () => {
+  it('falls back to the untenanted definition lookup when the tenant-scoped one finds nothing', async () => {
     mockClient.get
       .mockRejectedValueOnce({
         isAxiosError: true,
@@ -892,22 +1043,39 @@ describe('getPhaseBpmnXml', () => {
           },
         },
       })
+      .mockResolvedValueOnce({ data: { id: 'RipR22Process:1:aaa' } })
       .mockResolvedValueOnce({ data: { bpmn20Xml: '<definitions/>' } });
     await expect(svc.getPhaseBpmnXml('RipR22Process', 'utrecht')).resolves.toBe('<definitions/>');
     expect(mockClient.get).toHaveBeenNthCalledWith(
       1,
-      '/process-definition/key/RipR22Process/tenant-id/utrecht/xml'
+      '/process-definition/key/RipR22Process/tenant-id/utrecht'
     );
-    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/RipR22Process/xml');
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-definition/key/RipR22Process');
+  });
+
+  it('keeps tenant-scoped and untenanted deployments of one key apart', async () => {
+    routeGet([
+      ['/process-definition/key/RipR22Process', { data: { id: 'RipR22Process:1:un' } }],
+      [
+        '/process-definition/key/RipR22Process/tenant-id/flevoland',
+        { data: { id: 'RipR22Process:1:fl' } },
+      ],
+      ['/process-definition/RipR22Process:1:un/xml', { data: { bpmn20Xml: '<untenanted/>' } }],
+      ['/process-definition/RipR22Process:1:fl/xml', { data: { bpmn20Xml: '<flevoland/>' } }],
+    ]);
+    await expect(svc.getPhaseBpmnXml('RipR22Process')).resolves.toBe('<untenanted/>');
+    await expect(svc.getPhaseBpmnXml('RipR22Process', 'flevoland')).resolves.toBe('<flevoland/>');
   });
 
   it('rethrows on lookup failure rather than caching or swallowing it', async () => {
     mockClient.get.mockRejectedValue(new Error('xml down'));
     await expect(svc.getPhaseBpmnXml('RipR22Process')).rejects.toThrow('xml down');
     // Nothing was cached for the failed call, so a retry hits the client again.
-    mockClient.get.mockResolvedValueOnce({ data: { bpmn20Xml: '<definitions/>' } });
+    routeGet([
+      ['/process-definition/key/RipR22Process', { data: { id: 'RipR22Process:1:aaa' } }],
+      ['/process-definition/RipR22Process:1:aaa/xml', { data: { bpmn20Xml: '<definitions/>' } }],
+    ]);
     await expect(svc.getPhaseBpmnXml('RipR22Process')).resolves.toBe('<definitions/>');
-    expect(mockClient.get).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -917,8 +1085,31 @@ describe('getPhaseSwimlaneModel', () => {
     'utf-8'
   );
 
-  it('parses the phase XML (fetched via getPhaseBpmnXml) into a swimlane model', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: r22Xml } });
+  /**
+   * The same phase as it stood BEFORE ronl:documentRef became a list: one
+   * document on "Opstellen concept VO" instead of two. Derived from the
+   * fixture rather than kept as a second file, so it cannot drift from it --
+   * and asserted below, because a silent no-op replace would make the
+   * redeploy test prove nothing.
+   */
+  const r22XmlBefore = r22Xml.replace(
+    'ronl:documentRef="rip-ontwerptoelichting,rip-objectenboom"',
+    'ronl:documentRef="rip-ontwerptoelichting"'
+  );
+
+  const routeDefinition = (id: string, xml: string) =>
+    routeGet([
+      ['/process-definition/key/RipR22Process/tenant-id/flevoland', { data: { id } }],
+      ['/process-definition/key/RipR22Process', { data: { id } }],
+      [`/process-definition/${id}/xml`, { data: { bpmn20Xml: xml } }],
+    ]);
+
+  it('the fixture still carries the two-document attribute the before-state is derived from', () => {
+    expect(r22XmlBefore).not.toBe(r22Xml);
+  });
+
+  it('parses the phase XML into a swimlane model', async () => {
+    routeDefinition('RipR22Process:2:bbb', r22Xml);
     const model = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
     // Fixture-verified (bpmn-swimlane.test.ts): same counts pinned in
     // rip.routes.test.ts for the route that calls this method.
@@ -931,38 +1122,94 @@ describe('getPhaseSwimlaneModel', () => {
     ]);
     expect(model.nodes).toHaveLength(17);
     expect(model.edges).toHaveLength(21);
-    expect(mockClient.get).toHaveBeenCalledWith(
-      '/process-definition/key/RipR22Process/tenant-id/flevoland/xml'
-    );
   });
 
-  it('caches the parsed model, short-circuiting even the XML fetch on a repeat call', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: r22Xml } });
-    const xmlSpy = jest.spyOn(svc, 'getPhaseBpmnXml');
-    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
-    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland'); // cache hit
-    // Not just "the network wasn't hit again" (getPhaseBpmnXml's own cache
-    // already gives that) -- getPhaseBpmnXml itself is never called the
-    // second time, proving the swimlane-model cache is checked first.
-    expect(xmlSpy).toHaveBeenCalledTimes(1);
-    expect(mockClient.get).toHaveBeenCalledTimes(1);
+  it('returns the cached model on a repeat call, re-fetching and re-parsing nothing', async () => {
+    routeDefinition('RipR22Process:2:bbb', r22Xml);
+    const first = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    const second = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    // Identity, not equality: a re-parse would produce an equal object, so
+    // only the same reference proves the cache was read.
+    expect(second).toBe(first);
+    expect(
+      mockClient.get.mock.calls.filter(([url]: [string]) => String(url).endsWith('/xml'))
+    ).toHaveLength(1);
   });
 
-  it('caches tenant-scoped and untenanted lookups of the same key separately', async () => {
-    mockClient.get.mockResolvedValue({ data: { bpmn20Xml: r22Xml } });
-    const xmlSpy = jest.spyOn(svc, 'getPhaseBpmnXml');
-    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2'); // caches under '::RipR22Process'
-    await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland'); // 'flevoland::RipR22Process'
-    expect(xmlSpy).toHaveBeenCalledTimes(2);
+  /**
+   * The ACC defect of 28 September 2026, in one test. The model was cached
+   * under `${tenantId}::${processKey}`, which a redeploy does not change, so
+   * the second document on "Opstellen concept VO" never appeared however
+   * often the page was reloaded -- only a restart cleared it.
+   */
+  it('picks up a redeploy under the same key, without a restart', async () => {
+    routeDefinition('RipR22Process:1:aaa', r22XmlBefore);
+    const before = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    const taskBefore = before.nodes.find((n) => n.label.includes('Opstellen concept VO'));
+    expect(taskBefore?.docs).toEqual(['Ontwerptoelichting']);
+
+    routeDefinition('RipR22Process:2:bbb', r22Xml);
+    const after = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    const taskAfter = after.nodes.find((n) => n.label.includes('Opstellen concept VO'));
+    expect(taskAfter?.docs).toEqual(['Ontwerptoelichting', 'Objectenboom']);
+  });
+
+  it('keeps tenant-scoped and untenanted deployments of one key apart', async () => {
+    routeGet([
+      [
+        '/process-definition/key/RipR22Process/tenant-id/flevoland',
+        { data: { id: 'RipR22Process:1:fl' } },
+      ],
+      ['/process-definition/key/RipR22Process', { data: { id: 'RipR22Process:1:un' } }],
+      ['/process-definition/RipR22Process:1:fl/xml', { data: { bpmn20Xml: r22Xml } }],
+      ['/process-definition/RipR22Process:1:un/xml', { data: { bpmn20Xml: r22XmlBefore } }],
+    ]);
+    const untenanted = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2');
+    const scoped = await svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2', 'flevoland');
+    expect(untenanted).not.toBe(scoped);
+    expect(
+      mockClient.get.mock.calls.filter(([url]: [string]) => String(url).endsWith('/xml'))
+    ).toHaveLength(2);
   });
 
   it('rethrows on lookup failure rather than caching or swallowing it', async () => {
     mockClient.get.mockRejectedValue(new Error('xml down'));
     await expect(svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2')).rejects.toThrow('xml down');
     // Nothing was cached for the failed call, so a retry re-fetches and re-parses.
-    mockClient.get.mockResolvedValueOnce({ data: { bpmn20Xml: r22Xml } });
+    routeDefinition('RipR22Process:2:bbb', r22Xml);
     await expect(svc.getPhaseSwimlaneModel('RipR22Process', 'R2.2')).resolves.toMatchObject({
       phaseCode: 'R2.2',
+    });
+  });
+
+  /**
+   * The caseworker procesweergave reuses this exact path, keyed on the
+   * process key itself (GET /v1/process/definition/key/:key/swimlane), so the
+   * tenant-scoped lookup and the definition-id cache are the Infra-board's.
+   */
+  it('serves a caseworker process under its own key, with the new kinds and phases', async () => {
+    const awb = readFileSync(
+      join(__dirname, '../rip-swimlane/__fixtures__/awb/AwbShellProcess.bpmn'),
+      'utf-8'
+    );
+    routeGet([
+      [
+        '/process-definition/key/AwbShellProcess/tenant-id/flevoland',
+        { data: { id: 'AwbShellProcess:4:abc' } },
+      ],
+      ['/process-definition/AwbShellProcess:4:abc/xml', { data: { bpmn20Xml: awb } }],
+    ]);
+    const model = await svc.getPhaseSwimlaneModel(
+      'AwbShellProcess',
+      'AwbShellProcess',
+      'flevoland'
+    );
+    expect(model.phaseCode).toBe('AwbShellProcess');
+    expect(model.processKey).toBe('AwbShellProcess');
+    expect(model.nodes.find((n) => n.id === 'Task_Phase45_Process')).toMatchObject({
+      kind: 'call',
+      calls: 'TreeFellingPermitSubProcess',
+      awbPhase: '4+5',
     });
   });
 });
@@ -988,8 +1235,9 @@ describe('getCompletedTasks', () => {
           ],
         },
       ],
+      ['/process-definition/key/K1/tenant-id/flevoland', { data: { id: 'K1:1:aaa' } }],
       [
-        '/process-definition/key/K1/tenant-id/flevoland/xml',
+        '/process-definition/K1:1:aaa/xml',
         { data: { bpmn20Xml: '<camunda:property name="boardOwner" value="rvo"/>' } },
       ],
     ]);

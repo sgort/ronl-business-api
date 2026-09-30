@@ -8,6 +8,7 @@ import {
   ProcessInstance,
   Task,
   ActivityHistoryItem,
+  ProcessLineage,
 } from '@ronl/shared';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 import type { DocumentTemplate } from '@services/document/documentTemplate.types';
@@ -26,33 +27,65 @@ export class OperatonService {
   private client: AxiosInstance;
 
   /**
-   * Cache of processDefinitionKey → boardOwner. Process-definition XML is
-   * immutable per key/version, so a deployment-lifetime cache is safe and avoids
-   * re-fetching BPMN on every archive load. `null` (no tag) is cached too.
+   * EVERYTHING DERIVED FROM A DEPLOYED BPMN IS CACHED BY DEFINITION ID.
+   *
+   * A process-definition key is not a version. Operaton answers
+   * `/process-definition/key/{key}` with whatever is newest, so a redeploy
+   * changes what that key means while the key itself stays put -- and a cache
+   * keyed by `${tenantId}::${processKey}` cannot see the change.
+   *
+   * That is not hypothetical. On 28 September 2026 the ACC backend restarted
+   * at 11:30:20, R2.2 was redeployed at 11:33:02 with a second document on
+   * "Opstellen concept VO", and the swimlane kept rendering the first one
+   * only. The engine was right, the code was right, the cache was two minutes
+   * older than the deployment and there was no path that could ever refresh
+   * it. Localhost never showed it because the dev server restarts on every
+   * file change, which is the one thing that did clear these maps.
+   *
+   * A definition id, by contrast, IS the version: Operaton mints a new one on
+   * every deployment, so a redeploy misses the cache by construction and
+   * nothing has to remember to invalidate anything. The cost is one small
+   * lookup per request (`getCurrentDefinitionId`) to learn which id a key
+   * currently means -- a few hundred bytes of JSON, against an up-to-100 KB
+   * BPMN document and a 74-shape parse that it still saves.
    */
-  private boardOwnerCache = new Map<string, string | null>();
 
   /**
-   * Cache of processDefinitionId → BPMN XML. The XML for a given definition
-   * id is immutable in Operaton, so this never needs invalidating. Without it,
-   * every opened task refetches the whole document from the engine.
+   * `${tenantId}::${processKey}` → the definition id that key resolved to last
+   * time. Not a value cache: it is read only to notice that the id CHANGED, so
+   * the entries the previous deployment left in the maps below can be dropped
+   * instead of accumulating one dead generation per redeploy.
+   */
+  private currentDefinitionIds = new Map<string, string>();
+
+  /**
+   * processDefinitionId → BPMN XML. The XML for a given definition id is
+   * immutable in Operaton, so this never needs invalidating. Without it, every
+   * opened task refetches the whole document from the engine.
    */
   private bpmnXmlCache = new Map<string, string>();
 
   /**
-   * Cache of `${tenantId}:${processKey}` → BPMN XML for phase swimlane
-   * models, fetched by process-definition key (see getPhaseBpmnXml). Keyed
-   * separately from bpmnXmlCache, which is keyed by definition id.
+   * processDefinitionId → boardOwner, the deploy-time tag LDE writes into the
+   * BPMN. `null` (deployed, but carrying no tag) is cached too; a lookup that
+   * FAILED is not, so an engine blip cannot pin "untagged" for the lifetime of
+   * the process.
    */
-  private phaseBpmnCache = new Map<string, string>();
+  private boardOwnerCache = new Map<string, string | null>();
 
   /**
-   * Cache of `${tenantId}::${processKey}` → parsed swimlane model (see
-   * getPhaseSwimlaneModel), keyed identically to phaseBpmnCache above. The
-   * model derived from a definition's XML is exactly as immutable as the XML
-   * itself, so this cache never needs invalidating either -- it just saves
-   * re-running parseSwimlane's shape/edge parsing, back-edge walk and
-   * layering (up to 74 shapes and 68 edges) on every diagram view.
+   * `${processDefinitionId}::${phaseCode}` → parsed swimlane model. The model
+   * is exactly as immutable as the XML it came from, so this saves re-running
+   * parseSwimlane's shape/edge parsing, back-edge walk and layering (up to 74
+   * shapes and 68 edges) on every diagram view.
+   *
+   * phaseCode is in the key although RIP_PHASE_KEYS maps code to key one for
+   * one today, because the model carries the code it was parsed with: were a
+   * second code ever to share a process key, a key without it would serve the
+   * wrong phase's model rather than fail.
+   *
+   * Also holds the caseworker process models, whose phaseCode IS their
+   * process key (GET /v1/process/definition/key/:key/swimlane).
    */
   private phaseSwimlaneCache = new Map<string, PhaseSwimlaneModel>();
 
@@ -365,7 +398,10 @@ export class OperatonService {
       const response = await this.client.get('/history/activity-instance', {
         params: {
           processInstanceId,
-          sortBy: 'startTime',
+          // occurrence = startTime plus the engine's sequence counter. Steps
+          // that start in the same millisecond (a gateway, then the task after
+          // it) keep their causal order; on startTime alone the database picks.
+          sortBy: 'occurrence',
           sortOrder: 'asc',
           maxResults: 500,
         },
@@ -381,6 +417,9 @@ export class OperatonService {
         endTime: string | null;
         durationInMillis: number | null;
         canceled: boolean;
+        processDefinitionKey?: string | null;
+        processDefinitionId?: string | null;
+        calledProcessInstanceId?: string | null;
       }>;
 
       return items.map((a) => ({
@@ -393,6 +432,9 @@ export class OperatonService {
         endTime: a.endTime,
         durationInMillis: a.durationInMillis,
         canceled: a.canceled,
+        processDefinitionKey: a.processDefinitionKey ?? null,
+        processDefinitionId: a.processDefinitionId ?? null,
+        calledProcessInstanceId: a.calledProcessInstanceId ?? null,
       }));
     } catch (error) {
       logger.error('Failed to get activity history', {
@@ -401,6 +443,27 @@ export class OperatonService {
       });
       throw error;
     }
+  }
+
+  /**
+   * The instance's place in a call chain, from the HISTORIC process instance:
+   * unlike runtime /process-instance/{id}, it carries superProcessInstanceId
+   * and still answers once the instance has ended.
+   */
+  async getProcessLineage(processInstanceId: string): Promise<ProcessLineage> {
+    const res = await this.client.get(`/history/process-instance/${processInstanceId}`);
+    const h = res.data as {
+      id: string;
+      processDefinitionKey: string;
+      processDefinitionId: string;
+      superProcessInstanceId?: string | null;
+    };
+    return {
+      processInstanceId: h.id,
+      processDefinitionKey: h.processDefinitionKey,
+      processDefinitionId: h.processDefinitionId,
+      superProcessInstanceId: h.superProcessInstanceId ?? null,
+    };
   }
 
   /**
@@ -617,6 +680,44 @@ export class OperatonService {
       firstName: varMap[i.id]?.firstName ?? '—',
       lastName: varMap[i.id]?.lastName ?? '—',
     }));
+  }
+
+  /**
+   * The id of the definition a process key means RIGHT NOW, with the same
+   * tenant-scoped-then-untenanted fallback the rest of the by-key lookups use.
+   *
+   * Deliberately uncached: this single call is what makes a redeploy visible,
+   * and caching it would put the staleness back one level up. The response is
+   * the definition's metadata only -- no BPMN -- so it is small.
+   *
+   * When the id has changed since the last call for this key, whatever the
+   * previous deployment left behind is dropped here. Those entries can never
+   * be read again (nothing else knows the old id), so this is housekeeping
+   * rather than correctness -- it stops a long-lived process accumulating one
+   * dead XML document per redeploy.
+   */
+  private async getCurrentDefinitionId(processKey: string, tenantId?: string): Promise<string> {
+    const res = await this.getByKeyWithTenantFallback<{ id: string }>(processKey, tenantId, '');
+    const definitionId = res.data.id;
+
+    const keyed = `${tenantId ?? ''}::${processKey}`;
+    const previous = this.currentDefinitionIds.get(keyed);
+    if (previous && previous !== definitionId) {
+      this.bpmnXmlCache.delete(previous);
+      this.boardOwnerCache.delete(previous);
+      for (const cacheKey of this.phaseSwimlaneCache.keys()) {
+        if (cacheKey.startsWith(`${previous}::`)) this.phaseSwimlaneCache.delete(cacheKey);
+      }
+      logger.info('Process definition redeployed; dropped the previous version from cache', {
+        processKey,
+        tenantId,
+        previousDefinitionId: previous,
+        definitionId,
+      });
+    }
+    this.currentDefinitionIds.set(keyed, definitionId);
+
+    return definitionId;
   }
 
   /**
@@ -1139,34 +1240,33 @@ export class OperatonService {
    */
   async getBoardOwner(processDefinitionKey: string, tenantId?: string): Promise<string | null> {
     if (!processDefinitionKey) return null;
-    const cacheKey = `${tenantId ?? ''}::${processDefinitionKey}`;
-    const cached = this.boardOwnerCache.get(cacheKey);
-    if (cached !== undefined) return cached;
 
-    let owner: string | null = null;
     try {
-      const res = await this.getByKeyWithTenantFallback<{ bpmn20Xml?: string }>(
-        processDefinitionKey,
-        tenantId,
-        '/xml'
-      );
-      const xml: string = res.data?.bpmn20Xml ?? '';
+      const definitionId = await this.getCurrentDefinitionId(processDefinitionKey, tenantId);
+      const cached = this.boardOwnerCache.get(definitionId);
+      if (cached !== undefined) return cached;
+
+      const xml = await this.getCachedBpmnXml(definitionId);
       // Match the property regardless of name/value attribute order.
       const m =
         xml.match(/<camunda:property\b[^>]*\bname="boardOwner"[^>]*\bvalue="([^"]*)"/) ??
         xml.match(/<camunda:property\b[^>]*\bvalue="([^"]*)"[^>]*\bname="boardOwner"/);
-      owner = m ? m[1] : null;
+      const owner = m ? m[1] : null;
+
+      this.boardOwnerCache.set(definitionId, owner);
+      return owner;
     } catch (error) {
+      // Untagged on failure, as before -- callers fall back to their static
+      // split rather than the archive breaking. NOT cached, though: the old
+      // code stored this null under the process key and so turned one bad
+      // response into a permanently untagged process.
       logger.warn('Failed to resolve boardOwner; treating as untagged', {
         processDefinitionKey,
         tenantId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      owner = null;
+      return null;
     }
-
-    this.boardOwnerCache.set(cacheKey, owner);
-    return owner;
   }
 
   /**
@@ -1554,41 +1654,37 @@ export class OperatonService {
   }
 
   /**
-   * BPMN XML for a phase's process definition, fetched BY KEY so a phase with
+   * BPMN XML for a phase's process definition, resolved BY KEY so a phase with
    * no running instance still resolves — mock portfolio rows need a diagram
-   * too. Cached per key+tenant: Operaton's XML is immutable for a definition,
-   * and a redeploy produces a new definition id under the same key, so the
-   * cache is refreshed by restart rather than invalidated.
+   * too. The key is turned into the definition id it currently means, and the
+   * XML is then fetched and cached by that id, so a redeploy is picked up on
+   * the next request instead of on the next restart.
    */
   async getPhaseBpmnXml(processKey: string, tenantId?: string): Promise<string> {
-    const cacheKey = `${tenantId ?? ''}::${processKey}`;
-    const cached = this.phaseBpmnCache.get(cacheKey);
-    if (cached) return cached;
-    const res = await this.getByKeyWithTenantFallback<{ bpmn20Xml: string }>(
-      processKey,
-      tenantId,
-      '/xml'
-    );
-    const xml = res.data.bpmn20Xml;
-    this.phaseBpmnCache.set(cacheKey, xml);
-    return xml;
+    const definitionId = await this.getCurrentDefinitionId(processKey, tenantId);
+    return this.getCachedBpmnXml(definitionId);
   }
 
   /**
-   * Swimlane model for a phase, parsed from its deployed BPMN (getPhaseBpmnXml)
-   * and cached under the same `${tenantId}::${processKey}` key. Checked before
-   * the XML fetch, not after: on a hit this returns without ever calling
-   * getPhaseBpmnXml, so a diagram view neither re-fetches nor re-parses.
+   * Swimlane model for a phase, parsed from its deployed BPMN and cached by
+   * definition id. Checked before the XML fetch, not after, so a repeat view
+   * neither re-transfers the document nor re-parses it -- it costs only the
+   * definition lookup that proves the deployment has not moved.
+   *
+   * Not RIP-only: the caseworker procesweergave calls this with the process
+   * key as its own phaseCode, so both boards share one tenant-scoped lookup
+   * and one cache.
    */
   async getPhaseSwimlaneModel(
     processKey: string,
     phaseCode: string,
     tenantId?: string
   ): Promise<PhaseSwimlaneModel> {
-    const cacheKey = `${tenantId ?? ''}::${processKey}`;
+    const definitionId = await this.getCurrentDefinitionId(processKey, tenantId);
+    const cacheKey = `${definitionId}::${phaseCode}`;
     const cached = this.phaseSwimlaneCache.get(cacheKey);
     if (cached) return cached;
-    const xml = await this.getPhaseBpmnXml(processKey, tenantId);
+    const xml = await this.getCachedBpmnXml(definitionId);
     const model = parseSwimlane(xml, phaseCode);
     this.phaseSwimlaneCache.set(cacheKey, model);
     return model;

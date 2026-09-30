@@ -153,7 +153,7 @@ jobs:
           # >=20.13.0, and both App Service plans run NODE|22-lts. So the
           # deployed artifact was BUILT on a major the host does not run.
           #
-          # .nvmrc is pinned to an exact 22.22.0 rather than a bare 22,
+          # .nvmrc is pinned to an exact version rather than a bare 22,
           # deliberately: 'nothing a pipeline downloads may float' is the same
           # policy the action digests above follow, and a bare major resolves to
           # whatever 22.x the runner happens to carry. Renovate's node manager
@@ -198,6 +198,10 @@ jobs:
           test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
           test -f dist/sitemap.xml || (echo "ERROR: sitemap.xml not found!" && exit 1)
           test -f dist/robots.txt || (echo "ERROR: robots.txt not found!" && exit 1)
+          # The link-preview and robots tags must be this environment's: an ACC
+          # build with the production card, or open to crawlers, would be cached
+          # by every unfurler for days and indexed as a duplicate of the site.
+          node scripts/check-og.mjs acceptance
           echo "✅ Build completed successfully"
 
       - name: Deploy to Azure Static Web Apps

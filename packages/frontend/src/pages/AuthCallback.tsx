@@ -39,11 +39,12 @@ function canAccessRedirect(path: string, roles: string[]): boolean {
   if (path === '/dashboard/woo') return roles.includes('woo-coordinatie');
   if (path === '/dashboard/infra-board') return roles.includes('infra-projectteam');
   if (path === '/dashboard/public-affairs') return roles.includes('public-affairs');
-  // infra-projectteam members also carry the caseworker role (they need the task
-  // API), but their home is /dashboard/infra-board — don't let a stale
-  // caseworker redirect override that.
-  if (path === '/dashboard/caseworker')
-    return roles.includes('caseworker') && !roles.includes('infra-projectteam');
+  // A stored redirect is a board the user chose (a landing-page card, or the
+  // dashboard they logged in from), so it wins over the default board. An
+  // earlier exception refused /dashboard/caseworker to infra-projectteam
+  // members: it dated from when the caseworker dashboard was the only login
+  // entry and stored that redirect on every login.
+  if (path === '/dashboard/caseworker') return roles.includes('caseworker');
   return true;
 }
 
@@ -69,10 +70,12 @@ function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean })
  * such restriction, so it's the only safe way to trigger a real redirect
  * from more than one call site.)
  *
- * Citizen flows (digid / eherkenning / eidas):
+ * External-IdP flows (digid / eherkenning / eidas / entra-flevoland):
  *   Not authenticated → keycloak.login({ idpHint }) redirects to the
- *   external IdP. In dev (no real IdPs configured) it falls back to the
- *   native login form without a context banner.
+ *   external IdP. entra-flevoland is Provincie Flevoland's Entra ID, brokered
+ *   by Keycloak (scripts/keycloak-add-entra-idp.sh). Where the hinted
+ *   provider is not configured, Keycloak falls back to its native login form
+ *   without a context banner.
  *
  * Medewerker flow:
  *   Not authenticated → keycloak.login({ loginHint: '__medewerker__' }) so

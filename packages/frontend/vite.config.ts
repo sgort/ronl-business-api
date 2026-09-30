@@ -81,8 +81,8 @@ export default defineConfig({
       // package average, which is 89.78% here — one file dropping to 40%
       // barely moves that, and the regression this exists to catch passes.
       //
-      // BRANCHES ONLY, deliberately. A functions floor at 80 would fail 11
-      // files in this package today. Do not add `functions: 80` on the
+      // BRANCHES ONLY, deliberately. A functions floor at 80 would fail 10
+      // files in this package (measured 28 September 2026). Do not add `functions: 80` on the
       // assumption it is equally safe; measure first.
       thresholds: {
         branches: 80,

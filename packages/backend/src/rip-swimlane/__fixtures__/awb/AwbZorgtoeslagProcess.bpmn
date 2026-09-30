@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_AWB_Zorgtoeslag" targetNamespace="http://example.com/zorgtoeslag/awb" exporter="Camunda Modeler" exporterVersion="5.43.1">
+  <bpmn:collaboration id="Collaboration_Zorgtoeslag">
+    <bpmn:participant id="Participant_Zorgtoeslag" name="Awb Zorgtoeslag - Voorlopige toekenning" processRef="AwbZorgtoeslagProcess" />
+  </bpmn:collaboration>
+  <bpmn:process id="AwbZorgtoeslagProcess" name="Awb Zorgtoeslag - Voorlopige toekenning" isExecutable="true" camunda:historyTimeToLive="365">
+    <bpmn:laneSet id="LaneSet_Zorgtoeslag">
+      <bpmn:lane id="Lane_Aanvrager" name="Aanvrager">
+        <bpmn:flowNodeRef>StartEvent_AWB</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Behandelaar" name="Behandelaar">
+        <bpmn:flowNodeRef>Task_RequestMissingInfo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_StillIncomplete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Phase45_Process</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Phase6_Notify</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Systeem" name="Systeem">
+        <bpmn:flowNodeRef>Task_Phase1_Identity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Phase2_Receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Phase3_Completeness</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Complete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RefuseToProcess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Payment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Phase7_Payment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Chain</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Phase8_Forward</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchivesDMN</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ArchiveRecord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_AWB</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_AWB" name="Aanvraag ingediend" camunda:formRef="zorgtoeslag-provisional-start" camunda:formRefBinding="deployment" ronl:awbPhase="1">
+      <bpmn:outgoing>Flow_Start_Phase1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:scriptTask id="Task_Phase1_Identity" name="Fase 1: Rechtsbetrekking vaststellen (identificatie)" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Start_Phase1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Phase1_Phase2</bpmn:outgoing>
+      <bpmn:script>
+        // Phase 1: Record identity and authentication
+        // In production: integrate with DigiD / eHerkenning
+        var now = new Date().toISOString();
+        execution.setVariable("applicationDate", now);
+        execution.setVariable("applicationYear", new Date().getFullYear());
+
+        if (!execution.getVariable("applicantId")) {
+          execution.setVariable("applicantId", "APPLICANT-" + Date.now());
+        }
+        if (!execution.getVariable("productType")) {
+          execution.setVariable("productType", "Zorgtoeslag");
+        }
+
+        execution.setVariable("phase1Complete", true);
+        execution.setVariable("authenticationMethod", "DigiD");
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Task_Phase2_Receipt" name="Fase 2: Ontvangstbevestiging aanvraag (Awb 4:1)" scriptFormat="javascript" ronl:awbPhase="2">
+      <bpmn:incoming>Flow_Phase1_Phase2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Phase2_Phase3</bpmn:outgoing>
+      <bpmn:script>
+        // Phase 2: Acknowledge receipt of application (Awb 4:1)
+        var receiptDate = new Date();
+        execution.setVariable("receiptDate", receiptDate.toISOString());
+
+        // Statutory deadline: Awb 4:13 - 8 weeks standard
+        var deadline = new Date(receiptDate);
+        deadline.setDate(deadline.getDate() + 56);
+        execution.setVariable("awbDeadlineDate", deadline.toISOString());
+        execution.setVariable("awbDeadlineDays", 56);
+        execution.setVariable("awbLegalBasis", "Awb 4:13 paragraph 1");
+
+        var ref = "AWB-" + receiptDate.getFullYear() + "-" + Date.now().toString().slice(-6);
+        execution.setVariable("dossierReference", ref);
+
+        execution.setVariable("phase2Complete", true);
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:businessRuleTask id="Task_Phase3_Completeness" name="Fase 3: Ontvankelijkheidstoets (Awb 2:3)" camunda:resultVariable="completenessResult" camunda:decisionRef="AwbCompletenessCheck" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult" ronl:awbPhase="3">
+      <bpmn:incoming>Flow_Phase2_Phase3</bpmn:incoming>
+      <bpmn:outgoing>Flow_Phase3_Gateway</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gateway_Complete" name="Aanvraag volledig?">
+      <bpmn:incoming>Flow_Phase3_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Complete_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Complete_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_RequestMissingInfo" name="Aanvullende gegevens opvragen (Awb 4:5)" camunda:formRef="zorgtoeslag-aanvullende-gegevens" camunda:formRefBinding="deployment" camunda:candidateGroups="caseworker">
+      <bpmn:incoming>Flow_Complete_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_MissingInfo_Recheck</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_StillIncomplete" name="Aanvulling ontvangen?">
+      <bpmn:incoming>Flow_MissingInfo_Recheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_Recheck_Process</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Recheck_Refuse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:scriptTask id="Task_RefuseToProcess" name="Aanvraag buiten behandeling stellen (Awb 4:5 lid 2)" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Recheck_Refuse</bpmn:incoming>
+      <bpmn:outgoing>Flow_Refuse_Notify</bpmn:outgoing>
+      <bpmn:script>
+        execution.setVariable("status", "Not admissible");
+        execution.setVariable("finalMessage", "Your application has not been processed due to missing information (Awb 4:5 paragraph 2). You may appeal within 6 weeks (Awb 6:7).");
+        execution.setVariable("decisionType", "Refused");
+        execution.setVariable("paymentRequired", false);
+        execution.setVariable("chainProcessRequired", false);
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:callActivity id="Task_Phase45_Process" name="Fase 4+5: Behandeling en besluit" calledElement="ZorgtoeslagProvisionalSubProcess" ronl:awbPhase="4+5">
+      <bpmn:extensionElements>
+        <camunda:in variables="all" />
+        <camunda:out variables="all" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Complete_Yes</bpmn:incoming>
+      <bpmn:incoming>Flow_Recheck_Process</bpmn:incoming>
+      <bpmn:outgoing>Flow_Phase45_Phase6</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:userTask id="Task_Phase6_Notify" name="Fase 6: Aanvrager informeren over besluit (Awb 3:6)" camunda:formRef="zorgtoeslag-notify-applicant" camunda:formRefBinding="deployment" camunda:candidateGroups="caseworker" ronl:documentRef="example_zorgtoeslag_provisional_beschikking" ronl:awbPhase="6">
+      <bpmn:incoming>Flow_Phase45_Phase6</bpmn:incoming>
+      <bpmn:incoming>Flow_Refuse_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Phase6_PaymentGateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Payment" name="Betaling vereist?" ronl:awbPhase="7">
+      <bpmn:incoming>Flow_Phase6_PaymentGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Payment_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Payment_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:scriptTask id="Task_Phase7_Payment" name="Fase 7: Betaling verwerken (Invorderingswet)" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Payment_Yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_PaymentTask_Chain</bpmn:outgoing>
+      <bpmn:script>
+        // Initiates monthly zorgtoeslag payments via the payment provider.
+        // In production: integrate with payment provider / Belastingdienst disbursement API.
+        execution.setVariable("paymentProcessed", true);
+        execution.setVariable("paymentDate", new Date().toISOString());
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="Gateway_Chain" name="Doorzetten naar ketenproces?" ronl:awbPhase="8">
+      <bpmn:incoming>Flow_Payment_No</bpmn:incoming>
+      <bpmn:incoming>Flow_PaymentTask_Chain</bpmn:incoming>
+      <bpmn:outgoing>Flow_Chain_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Chain_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:scriptTask id="Task_Phase8_Forward" name="Fase 8: Doorzetten naar definitieve vaststelling" scriptFormat="javascript">
+      <bpmn:incoming>Flow_Chain_Yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_ChainTask_Archives</bpmn:outgoing>
+      <bpmn:script>
+        // Signals that the dossier should be forwarded to ZorgtoeslagFinalSubProcess
+        // once final annual income data is available from Belastingdienst.
+        // In production: send FinalIncomeReceived message or register a timer callback.
+        execution.setVariable("chainForwardDate", new Date().toISOString());
+        execution.setVariable("chainProcessKey", "ZorgtoeslagFinalSubProcess");
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:businessRuleTask id="Task_ArchivesDMN" name="Bewaartermijn bepalen (Archiefwet)" camunda:resultVariable="archivesResult" camunda:decisionRef="ArchivesActRetention" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleResult" ronl:awbPhase="archivering">
+      <bpmn:incoming>Flow_Chain_No</bpmn:incoming>
+      <bpmn:incoming>Flow_ChainTask_Archives</bpmn:incoming>
+      <bpmn:outgoing>Flow_ArchivesDMN_Record</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:scriptTask id="Task_ArchiveRecord" name="Dossier archiveren (Awb 4:17)" scriptFormat="javascript">
+      <bpmn:incoming>Flow_ArchivesDMN_Record</bpmn:incoming>
+      <bpmn:outgoing>Flow_Archive_End</bpmn:outgoing>
+      <bpmn:script>
+        // Archive the dossier according to the retention period from ArchivesActRetention DMN.
+        execution.setVariable("archiveDate", new Date().toISOString());
+        execution.setVariable("archiveStatus", "Archived");
+        if (execution.getVariable("archivesResult")) {
+          var result = execution.getVariable("archivesResult");
+          execution.setVariable("retentionYears", result.retentionYears);
+          execution.setVariable("retentionClass", result.retentionClass);
+          execution.setVariable("destroyDate",
+            new Date(new Date().setFullYear(
+              new Date().getFullYear() + (result.retentionYears || 10)
+            )).toISOString()
+          );
+        }
+      </bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="EndEvent_AWB" name="Proces afgerond">
+      <bpmn:incoming>Flow_Archive_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_Phase1" sourceRef="StartEvent_AWB" targetRef="Task_Phase1_Identity" />
+    <bpmn:sequenceFlow id="Flow_Phase1_Phase2" sourceRef="Task_Phase1_Identity" targetRef="Task_Phase2_Receipt" />
+    <bpmn:sequenceFlow id="Flow_Phase2_Phase3" sourceRef="Task_Phase2_Receipt" targetRef="Task_Phase3_Completeness" />
+    <bpmn:sequenceFlow id="Flow_Phase3_Gateway" sourceRef="Task_Phase3_Completeness" targetRef="Gateway_Complete" />
+    <bpmn:sequenceFlow id="Flow_Complete_Yes" sourceRef="Gateway_Complete" targetRef="Task_Phase45_Process">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${completenessResult.isComplete == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Complete_No" sourceRef="Gateway_Complete" targetRef="Task_RequestMissingInfo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${completenessResult.isComplete == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_MissingInfo_Recheck" sourceRef="Task_RequestMissingInfo" targetRef="Gateway_StillIncomplete" />
+    <bpmn:sequenceFlow id="Flow_Recheck_Process" sourceRef="Gateway_StillIncomplete" targetRef="Task_Phase45_Process">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supplementReceived == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Recheck_Refuse" sourceRef="Gateway_StillIncomplete" targetRef="Task_RefuseToProcess">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${supplementReceived == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Refuse_Notify" sourceRef="Task_RefuseToProcess" targetRef="Task_Phase6_Notify" />
+    <bpmn:sequenceFlow id="Flow_Phase45_Phase6" sourceRef="Task_Phase45_Process" targetRef="Task_Phase6_Notify" />
+    <bpmn:sequenceFlow id="Flow_Phase6_PaymentGateway" sourceRef="Task_Phase6_Notify" targetRef="Gateway_Payment" />
+    <bpmn:sequenceFlow id="Flow_Payment_Yes" sourceRef="Gateway_Payment" targetRef="Task_Phase7_Payment">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${paymentRequired == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Payment_No" sourceRef="Gateway_Payment" targetRef="Gateway_Chain">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${paymentRequired != true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_PaymentTask_Chain" sourceRef="Task_Phase7_Payment" targetRef="Gateway_Chain" />
+    <bpmn:sequenceFlow id="Flow_Chain_Yes" sourceRef="Gateway_Chain" targetRef="Task_Phase8_Forward">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${chainProcessRequired == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Chain_No" sourceRef="Gateway_Chain" targetRef="Task_ArchivesDMN">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${chainProcessRequired != true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ChainTask_Archives" sourceRef="Task_Phase8_Forward" targetRef="Task_ArchivesDMN" />
+    <bpmn:sequenceFlow id="Flow_ArchivesDMN_Record" sourceRef="Task_ArchivesDMN" targetRef="Task_ArchiveRecord" />
+    <bpmn:sequenceFlow id="Flow_Archive_End" sourceRef="Task_ArchiveRecord" targetRef="EndEvent_AWB" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_AWB">
+    <bpmndi:BPMNPlane id="BPMNPlane_AWB" bpmnElement="Collaboration_Zorgtoeslag">
+      <bpmndi:BPMNShape id="Participant_Zorgtoeslag_di" bpmnElement="Participant_Zorgtoeslag" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="2600" height="720" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Aanvrager_di" bpmnElement="Lane_Aanvrager" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="2570" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Behandelaar_di" bpmnElement="Lane_Behandelaar" isHorizontal="true">
+        <dc:Bounds x="130" y="200" width="2570" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Systeem_di" bpmnElement="Lane_Systeem" isHorizontal="true">
+        <dc:Bounds x="130" y="400" width="2570" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_AWB_di" bpmnElement="StartEvent_AWB">
+        <dc:Bounds x="312" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="200" y="117" width="100" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase1_Identity_di" bpmnElement="Task_Phase1_Identity">
+        <dc:Bounds x="250" y="540" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase2_Receipt_di" bpmnElement="Task_Phase2_Receipt">
+        <dc:Bounds x="450" y="540" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase3_Completeness_di" bpmnElement="Task_Phase3_Completeness">
+        <dc:Bounds x="650" y="540" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Complete_di" bpmnElement="Gateway_Complete" isMarkerVisible="true">
+        <dc:Bounds x="875" y="555" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="860" y="612" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RequestMissingInfo_di" bpmnElement="Task_RequestMissingInfo">
+        <dc:Bounds x="820" y="260" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_StillIncomplete_di" bpmnElement="Gateway_StillIncomplete" isMarkerVisible="true">
+        <dc:Bounds x="1055" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1040" y="246" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase45_Process_di" bpmnElement="Task_Phase45_Process">
+        <dc:Bounds x="1180" y="260" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase6_Notify_di" bpmnElement="Task_Phase6_Notify">
+        <dc:Bounds x="1380" y="260" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RefuseToProcess_di" bpmnElement="Task_RefuseToProcess">
+        <dc:Bounds x="1380" y="660" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Payment_di" bpmnElement="Gateway_Payment" isMarkerVisible="true">
+        <dc:Bounds x="1615" y="555" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1600" y="612" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase7_Payment_di" bpmnElement="Task_Phase7_Payment">
+        <dc:Bounds x="1720" y="420" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Chain_di" bpmnElement="Gateway_Chain" isMarkerVisible="true">
+        <dc:Bounds x="1935" y="555" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1845" y="612" width="100" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Phase8_Forward_di" bpmnElement="Task_Phase8_Forward">
+        <dc:Bounds x="2040" y="660" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ArchivesDMN_di" bpmnElement="Task_ArchivesDMN">
+        <dc:Bounds x="2200" y="540" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ArchiveRecord_di" bpmnElement="Task_ArchiveRecord">
+        <dc:Bounds x="2400" y="540" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_AWB_di" bpmnElement="EndEvent_AWB">
+        <dc:Bounds x="2602" y="562" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2578" y="620" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_Phase1_di" bpmnElement="Flow_Start_Phase1">
+        <di:waypoint x="330" y="148" />
+        <di:waypoint x="330" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Phase1_Phase2_di" bpmnElement="Flow_Phase1_Phase2">
+        <di:waypoint x="410" y="580" />
+        <di:waypoint x="450" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Phase2_Phase3_di" bpmnElement="Flow_Phase2_Phase3">
+        <di:waypoint x="610" y="580" />
+        <di:waypoint x="650" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Phase3_Gateway_di" bpmnElement="Flow_Phase3_Gateway">
+        <di:waypoint x="810" y="580" />
+        <di:waypoint x="875" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Complete_Yes_di" bpmnElement="Flow_Complete_Yes">
+        <di:waypoint x="925" y="580" />
+        <di:waypoint x="1260" y="580" />
+        <di:waypoint x="1260" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Complete_No_di" bpmnElement="Flow_Complete_No">
+        <di:waypoint x="900" y="555" />
+        <di:waypoint x="900" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_MissingInfo_Recheck_di" bpmnElement="Flow_MissingInfo_Recheck">
+        <di:waypoint x="980" y="300" />
+        <di:waypoint x="1055" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Recheck_Process_di" bpmnElement="Flow_Recheck_Process">
+        <di:waypoint x="1105" y="300" />
+        <di:waypoint x="1180" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Recheck_Refuse_di" bpmnElement="Flow_Recheck_Refuse">
+        <di:waypoint x="1080" y="325" />
+        <di:waypoint x="1080" y="700" />
+        <di:waypoint x="1380" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Refuse_Notify_di" bpmnElement="Flow_Refuse_Notify">
+        <di:waypoint x="1460" y="660" />
+        <di:waypoint x="1460" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Phase45_Phase6_di" bpmnElement="Flow_Phase45_Phase6">
+        <di:waypoint x="1340" y="300" />
+        <di:waypoint x="1380" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Phase6_PaymentGateway_di" bpmnElement="Flow_Phase6_PaymentGateway">
+        <di:waypoint x="1540" y="300" />
+        <di:waypoint x="1580" y="300" />
+        <di:waypoint x="1580" y="580" />
+        <di:waypoint x="1615" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Payment_Yes_di" bpmnElement="Flow_Payment_Yes">
+        <di:waypoint x="1640" y="555" />
+        <di:waypoint x="1640" y="460" />
+        <di:waypoint x="1720" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Payment_No_di" bpmnElement="Flow_Payment_No">
+        <di:waypoint x="1665" y="580" />
+        <di:waypoint x="1935" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PaymentTask_Chain_di" bpmnElement="Flow_PaymentTask_Chain">
+        <di:waypoint x="1880" y="460" />
+        <di:waypoint x="1960" y="460" />
+        <di:waypoint x="1960" y="555" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Chain_Yes_di" bpmnElement="Flow_Chain_Yes">
+        <di:waypoint x="1960" y="605" />
+        <di:waypoint x="1960" y="700" />
+        <di:waypoint x="2040" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Chain_No_di" bpmnElement="Flow_Chain_No">
+        <di:waypoint x="1985" y="580" />
+        <di:waypoint x="2200" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ChainTask_Archives_di" bpmnElement="Flow_ChainTask_Archives">
+        <di:waypoint x="2200" y="700" />
+        <di:waypoint x="2280" y="700" />
+        <di:waypoint x="2280" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ArchivesDMN_Record_di" bpmnElement="Flow_ArchivesDMN_Record">
+        <di:waypoint x="2360" y="580" />
+        <di:waypoint x="2400" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Archive_End_di" bpmnElement="Flow_Archive_End">
+        <di:waypoint x="2560" y="580" />
+        <di:waypoint x="2602" y="580" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

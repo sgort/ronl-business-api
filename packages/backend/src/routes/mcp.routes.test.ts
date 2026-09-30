@@ -33,6 +33,8 @@ jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import mcpRouter from './mcp.routes';
 import { runChatStream } from '@services/mcpChat.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
@@ -43,7 +45,12 @@ const mcp = mcpRegistry as unknown as { getProviderMeta: jest.Mock; isAnyConnect
 const llm = llmRegistry as unknown as { getAvailableModels: jest.Mock };
 
 const app = express();
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 app.use(express.json());
+app.use(versionMiddleware);
 app.use('/v1/mcp', mcpRouter);
 const auth = (r: request.Test) => r.set('x-test-roles', 'caseworker');
 
@@ -60,6 +67,7 @@ describe('GET /v1/mcp/sources', () => {
   it('403 for a role without access', async () => {
     const res = await request(app).get('/v1/mcp/sources').set('x-test-roles', 'viewer');
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/mcp/sources');
   });
 
   it('returns an empty list when MCP is disabled', async () => {
@@ -78,9 +86,12 @@ describe('GET /v1/mcp/sources', () => {
 
 describe('GET /v1/mcp/models', () => {
   it('returns the available models', async () => {
-    llm.getAvailableModels.mockReturnValue([{ id: 'claude-opus-4-8', providerId: 'anthropic' }]);
+    llm.getAvailableModels.mockReturnValue([
+      { id: 'claude-opus-4-8', displayName: 'Claude Opus 4.8', providerId: 'anthropic' },
+    ]);
     const res = await auth(request(app).get('/v1/mcp/models'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/mcp/models');
     expect(res.body.data[0].id).toBe('claude-opus-4-8');
   });
 });
@@ -92,24 +103,28 @@ describe('POST /v1/mcp/chat', () => {
     mockConfig.mcp.enabled = false;
     const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'post', '/mcp/chat');
     expect(res.body.error.code).toBe('MCP_DISABLED');
   });
 
   it('400 when the message is blank', async () => {
     const res = await auth(request(app).post('/v1/mcp/chat')).send({ ...body, message: '  ' });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/mcp/chat');
     expect(res.body.error.code).toBe('INVALID_REQUEST');
   });
 
   it('400 when modelId is missing', async () => {
     const res = await auth(request(app).post('/v1/mcp/chat')).send({ message: 'hi', sources: [] });
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'post', '/mcp/chat');
   });
 
   it('503 when no selected source is connected', async () => {
     mcp.isAnyConnected.mockReturnValue(false);
     const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
     expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'post', '/mcp/chat');
     expect(res.body.error.code).toBe('MCP_NOT_CONNECTED');
   });
 

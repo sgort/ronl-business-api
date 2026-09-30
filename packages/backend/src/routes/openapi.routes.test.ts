@@ -8,6 +8,8 @@ jest.mock('@utils/logger', () => {
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 
 import { createOpenApiRouter } from './openapi.routes';
 import type { OpenApiDocument } from '../openapi/document';
@@ -20,6 +22,10 @@ const document = {
 
 function appWith(load: () => OpenApiDocument) {
   const app = express();
+  // versionMiddleware is app-wide in index.ts rather than in this router, so a
+  // test app mounting the router alone answers without API-Version -- verified
+  // present on the live https://acc.api.open-regels.nl/v1/openapi.json (#269).
+  app.use(versionMiddleware);
   app.use('/v1/openapi.json', createOpenApiRouter(load));
   return app;
 }
@@ -29,6 +35,10 @@ describe('GET /v1/openapi.json', () => {
     const response = await request(appWith(() => document)).get('/v1/openapi.json');
 
     expect(response.status).toBe(200);
+    // Against the REAL document, not the fixture this router is serving: the
+    // question is whether the response matches what /v1/openapi.json publishes
+    // about itself (#269).
+    expectToMatchOperation(response, 'get', '/openapi.json');
     expect(response.body.openapi).toBe('3.1.0');
     expect(response.body.info.version).toBe('2026.09.11');
   });

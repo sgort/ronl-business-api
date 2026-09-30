@@ -134,12 +134,11 @@ export default async function globalSetup() {
         '',
         ...(isLocalTarget
           ? [
-              "Deploy the bundle yourself first, manually, via linked-data-explorer's BPMN Modeler:",
-              "  1. Open linked-data-explorer's BPMN Modeler (npm run dev:backend + npm run dev, LDE repo)",
-              '  2. Import each file from linked-data-explorer/e2e-fixtures/<tenant>/',
-              '  3. Set the Organization field to the tenant shown above, click Deploy',
+              'Deploy the bundle first, through the LDE backend (npm run dev:backend, LDE repo):',
+              '  npm run e2e:deploy-fixtures   (repo root)',
               '',
-              'See linked-data-explorer/e2e-fixtures/manifest.json for the full fixture list.',
+              'It deploys linked-data-explorer/e2e-fixtures/manifest.json in full: each process',
+              'under its tenant, the shared decisions without one.',
             ]
           : [
               'A shared tier runs the de-labelled bundle from',
@@ -169,11 +168,10 @@ export default async function globalSetup() {
         'Decisions deploy WITHOUT an Organization, unlike the processes above.',
         ...(isLocalTarget
           ? [
-              'Import each file from linked-data-explorer/e2e-fixtures/ listed under',
-              "manifest.json's `sharedDecisions.files`, leaving the Organization field EMPTY.",
-              '',
-              'One exception: zorgtoeslag_resultaat ships with the zorgtoeslag rules set, not',
-              "with the fixture bundle — see manifest.json's `sharedDecisions.external`.",
+              'Run `npm run e2e:deploy-fixtures` (repo root). It deploys every file under',
+              "manifest.json's `sharedDecisions.files` without an Organization, plus",
+              'zorgtoeslag_resultaat from the sibling ttl-editor repo — that decision ships with',
+              'the zorgtoeslag rules set, not with the fixture bundle (`sharedDecisions.external`).',
             ]
           : [
               'On a shared tier these are deployed once and shared by every tenant.',

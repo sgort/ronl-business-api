@@ -82,7 +82,8 @@ export default defineConfig(({ mode }) => ({
       // The per-file 80% branch floor. See issue #80 and the fuller note in
       // packages/frontend/vite.config.ts.
       //
-      // BRANCHES ONLY. A functions floor at 80 would fail 7 files here today.
+      // BRANCHES ONLY. A functions floor at 80 would fail 5 files here
+      // (measured 28 September 2026).
       thresholds: {
         branches: 80,
         perFile: true,

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render } from '@testing-library/react';
 import PhaseSwimlane from './PhaseSwimlane';
+import { edgeLabelText } from './swimlaneText';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 
 const MODEL: PhaseSwimlaneModel = {
@@ -60,7 +61,7 @@ const RICH_MODEL: PhaseSwimlaneModel = {
       col: 3,
       row: 1,
       label: 'Doc Task',
-      doc: 'Doc X',
+      docs: ['Doc X', 'Doc Y'],
     },
     { id: 'claimed', bpmnId: 'claimed', kind: 'task', col: 4, row: 0, label: 'Claimed Task' },
   ],
@@ -160,9 +161,12 @@ describe('PhaseSwimlane', () => {
     }
   });
 
-  it('shows the resolved document label on a task that carries one', () => {
+  it('shows every resolved document label a task carries', () => {
+    // A task can produce more than one deliverable, so each gets its own
+    // badge rather than the first one standing in for the rest.
     const { getByText } = render(<PhaseSwimlane model={RICH_MODEL} statusById={{}} />);
     expect(getByText('Doc X')).toBeInTheDocument();
+    expect(getByText('Doc Y')).toBeInTheDocument();
   });
 
   it('marks a service task as automatic', () => {
@@ -378,5 +382,159 @@ describe('PhaseSwimlane', () => {
     expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 88));
     for (const b of bands) expect(b.style.height).toBe('88px');
     for (const l of labels) expect(l.style.height).toBe('88px');
+  });
+});
+
+describe('PhaseSwimlane — caseworker additions', () => {
+  // Col 0..4 so the call node's centre (col 3 → 3*190+95 = 665) can be
+  // scrolled to; the lane keys mirror the Awb BPMNs.
+  const AWB: PhaseSwimlaneModel = {
+    phaseCode: 'AwbShellProcess',
+    lanes: [
+      { key: 'Lane_Behandelaar', label: 'Behandelaar', candidateGroups: ['caseworker'] },
+      { key: 'Lane_Systeem', label: 'Systeem' },
+    ],
+    nodes: [
+      { id: 's', bpmnId: 's', kind: 'start', col: 0, row: 1, label: 'Start' },
+      { id: 'sc', bpmnId: 'sc', kind: 'script', col: 1, row: 1, label: 'Identificatie' },
+      { id: 'r', bpmnId: 'r', kind: 'rule', col: 2, row: 1, label: 'Toets', dmn: 'AwbCheck' },
+      { id: 'c', bpmnId: 'c', kind: 'call', col: 3, row: 0, label: 'Fase 4+5', calls: 'Sub' },
+      { id: 't', bpmnId: 't', kind: 'task', col: 4, row: 0, label: 'Informeren' },
+    ],
+    edges: [],
+  };
+
+  it('adds nothing caseworker-specific when no caseworker prop is given (the Infra-board)', () => {
+    const { container } = render(
+      <PhaseSwimlane model={AWB} statusById={{}} claimedNodeIds={new Set(['t'])} />
+    );
+    expect(container.querySelector('.pb-swim')!.classList.contains('cwp-swim')).toBe(false);
+    expect(container.querySelector('.cwp-mine, .cwp-jij, .cwp-callbtn')).toBeNull();
+    expect(container.querySelector('button')).toBeNull();
+    // The claimed node keeps the Infra-board's pencil, and no node gains a tooltip.
+    expect(container.querySelector('.pb-swim-inprogress')!.textContent).toBe('✏');
+    expect(container.querySelector('.pb-swim-node[title]')).toBeNull();
+  });
+
+  it('badges script, rule and call nodes, and draws script and rule dashed', () => {
+    const { container } = render(<PhaseSwimlane model={AWB} statusById={{}} />);
+    const badge = (label: string) =>
+      [...container.querySelectorAll('.pb-swim-node')]
+        .find((n) => n.querySelector('.nlabel')?.textContent === label)!
+        .querySelector('.cwp-kind')?.textContent;
+    expect(badge('Identificatie')).toBe('script');
+    expect(badge('Toets')).toBe('DMN');
+    expect(badge('Fase 4+5')).toBe('deelproces');
+    expect(badge('Informeren')).toBeUndefined();
+    const nodes = [...container.querySelectorAll('.pb-swim-node')];
+    expect(nodes[0].classList.contains('service')).toBe(true);
+    expect(nodes[1].classList.contains('service')).toBe(true);
+    expect(nodes[2].classList.contains('call')).toBe(true);
+  });
+
+  it('tints the user’s lanes and marks them "jouw rol"', () => {
+    const { container } = render(
+      <PhaseSwimlane model={AWB} statusById={{}} myLaneKeys={new Set(['Lane_Behandelaar'])} />
+    );
+    const labels = [...container.querySelectorAll('.pb-swim-lane-label')];
+    const bands = [...container.querySelectorAll('.pb-swim-band')];
+    expect(labels.map((l) => l.classList.contains('cwp-mine'))).toEqual([true, false]);
+    expect(bands.map((b) => b.classList.contains('cwp-mine'))).toEqual([true, false]);
+    expect(labels[0].querySelector('.cwp-jij')?.textContent).toBe('jouw rol');
+    expect(labels[1].querySelector('.cwp-jij')).toBeNull();
+    expect(container.querySelector('.pb-swim')!.classList.contains('cwp-swim')).toBe(true);
+  });
+
+  it('labels the claimed node with claimedLabel instead of the pencil, and titles every task', () => {
+    const { container } = render(
+      <PhaseSwimlane
+        model={AWB}
+        statusById={{}}
+        claimedNodeIds={new Set(['t'])}
+        claimedLabel="jouw taak"
+      />
+    );
+    expect(container.querySelector('.pb-swim-inprogress')!.textContent).toBe('jouw taak');
+    const task = container.querySelector('.pb-swim-node-claimed') as HTMLElement;
+    expect(task.getAttribute('title')).toBe('Informeren');
+  });
+
+  it('offers "open ↘" on a call node and reports the node', () => {
+    const onOpenCall = vi.fn();
+    const { getByRole } = render(
+      <PhaseSwimlane model={AWB} statusById={{}} onOpenCall={onOpenCall} />
+    );
+    const btn = getByRole('button', { name: 'open deelproces Fase 4+5' });
+    expect(btn.textContent).toBe('open ↘');
+    fireEvent.click(btn);
+    expect(onOpenCall).toHaveBeenCalledWith(expect.objectContaining({ id: 'c', calls: 'Sub' }));
+  });
+
+  it('scrolls horizontally to centre scrollToNodeId, clamped at 0', () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400);
+    const { container, rerender } = render(
+      <PhaseSwimlane model={AWB} statusById={{}} scrollToNodeId="c" />
+    );
+    const scroll = container.querySelector('.pb-swim-scroll') as HTMLElement;
+    expect(scroll.scrollLeft).toBe(665 - 200);
+    rerender(<PhaseSwimlane model={AWB} statusById={{}} scrollToNodeId="s" />);
+    expect(scroll.scrollLeft).toBe(0);
+    width.mockRestore();
+  });
+});
+
+describe('edgeLabelText', () => {
+  it.each([
+    ['${completenessResult.isComplete == false}', 'isComplete = false'],
+    ['${eligible != true}', 'eligible ≠ true'],
+    ['${subsidyGranted == true && paymentRequired}', 'subsidyGranted = true en paymentRequired'],
+    ['#{a.b || c}', 'b of c'],
+    ['ja', 'ja'],
+    ['Aanvraag volledig', 'Aanvraag volledig'],
+  ])('%s → %s', (raw, shown) => {
+    expect(edgeLabelText(raw)).toBe(shown);
+  });
+});
+
+describe('PhaseSwimlane — roomy density and readable edge labels', () => {
+  const EXPR: PhaseSwimlaneModel = {
+    ...MODEL,
+    edges: [
+      { from: 's', to: 't', label: '${completenessResult.isComplete == false}' },
+      { from: 't', to: 'p', label: 'Ja' },
+    ],
+  };
+
+  it('keeps the Infra-board’s sizes by default', () => {
+    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} />);
+    const node = container.querySelector('.pb-swim-node') as HTMLElement;
+    expect(node.style.width).toBe('152px');
+    expect(node.style.height).toBe('54px');
+  });
+
+  it('gives nodes, rows and columns more room when roomy', () => {
+    const { container } = render(<PhaseSwimlane model={MODEL} statusById={{}} density="roomy" />);
+    const node = container.querySelector('.pb-swim-node') as HTMLElement;
+    expect(node.style.width).toBe('184px');
+    expect(node.style.height).toBe('84px');
+    const svg = container.querySelector('svg.pb-swim-svg')!;
+    expect(svg.getAttribute('height')).toBe(String(MODEL.lanes.length * 132));
+  });
+
+  it('shows the Infra-board’s edge labels verbatim, without a tooltip', () => {
+    const { container } = render(<PhaseSwimlane model={EXPR} statusById={{}} />);
+    const labels = [...container.querySelectorAll('.pb-swim-edgelabel')];
+    expect(labels[0].textContent).toBe('${completenessResult.isComplete == false}');
+    expect(labels[0].hasAttribute('title')).toBe(false);
+  });
+
+  it('shortens expression labels in caseworker mode, with the full expression as tooltip', () => {
+    const { container } = render(
+      <PhaseSwimlane model={EXPR} statusById={{}} claimedLabel="jouw taak" />
+    );
+    const labels = [...container.querySelectorAll('.pb-swim-edgelabel')];
+    expect(labels[0].textContent).toBe('isComplete = false');
+    expect(labels[0].getAttribute('title')).toBe('${completenessResult.isComplete == false}');
+    expect(labels[1].textContent).toBe('Ja');
   });
 });

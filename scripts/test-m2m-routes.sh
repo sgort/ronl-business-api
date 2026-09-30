@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # test-m2m-routes.sh
-# Validates the active M2M route operations against a running backend.
+# Validates the active M2M route operations against a running backend --
+# the reads, decision.evaluate, and the four state-changing operations
+# (start, claim, complete, delete) added in #214.
 #
 # Usage:
 #   bash scripts/test-m2m-routes.sh                        # local (default)
@@ -15,6 +17,13 @@
 #   BASE_URL / KEYCLOAK_URL   set either explicitly to override the TARGET preset
 #   CLIENT_ID=operaton-mcp-client
 #   DECISION_KEY / DECISION_VARS   override the per-TARGET decision preset
+#   LIFECYCLE_KEY             overrides the per-TARGET key the write lifecycle
+#                             starts, claims, completes and cancels. It must
+#                             raise a user task ON ITS OWN INSTANCE -- a process
+#                             whose task lands on a called sub-process will make
+#                             the block skip claim and complete. The lifecycle
+#                             starts two instances of its own and removes both;
+#                             it never writes to an instance it did not create.
 
 set -u
 
@@ -31,6 +40,10 @@ case "$TARGET_LC" in
     # From the local fixture bundle (docker-compose Operaton).
     DEFAULT_DECISION_KEY="TreeFellingDecision"
     DEFAULT_DECISION_VARS='{"variables": {"treeDiameter": 45, "protectedArea": false}}'
+    # Raises its own user task. AwbZorgtoeslagProcess does not -- its task lands
+    # on a CALLED sub-process with a different instance id, which the lifecycle
+    # block would not find.
+    DEFAULT_LIFECYCLE_KEY="ZorgtoeslagProvisionalSubProcessE2E"
     ;;
   acc)
     DEFAULT_BASE_URL="https://acc.api.open-regels.nl"
@@ -41,6 +54,10 @@ case "$TARGET_LC" in
     # evaluates cleanly rather than erroring.
     DEFAULT_DECISION_KEY="AwbCompletenessCheck"
     DEFAULT_DECISION_VARS='{"variables": {"productType": "TreeFellingPermit"}}'
+    # operaton-doc's own bundle, which carries the non-E2E spelling. Whether
+    # ACC's M2M engine really is operaton-doc is the open question in #262, so
+    # this preset may need the other spelling once that is settled.
+    DEFAULT_LIFECYCLE_KEY="ZorgtoeslagProvisionalSubProcess"
     ;;
   *)
     echo "ERROR: unknown TARGET='$TARGET' (expected 'local' or 'acc')."
@@ -53,6 +70,7 @@ KEYCLOAK_URL="${KEYCLOAK_URL:-$DEFAULT_KEYCLOAK_URL}"
 CLIENT_ID="${CLIENT_ID:-operaton-mcp-client}"
 DECISION_KEY="${DECISION_KEY:-$DEFAULT_DECISION_KEY}"
 DECISION_VARS="${DECISION_VARS:-$DEFAULT_DECISION_VARS}"
+LIFECYCLE_KEY="${LIFECYCLE_KEY:-$DEFAULT_LIFECYCLE_KEY}"
 
 # On localhost, fall back to the seeded realm's own client secret so the script
 # runs with no arguments. An exported CLIENT_SECRET always wins, and the realm
@@ -159,6 +177,7 @@ JWT_PAYLOAD=$(echo "$TOKEN" | cut -d. -f2 | awk '{ n=length($0)%4; if(n==2) prin
 AZP=$(echo "$JWT_PAYLOAD" | jq -r '.azp // empty')
 AUD=$(echo "$JWT_PAYLOAD" | jq -r '.aud // empty')
 MUNICIPALITY=$(echo "$JWT_PAYLOAD" | jq -r '.municipality // "absent"')
+SUB=$(echo "$JWT_PAYLOAD" | jq -r '.sub // empty')
 
 [[ "$AZP" == "$CLIENT_ID" ]] && pass "azp claim = $CLIENT_ID" || fail "azp claim mismatch (got: $AZP)"
 [[ "$AUD" == *"ronl-business-api"* ]] && pass "aud contains ronl-business-api" || fail "aud missing ronl-business-api (got: $AUD)"
@@ -324,6 +343,238 @@ else
   fi
 fi
 
+# ─── Write lifecycle: start → claim → complete → delete ──────────────────────
+#
+# The four state-changing operations. Until #214 this script covered the reads
+# and decision.evaluate only, so these four were the operations no test ever
+# called — and documenting them turned up three response shapes that diverge
+# from their /v1 twins (`{taskId, claimed}` not `{taskId, assignee}`,
+# `{taskId, completed}` not `{taskId, status}`, and 200 on start where /v1
+# answers 201). Nothing would have caught a change to any of them.
+#
+# SELF-CLEANING BY CONSTRUCTION. Two instances are started and both are gone by
+# the end: one is driven to completion through its task, the other cancelled.
+# They are the ONLY instances touched. Nothing pre-existing is ever claimed,
+# completed or deleted — the M2M surface applies no tenant filter, so a stray
+# write here would land on a real case. The cleanup at the bottom of the block
+# runs whatever happened above it.
+#
+# LIFECYCLE_KEY has to name a process that raises a user task promptly, or claim
+# and complete have nothing to act on. Both TARGETs default to the same key
+# because both talk to the same M2M engine (OPERATON_M2M_BASE_URL); override it
+# when that stops being true.
+
+echo ""
+echo "── Write lifecycle: start → claim → complete → delete ──────────────────"
+
+BK_PREFIX="m2m-routes-test-$$"
+
+m2m_delete() {
+  # Cancel an instance, ignoring the outcome. Used by the cleanup path, where a
+  # 500 just means the instance had already ended.
+  curl -s -o /dev/null -X DELETE "${BASE_URL}/v1/m2m/process/$1" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"reason":"test-m2m-routes.sh cleanup"}'
+}
+
+m2m_task_of() {
+  # The first open task on a given instance, or empty.
+  curl -s "${BASE_URL}/v1/m2m/task" -H "Authorization: Bearer $TOKEN" \
+    | jq -r --arg pid "$1" '[.data[] | select(.processInstanceId == $pid)][0].id // empty'
+}
+
+# process.start, with PLAIN variables.
+START_A_STATUS=$(curl -s -o /tmp/m2m_start_a.json -w "%{http_code}" \
+  -X POST "${BASE_URL}/v1/m2m/process/${LIFECYCLE_KEY}/start" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"businessKey\":\"${BK_PREFIX}-a\",\"variables\":{\"probeLabel\":\"plain\",\"probeCount\":7,\"probeFlag\":true}}")
+
+if [[ "$START_A_STATUS" == "404" || "$START_A_STATUS" == "500" ]]; then
+  echo "  ~ write lifecycle skipped — '$LIFECYCLE_KEY' could not be started (HTTP $START_A_STATUS)"
+  echo "    (override with LIFECYCLE_KEY=<key> naming a process with a user task)"
+else
+  # 200, NOT the 201 that POST /v1/process/:key/start answers. Asserted exactly,
+  # because the difference is the kind of thing a well-meaning tidy-up removes.
+  check_status "POST /v1/m2m/process/:key/start (200, not /v1's 201)" "$START_A_STATUS" "200"
+  PROC_A=$(jq -r '.data.processInstanceId // empty' /tmp/m2m_start_a.json)
+  BK_A=$(jq -r '.data.businessKey // empty' /tmp/m2m_start_a.json)
+
+  # The M2M surface keeps a caller's businessKey verbatim. /v1 prefixes a minted
+  # one with the owning organisation (#234); there is no organisation here to
+  # prefix with.
+  [[ "$BK_A" == "${BK_PREFIX}-a" ]] \
+    && pass "POST /v1/m2m/process/:key/start keeps businessKey verbatim" \
+    || fail "POST /v1/m2m/process/:key/start — businessKey mangled (expected ${BK_PREFIX}-a, got $BK_A)"
+
+  # WHICH ORGANISATION GETS THE CASE. An M2M start is labelled with the PROCESS
+  # DEFINITION'S own deployed tenant, not with a constant -- so a case started
+  # here normally belongs to a real organisation and is visible to its staff
+  # through /v1. The literal `m2m` is only the fallback for a definition
+  # carrying no tenant at all.
+  #
+  # Asserted against the INSTANCE'S OWN tenantId rather than a hard-coded value,
+  # which is exactly the invariant operaton.service.ts says the labelling exists
+  # for: "so the municipality variable -- the only tenant label access checks
+  # read -- agrees with the tenantId Operaton gives its tasks". So this holds for
+  # any LIFECYCLE_KEY, tenanted or not.
+  #
+  # It replaced an assertion that the label is always `m2m`, which passed only
+  # because the engine it was first written against had no tenanted definitions.
+  if [[ -n "$PROC_A" ]]; then
+    curl -s -o /tmp/m2m_vars_a.json "${BASE_URL}/v1/m2m/process/${PROC_A}/variables" \
+      -H "Authorization: Bearer $TOKEN"
+    MUNI_A=$(jq -r '.data.municipality // "absent"' /tmp/m2m_vars_a.json)
+    TENANT_A=$(curl -s "${BASE_URL}/v1/m2m/process" -H "Authorization: Bearer $TOKEN" \
+      | jq -r --arg pid "$PROC_A" '([.data[] | select(.id == $pid)][0].tenantId) // "m2m"')
+
+    if [[ "$MUNI_A" == "$TENANT_A" ]]; then
+      pass "municipality agrees with the instance's own tenantId ($MUNI_A)"
+    else
+      fail "municipality — expected $TENANT_A (the instance's tenantId), got $MUNI_A"
+    fi
+
+    ORIGIN_A=$(jq -r '.data.originTenantId // "absent"' /tmp/m2m_vars_a.json)
+    [[ "$ORIGIN_A" == "absent" ]] \
+      && pass "started instance carries no originTenantId (unlike a /v1 start)" \
+      || fail "started instance originTenantId — expected absent, got $ORIGIN_A"
+  fi
+
+  # A second instance, started with WRAPPED variables. Both forms are accepted
+  # here (toOperatonVariables passes a {value,type} through and wraps anything
+  # else); /v1 wraps unconditionally, so the wrapped form double-wraps there.
+  START_B_STATUS=$(curl -s -o /tmp/m2m_start_b.json -w "%{http_code}" \
+    -X POST "${BASE_URL}/v1/m2m/process/${LIFECYCLE_KEY}/start" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"businessKey\":\"${BK_PREFIX}-b\",\"variables\":{\"probeLabel\":{\"value\":\"wrapped\",\"type\":\"String\"},\"probeCount\":{\"value\":7,\"type\":\"Integer\"}}}")
+  check_status "POST /v1/m2m/process/:key/start accepts WRAPPED variables too" "$START_B_STATUS" "200"
+  PROC_B=$(jq -r '.data.processInstanceId // empty' /tmp/m2m_start_b.json)
+
+  if [[ "$START_B_STATUS" == "200" && -n "$PROC_B" ]]; then
+    WRAPPED_LANDED=$(curl -s "${BASE_URL}/v1/m2m/process/${PROC_B}/variables" \
+      -H "Authorization: Bearer $TOKEN" | jq -r '.data.probeLabel // "absent"')
+    [[ "$WRAPPED_LANDED" == "wrapped" ]] \
+      && pass "wrapped variables land unwrapped, same as plain ones" \
+      || fail "wrapped variables double-wrapped (probeLabel read back as: $WRAPPED_LANDED)"
+  fi
+
+  # task.claim, task.complete — on instance A's task.
+  TASK_A=""
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    TASK_A=$(m2m_task_of "$PROC_A")
+    [[ -n "$TASK_A" ]] && break
+    sleep 1
+  done
+
+  if [[ -z "$TASK_A" ]]; then
+    echo "  ~ claim/complete skipped — '$LIFECYCLE_KEY' raised no user task within 10s"
+  else
+    # No body: the assignee falls back to the token's subject.
+    CLAIM_A_STATUS=$(curl -s -o /tmp/m2m_claim_a.json -w "%{http_code}" \
+      -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/claim" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{}')
+    check_status "POST /v1/m2m/task/:id/claim" "$CLAIM_A_STATUS" "200"
+    check_field "POST /v1/m2m/task/:id/claim body" "$(cat /tmp/m2m_claim_a.json)" '.data.claimed' 'true'
+
+    ASSIGNEE_A=$(curl -s "${BASE_URL}/v1/m2m/task/${TASK_A}" \
+      -H "Authorization: Bearer $TOKEN" | jq -r '.data.assignee // "null"')
+    [[ "$ASSIGNEE_A" == "$SUB" ]] \
+      && pass "claim with no body assigns the token subject" \
+      || fail "claim with no body — expected assignee $SUB, got $ASSIGNEE_A"
+
+    # Claiming again FOR THE SAME USER is idempotent -- Operaton accepts it and
+    # the assignee does not move.
+    RECLAIM_SAME_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/claim" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{}')
+    check_status "re-claiming for the same user is idempotent" "$RECLAIM_SAME_STATUS" "200"
+
+    # Claiming it for a DIFFERENT user while it is held is refused, and the route
+    # reports the engine's refusal as a 500 rather than a 409.
+    RECLAIM_OTHER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/claim" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{"userId":"m2m-routes-test-usurper"}')
+    check_status "claiming a held task for another user is refused" "$RECLAIM_OTHER_STATUS" "500"
+
+    STILL_ASSIGNEE=$(curl -s "${BASE_URL}/v1/m2m/task/${TASK_A}" \
+      -H "Authorization: Bearer $TOKEN" | jq -r '.data.assignee // "null"')
+    [[ "$STILL_ASSIGNEE" == "$SUB" ]] \
+      && pass "a refused claim leaves the assignee where it was" \
+      || fail "a refused claim moved the assignee to $STILL_ASSIGNEE"
+
+    # task.complete. NOTE: no RESERVED_VARIABLE guard here, unlike
+    # /v1/task/:id/complete — see #261. This writes only its own probe
+    # variables, deliberately: asserting the gap would mean relabelling a case.
+    COMPLETE_A_STATUS=$(curl -s -o /tmp/m2m_complete_a.json -w "%{http_code}" \
+      -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/complete" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"variables":{"probeCompleted":true}}')
+    check_status "POST /v1/m2m/task/:id/complete" "$COMPLETE_A_STATUS" "200"
+    check_field "POST /v1/m2m/task/:id/complete body" "$(cat /tmp/m2m_complete_a.json)" '.data.completed' 'true'
+
+    # Completing it twice is refused the same way a re-claim is.
+    RECOMPLETE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/complete" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{"variables":{}}')
+    check_status "completing a completed task is refused" "$RECOMPLETE_STATUS" "500"
+
+    # The claim body's optional userId overrides the token subject. Asserted on
+    # instance B's task, because A's is claimed by now.
+    TASK_B=$(m2m_task_of "$PROC_B")
+    if [[ -n "$TASK_B" ]]; then
+      CLAIM_B_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST "${BASE_URL}/v1/m2m/task/${TASK_B}/claim" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" -d '{"userId":"m2m-routes-test-operator"}')
+      ASSIGNEE_B=$(curl -s "${BASE_URL}/v1/m2m/task/${TASK_B}" \
+        -H "Authorization: Bearer $TOKEN" | jq -r '.data.assignee // "null"')
+      if [[ "$CLAIM_B_STATUS" == "200" && "$ASSIGNEE_B" == "m2m-routes-test-operator" ]]; then
+        pass "claim body's userId overrides the token subject"
+      else
+        fail "claim userId override — HTTP $CLAIM_B_STATUS, assignee=$ASSIGNEE_B"
+      fi
+    fi
+  fi
+
+  # process.delete, on instance B — still running, so the 200 path is reachable.
+  if [[ -n "$PROC_B" ]]; then
+    DELETE_B_STATUS=$(curl -s -o /tmp/m2m_delete_b.json -w "%{http_code}" \
+      -X DELETE "${BASE_URL}/v1/m2m/process/${PROC_B}" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"reason":"test-m2m-routes.sh lifecycle check"}')
+    check_status "DELETE /v1/m2m/process/:id" "$DELETE_B_STATUS" "200"
+    check_field "DELETE /v1/m2m/process/:id body" "$(cat /tmp/m2m_delete_b.json)" \
+      '.data.processInstanceId' "$PROC_B"
+
+    # Cancelling an instance that is already gone reports 500, not 404.
+    REDELETE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X DELETE "${BASE_URL}/v1/m2m/process/${PROC_B}" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{}')
+    check_status "cancelling an already-cancelled instance is refused" "$REDELETE_STATUS" "500"
+  fi
+
+  # ── Cleanup ────────────────────────────────────────────────────────────────
+  # Runs whatever happened above. A 500 here means the instance had already
+  # ended, which is the expected outcome for A once its task completed.
+  [[ -n "$PROC_A" ]] && m2m_delete "$PROC_A"
+  [[ -n "$PROC_B" ]] && m2m_delete "$PROC_B"
+
+  LEFTOVER=$(curl -s "${BASE_URL}/v1/m2m/process" -H "Authorization: Bearer $TOKEN" \
+    | jq -r --arg bk "$BK_PREFIX" '[.data[] | select(.businessKey != null and (.businessKey | startswith($bk)))] | length')
+  [[ "$LEFTOVER" == "0" ]] \
+    && pass "lifecycle left no running instances behind" \
+    || fail "lifecycle left $LEFTOVER instance(s) running with businessKey ${BK_PREFIX}-*"
+fi
+
 # ─── Known-fixture assertions (local only) ───────────────────────────────────
 #
 # Against ACC the deployed bundle is whatever happens to be there, so the checks
@@ -415,5 +666,8 @@ if [[ $FAIL -gt 0 ]]; then
 fi
 
 echo ""
-rm -f /tmp/m2m_task_list.json /tmp/m2m_task_get.json /tmp/m2m_decision.json /tmp/m2m_disabled.json /tmp/m2m_tenant.json
+rm -f /tmp/m2m_task_list.json /tmp/m2m_task_get.json /tmp/m2m_decision.json \
+  /tmp/m2m_disabled.json /tmp/m2m_tenant.json \
+  /tmp/m2m_start_a.json /tmp/m2m_start_b.json /tmp/m2m_claim_a.json \
+  /tmp/m2m_complete_a.json /tmp/m2m_delete_b.json /tmp/m2m_vars_a.json
 exit 0

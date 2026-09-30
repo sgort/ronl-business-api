@@ -31,6 +31,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import hrRouter from './hr.routes';
 import { operatonService } from '@services/operaton.service';
 
@@ -39,7 +41,12 @@ const svc = operatonService as unknown as {
   getHrOnboardingCompletedList: jest.Mock;
 };
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 app.use('/v1/hr', hrRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
 
@@ -49,11 +56,13 @@ describe('GET /v1/hr/onboarding/profile', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/hr/onboarding/profile?employeeId=e1');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
   });
 
   it('400 when employeeId is missing', async () => {
     const res = await auth(request(app).get('/v1/hr/onboarding/profile'));
     expect(res.status).toBe(400);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
@@ -61,6 +70,7 @@ describe('GET /v1/hr/onboarding/profile', () => {
     svc.getHrOnboardingProfile.mockResolvedValue({ firstName: 'Bob' });
     const res = await auth(request(app).get('/v1/hr/onboarding/profile?employeeId=e1'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
     expect(res.body.data).toEqual({ firstName: 'Bob' });
     expect(svc.getHrOnboardingProfile).toHaveBeenCalledWith('e1', 'flevoland');
   });
@@ -69,16 +79,22 @@ describe('GET /v1/hr/onboarding/profile', () => {
     svc.getHrOnboardingProfile.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/hr/onboarding/profile?employeeId=e1'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
     expect(res.body.error.code).toBe('HR_PROFILE_FAILED');
   });
 });
 
 describe('GET /v1/hr/onboarding/completed', () => {
   it('returns the completed list for the tenant', async () => {
-    svc.getHrOnboardingCompletedList.mockResolvedValue([{ id: 'i1' }]);
+    svc.getHrOnboardingCompletedList.mockResolvedValue([
+      { id: 'i1', businessKey: 'flevoland-1', startTime: '2026-09-28T10:00:00.000Z' },
+    ]);
     const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([{ id: 'i1' }]);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
+    expect(res.body.data).toEqual([
+      { id: 'i1', businessKey: 'flevoland-1', startTime: '2026-09-28T10:00:00.000Z' },
+    ]);
     expect(svc.getHrOnboardingCompletedList).toHaveBeenCalledWith('flevoland');
   });
 
@@ -86,6 +102,7 @@ describe('GET /v1/hr/onboarding/completed', () => {
     svc.getHrOnboardingCompletedList.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
     expect(res.body.error.code).toBe('ONBOARDING_LIST_FAILED');
   });
 });
@@ -96,6 +113,7 @@ describe('handler guard for an authenticated request without a user', () => {
   it('GET /onboarding/completed -> 401 UNAUTHORIZED', async () => {
     const res = await request(app).get('/v1/hr/onboarding/completed').set('x-test-no-user', '1');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
     expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 });
@@ -107,6 +125,7 @@ describe('non-Error rejections', () => {
     svc.getHrOnboardingProfile.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/hr/onboarding/profile?employeeId=e-1'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
     expect(res.body.error.code).toBe('HR_PROFILE_FAILED');
   });
 
@@ -114,6 +133,7 @@ describe('non-Error rejections', () => {
     svc.getHrOnboardingCompletedList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
     expect(res.body.error.code).toBe('ONBOARDING_LIST_FAILED');
   });
 });

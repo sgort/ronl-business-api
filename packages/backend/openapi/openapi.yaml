@@ -56,10 +56,14 @@ info:
 
     ## Coverage
 
-    This document is being written per mount group. Operations not yet
-    described are listed in `openapi/pending.json`, which only shrinks. A
-    consumer should read an absent operation as undocumented, not as absent
-    from the API.
+    **Complete.** Every operation this service serves is described here, and
+    every operation described here is served -- `src/openapi/coverage.test.ts`
+    asserts both, in both directions, and fails the build otherwise. An
+    operation absent from this document is absent from the API.
+
+    It was written per mount group across #200, with the operations not yet
+    reached listed in `openapi/pending.json`. That file was emptied and
+    deleted by the last group, `/v1/m2m` (#214).
 
 # The major version lives in the server URL, so every path below is written
 # without its /v1 prefix -- nlgov:include-major-version-in-uri requires the
@@ -93,6 +97,12 @@ tags:
     description: |
       User tasks. Organisation-scoped throughout, with no applicant exception:
       a task is work for staff, not a view of the case.
+  - name: Machine-to-machine
+    description: |
+      The surface for system actors, reached only by a client on
+      `M2M_ALLOWED_CLIENTS` (#237). It mirrors Process, Decision and Task in
+      shape but not in behaviour: no organisation is derived or checked
+      anywhere, and it talks to a separate Operaton engine.
   - name: Documents
     description: |
       The eDOCS document library. A proxy onto an external system, so failures
@@ -610,8 +620,21 @@ paths:
                             required: [cached, fetchedAt, ageMs]
                             properties:
                               cached: { type: boolean }
-                              fetchedAt: { type: string, format: date-time }
-                              ageMs: { type: integer }
+                              fetchedAt:
+                                type: [string, 'null']
+                                format: date-time
+                                description: |
+                                  NULL when nothing is cached yet, which is the
+                                  state of the FIRST request after a deploy --
+                                  `getRegelcatalogusCacheInfo()` returns
+                                  `{ cached: false, fetchedAt: null, ageMs: null }`
+                                  and its own signature says `string | null`.
+                                  Typed non-nullable until #269.
+                              ageMs:
+                                type: [integer, 'null']
+                                description: |
+                                  Null on a cold cache, alongside `fetchedAt`.
+                                  See above.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -764,12 +787,24 @@ paths:
                             description: Matches before any paging.
                           facets:
                             type: object
-                            description: Counts per facet value, for the current result set.
+                            description: |
+                              Counts per facet value, for the current result
+                              set.
+
+                              **Each facet is an ORDERED ARRAY of
+                              `[value, count]` pairs, not an object.**
+                              `facetCounts()` returns `[string, number][]`,
+                              sorted by count descending -- the order is the
+                              point, since the search page renders the
+                              commonest values first. This described them as
+                              objects keyed by value until #269, which would
+                              have had a consumer iterate keys and lose the
+                              ordering.
                             required: [soort, bron, doelgroep]
                             properties:
-                              soort: { type: object, additionalProperties: { type: integer } }
-                              bron: { type: object, additionalProperties: { type: integer } }
-                              doelgroep: { type: object, additionalProperties: { type: integer } }
+                              soort: { $ref: '#/components/schemas/FacetCounts' }
+                              bron: { $ref: '#/components/schemas/FacetCounts' }
+                              doelgroep: { $ref: '#/components/schemas/FacetCounts' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -1190,7 +1225,7 @@ paths:
                     OWNING organisation. When supplied it is kept verbatim, which is
                     how a RIP phase inherits the key its R2.1 run minted (#234).
                 variables:
-                  $ref: '#/components/schemas/OperatonVariableMap'
+                  $ref: '#/components/schemas/PlainVariableMap'
       responses:
         '201':
           description: The instance was started.
@@ -1397,6 +1432,107 @@ paths:
           description: '`ACTIVITY_HISTORY_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  /process/{id}/lineage:
+    get:
+      operationId: getProcessLineage
+      tags: [Process]
+      summary: The instance's process and the instance that called it
+      description: |
+        Where an instance sits in a call chain: its own process and, for a
+        subprocess started by a call activity, the calling instance
+        (`superProcessInstanceId`, null at the top). Read from history, so it
+        also answers for ended instances. Admits the owning organisation and
+        the case's own applicant.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The lineage.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ProcessLineage' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/TenantMismatch'
+        '404':
+          description: No such instance (`PROCESS_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`PROCESS_LINEAGE_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /process/definition/key/{key}/swimlane:
+    get:
+      operationId: getProcessDefinitionSwimlaneByKey
+      tags: [Process]
+      summary: A process's model, as lanes, nodes and edges
+      description: |
+        The Infra-board's phase model (`/rip/phases/{code}/model`) for any
+        process, keyed on its own process key, which is also the model's
+        `phaseCode`. Resolved under the caller's organisation, falling back
+        to a deployment without one, so another organisation's deployment is
+        never reached. Draws the newest deployed version of the key.
+
+        Carries what the caseworker process view needs: `script`, `rule` and
+        `call` nodes with their `dmn` / `calls` / `formRef`, each lane's
+        `candidateGroups`, and each node's `awbPhase` when the BPMN marks
+        phases with `ronl:awbPhase`. A process without a laneSet answers
+        `lanes: []`.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The process definition key, e.g. `AwbShellProcess`.
+          schema: { type: string, pattern: '^[A-Za-z_][A-Za-z0-9_.-]{0,254}$' }
+      responses:
+        '200':
+          description: The model.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [phaseCode, lanes, nodes, edges]
+                        properties:
+                          phaseCode: { type: string }
+                          processKey: { type: string }
+                          processName: { type: string }
+                          lanes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          nodes:
+                            { type: array, items: { type: object, additionalProperties: true } }
+                          edges:
+                            { type: array, items: { type: object, additionalProperties: true } }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: The key is not a process key (`INVALID_PROCESS_KEY`).
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |
+            No deployment of the key under the caller's organisation, nor one
+            without an organisation (`PROCESS_DEFINITION_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '500':
+          description: '`SWIMLANE_MODEL_FAILED`.'
+          $ref: '#/components/responses/Error'
+
   /process/{instanceId}/decision-document:
     get:
       operationId: getProcessDecisionDocument
@@ -1406,6 +1542,15 @@ paths:
         Admits the owning organisation and the case's own applicant. Most
         processes have no document template, in which case this answers 404
         rather than an empty document.
+
+        **This operation does not use the `{ success, data }` envelope.** It
+        answers `{ success, template }` -- `process.routes.ts` sends
+        `res.json({ success: true, template })`. Published as `data` until
+        #214, which is the kind of error only reading the handler finds: no
+        test ever named the field.
+
+        The value is the template WITH ITS BINDINGS, not a rendered document.
+        Nothing here substitutes the placeholders.
       parameters:
         - name: instanceId
           in: path
@@ -1414,18 +1559,15 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: The generated document.
+          description: The document template.
           content:
             application/json:
               schema:
                 type: object
-                required: [success, data]
+                required: [success, template]
                 properties:
                   success: { type: boolean, const: true }
-                  data:
-                    type: object
-                    description: The rendered document.
-                    additionalProperties: true
+                  template: { $ref: '#/components/schemas/DocumentTemplate' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -1874,7 +2016,7 @@ paths:
               type: object
               required: [variables]
               properties:
-                variables: { $ref: '#/components/schemas/OperatonVariableMap' }
+                variables: { $ref: '#/components/schemas/PlainVariableMap' }
       responses:
         '200':
           description: The task was completed.
@@ -1908,6 +2050,964 @@ paths:
             Operaton refused the completion (`TASK_COMPLETE_FAILED`) — for
             example when a required form field is missing, or a downstream
             gateway cannot evaluate.
+          $ref: '#/components/responses/Error'
+
+  # ── /v1/m2m ───────────────────────────────────────────────────────────────
+  #
+  # THE ONE GROUP WITH CONSUMERS OUTSIDE THIS REPOSITORY, which is why a
+  # published contract matters most here and why the divergences below are
+  # written out rather than smoothed over.
+  #
+  # It reads like the machine-facing twin of /v1/process, /v1/decision and
+  # /v1/task, and the RESPONSE schemas genuinely are the same objects -- Task,
+  # ProcessStatus, FormSchema and DecisionDefinition are $ref'd straight from
+  # the groups above, each checked field-for-field against a live response.
+  # Almost everything else differs.
+  #
+  # WHO MAY CALL. Two checks run before any handler, in this order:
+  #
+  #   1. jwtMiddleware        401 MISSING_TOKEN / INVALID_TOKEN
+  #   2. requireM2mClient     403 M2M_CLIENT_NOT_ALLOWED
+  #
+  # The second is the whole security model of this group (#237, fixed by #259).
+  # The token is an ordinary realm token -- same issuer, same
+  # `ronl-business-api` audience, same RS256 -- so the AUDIENCE cannot tell a
+  # machine from a person: every citizen and caseworker in the realm holds one
+  # for it. The AUTHORISED PARTY can. `requireM2mClient` requires the token's
+  # `azp` to be on `M2M_ALLOWED_CLIENTS`, which is `operaton-mcp-client` alone
+  # today. Adding a consumer means adding its client id to that variable on the
+  # App Service; nothing changes in Keycloak.
+  #
+  # OpenAPI has no way to express "and the azp must be on a list", so these 18
+  # carry `m2mOAuth` -- a clientCredentials flow, distinct from the bearerAuth
+  # the rest of the API uses -- and the condition itself lives in that scheme's
+  # description and in the 403.
+  #
+  # NO CALLER ORGANISATION. There is no tenantMiddleware here. An M2M client is
+  # a system actor, so no organisation is derived from its token, and
+  # consequently:
+  #
+  #   - nothing answers TENANT_MISMATCH -- the 11 operations that do on /v1
+  #     have no equivalent check here;
+  #   - `GET /m2m/task` and `GET /m2m/process` are unfiltered, where their /v1
+  #     twins are narrowed to the caller's organisation and roles.
+  #
+  # THE CASES ARE STILL REAL CASES, THOUGH. Having no caller organisation is
+  # not the same as the cases having none. `operaton.service.ts` labels an
+  # M2M start with the PROCESS DEFINITION'S OWN deployed tenant, so a case
+  # started through this surface normally belongs to a real organisation and is
+  # visible to that organisation's staff through /v1. Verified on a running
+  # backend across all three branches:
+  #
+  #   ZorgtoeslagProvisionalSubProcessE2E (toeslagen)  ->  municipality=toeslagen
+  #   RipR21Process (flevoland)                        ->  municipality=flevoland
+  #   ReviewInvoice (no tenant)                        ->  municipality=m2m
+  #
+  # So `m2m` is the FALLBACK for an untenanted definition, not the label M2M
+  # cases carry. `originTenantId` is never set by this surface.
+  #
+  # A body that supplies `municipality` overrides all of that, unchecked -- see
+  # the note on `start`, and #261.
+  #
+  # WHICH ENGINE. These routes talk to `OPERATON_M2M_BASE_URL`, which MAY be a
+  # different engine from the one the rest of the API uses. When it is, an id
+  # obtained here is not resolvable through /v1 and vice versa; when it is not,
+  # the two surfaces see the same instances. It is configuration, not a
+  # property of the API, so a consumer must not rely on either. Locally the two
+  # are the same engine; `docs/promote-ACC-to-PROD.md` §4.4 says the same of
+  # ACC and PROD, which #262 is settling.
+  #
+  # DIVERGENCES FROM THE /v1 TWINS, all verified against a running backend:
+  #
+  #   POST …/start              200 here, 201 on /v1
+  #   POST …/start              businessKey kept verbatim; /v1 prefixes a
+  #                             minted one with the owning organisation (#234)
+  #   POST …/task/{id}/claim    { taskId, claimed }; /v1 sends { taskId, assignee }
+  #   POST …/task/{id}/claim    an optional body `userId` sets the assignee;
+  #                             /v1 ignores the body and uses the token
+  #   POST …/task/{id}/complete { taskId, completed }; /v1 sends { taskId, status }
+  #   POST …/task/{id}/complete no RESERVED_VARIABLE guard -- see #261
+  #   GET  /m2m/process         exists; there is no bare `GET /v1/process`
+  #   GET  …/process/history    takes a filter BODY; /v1 takes a required
+  #                             `applicantId` query parameter
+  #   —                         403 OPERATION_NOT_PERMITTED, the curation gate
+  #
+  # VARIABLES GO IN EITHER FORM. `toOperatonVariables` passes a `{value,type}`
+  # through and wraps anything else, so plain and wrapped bodies land
+  # identically. On /v1 only `decision/{key}/evaluate` does this; start and
+  # complete there wrap unconditionally.
+  #
+  # THE CURATION GATE. Every operation first checks its name against
+  # `M2M_ALLOWED_OPERATIONS` in m2m.routes.ts and answers
+  # `403 OPERATION_NOT_PERMITTED` if it is absent. All 18 are listed today, so
+  # that 403 is unreachable without editing the file -- it is a kill switch for
+  # withdrawing one operation from machine consumers without touching a route.
+  # It is documented on every operation because it applies to every operation.
+
+  /m2m/process:
+    get:
+      operationId: listM2mProcessInstances
+      tags: [Machine-to-machine]
+      summary: All running process instances
+      security: [{ m2mOAuth: [] }]
+      description: |
+        Unfiltered: every running instance on the M2M engine, with no
+        organisation narrowing. There is no `GET /v1/process` twin — the
+        browser applications reach instances through the task lists and the
+        RIP and capacity boards instead, all of which are organisation-scoped.
+
+        Query parameters are passed to Operaton's `GET /process-instance`
+        unaltered, so its filters (`processDefinitionKey`, `businessKey`,
+        `variables`, `firstResult`, `maxResults`, …) all work. They are not
+        enumerated here because this service neither validates nor constrains
+        them; the engine's own reference is authoritative.
+      responses:
+        '200':
+          description: The running instances.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProcessInstanceSummary' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`PROCESS_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{key}/start:
+    post:
+      operationId: startM2mProcess
+      tags: [Machine-to-machine]
+      summary: Start a process instance
+      security: [{ m2mOAuth: [] }]
+      description: |
+        **Answers 200, where `POST /v1/process/{key}/start` answers 201.** The
+        difference is not meaningful — both created an instance — but it is
+        real, and a consumer checking for 201 would be wrong here.
+
+        **Which organisation gets the case.** When the body supplies no
+        `municipality`, the instance is labelled with the PROCESS DEFINITION'S
+        own deployed tenant — so starting a `toeslagen` process here produces a
+        `toeslagen` case, visible to that organisation's staff through `/v1`
+        like any other. A definition carrying no tenant falls back to the
+        literal `m2m`. `originTenantId` is never set.
+
+        **A supplied `municipality` wins, and nothing checks it.** A body
+        naming any organisation places the case there, including one the
+        process is not deployed under — verified against a running backend.
+        That is the same gap as #261 on `complete`, at the other end of the
+        case's life.
+
+        A `businessKey` is kept **verbatim**. `/v1` prefixes a minted one with
+        the owning organisation (#234); there is no organisation here to prefix
+        with, and none is minted when the field is omitted.
+
+        `variables` may be sent plain (`{"amount": 42}`) or in Operaton's
+        wrapped form (`{"amount": {"value": 42, "type": "Integer"}}`) — both
+        land identically. Neither `409 AMBIGUOUS_DEPLOYMENT` nor
+        `403 TENANT_MISMATCH` can occur: both come from resolving a key against
+        the caller's organisation, and there is none.
+      parameters:
+        - $ref: '#/components/parameters/M2mProcessKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                businessKey:
+                  type: string
+                  description: |
+                    Optional, and kept exactly as given. Unlike `/v1`, nothing
+                    is minted when it is absent — the instance then has none.
+                variables: { $ref: '#/components/schemas/M2mVariableMap' }
+      responses:
+        '200':
+          description: The instance was started.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [processInstanceId, businessKey]
+                    properties:
+                      processInstanceId: { type: string }
+                      businessKey:
+                        type: [string, 'null']
+                        description: Null when the request supplied none.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: |
+            Operaton refused the start (`PROCESS_START_FAILED`) — an unknown
+            key, a suspended definition, or a variable the process rejects.
+            There is no 404: an unknown key fails here.
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/history:
+    get:
+      operationId: queryM2mProcessHistory
+      tags: [Machine-to-machine]
+      summary: Query instance history
+      security: [{ m2mOAuth: [] }]
+      description: |
+        **This GET takes a request body**, and it is the only operation in this
+        API that does. The body is handed to Operaton's
+        `POST /history/process-instance` unaltered, so every filter that query
+        supports works: `processDefinitionKey`, `variables`, `finished`,
+        `startedAfter`, sorting, paging. An empty body, or none at all, returns
+        the unfiltered history.
+
+        RFC 9110 permits a body on GET but gives it no meaning, and many
+        clients, proxies and generated SDKs drop it — a consumer that cannot
+        send one gets the unfiltered history rather than an error, which is a
+        silent difference in result rather than a failure. Recorded as it is
+        rather than corrected, because changing the method would break the
+        consumers it has; tracked in #263.
+
+        `GET /v1/process/history` is not this operation under another name. It
+        takes a **required `applicantId` query parameter**, returns one
+        applicant's completed instances, and is role-checked.
+      requestBody:
+        required: false
+        description: An Operaton history query. Sent on a GET; see the note above.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                Passed to Operaton's history query unaltered. Not enumerated
+                here: this service neither validates nor constrains it.
+              additionalProperties: true
+      responses:
+        '200':
+          description: The matching historic instances; all of them when no body was sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: A historic process instance as Operaton reports it.
+                      additionalProperties: true
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`PROCESS_HISTORY_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{id}/status:
+    get:
+      operationId: getM2mProcessStatus
+      tags: [Machine-to-machine]
+      summary: Whether an instance is running
+      security: [{ m2mOAuth: [] }]
+      description: |
+        The same object `GET /v1/process/{id}/status` returns, with no
+        organisation check.
+
+        An instance that has ENDED answers 404, not a status of `ended`: the
+        lookup goes to Operaton's runtime endpoint, which forgets a finished
+        instance. Use `process/history` for one that has ended.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The instance.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ProcessStatus' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: |
+            No such RUNNING instance (`PROCESS_NOT_FOUND`) — including one that
+            has ended.
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{id}/variables:
+    get:
+      operationId: getM2mProcessVariables
+      tags: [Machine-to-machine]
+      summary: Current variables of a running instance
+      security: [{ m2mOAuth: [] }]
+      description: |
+        Values are returned PLAIN — Operaton's `{value, type}` wrapper is
+        unwrapped. Requests that SET variables may use either form; see
+        `M2mVariableMap`.
+
+        Like `status` above this reads the runtime, so it answers 404 for an
+        instance that has ended; `historic-variables` is the one to use then.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The variables.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PlainVariableMap' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: No such running instance (`PROCESS_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{id}/historic-variables:
+    get:
+      operationId: getM2mProcessHistoricVariables
+      tags: [Machine-to-machine]
+      summary: Variables of an instance, live or finished
+      security: [{ m2mOAuth: [] }]
+      description: |
+        The same plain shape as the live read, and it works for an instance
+        that has ended — which is what the two reads above cannot do.
+
+        **An unknown id answers `200` with an empty object, not `404`.** The
+        history query returns no rows rather than failing, and no row is not an
+        error. The 404 below is reachable only when the engine itself refuses
+        the query. Verified against a running backend; a consumer treating `{}`
+        as "no such instance" is guessing, because a real instance carrying no
+        variables answers the same way.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: |
+            The variables. Empty for an unknown id, and for a real instance
+            carrying none.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PlainVariableMap' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: |
+            `PROCESS_NOT_FOUND`, raised when the engine refuses the history
+            query. NOT the answer for an unknown id; see the 200.
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{id}/decision-document:
+    get:
+      operationId: getM2mProcessDecisionDocument
+      tags: [Machine-to-machine]
+      summary: The decision document template linked to a case
+      security: [{ m2mOAuth: [] }]
+      description: |
+        **This operation does not use the `{ success, data }` envelope.** It
+        answers `{ success, template }`, and so does its `/v1` twin — recorded
+        as it is rather than normalised, because a consumer reads what the
+        handler sends.
+
+        The template is the `DocumentTemplate` resource bundled in the
+        deployment, found by following `ronl:documentRef` on a user task in the
+        instance's BPMN. It is the template WITH ITS BINDINGS, not a rendered
+        document. Works for instances that have ended.
+
+        Most processes carry no `ronl:documentRef`, in which case this answers
+        404 — the usual outcome, not an error worth alerting on.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      responses:
+        '200':
+          description: The document template.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, template]
+                properties:
+                  success: { type: boolean, const: true }
+                  template: { $ref: '#/components/schemas/DocumentTemplate' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: |
+            No `ronl:documentRef` on this process, no matching `.document`
+            resource in the deployment, or no such instance
+            (`DOCUMENT_NOT_FOUND` for all three).
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{key}/start-form:
+    get:
+      operationId: getM2mProcessStartForm
+      tags: [Machine-to-machine]
+      summary: The deployed start form for a process
+      security: [{ m2mOAuth: [] }]
+      description: |
+        The form-js schema a caller renders to start this process, served
+        unaltered.
+
+        Unlike its `/v1` twin this cannot answer `409 AMBIGUOUS_DEPLOYMENT`:
+        that arises from resolving a key against the caller's organisation, and
+        there is none. A key deployed under several organisations resolves
+        through the M2M surface regardless of which.
+      parameters:
+        - $ref: '#/components/parameters/M2mProcessKey'
+      responses:
+        '200':
+          description: The form schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FormSchema' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: |
+            No such process, or it has no start-event form (`FORM_NOT_FOUND`).
+            A process started through the API rather than a form answers this
+            normally.
+          $ref: '#/components/responses/Error'
+        '415':
+          description: |
+            The deployed form is not a form-js schema — an embedded or external
+            form this service cannot serve (`UNSUPPORTED_FORM_TYPE`).
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{key}/variable-hints:
+    get:
+      operationId: getM2mProcessVariableHints
+      tags: [Machine-to-machine]
+      summary: Variable names and types a process expects
+      security: [{ m2mOAuth: [] }]
+      description: |
+        **This operation does not use the `{ success, data }` envelope.** It
+        answers `{ success, variables }`, the same as its `/v1` twin.
+
+        The hints are derived from the deployed BPMN, so they describe what the
+        process reads — useful for assembling a `start` body without a form.
+
+        **An unknown key answers `200` with an empty array, not `404`.**
+        Verified against a running backend. A process that genuinely declares
+        no variables answers the same way, so an empty array does not
+        distinguish the two.
+      parameters:
+        - $ref: '#/components/parameters/M2mProcessKey'
+      responses:
+        '200':
+          description: |
+            The hints. Empty for an unknown key, and for a process declaring
+            none.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, variables]
+                properties:
+                  success: { type: boolean, const: true }
+                  variables:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, type]
+                      properties:
+                        name: { type: string }
+                        type:
+                          type: string
+                          description: |
+                            Operaton's type name, for example String, Integer,
+                            Boolean, Object.
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`VARIABLE_HINTS_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /m2m/process/{id}:
+    delete:
+      operationId: deleteM2mProcessInstance
+      tags: [Machine-to-machine]
+      summary: Cancel a running instance
+      security: [{ m2mOAuth: [] }]
+      description: |
+        Cancels the instance, with no organisation check — where `/v1` admits
+        the owning organisation only and refuses even the case's own applicant.
+
+        An instance that has already ended or been cancelled answers **500**,
+        not 404: the engine's refusal is reported as a failure to cancel.
+        Verified against a running backend.
+      parameters:
+        - $ref: '#/components/parameters/ProcessInstanceId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Recorded on the instance as Operaton's delete reason.
+      responses:
+        '200':
+          description: The instance was cancelled.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [message, processInstanceId]
+                    properties:
+                      message: { type: string, const: Process instance cancelled }
+                      processInstanceId: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: |
+            `PROCESS_DELETE_FAILED`. Also the answer for an unknown id and for
+            one that has already ended.
+          $ref: '#/components/responses/Error'
+
+  /m2m/task:
+    get:
+      operationId: listM2mTasks
+      tags: [Machine-to-machine]
+      summary: All open tasks
+      security: [{ m2mOAuth: [] }]
+      description: |
+        Every open task on the M2M engine, across all organisations and all
+        candidate groups.
+
+        `GET /v1/task` is narrowed twice — by the caller's organisation and by
+        their realm roles, which map one-to-one to the BPMN candidate groups.
+        Neither filter applies here, so this list is a superset of what any
+        person would see.
+      responses:
+        '200':
+          description: The open tasks.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`TASK_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /m2m/task/{id}:
+    get:
+      operationId: getM2mTask
+      tags: [Machine-to-machine]
+      summary: One task
+      security: [{ m2mOAuth: [] }]
+      description: |
+        The same object `GET /v1/task/{id}` returns, with no organisation
+        check.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The task.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/Task' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: |
+            No such task (`TASK_NOT_FOUND`). A completed task answers this too.
+          $ref: '#/components/responses/Error'
+
+  /m2m/task/{id}/variables:
+    get:
+      operationId: getM2mTaskVariables
+      tags: [Machine-to-machine]
+      summary: Variables visible to a task
+      security: [{ m2mOAuth: [] }]
+      description: |
+        The variables of the task's process instance, returned PLAIN.
+
+        **An unknown task id answers `500`, not `404`** — unlike
+        `GET /m2m/task/{id}` beside it, which answers 404 for the same id.
+        Verified against a running backend. The inconsistency is the handler's,
+        not the engine's, and is recorded rather than smoothed over.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The variables.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/PlainVariableMap' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`TASK_VARIABLES_FAILED`. Also the answer for an unknown task id.'
+          $ref: '#/components/responses/Error'
+
+  /m2m/task/{id}/form-schema:
+    get:
+      operationId: getM2mTaskFormSchema
+      tags: [Machine-to-machine]
+      summary: The deployed form for a task
+      security: [{ m2mOAuth: [] }]
+      description: The form-js schema attached to the task, served unaltered.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: The form schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FormSchema' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: No such task, or it has no deployed form (`FORM_NOT_FOUND`).
+          $ref: '#/components/responses/Error'
+        '415':
+          description: The deployed form is not a form-js schema (`UNSUPPORTED_FORM_TYPE`).
+          $ref: '#/components/responses/Error'
+
+  /m2m/task/{id}/claim:
+    post:
+      operationId: claimM2mTask
+      tags: [Machine-to-machine]
+      summary: Assign a task
+      security: [{ m2mOAuth: [] }]
+      description: |
+        **The body matters here, and does not on `/v1`.**
+        `POST /v1/task/{id}/claim` ignores it and assigns the calling user;
+        this operation assigns whoever `userId` names, falling back to the
+        token's subject when it is absent. An M2M client claiming on its own
+        behalf would be assigning a service account, which is rarely what a
+        machine consumer wants, so the override is the normal path.
+
+        The `userId` is written through to Operaton unchecked — it need not be
+        a Keycloak subject, and no such user has to exist.
+
+        The answer is `{ taskId, claimed }`; `/v1` sends `{ taskId, assignee }`.
+
+        Claiming again FOR THE SAME assignee is idempotent and answers 200.
+        Claiming a held task for a DIFFERENT assignee is refused by the engine
+        and reported as **500**, not 409, and the existing assignee stands.
+        Both verified against a running backend.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: |
+                    Who to assign the task to. Falls back to the token's
+                    subject — the M2M client's service account — when absent.
+      responses:
+        '200':
+          description: The task was assigned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [taskId, claimed]
+                    properties:
+                      taskId: { type: string }
+                      claimed: { type: boolean, const: true }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: |
+            `TASK_CLAIM_FAILED`. Covers an unknown task, a completed one, and a
+            claim for a different assignee while the task is held.
+          $ref: '#/components/responses/Error'
+
+  /m2m/task/{id}/complete:
+    post:
+      operationId: completeM2mTask
+      tags: [Machine-to-machine]
+      summary: Complete a task
+      security: [{ m2mOAuth: [] }]
+      description: |
+        Completes the task with the supplied variables, advancing the process.
+        The answer is `{ taskId, completed }`; `/v1` sends
+        `{ taskId, status: "completed" }`.
+
+        **There is no `RESERVED_VARIABLE` guard here.**
+        `POST /v1/task/{id}/complete` refuses a body writing `municipality`,
+        `originTenantId` or `applicantId` with `400 RESERVED_VARIABLE`. This
+        operation accepts all three, including `municipality` — the label every
+        `/v1` access check enforces. Tracked as **#261**; when it is fixed a
+        `400` joins the responses below and this paragraph comes out.
+
+        Variables may be sent plain or wrapped; see `M2mVariableMap`.
+
+        Completing a task that is already completed answers **500**.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variables: { $ref: '#/components/schemas/M2mVariableMap' }
+      responses:
+        '200':
+          description: The task was completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [taskId, completed]
+                    properties:
+                      taskId: { type: string }
+                      completed: { type: boolean, const: true }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: |
+            `TASK_COMPLETE_FAILED` — a missing required form field, a gateway
+            that cannot evaluate, an unknown task, or one already completed.
+          $ref: '#/components/responses/Error'
+
+  /m2m/decision/{key}/evaluate:
+    post:
+      operationId: evaluateM2mDecision
+      tags: [Machine-to-machine]
+      summary: Evaluate a DMN decision
+      security: [{ m2mOAuth: [] }]
+      description: |
+        Evaluates the decision against the supplied variables and returns
+        Operaton's result rows unaltered. Identical in shape to
+        `POST /v1/decision/{key}/evaluate`; only the security differs.
+
+        Input may be plain or wrapped. The OUTPUT is always wrapped
+        (`{value, type, valueInfo}`) — unlike the variable reads elsewhere,
+        which unwrap. An input set matching no rule answers `200` with an empty
+        array, not a 404.
+
+        **The 500 message is Operaton's own, verbatim.** An unknown key
+        produces `"No matching decision definition with key: … and no
+        tenant-id"` rather than a message this service wrote. That is the one
+        place in this API where an upstream string reaches the caller.
+      parameters:
+        - $ref: '#/components/parameters/M2mDecisionKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variables: { $ref: '#/components/schemas/M2mVariableMap' }
+      responses:
+        '200':
+          description: |
+            The matched rules, one object per row. Empty when nothing matched.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      description: One result row, keyed by output name.
+                      additionalProperties: { $ref: '#/components/schemas/OperatonVariable' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: |
+            `DECISION_EVALUATION_FAILED`, carrying Operaton's own message. Also
+            the answer for an unknown decision key.
+          $ref: '#/components/responses/Error'
+
+  /m2m/decision/{key}:
+    get:
+      operationId: getM2mDecisionDefinition
+      tags: [Machine-to-machine]
+      summary: A DMN decision definition
+      security: [{ m2mOAuth: [] }]
+      description: |
+        The latest version of the decision definition, as Operaton reports it.
+        Identical in shape to `GET /v1/decision/{key}`; only the security
+        differs.
+      parameters:
+        - $ref: '#/components/parameters/M2mDecisionKey'
+      responses:
+        '200':
+          description: The definition.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/DecisionDefinition' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '404':
+          description: No such decision (`DECISION_NOT_FOUND`).
           $ref: '#/components/responses/Error'
 
   # ── /v1/edocs and /v1/doccle ──────────────────────────────────────────────
@@ -2856,6 +3956,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`STATUS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -2907,13 +4009,18 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           description: |
-            The token was missing or unknown. **Plain text**, not JSON.
+            The token was missing or unknown. **Not JSON**, and not
+            `text/plain` either: the handler calls `res.status(401).send(...)`
+            with a string, and Express types a string body as `text/html`.
+            Documented as `text/plain` until #269, which compared the two.
           content:
-            text/plain:
+            text/html:
               schema: { type: string, examples: ['Missing token', 'Invalid token'] }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: Plain text, not JSON.
           content:
@@ -2957,6 +4064,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`FEED_TOKEN_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3045,6 +4154,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '502':
           description: The upstream source failed (`UPSTREAM_ERROR`).
           $ref: '#/components/responses/Error'
@@ -3072,6 +4183,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '502':
           description: '`AGENDA_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3110,6 +4223,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SIGNALS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3152,6 +4267,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`PROMOTE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3180,6 +4297,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SIGNAL_COUNTS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3210,6 +4329,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3239,6 +4360,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3281,6 +4404,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3315,6 +4440,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SEARCHES_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3367,6 +4494,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SEARCH_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3412,6 +4541,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3433,6 +4564,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3468,6 +4601,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`NOTIFICATIONS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3488,6 +4623,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`NOTIFICATIONS_ACK_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3520,6 +4657,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`DOSSIERS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3606,6 +4745,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3693,6 +4834,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3707,6 +4850,27 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PaDossierId'
       responses:
+        '200':
+          description: |
+            The watch ALREADY EXISTED and was re-enabled in place. The handler
+            answers `res.status(existing ? 200 : 201)`, so a repeat follow is a
+            200 and only the first is a 201. Only the 201 was documented until
+            #269, whose conformance check found the route test asserting a 200.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
         '201':
           description: The watch that was created.
           content:
@@ -3726,6 +4890,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`DOSSIER_WATCH_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3746,6 +4912,8 @@ paths:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`DOSSIER_WATCH_DELETE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3795,6 +4963,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3827,6 +4997,8 @@ paths:
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '404':
           $ref: '#/components/responses/PaNotFound'
         '500':
@@ -3854,6 +5026,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`TEMPLATES_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3890,6 +5064,8 @@ paths:
         '400':
           description: '`naam` missing (`MISSING_NAAM`).'
           $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`TEMPLATE_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3915,6 +5091,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SNIPPETS_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -3932,7 +5110,7 @@ paths:
               required: [naam, md]
               properties:
                 naam: { type: string }
-                md: { type: string, description: The snippet body, in Markdown. }
+                md: { type: string, description: 'The snippet body, in Markdown.' }
                 cat: { type: string }
       responses:
         '201':
@@ -3951,6 +5129,8 @@ paths:
         '400':
           description: '`naam` or `md` missing (`MISSING_FIELDS`).'
           $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/PaForbidden'
         '500':
           description: '`SNIPPET_CREATE_ERROR`.'
           $ref: '#/components/responses/Error'
@@ -4010,7 +5190,24 @@ paths:
                         properties:
                           counts:
                             type: object
-                            additionalProperties: { type: integer }
+                            description: |
+                              Keyed by process definition key. Each value is a
+                              PAIR of counts, not a single number: `wip` is the
+                              running instances and `gereed` the finished ones.
+                              The service's own signature says so --
+                              `Record<string, { wip: number; gereed: number }>`
+                              -- while this said `integer` until #269, whose
+                              conformance check compared the two.
+                            additionalProperties:
+                              type: object
+                              required: [wip, gereed]
+                              properties:
+                                wip:
+                                  type: integer
+                                  description: Running instances of this phase.
+                                gereed:
+                                  type: integer
+                                  description: Finished instances of this phase.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -4356,6 +5553,8 @@ paths:
         '400':
           description: '`employeeId` was not supplied (`VALIDATION_ERROR`).'
           $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           description: '`HR_PROFILE_FAILED`.'
           $ref: '#/components/responses/Error'
@@ -4437,6 +5636,26 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        default:
+          description: |
+            **Any other status the upstream returned, forwarded verbatim.** Both
+            failure branches of this handler answer
+            `res.status(<the BRP API's status>)`, so the status on this
+            operation is the upstream's rather than this service's -- a `404`
+            for an unknown burgerservicenummer and a `502` from the gateway in
+            front of it are both reachable. The body is always this service's
+            own `BrpError`.
+
+            Documented as `default` rather than as a longer list, because the
+            list is not this service's to close. #269's conformance check
+            surfaced it: two route tests asserted statuses the document did not
+            have.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BrpError' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
 
   # ── /v1/admin ─────────────────────────────────────────────────────────────
 
@@ -4463,11 +5682,30 @@ paths:
                   - type: object
                     properties:
                       data:
-                        type: array
-                        items:
-                          type: object
-                          description: One audit entry.
-                          additionalProperties: true
+                        type: object
+                        description: |
+                          A PAGED envelope, not a bare array. `admin.routes.ts`
+                          answers `data: { items, pagination }`; this said
+                          `data` WAS the array until #269, whose conformance
+                          check is what compared the two.
+                        required: [items, pagination]
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              type: object
+                              description: One audit entry.
+                              additionalProperties: true
+                          pagination:
+                            type: object
+                            required: [limit, offset, total, hasMore]
+                            properties:
+                              limit: { type: integer }
+                              offset: { type: integer }
+                              total: { type: integer }
+                              hasMore:
+                                type: boolean
+                                description: Whether another page follows.
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -4630,6 +5868,39 @@ components:
         examples: ['2026.09.11']
 
   securitySchemes:
+    m2mOAuth:
+      type: oauth2
+      description: |
+        The machine-to-machine surface, `/v1/m2m`.
+
+        The token is obtained with a CLIENT CREDENTIALS grant against the same
+        realm the rest of the API uses, and is validated the same way: same
+        issuer, `ronl-business-api` audience, RS256. It is a separate scheme
+        here because the CALLER is checked as well as the token.
+
+        **The client must be allow-listed.** `requireM2mClient` requires the
+        token's `azp` -- the party it was issued to -- to appear on the server's
+        `M2M_ALLOWED_CLIENTS`, which is `operaton-mcp-client` alone today.
+        Anything else is refused with `403 M2M_CLIENT_NOT_ALLOWED` before any
+        handler runs. Adding a consumer means adding its client id to that
+        variable; nothing changes in Keycloak.
+
+        `azp` rather than the audience, because every person in the realm holds
+        a token for `ronl-business-api`: the audience cannot distinguish a
+        machine from a citizen, and before #237 that meant any authenticated
+        user reached all 18 operations.
+
+        OpenAPI cannot express the allow-list condition, so it is stated here
+        and carried by the 403 on every operation. A bearer token that is
+        merely valid is NOT sufficient.
+
+        `tokenUrl` below is production's. Acceptance issues tokens at
+        `https://acc.keycloak.open-regels.nl/realms/ronl/protocol/openid-connect/token`.
+      flows:
+        clientCredentials:
+          tokenUrl: https://keycloak.open-regels.nl/realms/ronl/protocol/openid-connect/token
+          scopes: {}
+
     mediaAggregatorKey:
       type: http
       scheme: bearer
@@ -4729,6 +6000,24 @@ components:
       description: The task the signature belongs to.
       schema: { type: string }
 
+    M2mProcessKey:
+      name: key
+      in: path
+      required: true
+      description: |
+        The process definition key. Unlike `ProcessKey` on the `/v1`
+        operations, this is NOT resolved against a caller's organisation --
+        there is none -- so a key deployed under several organisations resolves
+        here regardless of which, and no `409 AMBIGUOUS_DEPLOYMENT` can arise.
+      schema: { type: string }
+
+    M2mDecisionKey:
+      name: key
+      in: path
+      required: true
+      description: The DMN decision key, for example `AwbCompletenessCheck`.
+      schema: { type: string }
+
     ProcessKey:
       name: key
       in: path
@@ -4786,8 +6075,24 @@ components:
           description: False when any dependency is down; mirrors the 503.
         data:
           type: object
-          required: [name, version, status, timestamp, uptime, environment]
+          # `uptime` and `environment` are NOT required, and neither are
+          # `dependencies` or `duration`. health.routes.ts has TWO 503 paths and
+          # they answer different bodies: when a dependency is down it sends the
+          # full report, but when the check itself THROWS, the catch branch
+          # sends only { name, version, status, timestamp, error }.
+          #
+          # Listing them as required described the first path and not the
+          # second, so the document was wrong for every 503 raised by a failing
+          # CHECK rather than a failing dependency. #269's conformance check
+          # found it; the route test for that branch had been green throughout.
+          required: [name, version, status, timestamp]
           properties:
+            error:
+              type: string
+              description: |
+                Present ONLY on the catch-branch 503, carrying the message of
+                the error that stopped the check. The fields reporting on
+                dependencies are absent on that path.
             name:
               type: string
             version:
@@ -4987,6 +6292,21 @@ components:
         modified: { type: [string, 'null'], format: date-time }
         soort: { type: string }
 
+    FacetCounts:
+      type: array
+      description: |
+        One facet's values with their counts, ordered by count descending. Each
+        entry is a two-element tuple: the value, then how many items carry it.
+      items:
+        type: array
+        minItems: 2
+        maxItems: 2
+        prefixItems:
+          - type: string
+            description: The facet value.
+          - type: integer
+            description: How many items in the result set carry it.
+
     PublicIndexItem:
       type: object
       description: |
@@ -5049,13 +6369,26 @@ components:
     PlainVariableMap:
       type: object
       description: |
-        Variables as the READ operations return them: keyed by name, with the
-        value only. Operaton's `{value, type}` wrapper is removed.
+        Variables keyed by name, with the value only -- Operaton's
+        `{value, type}` wrapper removed.
+
+        **Used in both directions**, which is easy to get wrong. Every variable
+        READ returns this shape. So do the two writes that take variables from
+        a caller: `POST /process/{key}/start` and `POST /task/{id}/complete`
+        wrap the plain values themselves with `inferType`, so sending them
+        `OperatonVariableMap` double-wraps it into
+        `{value: {value, type}, type: "Json"}`. Both were published as
+        `OperatonVariableMap` until #214.
+
+        `OperatonVariableMap` is genuinely the input of exactly one operation,
+        `POST /decision/{key}/evaluate`, which accepts either form.
 
         Every instance started since #218 carries `municipality` (the owning
         organisation, which access checks enforce) and `originTenantId` (the
         caller's organisation at start). Both, with `applicantId`, are
-        rejected if a task completion tries to write them.
+        rejected if a task completion tries to write them -- on `/v1`. The M2M
+        twin has no such guard at either end of the case's life: it accepts
+        `municipality` on both `start` and `complete`. See #261.
       additionalProperties: true
 
     ProcessStartResult:
@@ -5076,6 +6409,106 @@ components:
         status: { type: string, enum: [active, suspended, ended] }
         startTime: { type: string, format: date-time }
 
+    ProcessInstanceSummary:
+      type: object
+      description: |
+        A running instance as Operaton's own `/process-instance` list reports
+        it, passed through unaltered. NOT `ProcessStatus`: there is no
+        `processInstanceId` (the field is `id`) and no derived `status` -- read
+        `ended` and `suspended` instead.
+      required: [id, definitionId, definitionKey, ended, suspended]
+      properties:
+        id:
+          type: string
+          description: |
+            The process instance id. `ProcessStatus` calls the same value
+            `processInstanceId`.
+        definitionId:
+          type: string
+          description: |
+            The definition this instance runs. Usually `key:version:uuid`, but a
+            bare uuid for an instance raised by a call activity -- the engine's
+            own inconsistency, passed through.
+        definitionKey: { type: string }
+        businessKey: { type: [string, 'null'] }
+        caseInstanceId:
+          type: [string, 'null']
+          description: 'CMMN. Always null: this platform deploys BPMN only.'
+        ended: { type: boolean }
+        suspended: { type: boolean }
+        tenantId:
+          type: [string, 'null']
+          description: Operaton's deployment tenant. Read by no access check.
+        links:
+          type: array
+          description: Operaton's HAL links. Always empty here.
+          items: { type: object, additionalProperties: true }
+
+    M2mVariableMap:
+      type: object
+      description: |
+        Variables to send on the M2M surface, keyed by name. **Either form is
+        accepted**: a plain value (`{"amount": 42}`) or Operaton's wrapped form
+        (`{"amount": {"value": 42, "type": "Integer"}}`). `toOperatonVariables`
+        passes a `{value, type}` through and wraps anything else, and both land
+        identically -- verified by reading them back from the engine.
+
+        That is the difference from `PlainVariableMap`, which the `/v1` writes
+        use: those wrap unconditionally, so the wrapped form double-wraps there.
+      additionalProperties: true
+
+    DocumentTemplate:
+      type: object
+      description: |
+        A `DocumentTemplate` resource, as bundled in the deployment and served
+        unaltered. The template WITH ITS BINDINGS -- not a rendered document:
+        the placeholders are still placeholders.
+      required: [id, name, processKey, bindings]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        processKey:
+          type: string
+          description: |
+            The process the template was authored for. May differ from the
+            instance's own definition key -- a template bundled with a parent
+            process is reachable from a sub-process instance.
+        serviceId: { type: [string, 'null'] }
+        schemaVersion: { type: integer }
+        readonly: { type: boolean }
+        status:
+          type: string
+          description: For example `example` for the templates shipped as fixtures.
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        bindings:
+          type: array
+          description: Each placeholder in the template, and the variable that fills it.
+          items:
+            type: object
+            required: [id, placeholder, variableKey]
+            properties:
+              id: { type: string }
+              placeholder:
+                type: string
+                description: |
+                  The literal token in the template, for example
+                  `{{dossierReference}}`.
+              variableKey: { type: string }
+              source:
+                type: string
+                description: Where the value comes from, for example `process`.
+              label: { type: string }
+        zones:
+          type: array
+          description: The template's layout zones.
+          items: { type: object, additionalProperties: true }
+        assets:
+          type: array
+          description: Images and other resources the template references.
+          items: { type: object, additionalProperties: true }
+
     ProcessStatus:
       type: object
       required: [processInstanceId, definitionId, businessKey, status, ended, suspended]
@@ -5085,10 +6518,32 @@ components:
           type: string
           description: 'The versioned definition, for example
             `AwbShellProcess:2:5235cc40-…`.'
-        businessKey: { type: string }
+        businessKey:
+          type: [string, 'null']
+          description: |
+            NULL for an instance that has none. `POST /process/{key}/start`
+            always mints one, so a case started through this API has a key --
+            but this field is the ENGINE's value, passed straight through, and
+            the engine holds instances started other ways: through `/v1/m2m`
+            with no key in the body, or directly against Operaton.
+
+            Was `type: string` until #269. The first thing the response
+            conformance check caught.
         status: { type: string, enum: [active, suspended, ended] }
         ended: { type: boolean }
         suspended: { type: boolean }
+
+    ProcessLineage:
+      type: object
+      description: An instance's place in a call chain.
+      required: [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
+      properties:
+        processInstanceId: { type: string }
+        processDefinitionKey: { type: string }
+        processDefinitionId: { type: string }
+        superProcessInstanceId:
+          type: [string, 'null']
+          description: The instance whose call activity started this one; null at the top.
 
     ActivityHistoryEntry:
       type: object
@@ -5108,6 +6563,15 @@ components:
             - 'null'
         canceled:
           type: boolean
+        processDefinitionKey:
+          type: [string, 'null']
+          description: Key of the process this step ran in.
+        processDefinitionId:
+          type: [string, 'null']
+          description: Definition (version) of the process this step ran in.
+        calledProcessInstanceId:
+          type: [string, 'null']
+          description: For a `callActivity`, the child instance it started; null otherwise.
 
     FormSchema:
       type: object
@@ -5352,9 +6816,18 @@ components:
           description: Present once a signature request exists.
         signingUrl:
           type: string
-          format: uri
-          description: Where the signer completes the ceremony. Present once a request
+          format: uri-reference
+          description: |
+            Where the signer completes the ceremony. Present once a request
             exists.
+
+            A `uri-reference`, not an absolute `uri`: against a live ValidSign
+            this is that service's absolute URL, but in STUB MODE -- which is
+            what acceptance runs -- it is the relative
+            `/v1/validsign/stub/ceremony/{packageId}` served by this API's own
+            callback router. Declared `format: uri` until #269, which would
+            have had a consumer validating the document reject the acceptance
+            value.
 
     BareSuccess:
       type: object
@@ -5375,7 +6848,7 @@ components:
         id: { type: string }
         tab:
           { type: string, description: 'Which board the signal sits on, for example `politiek`.' }
-        dossierId: { type: [string, 'null'], description: The dossier it is linked to, if any. }
+        dossierId: { type: [string, 'null'], description: 'The dossier it is linked to, if any.' }
         title: { type: string }
         src: { type: [string, 'null'], description: The source system's display name. }
         bron: { type: [string, 'null'] }
@@ -5384,8 +6857,13 @@ components:
         regio: { type: [string, 'null'] }
         sentiment: { type: [string, 'null'] }
         ref: { type: [string, 'null'] }
-        rel: { type: [number, 'null'], description: Relevance, used for ordering. }
-        impact: { type: [number, 'null'] }
+        rel: { type: [number, 'null'], description: 'Relevance, used for ordering.' }
+        impact:
+          type: [string, 'null']
+          description: |
+            The analyst's impact judgement, a free-text label such as `kans`
+            or `risico` -- NOT a number. `PATCH /pa/signals/{id}` types the
+            field it writes as `impact?: string`. Typed as a number until #269.
         impactLabel: { type: [string, 'null'] }
         duiding: { type: [string, 'null'], description: The curator's interpretation. }
         status:
@@ -5395,7 +6873,16 @@ components:
         aiDraft: { type: [string, 'null'] }
         confirmedBy: { type: [string, 'null'] }
         confirmedAt: { type: [string, 'null'], format: date-time }
-        routing: { type: [object, 'null'], additionalProperties: true }
+        routing:
+          type: [string, 'null']
+          description: |
+            Where a confirmed signal was routed. A STRING, not an object: the
+            only value the SQL ever writes is `watchlist`, set when a signal is
+            confirmed without a dossier
+            (`routing = CASE WHEN dossier_id IS NULL THEN 'watchlist' ELSE NULL END`),
+            and cleared to null on dismissal or when a dossier is linked.
+            Typed as an object until #269.
+          enum: [watchlist, null]
 
     PaFeedItem:
       type: object
@@ -5426,7 +6913,7 @@ components:
         soort: { type: [string, 'null'] }
         soortLabel: { type: [string, 'null'] }
         titel: { type: string }
-        iso: { type: [string, 'null'], description: The date, ISO-formatted. }
+        iso: { type: [string, 'null'], description: 'The date, ISO-formatted.' }
         tijd: { type: [string, 'null'] }
         commissie: { type: [string, 'null'] }
         status: { type: [string, 'null'] }
@@ -5515,7 +7002,18 @@ components:
         versie: { type: [string, 'null'] }
         eigenaar: { type: [string, 'null'] }
         gebruikt: { type: [integer, 'null'], description: How often it has been used. }
-        seed: { type: [boolean, 'null'], description: True for the rows shipped with the platform. }
+        seed:
+          type: [object, 'null']
+          additionalProperties: true
+          description: |
+            The template's SEED CONTENT -- the fields a new dossier starts
+            with, for example
+            `{ onderwerp, waaromNu, waarover, onsVerhaal }`. Stored as JSONB
+            (`JSON.stringify(seed ?? {})` on write) and returned as an object.
+
+            Documented as a boolean meaning "shipped with the platform" until
+            #269. That was doubly wrong: the type, and the meaning -- which
+            belongs to `status`, not to this field.
 
     PaSnippet:
       type: object
@@ -5524,7 +7022,7 @@ components:
         id: { type: string }
         naam: { type: string }
         cat: { type: [string, 'null'] }
-        md: { type: string, description: The snippet body, in Markdown. }
+        md: { type: string, description: 'The snippet body, in Markdown.' }
 
     PlainEnvelope:
       type: object
@@ -5667,11 +7165,64 @@ components:
 
     Unauthorized:
       description: |
-        No bearer token, or one this service could not verify against the
-        realm's JWKS (`UNAUTHORIZED`).
+        No usable bearer token. Two codes, both from `jwtMiddleware`:
+        **`MISSING_TOKEN`** when the `Authorization` header is absent or is not
+        a bearer, and **`INVALID_TOKEN`** when a token is present but does not
+        verify against the realm's JWKS -- expired, wrong issuer or audience,
+        bad signature.
+
+        Said `UNAUTHORIZED` until #214. That code is real, but it comes from
+        the role and assurance guards further in, never from the token check
+        this response describes.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+    M2mForbidden:
+      description: |
+        Refused before the handler ran. Two distinct codes share this status, so
+        a consumer should read `error.code` rather than the status alone:
+
+        - **`M2M_CLIENT_NOT_ALLOWED`** -- the token's `azp` is not on
+          `M2M_ALLOWED_CLIENTS`, or the token carries no `azp` at all. The
+          ordinary refusal: every realm token is valid for this audience, and
+          this is what stops a citizen's or a caseworker's from reaching the
+          machine surface (#237).
+        - **`OPERATION_NOT_PERMITTED`** -- the curation gate. The operation is
+          not on `M2M_ALLOWED_OPERATIONS` in `m2m.routes.ts`. All 18 are listed
+          today, so it cannot occur unless one is deliberately withdrawn from
+          machine consumers.
+
+        `TENANT_MISMATCH` never appears on this group: no organisation is
+        derived, so there is nothing to mismatch.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
+
+    PaForbidden:
+      description: |
+        A CAPABILITY refusal, not an organisation one -- it is never
+        `TENANT_MISMATCH`. Two codes reach it:
+
+        - **`FORBIDDEN`** -- the token lacks the `public-affairs` realm role.
+          `pa.routes.ts` applies `requireRoles('public-affairs')` with a
+          `router.use`, so this is reachable on EVERY operation in this group,
+          before the handler runs.
+        - **`FORBIDDEN_PUBLISH`** -- on the two operations that can publish a
+          dossier, when the caller holds the role but not the publish
+          capability.
+
+        Only the second was documented, on two operations, until #269 -- so the
+        role refusal that guards all 33 appeared nowhere.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
 
     TenantMismatch:
       description: |

@@ -39,6 +39,8 @@ jest.mock('@utils/logger', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import { versionMiddleware } from '@middleware/version.middleware';
+import { expectToMatchOperation } from '@/openapi/testing/conformance';
 import ripRouter from './rip.routes';
 import { operatonService } from '@services/operaton.service';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
@@ -56,9 +58,24 @@ const svc = operatonService as unknown as {
   getPhaseSwimlaneModel: jest.Mock;
 };
 
+// versionMiddleware is app-wide in index.ts, not in the router, so a test
+// app mounting the router alone answers without API-Version -- which
+// expectToMatchOperation checks on every 2xx (ADR API-57). Mounting it here
+// keeps the test app answering what the real one does (#269).
 const app = express();
+app.use(versionMiddleware);
 app.use('/v1/rip', ripRouter);
 const auth = (r: request.Test) => r.set('x-test-auth', '1');
+
+// An instance as the RIP boards report one. RipInstance names `businessKey`
+// and `startTime` as required, and `{ id: 'i1' }` supplied neither while
+// satisfying every assertion in this file until #269.
+const ripInstance = (over: Record<string, unknown> = {}) => ({
+  id: 'i1',
+  businessKey: 'flevoland-1',
+  startTime: '2026-09-28T10:00:00.000Z',
+  ...over,
+});
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -66,13 +83,15 @@ describe('lists', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/R2.1/active');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
   });
 
   it('GET /phases/:code/active returns the tenant list', async () => {
-    svc.getRipPhaseActiveList.mockResolvedValue([{ id: 'i1' }]);
+    svc.getRipPhaseActiveList.mockResolvedValue([ripInstance()]);
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([{ id: 'i1' }]);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
+    expect(res.body.data).toEqual([ripInstance()]);
     expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
   });
 
@@ -85,6 +104,7 @@ describe('lists', () => {
   it('GET /phases/:code/active answers 404 for a phase code the catalogue has never heard of', async () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/active'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
     expect(res.body.error.code).toBe('UNKNOWN_PHASE');
     expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
   });
@@ -93,19 +113,22 @@ describe('lists', () => {
     svc.getRipPhaseActiveList.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
     expect(res.body.error.code).toBe('RIP_LIST_FAILED');
   });
 
   it('GET /phases/:code/completed returns the tenant list', async () => {
-    svc.getRipPhaseCompletedList.mockResolvedValue([{ id: 'c1' }]);
+    svc.getRipPhaseCompletedList.mockResolvedValue([ripInstance({ id: 'c1' })]);
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
     expect(svc.getRipPhaseCompletedList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
   });
 
   it('GET /phases/:code/completed answers 404 for an unknown phase', async () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/completed'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
     expect(res.body.error.code).toBe('UNKNOWN_PHASE');
   });
 
@@ -131,6 +154,7 @@ describe('lists', () => {
     svc.getRipPhaseCompletedList.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
     expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
   });
 });
@@ -139,16 +163,18 @@ describe('GET /phases/active', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/active');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/rip/phases/active');
   });
 
   it('aggregates active instances across every modelled phase, tagging each row with its phaseCode', async () => {
     svc.getRipPhaseActiveList.mockImplementation((key: string) =>
-      Promise.resolve(key === 'RipR21Process' ? [{ id: 'i1' }] : [])
+      Promise.resolve(key === 'RipR21Process' ? [ripInstance()] : [])
     );
     const res = await auth(request(app).get('/v1/rip/phases/active'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/active');
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toEqual([{ id: 'i1', phaseCode: 'R2.1' }]);
+    expect(res.body.data).toEqual([ripInstance({ phaseCode: 'R2.1' })]);
     expect(svc.getRipPhaseActiveList).toHaveBeenCalledTimes(MODELLED_KEYS.length);
     expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR21Process', 'flevoland');
     expect(svc.getRipPhaseActiveList).toHaveBeenCalledWith('RipR22Process', 'flevoland');
@@ -157,12 +183,13 @@ describe('GET /phases/active', () => {
   it('omits a failing phase rather than blanking the rest of the aggregate', async () => {
     svc.getRipPhaseActiveList.mockImplementation((key: string) => {
       if (key === 'RipR22Process') return Promise.reject('socket hang up'); // non-Error rejection
-      return Promise.resolve(key === 'RipR21Process' ? [{ id: 'i1' }] : []);
+      return Promise.resolve(key === 'RipR21Process' ? [ripInstance()] : []);
     });
     const res = await auth(request(app).get('/v1/rip/phases/active'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/active');
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toEqual([{ id: 'i1', phaseCode: 'R2.1' }]);
+    expect(res.body.data).toEqual([ripInstance({ phaseCode: 'R2.1' })]);
     expect(
       (res.body.data as Array<{ phaseCode: string }>).some((r) => r.phaseCode === 'R2.2')
     ).toBe(false);
@@ -172,6 +199,7 @@ describe('GET /phases/active', () => {
     svc.getRipPhaseActiveList.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/phases/active'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/active');
     expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
   });
 });
@@ -180,12 +208,14 @@ describe('GET /phases/deployment-status', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/deployment-status');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/rip/phases/deployment-status');
   });
 
   it('returns the deployed keys from the service', async () => {
     svc.getDeployedProcessKeys.mockResolvedValue(['RipR21Process']);
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/deployment-status');
     expect(res.body.data).toEqual({ deployedKeys: ['RipR21Process'] });
     expect(svc.getDeployedProcessKeys).toHaveBeenCalledWith(MODELLED_KEYS, 'flevoland');
   });
@@ -194,6 +224,7 @@ describe('GET /phases/deployment-status', () => {
     svc.getDeployedProcessKeys.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/deployment-status');
     expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
   });
 });
@@ -202,6 +233,7 @@ describe('GET /phases/counts', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/counts');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/rip/phases/counts');
   });
 
   it('returns counts for the deployed keys only', async () => {
@@ -211,6 +243,7 @@ describe('GET /phases/counts', () => {
     });
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/counts');
     expect(res.body.data).toEqual({ counts: { RipR21Process: { wip: 3, gereed: 7 } } });
     expect(svc.getPhaseInstanceCounts).toHaveBeenCalledWith(['RipR21Process'], 'flevoland');
   });
@@ -220,6 +253,7 @@ describe('GET /phases/counts', () => {
     svc.getPhaseInstanceCounts.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/counts');
     expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
   });
 });
@@ -234,6 +268,7 @@ describe('GET /instances/:instanceId/documents', () => {
     });
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
     expect(res.body.data.intakeReport).toEqual({ t: 'intake' });
   });
 
@@ -246,6 +281,7 @@ describe('GET /instances/:instanceId/documents', () => {
     });
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 
@@ -253,6 +289,7 @@ describe('GET /instances/:instanceId/documents', () => {
     svc.getRipInstanceDocuments.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
     expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
   });
 });
@@ -284,6 +321,7 @@ describe('non-Error rejections', () => {
     svc.getRipPhaseActiveList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
     expect(res.body.error.code).toBe('RIP_LIST_FAILED');
   });
 
@@ -291,6 +329,7 @@ describe('non-Error rejections', () => {
     svc.getRipPhaseActiveList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/active'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/active');
     expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
   });
 
@@ -298,6 +337,7 @@ describe('non-Error rejections', () => {
     svc.getDeployedProcessKeys.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/deployment-status');
     expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
   });
 
@@ -306,6 +346,7 @@ describe('non-Error rejections', () => {
     svc.getPhaseInstanceCounts.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/counts');
     expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
   });
 
@@ -313,6 +354,7 @@ describe('non-Error rejections', () => {
     svc.getRipInstanceDocuments.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
     expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
   });
 
@@ -320,6 +362,7 @@ describe('non-Error rejections', () => {
     svc.getRipPhaseCompletedList.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
     expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
   });
 
@@ -327,6 +370,7 @@ describe('non-Error rejections', () => {
     svc.getPhaseSwimlaneModel.mockRejectedValue('socket hang up');
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/model'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
     expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
   });
 });
@@ -341,6 +385,7 @@ describe('tenant isolation when the instance has no municipality', () => {
     });
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(403);
+    expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
     expect(res.body.error.code).toBe('TENANT_MISMATCH');
   });
 });
@@ -359,6 +404,7 @@ describe('GET /phases/:code/model', () => {
   it('401 without a token', async () => {
     const res = await request(app).get('/v1/rip/phases/R2.2/model');
     expect(res.status).toBe(401);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
   });
 
   it('returns a swimlane model derived from the deployed BPMN', async () => {
@@ -367,6 +413,7 @@ describe('GET /phases/:code/model', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
 
     expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
     expect(res.body.success).toBe(true);
     // Fixture-verified (bpmn-swimlane.test.ts): R2.2 has these exact 4 lanes,
     // 17 nodes and 21 edges. Asserting the counts and lane labels, not just
@@ -386,6 +433,7 @@ describe('GET /phases/:code/model', () => {
   it('404s an unknown phase code without touching the engine', async () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/model'));
     expect(res.status).toBe(404);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
     expect(res.body.error.code).toBe('UNKNOWN_PHASE');
     expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
   });
@@ -394,6 +442,7 @@ describe('GET /phases/:code/model', () => {
     svc.getPhaseSwimlaneModel.mockRejectedValue(new Error('ECONNREFUSED'));
     const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
     expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
     expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
   });
 });

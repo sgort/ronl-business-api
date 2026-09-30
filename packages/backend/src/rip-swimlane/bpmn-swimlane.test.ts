@@ -92,16 +92,26 @@ describe('parseSwimlane — nodes', () => {
     expect(kinds).toContain('gateway');
   });
 
-  it('resolves ronl:documentRef into a doc label', () => {
+  it('resolves ronl:documentRef into doc labels', () => {
     const model = parseSwimlane(xml('RipR21Process'), 'R2.1');
-    const withDocs = model.nodes.filter((n) => n.doc);
+    const withDocs = model.nodes.filter((n) => n.docs?.length);
     expect(withDocs.length).toBeGreaterThan(0);
-    expect(withDocs.every((n) => !n.doc!.startsWith('rip-'))).toBe(true);
+    expect(withDocs.every((n) => n.docs!.every((d) => !d.startsWith('rip-')))).toBe(true);
   });
 
   it('leaves untagged nodes without a doc badge', () => {
     const model = parseSwimlane(xml('RipR22Process'), 'R2.2');
-    expect(model.nodes.some((n) => n.doc === undefined)).toBe(true);
+    expect(model.nodes.some((n) => n.docs === undefined)).toBe(true);
+  });
+
+  it('reads every document of a task that carries more than one', () => {
+    // R2.2's "Opstellen concept VO" produces an Ontwerptoelichting and an
+    // Objectenboom. Before the attribute took a list, only the first was
+    // modelled and the second was an authored template no BPMN referenced.
+    const model = parseSwimlane(xml('RipR22Process'), 'R2.2');
+    const multi = model.nodes.filter((n) => (n.docs?.length ?? 0) > 1);
+    expect(multi.length).toBeGreaterThan(0);
+    expect(multi[0].docs).toEqual(['Ontwerptoelichting', 'Objectenboom']);
   });
 });
 
@@ -505,5 +515,279 @@ describe('parseSwimlane — FASE1_DOCS coupling (spec §9)', () => {
     for (const id of fase1NodeRoleIds) {
       expect(ids).toContain(id);
     }
+  });
+});
+
+// ── Caseworker processes: the Awb kapvergunning shell and its subprocess ────
+// Copied from linked-data-explorer's public/examples (the de-badged twin of
+// e2e-fixtures, the deploy source), with the ronl:awbPhase markers added on
+// feat/awb-phase-markers. Kept in a subfolder so the root still holds exactly
+// the twelve RIP phases the fixture-count test above pins.
+const AWB = join(FIXTURES, 'awb');
+const awbXml = (key: string) => readFileSync(join(AWB, `${key}.bpmn`), 'utf-8');
+const nodeOf = (m: ReturnType<typeof parseSwimlane>, id: string) => {
+  const n = m.nodes.find((x) => x.id === id);
+  if (!n) throw new Error(`no node ${id}`);
+  return n;
+};
+
+describe('parseSwimlane — Awb kapvergunning', () => {
+  const shell = parseSwimlane(awbXml('AwbShellProcess'), 'AwbShellProcess');
+  const sub = parseSwimlane(awbXml('TreeFellingPermitSubProcess'), 'TreeFellingPermitSubProcess');
+
+  it('names the process it parsed', () => {
+    expect(shell.processKey).toBe('AwbShellProcess');
+    expect(shell.processName).toBeTruthy();
+    expect(sub.processKey).toBe('TreeFellingPermitSubProcess');
+    expect(sub.processName).toBe('Kapvergunning - Behandeling en besluit');
+  });
+
+  it('reads the lanes in DI order', () => {
+    expect(shell.lanes.map((l) => l.key)).toEqual([
+      'Lane_Aanvrager',
+      'Lane_Behandelaar',
+      'Lane_Systeem',
+    ]);
+    expect(sub.lanes.map((l) => l.key)).toEqual(['Lane_Behandelaar', 'Lane_Systeem']);
+  });
+
+  it('classifies script, rule and call nodes', () => {
+    expect(nodeOf(shell, 'Task_Phase1_Identity').kind).toBe('script');
+    expect(nodeOf(shell, 'Task_Phase3_Completeness').kind).toBe('rule');
+    expect(nodeOf(shell, 'Task_Phase45_Process').kind).toBe('call');
+    expect(nodeOf(shell, 'Task_Phase6_Notify').kind).toBe('task');
+    expect(nodeOf(sub, 'Sub_AssessPermit').kind).toBe('rule');
+  });
+
+  it('carries the decision, the call target and the form', () => {
+    expect(nodeOf(shell, 'Task_Phase3_Completeness').dmn).toBe('AwbCompletenessCheck');
+    expect(nodeOf(sub, 'Sub_AssessReplacement').dmn).toBe('ReplacementTreeDecision');
+    expect(nodeOf(shell, 'Task_Phase45_Process').calls).toBe('TreeFellingPermitSubProcess');
+    expect(nodeOf(shell, 'StartEvent_AWB').formRef).toBe('kapvergunning-start');
+    expect(nodeOf(sub, 'Sub_CaseReview').formRef).toBe('tree-felling-review');
+    expect(nodeOf(shell, 'Task_Phase1_Identity').formRef).toBeUndefined();
+    expect(nodeOf(shell, 'Task_Phase1_Identity').dmn).toBeUndefined();
+    expect(nodeOf(shell, 'Task_Phase1_Identity').calls).toBeUndefined();
+  });
+
+  it('resolves the beschikking document to its label', () => {
+    expect(nodeOf(shell, 'Task_Phase6_Notify').docs).toEqual(['Beschikking kapvergunning']);
+  });
+
+  it('stacks the granted and rejected branches in one cell', () => {
+    const granted = nodeOf(sub, 'Sub_SetGranted');
+    const rejected = nodeOf(sub, 'Sub_SetRejected');
+    expect([granted.row, granted.col]).toEqual([rejected.row, rejected.col]);
+  });
+
+  it('finds no back edges in the shell', () => {
+    expect(shell.edges.filter((e) => e.back)).toEqual([]);
+  });
+});
+
+describe('parseSwimlane — RIP models are unaffected by the new kinds', () => {
+  // The Infra-board renders every kind it does not know as a task box; a
+  // RIP phase gaining a script/rule/call node would change its drawing.
+  it.each(ALL)('%s has no script, rule or call node', (code, key) => {
+    const kinds = new Set(parseSwimlane(xml(key), code).nodes.map((n) => n.kind));
+    for (const k of ['script', 'rule', 'call'] as const) expect(kinds.has(k)).toBe(false);
+  });
+});
+
+describe('parseSwimlane — no laneSet', () => {
+  it('returns a model without lanes, every node on row 0', () => {
+    const model = parseSwimlane(
+      `<?xml version="1.0"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="P" name="Zonder lanes">
+    <bpmn:startEvent id="S"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="T"><bpmn:incoming>F1</bpmn:incoming></bpmn:userTask>
+    <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="T"/>
+  </bpmn:process>
+</bpmn:definitions>`,
+      'P'
+    );
+    expect(model.lanes).toEqual([]);
+    expect(model.nodes.map((n) => n.row)).toEqual([0, 0]);
+    expect(model.processKey).toBe('P');
+    expect(model.processName).toBe('Zonder lanes');
+  });
+});
+
+describe('parseSwimlane — lane candidateGroups', () => {
+  it('derives the Behandelaar group from its user tasks, and none for the other lanes', () => {
+    const shell = parseSwimlane(awbXml('AwbShellProcess'), 'AwbShellProcess');
+    const byKey = Object.fromEntries(shell.lanes.map((l) => [l.key, l.candidateGroups]));
+    expect(byKey).toEqual({
+      Lane_Aanvrager: undefined,
+      Lane_Behandelaar: ['caseworker'],
+      Lane_Systeem: undefined,
+    });
+    expect(shell.lanes.find((l) => l.key === 'Lane_Aanvrager')).not.toHaveProperty(
+      'candidateGroups'
+    );
+    const sub = parseSwimlane(awbXml('TreeFellingPermitSubProcess'), 'TreeFellingPermitSubProcess');
+    expect(sub.lanes.find((l) => l.key === 'Lane_Behandelaar')?.candidateGroups).toEqual([
+      'caseworker',
+    ]);
+  });
+
+  it('keeps literal groups only: trimmed, unique, sorted, expressions dropped', () => {
+    const model = parseSwimlane(
+      `<?xml version="1.0"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn">
+  <bpmn:process id="P">
+    <bpmn:laneSet><bpmn:lane id="L"><bpmn:flowNodeRef>A</bpmn:flowNodeRef><bpmn:flowNodeRef>B</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+    <bpmn:userTask id="A" camunda:candidateGroups=" zeta , caseworker,\${dyn}, #{other}"/>
+    <bpmn:userTask id="B" camunda:candidateGroups="caseworker"/>
+  </bpmn:process>
+</bpmn:definitions>`,
+      'P'
+    );
+    expect(model.lanes[0].candidateGroups).toEqual(['caseworker', 'zeta']);
+  });
+
+  it('ignores a user task that no lane references', () => {
+    const model = parseSwimlane(
+      `<?xml version="1.0"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn">
+  <bpmn:process id="P">
+    <bpmn:laneSet><bpmn:lane id="L"><bpmn:flowNodeRef>A</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+    <bpmn:userTask id="A"/>
+    <bpmn:userTask id="Loose" camunda:candidateGroups="caseworker"/>
+  </bpmn:process>
+</bpmn:definitions>`,
+      'P'
+    );
+    expect(model.lanes[0].candidateGroups).toBeUndefined();
+  });
+});
+
+describe('parseSwimlane — Awb phases', () => {
+  it('puts every shell node in the phase the design groups it under', () => {
+    // The expected map is the prototype's CWP_AWB_PHASES grouping — which it
+    // derived from "Fase N:" task names — now produced from ronl:awbPhase.
+    const shell = parseSwimlane(awbXml('AwbShellProcess'), 'AwbShellProcess');
+    const phaseOf = Object.fromEntries(shell.nodes.map((n) => [n.id, n.awbPhase]));
+    expect(phaseOf).toEqual({
+      StartEvent_AWB: '1',
+      Task_Phase1_Identity: '1',
+      Task_Phase2_Receipt: '2',
+      Task_Phase3_Completeness: '3',
+      Gateway_Complete: '3',
+      Task_RequestMissingInfo: '3',
+      Gateway_StillIncomplete: '3',
+      Task_RefuseToProcess: '3',
+      Task_Phase45_Process: '4+5',
+      Task_Phase6_Notify: '6',
+      Gateway_Payment: '7',
+      Task_Phase7_Payment: '7',
+      Gateway_Chain: '8',
+      Task_Phase8_Forward: '8',
+      Task_ArchivesDMN: 'archivering',
+      Task_ArchiveRecord: 'archivering',
+      EndEvent_AWB: 'archivering',
+    });
+  });
+
+  it('puts the whole subprocess in 4+5', () => {
+    const sub = parseSwimlane(awbXml('TreeFellingPermitSubProcess'), 'TreeFellingPermitSubProcess');
+    expect(new Set(sub.nodes.map((n) => n.awbPhase))).toEqual(new Set(['4+5']));
+  });
+
+  it.each(ALL)('%s carries no Awb phase', (code, key) => {
+    expect(parseSwimlane(xml(key), code).nodes.some((n) => n.awbPhase !== undefined)).toBe(false);
+  });
+
+  const proc = (body: string) =>
+    parseSwimlane(
+      `<?xml version="1.0"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:ronl="http://ronl.nl/schema/1.0">
+  <bpmn:process id="P">${body}</bpmn:process>
+</bpmn:definitions>`,
+      'P'
+    );
+
+  it('ignores a marker that is not a known Awb phase', () => {
+    const m = proc(`
+      <bpmn:startEvent id="S" ronl:awbPhase="4 + 5"/>
+      <bpmn:userTask id="T" ronl:awbPhase="9"/>
+      <bpmn:userTask id="U" ronl:awbPhase=""/>
+      <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>
+      <bpmn:sequenceFlow id="G" sourceRef="T" targetRef="U"/>`);
+    expect(m.nodes.map((n) => n.awbPhase)).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('leaves an unmarked node without a marked predecessor unphased', () => {
+    const m = proc(`
+      <bpmn:startEvent id="S"/>
+      <bpmn:userTask id="T" ronl:awbPhase="2"/>
+      <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>`);
+    const phaseOf = Object.fromEntries(m.nodes.map((n) => [n.id, n.awbPhase]));
+    expect(phaseOf).toEqual({ S: undefined, T: '2' });
+  });
+
+  it('takes the latest phase where branches join', () => {
+    const m = proc(`
+      <bpmn:startEvent id="S" ronl:awbPhase="6"/>
+      <bpmn:exclusiveGateway id="G" ronl:awbPhase="7"/>
+      <bpmn:userTask id="J"/>
+      <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="G"/>
+      <bpmn:sequenceFlow id="F2" sourceRef="S" targetRef="J"/>
+      <bpmn:sequenceFlow id="F3" sourceRef="G" targetRef="J"/>`);
+    expect(m.nodes.find((n) => n.id === 'J')?.awbPhase).toBe('7');
+  });
+
+  it('does not let a rework loop pull an earlier node into a later phase', () => {
+    const m = proc(`
+      <bpmn:startEvent id="S" ronl:awbPhase="1"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:userTask id="A"><bpmn:outgoing>F2</bpmn:outgoing></bpmn:userTask>
+      <bpmn:userTask id="B" ronl:awbPhase="3"><bpmn:outgoing>F3</bpmn:outgoing></bpmn:userTask>
+      <bpmn:exclusiveGateway id="G"><bpmn:outgoing>F4</bpmn:outgoing><bpmn:outgoing>F5</bpmn:outgoing></bpmn:exclusiveGateway>
+      <bpmn:endEvent id="E"/>
+      <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="A"/>
+      <bpmn:sequenceFlow id="F2" sourceRef="A" targetRef="B"/>
+      <bpmn:sequenceFlow id="F3" sourceRef="B" targetRef="G"/>
+      <bpmn:sequenceFlow id="F4" sourceRef="G" targetRef="E"/>
+      <bpmn:sequenceFlow id="F5" sourceRef="G" targetRef="A"/>`);
+    const phaseOf = Object.fromEntries(m.nodes.map((n) => [n.id, n.awbPhase]));
+    expect(phaseOf).toEqual({ S: '1', A: '1', B: '3', G: '3', E: '3' });
+  });
+});
+
+describe('parseSwimlane — every Awb example process is fully phased', () => {
+  // The other Awb bundles in LDE's public/examples, marked the same way:
+  // three shells sharing one node-id skeleton, and the decision subprocesses
+  // they call (plus Zorgtoeslag's standalone final settlement), all 4+5.
+  // Unphased nodes would leave gaps in the stepper.
+  const SHELLS = [
+    'AwbShellProcess',
+    'ThuisbatterijSubsidieAanvraagProcess',
+    'AwbZorgtoeslagProcess',
+  ];
+  const SUBS = [
+    'TreeFellingPermitSubProcess',
+    'ThuisbatterijSubsidieDecisionSubProcess',
+    'ZorgtoeslagProvisionalSubProcess',
+    'ZorgtoeslagFinalSubProcess',
+  ];
+
+  it.each([...SHELLS, ...SUBS])('%s puts every node in an Awb phase', (key) => {
+    const unphased = parseSwimlane(awbXml(key), key)
+      .nodes.filter((n) => n.awbPhase === undefined)
+      .map((n) => n.id);
+    expect(unphased).toEqual([]);
+  });
+
+  it.each(SHELLS.slice(1))('%s groups its nodes exactly as the kapvergunning shell', (key) => {
+    const phases = (k: string) =>
+      Object.fromEntries(parseSwimlane(awbXml(k), k).nodes.map((n) => [n.id, n.awbPhase]));
+    expect(phases(key)).toEqual(phases('AwbShellProcess'));
+  });
+
+  it.each(SUBS)('%s is entirely 4+5', (key) => {
+    expect(new Set(parseSwimlane(awbXml(key), key).nodes.map((n) => n.awbPhase))).toEqual(
+      new Set(['4+5'])
+    );
   });
 });

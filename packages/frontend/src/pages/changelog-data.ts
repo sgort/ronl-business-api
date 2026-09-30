@@ -112,6 +112,439 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.14',
+      status: 'Released',
+      date: '30 sep 2026',
+      scope: ['frontend', 'backend', 'public-site', 'pa-demo', 'ci'],
+      commits: [
+        {
+          sha: '6c3fe10',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The public site marks ACC in link previews and keeps it out of search engines',
+          details: [
+            'ACC served the same link-preview card as PROD and could be indexed as a duplicate of the real site. The public site now follows the portaal’s pattern: index.html fills og:url, og:image and a canonical from VITE_SITE_URL, prefixes og:title with VITE_OG_TITLE_PREFIX (“[ACC] ”, “[DEV] ”, none on PROD) and sets robots from VITE_ROBOTS. Every environment keeps the one og-open-regels.png.',
+            'prerender.ts reads the origin, API URL and robots policy from the same .env file through Vite’s loadEnv, replacing a hardcoded origin table and a string replace of the production URLs. Each page’s canonical replaces the shell’s rather than adding a second one, and a non-indexable build writes robots.txt as “Disallow: /” with no sitemap.',
+            'scripts/check-og.mjs checks every built page, the image and robots.txt against the environment, and runs in both public-site deploy workflows after the build. Closes #284.',
+          ],
+        },
+        {
+          sha: '3d4913f',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Lockfile-only security bumps from the Semgrep triage of 30 September',
+          details: [
+            'Clears the Semgrep Supply Chain findings that have a non-breaking fix: multer 2.4.0 (the backend’s floor raised with it), moment 2.31.0, qs 6.16.0 via body-parser 1.20.8 and express 4.22.3, ip-address 10.7.2, fast-uri 3.1.8, and brace-expansion 1.1.21, 2.1.7 and 5.0.12. Supersedes Renovate #273.',
+            'Left open: react-router, whose fix exists only in v7 and is not reachable here — there is no SSR hydration, and the post-login redirect accepts only /dashboard/ paths — and minimatch via @typescript-eslint v6/v7, which is dev-only and needs v8.',
+          ],
+        },
+        {
+          sha: '5af53ed',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The portaal unfurls with a link-preview card per environment, and ACC is noindex',
+          details: [
+            'A link to the portaal now unfurls with a proper card in Teams, Slack, LinkedIn, WhatsApp and the like. index.html carries the Open Graph and Twitter tags statically, because unfurlers do not run JavaScript, and Vite fills the environment’s values at build time from .env.<mode>: VITE_SITE_URL, VITE_OG_IMAGE, VITE_OG_TITLE_PREFIX and VITE_ROBOTS.',
+            'PROD gets og-image-prod.png and “index, follow”; ACC gets og-image-acc.png, “noindex, nofollow” and an “[ACC] ” title prefix; development and test get “[DEV] ”. The prefixes are quoted in the .env files, since an unquoted value loses its trailing space.',
+            'src/indexHtml.test.ts loads each mode through Vite’s own loadEnv and checks the filled template, and scripts/check-og.mjs checks the real dist/index.html in both deploy workflows right after the build, so a build with the wrong environment’s card fails before upload.',
+          ],
+        },
+        {
+          sha: '5a6e418',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Procesgegevens is a visible bar, and gateway outcomes read like the swimlane',
+          details: [
+            'Procesgegevens folded away behind a plain heading with a small triangle on the far right, easy to miss. It is now a bar in the same grey and border as the “Waar sta ik” box above it, with “Gegevens tonen ▼” / “Gegevens verbergen ▲” on the right in the link colour.',
+            'A gateway’s outcome in Processtappen showed the raw condition, e.g. “Recht op subsidie? → ${eligible != true}”. It now reads like the swimlane’s edge labels: “eligible ≠ true”.',
+          ],
+        },
+        {
+          sha: '0ae18b5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: '“Waar sta ik” names the Awb phase and its stepper position separately',
+          details: [
+            '“Waar sta ik” read “Awb-fase 5 van 8” for a Fase 6 task: it counted the stepper position, where 4+5 is one step, while the task list says “Awb-fase 6”. It now names both — “Awb-fase 6 · stap 5 van 8” — so the legal phase number a caseworker reasons in matches the list, and the position on the stepper is still there. Archiving reads by name.',
+          ],
+        },
+        {
+          sha: 'd61734e',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Local setup no longer ships disabled TLS verification, and creates lde_assets',
+          details: [
+            '.env.example, the template every contributor copies to .env, had NODE_EXTRA_CA_CERTS pointing at a CA file on one machine and NODE_TLS_REJECT_UNAUTHORIZED=0 live. The second disables certificate verification for every outbound call the backend makes — Keycloak JWKS, Operaton, BRP, the LLM providers — so anyone not behind that corporate proxy lost TLS verification without being told. Both are now commented out, with the reason and a neutral example path, so they are opt-in.',
+            'init-databases.sql created only keycloak and audit_logs, while the template enables the LDE MCP provider against lde_assets, so a fresh stack logged a connection failure on every start. The database, role and grants are now created; the schema stays the Linked Data Explorer’s to own. Verified in a throwaway postgres:16-alpine container. The header now explains that Postgres runs the script only on an empty data directory, and how to add the database to an existing volume.',
+            'SETUP.md — 372 stale lines nothing linked to (Node 20, the wrong .env target, a placeholder clone URL) — is now a pointer to the documentation site’s local-development, backend-development, testing and troubleshooting pages. Items 1–3 of sgort/iou-architectuur#105.',
+          ],
+        },
+        {
+          sha: '537fc2f',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'Six stale claims from the weekly source audit are corrected',
+          details: [
+            'Comments and prose only (items 9 and 13–17 of sgort/iou-architectuur#105), each re-checked against current source. SECURITY-PIPELINE.md no longer says all four App Services run NODE|22-lts (Linked Data Explorer’s run 24). It and the .npmrc comment no longer say the backend deploy has no lockfile: since #35 the shipping deploy is npm ci from the root lockfile, and the gap is only the break-glass deploy-backend-to-{acc,prod}.sh scripts.',
+            'Eight workflow comments claimed .nvmrc is “an exact 22.22.0”; the version is now dropped from the sentence so it cannot go stale again. azure-backend-prod.yml no longer justifies its missing pull_request trigger with environment protection rules that do not exist — main is promoted from acc, where the content already ran the suite. The check-supply-chain headline is quoted as 39 uses: references across 13 workflows.',
+            'Two claims read differently on re-check and were left alone: the 39-reference headline is correct (grep counts local reusable workflows too), and packages/backend/deploy/ does exist at deploy time — the scripts create it on each run.',
+          ],
+        },
+        {
+          sha: '1fb8dbf',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Every documented operation is checked against a real response, and must stay so',
+          details: [
+            'All 131 documented operations are now compared against a real response, closing the last acceptance criterion of #200. The last sixteen were ten m2m operations, covered through the OPERATIONS table m2m.routes.test.ts already had (with the document path written out rather than derived, so a route moving without the document is an edit somebody has to make), and inline status assertions split into statements the helper can inspect. One fixture was wrong rather than thin: productItem’s audience ‘burgers’ is not a value the service returns.',
+            'coverage.test.ts proves every served operation is documented; nothing proved every documented operation is checked. scripts/check-conformance-coverage.cjs now reads the log the helper writes and fails the backend’s test and test:serial when the document holds an operation the run never checked. A static scan of test sources (undercounted twice) and a Jest globalTeardown (reported the gap, then exited 0) were both tried and discarded. Proven to bite: with one operation’s assertions removed, 2232 tests pass and the run exits 1, naming it.',
+          ],
+        },
+        {
+          sha: '45a0a1c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The Caseworker Taken inbox shows where a task stands in its process, per role and as a swimlane',
+          details: [
+            'For tasks whose process has lanes (PR 3/3 of the procesweergave): an “Awb-fase 4+5” hint in the task list; under the task header a compact eight-phase Awb stepper, with the subprocess and beslistermijn in its caption and each dot opening the overlay at that phase; and Processtappen per rol, grouping history and what comes next by lane, with handovers, gateway outcomes, “Hierna” stopping at the first gateway and continuing into the parent after a subprocess, and “Jouw rol” derived from the lane’s candidate groups. Tasks without lanes keep the flat step list.',
+            'The overlay is a modal with the full stepper, a Hoofdproces › Deelproces breadcrumb, a legend and the shared swimlane (jouw taak, jouw rol, open deelproces, scroll to the task’s node); Esc and Tab work wherever focus is, and focus returns to the trigger. ⌘K gains “Proces van deze taak bekijken” while a laned task is selected.',
+            'Activity history is now sorted by Operaton’s occurrence rather than startTime alone, so steps started in the same millisecond keep their causal order, and a late detail response for an earlier selection no longer lands on the task selected after it. Five design colours are adjusted to meet WCAG AA with existing tokens.',
+          ],
+        },
+        {
+          sha: '5bb74ef',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The phase stepper and swimlane are shared components, and a task’s process context loads',
+          details: [
+            'Frontend groundwork for the procesweergave (PR 2/3), with no caseworker UI yet. PhaseSwimlane moves to components/process/ and the stepper markup is extracted from ProjectDetail into PhaseStepper; their CSS moves verbatim to process-view.css with the same selectors, so the Infra-board renders as before. PhaseSwimlane gains optional caseworker props and badges script, DMN and subprocess nodes; any caseworker prop adds .cwp-swim, which scopes the restyling (aligning the two is #277).',
+            'useTaskProcessContext(task) loads a task’s call chain — lineage upwards, finished children through calledProcessInstanceId, and the model of every process involved. The pure buildProcessContext merges the histories in engine order, splicing a child’s entries after the call activity that started it, and derives each process’s status, the chain and the task’s Awb phase. Only the task’s own lineage and history are required; everything else degrades gracefully.',
+          ],
+        },
+        {
+          sha: '30bbbd4',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'History entries carry their process, and GET /v1/process/:id/lineage serves an instance’s caller',
+          details: [
+            'ActivityHistoryItem now carries processDefinitionKey, processDefinitionId and, for a call activity, calledProcessInstanceId — fields Operaton already returned and getActivityHistory dropped — so a parent’s and a subprocess’s histories can be merged and told apart, and a finished subprocess found from its parent.',
+            'GET /v1/process/:id/lineage returns the instance’s process and the instance that called it, read from the historic instance so it also answers for ended ones. It applies the same tenant check as activity-history. 404 PROCESS_NOT_FOUND, 500 PROCESS_LINEAGE_FAILED; both changes are documented in openapi.yaml.',
+          ],
+        },
+        {
+          sha: '403f3c1',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Awb phase helpers move out of @ronl/shared',
+          details: [
+            'check-shared allows only declarations and constant data in @ronl/shared, which has no test runner, so logic there escapes the per-file branch floor. isAwbPhaseCode and awbPhaseIndex move into bpmn-swimlane.ts, their only caller, where the parser tests cover both; AWB_PHASES and AwbPhaseCode stay in shared as data.',
+          ],
+        },
+        {
+          sha: '96fabb6',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Design handoff folders are kept out of the format check',
+          details: [
+            'check-format and format passed --ignore-path .gitignore, which replaces Prettier’s default ignore files, so an untracked design handoff folder failed the pre-push format check on files no commit contains. Both scripts now also read a new .prettierignore, which excludes *-handoff/.',
+          ],
+        },
+        {
+          sha: 'dcaa487',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'GET /v1/process/definition/key/:key/swimlane serves a process’s swimlane model',
+          details: [
+            'Returns the swimlane model of the definition a key resolves to under the caller’s tenant, reusing the Infra-board’s path: the tenant-scoped lookup with untenanted fallback, and the model cache keyed by definition id. The key must be an NCName; anything else is answered 400 INVALID_PROCESS_KEY before the engine is called, since “.” and “..” would otherwise be resolved by axios as dot segments into a different engine path. 404 PROCESS_DEFINITION_NOT_FOUND, 500 SWIMLANE_MODEL_FAILED; documented in openapi.yaml.',
+          ],
+        },
+        {
+          sha: 'edb4ff0',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'The swimlane parser reads script, rule and call nodes, lane groups and Awb phases',
+          details: [
+            'parseSwimlane now serves any process, not only a RIP phase. scriptTask, businessRuleTask and callActivity become their own kinds, carrying the decisionRef and calledElement; every node carries its formRef, and each lane the candidateGroups of its user tasks, so “jouw rol” can come from the BPMN. No RIP phase uses these elements, which a test pins so the Infra-board drawing cannot change.',
+            'Nodes get awbPhase from the new ronl:awbPhase attribute; unmarked nodes inherit the latest phase of their forward predecessors, and a process without markers gets none. AWB_PHASES in @ronl/shared lists the eight phases. Parser fixtures for the three Awb shells and four decision subprocesses come from linked-data-explorer with the markers added there.',
+          ],
+        },
+        {
+          sha: '1f0e52b',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Zorgtoeslag e2e specs accept the Dutch task names',
+          details: [
+            'linked-data-explorer redraws the Zorgtoeslag processes in swimlanes with Dutch task names. zorgtoeslag-journey.spec.ts and tenant-isolation.spec.ts now match both the English and the Dutch names; in tenant-isolation REVIEW_TASK_NAME becomes a regex, so the check that a Flevoland caseworker cannot see the task keeps meaning something instead of passing on a name that no longer exists.',
+          ],
+        },
+        {
+          sha: '10e83ce',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The caseworker e2e journey accepts the Dutch kapvergunning task names',
+          details: [
+            'linked-data-explorer redraws AwbShellProcess and TreeFellingPermitSubProcess in swimlanes with Dutch names. Both regexes accept the old English and the new Dutch names, so the journey passes against either deployment.',
+          ],
+        },
+        {
+          sha: '23d7e7c',
+          author: 'Steven Gort',
+          type: 'test',
+          subject:
+            'Response conformance extends to the remaining route groups, and eleven document errors are fixed',
+          details: [
+            'Coverage goes from 31 of 131 operations to 114, and from 102 assertions to 381, across fourteen more route test files. URLs are now resolved against the document’s own path templates, preferring the candidate with the most literal segments; ambiguous or unmatched URLs were reported rather than guessed at.',
+            'The PA group documented no role refusal at all, though requireRoles(‘public-affairs’) can answer 403 before every handler; a shared PaForbidden response now names both codes. Other corrections: /admin/audit’s data is { items, pagination }; /health has two 503 bodies; /rip/phases/counts values are { wip, gereed }; /public/zoeken facets are ordered [value, count] tuples; the regelcatalogus cache fields are null when cold; /brp/personen forwards the upstream status (now a default); a missing 401 on /hr/onboarding/profile; the 200 on an existing watch; and PaSignal, PaTemplate and ValidsignSpec field types.',
+            'Five unquoted descriptions containing a comma inside a YAML flow mapping had been silently splitting into bogus keys; Ajv’s strictSchema refused to compile them, which is why it stays on. The rest were thin fixtures that satisfied their own assertions while describing nothing a consumer receives.',
+          ],
+        },
+        {
+          sha: 'aca7bdd',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Route tests assert responses against their documented OpenAPI schemas',
+          details: [
+            'coverage.test.ts compares lists of operations, so a response body could drift from its schema with every test green — and had: #214 found three, all deployed for weeks. src/openapi/testing/conformance.ts, ported from linked-data-explorer’s #129, exports expectToMatchOperation(res, method, path), which checks that the operation and status are documented, that a 2xx carries API-Version, and that the content type is documented and the body matches its schema. It compiles with Ajv2020 (OpenAPI 3.1 is JSON Schema 2020-12) and strictSchema on, so a misspelled keyword fails loudly.',
+            'It found one document error — ProcessStatus.businessKey is nullable, since the engine holds instances with no key — and ten unrealistic mocks, each checked against shapes captured from a running backend before changing. 102 assertions across 26 operations; ajv and ajv-formats are added as devDependencies.',
+          ],
+        },
+        {
+          sha: '97e0534',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'check-swimlane-fixtures no longer advises the destructive direction',
+          details: [
+            '--sync copies linked-data-explorer to here, and the check suggested it for any difference — including when the linked-data-explorer checkout is the stale one, where following the advice overwrites correct fixtures with older content. It happened while pushing #266. The committed fingerprint file tells the two directions apart with no git and no network, so the check now says which repository to update, and explicitly not to sync when upstream is behind.',
+            '--sync enforces the same rule: it refuses when upstream disagrees with its own fingerprints, with --force for someone mid-edit upstream. Everything is now validated before anything is copied, so a refusal leaves the tree untouched instead of half synced. Exercised against throwaway upstreams in all six states.',
+          ],
+        },
+        {
+          sha: '3bcefc6',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A failed citizen process start shows why, outside production',
+          details: [
+            'ProcessStartFormViewer’s onError took no argument, so the backend’s failure reason was discarded and every failure read only “Probeer het opnieuw”; diagnosing a missing DMN meant reading server logs. onError now receives { cause, instance }, and the viewer logs every failure to the console on every tier.',
+            'The three citizen forms on Dashboard (kapvergunning, thuisbatterij subsidie, zorgtoeslag) render a new StartFailureNotice: the headline is unchanged, and the cause and engine appear beneath it except in the PROD build. DvtpStartSection keeps its own handling. Closes #171.',
+          ],
+        },
+        {
+          sha: '5d244c5',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The OpenAPI document describes /v1/m2m, and every operation is documented',
+          details: [
+            'Phase 6 of #200. The 18 machine-to-machine operations are described, openapi/pending.json is deleted, and the coverage gate loses its ceiling: 131 of 131 operations documented, and an undocumented route now fails the build. They carry their own m2mOAuth client-credentials scheme and a shared M2mForbidden response for M2M_CLIENT_NOT_ALLOWED and OPERATION_NOT_PERMITTED, since the allow-list on the token’s azp cannot be expressed in OpenAPI itself.',
+            'The m2m surface is less of a mirror of /v1 than planned — start answers 200 and keeps the businessKey verbatim, claim sets the assignee from the body, and several unknown ids answer 200 or 500 rather than 404 — each difference confirmed against a running backend. Three corrections to what phase 3 published: decision-document answers { success, template }; start and complete take plain values, not OperatonVariableMap; and responses/Unauthorized now names MISSING_TOKEN and INVALID_TOKEN.',
+            'scripts/test-m2m-routes.sh gains a self-cleaning write lifecycle (start, claim, complete, delete), touching only instances it created; 51 checks pass. Issues #261, #262 and #263 were filed from the probing.',
+          ],
+        },
+        {
+          sha: '9f54e82',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The e2e login helper matches the medewerker button exactly',
+          details: [
+            'The landing page gained “Inloggen met uw Flevoland-account” in v2026.09.13. loginAsMedewerker looked the button up by “Inloggen”, which Playwright matches as a substring, so it resolved to both buttons and strict mode refused to click: 26 of the 28 e2e tests against ACC failed at that line. It now matches exactly, keeping the top-bar button that leads to the Keycloak form.',
+          ],
+        },
+        {
+          sha: 'afc2001',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The changelog variants test no longer loads the real release history',
+          details: [
+            'The file mocked changelog-data with importActual, so every run loaded the full history (660 KB at v2026.09.13) inside the lazy() import the first findByRole waited on — capped at testing-library’s 1000 ms, which testTimeout does not raise. Under parallel load it failed against an empty body.',
+            'The module is now mocked without importActual, and the lazy chunk is resolved once in a beforeAll. The first test drops from 409–662 ms to 99–125 ms and no longer grows with the changelog. Closes #199.',
+          ],
+        },
+        {
+          sha: '0bc9cc7',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: '/v1/m2m accepts only allow-listed M2M clients',
+          details: [
+            'jwtMiddleware only proves a token is valid for the ronl-business-api audience, which every person in the realm holds, so any signed-in user — citizens included — and both eDOCS service accounts could list, start and delete process instances and complete tasks on the M2M engine.',
+            'requireM2mClient now follows jwtMiddleware: the token’s azp must be on M2M_ALLOWED_CLIENTS (default operaton-mcp-client), otherwise 403 M2M_CLIENT_NOT_ALLOWED before any engine call. azp identifies the client rather than the person, matching the routes’ intent that M2M callers are system actors. No Keycloak change is needed. Closes #237.',
+          ],
+        },
+        {
+          sha: '45a60b8',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The BRP proxy no longer logs BSNs to the application log',
+          details: [
+            'The request log wrote req.body — a burgerservicenummer query — at info level, and both error paths wrote the upstream body, which can echo it back. The upstream is still the mock with test numbers, but the lines would carry real BSNs the moment the base URL changed. The log now carries user, tenant, query type and subject count, and on failure the status and upstream problem code.',
+            'The audit log keeps the looked-up BSN on purpose: recording who consulted which person is what that trail is for. Closes #241.',
+          ],
+        },
+        {
+          sha: '391b1a8',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'The three files at exactly 80% branches get some margin',
+          details: [
+            'sanitize.ts, NoAccessPanel.tsx and DossierRow.tsx sat exactly on the per-file 80% branch floor, so any new conditional would have failed a required check; all three now reach 100%. The missing-kompas test exposed a latent crash in DossierRow — hasKompas defaulted d.kompas to {} but kompasTotal received the raw value — and both now read the same defaulted local.',
+            'The functions-floor counts in the five runner configs are refreshed (31 to 26: frontend 10, pa-cockpit 8, pa-demo 5, public-site 3) and the measurement dated. Closes #256.',
+          ],
+        },
+        {
+          sha: 'fc50fed',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'The audit and SBOM workflows move to Node 24.21.0',
+        },
+        {
+          sha: '62c05a7',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'The Skosmos image is pinned to digest c585569',
+        },
+      ],
+    },
+    {
+      format: 'commits',
+      version: '2026.09.13',
+      status: 'Released',
+      date: '28 sep 2026',
+      scope: ['frontend', 'backend', 'ci'],
+      commits: [
+        {
+          sha: '1ae2b94',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'The Caseworker card lands users who also hold infra-projectteam',
+          details: [
+            'canAccessRedirect refused /dashboard/caseworker to infra-projectteam members. The exception dates from when the caseworker dashboard was the only login entry and stored that redirect on every login. Since the landing page has board cards, a stored redirect is a choice, and AuthCallback clears it on read.',
+            'A user holding both roles — the Flevoland Entra account — who picked the Caseworker card was sent to the default board instead. The default board, without a card choice, is unchanged: Woo, then Infra-board, then PA-Cockpit, then Caseworker.',
+          ],
+        },
+        {
+          sha: '39176bd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Entra’s IOU_USERS app role maps to caseworker',
+          details: [
+            'Entra emits the user role as IOU_USERS; the role-iou-user mapper expected IOU_USER, never matched, and so never granted caseworker. Found in the live test with a temporary attribute-importer mapper that showed roles = [IOU_ADMIN, IOU_USERS, IOU_PA, IOU_INFRA].',
+          ],
+        },
+        {
+          sha: '328f502',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Entra IDs are lowercased, so an upper-case paste cannot break the issuer check',
+          details: [
+            'Entra issues tokens with the tenant id in lower case, and Keycloak compares the token’s iss to the configured issuer as an exact string. An upper-case paste passed the script’s GUID check and then failed every login. Found in the whole-branch review of #250.',
+          ],
+        },
+        {
+          sha: 'caa8e0e',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Sign in with a Flevoland account from the landing page',
+          details: [
+            'The hero’s primary action becomes “Inloggen met uw Flevoland-account”, which sends idpHint entra-flevoland through the existing AuthCallback path, so Keycloak goes straight to Entra ID; on a Flevoland-managed laptop Entra signs in silently. “Bekijk de borden” stays as a secondary link, and the Keycloak login page shows a “Flevoland (Entra ID)” button as a fallback.',
+            'Choosing an identity provider — Flevoland or DigiD — now clears a redirect and username hint left by an earlier board click.',
+          ],
+        },
+        {
+          sha: '8e36b93',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Keycloak brokers Flevoland’s Entra ID: a provisioning script',
+          details: [
+            'scripts/keycloak-add-entra-idp.sh creates or updates the OIDC identity provider entra-flevoland in realm ronl, with mappers that set municipality=flevoland, organisation_type=province and assurance_level=substantieel, and map the Entra app roles to admin, caseworker, public-affairs and infra-projectteam. The backend keeps trusting only Keycloak and does not change.',
+            'The script is idempotent — a re-run updates in place, which is also how a rotated secret goes in — checks the mapped roles exist before creating anything, and never puts the client secret in argv, a file or its output. The realm export stays secret-free, so it carries no provider.',
+          ],
+        },
+        {
+          sha: '36eb5a5',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'Deployed-BPMN derivations are cached by definition id, not by key',
+          details: [
+            'A process-definition key is not a version: Operaton answers /process-definition/key/{key} with whatever is newest, so a redeploy changes what the key means while the key stays put. Three caches — the phase BPMN, the parsed swimlane model and the boardOwner tag — were keyed by `${tenantId}::${processKey}` and could not see that happen. On ACC on 28 September R2.2 was redeployed three minutes after a backend restart, and the swimlane kept rendering one document however often it was reloaded. Localhost never showed it, because the dev server restarts on every file change.',
+            'A definition id is the version: Operaton mints a new one per deployment, so a redeploy misses the cache by construction. getCurrentDefinitionId resolves key and tenant to the id it currently means — deliberately uncached, since caching it would put the staleness back one level up — and everything downstream is keyed by that id. phaseBpmnCache is gone rather than re-keyed; the XML fetch is getCachedBpmnXml, already keyed by definition id. A boardOwner lookup that threw is no longer cached.',
+            'The regression test replays the ACC sequence — the R2.2 fixture cut back to one document, then a redeploy of the full fixture under the same key — and fails alone when the old cache key is restored. 2202 tests pass across 96 suites.',
+          ],
+        },
+        {
+          sha: '4d0dc73',
+          author: 'Steven Gort',
+          type: 'refactor',
+          subject: 'E2E fixtures deploy through linked-data-explorer’s deployer, not a copy',
+          details: [
+            'The deploy script read everything out of linked-data-explorer and posted it to linked-data-explorer’s backend; only the script itself lived here. It now lives there, and scripts/deploy-e2e-fixtures.mjs is a shim that resolves the checkout (LDE_PATH, defaulting to a sibling), runs the real script and passes arguments and exit code through, so npm run e2e:deploy-fixtures and the command global-setup prints keep working.',
+            'Two copies had already drifted once: when ronl:documentRef became a list, one copy stopped matching any template and the bundle would have failed to deploy — found by reading, not by a test. One deployer means one place to change.',
+          ],
+        },
+        {
+          sha: 'dfa325a',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'E2E fixture deploy splits the documentRef list',
+          details: [
+            'deploy-e2e-fixtures.mjs treated each ronl:documentRef match as one template id. With the attribute now a comma-separated list, a task with two documents yielded one id matching no template, and the script’s unmatched-reference check stopped the whole bundle. Verified by deploying against the local engine: R2.2 now deploys 15 resources, including rip-objectenboom.document, which no deploy had included before.',
+          ],
+        },
+        {
+          sha: '2bdff69',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'The swimlane shows every document a task carries; the BPMN fixtures are pinned',
+          details: [
+            'Pairs with linked-data-explorer’s many-document-refs change, which makes ronl:documentRef a comma-separated list: R2.2’s “Opstellen concept VO” yields both an Ontwerptoelichting and an Objectenboom. SwimNode.doc becomes SwimNode.docs, a single-id attribute parses to a one-element list unchanged, and the swimlane renders one badge per document.',
+            'The twelve BPMN fixtures copied from linked-data-explorer were kept in step by hand, so the parser tests could stay green against a model the engine no longer runs. check-swimlane-fixtures.mjs now verifies committed sha256 fingerprints, backed by a byte-for-byte comparison when linked-data-explorer is checked out alongside; --sync copies from upstream. It runs in pre-push ahead of the type checks. The R2.2 fixture is refreshed to match upstream.',
+          ],
+        },
+        {
+          sha: '71b76a9',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'E2E fixture deploy checks that Operaton answers first',
+          details: [
+            'With linked-data-explorer up but its Operaton stopped or still starting, the first decision deploy failed with a generic DMN_DEPLOY_FAILED that did not name the engine. The script now asks the local engine for GET /version (5 s timeout) and stops with a message naming the engine and how to start it; the reported version is shown in the run header.',
+          ],
+        },
+        {
+          sha: 'f6fd206',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'rip-r21-journey takes R2.2’s Klaar baseline from the counts response',
+          details: [
+            'The journey waited up to 20 s for R2.2’s Klaar badge, but FaseladderOverview renders no badge when a count is 0 — so on a fresh engine the wait could never end; it passed only while the engine held R2.1 history. openFaseladder now returns both baselines from GET /rip/phases/counts, deriving R2.2’s Klaar as getKlaarCounts does, and the badge-waiting helper is removed.',
+          ],
+        },
+        {
+          sha: 'b4c3176',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Deploy the E2E fixture bundle with one command',
+          details: [
+            'A fresh local Operaton has none of the processes and decisions the E2E global-setup requires, and they could only be deployed by hand, file by file, through the BPMN Modeler. npm run e2e:deploy-fixtures deploys linked-data-explorer/e2e-fixtures/manifest.json in full through the running LDE backend: the shared decisions without a tenant, and each process with its sub-processes, forms and documents in one request under its tenant.',
+            'It refuses a deploy target that is not on this machine, and validates every fixture before deploying any, so a missing form or document reference stops the run instead of leaving the engine half-populated.',
+          ],
+        },
+        {
+          sha: '80e34a2',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'check-previews strips the carriage returns az writes on Windows',
+          details: [
+            'The Azure CLI on Windows ends every -o tsv line with \\r\\n, and check-previews fed those values back into later calls, so subscription ids and resource groups carried a trailing \\r and every call built from them failed. During the v2026.09.12 release it reported three items NOT CHECKED straight after a fresh az login and exited 1.',
+            'An az() wrapper now strips \\r from every call and keeps the exit status, because telling “could not ask” apart from “nothing there” is what every check in the script depends on. Verified: all six apps checked and exit 0; a failing az call still returns 1.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.12',
       status: 'Released',
       date: '26 sep 2026',

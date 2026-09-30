@@ -19,6 +19,18 @@ describe('htmlToText', () => {
     expect(htmlToText('&#169; 2026')).toBe('© 2026');
   });
 
+  it('decodes hexadecimal HTML entities', () => {
+    expect(htmlToText('&#x20AC; 5')).toBe('€ 5');
+  });
+
+  it('replaces an out-of-range numeric entity with U+FFFD', () => {
+    expect(htmlToText('a&#x110000;b')).toBe('a�b');
+  });
+
+  it('leaves an unknown named entity as written', () => {
+    expect(htmlToText('&bogus; tekst')).toBe('&bogus; tekst');
+  });
+
   it('returns empty string for null input', () => {
     expect(htmlToText(null)).toBe('');
   });
@@ -49,5 +61,14 @@ describe('summarize', () => {
 
   it('returns empty string for null input', () => {
     expect(summarize(null)).toBe('');
+  });
+
+  it('returns empty string when the input is markup only', () => {
+    expect(summarize('<p><br/></p>')).toBe('');
+  });
+
+  it('caps at 50 words when maxWords is not given', () => {
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`);
+    expect(summarize(words.join(' ')).split(' ')).toHaveLength(51);
   });
 });

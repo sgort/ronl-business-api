@@ -24,8 +24,9 @@ interface Props {
 }
 
 export default function DossierRow({ d, can, onEdit, onArchive, onUnarchive, onDelete }: Props) {
-  const hasKompas = Object.keys(d.kompas ?? {}).length > 0;
-  const total = kompasTotal(d.kompas as never);
+  const kompas = d.kompas ?? {};
+  const hasKompas = Object.keys(kompas).length > 0;
+  const total = kompasTotal(kompas as never);
   const band = kompasBand(total);
   const isArchived = d.status === 'gearchiveerd';
 
