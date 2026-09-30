@@ -5,6 +5,26 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ronl. werkomgeving</title>
+    <!--
+      Link preview (Open Graph / Twitter). Static on purpose: unfurlers do not
+      run JavaScript. Vite fills the VITE_ placeholders per build mode from
+      .env.<mode>; og:image must be an absolute URL.
+    -->
+    <meta name="description" content="Vier borden voor het werk van de provincie: Caseworker, PA-Cockpit, Infra-board en Woo-dashboard. Log in met uw Flevoland-account." />
+    <meta name="robots" content="%VITE_ROBOTS%" />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ronl. werkomgeving" />
+    <meta property="og:locale" content="nl_NL" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:title" content="%VITE_OG_TITLE_PREFIX%Vier borden voor het werk van de provincie" />
+    <meta property="og:description" content="Zaakbehandeling, bestuurlijke afstemming, projectsturing en Woo-verantwoording in één werkomgeving van Provincie Flevoland." />
+    <meta property="og:image" content="%VITE_SITE_URL%/%VITE_OG_IMAGE%" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ronl. werkomgeving — vier borden voor het werk van Provincie Flevoland" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:wght@700&display=swap" rel="stylesheet" />
