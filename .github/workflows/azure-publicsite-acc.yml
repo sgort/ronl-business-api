@@ -198,6 +198,10 @@ jobs:
           test -f dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
           test -f dist/sitemap.xml || (echo "ERROR: sitemap.xml not found!" && exit 1)
           test -f dist/robots.txt || (echo "ERROR: robots.txt not found!" && exit 1)
+          # The link-preview and robots tags must be this environment's: an ACC
+          # build with the production card, or open to crawlers, would be cached
+          # by every unfurler for days and indexed as a duplicate of the site.
+          node scripts/check-og.mjs acceptance
           echo "✅ Build completed successfully"
 
       - name: Deploy to Azure Static Web Apps
