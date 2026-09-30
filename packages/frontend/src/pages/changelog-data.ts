@@ -112,6 +112,50 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.09.15',
+      status: 'Released',
+      date: '30 sep 2026',
+      scope: ['frontend', 'backend', 'public-site', 'pa-demo'],
+      commits: [
+        {
+          sha: '73a6764',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Every file now clears an 85% branch margin, not just the 80% floor',
+          details: [
+            'The per-file branch floor is 80%, and 32 files sat between 80.00 and 85 across four workspaces — edocs.service.ts at exactly 80.00, so one new uncovered arm would have turned a required check red. Every one of the 32 is now at 85% or above, most well past 90: backend (11 files, mostly response-shape fallbacks and non-Error rejections), frontend (13), pa-cockpit (6) and public-site’s Footer, all with tests only.',
+            'One production change, in public-site src/lib/api.ts: resolveApiBase() now reads import.meta.env directly instead of through a cast on import.meta. Vitest rewires only the literal expression, so the cast form was beyond vi.stubEnv; the PUBLIC_API_BASE_URL fallback used by the Node prerender and the no-base-URL throw are now tested (83.78% → 94.59%). The two arms left cannot occur in Node and are tracked in #294.',
+          ],
+        },
+        {
+          sha: 'c395696',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Semgrep false positives in the check-og scripts are suppressed inline',
+          details: [
+            'The link-preview checkers in frontend and public-site build a RegExp from literal attribute and key names and walk only their own dist/ tree. Semgrep reported 8 findings on three lines (detect-non-literal-regexp ×4, path-join-resolve-traversal ×4); each line now carries the reason it is safe and a rule-specific nosemgrep, as the backend already does.',
+          ],
+        },
+        {
+          sha: 'd5b63f7',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'The backend’s prettier pin follows the root to 3.9.7',
+          details: [
+            'Renovate bumped only the root devDependency, leaving packages/backend pinned to 3.9.6 and a nested second copy in the lockfile. Both now resolve to one prettier 3.9.7.',
+          ],
+        },
+        {
+          sha: '7c8fd5d',
+          author: 'renovate[bot]',
+          type: 'chore',
+          subject: 'prettier updated to 3.9.7',
+          details: ['Renovate update of the root devDependency (#285).'],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.14',
       status: 'Released',
       date: '30 sep 2026',
