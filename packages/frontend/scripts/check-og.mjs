@@ -38,6 +38,10 @@ if (!want) {
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const html = readFileSync(resolve(dist, 'index.html'), 'utf-8');
 const meta = (attr, key) =>
+  // `attr` and `key` are never user input: every call site below passes
+  // literals ('property'/'name', 'og:url', 'robots', ...), `.` and `:` in the
+  // key are escaped, and the only text matched is our own built index.html.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   new RegExp(`<meta ${attr}="${key.replace(/[.:]/g, '\\$&')}" content="([^"]*)"`).exec(html)?.[1];
 
 const problems = [];
