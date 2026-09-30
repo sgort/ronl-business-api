@@ -44,12 +44,20 @@ if (!want) {
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const pages = (function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    // `dir` starts at this package's dist/ and `e.name` comes from
+    // readdirSync of that tree, not from user input: the walk only ever
+    // visits what `vite build` and the prerender wrote.
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     e.isDirectory() ? walk(join(dir, e.name)) : e.name === 'index.html' ? [join(dir, e.name)] : []
   );
 })(dist);
 
 const problems = [];
 const meta = (html, attr, key) =>
+  // `attr` and `key` are never user input: every call site below passes
+  // literals ('property'/'name', 'og:url', 'robots', ...), `.` and `:` in the
+  // key are escaped, and the only text matched is our own built pages.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   new RegExp(`<meta ${attr}="${key.replace(/[.:]/g, '\\$&')}" content="([^"]*)"`).exec(html)?.[1];
 
 for (const file of pages) {
