@@ -9,6 +9,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { loadEnv } from 'vite';
 import {
   getBerichten,
   getNieuws,
@@ -26,20 +27,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const distDir = path.join(root, 'dist');
 
-type Mode = 'development' | 'acceptance' | 'production';
-
-const SITE_ORIGIN: Record<Mode, string> = {
-  development: 'http://localhost:5175',
-  acceptance: 'https://acc.publiek.open-regels.nl',
-  production: 'https://publiek.open-regels.nl',
-};
-const ENV_FILE: Record<Mode, string> = {
-  development: '.env.development',
-  acceptance: '.env.acceptance',
-  production: '.env.production',
-};
-
 // ── Pure helpers (unit-tested directly, see Step 1) ─────────────────────────
+
+/**
+ * This build's site settings, from the same .env.<mode> file `vite build`
+ * filled index.html from, read with Vite's own parser. The origin (canonical
+ * links, sitemap) and the robots policy therefore cannot disagree with the
+ * link-preview tags already in the built shell.
+ */
+export function readSiteEnv(mode: string): {
+  origin: string;
+  apiUrl: string;
+  indexable: boolean;
+} {
+  const env = loadEnv(mode, root, 'VITE_');
+  for (const key of ['VITE_SITE_URL', 'VITE_API_URL', 'VITE_ROBOTS']) {
+    if (!env[key]) throw new Error(`${key} not found in .env.${mode}`);
+  }
+  return {
+    origin: env.VITE_SITE_URL,
+    apiUrl: env.VITE_API_URL,
+    indexable: !/\bnoindex\b/.test(env.VITE_ROBOTS),
+  };
+}
 
 export function escapeHtml(s: string): string {
   const map: Record<string, string> = {
@@ -50,23 +60,6 @@ export function escapeHtml(s: string): string {
     "'": '&#39;',
   };
   return s.replace(/[&<>"']/g, (c) => map[c]);
-}
-
-// index.html hardcodes the social card's og:url/og:image to the production
-// origin (see the comment there) because a static HTML file can't know its
-// own deploy target. This rewrites both to whichever origin this prerender
-// run is actually for, so acceptance builds point at
-// acc.publiek.open-regels.nl instead of a production domain that may not
-// even be live yet — exactly the bug that shipped in v2026.08.15 (ACC's
-// og:image pointed at the still-undeployed prod domain, so link previews
-// on ACC silently failed to load the image).
-export function rewriteSocialCardOrigin(shell: string, origin: string): string {
-  return shell
-    .replace('content="https://publiek.open-regels.nl/"', `content="${origin}/"`)
-    .replace(
-      'content="https://publiek.open-regels.nl/og-open-regels.png"',
-      `content="${origin}/og-open-regels.png"`
-    );
 }
 
 export function injectIntoShell(
@@ -89,6 +82,9 @@ export function injectIntoShell(
   // the generic one (being first) wins in most crawlers, defeating the point
   // of a per-page description.
   html = html.replace(/\s*<meta\s+name="description"[^>]*\/?>/is, '');
+  // Likewise the shell's canonical, which names the site root: left in, every
+  // page would declare two canonicals, the first of them the home page.
+  html = html.replace(/\s*<link\s+rel="canonical"[^>]*\/?>/is, '');
   html = html.replace(
     '</head>',
     `  <meta name="description" content="${escapeHtml(opts.description)}" />\n` +
@@ -120,7 +116,10 @@ export function buildSitemap(origin: string, urls: string[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
 }
 
-function buildRobots(origin: string): string {
+// A non-indexable build (ACC, dev) shuts crawlers out entirely and names no
+// sitemap: it would only be a duplicate of the real site.
+export function buildRobots(origin: string, indexable: boolean): string {
+  if (!indexable) return 'User-agent: *\nDisallow: /\n';
   return `User-agent: *\nAllow: /\nDisallow: /zoeken\n\nSitemap: ${origin}/sitemap.xml\n`;
 }
 
@@ -192,16 +191,13 @@ async function writeRoute(
 
 async function main() {
   const modeArgIndex = process.argv.indexOf('--mode');
-  const mode = (modeArgIndex !== -1 ? process.argv[modeArgIndex + 1] : 'production') as Mode;
-  const origin = SITE_ORIGIN[mode] ?? SITE_ORIGIN.production;
+  const mode = modeArgIndex !== -1 ? process.argv[modeArgIndex + 1] : 'production';
+  const { origin, apiUrl, indexable } = readSiteEnv(mode);
+  process.env.PUBLIC_API_BASE_URL = apiUrl;
 
-  const envText = await readFile(path.join(root, ENV_FILE[mode] ?? ENV_FILE.production), 'utf-8');
-  const apiUrlMatch = envText.match(/^VITE_API_URL=(.*)$/m);
-  if (!apiUrlMatch) throw new Error(`VITE_API_URL not found in ${ENV_FILE[mode]}`);
-  process.env.PUBLIC_API_BASE_URL = apiUrlMatch[1].trim();
-
-  const rawShell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
-  const shell = rewriteSocialCardOrigin(rawShell, origin);
+  // Already this environment's: vite build filled its og: tags from the same
+  // .env file readSiteEnv just read.
+  const shell = await readFile(path.join(distDir, 'index.html'), 'utf-8');
   const urls: string[] = [
     '/',
     '/woordenboek',
@@ -360,7 +356,7 @@ async function main() {
   urls.push('/berichten', '/nieuws', '/producten', '/regels', '/processen');
 
   await writeFile(path.join(distDir, 'sitemap.xml'), buildSitemap(origin, urls), 'utf-8');
-  await writeFile(path.join(distDir, 'robots.txt'), buildRobots(origin), 'utf-8');
+  await writeFile(path.join(distDir, 'robots.txt'), buildRobots(origin, indexable), 'utf-8');
 
   // eslint-disable-next-line no-console
   console.log(`Prerendered ${urls.length} routes for mode=${mode} (${origin})`);

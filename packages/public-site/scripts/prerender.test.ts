@@ -1,6 +1,9 @@
+// @vitest-environment node
 // packages/public-site/scripts/prerender.test.ts
-import { describe, it, expect } from 'vitest';
-import { escapeHtml, buildSitemap, injectIntoShell, rewriteSocialCardOrigin } from './prerender';
+// Node, not jsdom: prerender.ts reads the .env files through Vite's loadEnv,
+// and the esbuild that Vite loads refuses to start under jsdom.
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { escapeHtml, buildRobots, buildSitemap, injectIntoShell, readSiteEnv } from './prerender';
 
 describe('escapeHtml', () => {
   it('escapes the five XML/HTML-sensitive characters', () => {
@@ -10,37 +13,50 @@ describe('escapeHtml', () => {
   });
 });
 
-describe('rewriteSocialCardOrigin', () => {
-  const shell = `<!doctype html><html lang="nl"><head>
-      <meta property="og:url" content="https://publiek.open-regels.nl/" />
-      <meta property="og:image" content="https://publiek.open-regels.nl/og-open-regels.png" />
-      <meta property="og:image:width" content="1200" />
-    </head><body></body></html>`;
-
-  it('rewrites og:url and og:image to the given origin, on production input', () => {
-    const html = rewriteSocialCardOrigin(shell, 'https://acc.publiek.open-regels.nl');
-    expect(html).toContain('property="og:url" content="https://acc.publiek.open-regels.nl/"');
-    expect(html).toContain(
-      'property="og:image" content="https://acc.publiek.open-regels.nl/og-open-regels.png"'
-    );
+describe('readSiteEnv', () => {
+  // Against the real .env files: they are what the build reads. readSiteEnv
+  // goes through Vite's loadEnv, which lets process.env override the file,
+  // and Vitest has put the test mode's VITE_* values there -- so set them
+  // aside, or every mode would read the test file.
+  let saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    const inherited = Object.keys(process.env).filter((k) => k.startsWith('VITE_'));
+    saved = Object.fromEntries(inherited.map((k) => [k, process.env[k]]));
+    for (const k of inherited) delete process.env[k];
+  });
+  afterEach(() => {
+    Object.assign(process.env, saved);
   });
 
-  it('leaves unrelated tags (e.g. og:image:width) untouched', () => {
-    const html = rewriteSocialCardOrigin(shell, 'https://acc.publiek.open-regels.nl');
-    expect(html).toContain('property="og:image:width" content="1200"');
+  it.each([
+    ['production', 'https://publiek.open-regels.nl', 'https://api.open-regels.nl/v1', true],
+    [
+      'acceptance',
+      'https://acc.publiek.open-regels.nl',
+      'https://acc.api.open-regels.nl/v1',
+      false,
+    ],
+    ['development', 'http://localhost:5175', 'http://localhost:3002/v1', false],
+  ])('reads %s: origin, API and whether to be indexed', (mode, origin, apiUrl, indexable) => {
+    expect(readSiteEnv(mode)).toEqual({ origin, apiUrl, indexable });
   });
 
-  it('is a no-op when the origin already is the production one', () => {
-    const html = rewriteSocialCardOrigin(shell, 'https://publiek.open-regels.nl');
-    expect(html).toBe(shell);
+  it('refuses a mode with no .env file instead of falling back to production', () => {
+    expect(() => readSiteEnv('acceptence')).toThrow(/VITE_SITE_URL/);
+  });
+});
+
+describe('buildRobots', () => {
+  it('lets crawlers in and points at the sitemap when the site is indexable', () => {
+    const txt = buildRobots('https://publiek.open-regels.nl', true);
+    expect(txt).toContain('Allow: /\n');
+    expect(txt).toContain('Disallow: /zoeken\n');
+    expect(txt).toContain('Sitemap: https://publiek.open-regels.nl/sitemap.xml\n');
   });
 
-  it('rewrites to the local dev origin too', () => {
-    const html = rewriteSocialCardOrigin(shell, 'http://localhost:5175');
-    expect(html).toContain('property="og:url" content="http://localhost:5175/"');
-    expect(html).toContain(
-      'property="og:image" content="http://localhost:5175/og-open-regels.png"'
-    );
+  it('shuts crawlers out entirely, with no sitemap, when it is not', () => {
+    const txt = buildRobots('https://acc.publiek.open-regels.nl', false);
+    expect(txt).toBe('User-agent: *\nDisallow: /\n');
   });
 });
 
@@ -98,6 +114,25 @@ describe('injectIntoShell', () => {
     expect(descriptionCount).toBe(1);
     expect(html).toContain('content="Toeslag voor zorgkosten."');
     expect(html).not.toContain('Generic site-wide description.');
+  });
+
+  it('replaces the shell’s site-root canonical with the route’s own, not a second one', () => {
+    const shellWithCanonical = `<!doctype html><html lang="nl"><head>
+      <title>Old</title>
+      <link rel="canonical" href="https://acc.publiek.open-regels.nl/" />
+    </head><body><div id="root"></div></body></html>`;
+
+    const html = injectIntoShell(shellWithCanonical, {
+      title: 't',
+      description: 'd',
+      canonical: 'https://acc.publiek.open-regels.nl/regels/zorgtoeslag',
+      bodyFragment: '<main/>',
+    });
+
+    expect(html.match(/<link\s+rel="canonical"/g)).toHaveLength(1);
+    expect(html).toContain(
+      'rel="canonical" href="https://acc.publiek.open-regels.nl/regels/zorgtoeslag"'
+    );
   });
 
   it('embeds route-scoped prerendered data as a JSON script when provided', () => {
