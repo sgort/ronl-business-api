@@ -59,7 +59,7 @@
     "jose": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "jwks-rsa": "^3.2.2",
-    "multer": "^2.3.0",
+    "multer": "^2.4.0",
     "node-cache": "^5.1.2",
     "openai": "^6.49.0",
     "operaton-mcp": "^1.1.0",
