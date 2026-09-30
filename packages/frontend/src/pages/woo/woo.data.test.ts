@@ -111,4 +111,44 @@ describe('wooFilterRows', () => {
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((r) => qOf(monthOf(r.ontvangen)) === targetQ)).toBe(true);
   });
+
+  it('filters by status: "Over termijn" keeps only overdue requests', () => {
+    const filters = { ...wooDefaultFilters(), status: 'Over termijn' };
+    const result = wooFilterRows(WOO_REGISTER, filters);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.every((r) => r.status === 'Over termijn')).toBe(true);
+  });
+
+  it('filters by onderwerp on the first word only, case-insensitively', () => {
+    const base = WOO_REGISTER[0];
+    const rows = [
+      { ...base, id: 'a', onderwerp: 'Ruimte & wonen' },
+      { ...base, id: 'b', onderwerp: 'ruimtelijke ordening' },
+      { ...base, id: 'c', onderwerp: '' },
+    ];
+    const filters = { ...wooDefaultFilters(), onderwerp: 'RUIMTE / Mobiliteit' };
+    expect(wooFilterRows(rows, filters).map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('maps every month onto its quarter, and a missing date onto Q4', () => {
+    const base = WOO_REGISTER[0];
+    const rows = [
+      { ...base, id: 'feb', ontvangen: '10-02' },
+      { ...base, id: 'mei', ontvangen: '10-05' },
+      { ...base, id: 'aug', ontvangen: '10-08' },
+      { ...base, id: 'nov', ontvangen: '10-11' },
+      { ...base, id: 'leeg', ontvangen: '' },
+    ];
+    const ids = (kwartaal: string) =>
+      wooFilterRows(rows, { ...wooDefaultFilters(), kwartaal }).map((r) => r.id);
+    expect(ids('Q1')).toEqual(['feb']);
+    expect(ids('Q2')).toEqual(['mei']);
+    expect(ids('Q3')).toEqual(['aug']);
+    // parseInt('') is NaN, which fails every <= test and falls through to Q4.
+    expect(ids('Q4')).toEqual(['nov', 'leeg']);
+  });
+
+  it('ignores filter keys that are absent altogether', () => {
+    expect(wooFilterRows(WOO_REGISTER, {})).toHaveLength(WOO_REGISTER.length);
+  });
 });

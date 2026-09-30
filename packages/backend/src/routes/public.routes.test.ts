@@ -653,3 +653,74 @@ describe('POST /feedback screenshot filtering', () => {
     expect(mockAxios.post.mock.calls[0][0]).not.toContain('/uploads');
   });
 });
+
+describe('limit query parsing', () => {
+  it.each([
+    ['/v1/public/nieuws', () => m.nieuws, 10],
+    ['/v1/public/berichten', () => m.berichten, 10],
+    ['/v1/public/producten-diensten', () => m.producten, 50],
+  ] as const)(
+    '%s falls back to its default limit when ?limit is not a number',
+    async (path, svc, def) => {
+      svc().mockResolvedValue({ items: [], total: 0 });
+      const res = await request(app).get(`${path}?limit=abc`);
+      expect(res.status).toBe(200);
+      expect(svc().mock.calls[0][0]).toBe(def);
+    }
+  );
+});
+
+describe('failures that are not Error instances', () => {
+  // A stray `throw 'oops'` must map to the same 500 as a real Error, not crash
+  // the handler while it builds the log entry.
+  it.each([
+    ['/v1/public/nieuws', () => m.nieuws.mockRejectedValue('down')],
+    ['/v1/public/berichten', () => m.berichten.mockRejectedValue('down')],
+    ['/v1/public/producten-diensten', () => m.producten.mockRejectedValue('down')],
+    ['/v1/public/regelcatalogus', () => m.regels.mockRejectedValue('down')],
+    ['/v1/public/processen', () => m.processenList.mockRejectedValue('down')],
+    ['/v1/public/processen/zorgtoeslag-process', () => m.processByKey.mockRejectedValue('down')],
+    ['/v1/public/zoeken', () => m.index.mockRejectedValue('down')],
+    ['/v1/public/nieuws/n1', () => m.index.mockRejectedValue('down')],
+  ])('GET %s → 500', async (path, fail) => {
+    fail();
+    const res = await request(app).get(path);
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('POST /use-case → 502 carrying the stringified reason', async () => {
+    mockConfig.gitlab.token = 'tok';
+    mockAxios.post.mockRejectedValue('socket hang up');
+    const res = await request(app)
+      .post('/v1/public/use-case')
+      .send({ title: 'T', description: 'D' });
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatchObject({
+      code: 'GITLAB_UNREACHABLE',
+      message: 'Could not reach GitLab: socket hang up',
+    });
+  });
+
+  it('GET /use-cases → 500', async () => {
+    process.env.GITLAB_TOKEN = 'tok';
+    process.env.GITLAB_PROJECT_PATH = 'proj';
+    mockAxios.get.mockRejectedValue('socket hang up');
+    expect((await request(app).get('/v1/public/use-cases')).status).toBe(500);
+  });
+});
+
+describe('GET /use-cases?state=closed', () => {
+  it('asks GitLab for closed issues and tolerates an issue without assignees', async () => {
+    process.env.GITLAB_TOKEN = 'tok';
+    process.env.GITLAB_PROJECT_PATH = 'proj';
+    mockAxios.get.mockResolvedValue({
+      data: [{ iid: 2, title: 'Klaar', state: 'closed', description: 'Afgerond.' }],
+    });
+    const res = await request(app).get('/v1/public/use-cases?state=closed');
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/public/use-cases');
+    expect(mockAxios.get.mock.calls[0][1].params.state).toBe('closed');
+    expect(res.body.data[0]).toMatchObject({ iid: 2, assignees: [], description: 'Afgerond.' });
+  });
+});

@@ -79,6 +79,15 @@ describe('tenant service', () => {
       expect(getTenantConfig('utrecht')).toEqual(utrechtConfig);
     });
 
+    it('treats a payload without a tenants key as an empty registry', async () => {
+      mockFetchOnce({ default: 'utrecht' });
+
+      const result = await loadTenantConfigs();
+
+      expect(result).toEqual({});
+      expect(getTenantConfig('utrecht')).toBeNull();
+    });
+
     it('returns {} when fetch itself throws', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
 
@@ -100,6 +109,13 @@ describe('tenant service', () => {
   describe('getDefaultTenantConfig', () => {
     it('returns null when no default tenant id was set', async () => {
       mockFetchOnce({ tenants: { utrecht: utrechtConfig } });
+      await loadTenantConfigs();
+
+      expect(getDefaultTenantConfig()).toBeNull();
+    });
+
+    it('returns null when the default tenant id names no loaded tenant', async () => {
+      mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'amsterdam' });
       await loadTenantConfigs();
 
       expect(getDefaultTenantConfig()).toBeNull();
@@ -134,6 +150,17 @@ describe('tenant service', () => {
       expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe(
         utrechtConfig.theme.primary
       );
+    });
+
+    it('loads the tenant configs first when the cache is still empty', async () => {
+      // A fresh module instance starts with an empty cache, so the first call
+      // has to fetch /tenants.json itself before it can resolve the tenant.
+      vi.resetModules();
+      const fresh = await import('./tenant');
+      mockFetchOnce({ tenants: { utrecht: utrechtConfig }, default: 'utrecht' });
+
+      expect(await fresh.initializeTenantTheme('utrecht')).toBe(true);
+      expect(fetch).toHaveBeenCalledWith('/tenants.json');
     });
 
     it('returns false for a disabled tenant', async () => {

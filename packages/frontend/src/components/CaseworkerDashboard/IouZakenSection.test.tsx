@@ -105,4 +105,45 @@ describe('IouZakenSection', () => {
     expect(screen.getByText('Indiener')).toBeInTheDocument();
     expect(screen.queryByText('Beschrijving')).not.toBeInTheDocument();
   });
+
+  it('treats a response without a data array as an empty list', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({})));
+    const onCountChange = vi.fn();
+    render(<IouZakenSection state="opened" onCountChange={onCountChange} />);
+
+    expect(
+      await screen.findByText("Er zijn momenteel geen openstaande gebruiksscenario's.")
+    ).toBeInTheDocument();
+    expect(onCountChange).toHaveBeenCalledWith(0);
+  });
+
+  it('renders a closed item with its assignees and a plain label, and collapses on a second click', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          data: [
+            makeItem({
+              state: 'closed',
+              labels: ['Wens'],
+              assignees: ['Piet Pieters', 'Anna de Vries'],
+            }),
+          ],
+        })
+      )
+    );
+    const user = userEvent.setup();
+    render(<IouZakenSection state="closed" />);
+
+    const header = await screen.findByText(/Snellere aanvraagverwerking/);
+    expect(screen.getByText('Gesloten')).toBeInTheDocument();
+    expect(screen.getByText('→ Piet Pieters, Anna de Vries')).toBeInTheDocument();
+    expect(screen.getByText('Wens')).toHaveClass('bg-blue-50');
+
+    await user.click(header);
+    expect(screen.getByText('Indiener')).toBeInTheDocument();
+
+    await user.click(header);
+    expect(screen.queryByText('Indiener')).not.toBeInTheDocument();
+  });
 });

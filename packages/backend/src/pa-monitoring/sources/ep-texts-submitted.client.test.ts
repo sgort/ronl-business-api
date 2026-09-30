@@ -136,6 +136,20 @@ describe('parsePageHtml (fixture: ep-texts-submitted.html)', () => {
   it('returns an empty array for completely empty input', () => {
     expect(parsePageHtml('')).toEqual([]);
   });
+
+  it.each([
+    ['has no href', '<a>VERSLAG zonder link</a>'],
+    ['links outside doceo', '<a href="https://example.org/elders">VERSLAG elders</a>'],
+  ])('builds the doceo URL from the ref when the title anchor %s', (_label, anchor) => {
+    const html = `<div class="notice">
+      <p class="title">${anchor}</p>
+      <div class="date_reference"><span class="reference">A10-0200/2026</span></div>
+    </div>`;
+    const [doc] = parsePageHtml(html);
+    expect(doc.doceoUrl).toBe(
+      'https://www.europarl.europa.eu/doceo/document/A-10-2026-0200_NL.html'
+    );
+  });
 });
 
 // ── Fetch orchestration ───────────────────────────────────────────────────────
@@ -190,5 +204,13 @@ describe('fetchAllNewSubmittedTexts (paging + dedup across both tabs)', () => {
     mockFetch.mockRejectedValue(new Error('EP down'));
     const items = await fetchAllNewSubmittedTexts({ sinceRefs: new Set() });
     expect(items).toEqual([]);
+  });
+
+  it('tolerates a page fetch that rejects with a non-Error', async () => {
+    mockFetch.mockRejectedValue('socket hang up');
+    const items = await fetchAllNewSubmittedTexts({ sinceRefs: new Set() });
+    expect(items).toEqual([]);
+    // one attempt per tab, then the tab breaks off
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

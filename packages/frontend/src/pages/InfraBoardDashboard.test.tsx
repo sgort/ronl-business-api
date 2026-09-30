@@ -286,4 +286,70 @@ describe('InfraBoardDashboard', () => {
     expect(screen.getAllByRole('button', { name: 'Archief' })).toHaveLength(2);
     expect(screen.queryByText(/R2 · Planvoorbereiding/)).not.toBeInTheDocument();
   });
+
+  it('Ctrl+K and Cmd+K toggle the command palette; a plain K does not', async () => {
+    const user = userEvent.setup();
+    render(<InfraBoardDashboard />);
+
+    await user.keyboard('k');
+    expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
+
+    await user.keyboard('{Control>}k{/Control}');
+    expect(screen.getByTestId('palette')).toBeInTheDocument();
+
+    await user.keyboard('{Meta>}K{/Meta}');
+    expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
+  });
+
+  it("themes by the user's municipality and shows their LoA", async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({
+      sub: '1',
+      name: 'Test User',
+      roles: ['infra-projectteam'],
+      municipality: 'flevoland',
+      loa: 'substantieel',
+    });
+
+    render(<InfraBoardDashboard />);
+
+    expect(await screen.findByText('LOA substantieel')).toBeInTheDocument();
+    expect(mockTenant.initializeTenantTheme).toHaveBeenCalledWith('flevoland');
+    await waitFor(() => expect(mockTenant.getTenantConfig).toHaveBeenCalledWith('flevoland'));
+  });
+
+  it('Beheer rail navigates to a phase and to Archief, marking the chosen item active', async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({ sub: '1', name: 'Test User', roles: ['infra-projectteam'] });
+    // No deployment or live-count data yet: the rail still renders, every
+    // phase counted from the mock data alone.
+    mockUseDeployedProcessKeys.mockReturnValue({
+      data: null,
+      loading: true,
+      error: false,
+      reload: vi.fn(),
+    });
+    mockUseLivePhaseCounts.mockReturnValue({
+      data: null,
+      loading: true,
+      error: false,
+      reload: vi.fn(),
+    });
+    const user = userEvent.setup();
+
+    render(<InfraBoardDashboard />);
+    await user.click(screen.getByRole('button', { name: 'Beheer' }));
+
+    const r21Item = await screen.findByRole('button', { name: /Projectplan planvoorbereiding/ });
+    await user.click(r21Item);
+    expect(r21Item.className).toContain('active');
+    expect(screen.getByTestId('section-router')).toHaveTextContent(/^beheer:fase-/);
+
+    // The Projecten section's own Archief item precedes the IOU group's.
+    const archief = screen.getAllByRole('button', { name: 'Archief' })[0];
+    await user.click(archief);
+    expect(archief.className).toContain('active');
+    expect(r21Item.className).not.toContain('active');
+    expect(screen.getByTestId('section-router')).toHaveTextContent('beheer:archief');
+  });
 });

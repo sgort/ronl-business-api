@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CuratieSpecSection from './CuratieSpecSection';
 import { expectMockNamesRealExports } from '../../test/mockModule';
@@ -56,5 +56,27 @@ describe('CuratieSpecSection', () => {
 
     expect(screen.getByRole('button', { name: '⏳ Bezig…' })).toBeDisabled();
     resolve();
+  });
+
+  it('returns to idle after six seconds and then shows the time of the last manual start', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockTriggerCurationCycle.mockResolvedValue({ started: true, tenantId: 't1' });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      render(<CuratieSpecSection />);
+      await user.click(screen.getByRole('button', { name: 'Curatie nu uitvoeren' }));
+      await waitFor(() => expect(screen.getByText(/Cycle gestart om/)).toBeInTheDocument());
+      expect(screen.queryByText(/Laatste handmatige start/)).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(6000);
+      });
+
+      expect(screen.queryByText(/Cycle gestart om/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Laatste handmatige start: \d{2}:\d{2}:\d{2}/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -209,4 +209,100 @@ describe('IouGebruiksscenarioSection', () => {
 
     expect(mediumRadio.checked).toBe(false);
   });
+
+  it('includes the filled steps, selected materials and uploaded attachments in the submitted markdown', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    await fillRequired(user, container);
+    await user.type(screen.getByPlaceholderText(/Describe step 1/), 'Burger dient aanvraag in');
+    await user.click(screen.getByRole('checkbox', { name: 'Excel / spreadsheet' }));
+    // Ticked and unticked again: must not end up in the list.
+    await user.click(screen.getByRole('checkbox', { name: 'Word / PDF' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Word / PDF' }));
+    await user.click(screen.getByText('Overig / Other:'));
+    await user.type(screen.getByPlaceholderText('specify…'), 'Eigen registratie');
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(['x'], 'bijlage.pdf', { type: 'application/pdf' })] },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+    await screen.findByText('Succesvol ingediend');
+
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.some(([url]) => String(url).includes('/public/upload-file'))).toBe(true);
+    const useCaseCall = calls.find(([url]) => String(url).includes('/public/use-case'));
+    const description: string = JSON.parse(useCaseCall![1].body).description;
+    expect(description).toContain('**Step 1 · Stap 1:** Burger dient aanvraag in');
+    expect(description).not.toContain('Step 2');
+    expect(description).toContain('- Excel / spreadsheet\n- Eigen registratie');
+    expect(description).not.toContain('- Word / PDF');
+    expect(description).toContain('## Bijlagen · Attachments\n\n[bijlage](url)');
+  });
+
+  it('lists "Other" when the Overig box is ticked without any text', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    await fillRequired(user, container);
+    await user.click(screen.getByText('Overig / Other:'));
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+    await screen.findByText('Succesvol ingediend');
+
+    const useCaseCall = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+      String(url).includes('/public/use-case')
+    );
+    expect(JSON.parse(useCaseCall![1].body).description).toContain(
+      '## 8. Existing Materials · Bestaande materialen\n\n- Other\n'
+    );
+  });
+
+  it('rejects an attachment over the size limit', () => {
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    const big = new File(['x'], 'groot.pdf');
+    Object.defineProperty(big, 'size', { value: 11 * 1024 * 1024 });
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [big] },
+    });
+
+    expect(screen.getByText('Maximale bestandsgrootte is 10 MB per bestand.')).toBeInTheDocument();
+    expect(screen.queryByTitle('Verwijderen')).not.toBeInTheDocument();
+  });
+
+  it('names the file when an upload fails without an error message', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: false })));
+    const user = userEvent.setup();
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(['x'], 'bijlage.pdf')] },
+    });
+    await fillRequired(user, container);
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+
+    expect(await screen.findByText(/Bestand uploaden mislukt: bijlage\.pdf/)).toBeInTheDocument();
+  });
+
+  it('falls back to the HTTP status when the submission fails without an error message', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 502)));
+    const user = userEvent.setup();
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    await fillRequired(user, container);
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+
+    expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument();
+  });
+
+  it('shows "Unknown error" when the request rejects with a non-Error value', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('offline'));
+    const user = userEvent.setup();
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    await fillRequired(user, container);
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+
+    expect(await screen.findByText(/Unknown error/)).toBeInTheDocument();
+  });
 });

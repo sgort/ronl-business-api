@@ -103,4 +103,15 @@ describe('GET /v1/admin/audit', () => {
     expectToMatchOperation(res, 'get', '/admin/audit');
     expect(res.body.error.code).toBe('DB_ERROR');
   });
+
+  it('500 DB_ERROR when the query rejects with a non-Error', async () => {
+    mockDb.any.mockRejectedValue('connection terminated');
+    mockDb.one.mockResolvedValue({ total: 0 });
+
+    const res = await asAdmin(request(app).get('/v1/admin/audit'));
+
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'get', '/admin/audit');
+    expect(res.body.error.code).toBe('DB_ERROR');
+  });
 });

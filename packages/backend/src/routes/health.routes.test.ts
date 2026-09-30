@@ -285,6 +285,38 @@ describe('GET /v1/health — failure paths', () => {
     expect(res.body.data.error).toBe('operaton client exploded');
   });
 
+  it('reports keycloak down with a generic error when the JWKS fetch rejects with a non-Error', async () => {
+    opHealth.mockResolvedValue({ status: 'up' });
+    mockFetch.mockRejectedValue('aborted');
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.body.data.dependencies.keycloak).toEqual({
+      status: 'down',
+      error: 'Unknown error',
+    });
+  });
+
+  it('503s unhealthy with a generic error when the probe throws a non-Error', async () => {
+    opHealth.mockRejectedValue('operaton client exploded');
+
+    const res = await request(app).get('/v1/health');
+
+    expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health');
+    expect(res.body.data).toMatchObject({ status: 'unhealthy', error: 'Unknown error' });
+  });
+
+  it('503s not ready with a generic error when the readiness check throws a non-Error', async () => {
+    opHealth.mockRejectedValue('boom');
+
+    const res = await request(app).get('/v1/health/ready');
+
+    expect(res.status).toBe(503);
+    expectToMatchOperation(res, 'get', '/health/ready');
+    expect(res.body.data.error).toBe('Unknown error');
+  });
+
   it('survives a cache probe that rejects with a non-Error', async () => {
     // The String(err) arm. A rejected non-Error is what a stray `throw 'oops'`
     // or an aborted promise produces, and it must not take the endpoint down.

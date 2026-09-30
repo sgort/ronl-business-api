@@ -109,4 +109,41 @@ describe('BronnenSection', () => {
     );
     expect(await screen.findByText('✓ Gekopieerd')).toBeInTheDocument();
   });
+
+  it('marks every live feed as uitgeschakeld when the media flag is off', async () => {
+    mockFetchSourcesStatus.mockResolvedValue(
+      makeStatus({
+        media: false,
+        feeds: [
+          {
+            id: 'lokaal-nieuws',
+            name: 'Lokaal Nieuws',
+            homepage: 'lokaal.nl',
+            url: 'https://lokaal.nl/rss',
+            type: 'regional',
+            categoryFilter: 'Politiek',
+          },
+        ],
+      })
+    );
+    const { container } = render(<BronnenSection />);
+
+    expect(await screen.findByText('Lokaal Nieuws')).toBeInTheDocument();
+    expect(screen.getByText('MEDIA_SOURCE_ENABLED = false')).toBeInTheDocument();
+    expect(screen.getByText('categorie: Politiek')).toBeInTheDocument();
+    // A feed with no curatorial one-liner gets an empty note.
+    const feedRow = screen.getByText('Lokaal Nieuws').closest('.pac-src-row') as HTMLElement;
+    expect(feedRow).toHaveClass('status-uit');
+    expect(feedRow.querySelector('.pac-src-note')).toHaveTextContent(/^$/);
+    // epTeksten (off) plus the one media feed count as uitgeschakeld.
+    expect(container.querySelector('.pac-src-statnum.off')).toHaveTextContent('2');
+  });
+
+  it('uses the singular "feed" when only the planned Sociaal placeholder remains', async () => {
+    mockFetchSourcesStatus.mockResolvedValue(makeStatus({ feeds: [] }));
+    render(<BronnenSection />);
+
+    expect(await screen.findByText('Sociale media & omgeving')).toBeInTheDocument();
+    expect(screen.getByText('1 feed')).toBeInTheDocument();
+  });
 });
