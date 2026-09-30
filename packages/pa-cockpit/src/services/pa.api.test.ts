@@ -1036,4 +1036,204 @@ describe('mock-mode query parameters', () => {
       { type: 'Motie', nr: '1', url: 'https://tk.nl/x' }
     );
   });
+
+  it('promoteToInbox falls back to empty type and the item id when the hit has neither', async () => {
+    const api = await freshApi({ signalsMock: true });
+    const item = {
+      id: 'f7',
+      title: 'Bekendmaking',
+      type: null,
+      number: null,
+      date: null,
+      url: 'https://ob.nl/f7',
+      source: 'ob',
+    } as unknown as FeedItem;
+
+    const result = await api.promoteToInbox(item);
+
+    expect(result.src).toBe('OB · ');
+    expect(result.ref).toEqual({ type: '', nr: 'f7', url: 'https://ob.nl/f7' });
+  });
+});
+
+describe('query-string and fallback branches', () => {
+  it('paTabBronnen returns no labels for a tab without sources', async () => {
+    const api = await freshApi();
+    expect(api.paTabBronnen('onbekend')).toEqual([]);
+  });
+
+  it('fetchInbox live mode: forwards tab and dossierId as query params', async () => {
+    let receivedUrl = '';
+    server.use(
+      http.get('*/pa/signals', ({ request }) => {
+        receivedUrl = request.url;
+        return HttpResponse.json({
+          success: true,
+          data: [],
+          meta: { total: 0, cap: 100, capped: false },
+        });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.fetchInbox({ tab: 'regionaal', dossierId: 'stikstof' });
+
+    const qs = new URL(receivedUrl).searchParams;
+    expect(qs.get('status')).toBe('candidate,ai_drafted');
+    expect(qs.get('tab')).toBe('regionaal');
+    expect(qs.get('dossierId')).toBe('stikstof');
+  });
+
+  it('fetchFeed live mode: defaults source/top, omits q, and sends types and skip', async () => {
+    let receivedUrl = '';
+    server.use(
+      http.get('*/pa/feed', ({ request }) => {
+        receivedUrl = request.url;
+        return HttpResponse.json({ success: true, data: { items: [], total: 0 } });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.fetchFeed({ types: ['Motie', 'Kamerbrief'], skip: 30 });
+
+    const qs = new URL(receivedUrl).searchParams;
+    expect(qs.get('source')).toBe('both');
+    expect(qs.get('top')).toBe('30');
+    expect(qs.has('q')).toBe(false);
+    expect(qs.get('types')).toBe('Motie,Kamerbrief');
+    expect(qs.get('skip')).toBe('30');
+  });
+
+  it('fetchFeedSources live mode: falls back to tk/ob when /pa/types has no keys', async () => {
+    server.use(http.get('*/pa/types', () => HttpResponse.json({ success: true, data: {} })));
+
+    const api = await freshApi({ signalsMock: false });
+    expect(await api.fetchFeedSources()).toEqual(['tk', 'ob']);
+  });
+
+  it('updateSearch live mode: sends scope, dossierId and a query, defaulting source to []', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch('*/pa/searches/s1', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ success: true, data: {} });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.updateSearch('s1', { q: 'netcongestie', scope: 'tenant', dossierId: null });
+    await api.updateSearch('s1', { q: 'stikstof', source: ['tk'] });
+
+    expect(bodies).toEqual([
+      { scope: 'tenant', dossierId: null, query: { q: 'netcongestie', types: [], source: [] } },
+      { query: { q: 'stikstof', types: [], source: ['tk'] } },
+    ]);
+  });
+
+  it('updateSearch mock mode: patches tags, dossier, scope and source on the stored search', async () => {
+    const api = await freshApi();
+    api.setPaMock(true);
+    const target = (await api.fetchSearches())[0];
+
+    await api.updateSearch(target.id, {
+      tags: ['energie'],
+      dossierId: 'energie',
+      scope: 'tenant',
+      source: ['eu'],
+    });
+
+    const updated = (await api.fetchSearches()).find((x) => x.id === target.id);
+    expect(updated).toMatchObject({ tags: ['energie'], dossierId: 'energie', scope: 'tenant' });
+    expect(updated?.query).toMatchObject({ q: target.query.q, source: ['eu'] });
+  });
+
+  it('fetchNotifications live mode: requests all notifications when unseenOnly is off', async () => {
+    let receivedUrl = '';
+    server.use(
+      http.get('*/pa/notifications', ({ request }) => {
+        receivedUrl = request.url;
+        return HttpResponse.json({ success: true, data: [], meta: { unseenCount: 0 } });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.fetchNotifications();
+
+    expect(new URL(receivedUrl).search).toBe('');
+  });
+
+  it('mock mode: acknowledging specific ids leaves the other notifications unseen', async () => {
+    const api = await freshApi();
+    api.setPaMock(true);
+    await api.watchDossier('stikstof');
+    const targets = (await api.fetchInbox()).data
+      .filter((s) => s.dossierId === 'stikstof')
+      .slice(0, 2);
+    expect(targets).toHaveLength(2);
+    for (const t of targets) await api.confirmSignal(t.id);
+
+    const all = await api.fetchNotifications();
+    const ackId = `ntf-mock-${targets[0].id}`;
+    expect(all.items.map((n) => n.id)).toContain(ackId);
+
+    await api.ackNotifications([ackId]);
+
+    const unseen = await api.fetchNotifications(true);
+    expect(unseen.items.map((n) => n.id)).not.toContain(ackId);
+    expect(unseen.items.map((n) => n.id)).toContain(`ntf-mock-${targets[1].id}`);
+    expect(unseen.unseenCount).toBe(all.unseenCount - 1);
+  });
+
+  it('mock mode: a watch with neither dossier nor query never matches', async () => {
+    const api = await freshApi();
+    api.setPaMock(true);
+    const { id } = await api.createSearch({
+      q: '',
+      source: ['tk'],
+      tags: [],
+      dossierId: null,
+      scope: 'user',
+    });
+    await api.toggleSearchNotify(id, true);
+    const target = (await api.fetchInbox()).data[0];
+
+    await api.confirmSignal(target.id);
+
+    expect((await api.fetchNotifications()).items).toEqual([]);
+  });
+
+  it('confirmSignal live mode: posts an empty body when no patch is given', async () => {
+    let receivedBody: unknown;
+    server.use(
+      http.post('*/pa/signals/sig-2/confirm', async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json({ success: true, data: { id: 'sig-2', status: 'confirmed' } });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.confirmSignal('sig-2');
+
+    expect(receivedBody).toEqual({});
+  });
+
+  it('dismissSignal mock mode: throws for an unknown signal id', async () => {
+    const api = await freshApi({ signalsMock: true });
+    await expect(api.dismissSignal('does-not-exist')).rejects.toThrow('not found');
+  });
+
+  it('deleteSavedSearch live mode: sends no Authorization header without a token', async () => {
+    let seen: string | null = 'unset';
+    server.use(
+      http.delete('*/pa/searches/s1', ({ request }) => {
+        seen = request.headers.get('authorization');
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    const api = await freshApi({ signalsMock: false });
+    await api.deleteSavedSearch('s1');
+
+    expect(seen).toBeNull();
+  });
 });

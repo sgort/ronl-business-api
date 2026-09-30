@@ -177,6 +177,28 @@ describe('EdocsService — live mode', () => {
       await expect(svc.listWorkspaces()).rejects.toThrow(/X-DM-DST cookie was absent/);
     });
 
+    it('throws the absent-cookie error when the response carries no set-cookie header at all', async () => {
+      mockClient.post.mockResolvedValueOnce({ headers: {} });
+      await expect(svc.listWorkspaces()).rejects.toThrow(/X-DM-DST cookie was absent/);
+    });
+
+    it('accepts a single set-cookie string instead of an array', async () => {
+      mockClient.post.mockResolvedValueOnce({
+        headers: { 'set-cookie': 'X-DM-DST=single-dst; Path=/; HttpOnly' },
+      });
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+
+      await svc.listWorkspaces();
+
+      const interceptor = mockClient.interceptors.request.use.mock.calls[0][0] as (c: {
+        headers: Record<string, string>;
+      }) => { headers: Record<string, string> };
+      const cfg = interceptor({ headers: {} });
+      // No CSRF cookie in the response → only the DST value is stored.
+      expect(cfg.headers['Cookie']).toBe('X-DM-DST=single-dst');
+      expect(cfg.headers['X-DM-DST']).toBe('single-dst');
+    });
+
     it('propagates an upstream error when connect() is rejected (e.g. account lockout)', async () => {
       mockClient.post.mockRejectedValueOnce({
         response: {
@@ -270,6 +292,40 @@ describe('EdocsService — live mode', () => {
 
       expect(res.workspaceId).toBe('ws-flat');
     });
+
+    it('treats a search response without a list as no match and reads a top-level new id', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { id: 'ws-top' } }); // create — id only at the top level
+      mockClient.get.mockResolvedValueOnce({ data: {} }); // search — no data.list
+
+      const res = await svc.ensureWorkspace('P-004', 'Project Four');
+
+      expect(res).toEqual({
+        workspaceId: 'ws-top',
+        workspaceName: 'P-004 — Project Four',
+        created: true,
+      });
+    });
+  });
+
+  describe('list endpoints without a list in the response', () => {
+    beforeEach(() => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: {} });
+    });
+
+    it('listWorkspaces returns an empty array', async () => {
+      await expect(svc.listWorkspaces()).resolves.toEqual([]);
+    });
+
+    it('getWorkspaceDocuments returns an empty array', async () => {
+      await expect(svc.getWorkspaceDocuments('ws-1')).resolves.toEqual([]);
+    });
+
+    it('getDocumentVersions returns an empty array', async () => {
+      await expect(svc.getDocumentVersions('doc-1')).resolves.toEqual([]);
+    });
   });
 
   describe('uploadDocument()', () => {
@@ -343,6 +399,43 @@ describe('EdocsService — live mode', () => {
       ).rejects.toThrow(/unknown linked application/);
     });
 
+    it('falls back to a generic reason when no error_list entry carries a message', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse).mockResolvedValueOnce({
+        data: { data: { error_list: [{ object: 'a.pdf', code: 'E1' }] } },
+      });
+
+      await expect(
+        svc.uploadDocument('1', 'a.pdf', 'YmFzZTY0', { docName: 'X', department: 'IVR' })
+      ).rejects.toThrow('eDOCS rejected the document upload: unknown validation error');
+    });
+
+    it('reads the document id from data.data.id when the response has no list', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { data: { id: 'doc-nested', DOCNUMBER: '777' } } });
+
+      const res = await svc.uploadDocument('1', 'a.pdf', 'YmFzZTY0', {
+        docName: 'X',
+        department: 'IVR',
+      });
+
+      expect(res).toEqual({ documentId: 'doc-nested', documentNumber: '777', workspaceId: '1' });
+    });
+
+    it('reads the document id from a top-level id as the last resort', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { id: 'doc-top' } });
+
+      const res = await svc.uploadDocument('1', 'a.pdf', 'YmFzZTY0', {
+        docName: 'X',
+        department: 'IVR',
+      });
+
+      // No DOCNUM or DOCNUMBER anywhere → the number falls back to the id.
+      expect(res).toEqual({ documentId: 'doc-top', documentNumber: 'doc-top', workspaceId: '1' });
+    });
+
     describe('standalone (workspaceId: null) — the confirmed-working path', () => {
       it('defaults form_name to D_INTERN_NIEUW and omits ref', async () => {
         mockClient.post
@@ -414,6 +507,20 @@ describe('EdocsService — live mode', () => {
       expect(mockClient.get).toHaveBeenCalledWith('documents/doc-1/profile', {
         params: { library: 'DOCUVITT' },
       });
+    });
+
+    it('returns the response body itself when it is not wrapped in data', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({ data: { DOCNAME: 'flat.pdf' } });
+
+      await expect(svc.getDocumentProfile('doc-1')).resolves.toEqual({ DOCNAME: 'flat.pdf' });
+    });
+
+    it('returns an empty profile when the response has no body', async () => {
+      mockClient.post.mockResolvedValueOnce(connectResponse);
+      mockClient.get.mockResolvedValueOnce({});
+
+      await expect(svc.getDocumentProfile('doc-1')).resolves.toEqual({});
     });
   });
 
@@ -522,6 +629,27 @@ describe('EdocsService — live mode', () => {
         reachable: true,
         authenticated: false,
         error: 'account is currently locked out',
+      });
+    });
+
+    it('reports rapi_details when the eDOCS error message is empty', async () => {
+      mockClient.get.mockResolvedValueOnce({ data: {} }); // reachable
+      mockClient.post.mockRejectedValueOnce({
+        response: {
+          status: 401,
+          data: {
+            ERROR: {
+              message: '  ',
+              rapi_details: ['Logon failure', '', 'unknown user name or bad password'],
+            },
+          },
+        },
+      });
+      const res = await svc.healthCheck();
+      expect(res).toMatchObject({
+        status: 'down',
+        authenticated: false,
+        error: 'Logon failure; unknown user name or bad password',
       });
     });
 

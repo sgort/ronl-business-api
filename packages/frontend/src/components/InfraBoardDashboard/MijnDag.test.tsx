@@ -77,4 +77,34 @@ describe('MijnDag', () => {
     const card = screen.getByText(project.naam).closest('button')!;
     expect(within(card).getByText(`${phase.code} · ${phase.name}`)).toBeInTheDocument();
   });
+
+  it('lists a live engine task and opens its process instance', async () => {
+    // One undated RIP task: groupTasksByHorizon files it under "Deze week",
+    // and the lead sentence switches to the singular "taak".
+    mockUseOpenTasks.mockReturnValue({
+      data: [
+        {
+          id: 'task-1',
+          name: 'Projectopdracht opstellen',
+          processDefinitionKey: 'RipR21Process',
+          processInstanceId: 'inst-abc',
+          assignee: null,
+          due: null,
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const onOpenProject = vi.fn();
+    const user = userEvent.setup();
+    render(<MijnDag user={null} onOpenProject={onOpenProject} onGotoPortfolio={vi.fn()} />);
+
+    expect(screen.getByText(/Je hebt 1 open taak in lopende RIP-processen/)).toBeInTheDocument();
+
+    const row = screen.getByText('Projectopdracht opstellen').closest('.pb-todo-item')!;
+    await user.click(within(row as HTMLElement).getByRole('button', { name: /Behandelen/ }));
+
+    expect(onOpenProject).toHaveBeenCalledWith({ nr: 'RipR21Process', instanceId: 'inst-abc' });
+  });
 });

@@ -111,4 +111,48 @@ describe('ProcesBibliotheek', () => {
     expect(screen.getByText('dmn-rules-1')).toBeInTheDocument();
     expect(screen.getByText('dep-1')).toBeInTheDocument();
   });
+
+  it('renders unknown status and board values with the neutral fallback style', async () => {
+    mockPublic.mockResolvedValue({
+      success: true,
+      data: [makeBundle({ status: 'retired', boardOwner: 'facilities' })],
+    });
+    render(<ProcesBibliotheek />);
+
+    expect(await screen.findByText('retired')).toHaveClass('bg-gray-100');
+    expect(screen.getByText('facilities')).toHaveClass('bg-slate-100');
+  });
+
+  it('expanding shows only the asset sections a bundle has, one card at a time, and collapses again', async () => {
+    mockPublic.mockResolvedValue({
+      success: true,
+      data: [
+        makeBundle({ deployedForms: [{ id: 'f1', name: 'Aanvraagformulier' }] }),
+        makeBundle({
+          id: 'b2',
+          name: 'Tweede proces',
+          operatonDeploymentId: 'dep-2',
+          linkedDmnTemplates: ['dmn-rules-2'],
+        }),
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ProcesBibliotheek />);
+
+    expect(await screen.findByText('2 processes')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /DvTP toestemming geven/ }));
+    expect(screen.getByText('Forms')).toBeInTheDocument();
+    expect(screen.queryByText('Documents')).not.toBeInTheDocument();
+    expect(screen.queryByText('Subprocesses')).not.toBeInTheDocument();
+    expect(screen.queryByText('DMN Templates')).not.toBeInTheDocument();
+
+    const second = screen.getByRole('button', { name: /Tweede proces/ });
+    await user.click(second);
+    expect(screen.queryByText('Forms')).not.toBeInTheDocument();
+    expect(screen.getByText('DMN Templates')).toBeInTheDocument();
+
+    await user.click(second);
+    expect(screen.queryByText('DMN Templates')).not.toBeInTheDocument();
+  });
 });

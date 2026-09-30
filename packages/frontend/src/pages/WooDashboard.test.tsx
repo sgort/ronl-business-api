@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import WooDashboard from './WooDashboard';
+import { getTenantConfig, initializeTenantTheme } from '../services/tenant';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
@@ -145,5 +146,47 @@ describe('WooDashboard', () => {
     expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
     await user.click(screen.getByText('Spring naar weergave of verzoek…'));
     expect(screen.getByTestId('palette')).toBeInTheDocument();
+  });
+
+  it('Ctrl+K and Cmd+K toggle the command palette; a plain K does not', async () => {
+    const user = userEvent.setup();
+    render(<WooDashboard />);
+
+    await user.keyboard('k');
+    expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
+
+    await user.keyboard('{Control>}k{/Control}');
+    expect(screen.getByTestId('palette')).toBeInTheDocument();
+
+    await user.keyboard('{Meta>}K{/Meta}');
+    expect(screen.queryByTestId('palette')).not.toBeInTheDocument();
+  });
+
+  it('opens the assistant dock and hides its toggle button', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<WooDashboard />);
+
+    await user.click(screen.getByRole('button', { name: 'Vraag de assistent' }));
+
+    expect(screen.getByTestId('dock')).toBeInTheDocument();
+    expect(container.querySelector('.v2-body')).toHaveClass('v2-with-dock');
+    expect(screen.queryByRole('button', { name: 'Vraag de assistent' })).not.toBeInTheDocument();
+  });
+
+  it("themes by the user's municipality and shows their LoA", async () => {
+    mockKeycloak.authenticated = true;
+    mockGetUser.mockReturnValue({
+      sub: '1',
+      name: 'Test User',
+      roles: ['woo-coordinatie'],
+      municipality: 'flevoland',
+      loa: 'hoog',
+    });
+
+    render(<WooDashboard />);
+
+    expect(screen.getByText('LOA hoog')).toBeInTheDocument();
+    expect(initializeTenantTheme).toHaveBeenCalledWith('flevoland');
+    await waitFor(() => expect(getTenantConfig).toHaveBeenCalledWith('flevoland'));
   });
 });

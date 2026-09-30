@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Dashboard from './Dashboard';
 
@@ -369,6 +369,53 @@ describe('Dashboard zorgtoeslag calculator', () => {
     await waitFor(() => expect(mockEvaluateDecision).toHaveBeenCalled());
     expect(mockEvaluateDecision.mock.calls[0][1]).not.toHaveProperty('overlijdensdatum');
   });
+
+  it('sends the date of death when one was entered', async () => {
+    const user = await openCalculator();
+    const [, overlijdensdatum] = document.querySelectorAll<HTMLInputElement>('input[type="date"]');
+    fireEvent.change(overlijdensdatum, { target: { value: '2026-03-01' } });
+
+    await user.click(screen.getByRole('button', { name: /Bereken/ }));
+
+    await waitFor(() => expect(mockEvaluateDecision).toHaveBeenCalled());
+    expect(mockEvaluateDecision.mock.calls[0][1].overlijdensdatum).toEqual({
+      value: '2026-03-01',
+      type: 'String',
+    });
+  });
+
+  it('counts a birthday later this month as not yet reached', async () => {
+    // Only Date is faked, so userEvent's own timers keep running. Noon, so the
+    // fixture holds whatever the wall-clock time of the run.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+    try {
+      const user = await openCalculator();
+      const [geboortedatum] = document.querySelectorAll<HTMLInputElement>('input[type="date"]');
+      fireEvent.change(geboortedatum, { target: { value: '1990-06-20' } });
+
+      await user.click(screen.getByRole('button', { name: /Bereken/ }));
+
+      await waitFor(() => expect(mockEvaluateDecision).toHaveBeenCalled());
+      const vars = mockEvaluateDecision.mock.calls[0][1];
+      // 15 June: the 20 June birthday is still ahead, so 35, as on 31 May.
+      expect(vars.leeftijdOpDatumBerekening.value).toBe(35);
+      expect(vars.leeftijdOpLaatsteDagVorigeMaand.value).toBe(35);
+      // By 30 June it has passed.
+      expect(vars.leeftijdOpLaatsteDagHuidigeMaand.value).toBe(36);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports a rejection that is not an Error the same way', async () => {
+    mockEvaluateDecision.mockRejectedValue('offline');
+    const user = await openCalculator();
+
+    await user.click(screen.getByRole('button', { name: /Bereken/ }));
+
+    expect(await screen.findByText(/kon niet worden afgerond/)).toBeInTheDocument();
+  });
 });
 
 describe('Dashboard timeline tab', () => {
@@ -425,6 +472,38 @@ describe('Dashboard applications tab', () => {
     await user.click(await screen.findByRole('button', { name: 'Mijn aanvragen' }));
 
     expect(await screen.findByText(/D-123/)).toBeInTheDocument();
+  });
+
+  it('labels unknown and keyless processes, and toggles the decision of a completed one', async () => {
+    mockProcessHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'pi-done',
+          processDefinitionKey: 'OnbekendProces',
+          startTime: null,
+          endTime: '2026-07-02T00:00:00Z',
+          state: 'COMPLETED',
+        },
+        { id: 'pi-gone', startTime: null, endTime: null, state: 'EXTERNALLY_TERMINATED' },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByRole('button', { name: 'Mijn aanvragen' }));
+
+    // No label mapping: the raw key; no key at all: the generic "Aanvraag".
+    expect(await screen.findByText('OnbekendProces')).toBeInTheDocument();
+    expect(screen.getByText('Aanvraag')).toBeInTheDocument();
+    expect(screen.getByText('COMPLETED')).toHaveClass('bg-green-100');
+    expect(screen.getByText('EXTERNALLY_TERMINATED')).toHaveClass('bg-gray-100');
+
+    // Only the completed process offers its decision.
+    expect(screen.getAllByRole('button', { name: 'Bekijk beslissing' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Bekijk beslissing' }));
+    await user.click(screen.getByRole('button', { name: 'Verbergen' }));
+    expect(screen.getByRole('button', { name: 'Bekijk beslissing' })).toBeInTheDocument();
   });
 });
 

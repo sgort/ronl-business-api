@@ -1417,6 +1417,41 @@ describe('PA routes — notifications & personal feed', () => {
       expect(res.headers['content-type']).toMatch(/rss\+xml/);
       expect(res.text).toContain('<rss version="2.0">');
     });
+
+    it('narrows the confirmed signals to ?tab and ?dossierId, in that parameter order', async () => {
+      mockDb.oneOrNone.mockResolvedValue({ user_id: 'u1', tenant_id: 'flevoland' });
+      mockDb.any.mockResolvedValue([
+        {
+          id: 's1',
+          tab: 'nl',
+          title: 'Kamerbrief stikstof',
+          src: 'Tweede Kamer',
+          bron: null,
+          ref: { kind: 'tk', id: 'ref-1' },
+          rel: 80,
+          status: 'confirmed',
+          ai_draft: { duiding: 'concept' },
+          confirmed_at: '2026-09-29T10:00:00.000Z',
+        },
+      ]);
+
+      const res = await request(app).get(
+        '/v1/pa/signals.rss?token=valid-token&tab=nl&dossierId=d-7'
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('Kamerbrief stikstof');
+      const [sql, values] = mockDb.any.mock.calls[0];
+      expect(sql).toMatch(/status = 'confirmed' AND tab = \$1 AND dossier_id = \$2/);
+      expect(values.slice(0, 2)).toEqual(['nl', 'd-7']);
+    });
+
+    it('500 when the lookup rejects with a non-Error', async () => {
+      mockDb.oneOrNone.mockRejectedValue('connection terminated');
+      const res = await request(app).get('/v1/pa/signals.rss?token=valid-token');
+      expect(res.status).toBe(500);
+      expect(res.text).toBe('Internal error');
+    });
   });
 });
 

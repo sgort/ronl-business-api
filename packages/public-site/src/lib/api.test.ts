@@ -102,3 +102,43 @@ describe('lib/api', () => {
     expect(global.fetch).toHaveBeenCalledWith('http://localhost:3002/v1/public/zoeken');
   });
 });
+
+describe('lib/api base URL resolution', () => {
+  const okEmpty = () =>
+    mockFetchOnce(200, {
+      success: true,
+      data: { items: [], total: 0, facets: { soort: [], bron: [], doelgroep: [] } },
+    });
+
+  it('prefers VITE_API_URL over PUBLIC_API_BASE_URL when both are set', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://vite.example/v1');
+    vi.stubEnv('PUBLIC_API_BASE_URL', 'https://prerender.example/v1');
+    okEmpty();
+    const { searchPublic } = await import('./api');
+    await searchPublic({});
+
+    expect(global.fetch).toHaveBeenCalledWith('https://vite.example/v1/public/zoeken');
+  });
+
+  it('falls back to PUBLIC_API_BASE_URL (the Node prerender path) without VITE_API_URL', async () => {
+    vi.stubEnv('VITE_API_URL', '');
+    vi.stubEnv('PUBLIC_API_BASE_URL', 'https://prerender.example/v1');
+    okEmpty();
+    const { searchPublic } = await import('./api');
+    await searchPublic({});
+
+    expect(global.fetch).toHaveBeenCalledWith('https://prerender.example/v1/public/zoeken');
+  });
+
+  it('throws before fetching when neither base URL is configured', async () => {
+    vi.stubEnv('VITE_API_URL', '');
+    vi.stubEnv('PUBLIC_API_BASE_URL', '');
+    global.fetch = vi.fn() as unknown as typeof fetch;
+    const { getNieuws } = await import('./api');
+
+    await expect(getNieuws()).rejects.toThrow(
+      'No API base URL configured (VITE_API_URL or PUBLIC_API_BASE_URL)'
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});

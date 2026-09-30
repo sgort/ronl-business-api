@@ -3,9 +3,14 @@
  *  - the browser build, where Vite statically replaces `import.meta.env.*`
  *  - the Node prerender script (Task 20), which sets PUBLIC_API_BASE_URL
  *    because import.meta.env isn't populated outside a Vite build/dev server.
+ *
+ * `import.meta.env` is read directly, not through a cast on `import.meta`:
+ * Vitest only rewires the literal expression to `process.env`, so the cast
+ * form left this function out of reach of `vi.stubEnv` in tests.
  */
 function resolveApiBase(): string {
-  const viteEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
+  // Typed as always present, but undefined under the Node prerender (tsx).
+  const viteEnv = import.meta.env as Partial<ImportMetaEnv> | undefined;
   if (viteEnv?.VITE_API_URL) return viteEnv.VITE_API_URL;
   if (typeof process !== 'undefined' && process.env?.PUBLIC_API_BASE_URL) {
     return process.env.PUBLIC_API_BASE_URL;

@@ -56,6 +56,28 @@ describe('Portfolio', () => {
     expect(screen.queryByText(notShown!.naam)).not.toBeInTheDocument();
   });
 
+  it('"Risico" scope keeps only red-health projects or those whose current phase needs attention', async () => {
+    const user = userEvent.setup();
+    render(<Portfolio onOpenProject={vi.fn()} />);
+
+    const atRisk = (p: ReturnType<typeof getMockPortfolio>[number]) =>
+      p.health === 'rood' ||
+      ['risk', 'overdue', 'action'].includes(
+        p.segments[RIP_PHASES.findIndex((rp) => rp.code === p.ripPhaseCode)].status
+      );
+    const risky = getMockPortfolio().filter(atRisk);
+    const safe = getMockPortfolio().find((p) => !atRisk(p));
+    expect(risky.length).toBeGreaterThan(0);
+    expect(safe).toBeDefined();
+
+    const risicoButton = screen.getByRole('button', { name: `Risico · ${risky.length}` });
+    await user.click(risicoButton);
+
+    expect(risicoButton).toHaveClass('active');
+    expect(screen.getByText(risky[0].naam)).toBeInTheDocument();
+    expect(screen.queryByText(safe!.naam)).not.toBeInTheDocument();
+  });
+
   it('clicking a project row calls onOpenProject with its project number', async () => {
     const onOpenProject = vi.fn();
     const user = userEvent.setup();
@@ -124,6 +146,35 @@ describe('Portfolio', () => {
       screen.getAllByText(`Wacht op start van ${wachtendProject!.ripPhaseCode}`, { exact: false })
         .length
     ).toBeGreaterThan(0);
+  });
+
+  it('marks a live instance on its Kanban card and shows "—" in phases without projects', async () => {
+    mockUseRipActiveAcrossPhases.mockReturnValue({
+      data: [
+        {
+          id: 'i1',
+          startTime: '2026-01-01T00:00:00Z',
+          projectNumber: '99999',
+          projectName: 'Live project',
+          edocsWorkspaceId: 'w1',
+          leadRole: 'projectleider',
+          phaseCode: 'R2.1',
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const user = userEvent.setup();
+    const { container } = render(<Portfolio onOpenProject={vi.fn()} />);
+
+    // Narrow to the live project's role so most phase columns end up empty.
+    await user.selectOptions(screen.getByRole('combobox'), 'projectleider');
+    await user.click(screen.getByRole('button', { name: 'Per fase' }));
+
+    const liveCard = screen.getByText('Live project').closest('.pb-kan-card')!;
+    expect(liveCard.querySelector('.pb-live-badge')).not.toBeNull();
+    expect(container.querySelectorAll('.pb-kan-empty').length).toBeGreaterThan(0);
   });
 
   it('shows a wachtend swatch in the legend', () => {

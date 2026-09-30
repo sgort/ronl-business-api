@@ -67,4 +67,13 @@ describe('Footer', () => {
     renderFooter();
     expect(screen.getByText('local build')).toBeInTheDocument();
   });
+
+  // A build with VITE_SITE_URL unset must still name a real origin rather than
+  // render an empty link.
+  it('falls back to the production site URL when VITE_SITE_URL is unset', () => {
+    vi.stubEnv('VITE_SITE_URL', '');
+    renderFooter();
+    const link = screen.getByRole('link', { name: 'publiek.open-regels.nl' });
+    expect(link).toHaveAttribute('href', 'https://publiek.open-regels.nl');
+  });
 });
