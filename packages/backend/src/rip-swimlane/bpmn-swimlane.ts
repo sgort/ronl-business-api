@@ -1,6 +1,13 @@
 import { XMLParser } from 'fast-xml-parser';
 import { AWB_PHASES } from '@ronl/shared';
-import type { AwbPhaseCode, NodeKind, PhaseSwimlaneModel, SwimLane, SwimNode } from '@ronl/shared';
+import type {
+  NodeKind,
+  PhaseSet,
+  PhaseSwimlaneModel,
+  ProcessPhase,
+  SwimLane,
+  SwimNode,
+} from '@ronl/shared';
 import { docLabel } from './doc-label';
 
 interface RawFlow {
@@ -227,56 +234,75 @@ function assignColumns(nodes: SwimNode[], forward: RawFlow[], seeds: string[]): 
 }
 
 /**
- * Awb phase codes in order. The table is data in @ronl/shared; these helpers
- * live here, with their only caller, because shared holds no logic (it has no
- * test runner, so nothing would measure them -- see check-shared-declarations).
+ * The built-in Awb table as a phase set. The table is data in @ronl/shared;
+ * this lives here, with its only caller, because shared holds no logic (it
+ * has no test runner, so nothing would measure it -- see
+ * check-shared-declarations).
  */
-const AWB_CODES: readonly string[] = AWB_PHASES.map((p) => p.code);
+const AWB_PHASE_SET: PhaseSet = {
+  scheme: 'awb',
+  label: 'Awb-fase',
+  phases: AWB_PHASES.map((p) => ({
+    code: p.code,
+    name: p.name,
+    codeLabel: p.code === 'archivering' ? 'Archiefwet' : `Fase ${p.code}`,
+  })),
+};
 
-function isAwbPhaseCode(value: string): value is AwbPhaseCode {
-  return AWB_CODES.includes(value);
-}
-
-/** Position in AWB_PHASES; later phases compare greater. */
-function awbPhaseIndex(code: AwbPhaseCode): number {
-  return AWB_CODES.indexOf(code);
+/**
+ * The phases a process declares itself: `ronl:phases="code:Name;code:Name"`,
+ * labelled by `ronl:phaseLabel` ("Fase" when absent). An entry without a code
+ * or a name, or repeating an earlier code, is skipped rather than guessed at;
+ * a name may itself contain a colon. Undefined when nothing usable is left.
+ */
+function declaredPhaseSet(process: XmlNode): PhaseSet | undefined {
+  const label = attr(process, 'phaseLabel') ?? 'Fase';
+  const phases: ProcessPhase[] = [];
+  for (const entry of (attr(process, 'phases') ?? '').split(';')) {
+    const at = entry.indexOf(':');
+    const code = at < 0 ? '' : entry.slice(0, at).trim();
+    const name = at < 0 ? '' : entry.slice(at + 1).trim();
+    if (code === '' || name === '' || phases.some((p) => p.code === code)) continue;
+    phases.push({ code, name, codeLabel: `${label} ${phases.length + 1}` });
+  }
+  return phases.length > 0 ? { scheme: 'bpmn', label, phases } : undefined;
 }
 
 /**
- * Awb phase per node. A node's own `ronl:awbPhase` wins; an unmarked node
- * takes the LATEST phase among its forward predecessors, so a join after an
- * optional step (payment) lands in the later phase. Back edges are excluded
- * for the same reason they are excluded from layering: a rework loop must
- * not drag an earlier step into a later phase.
+ * Phase per node. A node's own marker wins; an unmarked node takes the LATEST
+ * phase among its forward predecessors, so a join after an optional step
+ * (payment) lands in the later phase. Back edges are excluded for the same
+ * reason they are excluded from layering: a rework loop must not drag an
+ * earlier step into a later phase.
  *
  * Visits nodes in column order. After assignColumns every forward edge
  * points strictly rightwards, so each predecessor is settled before its
  * successor is read. A process with no markers gets no phases at all,
  * which is how the UI knows to hide the stepper.
  */
-function assignAwbPhases(
+function assignPhases(
   nodes: SwimNode[],
   forward: RawFlow[],
-  explicit: Map<string, AwbPhaseCode>
+  explicit: Map<string, string>,
+  set: PhaseSet
 ): void {
   if (explicit.size === 0) return;
+  const order = (code: string) => set.phases.findIndex((p) => p.code === code);
   const byId = new Map<string, SwimNode>(nodes.map((n) => [n.id, n]));
   const preds = new Map<string, string[]>();
   for (const f of forward) preds.set(f.to, [...(preds.get(f.to) ?? []), f.from]);
   for (const n of [...nodes].sort((a, b) => a.col - b.col)) {
     const own = explicit.get(n.id);
     if (own) {
-      n.awbPhase = own;
+      n.phase = own;
       continue;
     }
-    let latest: AwbPhaseCode | undefined;
+    let latest: string | undefined;
     for (const p of preds.get(n.id) ?? []) {
-      const phase = byId.get(p)?.awbPhase;
-      if (phase && (latest === undefined || awbPhaseIndex(phase) > awbPhaseIndex(latest))) {
-        latest = phase;
-      }
+      const phase = byId.get(p)?.phase;
+      if (phase && (latest === undefined || order(phase) > order(latest))) latest = phase;
     }
-    if (latest) n.awbPhase = latest;
+    if (latest) n.phase = latest;
   }
 }
 
@@ -397,8 +423,13 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
   // ── nodes ────────────────────────────────────────────────────────────────
   const nodes: SwimNode[] = [];
   // Phases are read here but assigned after layering: inheritance needs the
-  // forward edges and the column order, neither of which exists yet.
-  const explicitPhases = new Map<string, AwbPhaseCode>();
+  // forward edges and the column order, neither of which exists yet. A process
+  // that declares its own phases is read through `ronl:phase`; any other
+  // through `ronl:awbPhase` and the Awb table. The two never mix.
+  const declared = declaredPhaseSet(process);
+  const phaseSet = declared ?? AWB_PHASE_SET;
+  const markerAttr = declared ? 'phase' : 'awbPhase';
+  const explicitPhases = new Map<string, string>();
   for (const [elementName, kind] of Object.entries(KINDS)) {
     for (const el of childNodes(process, elementName)) {
       const id = String(el['@_id']);
@@ -415,8 +446,10 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
       const dmn = kind === 'rule' ? attr(el, 'decisionRef') : undefined;
       const calls = kind === 'call' ? attr(el, 'calledElement') : undefined;
       const formRef = attr(el, 'formRef');
-      const marker = attr(el, 'awbPhase');
-      if (marker !== undefined && isAwbPhaseCode(marker)) explicitPhases.set(id, marker);
+      const marker = attr(el, markerAttr);
+      if (marker !== undefined && phaseSet.phases.some((p) => p.code === marker)) {
+        explicitPhases.set(id, marker);
+      }
       nodes.push({
         id,
         bpmnId: id,
@@ -459,7 +492,7 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
   const backIds = findBackEdges(nodes, flows, seeds, declaredOrder);
   const forward = flows.filter((f) => !backIds.has(f.id));
   assignColumns(nodes, forward, seeds);
-  assignAwbPhases(nodes, forward, explicitPhases);
+  assignPhases(nodes, forward, explicitPhases, phaseSet);
 
   const edges = flows.map((f) => ({
     from: f.from,
@@ -476,6 +509,7 @@ export function parseSwimlane(xml: string, phaseCode: string): PhaseSwimlaneMode
     phaseCode,
     ...(processKey ? { processKey } : {}),
     ...(processName ? { processName } : {}),
+    ...(explicitPhases.size > 0 ? { phaseSet } : {}),
     lanes: lanesWithGroups,
     nodes,
     edges,

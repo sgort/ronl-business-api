@@ -4,7 +4,7 @@
  * TreeFellingPermitSubProcess, and the two timelines of screenshots 03
  * (review task in the subprocess) and 06 (Fase-6 task after it).
  */
-import type { ActivityHistoryItem, PhaseSwimlaneModel, SwimNode } from '@ronl/shared';
+import type { ActivityHistoryItem, PhaseSet, PhaseSwimlaneModel, SwimNode } from '@ronl/shared';
 import type { ProcessContext } from '../components/process/processContext';
 
 export const A = 'AwbShellProcess';
@@ -22,38 +22,55 @@ const n = (
   extra: Partial<SwimNode> = {}
 ): SwimNode => ({ id, bpmnId: id, kind, row, col, label, ...extra });
 
+/** The phase set the parser attaches to an Awb-marked model. */
+export const AWB_SET: PhaseSet = {
+  scheme: 'awb',
+  label: 'Awb-fase',
+  phases: [
+    { code: '1', name: 'Rechtsbetrekking', codeLabel: 'Fase 1' },
+    { code: '2', name: 'Ontvangst', codeLabel: 'Fase 2' },
+    { code: '3', name: 'Ontvankelijkheid', codeLabel: 'Fase 3' },
+    { code: '4+5', name: 'Behandeling en besluit', codeLabel: 'Fase 4+5' },
+    { code: '6', name: 'Bekendmaking', codeLabel: 'Fase 6' },
+    { code: '7', name: 'Betaling', codeLabel: 'Fase 7' },
+    { code: '8', name: 'Ketenproces', codeLabel: 'Fase 8' },
+    { code: 'archivering', name: 'Archivering', codeLabel: 'Archiefwet' },
+  ],
+};
+
 // Shaped like the parser's output for the two kapvergunning BPMNs.
 export const SHELL: PhaseSwimlaneModel = {
   phaseCode: A,
   processKey: A,
   processName: 'Awb Generiek proces',
+  phaseSet: AWB_SET,
   lanes: [
     { key: AAN, label: 'Aanvrager' },
     { key: BEH, label: 'Behandelaar', candidateGroups: ['caseworker'] },
     { key: SYS, label: 'Systeem' },
   ],
   nodes: [
-    n('StartEvent_AWB', 'start', 0, 0, 'Aanvraag ingediend', { awbPhase: '1' }),
-    n('Task_Phase1_Identity', 'script', 2, 1, 'Fase 1: Rechtsbetrekking', { awbPhase: '1' }),
+    n('StartEvent_AWB', 'start', 0, 0, 'Aanvraag ingediend', { phase: '1' }),
+    n('Task_Phase1_Identity', 'script', 2, 1, 'Fase 1: Rechtsbetrekking', { phase: '1' }),
     n('Task_Phase3_Completeness', 'rule', 2, 2, 'Fase 3: Ontvankelijkheidstoets', {
-      awbPhase: '3',
+      phase: '3',
       dmn: 'AwbCompletenessCheck',
     }),
-    n('Gateway_Complete', 'gateway', 2, 3, 'Aanvraag volledig?', { awbPhase: '3' }),
+    n('Gateway_Complete', 'gateway', 2, 3, 'Aanvraag volledig?', { phase: '3' }),
     n('Task_RequestMissingInfo', 'task', 1, 4, 'Aanvullende gegevens opvragen (Awb 4:5)', {
-      awbPhase: '3',
+      phase: '3',
     }),
     n('Task_Phase45_Process', 'call', 1, 5, 'Fase 4+5: Behandeling en besluit', {
-      awbPhase: '4+5',
+      phase: '4+5',
       calls: S,
     }),
     n('Task_Phase6_Notify', 'task', 1, 6, 'Fase 6: Aanvrager informeren', {
-      awbPhase: '6',
+      phase: '6',
       docs: ['Beschikking kapvergunning'],
     }),
-    n('Gateway_Payment', 'gateway', 2, 7, 'Betaling vereist?', { awbPhase: '7' }),
-    n('Task_Phase7_Payment', 'script', 2, 8, 'Fase 7: Betaling verwerken', { awbPhase: '7' }),
-    n('EndEvent_AWB', 'end', 2, 9, 'Dossier gesloten', { awbPhase: 'archivering' }),
+    n('Gateway_Payment', 'gateway', 2, 7, 'Betaling vereist?', { phase: '7' }),
+    n('Task_Phase7_Payment', 'script', 2, 8, 'Fase 7: Betaling verwerken', { phase: '7' }),
+    n('EndEvent_AWB', 'end', 2, 9, 'Dossier gesloten', { phase: 'archivering' }),
   ],
   edges: [
     { from: 'StartEvent_AWB', to: 'Task_Phase1_Identity' },
@@ -74,22 +91,23 @@ export const SUB: PhaseSwimlaneModel = {
   phaseCode: S,
   processKey: S,
   processName: 'Kapvergunning - Behandeling en besluit',
+  phaseSet: AWB_SET,
   lanes: [
     { key: BEH, label: 'Behandelaar', candidateGroups: ['caseworker'] },
     { key: SYS, label: 'Systeem' },
   ],
   nodes: [
-    n('SubStart', 'start', 1, 0, 'Start behandeling', { awbPhase: '4+5' }),
+    n('SubStart', 'start', 1, 0, 'Start behandeling', { phase: '4+5' }),
     n('Sub_AssessPermit', 'rule', 1, 1, 'Kapvergunning beoordelen (APV)', {
-      awbPhase: '4+5',
+      phase: '4+5',
       dmn: 'TreeFellingDecision',
     }),
-    n('Sub_CaseReview', 'task', 0, 2, 'Beoordeling behandelaar', { awbPhase: '4+5' }),
-    n('Sub_ResolveDecision', 'script', 1, 3, 'Definitief besluit vaststellen', { awbPhase: '4+5' }),
-    n('Sub_FinalGateway', 'gateway', 1, 4, 'Vergunning verleend?', { awbPhase: '4+5' }),
-    n('Sub_SetGranted', 'script', 1, 5, 'Besluit: Verleend', { awbPhase: '4+5' }),
-    n('Sub_SetRejected', 'script', 1, 5, 'Besluit: Geweigerd', { awbPhase: '4+5' }),
-    n('SubEnd', 'end', 1, 6, 'Besluit gereed', { awbPhase: '4+5' }),
+    n('Sub_CaseReview', 'task', 0, 2, 'Beoordeling behandelaar', { phase: '4+5' }),
+    n('Sub_ResolveDecision', 'script', 1, 3, 'Definitief besluit vaststellen', { phase: '4+5' }),
+    n('Sub_FinalGateway', 'gateway', 1, 4, 'Vergunning verleend?', { phase: '4+5' }),
+    n('Sub_SetGranted', 'script', 1, 5, 'Besluit: Verleend', { phase: '4+5' }),
+    n('Sub_SetRejected', 'script', 1, 5, 'Besluit: Geweigerd', { phase: '4+5' }),
+    n('SubEnd', 'end', 1, 6, 'Besluit gereed', { phase: '4+5' }),
   ],
   edges: [
     { from: 'SubStart', to: 'Sub_AssessPermit' },
@@ -135,7 +153,8 @@ export const ctx = (
   history,
   statusByProcess: {},
   current,
-  awbPhase: inSub ? '4+5' : '6',
+  phase: inSub ? '4+5' : '6',
+  phaseSet: AWB_SET,
   chain: inSub
     ? [
         { instanceId: 'p', processKey: A },
