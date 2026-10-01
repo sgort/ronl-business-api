@@ -1209,7 +1209,7 @@ describe('getPhaseSwimlaneModel', () => {
     expect(model.nodes.find((n) => n.id === 'Task_Phase45_Process')).toMatchObject({
       kind: 'call',
       calls: 'TreeFellingPermitSubProcess',
-      awbPhase: '4+5',
+      phase: '4+5',
     });
   });
 });

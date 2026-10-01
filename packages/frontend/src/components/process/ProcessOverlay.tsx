@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AwbPhaseCode, PhaseSwimlaneModel, Task } from '@ronl/shared';
+import type { PhaseSwimlaneModel, Task } from '@ronl/shared';
 import type { StatusKey } from '../../pages/infra-board/rip-model';
 import PhaseStepper from './PhaseStepper';
 import PhaseSwimlane from './PhaseSwimlane';
-import { AWB_STEPPER_PHASES, awbStepClass, awbStepTitle } from './awbStepper';
+import { phaseRef, phaseStepClass, phaseStepTitle, stepperPhases } from './phaseSet';
 import type { ProcessContext } from './processContext';
 import { myLaneKeys } from './laneSteps';
 import './caseworker-process.css';
@@ -14,11 +14,11 @@ const NOTHING = new Set<string>();
 /** The call activity in `model` that runs a loaded subprocess, and that subprocess's key. */
 function subprocessOf(model: PhaseSwimlaneModel | undefined, ctx: ProcessContext) {
   const call = model?.nodes.find((n) => n.kind === 'call' && n.calls && ctx.models[n.calls]);
-  return call ? { key: call.calls!, phase: call.awbPhase } : undefined;
+  return call ? { key: call.calls!, phase: call.phase } : undefined;
 }
 
 /**
- * The process model on demand: a modal overlay with the full Awb stepper,
+ * The process model on demand: a modal overlay with the full phase stepper,
  * a breadcrumb between main process and subprocess, a legend and the shared
  * swimlane. Esc and a backdrop click close it; focus is trapped inside and
  * handed back to whatever held it when the overlay opened.
@@ -36,7 +36,7 @@ export default function ProcessOverlay({
   ctx: ProcessContext;
   roles: readonly string[];
   /** Open at this phase instead of the task's own. */
-  initialPhase?: AwbPhaseCode;
+  initialPhase?: string;
   dossierRef?: string;
   /** Where focus goes on close when whatever opened the overlay is gone (the ⌘K palette). */
   returnFocus?: () => HTMLElement | null;
@@ -44,16 +44,15 @@ export default function ProcessOverlay({
 }) {
   const top = ctx.chain[0]?.processKey ?? ctx.current.processKey;
   const sub = subprocessOf(ctx.models[top], ctx);
+  const topSet = ctx.models[top]?.phaseSet;
 
-  /** 4+5 (the subprocess's phase) shows the subprocess; every other phase the main process. */
-  const processFor = (phase: AwbPhaseCode | null | undefined) =>
+  /** The subprocess's phase (Awb 4+5) shows the subprocess; every other phase the main process. */
+  const processFor = (phase: string | null | undefined) =>
     sub && phase && phase === sub.phase ? sub.key : top;
 
-  const [sel, setSel] = useState<AwbPhaseCode | null>(initialPhase ?? ctx.awbPhase);
+  const [sel, setSel] = useState<string | null>(initialPhase ?? ctx.phase);
   const [proc, setProc] = useState<string>(
-    initialPhase && initialPhase !== ctx.awbPhase
-      ? processFor(initialPhase)
-      : ctx.current.processKey
+    initialPhase && initialPhase !== ctx.phase ? processFor(initialPhase) : ctx.current.processKey
   );
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -115,8 +114,8 @@ export default function ProcessOverlay({
   }, []);
 
   const pickPhase = (code: string) => {
-    setSel(code as AwbPhaseCode);
-    setProc(processFor(code as AwbPhaseCode));
+    setSel(code);
+    setProc(processFor(code));
   };
 
   // Switching model can unmount the focused control ("open ↘" is not on the
@@ -136,9 +135,9 @@ export default function ProcessOverlay({
   );
   const mine = useMemo(() => (model ? myLaneKeys(model, roles) : NOTHING), [model, roles]);
   const scrollTo =
-    onOwnProcess && (!sel || sel === ctx.awbPhase)
+    onOwnProcess && (!sel || sel === ctx.phase)
       ? ctx.current.nodeId
-      : (model?.nodes.find((n) => n.awbPhase === sel)?.id ?? null);
+      : (model?.nodes.find((n) => n.phase === sel)?.id ?? null);
   const myGroups = [
     ...new Set(
       (model?.lanes ?? []).flatMap((l) =>
@@ -168,14 +167,14 @@ export default function ProcessOverlay({
           </button>
         </header>
         <div className="cwp-ov-body">
-          {ctx.awbPhase && (
+          {ctx.phase && ctx.phaseSet && (
             <PhaseStepper
-              phases={AWB_STEPPER_PHASES}
-              stepClass={awbStepClass(ctx.awbPhase)}
+              phases={stepperPhases(ctx.phaseSet)}
+              stepClass={phaseStepClass(ctx.phaseSet, ctx.phase)}
               selected={sel}
               onSelect={pickPhase}
               variant="full"
-              stepTitle={awbStepTitle}
+              stepTitle={phaseStepTitle}
             />
           )}
           <div className="pb-phase-titlebar">
@@ -200,7 +199,8 @@ export default function ProcessOverlay({
                       if (sub.phase) setSel(sub.phase);
                     }}
                   >
-                    Deelproces fase {sub.phase ?? ''}
+                    Deelproces fase{' '}
+                    {sub.phase && topSet ? phaseRef(topSet, sub.phase) : (sub.phase ?? '')}
                   </button>
                 </span>
               )}
@@ -246,7 +246,7 @@ export default function ProcessOverlay({
               onOpenCall={(n) => {
                 if (n.calls && ctx.models[n.calls]) {
                   setProc(n.calls);
-                  if (n.awbPhase) setSel(n.awbPhase);
+                  if (n.phase) setSel(n.phase);
                 }
               }}
             />

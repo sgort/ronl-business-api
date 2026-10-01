@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityHistoryItem, PhaseSwimlaneModel, ProcessLineage } from '@ronl/shared';
 import { buildProcessContext } from './processContext';
+import { AWB_SET } from '../../test/kapvergunningFixtures';
 
 // The kapvergunning shape: shell S calls sub T from Task_Phase45_Process.
 const S = 'AwbShellProcess';
@@ -47,14 +48,16 @@ const model = (
   phaseCode: key,
   processKey: key,
   lanes: withLanes ? [{ key: 'Lane_Behandelaar', label: 'Behandelaar' }] : [],
-  nodes: nodes.map(([id, awbPhase], i) => ({
+  // As the parser does: a set only when some node carries a marker.
+  ...(nodes.some(([, phase]) => phase) ? { phaseSet: AWB_SET } : {}),
+  nodes: nodes.map(([id, phase], i) => ({
     id,
     bpmnId: id,
     kind: 'task',
     col: i,
     row: 0,
     label: id,
-    ...(awbPhase ? { awbPhase: awbPhase as '4+5' } : {}),
+    ...(phase ? { phase } : {}),
   })),
   edges: [],
 });
@@ -107,7 +110,8 @@ describe('buildProcessContext', () => {
     });
     expect(ctx.statusByProcess[T]).toEqual({ SubStart: 'done', Sub_CaseReview: 'active' });
     expect(ctx.current).toEqual({ processKey: T, nodeId: 'Sub_CaseReview' });
-    expect(ctx.awbPhase).toBe('4+5');
+    expect(ctx.phase).toBe('4+5');
+    expect(ctx.phaseSet).toBe(AWB_SET);
     expect(ctx.hasLanes).toBe(true);
   });
 
@@ -133,7 +137,7 @@ describe('buildProcessContext', () => {
     expect(ctx.chain).toEqual([{ instanceId: 'parent', processKey: S }]);
     expect(ctx.statusByProcess[T]).toEqual({ SubStart: 'done', Sub_CaseReview: 'done' });
     expect(ctx.statusByProcess[S].Task_Phase6_Notify).toBe('active');
-    expect(ctx.awbPhase).toBe('6');
+    expect(ctx.phase).toBe('6');
     // Engine order across both instances.
     expect(ctx.history.map((e) => e.activityId)).toEqual([
       'Task_Phase45_Process',
@@ -175,10 +179,10 @@ describe('buildProcessContext', () => {
       models: { [S]: MODELS[S] },
     });
     expect(ctx.hasLanes).toBe(false);
-    expect(ctx.awbPhase).toBeNull();
+    expect(ctx.phase).toBeNull();
   });
 
-  it('a model without lanes or markers: hasLanes false, awbPhase null', () => {
+  it('a model without lanes or markers: hasLanes false, phase null', () => {
     const plain = model('Plain', [['Task_A', undefined]], false);
     const ctx = buildProcessContext({
       task: { processInstanceId: 'p', taskDefinitionKey: 'Task_A' },
@@ -187,7 +191,8 @@ describe('buildProcessContext', () => {
       models: { Plain: plain },
     });
     expect(ctx.hasLanes).toBe(false);
-    expect(ctx.awbPhase).toBeNull();
+    expect(ctx.phase).toBeNull();
+    expect(ctx.phaseSet).toBeNull();
   });
 
   it('leaves entries without a process key out of every status map', () => {
@@ -244,7 +249,7 @@ describe('buildProcessContext', () => {
     }
   });
 
-  it('takes the Awb phase from the calling node when the subprocess carries no markers', () => {
+  it('takes the phase, and its set, from the calling node when the subprocess carries no markers', () => {
     const unmarked = model(T, [
       ['SubStart', undefined],
       ['Sub_CaseReview', undefined],
@@ -263,6 +268,27 @@ describe('buildProcessContext', () => {
       },
       models: { [S]: MODELS[S], [T]: unmarked },
     });
-    expect(ctx.awbPhase).toBe('4+5');
+    expect(ctx.phase).toBe('4+5');
+    expect(ctx.phaseSet).toBe(AWB_SET);
+  });
+
+  it('carries a phase set the process declared itself', () => {
+    const declared: PhaseSwimlaneModel = {
+      ...model('Claim', [['Task_Intake', undefined]]),
+      phaseSet: {
+        scheme: 'bpmn',
+        label: 'Fase',
+        phases: [{ code: 'intake', name: 'Intake', codeLabel: 'Fase 1' }],
+      },
+    };
+    declared.nodes[0].phase = 'intake';
+    const ctx = buildProcessContext({
+      task: { processInstanceId: 'i', taskDefinitionKey: 'Task_Intake' },
+      lineages: [lineage('i', 'Claim', null)],
+      histories: { i: [h('Task_Intake', 'Claim', '2026-07-16T10:00:00Z', null)] },
+      models: { Claim: declared },
+    });
+    expect(ctx.phase).toBe('intake');
+    expect(ctx.phaseSet).toBe(declared.phaseSet);
   });
 });
