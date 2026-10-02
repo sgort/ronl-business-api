@@ -126,6 +126,8 @@ tags:
       checked through tenant-access.
   - name: Capacity
     description: Capacity claims, with the same shape and scoping as RIP.
+  - name: Besluitvorming
+    description: Besluitvorming onder gedelegeerde bevoegdheid, scoped by tenant like Capacity.
   - name: HR
     description: Onboarding runs and employee profiles.
   - name: Personal records
@@ -5496,6 +5498,64 @@ paths:
           description: '`CAPACITY_CLAIM_DOCUMENTS_FAILED`.'
           $ref: '#/components/responses/Error'
 
+  # ── /v1/besluitvorming ─────────────────────────────────────────────────────
+
+  /besluitvorming/active:
+    get:
+      operationId: listBesluitenActive
+      tags: [Besluitvorming]
+      summary: Running besluiten
+      description: Running GedelegeerdBesluitProcess instances of the caller's tenant, newest first, each with its current step.
+      responses:
+        '200':
+          description: The besluiten.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/BesluitListItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`BESLUIT_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
+  /besluitvorming/completed:
+    get:
+      operationId: listBesluitenCompleted
+      tags: [Besluitvorming]
+      summary: Completed besluiten
+      description: Completed GedelegeerdBesluitProcess instances of the caller's tenant, most recently completed first, each with its outcome.
+      responses:
+        '200':
+          description: The besluiten.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PlainEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/BesluitListItem' }
+          headers:
+            API-Version:
+              $ref: '#/components/headers/ApiVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: '`BESLUIT_LIST_FAILED`.'
+          $ref: '#/components/responses/Error'
+
   # ── /v1/hr ────────────────────────────────────────────────────────────────
 
   /hr/onboarding/completed:
@@ -7069,6 +7129,30 @@ components:
         requestType: { type: [string, 'null'] }
         boardDecision: { type: [string, 'null'] }
         advisoryGroup: { type: [string, 'null'] }
+
+    BesluitListItem:
+      type: object
+      description: A besluit (GedelegeerdBesluitProcess instance) as the Besluitvorming overview lists it.
+      required: [id, startTime]
+      properties:
+        id: { type: string }
+        businessKey: { type: [string, 'null'] }
+        startTime: { type: string, format: date-time }
+        endTime: { type: [string, 'null'], format: date-time }
+        onderwerp: { type: [string, 'null'] }
+        besluitType: { type: [string, 'null'] }
+        financieleGevolgen: { type: [number, 'null'] }
+        uitkomst:
+          type: [string, 'null']
+          description: ondertekend, or geëscaleerd — genomen/afgewezen; null while undecided.
+        huidigeStap:
+          type: [string, 'null']
+          description: The open task while running; null once completed.
+        kenmerk: { type: [string, 'null'] }
+        zaaknummer: { type: [string, 'null'] }
+        motivering: { type: [string, 'null'] }
+        voorgesteldBesluit: { type: [string, 'null'] }
+        escalatieReden: { type: [string, 'null'] }
 
     HrOnboarding:
       type: object

@@ -36,7 +36,7 @@ jest.mock('@utils/logger', () => ({ createLogger: () => mockLogger }));
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { OperatonService } from './operaton.service';
+import { OperatonService, besluitUitkomst } from './operaton.service';
 import { AmbiguousDeploymentError } from '@utils/errors';
 import type { OperatonVariable, ProcessStartRequest } from '@ronl/shared';
 
@@ -2059,4 +2059,124 @@ describe('list mappers when the history variables are sparse', () => {
       expect(list[1][field]).toBe(fallback);
     }
   );
+});
+
+describe('getBesluitList (Besluitvorming onder gedelegeerde bevoegdheid)', () => {
+  const vars = (instanceId: string, values: Record<string, unknown>) =>
+    Object.entries(values).map(([name, value]) => ({ processInstanceId: instanceId, name, value }));
+
+  it('lists running besluiten for the tenant, with their current step', async () => {
+    mockClient.post.mockResolvedValue({
+      data: [{ id: 'pi-1', businessKey: 'flevoland-1', startTime: '2026-10-02T09:00:00.000+0200' }],
+    });
+    routeGet([
+      [
+        '/history/variable-instance',
+        {
+          data: vars('pi-1', {
+            onderwerp: 'Opdracht schoonmaak',
+            besluitType: 'standaard',
+            financieleGevolgen: 12000,
+          }),
+        },
+      ],
+      ['/task', { data: [{ processInstanceId: 'pi-1', name: 'Advies en toetsing' }] }],
+    ]);
+
+    const list = await svc.getBesluitList('flevoland', 'lopend');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({
+        processDefinitionKey: 'GedelegeerdBesluitProcess',
+        unfinished: true,
+        variables: [{ name: 'municipality', operator: 'eq', value: 'flevoland' }],
+      })
+    );
+    expect(list).toEqual([
+      {
+        id: 'pi-1',
+        businessKey: 'flevoland-1',
+        startTime: '2026-10-02T09:00:00.000+0200',
+        endTime: null,
+        onderwerp: 'Opdracht schoonmaak',
+        besluitType: 'standaard',
+        financieleGevolgen: 12000,
+        uitkomst: null,
+        huidigeStap: 'Advies en toetsing',
+        kenmerk: null,
+        zaaknummer: null,
+        motivering: null,
+        voorgesteldBesluit: null,
+        escalatieReden: null,
+      },
+    ]);
+  });
+
+  it('lists completed besluiten newest first, with their outcome and no current step', async () => {
+    mockClient.post.mockResolvedValue({
+      data: [
+        {
+          id: 'pi-2',
+          businessKey: 'flevoland-2',
+          startTime: '2026-10-01T09:00:00.000+0200',
+          endTime: '2026-10-02T10:00:00.000+0200',
+        },
+      ],
+    });
+    routeGet([
+      [
+        '/history/variable-instance',
+        {
+          data: vars('pi-2', {
+            onderwerp: 'Huur tijdelijke huisvesting',
+            approvalStatus: 'approved',
+            kenmerk: 'BGB-2026-001',
+            zaaknummer: 'Z-42',
+          }),
+        },
+      ],
+    ]);
+
+    const list = await svc.getBesluitList('flevoland', 'afgerond');
+
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/history/process-instance',
+      expect.objectContaining({
+        processDefinitionKey: 'GedelegeerdBesluitProcess',
+        finished: true,
+        sorting: [{ sortBy: 'endTime', sortOrder: 'desc' }],
+      })
+    );
+    expect(list[0]).toMatchObject({
+      id: 'pi-2',
+      endTime: '2026-10-02T10:00:00.000+0200',
+      uitkomst: 'ondertekend',
+      huidigeStap: null,
+      kenmerk: 'BGB-2026-001',
+      zaaknummer: 'Z-42',
+    });
+    // A finished instance has no open task to ask for.
+    expect(mockClient.get).not.toHaveBeenCalledWith('/task', expect.anything());
+  });
+
+  it('returns an empty list without asking for variables when there are no instances', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await expect(svc.getBesluitList('flevoland', 'afgerond')).resolves.toEqual([]);
+    expect(mockClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe('besluitUitkomst', () => {
+  it.each([
+    [{ approvalStatus: 'approved' }, 'ondertekend'],
+    [{ besluitUitkomst: 'genomen' }, 'geëscaleerd — genomen'],
+    [{ besluitUitkomst: 'afgewezen' }, 'geëscaleerd — afgewezen'],
+    // A declined signature escalates: the authority's outcome is the outcome.
+    [{ approvalStatus: 'rejected', besluitUitkomst: 'genomen' }, 'geëscaleerd — genomen'],
+    [{ approvalStatus: 'rejected' }, null],
+    [{}, null],
+  ])('%j → %s', (values, expected) => {
+    expect(besluitUitkomst(values)).toBe(expected);
+  });
 });
