@@ -907,7 +907,7 @@
         "assurance_level": ["hoog"],
         "employee_id": ["emp-005"]
       },
-      "realmRoles": ["caseworker"]
+      "realmRoles": ["caseworker", "besluit-indiener"]
     },
     {
       "username": "test-infra-flevoland",
