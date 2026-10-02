@@ -24,8 +24,10 @@ the steps to switch production to live signing are in
 
 1. A user task that carries `ronl:signatureRef` in its BPMN shows a signing
    panel instead of its form: _"Deze taak vereist een digitale handtekening."_
-   Today that is only `Task_AccorderenProjectplan4` (R2.1, _Accorderen
-   Projectplan 4. Uitgangspunten VO-fase_), which signs the `rip-pdp` document.
+   Today that is `Task_AccorderenProjectplan4` (R2.1, _Accorderen Projectplan 4. Uitgangspunten VO-fase_), which signs the `rip-pdp` document, and
+   `Task_Onderteken` in _Besluitvorming onder gedelegeerde bevoegdheid_, which
+   signs `besluit-gb-besluit`. Every task view shows the panel: the
+   Infra-board and the caseworker task inbox. See §9 for configuring a process.
 2. The signer claims the task, then chooses:
    - **Onderteken nu** — the ValidSign ceremony opens embedded in the panel.
    - **Stuur per e-mail** — ValidSign emails the signing request to the
@@ -78,7 +80,8 @@ sequenceDiagram
 | Routes           | [`validsign.routes.ts`](../packages/backend/src/routes/validsign.routes.ts)                          | board endpoints (JWT) and the unauthenticated callback / ceremony routes           |
 | Completion       | [`validsignCompletion.service.ts`](../packages/backend/src/services/validsignCompletion.service.ts)  | one idempotent path used by both callback and poller                               |
 | Poller           | [`validsignPoller.service.ts`](../packages/backend/src/services/validsignPoller.service.ts)          | safety net: sweeps instances with `validsignStatus=sent`                           |
-| Panel            | [`SigningPanel.tsx`](../packages/frontend/src/components/InfraBoardDashboard/SigningPanel.tsx)       | claim → sign → poll; resumes an in-flight package after a reload                   |
+| Panel            | [`SigningPanel.tsx`](../packages/frontend/src/components/signing/SigningPanel.tsx)                   | claim → sign → poll; resumes an in-flight package after a reload                   |
+| Hook             | [`useTaskSignature.ts`](../packages/frontend/src/components/signing/useTaskSignature.ts)             | every task view asks it whether a task signs; null (form) on no task or a failure  |
 
 ## 3. The flow in detail
 
@@ -141,8 +144,12 @@ instance. It is a no-op unless there is something to do:
    (`PACKAGE_CREATE`, `DOCUMENT_VIEWED`, …) change nothing.
 4. On `COMPLETED`: downloads the signed PDF and the evidence summary and uploads
    both to eDOCS as standalone documents (department `EDOCS_DEPARTMENT`,
-   default `IVR`), named `<projectNumber> — Uitgangspunten VO-fase (ondertekend) — getekend document`
-   and `… — bewijsoverzicht`. **An archive failure does not block the task**:
+   default `IVR`), as `<templateId>-<businessKey>-signed.pdf` and
+   `-evidence.pdf`, titled `<businessKey> — <template name> (ondertekend) — getekend document`
+   and `… — bewijsoverzicht`. The template comes from `validsignTemplateId` /
+   `validsignTemplateName`, recorded when the package was created; a package
+   without them falls back to `ondertekend-document` / _Ondertekend document_,
+   and an instance without a business key to the package id. **An archive failure does not block the task**:
    the signature is legally complete at ValidSign, so the task completes with
    `validsignArchiveStatus=failed`.
 5. Completes the Operaton task in **one** write with `approvalStatus`
@@ -350,7 +357,31 @@ signing quota.
   the BPMN and redeploy it. The task falls back to its `rip-approval` form. No
   data migration, no code change.
 
-## 9. Known limitations and open points
+## 9. Configuring signing for a process
+
+Any process signs a task through ValidSign without code in RBA:
+
+1. Give the user task `ronl:signatureRef="<document id>"`. LDE bundles that
+   `.document` into the deployment.
+2. Give the document a `signOff` zone. ValidSign's signature field is anchored
+   at its first line; without it there is nothing to sign.
+3. Keep a `camunda:formRef` on the task as the fallback. It is shown when the
+   signing spec cannot be fetched, and it must set `approvalStatus`
+   (`approved` / `rejected`) as signing does.
+4. Branch on `approvalStatus` after the task. Signing completes the task
+   server-side, writing `approvalStatus` and the `validsign*` variables.
+
+Every task view (the Infra-board and the caseworker task inbox) shows the
+signing panel through `useTaskSignature`. Signing state belongs to the task
+that created the package: the package route records `validsignTaskId`, and a
+task reads another task's `validsign*` variables as status `none`. So a
+process that loops back to a new signing task after a declined signature
+starts afresh, while a second package for the **same** task is still refused.
+
+The signed document and its evidence summary are archived as described in §3
+step 4: named after the signed template and the case's business key.
+
+## 10. Known limitations and open points
 
 - **The duplicate-package guard is not atomic.** Two truly simultaneous create
   requests can both pass it. The panel removes the button on first click and
@@ -369,11 +400,12 @@ signing quota.
   PDF is archived to the stub there. The real document is in ValidSign.
 - **Locally, callbacks never arrive**; the poller completes every signature.
 
-## 10. History
+## 11. History
 
-| When                | Change                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 2026.08.36 (30 Aug) | Feature shipped: tag-driven signing, stub mode, live-tier allowlist, callback plus poller, placed signature fields |
-| #131 (14 Sep)       | Callback accepts `Authorization: Bearer`; rejections log the presented credential form                             |
-| #132 (14 Sep)       | Callback accepts `Authorization: Basic` (raw, base64, base64 pair); accepted callbacks log the form                |
-| 14 Sep              | ACC switched to live: five App Service settings, container logging enabled; first live signings verified           |
+| When                | Change                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026.08.36 (30 Aug) | Feature shipped: tag-driven signing, stub mode, live-tier allowlist, callback plus poller, placed signature fields                                     |
+| #131 (14 Sep)       | Callback accepts `Authorization: Bearer`; rejections log the presented credential form                                                                 |
+| #132 (14 Sep)       | Callback accepts `Authorization: Basic` (raw, base64, base64 pair); accepted callbacks log the form                                                    |
+| 14 Sep              | ACC switched to live: five App Service settings, container logging enabled; first live signings verified                                               |
+| 2 Oct               | Generic: every task view signs (`useTaskSignature`), signing state per task (`validsignTaskId`), archive names from the template and business key (§9) |
