@@ -460,6 +460,11 @@
             "id": "capacity-claim-archief",
             "label": "Completed capacity claims",
             "isPublic": false
+          },
+          {
+            "id": "besluit-starten",
+            "label": "Besluit voorbereiden",
+            "isPublic": false
           }
         ],
         "projects": [
