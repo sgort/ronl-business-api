@@ -175,6 +175,29 @@ describe('tenant section lists', () => {
   const tenants = JSON.parse(readFileSync(join(__dirname, '../../../public/tenants.json'), 'utf8'));
   const flevoland = (tenants.tenants ?? tenants).flevoland;
 
+  it.each(['besluiten-lopend', 'besluiten-afgerond'])(
+    'Flevoland shows %s to every besluit participant, not only the indiener',
+    (id) => {
+      const item = MODES.flatMap((m) => m.groups)
+        .flatMap((g) => g.items)
+        .find((i) => i.id === id);
+      expect(item).toBeDefined();
+      const gate = (userRoles: string[]) =>
+        isRailItemVisible(
+          item as RailItem,
+          {
+            isAuthenticated: true,
+            tenantSectionIds: tenantSectionIdsFrom(flevoland.leftPanelSections),
+            userRoles,
+            userOrgType: 'province',
+          } as GateContext
+        );
+      expect(gate(['caseworker', 'besluit-jurist'])).toBe(true);
+      expect(gate(['caseworker', 'besluit-registratie'])).toBe(true);
+      expect(gate(['caseworker'])).toBe(false);
+    }
+  );
+
   it('Flevoland offers the besluitvorming start to its indieners', () => {
     const sectionIds = tenantSectionIdsFrom(flevoland.leftPanelSections);
     const item = MODES.flatMap((m) => m.groups)

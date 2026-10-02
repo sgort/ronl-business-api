@@ -77,6 +77,13 @@ vi.mock('../CaseworkerDashboard/CapacityClaimSection', () => ({
 vi.mock('../CaseworkerDashboard/BesluitStartSection', () => ({
   default: () => <div>besluit-start-section</div>,
 }));
+const mockBesluitOverzicht = vi.hoisted(() => vi.fn());
+vi.mock('../CaseworkerDashboard/BesluitOverzichtSection', () => ({
+  default: (props: { state: string }) => {
+    mockBesluitOverzicht(props);
+    return <div>besluit-overzicht-{props.state}</div>;
+  },
+}));
 vi.mock('../CaseworkerDashboard/CapacityClaimArchiefSection', () => ({
   default: () => <div>capacity-claim-archief</div>,
 }));
@@ -150,6 +157,15 @@ describe('SectionRouter', () => {
   ])('routes "%s" to its component', (sectionId, text) => {
     render(<SectionRouter {...baseProps} sectionId={sectionId} />);
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['besluiten-lopend', 'lopend'],
+    ['besluiten-afgerond', 'afgerond'],
+  ])('routes "%s" to the besluit overview in state %s', (sectionId, state) => {
+    render(<SectionRouter {...baseProps} sectionId={sectionId} />);
+    expect(screen.getByText(`besluit-overzicht-${state}`)).toBeInTheDocument();
+    expect(mockBesluitOverzicht).toHaveBeenCalledWith(expect.objectContaining({ state }));
   });
 
   it('archief passes the caseworker board id and denies the infra process keys', () => {
