@@ -959,3 +959,64 @@ describe('parseSwimlane — HR capacity claim, declared phases', () => {
     });
   });
 });
+
+describe('parseSwimlane — besluitvorming onder gedelegeerde bevoegdheid', () => {
+  const key = 'GedelegeerdBesluitProcess';
+  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.bpmn`), 'utf-8'), key);
+
+  it('reads six lanes, each human lane holding its own besluit role', () => {
+    expect(m.lanes.map((l) => [l.key, l.candidateGroups])).toEqual([
+      ['Lane_Indiener', ['besluit-indiener']],
+      ['Lane_Juridisch', ['besluit-jurist']],
+      ['Lane_Systeem', undefined],
+      ['Lane_Bestuursautoriteit', ['besluit-bestuursautoriteit']],
+      ['Lane_Ondertekenaar', ['besluit-ondertekenaar']],
+      ['Lane_Registratie', ['besluit-registratie']],
+    ]);
+  });
+
+  it('declares the six phases', () => {
+    expect(m.phaseSet?.scheme).toBe('bpmn');
+    expect(m.phaseSet?.phases.map((p) => [p.code, p.codeLabel])).toEqual([
+      ['voorbereiding', 'Fase 1'],
+      ['toetsing', 'Fase 2'],
+      ['memorandum', 'Fase 3'],
+      ['ondertekening', 'Fase 4'],
+      ['escalatie', 'Fase 5'],
+      ['registratie', 'Fase 6'],
+    ]);
+  });
+
+  it('puts every node in the phase the design groups it under', () => {
+    expect(Object.fromEntries(m.nodes.map((n) => [n.id, n.phase]))).toEqual({
+      StartEvent_Besluit: 'voorbereiding',
+      Task_KiesSjabloon: 'voorbereiding',
+      Task_VulSjabloonIn: 'voorbereiding',
+      Task_AdviesToetsing: 'toetsing',
+      Task_ControleerVoorwaarden: 'toetsing',
+      Task_Beslisregels: 'toetsing',
+      Gateway_VoorwaardenVervuld: 'toetsing',
+      Gateway_Memorandum: 'toetsing',
+      Task_Memorandum: 'memorandum',
+      Task_AdviesAkkoord: 'memorandum',
+      Gateway_Akkoord: 'memorandum',
+      Task_DienIn: 'ondertekening',
+      Task_Onderteken: 'ondertekening',
+      Gateway_Ondertekend: 'ondertekening',
+      Task_Escaleren: 'escalatie',
+      Task_NeemBesluit: 'escalatie',
+      Task_Registreer: 'registratie',
+      Task_Archiveer: 'registratie',
+      EndEvent_Besluit: 'registratie',
+    });
+  });
+
+  it('escalates a declined signature, forward, with no rework loop anywhere', () => {
+    // A decline is an incident for the bevoegde bestuursautoriteit, not a
+    // correction round: there is no edge back into earlier work.
+    expect(m.edges.filter((e) => e.back)).toEqual([]);
+    expect(m.edges).toContainEqual(
+      expect.objectContaining({ from: 'Gateway_Ondertekend', to: 'Task_Escaleren' })
+    );
+  });
+});

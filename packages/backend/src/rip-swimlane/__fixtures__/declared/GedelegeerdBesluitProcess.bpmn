@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:ronl="http://ronl.nl/schema/1.0" id="Definitions_GedelegeerdBesluit" targetNamespace="http://example.com/besluitvorming-gedelegeerd" exporter="Camunda Modeler" exporterVersion="5.43.1">
+  <bpmn:collaboration id="Collaboration_GedelegeerdBesluit">
+    <bpmn:participant id="Participant_GedelegeerdBesluit" name="Besluitvorming onder gedelegeerde bevoegdheid" processRef="GedelegeerdBesluitProcess" />
+  </bpmn:collaboration>
+  <bpmn:process id="GedelegeerdBesluitProcess" name="Besluitvorming onder gedelegeerde bevoegdheid" isExecutable="true" camunda:historyTimeToLive="365" ronl:organization="flevoland" ronl:language="nl" ronl:phases="voorbereiding:Voorbereiding;toetsing:Advies en toetsing;memorandum:Memorandum;ondertekening:Ondertekening;escalatie:Escalatie;registratie:Registratie en archivering" ronl:phaseLabel="Fase">
+    <bpmn:laneSet id="LaneSet_GedelegeerdBesluit">
+      <bpmn:lane id="Lane_Indiener" name="Aanvrager / Indiener">
+        <bpmn:flowNodeRef>StartEvent_Besluit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_KiesSjabloon</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_VulSjabloonIn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ControleerVoorwaarden</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Memorandum</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DienIn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Escaleren</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Juridisch" name="Juridische Zaken / Compliance">
+        <bpmn:flowNodeRef>Task_AdviesToetsing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AdviesAkkoord</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Akkoord</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Systeem" name="Systeem">
+        <bpmn:flowNodeRef>Task_Beslisregels</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_VoorwaardenVervuld</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Memorandum</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Bestuursautoriteit" name="Bevoegde bestuursautoriteit">
+        <bpmn:flowNodeRef>Task_NeemBesluit</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Ondertekenaar" name="Gemachtigde ondertekenaar">
+        <bpmn:flowNodeRef>Task_Onderteken</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Ondertekend</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Registratie" name="Registratie &amp; Beheer">
+        <bpmn:flowNodeRef>Task_Registreer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Archiveer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Besluit</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Besluit" name="Besluit voorbereiden" ronl:phase="voorbereiding">
+      <bpmn:outgoing>Flow_Start_Kies</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_KiesSjabloon" name="1. Kies de juiste beslissingssjabloon" camunda:formRef="besluit-gb-sjabloon-kiezen" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-indiener">
+      <bpmn:incoming>Flow_Start_Kies</bpmn:incoming>
+      <bpmn:outgoing>Flow_Kies_Vul</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VulSjabloonIn" name="2. Vul de sjabloon in" camunda:formRef="besluit-gb-sjabloon-invullen" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-indiener">
+      <bpmn:incoming>Flow_Kies_Vul</bpmn:incoming>
+      <bpmn:outgoing>Flow_Vul_Advies</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AdviesToetsing" name="Advies en toetsing" ronl:phase="toetsing" camunda:formRef="besluit-gb-advies-toetsing" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-jurist">
+      <bpmn:incoming>Flow_Vul_Advies</bpmn:incoming>
+      <bpmn:outgoing>Flow_Advies_Controleer</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ControleerVoorwaarden" name="4. Controleer de voorwaarden voor gedelegeerde bevoegdheid" camunda:formRef="besluit-gb-voorwaarden" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-indiener">
+      <bpmn:incoming>Flow_Advies_Controleer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Controleer_Beslisregels</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:businessRuleTask id="Task_Beslisregels" name="Beslisregels toepassen" camunda:resultVariable="besluitRoute" camunda:decisionRef="GedelegeerdBesluitRoute" camunda:decisionRefTenantId="${null}" camunda:mapDecisionResult="singleEntry">
+      <bpmn:incoming>Flow_Controleer_Beslisregels</bpmn:incoming>
+      <bpmn:outgoing>Flow_Beslisregels_Voorwaarden</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gateway_VoorwaardenVervuld" name="Zijn alle voorwaarden vervuld?">
+      <bpmn:incoming>Flow_Beslisregels_Voorwaarden</bpmn:incoming>
+      <bpmn:outgoing>Flow_Voorwaarden_Ja</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Voorwaarden_Nee</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_Memorandum" name="Is een formeel memorandum vereist?">
+      <bpmn:incoming>Flow_Voorwaarden_Ja</bpmn:incoming>
+      <bpmn:outgoing>Flow_Memorandum_Ja</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Memorandum_Nee</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Memorandum" name="5. Vul het memorandum in" ronl:phase="memorandum" camunda:formRef="besluit-gb-memorandum" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-indiener">
+      <bpmn:incoming>Flow_Memorandum_Ja</bpmn:incoming>
+      <bpmn:outgoing>Flow_MemorandumTask_Advies</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AdviesAkkoord" name="Verstrek advies / akkoord" camunda:formRef="besluit-gb-akkoord" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-jurist">
+      <bpmn:incoming>Flow_MemorandumTask_Advies</bpmn:incoming>
+      <bpmn:outgoing>Flow_AdviesAkkoord_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Akkoord" name="Akkoord?">
+      <bpmn:incoming>Flow_AdviesAkkoord_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Akkoord_Ja</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Akkoord_Nee</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_DienIn" name="6. Dien het besluit in voor ondertekening" ronl:phase="ondertekening" camunda:formRef="besluit-gb-indienen" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-indiener">
+      <bpmn:incoming>Flow_Memorandum_Nee</bpmn:incoming>
+      <bpmn:incoming>Flow_Akkoord_Ja</bpmn:incoming>
+      <bpmn:outgoing>Flow_DienIn_Onderteken</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Escaleren" name="Escaleren naar bevoegde bestuursautoriteit" ronl:phase="escalatie" camunda:formRef="besluit-gb-escalatie" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-indiener">
+      <bpmn:incoming>Flow_Voorwaarden_Nee</bpmn:incoming>
+      <bpmn:incoming>Flow_Akkoord_Nee</bpmn:incoming>
+      <bpmn:incoming>Flow_Ondertekend_Nee</bpmn:incoming>
+      <bpmn:outgoing>Flow_Escaleren_NeemBesluit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_NeemBesluit" name="Neem besluit" camunda:formRef="besluit-gb-besluit-nemen" camunda:formRefBinding="deployment" ronl:documentRef="besluit-gb-besluit" camunda:candidateGroups="besluit-bestuursautoriteit">
+      <bpmn:incoming>Flow_Escaleren_NeemBesluit</bpmn:incoming>
+      <bpmn:outgoing>Flow_NeemBesluit_Registreer</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Onderteken" name="Onderteken het besluit" camunda:formRef="besluit-gb-ondertekenen" camunda:formRefBinding="deployment" ronl:signatureRef="besluit-gb-besluit" camunda:candidateGroups="besluit-ondertekenaar">
+      <bpmn:incoming>Flow_DienIn_Onderteken</bpmn:incoming>
+      <bpmn:outgoing>Flow_Onderteken_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Ondertekend" name="Ondertekend?">
+      <bpmn:incoming>Flow_Onderteken_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ondertekend_Ja</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Ondertekend_Nee</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Registreer" name="Ontvang en registreer" ronl:phase="registratie" camunda:formRef="besluit-gb-registreren" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-registratie">
+      <bpmn:incoming>Flow_Ondertekend_Ja</bpmn:incoming>
+      <bpmn:incoming>Flow_NeemBesluit_Registreer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Registreer_Archiveer</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Archiveer" name="Archiveer" camunda:formRef="besluit-gb-archiveren" camunda:formRefBinding="deployment" camunda:candidateGroups="besluit-registratie">
+      <bpmn:incoming>Flow_Registreer_Archiveer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Archiveer_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_Besluit" name="Besluit gearchiveerd">
+      <bpmn:incoming>Flow_Archiveer_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_Kies" sourceRef="StartEvent_Besluit" targetRef="Task_KiesSjabloon" />
+    <bpmn:sequenceFlow id="Flow_Kies_Vul" sourceRef="Task_KiesSjabloon" targetRef="Task_VulSjabloonIn" />
+    <bpmn:sequenceFlow id="Flow_Vul_Advies" sourceRef="Task_VulSjabloonIn" targetRef="Task_AdviesToetsing" />
+    <bpmn:sequenceFlow id="Flow_Advies_Controleer" sourceRef="Task_AdviesToetsing" targetRef="Task_ControleerVoorwaarden" />
+    <bpmn:sequenceFlow id="Flow_Controleer_Beslisregels" sourceRef="Task_ControleerVoorwaarden" targetRef="Task_Beslisregels" />
+    <bpmn:sequenceFlow id="Flow_Beslisregels_Voorwaarden" sourceRef="Task_Beslisregels" targetRef="Gateway_VoorwaardenVervuld" />
+    <bpmn:sequenceFlow id="Flow_Voorwaarden_Ja" name="ja" sourceRef="Gateway_VoorwaardenVervuld" targetRef="Gateway_Memorandum">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${besluitRoute != &quot;escaleren&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Voorwaarden_Nee" name="nee" sourceRef="Gateway_VoorwaardenVervuld" targetRef="Task_Escaleren">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${besluitRoute == &quot;escaleren&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Memorandum_Ja" name="ja" sourceRef="Gateway_Memorandum" targetRef="Task_Memorandum">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${besluitRoute == &quot;memorandum&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Memorandum_Nee" name="nee" sourceRef="Gateway_Memorandum" targetRef="Task_DienIn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${besluitRoute == &quot;ondertekenen&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_MemorandumTask_Advies" sourceRef="Task_Memorandum" targetRef="Task_AdviesAkkoord" />
+    <bpmn:sequenceFlow id="Flow_AdviesAkkoord_Gateway" sourceRef="Task_AdviesAkkoord" targetRef="Gateway_Akkoord" />
+    <bpmn:sequenceFlow id="Flow_Akkoord_Ja" name="akkoord" sourceRef="Gateway_Akkoord" targetRef="Task_DienIn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${juridischAkkoord == &quot;akkoord&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Akkoord_Nee" name="niet akkoord" sourceRef="Gateway_Akkoord" targetRef="Task_Escaleren">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${juridischAkkoord == &quot;niet-akkoord&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_DienIn_Onderteken" sourceRef="Task_DienIn" targetRef="Task_Onderteken" />
+    <bpmn:sequenceFlow id="Flow_Onderteken_Gateway" sourceRef="Task_Onderteken" targetRef="Gateway_Ondertekend" />
+    <bpmn:sequenceFlow id="Flow_Ondertekend_Ja" name="ja" sourceRef="Gateway_Ondertekend" targetRef="Task_Registreer">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == &quot;approved&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Ondertekend_Nee" name="nee" sourceRef="Gateway_Ondertekend" targetRef="Task_Escaleren">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalStatus == &quot;rejected&quot;}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Escaleren_NeemBesluit" sourceRef="Task_Escaleren" targetRef="Task_NeemBesluit" />
+    <bpmn:sequenceFlow id="Flow_NeemBesluit_Registreer" sourceRef="Task_NeemBesluit" targetRef="Task_Registreer" />
+    <bpmn:sequenceFlow id="Flow_Registreer_Archiveer" sourceRef="Task_Registreer" targetRef="Task_Archiveer" />
+    <bpmn:sequenceFlow id="Flow_Archiveer_End" sourceRef="Task_Archiveer" targetRef="EndEvent_Besluit" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_GedelegeerdBesluit">
+    <bpmndi:BPMNPlane id="BPMNPlane_GedelegeerdBesluit" bpmnElement="Collaboration_GedelegeerdBesluit">
+      <bpmndi:BPMNShape id="Participant_GedelegeerdBesluit_di" bpmnElement="Participant_GedelegeerdBesluit" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="2860" height="980" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Indiener_di" bpmnElement="Lane_Indiener" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="2830" height="280" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Juridisch_di" bpmnElement="Lane_Juridisch" isHorizontal="true">
+        <dc:Bounds x="130" y="340" width="2830" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Systeem_di" bpmnElement="Lane_Systeem" isHorizontal="true">
+        <dc:Bounds x="130" y="480" width="2830" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Bestuursautoriteit_di" bpmnElement="Lane_Bestuursautoriteit" isHorizontal="true">
+        <dc:Bounds x="130" y="620" width="2830" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Ondertekenaar_di" bpmnElement="Lane_Ondertekenaar" isHorizontal="true">
+        <dc:Bounds x="130" y="760" width="2830" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Registratie_di" bpmnElement="Lane_Registratie" isHorizontal="true">
+        <dc:Bounds x="130" y="900" width="2830" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Besluit_di" bpmnElement="StartEvent_Besluit">
+        <dc:Bounds x="192" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="170" y="155" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_KiesSjabloon_di" bpmnElement="Task_KiesSjabloon">
+        <dc:Bounds x="270" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VulSjabloonIn_di" bpmnElement="Task_VulSjabloonIn">
+        <dc:Bounds x="470" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AdviesToetsing_di" bpmnElement="Task_AdviesToetsing">
+        <dc:Bounds x="670" y="370" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ControleerVoorwaarden_di" bpmnElement="Task_ControleerVoorwaarden">
+        <dc:Bounds x="870" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Beslisregels_di" bpmnElement="Task_Beslisregels">
+        <dc:Bounds x="1070" y="510" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_VoorwaardenVervuld_di" bpmnElement="Gateway_VoorwaardenVervuld" isMarkerVisible="true">
+        <dc:Bounds x="1285" y="525" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1265" y="485" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Memorandum_di" bpmnElement="Gateway_Memorandum" isMarkerVisible="true">
+        <dc:Bounds x="1395" y="525" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1375" y="580" width="90" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Memorandum_di" bpmnElement="Task_Memorandum">
+        <dc:Bounds x="1500" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AdviesAkkoord_di" bpmnElement="Task_AdviesAkkoord">
+        <dc:Bounds x="1700" y="370" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Akkoord_di" bpmnElement="Gateway_Akkoord" isMarkerVisible="true">
+        <dc:Bounds x="1915" y="385" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1918" y="440" width="45" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DienIn_di" bpmnElement="Task_DienIn">
+        <dc:Bounds x="2020" y="90" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Escaleren_di" bpmnElement="Task_Escaleren">
+        <dc:Bounds x="2230" y="230" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NeemBesluit_di" bpmnElement="Task_NeemBesluit">
+        <dc:Bounds x="2230" y="650" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Onderteken_di" bpmnElement="Task_Onderteken">
+        <dc:Bounds x="2020" y="790" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Ondertekend_di" bpmnElement="Gateway_Ondertekend" isMarkerVisible="true">
+        <dc:Bounds x="2235" y="805" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2292" y="812" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Registreer_di" bpmnElement="Task_Registreer">
+        <dc:Bounds x="2440" y="930" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Archiveer_di" bpmnElement="Task_Archiveer">
+        <dc:Bounds x="2650" y="930" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Besluit_di" bpmnElement="EndEvent_Besluit">
+        <dc:Bounds x="2862" y="952" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2840" y="995" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_Kies_di" bpmnElement="Flow_Start_Kies">
+        <di:waypoint x="228" y="130" />
+        <di:waypoint x="270" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Kies_Vul_di" bpmnElement="Flow_Kies_Vul">
+        <di:waypoint x="430" y="130" />
+        <di:waypoint x="470" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Vul_Advies_di" bpmnElement="Flow_Vul_Advies">
+        <di:waypoint x="630" y="130" />
+        <di:waypoint x="650" y="130" />
+        <di:waypoint x="650" y="410" />
+        <di:waypoint x="670" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Advies_Controleer_di" bpmnElement="Flow_Advies_Controleer">
+        <di:waypoint x="830" y="410" />
+        <di:waypoint x="850" y="410" />
+        <di:waypoint x="850" y="130" />
+        <di:waypoint x="870" y="130" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Controleer_Beslisregels_di" bpmnElement="Flow_Controleer_Beslisregels">
+        <di:waypoint x="1030" y="130" />
+        <di:waypoint x="1050" y="130" />
+        <di:waypoint x="1050" y="550" />
+        <di:waypoint x="1070" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Beslisregels_Voorwaarden_di" bpmnElement="Flow_Beslisregels_Voorwaarden">
+        <di:waypoint x="1230" y="550" />
+        <di:waypoint x="1285" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Voorwaarden_Ja_di" bpmnElement="Flow_Voorwaarden_Ja">
+        <di:waypoint x="1335" y="550" />
+        <di:waypoint x="1395" y="550" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1352" y="532" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Voorwaarden_Nee_di" bpmnElement="Flow_Voorwaarden_Nee">
+        <di:waypoint x="1310" y="575" />
+        <di:waypoint x="1310" y="600" />
+        <di:waypoint x="2270" y="600" />
+        <di:waypoint x="2270" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1316" y="580" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Memorandum_Ja_di" bpmnElement="Flow_Memorandum_Ja">
+        <di:waypoint x="1420" y="525" />
+        <di:waypoint x="1420" y="130" />
+        <di:waypoint x="1500" y="130" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1426" y="500" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Memorandum_Nee_di" bpmnElement="Flow_Memorandum_Nee">
+        <di:waypoint x="1445" y="550" />
+        <di:waypoint x="1990" y="550" />
+        <di:waypoint x="1990" y="150" />
+        <di:waypoint x="2020" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1452" y="532" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_MemorandumTask_Advies_di" bpmnElement="Flow_MemorandumTask_Advies">
+        <di:waypoint x="1660" y="130" />
+        <di:waypoint x="1680" y="130" />
+        <di:waypoint x="1680" y="410" />
+        <di:waypoint x="1700" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AdviesAkkoord_Gateway_di" bpmnElement="Flow_AdviesAkkoord_Gateway">
+        <di:waypoint x="1860" y="410" />
+        <di:waypoint x="1915" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Akkoord_Ja_di" bpmnElement="Flow_Akkoord_Ja">
+        <di:waypoint x="1940" y="385" />
+        <di:waypoint x="1940" y="110" />
+        <di:waypoint x="2020" y="110" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1946" y="362" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Akkoord_Nee_di" bpmnElement="Flow_Akkoord_Nee">
+        <di:waypoint x="1965" y="410" />
+        <di:waypoint x="2330" y="410" />
+        <di:waypoint x="2330" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1972" y="392" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_DienIn_Onderteken_di" bpmnElement="Flow_DienIn_Onderteken">
+        <di:waypoint x="2100" y="170" />
+        <di:waypoint x="2100" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Onderteken_Gateway_di" bpmnElement="Flow_Onderteken_Gateway">
+        <di:waypoint x="2180" y="830" />
+        <di:waypoint x="2235" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ondertekend_Ja_di" bpmnElement="Flow_Ondertekend_Ja">
+        <di:waypoint x="2260" y="855" />
+        <di:waypoint x="2260" y="970" />
+        <di:waypoint x="2440" y="970" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2266" y="880" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ondertekend_Nee_di" bpmnElement="Flow_Ondertekend_Nee">
+        <di:waypoint x="2260" y="805" />
+        <di:waypoint x="2260" y="780" />
+        <di:waypoint x="2210" y="780" />
+        <di:waypoint x="2210" y="270" />
+        <di:waypoint x="2230" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2216" y="760" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Escaleren_NeemBesluit_di" bpmnElement="Flow_Escaleren_NeemBesluit">
+        <di:waypoint x="2310" y="310" />
+        <di:waypoint x="2310" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeemBesluit_Registreer_di" bpmnElement="Flow_NeemBesluit_Registreer">
+        <di:waypoint x="2390" y="690" />
+        <di:waypoint x="2520" y="690" />
+        <di:waypoint x="2520" y="930" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Registreer_Archiveer_di" bpmnElement="Flow_Registreer_Archiveer">
+        <di:waypoint x="2600" y="970" />
+        <di:waypoint x="2650" y="970" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Archiveer_End_di" bpmnElement="Flow_Archiveer_End">
+        <di:waypoint x="2810" y="970" />
+        <di:waypoint x="2862" y="970" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
