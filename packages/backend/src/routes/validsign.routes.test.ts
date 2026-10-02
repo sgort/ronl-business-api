@@ -564,6 +564,40 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
     });
   });
 
+  it('reports status none, and no package, for a task that did not create the recorded package', async () => {
+    // A rework loop (declined → revise → sign again) creates a new task while
+    // the previous attempt's validsign* variables are still on the instance.
+    mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
+    mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      validsignStatus: 'declined',
+      validsignPackageId: 'pkg-old',
+      validsignSigningUrl: '/v1/validsign/stub/ceremony/pkg-old',
+      validsignTaskId: 'task-old',
+    });
+    const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
+    expect(res.body.data).toEqual({
+      required: true,
+      templateId: 'tpl-1',
+      status: 'none',
+      stubMode: true,
+    });
+  });
+
+  it('reports the recorded package for the task that created it', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
+    mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      validsignStatus: 'sent',
+      validsignPackageId: 'pkg-1',
+      validsignTaskId: 'task-1',
+    });
+    const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
+    expect(res.body.data).toMatchObject({ status: 'sent', packageId: 'pkg-1' });
+  });
+
   it('reports stubMode false when the backend is live, so a caller can refuse up front', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: {} });
     mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
@@ -639,8 +673,51 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       expect.objectContaining({
         validsignPackageId: { value: 'pkg-1', type: 'String' },
         validsignStatus: { value: 'sent', type: 'String' },
+        validsignTaskId: { value: 'task-1', type: 'String' },
+        validsignTemplateId: { value: 'tpl-1', type: 'String' },
+        validsignTemplateName: { value: 'Uitgangspunten VO-fase', type: 'String' },
       })
     );
+  });
+
+  it("starts afresh on a new signing task after an earlier task's signature was declined", async () => {
+    // A rework loop (declined → revise → sign again) creates a NEW task. The
+    // previous attempt's variables are process-wide, so without the task id
+    // the new task would read 'declined' and be refused with 409.
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Besluit onder gedelegeerde bevoegdheid' },
+    });
+    mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      validsignStatus: 'declined',
+      validsignPackageId: 'pkg-old',
+      validsignTaskId: 'task-old',
+    });
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-new', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-new');
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.packageId).toBe('pkg-new');
+  });
+
+  it('still refuses a second package for the same task', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({ templateId: 'tpl-1', template: { name: 'X' } });
+    mockGetTaskVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      validsignStatus: 'declined',
+      validsignPackageId: 'pkg-1',
+      validsignTaskId: 'task-1',
+    });
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(409);
+    expect(mockValidsign.createPackage).not.toHaveBeenCalled();
   });
 
   it('falls back to sentTo when the embedded signing URL fetch fails (delivery: embedded)', async () => {

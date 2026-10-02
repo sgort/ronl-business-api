@@ -15,6 +15,28 @@ const logger = createLogger('validsign-completion');
  */
 const inFlight = new Map<string, Promise<'completed' | 'declined' | 'noop'>>();
 
+/**
+ * Archive file names and titles for a signed package, from the template that
+ * was signed and the case it belongs to (the process business key). Nothing
+ * process-specific: any process that signs through ValidSign gets sensible
+ * names without code here. A package created before the template was
+ * recorded falls back to neutral names.
+ */
+export function signedArchiveNames(input: {
+  templateId?: string;
+  templateName?: string;
+  reference: string;
+}): { signedFile: string; evidenceFile: string; signedTitle: string; evidenceTitle: string } {
+  const id = input.templateId ?? 'ondertekend-document';
+  const title = `${input.reference} — ${input.templateName ?? 'Ondertekend document'} (ondertekend)`;
+  return {
+    signedFile: `${id}-${input.reference}-signed.pdf`,
+    evidenceFile: `${id}-${input.reference}-evidence.pdf`,
+    signedTitle: `${title} — getekend document`,
+    evidenceTitle: `${title} — bewijsoverzicht`,
+  };
+}
+
 export async function completeSignature(
   packageId: string
 ): Promise<'completed' | 'declined' | 'noop'> {
@@ -70,7 +92,7 @@ async function doComplete(packageId: string): Promise<'completed' | 'declined' |
     // this DM server; a standalone upload (workspaceId=null) is the only
     // confirmed-working path, so that's what's used below regardless of
     // whether edocsWorkspaceId happens to be set.
-    const { processInstanceId, projectNumber } = found;
+    const { processInstanceId } = found;
     const department = config.edocs.department;
 
     // The direct condition below (not a derived boolean/array) is what lets
@@ -93,19 +115,21 @@ async function doComplete(packageId: string): Promise<'completed' | 'declined' |
           validsignService.downloadSignedDocument(packageId, documentId),
           validsignService.downloadEvidenceSummary(packageId),
         ]);
-        const base = `${projectNumber ?? 'RIP'} — Uitgangspunten VO-fase (ondertekend)`;
+        const names = signedArchiveNames({
+          templateId: found.templateId,
+          templateName: found.templateName,
+          reference: found.businessKey ?? packageId,
+        });
         const doc = await edocsService.uploadDocument(
           null,
-          `rip-pdp-${projectNumber ?? packageId}-signed.pdf`,
+          names.signedFile,
           signed.toString('base64'),
-          { docName: `${base} — getekend document`, department }
+          { docName: names.signedTitle, department }
         );
-        await edocsService.uploadDocument(
-          null,
-          `rip-pdp-${projectNumber ?? packageId}-evidence.pdf`,
-          evidence.toString('base64'),
-          { docName: `${base} — bewijsoverzicht`, department }
-        );
+        await edocsService.uploadDocument(null, names.evidenceFile, evidence.toString('base64'), {
+          docName: names.evidenceTitle,
+          department,
+        });
         variables.validsignSignedDocNumber = { value: doc.documentNumber, type: 'String' };
         variables.validsignSignedDocId = { value: doc.documentId, type: 'String' };
         variables.validsignArchiveStatus = { value: 'ok', type: 'String' };

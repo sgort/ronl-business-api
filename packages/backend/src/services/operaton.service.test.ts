@@ -1490,7 +1490,7 @@ describe('getDeployedTemplate', () => {
 describe('findInstanceByValidsignPackage', () => {
   it('resolves the matching instance, its variables and its single open task', async () => {
     routeGet([
-      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      ['/process-instance', { data: [{ id: 'pi-1', businessKey: 'flevoland-1' }] }],
       [
         /\/process-instance\/pi-1\/variables$/,
         {
@@ -1499,7 +1499,11 @@ describe('findInstanceByValidsignPackage', () => {
             edocsWorkspaceId: { value: 'ws-1', type: 'String' },
             department: { value: 'Infra', type: 'String' },
             validsignDocumentId: { value: 'doc-9', type: 'String' },
-            projectNumber: { value: '24102', type: 'String' },
+            validsignTemplateId: { value: 'besluit-gb-besluit', type: 'String' },
+            validsignTemplateName: {
+              value: 'Besluit onder gedelegeerde bevoegdheid',
+              type: 'String',
+            },
           },
         },
       ],
@@ -1510,10 +1514,12 @@ describe('findInstanceByValidsignPackage', () => {
       processInstanceId: 'pi-1',
       taskId: 'task-1',
       status: 'sent',
+      businessKey: 'flevoland-1',
+      templateId: 'besluit-gb-besluit',
+      templateName: 'Besluit onder gedelegeerde bevoegdheid',
       edocsWorkspaceId: 'ws-1',
       department: 'Infra',
       documentId: 'doc-9',
-      projectNumber: '24102',
     });
     expect(mockClient.get).toHaveBeenCalledWith('/process-instance', {
       params: { variables: 'validsignPackageId_eq_pkg-1' },
@@ -1533,6 +1539,43 @@ describe('findInstanceByValidsignPackage', () => {
       ['/process-instance', { data: [{ id: 'pi-1' }] }],
       [/\/process-instance\/pi-1\/variables$/, { data: {} }],
       ['/task', { data: [] }],
+    ]);
+    expect(await svc.findInstanceByValidsignPackage('pkg-1')).toBeNull();
+  });
+
+  it('resolves the task that created the package, not just any open task', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        {
+          data: {
+            validsignStatus: { value: 'sent', type: 'String' },
+            validsignTaskId: { value: 'task-sign', type: 'String' },
+          },
+        },
+      ],
+      ['/task', { data: [{ id: 'task-other' }, { id: 'task-sign' }] }],
+    ]);
+    const found = await svc.findInstanceByValidsignPackage('pkg-1');
+    expect(found?.taskId).toBe('task-sign');
+  });
+
+  it('returns null when the task that created the package is no longer open', async () => {
+    // The signing task was completed another way (its fallback form) and the
+    // case moved on: a late signature must not complete the next task.
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        {
+          data: {
+            validsignStatus: { value: 'sent', type: 'String' },
+            validsignTaskId: { value: 'task-sign', type: 'String' },
+          },
+        },
+      ],
+      ['/task', { data: [{ id: 'task-registreer' }] }],
     ]);
     expect(await svc.findInstanceByValidsignPackage('pkg-1')).toBeNull();
   });

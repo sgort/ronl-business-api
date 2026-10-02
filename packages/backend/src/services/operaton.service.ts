@@ -849,16 +849,20 @@ export class OperatonService {
     processInstanceId: string;
     taskId: string;
     status: string;
+    /** The process business key: the case reference archive names carry. */
+    businessKey?: string;
+    /** The signed template's id and name, recorded when the package was created. */
+    templateId?: string;
+    templateName?: string;
     edocsWorkspaceId?: string;
     department?: string;
     documentId?: string;
-    projectNumber?: string;
   } | null> {
     try {
       const instancesRes = await this.client.get('/process-instance', {
         params: { variables: `validsignPackageId_eq_${packageId}` },
       });
-      const instances: Array<{ id: string }> = instancesRes.data;
+      const instances: Array<{ id: string; businessKey?: string | null }> = instancesRes.data;
       if (instances.length === 0) return null;
 
       const processInstanceId = instances[0].id;
@@ -867,17 +871,26 @@ export class OperatonService {
         this.client.get('/task', { params: { processInstanceId } }),
       ]);
       const tasks: Array<{ id: string }> = tasksRes.data;
-      if (tasks.length === 0) return null;
-
       const value = (name: string): unknown => variables[name]?.value;
+      // The task that created the package, when it was recorded. Completing
+      // "whichever task is open" would let a late signature complete the
+      // next step after the signing task was finished another way (its
+      // fallback form). A package from before validsignTaskId existed keeps
+      // the old behaviour: the instance's open task.
+      const owner = value('validsignTaskId');
+      const task = typeof owner === 'string' ? tasks.find((t) => t.id === owner) : tasks[0];
+      if (!task) return null;
+
       return {
         processInstanceId,
-        taskId: tasks[0].id,
+        taskId: task.id,
         status: String(value('validsignStatus') ?? ''),
+        businessKey: instances[0].businessKey ?? undefined,
+        templateId: value('validsignTemplateId') as string | undefined,
+        templateName: value('validsignTemplateName') as string | undefined,
         edocsWorkspaceId: value('edocsWorkspaceId') as string | undefined,
         department: value('department') as string | undefined,
         documentId: value('validsignDocumentId') as string | undefined,
-        projectNumber: value('projectNumber') as string | undefined,
       };
     } catch (error) {
       logger.error('Failed to find process instance by ValidSign package', {

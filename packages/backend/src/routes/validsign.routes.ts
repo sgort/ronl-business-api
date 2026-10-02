@@ -642,7 +642,17 @@ router.use(tenantMiddleware);
 
 type SignatureStatus = 'none' | 'sent' | 'completed' | 'declined' | 'failed';
 
-function statusFromVariables(variables: Record<string, unknown>): SignatureStatus {
+/**
+ * The signing state of THIS task. The validsign* variables are process
+ * variables, so after a declined signature they outlive the task that
+ * created them: a rework loop that brings the case back to a new signing
+ * task would otherwise open on 'declined' and be refused. Variables recorded
+ * by another task describe that task's attempt, not this one's. A package
+ * without a recorded task id predates the field and is taken at face value.
+ */
+function statusFromVariables(variables: Record<string, unknown>, taskId: string): SignatureStatus {
+  const owner = variables['validsignTaskId'];
+  if (typeof owner === 'string' && owner !== taskId) return 'none';
   const raw = variables['validsignStatus'];
   if (raw === 'sent' || raw === 'completed' || raw === 'declined' || raw === 'failed') return raw;
   return 'none';
@@ -679,9 +689,15 @@ router.get('/task/:taskId/spec', async (req, res) => {
     if (!spec) {
       return res.json({ success: true, data: { required: false } });
     }
-    const status = statusFromVariables(variables);
-    const packageId = variables['validsignPackageId'] as string | undefined;
-    const signingUrl = variables['validsignSigningUrl'] as string | undefined;
+    const status = statusFromVariables(variables, taskId);
+    // Another task's package is not this task's to resume.
+    const ownPackage = status !== 'none';
+    const packageId = ownPackage
+      ? (variables['validsignPackageId'] as string | undefined)
+      : undefined;
+    const signingUrl = ownPackage
+      ? (variables['validsignSigningUrl'] as string | undefined)
+      : undefined;
     return res.json({
       success: true,
       data: {
@@ -805,7 +821,7 @@ router.post('/task/:taskId/package', async (req, res) => {
     // no code path anywhere that ever clears it back to retriable, would
     // strand the task behind a manual Operaton variable edit forever, which
     // defeats the purpose of an automatic guard.
-    const existingStatus = statusFromVariables(variables);
+    const existingStatus = statusFromVariables(variables, taskId);
     if (
       existingStatus === 'sent' ||
       existingStatus === 'completed' ||
@@ -847,6 +863,12 @@ router.post('/task/:taskId/package', async (req, res) => {
     const processVariables: Record<string, OperatonVariable> = {
       validsignPackageId: { value: packageId, type: 'String' },
       validsignStatus: { value: 'sent', type: 'String' },
+      // Which task this package belongs to, so a later signing task in the
+      // same instance starts fresh (see statusFromVariables), and what was
+      // signed, so completion can name the archive without knowing the process.
+      validsignTaskId: { value: taskId, type: 'String' },
+      validsignTemplateId: { value: spec.templateId, type: 'String' },
+      validsignTemplateName: { value: spec.template.name, type: 'String' },
     };
 
     if (delivery === 'email') {
@@ -916,7 +938,7 @@ router.get('/task/:taskId/status', async (req, res) => {
     if (!taskTenantAllowed(req, variables)) {
       return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
     }
-    return res.json({ success: true, data: { status: statusFromVariables(variables) } });
+    return res.json({ success: true, data: { status: statusFromVariables(variables, taskId) } });
   } catch (error) {
     if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
       logger.error('Failed to resolve signature status', {
@@ -937,7 +959,7 @@ router.get('/task/:taskId/status', async (req, res) => {
         }
         return res.json({
           success: true,
-          data: { status: statusFromVariables(historicVariables) },
+          data: { status: statusFromVariables(historicVariables, taskId) },
         });
       }
       // Neither the runtime nor history knows this task id. This is a
