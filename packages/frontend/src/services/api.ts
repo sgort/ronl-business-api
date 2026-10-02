@@ -433,6 +433,18 @@ export const businessApi = {
     },
   },
 
+  besluitvorming: {
+    active: async (): Promise<ApiResponse<BesluitListItem[]>> => {
+      const response = await api.get('/besluitvorming/active');
+      return response.data;
+    },
+
+    completed: async (): Promise<ApiResponse<BesluitListItem[]>> => {
+      const response = await api.get('/besluitvorming/completed');
+      return response.data;
+    },
+  },
+
   capacityClaim: {
     active: async (): Promise<
       ApiResponse<
@@ -609,6 +621,24 @@ export const ldeApi = {
     },
   },
 };
+
+/** A besluit (GedelegeerdBesluitProcess instance) as GET /v1/besluitvorming/* lists it. */
+export interface BesluitListItem {
+  id: string;
+  businessKey: string | null;
+  startTime: string;
+  endTime: string | null;
+  onderwerp: string | null;
+  besluitType: string | null;
+  financieleGevolgen: number | null;
+  uitkomst: string | null;
+  huidigeStap: string | null;
+  kenmerk: string | null;
+  zaaknummer: string | null;
+  motivering: string | null;
+  voorgesteldBesluit: string | null;
+  escalatieReden: string | null;
+}
 
 // ── Shared public content types (used by portal methods and the dashboard) ──
 

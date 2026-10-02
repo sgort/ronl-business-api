@@ -28,6 +28,7 @@ import brpRoutes from './brp.routes';
 import publicRoutes from './public.routes';
 import hrRoutes from './hr.routes';
 import capacityRoutes from './capacity.routes';
+import besluitvormingRoutes from './besluitvorming.routes';
 import ripRoutes from './rip.routes';
 import edocsRoutes from './edocs.routes';
 import doccleRoutes from './doccle.routes';
@@ -108,6 +109,12 @@ export const routeRegistry: ReadonlyArray<RouteDefinition> = [
     router: capacityRoutes,
     advertiseAs: 'hrCapacity',
     summary: 'Caseworker capacity',
+  },
+  {
+    mount: '/v1/besluitvorming',
+    router: besluitvormingRoutes,
+    advertiseAs: 'besluitvorming',
+    summary: 'Besluitvorming onder gedelegeerde bevoegdheid',
   },
   { mount: '/v1/rip', router: ripRoutes, advertiseAs: 'rip', summary: 'RIP process integration' },
   {

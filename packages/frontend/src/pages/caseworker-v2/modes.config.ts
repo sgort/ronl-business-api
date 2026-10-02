@@ -55,6 +55,18 @@ export interface ModeConfig {
 }
 
 /**
+ * The roles that take part in "Besluitvorming onder gedelegeerde bevoegdheid".
+ * Each may see the running and completed besluiten.
+ */
+export const BESLUIT_ROLES = [
+  'besluit-indiener',
+  'besluit-jurist',
+  'besluit-bestuursautoriteit',
+  'besluit-ondertekenaar',
+  'besluit-registratie',
+];
+
+/**
  * Default mode definitions. Tenants may override the items in each group via
  * a future `tenants.json` extension; for now this is the canonical layout.
  *
@@ -197,6 +209,29 @@ export const MODES: ModeConfig[] = [
               'hr-business-partner',
               'personnel-controller',
             ],
+          },
+        ],
+      },
+      {
+        label: 'Besluitvorming',
+        items: [
+          {
+            id: 'besluit-starten',
+            label: 'Besluit voorbereiden',
+            authRequired: true,
+            requiredRoles: ['besluit-indiener'],
+          },
+          {
+            id: 'besluiten-lopend',
+            label: 'Lopende besluiten',
+            authRequired: true,
+            requiredRoles: BESLUIT_ROLES,
+          },
+          {
+            id: 'besluiten-afgerond',
+            label: 'Afgeronde besluiten',
+            authRequired: true,
+            requiredRoles: BESLUIT_ROLES,
           },
         ],
       },

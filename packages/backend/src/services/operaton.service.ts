@@ -20,6 +20,38 @@ export interface TaskCompleteRequest {
   variables?: Record<string, OperatonVariable>;
 }
 
+/** A GedelegeerdBesluitProcess instance as the Besluitvorming overview lists it. */
+export interface BesluitListItem {
+  id: string;
+  businessKey: string | null;
+  startTime: string;
+  endTime: string | null;
+  onderwerp: string | null;
+  besluitType: string | null;
+  financieleGevolgen: number | null;
+  /** How it ended; null while running, or for a decline not yet decided. */
+  uitkomst: string | null;
+  /** The open task's name while running; null once finished. */
+  huidigeStap: string | null;
+  kenmerk: string | null;
+  zaaknummer: string | null;
+  motivering: string | null;
+  voorgesteldBesluit: string | null;
+  escalatieReden: string | null;
+}
+
+/**
+ * The outcome of a besluit, from its variables. An escalated besluit ends
+ * with the bevoegde bestuursautoriteit's decision, which wins over the
+ * declined signature that may have led there; a signed one is "ondertekend".
+ */
+export function besluitUitkomst(values: Record<string, unknown>): string | null {
+  if (values.besluitUitkomst === 'genomen') return 'geëscaleerd — genomen';
+  if (values.besluitUitkomst === 'afgewezen') return 'geëscaleerd — afgewezen';
+  if (values.approvalStatus === 'approved') return 'ondertekend';
+  return null;
+}
+
 /**
  * Service for interacting with Operaton BPMN Engine
  */
@@ -849,16 +881,20 @@ export class OperatonService {
     processInstanceId: string;
     taskId: string;
     status: string;
+    /** The process business key: the case reference archive names carry. */
+    businessKey?: string;
+    /** The signed template's id and name, recorded when the package was created. */
+    templateId?: string;
+    templateName?: string;
     edocsWorkspaceId?: string;
     department?: string;
     documentId?: string;
-    projectNumber?: string;
   } | null> {
     try {
       const instancesRes = await this.client.get('/process-instance', {
         params: { variables: `validsignPackageId_eq_${packageId}` },
       });
-      const instances: Array<{ id: string }> = instancesRes.data;
+      const instances: Array<{ id: string; businessKey?: string | null }> = instancesRes.data;
       if (instances.length === 0) return null;
 
       const processInstanceId = instances[0].id;
@@ -867,17 +903,26 @@ export class OperatonService {
         this.client.get('/task', { params: { processInstanceId } }),
       ]);
       const tasks: Array<{ id: string }> = tasksRes.data;
-      if (tasks.length === 0) return null;
-
       const value = (name: string): unknown => variables[name]?.value;
+      // The task that created the package, when it was recorded. Completing
+      // "whichever task is open" would let a late signature complete the
+      // next step after the signing task was finished another way (its
+      // fallback form). A package from before validsignTaskId existed keeps
+      // the old behaviour: the instance's open task.
+      const owner = value('validsignTaskId');
+      const task = typeof owner === 'string' ? tasks.find((t) => t.id === owner) : tasks[0];
+      if (!task) return null;
+
       return {
         processInstanceId,
-        taskId: tasks[0].id,
+        taskId: task.id,
         status: String(value('validsignStatus') ?? ''),
+        businessKey: instances[0].businessKey ?? undefined,
+        templateId: value('validsignTemplateId') as string | undefined,
+        templateName: value('validsignTemplateName') as string | undefined,
         edocsWorkspaceId: value('edocsWorkspaceId') as string | undefined,
         department: value('department') as string | undefined,
         documentId: value('validsignDocumentId') as string | undefined,
-        projectNumber: value('projectNumber') as string | undefined,
       };
     } catch (error) {
       logger.error('Failed to find process instance by ValidSign package', {
@@ -1784,6 +1829,76 @@ export class OperatonService {
       boardDecision: varMap[i.id]?.boardDecision ?? '—',
       advisoryGroup: varMap[i.id]?.advisoryGroup ?? '—',
     }));
+  }
+
+  /**
+   * Running (`lopend`) or completed (`afgerond`) GedelegeerdBesluitProcess
+   * instances for a tenant, newest first, with the fields the Besluitvorming
+   * overview shows. Running ones carry the open task's name as their current
+   * step. Variables come from the history API, so both states read the same.
+   */
+  async getBesluitList(tenantId: string, state: 'lopend' | 'afgerond'): Promise<BesluitListItem[]> {
+    const finished = state === 'afgerond';
+    const instancesRes = await this.client.post('/history/process-instance', {
+      processDefinitionKey: 'GedelegeerdBesluitProcess',
+      ...(finished ? { finished: true } : { unfinished: true }),
+      variables: [{ name: 'municipality', operator: 'eq', value: tenantId }],
+      sorting: [{ sortBy: finished ? 'endTime' : 'startTime', sortOrder: 'desc' }],
+    });
+    const instances: Array<{
+      id: string;
+      businessKey?: string | null;
+      startTime: string;
+      endTime?: string | null;
+    }> = instancesRes.data;
+    if (instances.length === 0) return [];
+
+    const ids = instances.map((i) => i.id).join(',');
+    const [varsRes, tasksRes] = await Promise.all([
+      this.client.get('/history/variable-instance', {
+        params: { processInstanceIdIn: ids, deserializeValues: true },
+      }),
+      finished
+        ? Promise.resolve({ data: [] })
+        : this.client.get('/task', { params: { processInstanceIdIn: ids } }),
+    ]);
+
+    const varMap: Record<string, Record<string, unknown>> = {};
+    for (const v of varsRes.data as { processInstanceId: string; name: string; value: unknown }[]) {
+      (varMap[v.processInstanceId] ??= {})[v.name] = v.value;
+    }
+    const stepMap: Record<string, string> = {};
+    for (const t of tasksRes.data as { processInstanceId: string; name: string }[]) {
+      stepMap[t.processInstanceId] ??= t.name;
+    }
+
+    const text = (value: unknown): string | null =>
+      value === undefined || value === null || value === '' ? null : String(value);
+    return instances.map((i) => {
+      const v = varMap[i.id] ?? {};
+      const amount = Number(v.financieleGevolgen);
+      return {
+        id: i.id,
+        businessKey: i.businessKey ?? null,
+        startTime: i.startTime,
+        endTime: i.endTime ?? null,
+        onderwerp: text(v.onderwerp),
+        besluitType: text(v.besluitType),
+        financieleGevolgen:
+          v.financieleGevolgen === undefined ||
+          v.financieleGevolgen === null ||
+          Number.isNaN(amount)
+            ? null
+            : amount,
+        uitkomst: besluitUitkomst(v),
+        huidigeStap: stepMap[i.id] ?? null,
+        kenmerk: text(v.kenmerk),
+        zaaknummer: text(v.zaaknummer),
+        motivering: text(v.motivering),
+        voorgesteldBesluit: text(v.voorgesteldBesluit),
+        escalatieReden: text(v.escalatieReden),
+      };
+    });
   }
 
   /**

@@ -43,6 +43,13 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   'rip-contractbeheer': 'Contractbeheersing',
   'rip-toetser': 'Toetsproces',
 
+  // Besluitvorming onder gedelegeerde bevoegdheid: one role per swimlane.
+  'besluit-indiener': 'Aanvrager / indiener: bereidt het besluit voor en dient het in',
+  'besluit-jurist': 'Juridische Zaken / Compliance: toetst en adviseert',
+  'besluit-bestuursautoriteit': 'Bevoegde bestuursautoriteit: neemt geëscaleerde besluiten',
+  'besluit-ondertekenaar': 'Gemachtigde ondertekenaar: ondertekent het besluit',
+  'besluit-registratie': 'Registratie & Beheer: registreert en archiveert',
+
   // The RIP ladder's roles, R2.1 through R6.1.
   'rip-aandrager': 'Aandrager: levert projectplan en intakeformulier aan',
   'rip-adviseur': 'Adviseur',

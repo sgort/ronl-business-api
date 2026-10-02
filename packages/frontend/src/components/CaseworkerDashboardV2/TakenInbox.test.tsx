@@ -19,6 +19,9 @@ const mockBusinessApi = vi.hoisted(() => ({
     lineage: vi.fn(),
     swimlane: vi.fn(),
   },
+  validsign: {
+    taskSpec: vi.fn(),
+  },
 }));
 vi.mock('../../services/api', () => ({ businessApi: mockBusinessApi }));
 
@@ -27,6 +30,14 @@ vi.mock('../CaseworkerDashboard/TaskFormViewer', () => ({
     <div>
       task-form
       <button onClick={onCompleted}>complete-task</button>
+    </div>
+  ),
+}));
+vi.mock('../signing/SigningPanel', () => ({
+  default: ({ taskId, onDeclined }: { taskId: string; onDeclined?: () => void }) => (
+    <div>
+      signing-panel:{taskId}
+      <button onClick={onDeclined}>decline-signature</button>
     </div>
   ),
 }));
@@ -56,6 +67,11 @@ beforeEach(() => {
   // By default no process context: the inbox falls back to the flat step list.
   mockBusinessApi.process.lineage.mockResolvedValue({ success: false });
   mockBusinessApi.process.swimlane.mockResolvedValue({ success: false });
+  // By default no signature required: the claimed task shows its form.
+  mockBusinessApi.validsign.taskSpec.mockResolvedValue({
+    success: true,
+    data: { required: false },
+  });
 });
 
 afterEach(() => {
@@ -136,6 +152,78 @@ describe('TakenInbox', () => {
     await user.click(await screen.findByText('Aanvraag beoordelen'));
 
     expect(await screen.findByText('task-form')).toBeInTheDocument();
+  });
+
+  it('shows the signing panel instead of the form for a claimed task that must be signed', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ assignee: 'user-1' })],
+    });
+    mockBusinessApi.validsign.taskSpec.mockResolvedValue({
+      success: true,
+      data: { required: true, status: 'none', templateId: 'besluit-gb-besluit' },
+    });
+
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Aanvraag beoordelen'));
+
+    expect(await screen.findByText('signing-panel:t1')).toBeInTheDocument();
+    expect(screen.queryByText('task-form')).toBeNull();
+    expect(mockBusinessApi.validsign.taskSpec).toHaveBeenCalledWith('t1');
+  });
+
+  it('shows neither form nor panel while the signing spec is still loading', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ assignee: 'user-1' })],
+    });
+    mockBusinessApi.validsign.taskSpec.mockReturnValue(new Promise(() => {}));
+
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Aanvraag beoordelen'));
+
+    expect(await screen.findByText('Ondertekening controleren…')).toBeInTheDocument();
+    expect(screen.queryByText('task-form')).toBeNull();
+    expect(screen.queryByText(/signing-panel:/)).toBeNull();
+  });
+
+  it('refreshes the list and says so when the signer declines', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ assignee: 'user-1' })],
+    });
+    mockBusinessApi.validsign.taskSpec.mockResolvedValue({
+      success: true,
+      data: { required: true, status: 'none' },
+    });
+
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Aanvraag beoordelen'));
+    const listCalls = mockBusinessApi.task.list.mock.calls.length;
+    await user.click(await screen.findByRole('button', { name: 'decline-signature' }));
+
+    expect(
+      await screen.findByText('Niet ondertekend — de taak gaat terug naar de indiener.')
+    ).toBeInTheDocument();
+    expect(mockBusinessApi.task.list.mock.calls.length).toBeGreaterThan(listCalls);
+  });
+
+  it('falls back to the form when the signing spec cannot be fetched', async () => {
+    const user = userEvent.setup();
+    mockBusinessApi.task.list.mockResolvedValue({
+      success: true,
+      data: [makeTask({ assignee: 'user-1' })],
+    });
+    mockBusinessApi.validsign.taskSpec.mockRejectedValue(new Error('500'));
+
+    render(<TakenInbox user={{ sub: 'user-1' } as never} />);
+    await user.click(await screen.findByText('Aanvraag beoordelen'));
+
+    expect(await screen.findByText('task-form')).toBeInTheDocument();
+    expect(screen.queryByText(/signing-panel:/)).toBeNull();
   });
 
   it('completing a task shows the success message before the detail pane clears', async () => {

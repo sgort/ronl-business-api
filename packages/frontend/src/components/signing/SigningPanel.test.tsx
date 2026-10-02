@@ -107,6 +107,20 @@ describe('SigningPanel', () => {
     expect(screen.queryByText(/mislukt/i)).toBeNull();
   });
 
+  it('tells its host once about a decline, so the task list can move on', async () => {
+    // A decline completes the task server-side and loops the case back: the
+    // host must refresh, or it keeps listing a task that no longer exists.
+    mockCreatePackage.mockResolvedValue({
+      success: true,
+      data: { packageId: 'p', signingUrl: '/x' },
+    });
+    mockStatus.mockResolvedValue({ success: true, data: { status: 'declined' } });
+    const onDeclined = vi.fn();
+    render(<SigningPanel taskId="t1" spec={spec} onCompleted={vi.fn()} onDeclined={onDeclined} />);
+    await userEvent.click(screen.getByRole('button', { name: /Onderteken nu/ }));
+    await waitFor(() => expect(onDeclined).toHaveBeenCalledTimes(1));
+  });
+
   it('stops polling when unmounted', async () => {
     mockCreatePackage.mockResolvedValue({
       success: true,
