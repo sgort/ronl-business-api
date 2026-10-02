@@ -24,6 +24,35 @@ describe('RollenSection', () => {
     expect(screen.getByText('Beheerder')).toBeInTheDocument();
   });
 
+  it('describes each besluitvorming role', () => {
+    render(
+      <RollenSection
+        user={
+          {
+            sub: '1',
+            roles: [
+              'besluit-indiener',
+              'besluit-jurist',
+              'besluit-bestuursautoriteit',
+              'besluit-ondertekenaar',
+              'besluit-registratie',
+            ],
+          } as never
+        }
+      />
+    );
+
+    for (const description of [
+      'Aanvrager / indiener: bereidt het besluit voor en dient het in',
+      'Juridische Zaken / Compliance: toetst en adviseert',
+      'Bevoegde bestuursautoriteit: neemt geëscaleerde besluiten',
+      'Gemachtigde ondertekenaar: ondertekent het besluit',
+      'Registratie & Beheer: registreert en archiveert',
+    ]) {
+      expect(screen.getByText(description)).toBeInTheDocument();
+    }
+  });
+
   it('shows a loading skeleton while the onboarding profile loads', () => {
     mockUseProfielData.mockReturnValue({ data: null, loading: true, error: null, load: vi.fn() });
     const { container } = render(

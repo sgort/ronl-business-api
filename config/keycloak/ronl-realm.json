@@ -386,6 +386,26 @@
         "description": "Personnel Controller — participates in the reconsideration meeting on rejected claims"
       },
       {
+        "name": "besluit-indiener",
+        "description": "Besluitvorming gedelegeerde bevoegdheid — Aanvrager / Indiener: bereidt het besluit voor en dient het in"
+      },
+      {
+        "name": "besluit-jurist",
+        "description": "Besluitvorming gedelegeerde bevoegdheid — Juridische Zaken / Compliance: toetst en adviseert"
+      },
+      {
+        "name": "besluit-bestuursautoriteit",
+        "description": "Besluitvorming gedelegeerde bevoegdheid — Bevoegde bestuursautoriteit: neemt geëscaleerde besluiten"
+      },
+      {
+        "name": "besluit-ondertekenaar",
+        "description": "Besluitvorming gedelegeerde bevoegdheid — Gemachtigde ondertekenaar: ondertekent het besluit via ValidSign"
+      },
+      {
+        "name": "besluit-registratie",
+        "description": "Besluitvorming gedelegeerde bevoegdheid — Registratie & Beheer: registreert en archiveert"
+      },
+      {
         "name": "public-affairs",
         "description": "Provincial Public Affairs adviser — access to the PA-cockpit"
       },
@@ -793,6 +813,56 @@
         "financial-controller",
         "hr-business-partner",
         "personnel-controller"
+      ]
+    },
+    {
+      "username": "test-indiener-flevoland",
+      "enabled": true,
+      "firstName": "Indiener",
+      "lastName": "Besluitvorming Flevoland",
+      "email": "indiener@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-besluit-01"]
+      },
+      "realmRoles": ["caseworker", "besluit-indiener"]
+    },
+    {
+      "username": "test-besluit-flevoland",
+      "enabled": true,
+      "firstName": "Besluit",
+      "lastName": "Behandelaar Flevoland",
+      "email": "besluit@flevoland.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["flevoland"],
+        "organisation_type": ["province"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-besluit-02"]
+      },
+      "realmRoles": [
+        "caseworker",
+        "besluit-jurist",
+        "besluit-bestuursautoriteit",
+        "besluit-ondertekenaar",
+        "besluit-registratie"
       ]
     },
     {
