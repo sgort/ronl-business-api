@@ -201,6 +201,17 @@ export const MODES: ModeConfig[] = [
         ],
       },
       {
+        label: 'Besluitvorming',
+        items: [
+          {
+            id: 'besluit-starten',
+            label: 'Besluit voorbereiden',
+            authRequired: true,
+            requiredRoles: ['besluit-indiener'],
+          },
+        ],
+      },
+      {
         // V1 "Projecten" — RIP flows + Actieve zaken + Archief
         label: 'Projecten',
         items: [{ id: 'archief', label: 'Archief', authRequired: true }],

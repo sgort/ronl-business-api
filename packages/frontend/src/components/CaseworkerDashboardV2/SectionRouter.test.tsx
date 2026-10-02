@@ -74,6 +74,9 @@ vi.mock('../CaseworkerDashboard/AuditSection', () => ({
 vi.mock('../CaseworkerDashboard/CapacityClaimSection', () => ({
   default: () => <div>capacity-claim</div>,
 }));
+vi.mock('../CaseworkerDashboard/BesluitStartSection', () => ({
+  default: () => <div>besluit-start-section</div>,
+}));
 vi.mock('../CaseworkerDashboard/CapacityClaimArchiefSection', () => ({
   default: () => <div>capacity-claim-archief</div>,
 }));
@@ -96,7 +99,7 @@ vi.mock('../CaseworkerDashboard/GereedschapSection', () => ({
 // defence-in-depth gate — gating itself is covered separately below.
 const superUser = {
   sub: '1',
-  roles: ['hr-medewerker', 'manager', 'infra-projectteam', 'admin'],
+  roles: ['hr-medewerker', 'manager', 'infra-projectteam', 'admin', 'besluit-indiener'],
   organisation_type: 'municipality',
 } as never;
 
@@ -140,6 +143,8 @@ describe('SectionRouter', () => {
     ['iou-gebruiksscenario', 'iou-gebruiksscenario'],
     ['iou-feedback', 'iou-feedback'],
     ['capacity-claim', 'capacity-claim'],
+    // A distinct label: the fallback prints the section id itself.
+    ['besluit-starten', 'besluit-start-section'],
     ['dvtp-taken', 'dvtp-taken'],
     ['gereedschap-overzicht', 'gereedschap'],
   ])('routes "%s" to its component', (sectionId, text) => {
