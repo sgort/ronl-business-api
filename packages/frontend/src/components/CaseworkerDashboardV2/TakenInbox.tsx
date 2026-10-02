@@ -31,6 +31,8 @@ import ProcessWhere from '../process/ProcessWhere';
 import ProcessLaneSteps from '../process/ProcessLaneSteps';
 import ProcessOverlay from '../process/ProcessOverlay';
 import { phaseRef } from '../process/phaseSet';
+import SigningPanel from '../signing/SigningPanel';
+import { useTaskSignature } from '../signing/useTaskSignature';
 import { usePaletteAction } from './paletteActionsContext';
 
 type FilterId = 'all' | 'overdue' | 'mine' | 'today' | 'week' | 'unassigned';
@@ -203,6 +205,9 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
   }, [tasks, activeFilter, ctx]);
 
   const selected = visible.find((t) => t.id === selectedId) ?? null;
+
+  // Whether the selected task is signed through ValidSign instead of its form.
+  const sig = useTaskSignature(selected?.id ?? null);
 
   // The procesweergave: lanes, Awb phase and history across the call chain.
   // Without lanes (or while loading, or on failure) today's flat list stays.
@@ -506,6 +511,32 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                 <button type="button" className="v2-btn" onClick={handleClaim} disabled={claiming}>
                   {claiming ? 'Claimen…' : 'Taak claimen'}
                 </button>
+              ) : sig.loading ? (
+                // Neither form nor panel until we know which applies: the form
+                // would let a signature task be approved without signing.
+                <p className="v2-taken-state">Ondertekening controleren…</p>
+              ) : sig.spec?.required ? (
+                <SigningPanel
+                  // Keyed by task: the panel's state comes from its spec once,
+                  // and must never carry one task's ceremony over to the next.
+                  key={selected.id}
+                  taskId={selected.id}
+                  spec={sig.spec}
+                  onCompleted={() => {
+                    // Same as the form's completion below: the panel unmounts
+                    // when the task leaves the list, so the parent owns the message.
+                    setActionMessage({ type: 'success', text: 'Taak voltooid.' });
+                    loadTasks();
+                  }}
+                  onDeclined={() => {
+                    // The task completed server-side and the case loops back.
+                    setActionMessage({
+                      type: 'success',
+                      text: 'Niet ondertekend — de taak gaat terug naar de indiener.',
+                    });
+                    loadTasks();
+                  }}
+                />
               ) : (
                 <TaskFormViewer
                   taskId={selected.id}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { businessApi } from '../../services/api';
 import type { SignatureSpec } from '../../services/api';
 import { resolveSigningUrl } from './resolveSigningUrl';
+import './signing-panel.css';
 
 type PanelState = 'idle' | 'preparing' | 'ceremony' | 'sent' | 'declined' | 'error';
 
@@ -9,6 +10,8 @@ interface Props {
   taskId: string;
   spec: SignatureSpec;
   onCompleted: () => void;
+  /** The signer declined: the task completed server-side, so the host refreshes its list. */
+  onDeclined?: () => void;
 }
 
 /** A distinct errorCode (see the error-state render below) for a poll that
@@ -48,7 +51,7 @@ function initialState(spec: SignatureSpec): PanelState {
  *  ValidSign signature. Sets NO completion message of its own: onCompleted
  *  unmounts this panel, so anything set alongside it is destroyed in the
  *  same tick and never paints. The parent owns the confirmation. */
-export default function SigningPanel({ taskId, spec, onCompleted }: Props) {
+export default function SigningPanel({ taskId, spec, onCompleted, onDeclined }: Props) {
   const [state, setState] = useState<PanelState>(() => initialState(spec));
   const [signingUrl, setSigningUrl] = useState<string | undefined>(spec.signingUrl);
   const [recipient, setRecipient] = useState<string | undefined>(undefined);
@@ -63,6 +66,10 @@ export default function SigningPanel({ taskId, spec, onCompleted }: Props) {
   useEffect(() => {
     onCompletedRef.current = onCompleted;
   }, [onCompleted]);
+  const onDeclinedRef = useRef(onDeclined);
+  useEffect(() => {
+    onDeclinedRef.current = onDeclined;
+  }, [onDeclined]);
 
   const start = async (delivery: 'embedded' | 'email') => {
     setState('preparing');
@@ -143,7 +150,10 @@ export default function SigningPanel({ taskId, spec, onCompleted }: Props) {
           }
           failureCount = 0;
           if (res.data.status === 'completed') onCompletedRef.current();
-          if (res.data.status === 'declined') setState('declined');
+          if (res.data.status === 'declined') {
+            setState('declined');
+            onDeclinedRef.current?.();
+          }
         })
         .catch(() => {
           if (cancelled) return;

@@ -1,0 +1,42 @@
+/* SigningPanel — the ValidSign ceremony embedded in a task's work surface.
+   Owned by the panel itself, not by a dashboard, because every task view
+   (the Infra-board and the caseworker task inbox) shows it. Children are
+   scoped to the panel. The secondary button carries .v2-btn too, and
+   `.cwd-v2 .v2-btn` (0,2,0) loads after this file on the caseworker
+   dashboard, so it needs three classes to win regardless of load order. */
+.pb-sign-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pb-sign-panel .pb-sign-intro {
+  font-size: 13px;
+  color: var(--v2-ink-2);
+  margin: 0;
+}
+.pb-sign-panel .pb-sign-actions {
+  display: flex;
+  gap: 10px;
+}
+.pb-sign-panel .v2-btn.pb-sign-btn-secondary {
+  background: var(--v2-paper);
+  color: var(--v2-chrome);
+  border: 1px solid var(--v2-rule);
+}
+.pb-sign-panel .pb-sign-frame {
+  width: 100%;
+  height: 640px;
+  border: 1px solid var(--v2-rule-1);
+  border-radius: 4px;
+}
+.pb-sign-panel.pb-sign-declined {
+  padding: 14px 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  color: #92400e;
+}
+.pb-sign-panel.pb-sign-declined p {
+  margin: 0;
+  font-size: 13px;
+}
