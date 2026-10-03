@@ -2108,16 +2108,14 @@ paths:
   # So `m2m` is the FALLBACK for an untenanted definition, not the label M2M
   # cases carry. `originTenantId` is never set by this surface.
   #
-  # A body that supplies `municipality` overrides all of that, unchecked -- see
-  # the note on `start`, and #261.
+  # A body cannot override that: `municipality` and `originTenantId` are
+  # refused at start, and all three reserved names at completion (#261).
   #
-  # WHICH ENGINE. These routes talk to `OPERATON_M2M_BASE_URL`, which MAY be a
-  # different engine from the one the rest of the API uses. When it is, an id
-  # obtained here is not resolvable through /v1 and vice versa; when it is not,
-  # the two surfaces see the same instances. It is configuration, not a
-  # property of the API, so a consumer must not rely on either. Locally the two
-  # are the same engine; `docs/promote-ACC-to-PROD.md` §4.4 says the same of
-  # ACC and PROD, which #262 is settling.
+  # WHICH ENGINE. The same one the rest of the API uses, on every tier (#262):
+  # an id obtained here resolves through /v1 and vice versa. Until 3 October
+  # 2026 ACC and PROD pointed these routes at a separate engine (operaton-doc).
+  # `OPERATON_M2M_BASE_URL` can still set one aside, so a consumer should not
+  # build on the two surfaces sharing instances.
   #
   # DIVERGENCES FROM THE /v1 TWINS, all verified against a running backend:
   #
@@ -2128,7 +2126,6 @@ paths:
   #   POST …/task/{id}/claim    an optional body `userId` sets the assignee;
   #                             /v1 ignores the body and uses the token
   #   POST …/task/{id}/complete { taskId, completed }; /v1 sends { taskId, status }
-  #   POST …/task/{id}/complete no RESERVED_VARIABLE guard -- see #261
   #   GET  /m2m/process         exists; there is no bare `GET /v1/process`
   #   GET  …/process/history    takes a filter BODY; /v1 takes a required
   #                             `applicantId` query parameter
@@ -2205,11 +2202,11 @@ paths:
         like any other. A definition carrying no tenant falls back to the
         literal `m2m`. `originTenantId` is never set.
 
-        **A supplied `municipality` wins, and nothing checks it.** A body
-        naming any organisation places the case there, including one the
-        process is not deployed under — verified against a running backend.
-        That is the same gap as #261 on `complete`, at the other end of the
-        case's life.
+        **The caller cannot choose the organisation.** A body supplying
+        `municipality` or `originTenantId` is refused with
+        `400 RESERVED_VARIABLE` (#261): the deployed tenant is the only source
+        of the label on this surface. `applicantId` is accepted — a machine may
+        start a case on a citizen's behalf.
 
         A `businessKey` is kept **verbatim**. `/v1` prefixes a minted one with
         the owning organisation (#234); there is no organisation here to prefix
@@ -2256,6 +2253,11 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The body tried to set `municipality` or `originTenantId`
+            (`RESERVED_VARIABLE`).
+          $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2869,12 +2871,11 @@ paths:
         The answer is `{ taskId, completed }`; `/v1` sends
         `{ taskId, status: "completed" }`.
 
-        **There is no `RESERVED_VARIABLE` guard here.**
-        `POST /v1/task/{id}/complete` refuses a body writing `municipality`,
-        `originTenantId` or `applicantId` with `400 RESERVED_VARIABLE`. This
-        operation accepts all three, including `municipality` — the label every
-        `/v1` access check enforces. Tracked as **#261**; when it is fixed a
-        `400` joins the responses below and this paragraph comes out.
+        **Three variables are set once at start and can never be written here**,
+        exactly as on `/v1`: `municipality`, `originTenantId` and
+        `applicantId`. A body containing any of them is refused with
+        `400 RESERVED_VARIABLE`, naming the offenders (#261) — rewriting the
+        organisation label would move a case between organisations.
 
         Variables may be sent plain or wrapped; see `M2mVariableMap`.
 
@@ -2908,6 +2909,11 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The body tried to write `municipality`, `originTenantId` or
+            `applicantId` (`RESERVED_VARIABLE`).
+          $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6446,9 +6452,8 @@ components:
         Every instance started since #218 carries `municipality` (the owning
         organisation, which access checks enforce) and `originTenantId` (the
         caller's organisation at start). Both, with `applicantId`, are
-        rejected if a task completion tries to write them -- on `/v1`. The M2M
-        twin has no such guard at either end of the case's life: it accepts
-        `municipality` on both `start` and `complete`. See #261.
+        rejected if a task completion tries to write them, on `/v1` and on
+        `/v1/m2m` alike; an M2M start also refuses the first two (#261).
       additionalProperties: true
 
     ProcessStartResult:

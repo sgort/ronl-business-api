@@ -437,6 +437,60 @@ describe('task endpoints', () => {
   });
 });
 
+describe('reserved process variables (#261)', () => {
+  // The same three /v1/task/{id}/complete refuses. An M2M client has no
+  // organisation of its own, so it has no reason to write an access label.
+  it.each(['municipality', 'originTenantId', 'applicantId'])(
+    'POST /task/:id/complete refuses %s with 400 RESERVED_VARIABLE, before any engine call',
+    async (name) => {
+      const res = await auth(request(app).post('/v1/m2m/task/t1/complete')).send({
+        variables: { [name]: 'x', reviewDecision: 'Approved' },
+      });
+      expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/m2m/task/{id}/complete');
+      expect(res.body.error.code).toBe('RESERVED_VARIABLE');
+      expect(res.body.error.message).toContain(name);
+      expect(svc.completeTask).not.toHaveBeenCalled();
+    }
+  );
+
+  // At start the deployed tenant is the only legitimate source of the label,
+  // and originTenantId is never set by this surface. applicantId may be: a
+  // machine starting a case on a citizen's behalf.
+  it.each(['municipality', 'originTenantId'])(
+    'POST /process/:key/start refuses %s with 400 RESERVED_VARIABLE, before any engine call',
+    async (name) => {
+      const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({
+        variables: { [name]: 'utrecht' },
+      });
+      expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/m2m/process/{key}/start');
+      expect(res.body.error.code).toBe('RESERVED_VARIABLE');
+      expect(res.body.error.message).toContain(name);
+      expect(svc.startProcess).not.toHaveBeenCalled();
+    }
+  );
+
+  it('POST /process/:key/start still accepts applicantId', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-1', businessKey: null });
+    const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({
+      variables: { applicantId: '999993653' },
+    });
+    expect(res.status).toBe(200);
+    expect(svc.startProcess).toHaveBeenCalled();
+  });
+
+  it('names every reserved key in the body, in the body order', async () => {
+    const res = await auth(request(app).post('/v1/m2m/task/t1/complete')).send({
+      variables: { applicantId: 'a', ok: true, municipality: 'm' },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe(
+      'Variables set at process start cannot be changed: applicantId, municipality'
+    );
+  });
+});
+
 describe('decision endpoints', () => {
   it('POST /decision/:key/evaluate evaluates with m2m tenant', async () => {
     svc.evaluateDecision.mockResolvedValue([{ result: { value: 1, type: 'Integer' } }]);

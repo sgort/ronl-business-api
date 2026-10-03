@@ -169,7 +169,7 @@ describe('config defaults (empty environment)', () => {
     });
     expect(config.operaton).toEqual({
       baseUrl: 'https://operaton.open-regels.nl/engine-rest',
-      m2mBaseUrl: 'https://operaton-doc.open-regels.nl/engine-rest',
+      m2mBaseUrl: '',
       timeout: 30000,
       username: undefined,
       password: undefined,

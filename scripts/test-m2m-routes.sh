@@ -48,15 +48,13 @@ case "$TARGET_LC" in
   acc)
     DEFAULT_BASE_URL="https://acc.api.open-regels.nl"
     DEFAULT_KEYCLOAK_URL="https://acc.keycloak.open-regels.nl"
-    # ACC's M2M client talks to operaton-doc, a different engine from ACC's main
-    # one, and TreeFellingDecision is not deployed there. AwbCompletenessCheck is:
+    # ACC's M2M surface uses ACC's main engine (#262). Both keys below are
+    # deployed there, and on operaton-doc, which it used before. AwbCompletenessCheck:
     # one input, and a catch-all rule under FIRST hit policy, so any value
     # evaluates cleanly rather than erroring.
     DEFAULT_DECISION_KEY="AwbCompletenessCheck"
     DEFAULT_DECISION_VARS='{"variables": {"productType": "TreeFellingPermit"}}'
-    # operaton-doc's own bundle, which carries the non-E2E spelling. Whether
-    # ACC's M2M engine really is operaton-doc is the open question in #262, so
-    # this preset may need the other spelling once that is settled.
+    # The deployed bundle carries the non-E2E spelling.
     DEFAULT_LIFECYCLE_KEY="ZorgtoeslagProvisionalSubProcess"
     ;;
   *)
@@ -460,6 +458,18 @@ else
       || fail "wrapped variables double-wrapped (probeLabel read back as: $WRAPPED_LANDED)"
   fi
 
+  # A caller may not choose the organisation at start (#261). If the guard ever
+  # fails, the stray instance is cancelled at once rather than left behind.
+  RESERVED_START_STATUS=$(curl -s -o /tmp/m2m_reserved_start.json -w "%{http_code}" \
+    -X POST "${BASE_URL}/v1/m2m/process/${LIFECYCLE_KEY}/start" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"businessKey\":\"${BK_PREFIX}-reserved\",\"variables\":{\"municipality\":\"m2m-routes-test-hijack\"}}")
+  check_status "POST /v1/m2m/process/:key/start refuses municipality" "$RESERVED_START_STATUS" "400"
+  check_field "start refusal body" "$(cat /tmp/m2m_reserved_start.json)" '.error.code' 'RESERVED_VARIABLE'
+  STRAY=$(jq -r '.data.processInstanceId // empty' /tmp/m2m_reserved_start.json 2>/dev/null)
+  [[ -n "$STRAY" ]] && m2m_delete "$STRAY"
+
   # task.claim, task.complete — on instance A's task.
   TASK_A=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -507,9 +517,20 @@ else
       && pass "a refused claim leaves the assignee where it was" \
       || fail "a refused claim moved the assignee to $STILL_ASSIGNEE"
 
-    # task.complete. NOTE: no RESERVED_VARIABLE guard here, unlike
-    # /v1/task/:id/complete — see #261. This writes only its own probe
-    # variables, deliberately: asserting the gap would mean relabelling a case.
+    # task.complete refuses an access label, as /v1/task/:id/complete does
+    # (#261). Refused before the engine is called, so the task stays open for
+    # the real completion below.
+    RESERVED_COMPLETE_STATUS=$(curl -s -o /tmp/m2m_reserved_complete.json -w "%{http_code}" \
+      -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/complete" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"variables":{"municipality":"m2m-routes-test-hijack","probeCompleted":true}}')
+    check_status "POST /v1/m2m/task/:id/complete refuses municipality" "$RESERVED_COMPLETE_STATUS" "400"
+    check_field "complete refusal body" "$(cat /tmp/m2m_reserved_complete.json)" '.error.code' 'RESERVED_VARIABLE'
+    [[ -n "$(m2m_task_of "$PROC_A")" ]] \
+      && pass "a refused completion leaves the task open" \
+      || fail "a refused completion closed the task"
+
     COMPLETE_A_STATUS=$(curl -s -o /tmp/m2m_complete_a.json -w "%{http_code}" \
       -X POST "${BASE_URL}/v1/m2m/task/${TASK_A}/complete" \
       -H "Authorization: Bearer $TOKEN" \
@@ -669,5 +690,6 @@ echo ""
 rm -f /tmp/m2m_task_list.json /tmp/m2m_task_get.json /tmp/m2m_decision.json \
   /tmp/m2m_disabled.json /tmp/m2m_tenant.json \
   /tmp/m2m_start_a.json /tmp/m2m_start_b.json /tmp/m2m_claim_a.json \
-  /tmp/m2m_complete_a.json /tmp/m2m_delete_b.json /tmp/m2m_vars_a.json
+  /tmp/m2m_complete_a.json /tmp/m2m_delete_b.json /tmp/m2m_vars_a.json \
+  /tmp/m2m_reserved_start.json /tmp/m2m_reserved_complete.json
 exit 0

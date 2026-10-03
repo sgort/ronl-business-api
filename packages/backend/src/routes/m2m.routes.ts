@@ -6,12 +6,13 @@ import { createLogger } from '@utils/logger';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
 import { inferType } from '@utils/operaton-variables';
+import { RESERVED_PROCESS_VARIABLES } from '@auth/tenant-access';
 
 const router = express.Router();
 const logger = createLogger('m2m-routes');
 
-// Use a dedicated Operaton instance for M2M if OPERATON_M2M_BASE_URL is set,
-// otherwise fall back to the shared default instance.
+// M2M uses the main engine on every tier (#262). OPERATON_M2M_BASE_URL still
+// overrides that, for an engine set aside on purpose, but nothing sets it.
 const m2mOperatonService = config.operaton.m2mBaseUrl
   ? new OperatonService(
       config.operaton.m2mBaseUrl,
@@ -106,6 +107,40 @@ function toOperatonVariables(input: Record<string, unknown>): Record<string, Ope
   return result;
 }
 
+/**
+ * Refuses a body that writes an access label (#261). `municipality` decides
+ * every /v1 access check, so writing it places or moves a case between
+ * organisations -- and an M2M client, having no organisation of its own, has
+ * no reason to. Answers 400 and returns true when it refused.
+ */
+function refuseReserved(
+  req: Request,
+  res: Response,
+  action: string,
+  names: readonly string[],
+  variables: Record<string, unknown>,
+  details: Record<string, unknown>
+): boolean {
+  const reserved = Object.keys(variables).filter((key) => names.includes(key));
+  if (reserved.length === 0) return false;
+  auditLog(req, action, 'failure', { ...details, reason: 'RESERVED_VARIABLE', reserved });
+  res.status(400).json({
+    success: false,
+    error: {
+      code: 'RESERVED_VARIABLE',
+      message: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
+    },
+  });
+  return true;
+}
+
+/**
+ * Refused at start: the deployed tenant is the only legitimate source of the
+ * label, and this surface never sets originTenantId. applicantId is allowed --
+ * a machine may start a case on a citizen's behalf.
+ */
+const RESERVED_AT_START = ['municipality', 'originTenantId'] as const;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROCESS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -141,6 +176,13 @@ router.post('/process/:key/start', async (req: Request, res: Response) => {
   if (!isAllowed('process.start')) return notAllowed(res);
   const { key } = req.params;
   const { variables = {}, businessKey } = req.body;
+  if (
+    refuseReserved(req, res, `process.start.m2m.${key}`, RESERVED_AT_START, variables, {
+      processKey: key,
+    })
+  ) {
+    return;
+  }
 
   try {
     const instance = await m2mOperatonService.startProcess(
@@ -484,6 +526,15 @@ router.post('/task/:id/complete', async (req: Request, res: Response) => {
   if (!isAllowed('task.complete')) return notAllowed(res);
   const { id } = req.params;
   const { variables = {} } = req.body;
+  // All three, exactly as /v1/task/{id}/complete: completion is not where any
+  // of them is set.
+  if (
+    refuseReserved(req, res, 'task.complete.m2m', RESERVED_PROCESS_VARIABLES, variables, {
+      taskId: id,
+    })
+  ) {
+    return;
+  }
 
   try {
     await m2mOperatonService.completeTask(id, { variables: toOperatonVariables(variables) });
