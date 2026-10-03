@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import AltchaWidget from '../AltchaWidget';
+import { problemMessage } from '../../utils/problem';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_MB = 10;
@@ -344,7 +345,7 @@ ${PO_ASSESSMENT_TEMPLATE}`;
         });
         const uploadData = await uploadRes.json();
         if (!uploadRes.ok || !uploadData.success) {
-          throw new Error(`Bestand uploaden mislukt: ${uploadData.error?.message ?? a.file.name}`);
+          throw new Error(`Bestand uploaden mislukt: ${problemMessage(uploadData, a.file.name)}`);
         }
         attachmentMarkdown.push(uploadData.data.markdown);
       }
@@ -368,7 +369,7 @@ ${PO_ASSESSMENT_TEMPLATE}`;
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error?.message || `HTTP ${response.status}`);
+        throw new Error(problemMessage(data, `HTTP ${response.status}`));
       }
 
       setSuccessData(data.data);

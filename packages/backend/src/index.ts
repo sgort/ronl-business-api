@@ -10,6 +10,7 @@ import { createRootRouter } from '@routes/root.routes';
 import { advertisedEndpoints, routeRegistry } from '@routes/registry';
 import { auditMiddleware } from '@middleware/audit.middleware';
 import { versionMiddleware } from '@middleware/version.middleware';
+import { errorHandler, notFoundHandler, rateLimitHandler } from '@middleware/error.middleware';
 import packageJson from '../package.json';
 // The routers themselves come from the registry; this is the callback-path
 // predicate the JSON body parser needs to exempt /v1/validsign/callback.
@@ -85,13 +86,7 @@ app.use(
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.maxRequests,
-  message: {
-    success: false,
-    error: {
-      code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Too many requests, please try again later',
-    },
-  },
+  handler: rateLimitHandler,
   standardHeaders: true,
   legacyHeaders: false,
   // req.ip is not a client identity on its own: with TRUST_PROXY on, Express
@@ -118,8 +113,9 @@ app.use(limiter);
 // mounted sub-router entirely once an error has occurred upstream of it, so
 // if this global parser were the one to throw, the router's own error
 // handler would never be reached and the request would fall through to the
-// generic catch-all below -- which returns 500, telling ValidSign to retry
-// forever.
+// generic catch-all below -- which returned 500, telling ValidSign to retry
+// forever. (Since #216 the catch-all answers a parse failure with 400 too, but
+// the callback keeps its own, tighter limit.)
 const jsonParser = express.json({ limit: '1mb' });
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (isCallbackPath(req.path)) return next();
@@ -167,39 +163,10 @@ for (const { mount, router } of routeRegistry) {
   app.use(mount, router);
 }
 
-// 404 handler
-app.use((req: Request, res: Response) => {
-  logger.warn('Route not found', {
-    method: req.method,
-    path: req.path,
-  });
-
-  res.status(404).json({
-    success: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: 'Endpoint not found',
-      path: req.path,
-    },
-  });
-});
-
-// Error handler (must be last)
-app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Unhandled error', {
-    error: err.message,
-    stack: err.stack,
-    path: req.path,
-  });
-
-  res.status(500).json({
-    success: false,
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: config.nodeEnv === 'production' ? 'Internal server error' : err.message,
-    },
-  });
-});
+// 404, then the error handler, which must be last. Both answer problem
+// details; a body the parser refused is a 400/413 there, not a 500 (#216).
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Suppress EPIPE errors from MCP child process stdio pipes closing
 process.on('SIGPIPE', () => {});

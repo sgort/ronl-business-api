@@ -17,28 +17,20 @@ rules:
   # reason and the same scheme.
   nlgov:semver: 'off'
 
-  # THE ONE DEVIATION THAT IS NOT COSMETIC.
-  #
-  # This API answers errors with its own envelope,
-  # `{ "success": false, "error": { "code", "message" } }`, in 289 places. The
-  # ADR ruleset requires RFC 9457 `application/problem+json` for 4xx and 5xx.
-  #
-  # Documenting what the API actually answers was chosen over changing what it
-  # answers, because changing it is a breaking change for the frontend, public
-  # site, pa-demo, pa-cockpit and every /v1/m2m consumer -- and publishing a
-  # truthful contract should not wait on that. The migration is tracked
-  # separately; linked-data-explorer did it in its own #131 before documenting.
-  #
-  # These are OFF GLOBALLY rather than per operation on purpose: a per-operation
-  # list would have to name all 130 operations and would grow with every new
-  # one, which turns a recorded decision into maintenance. When the migration
-  # lands, these three lines come out together and the rule gates everywhere at
-  # once.
-  nlgov:use-problem-schema: 'off'
-  nlgov:problem-schema-members: 'off'
-  nlgov:problem-invalid-input: 'off'
+  # The three problem-details rules (use-problem-schema, problem-schema-members,
+  # problem-invalid-input) were off globally until #216 moved every error
+  # response to RFC 9457 `application/problem+json`. They gate now.
 
 overrides:
+  # The ValidSign STUB ceremony is a page a person's browser posts a form to,
+  # standing in for ValidSign's own signing screen; its failure is an HTML page
+  # for that person, not an API error for a client to parse. Problem details
+  # would show them raw JSON. Stub mode only, and scoped to this one response.
+  - files:
+      - 'openapi.json#/paths/~1validsign~1stub~1ceremony~1%7BpackageId%7D~1sign/post/responses/500'
+    rules:
+      nlgov:use-problem-schema: 'off'
+
   # PublicIndexItem.date is NAMED `date` but carries a full timestamp, so
   # `format: date-time` is the honest description and the rule is wrong here.
   #

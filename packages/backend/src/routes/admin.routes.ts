@@ -3,6 +3,7 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { requireRoles } from '@auth/jwt.middleware';
 import { db } from '@services/audit.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 
 const router = Router();
 const logger = createLogger('admin-routes');
@@ -58,9 +59,10 @@ router.get('/audit', async (req, res) => {
     logger.error('Failed to query audit logs', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'DB_ERROR', message: 'Auditlog kon niet worden opgehaald.' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DB_ERROR',
+      detail: 'Auditlog kon niet worden opgehaald.',
     });
   }
 });

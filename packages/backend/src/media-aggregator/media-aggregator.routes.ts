@@ -16,6 +16,7 @@ import express, { type Request, type Response } from 'express';
 import { createLogger } from '@utils/logger';
 import { searchArticles } from './search';
 import { getArticles } from './store';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('media-aggregator-routes');
@@ -30,7 +31,11 @@ function authorized(req: Request): boolean {
 
 router.get('/search', async (req: Request, res: Response) => {
   if (!authorized(req)) {
-    res.status(401).json({ error: 'unauthorized' });
+    sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Missing or invalid bearer token',
+    });
     return;
   }
   try {
@@ -43,16 +48,20 @@ router.get('/search', async (req: Request, res: Response) => {
     res.json({ articles });
   } catch (err) {
     logger.error('search failed', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ error: 'search_failed' });
+    sendProblem(res, req, { status: 500, code: 'SEARCH_FAILED', detail: 'Search failed' });
   }
 });
 
-router.get('/health', async (_req: Request, res: Response) => {
+router.get('/health', async (req: Request, res: Response) => {
   try {
     const articles = await getArticles();
     res.json({ ok: true, cached: articles.length });
   } catch {
-    res.status(503).json({ ok: false });
+    sendProblem(res, req, {
+      status: 503,
+      code: 'STORE_UNAVAILABLE',
+      detail: 'The article store could not be read',
+    });
   }
 });
 

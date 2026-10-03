@@ -4,6 +4,7 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('besluitvorming-routes');
@@ -19,9 +20,10 @@ router.use(tenantMiddleware);
 function listHandler(state: 'lopend' | 'afgerond') {
   return async (req: Request, res: Response) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
     try {
@@ -33,9 +35,10 @@ function listHandler(state: 'lopend' | 'afgerond') {
         state,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      return res.status(500).json({
-        success: false,
-        error: { code: 'BESLUIT_LIST_FAILED', message: 'Failed to retrieve besluiten' },
+      return sendProblem(res, req, {
+        status: 500,
+        code: 'BESLUIT_LIST_FAILED',
+        detail: 'Failed to retrieve besluiten',
       });
     }
   };

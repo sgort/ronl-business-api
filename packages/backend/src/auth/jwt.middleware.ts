@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { JWTPayload, AuthenticatedUser, AssuranceLevel } from '../types/auth.types';
 
 const logger = createLogger('jwt-middleware');
@@ -128,12 +129,10 @@ export const jwtMiddleware = async (req: Request, res: Response, next: NextFunct
         path: req.path,
         ip: req.ip,
       });
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'MISSING_TOKEN',
-          message: 'Authorization header missing or invalid',
-        },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'MISSING_TOKEN',
+        detail: 'Authorization header missing or invalid',
       });
     }
 
@@ -177,12 +176,10 @@ export const jwtMiddleware = async (req: Request, res: Response, next: NextFunct
       path: req.path,
     });
 
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: 'INVALID_TOKEN',
-        message: 'Token validation failed',
-      },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'INVALID_TOKEN',
+      detail: 'Token validation failed',
     });
   }
 };
@@ -209,12 +206,10 @@ export const optionalJwtMiddleware = async (req: Request, res: Response, next: N
 export const requireRoles = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
 
@@ -227,12 +222,10 @@ export const requireRoles = (...roles: string[]) => {
         userRoles: req.user.roles,
       });
 
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Insufficient permissions',
-        },
+      return sendProblem(res, req, {
+        status: 403,
+        code: 'FORBIDDEN',
+        detail: 'Insufficient permissions',
       });
     }
 
@@ -249,12 +242,10 @@ export const requireAssuranceLevel = (minLevel: AssuranceLevel) => {
 
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
 
@@ -268,12 +259,10 @@ export const requireAssuranceLevel = (minLevel: AssuranceLevel) => {
         actual: userLevel,
       });
 
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'INSUFFICIENT_ASSURANCE',
-          message: `Assurance level '${minLevel}' or higher required`,
-        },
+      return sendProblem(res, req, {
+        status: 403,
+        code: 'INSUFFICIENT_ASSURANCE',
+        detail: `Assurance level '${minLevel}' or higher required`,
       });
     }
 

@@ -127,6 +127,26 @@ describe('businessApi.mcp.chatStream', () => {
     expect(events).toEqual([{ type: 'error', message: 'Model unavailable' }]);
   });
 
+  it("yields the problem body's detail when the error is RFC 9457 problem details", async () => {
+    const { response } = makeStreamResponse([], {
+      ok: false,
+      status: 429,
+      json: vi.fn().mockResolvedValue({
+        type: 'about:blank',
+        status: 429,
+        title: 'Rate limited',
+        detail: 'Too many chat requests',
+        instance: '/v1/mcp/chat',
+        code: 'RATE_LIMITED',
+      }),
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    const events = await collect(businessApi.mcp.chatStream('hi', [], [], 'model-1'));
+
+    expect(events).toEqual([{ type: 'error', message: 'Too many chat requests' }]);
+  });
+
   it('falls back to "HTTP <status>" when the error body is not valid JSON', async () => {
     const { response } = makeStreamResponse([], {
       ok: false,

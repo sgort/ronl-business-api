@@ -12,7 +12,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'm2m-user' } as Request['user'];
     // `azp` is the Keycloak client the token was issued to. Default to the
     // allow-listed M2M client; x-test-azp stands in for any other caller, and
@@ -132,11 +139,12 @@ describe('client allow-list (#237)', () => {
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/m2m/process');
     expect(res.body).toEqual({
-      success: false,
-      error: {
-        code: 'M2M_CLIENT_NOT_ALLOWED',
-        message: 'This API is only available to registered M2M clients.',
-      },
+      type: 'about:blank',
+      status: 403,
+      title: 'M2m client not allowed',
+      detail: 'This API is only available to registered M2M clients.',
+      instance: '/v1/m2m/process',
+      code: 'M2M_CLIENT_NOT_ALLOWED',
     });
     expect(svc.listProcessInstances).not.toHaveBeenCalled();
   });
@@ -184,7 +192,7 @@ describe('process endpoints', () => {
     const res = await auth(request(app).get('/v1/m2m/process'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/m2m/process');
-    expect(res.body.error.code).toBe('PROCESS_LIST_FAILED');
+    expect(res.body.code).toBe('PROCESS_LIST_FAILED');
   });
 
   it('POST /process/:key/start infers all variable types and starts', async () => {
@@ -223,22 +231,63 @@ describe('process endpoints', () => {
     const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({});
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/m2m/process/{key}/start');
-    expect(res.body.error.code).toBe('PROCESS_START_FAILED');
+    expect(res.body.code).toBe('PROCESS_START_FAILED');
   });
 
-  it('GET /process/history queries history', async () => {
+  it('POST /process/history passes the filter body to the history query', async () => {
     svc.queryProcessHistory.mockResolvedValue([{ id: 'h' }]);
-    const res = await auth(request(app).get('/v1/m2m/process/history'));
+    const res = await auth(request(app).post('/v1/m2m/process/history')).send({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'post', '/m2m/process/history');
+    expect(svc.queryProcessHistory).toHaveBeenCalledWith({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
+    expect(res.headers.deprecation).toBeUndefined();
+  });
+
+  it('POST /process/history → 500 on failure', async () => {
+    svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).post('/v1/m2m/process/history')).send({});
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/m2m/process/history');
+    expect(res.body.code).toBe('PROCESS_HISTORY_FAILED');
+  });
+
+  // The GET spelling stays for one release as a deprecated alias (#263): same
+  // behaviour, plus an RFC 9745 Deprecation header naming when it was deprecated.
+  it('GET /process/history still answers, marked deprecated', async () => {
+    svc.queryProcessHistory.mockResolvedValue([{ id: 'h' }]);
+    const res = await auth(request(app).get('/v1/m2m/process/history')).send({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
     expect(res.status).toBe(200);
     expectToMatchOperation(res, 'get', '/m2m/process/history');
+    expect(res.headers.deprecation).toBe('@1790985600');
+    expect(svc.queryProcessHistory).toHaveBeenCalledWith({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
   });
 
-  it('GET /process/history → 500 on failure', async () => {
+  it('GET /process/history → 500 on failure, still marked deprecated', async () => {
     svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/m2m/process/history'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/m2m/process/history');
-    expect(res.body.error.code).toBe('PROCESS_HISTORY_FAILED');
+    expect(res.headers.deprecation).toBe('@1790985600');
+  });
+
+  it('GET /process/history obeys the curation gate too', async () => {
+    const index = M2M_ALLOWED_OPERATIONS.indexOf('process.history');
+    M2M_ALLOWED_OPERATIONS.splice(index, 1);
+    try {
+      const res = await auth(request(app).get('/v1/m2m/process/history'));
+      expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/m2m/process/history');
+    } finally {
+      M2M_ALLOWED_OPERATIONS.splice(index, 0, 'process.history');
+    }
   });
 
   it('GET /process/:id/status maps active/ended/suspended', async () => {
@@ -261,7 +310,7 @@ describe('process endpoints', () => {
     const res = await auth(request(app).get('/v1/m2m/process/pi/status'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/m2m/process/{id}/status');
-    expect(res.body.error.code).toBe('PROCESS_NOT_FOUND');
+    expect(res.body.code).toBe('PROCESS_NOT_FOUND');
   });
 
   it('GET /process/:id/variables flattens values', async () => {
@@ -437,6 +486,61 @@ describe('task endpoints', () => {
   });
 });
 
+describe('reserved process variables (#261)', () => {
+  // The same three /v1/task/{id}/complete refuses. An M2M client has no
+  // organisation of its own, so it has no reason to write an access label.
+  it.each(['municipality', 'originTenantId', 'applicantId'])(
+    'POST /task/:id/complete refuses %s with 400 RESERVED_VARIABLE, before any engine call',
+    async (name) => {
+      const res = await auth(request(app).post('/v1/m2m/task/t1/complete')).send({
+        variables: { [name]: 'x', reviewDecision: 'Approved' },
+      });
+      expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/m2m/task/{id}/complete');
+      expect(res.body.code).toBe('RESERVED_VARIABLE');
+      expect(res.body.detail).toContain(name);
+      expect(svc.completeTask).not.toHaveBeenCalled();
+    }
+  );
+
+  // At start the deployed tenant is the only legitimate source of the label,
+  // and originTenantId is never set by this surface. applicantId may be: a
+  // machine starting a case on a citizen's behalf.
+  it.each(['municipality', 'originTenantId'])(
+    'POST /process/:key/start refuses %s with 400 RESERVED_VARIABLE, before any engine call',
+    async (name) => {
+      const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({
+        variables: { [name]: 'utrecht' },
+      });
+      expect(res.status).toBe(400);
+      expectToMatchOperation(res, 'post', '/m2m/process/{key}/start');
+      expect(res.body.code).toBe('RESERVED_VARIABLE');
+      expect(res.body.detail).toContain(name);
+      expect(svc.startProcess).not.toHaveBeenCalled();
+    }
+  );
+
+  it('POST /process/:key/start still accepts applicantId', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-1', businessKey: null });
+    const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({
+      variables: { applicantId: '999993653' },
+    });
+    expect(res.status).toBe(200);
+    expect(svc.startProcess).toHaveBeenCalled();
+  });
+
+  it('names every reserved key in the body, in the body order', async () => {
+    const res = await auth(request(app).post('/v1/m2m/task/t1/complete')).send({
+      variables: { applicantId: 'a', ok: true, municipality: 'm' },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.detail).toBe(
+      'Variables set at process start cannot be changed: applicantId, municipality'
+    );
+    expect(res.body.reserved).toEqual(['applicantId', 'municipality']);
+  });
+});
+
 describe('decision endpoints', () => {
   it('POST /decision/:key/evaluate evaluates with m2m tenant', async () => {
     svc.evaluateDecision.mockResolvedValue([{ result: { value: 1, type: 'Integer' } }]);
@@ -459,7 +563,7 @@ describe('decision endpoints', () => {
     });
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/m2m/decision/{key}/evaluate');
-    expect(res.body.error.message).toBe('DMN broke');
+    expect(res.body.detail).toBe('DMN broke');
   });
 
   it('GET /decision/:key returns the definition; 404 on failure', async () => {
@@ -500,7 +604,7 @@ const OPERATIONS = [
   ],
   [
     'process.history',
-    'get',
+    'post',
     '/v1/m2m/process/history',
     'queryProcessHistory',
     500,
@@ -622,7 +726,7 @@ describe('the curation gate', () => {
       try {
         const res = await auth(request(app)[method](path));
         expect(res.status).toBe(403);
-        expect(res.body.error.code).toBe('OPERATION_NOT_PERMITTED');
+        expect(res.body.code).toBe('OPERATION_NOT_PERMITTED');
         // Every one of the eighteen, against the document's own 403 -- which is
         // the shared M2mForbidden, covering this code and M2M_CLIENT_NOT_ALLOWED.
         expectToMatchOperation(res, method, documentPath);
@@ -642,7 +746,8 @@ describe('non-Error rejections', () => {
       svc[fn].mockRejectedValue('socket hang up');
       const res = await auth(request(app)[method](path));
       expect(res.status).toBe(status);
-      expect(res.body.success).toBe(false);
+      expect(res.body.status).toBe(status);
+      expect(typeof res.body.code).toBe('string');
     }
   );
 });
@@ -662,9 +767,9 @@ describe('request bodies that leave fields out', () => {
 
   it('queries history with an empty filter when there is no body at all', async () => {
     svc.queryProcessHistory.mockResolvedValue([]);
-    const res = await auth(request(app).get('/v1/m2m/process/history'));
+    const res = await auth(request(app).post('/v1/m2m/process/history'));
     expect(res.status).toBe(200);
-    expectToMatchOperation(res, 'get', '/m2m/process/history');
+    expectToMatchOperation(res, 'post', '/m2m/process/history');
     expect(svc.queryProcessHistory).toHaveBeenCalledWith({});
   });
 

@@ -12,7 +12,14 @@ import type { Request, Response, NextFunction } from 'express';
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     if (!req.headers['x-test-auth']) {
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     }
     req.user = {
       userId: 'test-user',
@@ -84,7 +91,7 @@ describe('auth gate', () => {
     const res = await request(app).get('/v1/edocs/status');
     expect(res.status).toBe(401);
     expectToMatchOperation(res, 'get', '/edocs/status');
-    expect(res.body.error.code).toBe('MISSING_TOKEN');
+    expect(res.body.code).toBe('MISSING_TOKEN');
     expect(svc.healthCheck).not.toHaveBeenCalled();
   });
 });
@@ -169,7 +176,7 @@ describe('GET /workspaces', () => {
     const res = await auth(request(app).get('/v1/edocs/workspaces'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'get', '/edocs/workspaces');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -180,7 +187,7 @@ describe('POST /workspaces/ensure', () => {
     });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/edocs/workspaces/ensure');
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
     expect(svc.ensureWorkspace).not.toHaveBeenCalled();
   });
 
@@ -208,7 +215,7 @@ describe('POST /workspaces/ensure', () => {
     });
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'post', '/edocs/workspaces/ensure');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -227,7 +234,7 @@ describe('POST /documents', () => {
     });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/edocs/documents');
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
     expect(svc.uploadDocument).not.toHaveBeenCalled();
   });
 
@@ -238,7 +245,7 @@ describe('POST /documents', () => {
     });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/edocs/documents');
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
     expect(svc.uploadDocument).not.toHaveBeenCalled();
   });
 
@@ -280,7 +287,7 @@ describe('POST /documents', () => {
     const res = await auth(request(app).post('/v1/edocs/documents')).send(valid);
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'post', '/edocs/documents');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -304,7 +311,7 @@ describe('GET /workspaces/:workspaceId/documents', () => {
     const res = await auth(request(app).get('/v1/edocs/workspaces/ws-1/documents'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'get', '/edocs/workspaces/{workspaceId}/documents');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -323,7 +330,7 @@ describe('GET /documents/:documentId/profile', () => {
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/profile'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/profile');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -344,7 +351,7 @@ describe('GET /documents/:documentId/versions', () => {
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/versions');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -363,7 +370,7 @@ describe('GET /documents/:documentId/versions/:version', () => {
     const res = await auth(request(app).get('/v1/edocs/documents/doc-1/versions/1'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'get', '/edocs/documents/{documentId}/versions/{version}');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -382,7 +389,7 @@ describe('DELETE /documents/:documentId', () => {
     const res = await auth(request(app).delete('/v1/edocs/documents/doc-1'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'delete', '/edocs/documents/{documentId}');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -401,7 +408,7 @@ describe('DELETE /workspaces/:workspaceId', () => {
     const res = await auth(request(app).delete('/v1/edocs/workspaces/ws-1'));
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'delete', '/edocs/workspaces/{workspaceId}');
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });
 
@@ -435,6 +442,6 @@ describe('non-Error rejections', () => {
     const req = auth(request(app)[method](path));
     const res = await (body ? req.send(body) : req);
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('EDOCS_ERROR');
+    expect(res.body.code).toBe('EDOCS_ERROR');
   });
 });

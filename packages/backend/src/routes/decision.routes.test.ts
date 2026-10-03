@@ -12,7 +12,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = {
       userId: 'u',
       tenantId: 'flevoland',
@@ -118,9 +125,9 @@ describe('POST /:key/evaluate', () => {
 
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
-    expect(res.body.error).toEqual({
+    expect(res.body).toMatchObject({
       code: 'DECISION_EVALUATION_FAILED',
-      message: 'DMN configuratiefout',
+      detail: 'DMN configuratiefout',
     });
     expect(mockAuditLog).toHaveBeenCalledWith(
       expect.anything(),
@@ -154,7 +161,7 @@ describe('GET /:key', () => {
     const res = await auth(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/decision/{key}');
-    expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
+    expect(res.body.code).toBe('DECISION_NOT_FOUND');
   });
 
   it('404 when the fetch throws', async () => {
@@ -162,7 +169,7 @@ describe('GET /:key', () => {
     const res = await auth(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/decision/{key}');
-    expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
+    expect(res.body.code).toBe('DECISION_NOT_FOUND');
   });
 });
 
@@ -175,14 +182,14 @@ describe('handler guards for an authenticated request without a user', () => {
     const res = await noUser(request(app).post('/v1/decision/MyDec/evaluate').send({}));
     expect(res.status).toBe(401);
     expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 
   it('GET /:key -> 401 UNAUTHORIZED', async () => {
     const res = await noUser(request(app).get('/v1/decision/MyDec'));
     expect(res.status).toBe(401);
     expectToMatchOperation(res, 'get', '/decision/{key}');
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -194,10 +201,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).post('/v1/decision/MyDec/evaluate').send({}));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/decision/{key}/evaluate');
-    expect(res.body.error).toEqual({
-      code: 'DECISION_EVALUATION_FAILED',
-      message: 'Unknown error',
-    });
+    expect(res.body).toMatchObject({ code: 'DECISION_EVALUATION_FAILED', detail: 'Unknown error' });
   });
 
   it('GET /:key still answers 404', async () => {
@@ -210,7 +214,7 @@ describe('non-Error rejections', () => {
       const res = await auth(request(app).get('/v1/decision/MyDec'));
       expect(res.status).toBe(404);
       expectToMatchOperation(res, 'get', '/decision/{key}');
-      expect(res.body.error.code).toBe('DECISION_NOT_FOUND');
+      expect(res.body.code).toBe('DECISION_NOT_FOUND');
     } finally {
       fetchSpy.mockRestore();
     }

@@ -253,8 +253,9 @@ export const config: Config = {
 
   operaton: {
     baseUrl: process.env.OPERATON_BASE_URL || 'https://operaton.open-regels.nl/engine-rest',
-    m2mBaseUrl:
-      process.env.OPERATON_M2M_BASE_URL || 'https://operaton-doc.open-regels.nl/engine-rest',
+    // Unset (the intent on every tier, #262): /v1/m2m uses the main engine.
+    // Set only to point M2M at a different engine on purpose.
+    m2mBaseUrl: process.env.OPERATON_M2M_BASE_URL || '',
     timeout: parseEnvInt(process.env.OPERATON_TIMEOUT, 30000),
     username: process.env.OPERATON_USERNAME,
     password: process.env.OPERATON_PASSWORD,

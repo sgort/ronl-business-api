@@ -1,5 +1,6 @@
 import axios from 'axios';
 import keycloak from './keycloak';
+import { problemMessage, toApiResponse } from '../utils/problem';
 import type {
   ApiResponse,
   OperatonVariable,
@@ -31,6 +32,16 @@ api.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${keycloak.token}`;
   }
   return config;
+});
+
+// Error bodies arrive as RFC 9457 problem details (#216). Normalise them here,
+// once, into the ApiResponse shape every `catch` below returns, so the
+// components keep reading `res.error?.code` and `res.error?.message`.
+api.interceptors.response.use(undefined, (error: unknown) => {
+  if (axios.isAxiosError(error) && error.response) {
+    error.response.data = toApiResponse(error.response.data);
+  }
+  return Promise.reject(error);
 });
 
 export const businessApi = {
@@ -554,8 +565,7 @@ export const businessApi = {
       if (!response.ok) {
         let errorMsg = `HTTP ${response.status}`;
         try {
-          const errData = (await response.json()) as { error?: { message?: string } };
-          errorMsg = errData?.error?.message ?? errorMsg;
+          errorMsg = problemMessage(await response.json(), errorMsg);
         } catch {
           // ignore
         }

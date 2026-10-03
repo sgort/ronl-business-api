@@ -114,6 +114,33 @@ describe('IouFeedbackSection', () => {
     expect(await screen.findByText(/Server fout/)).toBeInTheDocument();
   });
 
+  it("shows the problem body's detail when the backend answers with problem details", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            type: 'about:blank',
+            status: 400,
+            title: 'Altcha invalid',
+            detail: 'Verificatie mislukt',
+            instance: '/v1/public/feedback',
+            code: 'ALTCHA_INVALID',
+          },
+          false,
+          400
+        )
+      )
+    );
+    const user = userEvent.setup();
+    const { container } = render(<IouFeedbackSection />);
+
+    await fillRequired(user, container);
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+
+    expect(await screen.findByText(/Verificatie mislukt/)).toBeInTheDocument();
+  });
+
   it('adding a non-image file shows a validation error and does not add it', async () => {
     const { container } = render(<IouFeedbackSection />);
 

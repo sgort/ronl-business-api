@@ -121,12 +121,52 @@ describe('IouGebruiksscenarioSection', () => {
     expect(await screen.findByText(/Server fout/)).toBeInTheDocument();
   });
 
+  it("shows the problem body's detail when the use-case submission answers with problem details", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            type: 'about:blank',
+            status: 502,
+            title: 'Gitlab error',
+            detail: 'GitLab niet bereikbaar',
+            instance: '/v1/public/use-case',
+            code: 'GITLAB_ERROR',
+          },
+          false,
+          502
+        )
+      )
+    );
+    const user = userEvent.setup();
+    const { container } = render(<IouGebruiksscenarioSection />);
+
+    await fillRequired(user, container);
+    await user.click(screen.getByRole('button', { name: 'Indienen' }));
+
+    expect(await screen.findByText(/GitLab niet bereikbaar/)).toBeInTheDocument();
+  });
+
   it('aborts submission and shows an error when an attachment fails to upload', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
         if (url.includes('/public/upload-file')) {
-          return Promise.resolve(jsonResponse({ success: false, error: { message: 'Te groot' } }));
+          return Promise.resolve(
+            jsonResponse(
+              {
+                type: 'about:blank',
+                status: 413,
+                title: 'File too large',
+                detail: 'Te groot',
+                instance: '/v1/public/upload-file',
+                code: 'FILE_TOO_LARGE',
+              },
+              false,
+              413
+            )
+          );
         }
         return Promise.resolve(jsonResponse({ success: true, data: { iid: 7, web_url: 'x' } }));
       })

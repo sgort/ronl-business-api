@@ -27,7 +27,14 @@ jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     // Keycloak realms differ in which name claims they map. `x-test-claims`
     // selects the shape under test: 'full' (the default) is every claim
     // present, 'username-only' drops given_name so the preferred_username
@@ -621,7 +628,7 @@ describe('GET /v1/validsign/task/:taskId/spec', () => {
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
-    expect(res.body.error.code).toBe('SIGNATURE_SPEC_FAILED');
+    expect(res.body.code).toBe('SIGNATURE_SPEC_FAILED');
   });
 });
 
@@ -632,7 +639,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       .set(authHeader)
       .set('x-test-email', '');
     expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('MISSING_SIGNER_EMAIL');
+    expect(res.body.code).toBe('MISSING_SIGNER_EMAIL');
     expect(mockValidsign.createPackage).not.toHaveBeenCalled();
   });
 
@@ -798,7 +805,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
       .send({ delivery: 'carrier-pigeon' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_DELIVERY');
+    expect(res.body.code).toBe('INVALID_DELIVERY');
     expect(mockValidsign.createPackage).not.toHaveBeenCalled();
   });
 
@@ -823,7 +830,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
 
       expect(res.status).toBe(409);
       expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
-      expect(res.body.error.code).toBe('VALIDSIGN_PACKAGE_EXISTS');
+      expect(res.body.code).toBe('VALIDSIGN_PACKAGE_EXISTS');
       expect(res.body.data).toEqual({ packageId: existingPackageId });
       expect(mockValidsign.createPackage).not.toHaveBeenCalled();
       expect(mockRenderTemplate).not.toHaveBeenCalled();
@@ -884,7 +891,7 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
-    expect(res.body.error.code).toBe('NOT_SIGNATURE_TASK');
+    expect(res.body.code).toBe('NOT_SIGNATURE_TASK');
   });
 
   it('401 without a token', async () => {
@@ -976,7 +983,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
-    expect(res.body.error.code).toBe('SIGNATURE_STATUS_NOT_FOUND');
+    expect(res.body.code).toBe('SIGNATURE_STATUS_NOT_FOUND');
   });
 
   // The dangerous confusion this fix must not introduce: a transport failure
@@ -989,7 +996,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
-    expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
+    expect(res.body.code).toBe('SIGNATURE_STATUS_FAILED');
     expect(res.body.data?.status).not.toBe('completed');
     expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
   });
@@ -999,7 +1006,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
-    expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
+    expect(res.body.code).toBe('SIGNATURE_STATUS_FAILED');
     expect(mockGetHistoricTaskVariables).not.toHaveBeenCalled();
   });
 
@@ -1009,7 +1016,7 @@ describe('GET /v1/validsign/task/:taskId/status', () => {
     const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
-    expect(res.body.error.code).toBe('SIGNATURE_STATUS_FAILED');
+    expect(res.body.code).toBe('SIGNATURE_STATUS_FAILED');
   });
 });
 
@@ -1328,7 +1335,7 @@ describe('POST /v1/validsign/task/:taskId/package, further cases', () => {
       .post('/v1/validsign/task/task-1/package')
       .set('x-test-no-user', '1');
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
     expect(mockValidsign.createPackage).not.toHaveBeenCalled();
   });
 
@@ -1404,7 +1411,7 @@ describe('POST /v1/validsign/callback, body edge cases', () => {
       .send(JSON.stringify({ packageId: 'pkg-1', pad: 'x'.repeat(20 * 1024) }));
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_BODY');
+    expect(res.body.code).toBe('INVALID_BODY');
     expect(mockCompleteSignature).not.toHaveBeenCalled();
   });
 });
@@ -1426,7 +1433,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
       expect(res.status).toBe(403);
       expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/spec');
-      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+      expect(res.body.code).toBe('TENANT_MISMATCH');
       expect(mockGetTaskSignatureSpec).not.toHaveBeenCalled();
     });
 
@@ -1436,7 +1443,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
       expect(res.status).toBe(403);
       expectToMatchOperation(res, 'post', '/validsign/task/{taskId}/package');
-      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+      expect(res.body.code).toBe('TENANT_MISMATCH');
       expect(mockGetTaskSignatureSpec).not.toHaveBeenCalled();
       expect(mockRenderTemplate).not.toHaveBeenCalled();
       expect(mockValidsign.createPackage).not.toHaveBeenCalled();
@@ -1449,7 +1456,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
       expect(res.status).toBe(403);
       expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
-      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+      expect(res.body.code).toBe('TENANT_MISMATCH');
     });
 
     it('GET /status answers 403 TENANT_MISMATCH for a completed task found in history', async () => {
@@ -1458,7 +1465,7 @@ describe('tenant isolation on the task endpoints (#227)', () => {
       const res = await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
       expect(res.status).toBe(403);
       expectToMatchOperation(res, 'get', '/validsign/task/{taskId}/status');
-      expect(res.body.error.code).toBe('TENANT_MISMATCH');
+      expect(res.body.code).toBe('TENANT_MISMATCH');
     });
   });
 });

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { edocsService } from '@services/edocs.service';
 
 const router = Router();
@@ -34,7 +35,7 @@ router.get('/status', async (_req: Request, res: Response) => {
  * GET /v1/edocs/workspaces
  * Lists available workspaces from eDOCS.
  */
-router.get('/workspaces', async (_req: Request, res: Response) => {
+router.get('/workspaces', async (req: Request, res: Response) => {
   try {
     const documents = await edocsService.listWorkspaces();
     res.json({ success: true, data: documents, timestamp: new Date().toISOString() });
@@ -42,9 +43,10 @@ router.get('/workspaces', async (_req: Request, res: Response) => {
     logger.error('listWorkspaces failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to list eDOCS workspaces.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to list eDOCS workspaces.',
     });
   }
 });
@@ -60,9 +62,10 @@ router.post('/workspaces/ensure', async (req: Request, res: Response) => {
   };
 
   if (!projectNumber || !projectName) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'MISSING_FIELDS', message: 'projectNumber and projectName are required.' },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_FIELDS',
+      detail: 'projectNumber and projectName are required.',
     });
   }
 
@@ -74,9 +77,10 @@ router.post('/workspaces/ensure', async (req: Request, res: Response) => {
       projectNumber,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to ensure eDOCS workspace.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to ensure eDOCS workspace.',
     });
   }
 });
@@ -98,12 +102,10 @@ router.post('/documents', async (req: Request, res: Response) => {
   };
 
   if (!filename || !contentBase64 || !metadata?.docName || !metadata?.department) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'MISSING_FIELDS',
-        message: 'filename, contentBase64, metadata.docName, and metadata.department are required.',
-      },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_FIELDS',
+      detail: 'filename, contentBase64, metadata.docName, and metadata.department are required.',
     });
   }
 
@@ -121,9 +123,10 @@ router.post('/documents', async (req: Request, res: Response) => {
       filename,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to upload document to eDOCS.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to upload document to eDOCS.',
     });
   }
 });
@@ -146,9 +149,10 @@ router.get('/workspaces/:workspaceId/documents', async (req: Request, res: Respo
       workspaceId,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to retrieve workspace documents.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to retrieve workspace documents.',
     });
   }
 });
@@ -167,9 +171,10 @@ router.get('/documents/:documentId/profile', async (req: Request, res: Response)
       documentId,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to retrieve document profile.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to retrieve document profile.',
     });
   }
 });
@@ -192,9 +197,10 @@ router.get('/documents/:documentId/versions', async (req: Request, res: Response
       documentId,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to retrieve document versions.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to retrieve document versions.',
     });
   }
 });
@@ -215,9 +221,10 @@ router.get('/documents/:documentId/versions/:version', async (req: Request, res:
       version,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to download document content.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to download document content.',
     });
   }
 });
@@ -240,9 +247,10 @@ router.delete('/documents/:documentId', async (req: Request, res: Response) => {
       documentId,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to delete document.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to delete document.',
     });
   }
 });
@@ -265,9 +273,10 @@ router.delete('/workspaces/:workspaceId', async (req: Request, res: Response) =>
       workspaceId,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(502).json({
-      success: false,
-      error: { code: 'EDOCS_ERROR', message: 'Failed to delete workspace.' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'EDOCS_ERROR',
+      detail: 'Failed to delete workspace.',
     });
   }
 });

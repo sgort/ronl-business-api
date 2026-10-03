@@ -46,13 +46,18 @@ info:
 
     ## Error responses
 
-    4xx and 5xx answer this service's own envelope,
-    `{ "success": false, "error": { "code", "message" } }` -- NOT the
-    `application/problem+json` of RFC 9457 that the NL API Design Rules
-    require. That deviation is recorded as a Spectral exception rather than
-    hidden, and migrating to problem details is tracked separately: it is a
-    breaking change for every consumer, so it is not folded into publishing a
-    description of what the API answers today.
+    Every 4xx and 5xx is RFC 9457 problem details, served as
+    `application/problem+json` (#216): `type`, `status`, `title`, `detail` and
+    `instance`, plus a `code` extension member -- the stable identifier to
+    branch on (see the `Problem` schema). Until #216 errors answered
+    `{ "success": false, "error": { "code", "message" } }`; `error.code` is now
+    `code`, and `error.message` is `detail`. Successful responses keep their
+    `{ "success": true, "data": ... }` envelope.
+
+    **Any operation can answer 400 `MALFORMED_BODY`**: a JSON body that does not
+    parse is refused before routing, whatever the method. Oversized bodies
+    answer 413 `PAYLOAD_TOO_LARGE`, and the rate limit 429
+    `RATE_LIMIT_EXCEEDED`.
 
     ## Coverage
 
@@ -180,8 +185,8 @@ paths:
         Reports the running build and the reachability of Operaton, Keycloak
         and the cache.
 
-        Answers **503** when any dependency is down, with the same body shape
-        and `status: degraded`. `success` mirrors that: it is `false` on a 503.
+        Answers **503** when any dependency is down: problem details, with the
+        same report, `status: degraded`, under the `data` extension member.
       security: []
       responses:
         '200':
@@ -194,11 +199,21 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '503':
-          description: A dependency is down, or the check itself failed.
+          description: |
+            A dependency is down (`SERVICE_DEGRADED`), or the check itself
+            failed (`HEALTH_CHECK_FAILED`). Problem details, with the health
+            report kept under the `data` extension member where it was before
+            #216.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: object
+                    required: [data]
+                    properties:
+                      code: { enum: [SERVICE_DEGRADED, HEALTH_CHECK_FAILED] }
+                      data: { $ref: '#/components/schemas/HealthResponse/properties/data' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -266,29 +281,34 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '503':
-          description: Not ready.
+          description: |
+            Not ready (`NOT_READY`). Problem details, with the readiness report
+            under the `data` extension member.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                type: object
-                required: [success, data]
-                properties:
-                  success:
-                    type: boolean
-                    const: false
-                  data:
-                    type: object
-                    required: [status, timestamp]
+                allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: object
+                    required: [data]
                     properties:
-                      status:
-                        type: string
-                        const: not ready
-                      reason:
-                        type: string
-                        description: Which dependency made it not ready.
-                      timestamp:
-                        type: string
-                        format: date-time
+                      code: { const: NOT_READY }
+                      data:
+                        type: object
+                        required: [status, timestamp]
+                        properties:
+                          status:
+                            type: string
+                            const: not ready
+                          reason:
+                            type: string
+                            description: Which dependency made it not ready.
+                          error:
+                            type: string
+                            description: Why the check itself failed.
+                          timestamp:
+                            type: string
+                            format: date-time
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -408,6 +428,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/Error'
 
@@ -433,6 +455,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No item of this type with that slug.
           $ref: '#/components/responses/Error'
@@ -474,6 +498,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/Error'
 
@@ -503,6 +529,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No announcement with that id.
           $ref: '#/components/responses/Error'
@@ -542,6 +570,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/Error'
 
@@ -567,6 +597,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No product with that slug.
           $ref: '#/components/responses/Error'
@@ -640,6 +672,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/Error'
 
@@ -665,6 +699,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No rule with that slug.
           $ref: '#/components/responses/Error'
@@ -728,6 +764,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No published process with that key.
           $ref: '#/components/responses/Error'
@@ -810,6 +848,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/Error'
 
@@ -847,6 +887,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '503':
           description: GitLab integration is not configured on this server.
           $ref: '#/components/responses/Error'
@@ -1103,21 +1145,23 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           description: |
             The bearer token was missing or did not match
-            `MEDIA_AGGREGATOR_ACCEPT_KEY`.
+            `MEDIA_AGGREGATOR_ACCEPT_KEY` (`UNAUTHORIZED`).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/MediaAggregatorError' }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '500':
-          description: The search failed.
+          description: The search failed (`SEARCH_FAILED`).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/MediaAggregatorError' }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -1151,14 +1195,10 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '503':
-          description: The store could not be read.
+          description: The store could not be read (`STORE_UNAVAILABLE`).
           content:
-            application/json:
-              schema:
-                type: object
-                required: [ok]
-                properties:
-                  ok: { type: boolean, const: false }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -1242,6 +1282,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1249,7 +1291,11 @@ paths:
         '409':
           $ref: '#/components/responses/AmbiguousDeployment'
         '500':
-          description: Operaton refused the start (`PROCESS_START_FAILED`).
+          description: |
+            Operaton refused the start (`PROCESS_START_FAILED`). Two extension
+            members say why: `details`, Operaton's own message, and `engine`,
+            the base URL of the engine that refused. (`engine` was
+            `error.instance` before #216; `instance` is now the request path.)
           $ref: '#/components/responses/Error'
 
   /process/history:
@@ -1327,6 +1373,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1362,6 +1410,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1394,6 +1444,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1426,6 +1478,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1461,6 +1515,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1573,6 +1629,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1613,6 +1671,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1661,6 +1721,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1697,6 +1759,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1732,6 +1796,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1786,6 +1852,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1877,6 +1945,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1909,6 +1979,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1939,6 +2011,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1986,6 +2060,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2042,6 +2118,7 @@ paths:
           description: |
             The body tried to write `municipality`, `originTenantId` or
             `applicantId` (`RESERVED_VARIABLE`).
+            The offending names are in the `reserved` extension member.
           $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -2108,16 +2185,14 @@ paths:
   # So `m2m` is the FALLBACK for an untenanted definition, not the label M2M
   # cases carry. `originTenantId` is never set by this surface.
   #
-  # A body that supplies `municipality` overrides all of that, unchecked -- see
-  # the note on `start`, and #261.
+  # A body cannot override that: `municipality` and `originTenantId` are
+  # refused at start, and all three reserved names at completion (#261).
   #
-  # WHICH ENGINE. These routes talk to `OPERATON_M2M_BASE_URL`, which MAY be a
-  # different engine from the one the rest of the API uses. When it is, an id
-  # obtained here is not resolvable through /v1 and vice versa; when it is not,
-  # the two surfaces see the same instances. It is configuration, not a
-  # property of the API, so a consumer must not rely on either. Locally the two
-  # are the same engine; `docs/promote-ACC-to-PROD.md` §4.4 says the same of
-  # ACC and PROD, which #262 is settling.
+  # WHICH ENGINE. The same one the rest of the API uses, on every tier (#262):
+  # an id obtained here resolves through /v1 and vice versa. Until 3 October
+  # 2026 ACC and PROD pointed these routes at a separate engine (operaton-doc).
+  # `OPERATON_M2M_BASE_URL` can still set one aside, so a consumer should not
+  # build on the two surfaces sharing instances.
   #
   # DIVERGENCES FROM THE /v1 TWINS, all verified against a running backend:
   #
@@ -2128,10 +2203,10 @@ paths:
   #   POST …/task/{id}/claim    an optional body `userId` sets the assignee;
   #                             /v1 ignores the body and uses the token
   #   POST …/task/{id}/complete { taskId, completed }; /v1 sends { taskId, status }
-  #   POST …/task/{id}/complete no RESERVED_VARIABLE guard -- see #261
   #   GET  /m2m/process         exists; there is no bare `GET /v1/process`
-  #   GET  …/process/history    takes a filter BODY; /v1 takes a required
-  #                             `applicantId` query parameter
+  #   POST …/process/history    takes a filter BODY (the GET spelling is
+  #                             deprecated, #263); /v1's is a GET with a
+  #                             required `applicantId` query parameter
   #   —                         403 OPERATION_NOT_PERMITTED, the curation gate
   #
   # VARIABLES GO IN EITHER FORM. `toOperatonVariables` passes a `{value,type}`
@@ -2205,11 +2280,11 @@ paths:
         like any other. A definition carrying no tenant falls back to the
         literal `m2m`. `originTenantId` is never set.
 
-        **A supplied `municipality` wins, and nothing checks it.** A body
-        naming any organisation places the case there, including one the
-        process is not deployed under — verified against a running backend.
-        That is the same gap as #261 on `complete`, at the other end of the
-        case's life.
+        **The caller cannot choose the organisation.** A body supplying
+        `municipality` or `originTenantId` is refused with
+        `400 RESERVED_VARIABLE` (#261): the deployed tenant is the only source
+        of the label on this surface. `applicantId` is accepted — a machine may
+        start a case on a citizen's behalf.
 
         A `businessKey` is kept **verbatim**. `/v1` prefixes a minted one with
         the owning organisation (#234); there is no organisation here to prefix
@@ -2256,6 +2331,12 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The body tried to set `municipality` or `originTenantId`
+            (`RESERVED_VARIABLE`).
+            The offending names are in the `reserved` extension member.
+          $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2268,59 +2349,58 @@ paths:
           $ref: '#/components/responses/Error'
 
   /m2m/process/history:
-    get:
+    post:
       operationId: queryM2mProcessHistory
       tags: [Machine-to-machine]
       summary: Query instance history
       security: [{ m2mOAuth: [] }]
       description: |
-        **This GET takes a request body**, and it is the only operation in this
-        API that does. The body is handed to Operaton's
-        `POST /history/process-instance` unaltered, so every filter that query
-        supports works: `processDefinitionKey`, `variables`, `finished`,
-        `startedAfter`, sorting, paging. An empty body, or none at all, returns
-        the unfiltered history.
+        A query, not a write: POST because the filter is a body. The body is
+        handed to Operaton's `POST /history/process-instance` unaltered, so
+        every filter that query supports works: `processDefinitionKey`,
+        `variables`, `finished`, `startedAfter`, sorting, paging. An empty body,
+        or none at all, returns the unfiltered history.
 
-        RFC 9110 permits a body on GET but gives it no meaning, and many
-        clients, proxies and generated SDKs drop it — a consumer that cannot
-        send one gets the unfiltered history rather than an error, which is a
-        silent difference in result rather than a failure. Recorded as it is
-        rather than corrected, because changing the method would break the
-        consumers it has; tracked in #263.
+        Until #263 this was a GET carrying a body. That spelling still answers,
+        deprecated, for one release; see the GET below.
 
         `GET /v1/process/history` is not this operation under another name. It
         takes a **required `applicantId` query parameter**, returns one
         applicant's completed instances, and is role-checked.
       requestBody:
-        required: false
-        description: An Operaton history query. Sent on a GET; see the note above.
-        content:
-          application/json:
-            schema:
-              type: object
-              description: |
-                Passed to Operaton's history query unaltered. Not enumerated
-                here: this service neither validates nor constrains it.
-              additionalProperties: true
+        $ref: '#/components/requestBodies/M2mHistoryQuery'
       responses:
         '200':
-          description: The matching historic instances; all of them when no body was sent.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [success, data]
-                properties:
-                  success: { type: boolean, const: true }
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      description: A historic process instance as Operaton reports it.
-                      additionalProperties: true
-          headers:
-            API-Version:
-              $ref: '#/components/headers/ApiVersion'
+          $ref: '#/components/responses/M2mHistory'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`PROCESS_HISTORY_FAILED`.'
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: queryM2mProcessHistoryDeprecated
+      tags: [Machine-to-machine]
+      summary: Query instance history (deprecated GET)
+      security: [{ m2mOAuth: [] }]
+      deprecated: true
+      description: |
+        **Deprecated since 3 October 2026 (#263); use `POST` on this path.**
+        Every response carries `Deprecation: @1790985600` (RFC 9745). It
+        behaves exactly like the POST, and is kept for one release.
+
+        It is deprecated because it takes its filter as a request body. RFC 9110
+        gives a body on GET no meaning, and many clients, proxies and generated
+        SDKs drop it, so a caller whose filter was dropped silently received
+        the unfiltered history instead of an error.
+      requestBody:
+        $ref: '#/components/requestBodies/M2mHistoryQuery'
+      responses:
+        '200':
+          $ref: '#/components/responses/M2mHistory'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2358,6 +2438,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2397,6 +2479,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2439,6 +2523,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2484,6 +2570,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2525,6 +2613,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2587,6 +2677,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2639,6 +2731,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2712,6 +2806,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2750,6 +2846,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2781,6 +2879,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2848,6 +2948,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2869,12 +2971,11 @@ paths:
         The answer is `{ taskId, completed }`; `/v1` sends
         `{ taskId, status: "completed" }`.
 
-        **There is no `RESERVED_VARIABLE` guard here.**
-        `POST /v1/task/{id}/complete` refuses a body writing `municipality`,
-        `originTenantId` or `applicantId` with `400 RESERVED_VARIABLE`. This
-        operation accepts all three, including `municipality` — the label every
-        `/v1` access check enforces. Tracked as **#261**; when it is fixed a
-        `400` joins the responses below and this paragraph comes out.
+        **Three variables are set once at start and can never be written here**,
+        exactly as on `/v1`: `municipality`, `originTenantId` and
+        `applicantId`. A body containing any of them is refused with
+        `400 RESERVED_VARIABLE`, naming the offenders (#261) — rewriting the
+        organisation label would move a case between organisations.
 
         Variables may be sent plain or wrapped; see `M2mVariableMap`.
 
@@ -2908,6 +3009,12 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          description: |
+            The body tried to write `municipality`, `originTenantId` or
+            `applicantId` (`RESERVED_VARIABLE`).
+            The offending names are in the `reserved` extension member.
+          $ref: '#/components/responses/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2968,6 +3075,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3004,6 +3113,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3233,6 +3344,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3266,6 +3379,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3305,6 +3420,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3343,6 +3460,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3374,6 +3493,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3405,6 +3526,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3577,6 +3700,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '502':
@@ -3684,6 +3809,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No such package (`NOT_FOUND`). Answered as JSON.
           $ref: '#/components/responses/Error'
@@ -3709,6 +3836,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           description: No such package (`NOT_FOUND`). Answered as JSON.
           $ref: '#/components/responses/Error'
@@ -3752,6 +3881,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3786,6 +3917,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3846,7 +3979,8 @@ paths:
           description: |
             A signature request already exists for this task
             (`VALIDSIGN_PACKAGE_EXISTS`). Creating a second would send the
-            signer a duplicate.
+            signer a duplicate. The existing request's id is in the `data`
+            extension member, as `{ packageId }`.
           $ref: '#/components/responses/Error'
         '422':
           description: |
@@ -3923,6 +4057,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -4009,28 +4145,19 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           description: |
-            The token was missing or unknown. **Not JSON**, and not
-            `text/plain` either: the handler calls `res.status(401).send(...)`
-            with a string, and Express types a string body as `text/html`.
-            Documented as `text/plain` until #269, which compared the two.
-          content:
-            text/html:
-              schema: { type: string, examples: ['Missing token', 'Invalid token'] }
-          headers:
-            API-Version:
-              $ref: '#/components/headers/ApiVersion'
+            The `token` query parameter was missing (`MISSING_TOKEN`) or is
+            unknown (`INVALID_TOKEN`). Problem details since #216; before it,
+            a bare string served as `text/html`.
+          $ref: '#/components/responses/Error'
         '403':
           $ref: '#/components/responses/PaForbidden'
         '500':
-          description: Plain text, not JSON.
-          content:
-            text/plain:
-              schema: { type: string, examples: ['Internal error'] }
-          headers:
-            API-Version:
-              $ref: '#/components/headers/ApiVersion'
+          description: The feed could not be built (`INTERNAL_ERROR`).
+          $ref: '#/components/responses/Error'
 
   /pa/feed-token:
     get:
@@ -4329,6 +4456,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4360,6 +4489,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4564,6 +4695,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4623,6 +4756,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4745,6 +4880,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4834,6 +4971,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4890,6 +5029,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -4912,6 +5053,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -5276,6 +5419,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -5307,6 +5452,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -5349,6 +5496,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -5395,6 +5544,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -5490,6 +5641,8 @@ paths:
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -5681,8 +5834,8 @@ paths:
             carries an extra `details`** holding the upstream's own
             `invalidParams`, which no other error in this API does.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BrpError' }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/BrpProblem' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -5691,8 +5844,8 @@ paths:
         '500':
           description: The upstream could not be reached (`BRP_API_ERROR`).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BrpError' }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/BrpProblem' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -5704,15 +5857,15 @@ paths:
             operation is the upstream's rather than this service's -- a `404`
             for an unknown burgerservicenummer and a `502` from the gateway in
             front of it are both reachable. The body is always this service's
-            own `BrpError`.
+            own `BrpProblem`.
 
             Documented as `default` rather than as a longer list, because the
             list is not this service's to close. #269's conformance check
             surfaced it: two route tests asserted statuses the document did not
             have.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BrpError' }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/BrpProblem' }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
@@ -6197,27 +6350,41 @@ components:
                 cache:
                   $ref: '#/components/schemas/DependencyStatus'
 
-    ErrorEnvelope:
+    Problem:
       type: object
       description: |
-        This service's error shape. NOT RFC 9457 problem details, which the NL
-        API Design Rules require -- see the deviation recorded in the
-        description above.
-      required: [success, error]
+        RFC 9457 problem details, served as `application/problem+json` (#216).
+        Every 4xx and 5xx this API answers has this shape.
+
+        `code` is an extension member: the stable, machine-readable identifier
+        a consumer should branch on, the same value the pre-#216 envelope
+        carried as `error.code`. `title` is derived from it, so the same code
+        always has the same title. An operation may document further extension
+        members (`reserved`, `tenants`, ...).
+      required: [type, status, title, detail, instance]
       properties:
-        success:
-          type: boolean
-          const: false
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              description: A stable, machine-readable code.
-            message:
-              type: string
-              description: A human-readable explanation.
+        type:
+          type: string
+          description: Always `about:blank`; this API has no page per problem kind.
+          examples: [about:blank]
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: The HTTP status, repeated.
+        title:
+          type: string
+          description: A short summary of the kind of problem, derived from `code`.
+        detail:
+          type: string
+          description: What went wrong with this request.
+        instance:
+          type: string
+          description: The request path, without its query string.
+        code:
+          type: string
+          description: A stable, machine-readable code, e.g. `TENANT_MISMATCH`.
+      additionalProperties: true
 
     PublicMeta:
       type: object
@@ -6446,9 +6613,8 @@ components:
         Every instance started since #218 carries `municipality` (the owning
         organisation, which access checks enforce) and `originTenantId` (the
         caller's organisation at start). Both, with `applicantId`, are
-        rejected if a task completion tries to write them -- on `/v1`. The M2M
-        twin has no such guard at either end of the case's life: it accepts
-        `municipality` on both `start` and `complete`. See #261.
+        rejected if a task completion tries to write them, on `/v1` and on
+        `/v1/m2m` alike; an M2M start also refuses the first two (#261).
       additionalProperties: true
 
     ProcessStartResult:
@@ -7188,44 +7354,61 @@ components:
         providerId: { type: string }
         providerDisplayName: { type: [string, 'null'] }
 
-    BrpError:
-      type: object
+    BrpProblem:
       description: |
-        The error envelope plus a `details` object carrying the upstream's own
-        validation report. No other error in this API has that field.
-      required: [success, error]
-      properties:
-        success: { type: boolean, const: false }
-        error:
-          type: object
-          required: [code, message]
+        Problem details, always `BRP_API_ERROR`. When the upstream rejected the
+        query, a `details` extension member carries its own validation report.
+        No other error in this API has that member.
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
           properties:
-            code: { type: string, const: BRP_API_ERROR }
-            message: { type: string }
+            code: { const: BRP_API_ERROR }
             details:
               type: object
               description: "The upstream's report, typically `{ invalidParams: [...] }`."
               additionalProperties: true
 
-    MediaAggregatorError:
-      type: object
-      description: |
-        The media aggregator's own error shape. Neither RFC 9457 problem details
-        NOR this API's `{ success, error }` envelope -- a bare `{ error }` with a
-        machine-readable slug. Recorded as it is rather than tidied, because a
-        consumer reads what the handler sends.
-      required: [error]
-      properties:
-        error: { type: string, enum: [unauthorized, search_failed] }
+  requestBodies:
+    M2mHistoryQuery:
+      required: false
+      description: An Operaton history query.
+      content:
+        application/json:
+          schema:
+            type: object
+            description: |
+              Passed to Operaton's history query unaltered. Not enumerated
+              here: this service neither validates nor constrains it.
+            additionalProperties: true
 
   responses:
+    M2mHistory:
+      description: The matching historic instances; all of them when no body was sent.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { type: boolean, const: true }
+              data:
+                type: array
+                items:
+                  type: object
+                  description: A historic process instance as Operaton reports it.
+                  additionalProperties: true
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
+
     UnknownPhase:
       description: |
         No RIP phase with that code (`UNKNOWN_PHASE`). Codes are dotted --
         `R2.1`, not `R21`.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
 
     PaNotFound:
       description: |
@@ -7233,8 +7416,8 @@ components:
         Dossiers and searches are organisation-scoped, so a row belonging to
         another organisation is reported as absent rather than forbidden.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
 
     UpstreamFailed:
       description: |
@@ -7244,8 +7427,8 @@ components:
 
         Error responses on these mounts carry no `timestamp`.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
 
     Unauthorized:
       description: |
@@ -7259,13 +7442,13 @@ components:
         the role and assurance guards further in, never from the token check
         this response describes.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
 
     M2mForbidden:
       description: |
         Refused before the handler ran. Two distinct codes share this status, so
-        a consumer should read `error.code` rather than the status alone:
+        a consumer should read `code` rather than the status alone:
 
         - **`M2M_CLIENT_NOT_ALLOWED`** -- the token's `azp` is not on
           `M2M_ALLOWED_CLIENTS`, or the token carries no `azp` at all. The
@@ -7280,8 +7463,8 @@ components:
         `TENANT_MISMATCH` never appears on this group: no organisation is
         derived, so there is nothing to mismatch.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
       headers:
         API-Version:
           $ref: '#/components/headers/ApiVersion'
@@ -7302,8 +7485,8 @@ components:
         Only the second was documented, on two operations, until #269 -- so the
         role refusal that guards all 33 appeared nowhere.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
       headers:
         API-Version:
           $ref: '#/components/headers/ApiVersion'
@@ -7311,40 +7494,53 @@ components:
     TenantMismatch:
       description: |
         The resource belongs to another organisation, or carries no
-        organisation label at all (`TENANT_MISMATCH`, message
+        organisation label at all (`TENANT_MISMATCH`, detail
         "Access denied: organisation mismatch").
 
         Failing closed on a missing label is deliberate (#218). This is NOT
         used for role refusals, which answer `FORBIDDEN`.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
 
     AmbiguousDeployment:
       description: |
         The process key is deployed under several organisations and none of
         them is the caller's, so there is no basis for choosing which one
-        handles the case (`AMBIGUOUS_DEPLOYMENT`). The message names the
+        handles the case (`AMBIGUOUS_DEPLOYMENT`). The `detail` names the
         organisations. When the caller's own organisation is among them, it
         wins and no 409 is raised.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
 
     RateLimited:
       description: |
         More than 10 requests in 15 minutes from this IP. Sent by
         publicWriteLimiter, which answers before the handler runs.
       content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    BadRequest:
+      description: |
+        The request body is not valid JSON (`MALFORMED_BODY`). Refused before
+        routing by the app-wide parser, so any operation can answer it, whatever
+        its method -- see "Error responses" above. Operations that validate
+        their own input document their own 400 instead.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
 
     Error:
       description: The request failed.
       content:
-        application/json:
+        application/problem+json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: '#/components/schemas/Problem'
       headers:
         API-Version:
           $ref: '#/components/headers/ApiVersion'
