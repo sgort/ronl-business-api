@@ -61,8 +61,10 @@ function isJson(contentType: string): boolean {
 
 /**
  * Every operation this helper has been asked about, appended to the file named
- * by CONFORMANCE_LOG. scripts/jest-conformance-teardown.cjs reads it and fails
- * the run if an operation in the document was never checked.
+ * by CONFORMANCE_LOG. scripts/check-conformance-coverage.cjs reads it after
+ * Jest exits -- a separate step of `npm test`, not a globalTeardown, whose
+ * errors Jest prints but does not fail on -- and exits non-zero if an
+ * operation in the document was never checked.
  *
  * A file rather than a module-level Set, because Jest gives each test file its
  * own module registry and worker -- nothing in-process can see across them.
