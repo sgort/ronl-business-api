@@ -65,16 +65,25 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 # presented: HTTP 500 unknown_error against a nameless mapper.
 jqr() { jq "$@" | tr -d '\r'; }
 
+# Responses and the bearer token live in a private directory, removed however
+# the script ends, rather than at fixed /tmp paths (#252).
+TMPD=$(mktemp -d)
+trap 'rm -rf "$TMPD"' EXIT
+
 TOKEN_URL="${KEYCLOAK_URL}/realms/${ADMIN_REALM}/protocol/openid-connect/token"
 echo "→ authenticating as ${ADMIN_USER} against realm ${ADMIN_REALM}"
 # --data-urlencode rather than -d for the credentials: curl sends -d values
 # raw, so a password containing & + = or % is parsed as form syntax and
-# arrives wrong -- indistinguishable from a genuinely wrong password.
-TOKEN_CODE=$(curl -sS -o /tmp/kc-token.out -w '%{http_code}' -X POST "$TOKEN_URL" \
+# arrives wrong -- indistinguishable from a genuinely wrong password. The
+# password goes in on stdin (printf is a builtin), never as an argument, so it
+# is not in the process list while curl runs (#252). `|| true`, not
+# `|| echo 000`: -w has already written 000 when nothing answered.
+TOKEN_CODE=$(printf '%s' "$ADMIN_PASSWORD" | curl -sS -o "$TMPD/token.out" -w '%{http_code}' \
+  -X POST "$TOKEN_URL" \
   -d "client_id=admin-cli" -d "grant_type=password" \
   --data-urlencode "username=${ADMIN_USER}" \
-  --data-urlencode "password=${ADMIN_PASSWORD}" || echo "000")
-TOKEN=$(jqr -r '.access_token // empty' /tmp/kc-token.out 2>/dev/null || true)
+  --data-urlencode "password@-" || true)
+TOKEN=$(jqr -r '.access_token // empty' "$TMPD/token.out" 2>/dev/null || true)
 
 # Report what the server actually said. Swallowing it made a wrong password, an
 # admin in a different realm, and an HTML error page from a proxy all produce
@@ -83,7 +92,7 @@ if [[ -z "$TOKEN" ]]; then
   {
     echo "could not obtain an admin token (HTTP ${TOKEN_CODE})"
     echo "  POST ${TOKEN_URL}"
-    echo "  response: $(head -c 400 /tmp/kc-token.out 2>/dev/null)"
+    echo "  response: $(head -c 400 "$TMPD/token.out" 2>/dev/null)"
     echo
     echo "  401 invalid_grant      -> wrong username/password"
     echo "  404 / realm not found  -> the admin is not in '${ADMIN_REALM}'; try ADMIN_REALM=${REALM}"
@@ -91,15 +100,19 @@ if [[ -z "$TOKEN" ]]; then
   } >&2
   exit 1
 fi
+# The header reaches curl through a 0600 config file, not argv (#252).
+printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" >"$TMPD/auth.cfg"
+chmod 600 "$TMPD/auth.cfg"
+AUTH=(-K "$TMPD/auth.cfg")
 
 echo "→ resolving client ${CLIENT_ID} in realm ${REALM}"
-UUID=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
+UUID=$(curl -sS "${AUTH[@]}" \
   "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}" | jqr -r '.[0].id')
 
 [[ "$UUID" != "null" && -n "$UUID" ]] || { echo "client ${CLIENT_ID} not found in realm ${REALM}" >&2; exit 1; }
 echo "  client uuid: ${UUID}"
 
-EXISTING=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
+EXISTING=$(curl -sS "${AUTH[@]}" \
   "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${UUID}/protocol-mappers/models" | jqr -r '.[].name')
 
 ADDED=0; SKIPPED=0
@@ -110,15 +123,15 @@ while read -r NAME; do
     continue
   fi
   BODY=$(jqr -c --arg n "$NAME" '.[] | select(.name == $n)' "$MAPPERS_FILE")
-  CODE=$(curl -sS -o /tmp/kc-mapper.out -w '%{http_code}' -X POST \
+  CODE=$(curl -sS -o "$TMPD/mapper.out" -w '%{http_code}' -X POST \
     "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${UUID}/protocol-mappers/models" \
-    -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' \
+    "${AUTH[@]}" -H 'Content-Type: application/json' \
     -d "$BODY")
   if [[ "$CODE" == "201" ]]; then
     echo "  + ${NAME} created"
     ADDED=$((ADDED + 1))
   else
-    echo "  ! ${NAME} failed (HTTP ${CODE}): $(cat /tmp/kc-mapper.out)" >&2
+    echo "  ! ${NAME} failed (HTTP ${CODE}): $(cat "$TMPD/mapper.out")" >&2
     exit 1
   fi
 done < <(jqr -r '.[].name' "$MAPPERS_FILE")
@@ -129,7 +142,7 @@ echo "→ verifying"
 # than three hardcoded names: with the names pinned, a run over a different
 # mapper file reported the wrong ones as proof of its own work.
 WANTED=$(jqr -c '[.[].name]' "$MAPPERS_FILE")
-curl -sS -H "Authorization: Bearer ${TOKEN}" \
+curl -sS "${AUTH[@]}" \
   "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${UUID}/protocol-mappers/models" \
   | jqr -r --argjson want "$WANTED" \
       '.[] | select(.name as $n | $want | index($n))

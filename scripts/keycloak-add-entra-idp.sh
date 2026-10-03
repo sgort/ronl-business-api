@@ -137,17 +137,26 @@ if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
   echo
 fi
 
+# Responses and the bearer token live in a private directory, removed however
+# the script ends -- a fixed /tmp path was shared by concurrent runs and left
+# behind by an early exit (#252).
+TMPD=$(mktemp -d)
+trap 'rm -rf "$TMPD"' EXIT
+
 # ── Admin token ──────────────────────────────────────────────────────────────
 TOKEN_URL="${KEYCLOAK_URL}/realms/${ADMIN_REALM}/protocol/openid-connect/token"
 echo "→ authenticating as ${ADMIN_USER} against realm ${ADMIN_REALM}"
 # --data-urlencode rather than -d for the credentials: curl sends -d values
-# raw, so a password containing & + = or % is parsed as form syntax.
-TOKEN_CODE=$(curl -sS -o /tmp/kc-entra-token.out -w '%{http_code}' -X POST "$TOKEN_URL" \
+# raw, so a password containing & + = or % is parsed as form syntax. The
+# password goes in on stdin (printf is a builtin), never as an argument, so it
+# is not in the process list while curl runs (#252). `|| true`, not
+# `|| echo 000`: -w has already written 000 when nothing answered.
+TOKEN_CODE=$(printf '%s' "$ADMIN_PASSWORD" | curl -sS -o "$TMPD/token.out" -w '%{http_code}' \
+  -X POST "$TOKEN_URL" \
   -d "client_id=admin-cli" -d "grant_type=password" \
   --data-urlencode "username=${ADMIN_USER}" \
-  --data-urlencode "password=${ADMIN_PASSWORD}" || echo "000")
-TOKEN=$(jqr -r '.access_token // empty' /tmp/kc-entra-token.out 2>/dev/null || true)
-rm -f /tmp/kc-entra-token.out
+  --data-urlencode "password@-" || true)
+TOKEN=$(jqr -r '.access_token // empty' "$TMPD/token.out" 2>/dev/null || true)
 
 if [[ -z "$TOKEN" ]]; then
   {
@@ -160,7 +169,10 @@ if [[ -z "$TOKEN" ]]; then
   } >&2
   exit 1
 fi
-AUTH=(-H "Authorization: Bearer ${TOKEN}")
+# The header reaches curl through a 0600 config file, not argv (#252).
+printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" >"$TMPD/auth.cfg"
+chmod 600 "$TMPD/auth.cfg"
+AUTH=(-K "$TMPD/auth.cfg")
 BASE="${KEYCLOAK_URL}/admin/realms/${REALM}"
 
 REALM_CODE=$(curl -sS -o /dev/null -w '%{http_code}' "${AUTH[@]}" "$BASE")
@@ -191,15 +203,15 @@ FAILED=0
 IDP_URL="${BASE}/identity-provider/instances/${ALIAS}"
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' "${AUTH[@]}" "$IDP_URL")
 if [[ "$CODE" == "200" ]]; then
-  code=$(provider_json | curl -sS -o /tmp/kc-entra.out -w '%{http_code}' -X PUT "${AUTH[@]}" \
+  code=$(provider_json | curl -sS -o "$TMPD/out" -w '%{http_code}' -X PUT "${AUTH[@]}" \
     -H 'Content-Type: application/json' "$IDP_URL" --data-binary @-)
   [[ "$code" == "204" ]] && echo "  updated       provider ${ALIAS}" \
-    || { echo "  FAILED        provider ${ALIAS} -> HTTP ${code}: $(head -c 200 /tmp/kc-entra.out)" >&2; FAILED=$((FAILED + 1)); }
+    || { echo "  FAILED        provider ${ALIAS} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; FAILED=$((FAILED + 1)); }
 elif [[ "$CODE" == "404" ]]; then
-  code=$(provider_json | curl -sS -o /tmp/kc-entra.out -w '%{http_code}' -X POST "${AUTH[@]}" \
+  code=$(provider_json | curl -sS -o "$TMPD/out" -w '%{http_code}' -X POST "${AUTH[@]}" \
     -H 'Content-Type: application/json' "${BASE}/identity-provider/instances" --data-binary @-)
   [[ "$code" == "201" ]] && echo "  created       provider ${ALIAS}" \
-    || { echo "  FAILED        provider ${ALIAS} -> HTTP ${code}: $(head -c 200 /tmp/kc-entra.out)" >&2; FAILED=$((FAILED + 1)); }
+    || { echo "  FAILED        provider ${ALIAS} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; FAILED=$((FAILED + 1)); }
 else
   echo "unexpected HTTP ${CODE} reading provider ${ALIAS}" >&2
   exit 1
@@ -207,26 +219,42 @@ fi
 [[ "$FAILED" -eq 0 ]] || exit 1
 
 # ── The mappers: create or update, by name ───────────────────────────────────
-CURRENT=$(curl -sS "${AUTH[@]}" "${IDP_URL}/mappers")
+# Status checked: a failed listing (expired token, a proxy page) otherwise
+# surfaced as a jq parse error halfway through the loop (#252).
+code=$(curl -sS -o "$TMPD/mappers.json" -w '%{http_code}' "${AUTH[@]}" "${IDP_URL}/mappers" || true)
+[[ "$code" == "200" ]] || {
+  echo "could not list the mappers of ${ALIAS} -> HTTP ${code}: $(head -c 200 "$TMPD/mappers.json")" >&2
+  exit 1
+}
+CURRENT=$(cat "$TMPD/mappers.json")
 COUNT=$(jqr '.mappers | length' "$IDP_FILE")
 for ((i = 0; i < COUNT; i++)); do
   name=$(jqr -r ".mappers[$i].name" "$IDP_FILE")
   id=$(jqr -r --arg n "$name" '[.[] | select(.name == $n)][0].id // empty' <<<"$CURRENT")
   if [[ -n "$id" ]]; then
     code=$(jq -c --arg a "$ALIAS" --arg id "$id" ".mappers[$i] + {identityProviderAlias: \$a, id: \$id}" "$IDP_FILE" \
-      | curl -sS -o /tmp/kc-entra.out -w '%{http_code}' -X PUT "${AUTH[@]}" \
+      | curl -sS -o "$TMPD/out" -w '%{http_code}' -X PUT "${AUTH[@]}" \
           -H 'Content-Type: application/json' "${IDP_URL}/mappers/${id}" --data-binary @-)
     [[ "$code" == "204" ]] && echo "  updated       mapper ${name}" \
-      || { echo "  FAILED        mapper ${name} -> HTTP ${code}: $(head -c 200 /tmp/kc-entra.out)" >&2; FAILED=$((FAILED + 1)); }
+      || { echo "  FAILED        mapper ${name} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; FAILED=$((FAILED + 1)); }
   else
     code=$(jq -c --arg a "$ALIAS" ".mappers[$i] + {identityProviderAlias: \$a}" "$IDP_FILE" \
-      | curl -sS -o /tmp/kc-entra.out -w '%{http_code}' -X POST "${AUTH[@]}" \
+      | curl -sS -o "$TMPD/out" -w '%{http_code}' -X POST "${AUTH[@]}" \
           -H 'Content-Type: application/json' "${IDP_URL}/mappers" --data-binary @-)
     [[ "$code" == "201" ]] && echo "  created       mapper ${name}" \
-      || { echo "  FAILED        mapper ${name} -> HTTP ${code}: $(head -c 200 /tmp/kc-entra.out)" >&2; FAILED=$((FAILED + 1)); }
+      || { echo "  FAILED        mapper ${name} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; FAILED=$((FAILED + 1)); }
   fi
 done
-rm -f /tmp/kc-entra.out
+
+# A mapper removed from the file must stop applying: left in Keycloak it would
+# keep granting its role while the run reported success (#252).
+while IFS=$'\t' read -r id name; do
+  [[ -n "$id" ]] || continue
+  jq -e --arg n "$name" 'any(.mappers[]; .name == $n)' "$IDP_FILE" >/dev/null && continue
+  code=$(curl -sS -o "$TMPD/out" -w '%{http_code}' -X DELETE "${AUTH[@]}" "${IDP_URL}/mappers/${id}")
+  [[ "$code" == "204" ]] && echo "  removed       mapper ${name} (not in $(basename "$IDP_FILE"))" \
+    || { echo "  FAILED        removing mapper ${name} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; FAILED=$((FAILED + 1)); }
+done < <(jqr -r '.[] | "\(.id)\t\(.name)"' <<<"$CURRENT")
 
 # ── Verify, rather than trust the status codes ───────────────────────────────
 AFTER=$(curl -sS "${AUTH[@]}" "${IDP_URL}/mappers" | jqr -r '.[].name' | sort)
@@ -236,6 +264,9 @@ DUPES=$(uniq -d <<<"$AFTER")
 while IFS= read -r name; do
   grep -qxF -- "$name" <<<"$AFTER" || { echo "mapper ${name} absent after the run" >&2; FAILED=$((FAILED + 1)); }
 done <<<"$WANTED"
+while IFS= read -r name; do
+  grep -qxF -- "$name" <<<"$WANTED" || { echo "mapper ${name} present but not in the file" >&2; FAILED=$((FAILED + 1)); }
+done <<<"$AFTER"
 [[ "$FAILED" -eq 0 ]] || exit 1
 
 echo "→ verified: provider ${ALIAS} with $(wc -l <<<"$AFTER") mappers in realm ${REALM}"
