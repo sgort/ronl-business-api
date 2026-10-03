@@ -2127,8 +2127,9 @@ paths:
   #                             /v1 ignores the body and uses the token
   #   POST …/task/{id}/complete { taskId, completed }; /v1 sends { taskId, status }
   #   GET  /m2m/process         exists; there is no bare `GET /v1/process`
-  #   GET  …/process/history    takes a filter BODY; /v1 takes a required
-  #                             `applicantId` query parameter
+  #   POST …/process/history    takes a filter BODY (the GET spelling is
+  #                             deprecated, #263); /v1's is a GET with a
+  #                             required `applicantId` query parameter
   #   —                         403 OPERATION_NOT_PERMITTED, the curation gate
   #
   # VARIABLES GO IN EITHER FORM. `toOperatonVariables` passes a `{value,type}`
@@ -2270,59 +2271,56 @@ paths:
           $ref: '#/components/responses/Error'
 
   /m2m/process/history:
-    get:
+    post:
       operationId: queryM2mProcessHistory
       tags: [Machine-to-machine]
       summary: Query instance history
       security: [{ m2mOAuth: [] }]
       description: |
-        **This GET takes a request body**, and it is the only operation in this
-        API that does. The body is handed to Operaton's
-        `POST /history/process-instance` unaltered, so every filter that query
-        supports works: `processDefinitionKey`, `variables`, `finished`,
-        `startedAfter`, sorting, paging. An empty body, or none at all, returns
-        the unfiltered history.
+        A query, not a write: POST because the filter is a body. The body is
+        handed to Operaton's `POST /history/process-instance` unaltered, so
+        every filter that query supports works: `processDefinitionKey`,
+        `variables`, `finished`, `startedAfter`, sorting, paging. An empty body,
+        or none at all, returns the unfiltered history.
 
-        RFC 9110 permits a body on GET but gives it no meaning, and many
-        clients, proxies and generated SDKs drop it — a consumer that cannot
-        send one gets the unfiltered history rather than an error, which is a
-        silent difference in result rather than a failure. Recorded as it is
-        rather than corrected, because changing the method would break the
-        consumers it has; tracked in #263.
+        Until #263 this was a GET carrying a body. That spelling still answers,
+        deprecated, for one release; see the GET below.
 
         `GET /v1/process/history` is not this operation under another name. It
         takes a **required `applicantId` query parameter**, returns one
         applicant's completed instances, and is role-checked.
       requestBody:
-        required: false
-        description: An Operaton history query. Sent on a GET; see the note above.
-        content:
-          application/json:
-            schema:
-              type: object
-              description: |
-                Passed to Operaton's history query unaltered. Not enumerated
-                here: this service neither validates nor constrains it.
-              additionalProperties: true
+        $ref: '#/components/requestBodies/M2mHistoryQuery'
       responses:
         '200':
-          description: The matching historic instances; all of them when no body was sent.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [success, data]
-                properties:
-                  success: { type: boolean, const: true }
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      description: A historic process instance as Operaton reports it.
-                      additionalProperties: true
-          headers:
-            API-Version:
-              $ref: '#/components/headers/ApiVersion'
+          $ref: '#/components/responses/M2mHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/M2mForbidden'
+        '500':
+          description: '`PROCESS_HISTORY_FAILED`.'
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: queryM2mProcessHistoryDeprecated
+      tags: [Machine-to-machine]
+      summary: Query instance history (deprecated GET)
+      security: [{ m2mOAuth: [] }]
+      deprecated: true
+      description: |
+        **Deprecated since 3 October 2026 (#263); use `POST` on this path.**
+        Every response carries `Deprecation: @1790985600` (RFC 9745). It
+        behaves exactly like the POST, and is kept for one release.
+
+        It is deprecated because it takes its filter as a request body. RFC 9110
+        gives a body on GET no meaning, and many clients, proxies and generated
+        SDKs drop it, so a caller whose filter was dropped silently received
+        the unfiltered history instead of an error.
+      requestBody:
+        $ref: '#/components/requestBodies/M2mHistoryQuery'
+      responses:
+        '200':
+          $ref: '#/components/responses/M2mHistory'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -7223,7 +7221,39 @@ components:
       properties:
         error: { type: string, enum: [unauthorized, search_failed] }
 
+  requestBodies:
+    M2mHistoryQuery:
+      required: false
+      description: An Operaton history query.
+      content:
+        application/json:
+          schema:
+            type: object
+            description: |
+              Passed to Operaton's history query unaltered. Not enumerated
+              here: this service neither validates nor constrains it.
+            additionalProperties: true
+
   responses:
+    M2mHistory:
+      description: The matching historic instances; all of them when no body was sent.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { type: boolean, const: true }
+              data:
+                type: array
+                items:
+                  type: object
+                  description: A historic process instance as Operaton reports it.
+                  additionalProperties: true
+      headers:
+        API-Version:
+          $ref: '#/components/headers/ApiVersion'
+
     UnknownPhase:
       description: |
         No RIP phase with that code (`UNKNOWN_PHASE`). Codes are dotted --

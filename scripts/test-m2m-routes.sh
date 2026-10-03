@@ -304,11 +304,38 @@ if [[ "$PROC_LIST_STATUS" == "200" ]]; then
   fi
 fi
 
-# process.history
+# process.history. POST since #263; asserted to FILTER, not merely to answer:
+# a dropped filter returns the whole history with a 200, which is exactly the
+# failure the GET spelling had.
 PROC_HIST_STATUS=$(curl -s -o /tmp/m2m_proc_hist.json -w "%{http_code}" \
-  "${BASE_URL}/v1/m2m/process/history" \
-  -H "Authorization: Bearer $TOKEN")
-check_status "GET /v1/m2m/process/history" "$PROC_HIST_STATUS" "200"
+  -X POST "${BASE_URL}/v1/m2m/process/history" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{}')
+check_status "POST /v1/m2m/process/history" "$PROC_HIST_STATUS" "200"
+
+if [[ "$PROC_HIST_STATUS" == "200" ]]; then
+  HIST_ALL=$(jq '.data | length' /tmp/m2m_proc_hist.json)
+  HIST_KEY=$(jq -r '.data[0].processDefinitionKey // empty' /tmp/m2m_proc_hist.json)
+  if [[ -z "$HIST_KEY" ]]; then
+    echo "  ~ history filter check skipped — the engine has no history yet"
+  else
+    HIST_FILTERED=$(curl -s -X POST "${BASE_URL}/v1/m2m/process/history" \
+      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+      -d "{\"processDefinitionKey\":\"${HIST_KEY}\"}")
+    HIST_N=$(echo "$HIST_FILTERED" | jq '.data | length')
+    HIST_OTHER=$(echo "$HIST_FILTERED" | jq --arg k "$HIST_KEY" '[.data[] | select(.processDefinitionKey != $k)] | length')
+    [[ "$HIST_N" -ge 1 && "$HIST_OTHER" == "0" ]] \
+      && pass "POST /v1/m2m/process/history filters ($HIST_N of $HIST_ALL are $HIST_KEY)" \
+      || fail "POST /v1/m2m/process/history filter ignored ($HIST_N returned, $HIST_OTHER not $HIST_KEY)"
+  fi
+fi
+
+# The deprecated GET spelling still answers for one release, and says so.
+HIST_GET_DEPRECATION=$(curl -s -o /dev/null -D - "${BASE_URL}/v1/m2m/process/history" \
+  -H "Authorization: Bearer $TOKEN" | tr -d '\r' | awk -F': ' 'tolower($1)=="deprecation"{print $2}')
+[[ "$HIST_GET_DEPRECATION" == "@1790985600" ]] \
+  && pass "GET /v1/m2m/process/history answers with Deprecation: $HIST_GET_DEPRECATION" \
+  || fail "GET /v1/m2m/process/history — expected Deprecation: @1790985600, got '${HIST_GET_DEPRECATION}'"
 
 # decision.get — run first, because it doubles as the existence probe. Which
 # decisions are deployed is engine data, not route behaviour: local and ACC talk

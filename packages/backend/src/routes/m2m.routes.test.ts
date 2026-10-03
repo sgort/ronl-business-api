@@ -226,19 +226,60 @@ describe('process endpoints', () => {
     expect(res.body.error.code).toBe('PROCESS_START_FAILED');
   });
 
-  it('GET /process/history queries history', async () => {
+  it('POST /process/history passes the filter body to the history query', async () => {
     svc.queryProcessHistory.mockResolvedValue([{ id: 'h' }]);
-    const res = await auth(request(app).get('/v1/m2m/process/history'));
+    const res = await auth(request(app).post('/v1/m2m/process/history')).send({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
     expect(res.status).toBe(200);
-    expectToMatchOperation(res, 'get', '/m2m/process/history');
+    expectToMatchOperation(res, 'post', '/m2m/process/history');
+    expect(svc.queryProcessHistory).toHaveBeenCalledWith({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
+    expect(res.headers.deprecation).toBeUndefined();
   });
 
-  it('GET /process/history → 500 on failure', async () => {
+  it('POST /process/history → 500 on failure', async () => {
+    svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
+    const res = await auth(request(app).post('/v1/m2m/process/history')).send({});
+    expect(res.status).toBe(500);
+    expectToMatchOperation(res, 'post', '/m2m/process/history');
+    expect(res.body.error.code).toBe('PROCESS_HISTORY_FAILED');
+  });
+
+  // The GET spelling stays for one release as a deprecated alias (#263): same
+  // behaviour, plus an RFC 9745 Deprecation header naming when it was deprecated.
+  it('GET /process/history still answers, marked deprecated', async () => {
+    svc.queryProcessHistory.mockResolvedValue([{ id: 'h' }]);
+    const res = await auth(request(app).get('/v1/m2m/process/history')).send({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/m2m/process/history');
+    expect(res.headers.deprecation).toBe('@1790985600');
+    expect(svc.queryProcessHistory).toHaveBeenCalledWith({
+      processDefinitionKey: 'AwbZorgtoeslagProcess',
+    });
+  });
+
+  it('GET /process/history → 500 on failure, still marked deprecated', async () => {
     svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/m2m/process/history'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/m2m/process/history');
-    expect(res.body.error.code).toBe('PROCESS_HISTORY_FAILED');
+    expect(res.headers.deprecation).toBe('@1790985600');
+  });
+
+  it('GET /process/history obeys the curation gate too', async () => {
+    const index = M2M_ALLOWED_OPERATIONS.indexOf('process.history');
+    M2M_ALLOWED_OPERATIONS.splice(index, 1);
+    try {
+      const res = await auth(request(app).get('/v1/m2m/process/history'));
+      expect(res.status).toBe(403);
+      expectToMatchOperation(res, 'get', '/m2m/process/history');
+    } finally {
+      M2M_ALLOWED_OPERATIONS.splice(index, 0, 'process.history');
+    }
   });
 
   it('GET /process/:id/status maps active/ended/suspended', async () => {
@@ -554,7 +595,7 @@ const OPERATIONS = [
   ],
   [
     'process.history',
-    'get',
+    'post',
     '/v1/m2m/process/history',
     'queryProcessHistory',
     500,
@@ -716,9 +757,9 @@ describe('request bodies that leave fields out', () => {
 
   it('queries history with an empty filter when there is no body at all', async () => {
     svc.queryProcessHistory.mockResolvedValue([]);
-    const res = await auth(request(app).get('/v1/m2m/process/history'));
+    const res = await auth(request(app).post('/v1/m2m/process/history'));
     expect(res.status).toBe(200);
-    expectToMatchOperation(res, 'get', '/m2m/process/history');
+    expectToMatchOperation(res, 'post', '/m2m/process/history');
     expect(svc.queryProcessHistory).toHaveBeenCalledWith({});
   });
 

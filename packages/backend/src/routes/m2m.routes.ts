@@ -208,11 +208,21 @@ router.post('/process/:key/start', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /v1/m2m/process/history
+ * When the GET spelling of process.history was deprecated (#263), as the RFC
+ * 9745 Deprecation header states it: `@` and Unix seconds, 3 October 2026.
+ */
+export const HISTORY_GET_DEPRECATED = '@1790985600';
+
+/**
+ * POST /v1/m2m/process/history
  * Query process instance history. Body is passed through to Operaton unchanged.
+ *
+ * GET /v1/m2m/process/history -- DEPRECATED alias (#263), kept for one release.
+ * A body on GET has no defined meaning, and clients, proxies and generated
+ * SDKs drop it; the caller then receives the unfiltered history with no error.
  * NOTE: Must be registered before /process/:id/* to avoid route shadowing.
  */
-router.get('/process/history', async (req: Request, res: Response) => {
+async function queryHistory(req: Request, res: Response) {
   if (!isAllowed('process.history')) return notAllowed(res);
   try {
     const data = await m2mOperatonService.queryProcessHistory(req.body ?? {});
@@ -226,6 +236,12 @@ router.get('/process/history', async (req: Request, res: Response) => {
       error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
     });
   }
+}
+
+router.post('/process/history', queryHistory);
+router.get('/process/history', (req: Request, res: Response) => {
+  res.setHeader('Deprecation', HISTORY_GET_DEPRECATED);
+  return queryHistory(req, res);
 });
 
 /**
