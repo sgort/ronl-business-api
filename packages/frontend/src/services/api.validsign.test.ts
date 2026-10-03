@@ -49,18 +49,23 @@ describe('businessApi.validsign.taskSpec', () => {
     server.use(
       http.get('*/validsign/task/task-1/spec', () =>
         HttpResponse.json(
-          { success: false, error: { code: 'NOT_FOUND', message: 'no such task' } },
-          { status: 404 }
+          {
+            type: 'about:blank',
+            status: 404,
+            title: 'Not found',
+            detail: 'no such task',
+            instance: '/v1/validsign/task/task-1/spec',
+            code: 'NOT_FOUND',
+          },
+          { status: 404, headers: { 'Content-Type': 'application/problem+json' } }
         )
       )
     );
 
     const result = await businessApi.validsign.taskSpec('task-1');
 
-    expect(result).toEqual({
-      success: false,
-      error: { code: 'NOT_FOUND', message: 'no such task' },
-    });
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({ code: 'NOT_FOUND', message: 'no such task' });
   });
 
   it('rethrows on a network failure with no response', async () => {
@@ -121,15 +126,23 @@ describe('businessApi.validsign.createPackage', () => {
     server.use(
       http.post('*/validsign/task/task-42/package', () =>
         HttpResponse.json(
-          { success: false, error: { code: 'BAD_REQUEST', message: 'nope' } },
-          { status: 400 }
+          {
+            type: 'about:blank',
+            status: 400,
+            title: 'Bad request',
+            detail: 'nope',
+            instance: '/v1/validsign/task/task-42/package',
+            code: 'BAD_REQUEST',
+          },
+          { status: 400, headers: { 'Content-Type': 'application/problem+json' } }
         )
       )
     );
 
     const result = await businessApi.validsign.createPackage('task-42', 'embedded');
 
-    expect(result).toEqual({ success: false, error: { code: 'BAD_REQUEST', message: 'nope' } });
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({ code: 'BAD_REQUEST', message: 'nope' });
   });
 
   it('rethrows on a network failure with no response', async () => {
@@ -153,13 +166,14 @@ describe('businessApi.validsign.createPackage', () => {
       http.post('*/validsign/task/task-42/package', () =>
         HttpResponse.json(
           {
-            success: false,
-            error: {
-              code: 'MISSING_SIGNER_EMAIL',
-              message: 'Signer has no email address on file',
-            },
+            type: 'about:blank',
+            status: 422,
+            title: 'Missing signer email',
+            detail: 'Signer has no email address on file',
+            instance: '/v1/validsign/task/task-42/package',
+            code: 'MISSING_SIGNER_EMAIL',
           },
-          { status: 422 }
+          { status: 422, headers: { 'Content-Type': 'application/problem+json' } }
         )
       )
     );
@@ -175,14 +189,15 @@ describe('businessApi.validsign.createPackage', () => {
       http.post('*/validsign/task/task-42/package', () =>
         HttpResponse.json(
           {
-            success: false,
-            error: {
-              code: 'VALIDSIGN_PACKAGE_EXISTS',
-              message: 'A package already exists for this task',
-            },
+            type: 'about:blank',
+            status: 409,
+            title: 'Validsign package exists',
+            detail: 'A package already exists for this task',
+            instance: '/v1/validsign/task/task-42/package',
+            code: 'VALIDSIGN_PACKAGE_EXISTS',
             data: { packageId: 'pkg-existing-1' },
           },
-          { status: 409 }
+          { status: 409, headers: { 'Content-Type': 'application/problem+json' } }
         )
       )
     );
@@ -213,15 +228,23 @@ describe('businessApi.validsign.status', () => {
     server.use(
       http.get('*/validsign/task/task-7/status', () =>
         HttpResponse.json(
-          { success: false, error: { code: 'NOT_FOUND', message: 'no package' } },
-          { status: 404 }
+          {
+            type: 'about:blank',
+            status: 404,
+            title: 'Not found',
+            detail: 'no package',
+            instance: '/v1/validsign/task/task-7/status',
+            code: 'NOT_FOUND',
+          },
+          { status: 404, headers: { 'Content-Type': 'application/problem+json' } }
         )
       )
     );
 
     const result = await businessApi.validsign.status('task-7');
 
-    expect(result).toEqual({ success: false, error: { code: 'NOT_FOUND', message: 'no package' } });
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({ code: 'NOT_FOUND', message: 'no package' });
   });
 
   it('rethrows on a network failure with no response', async () => {

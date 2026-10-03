@@ -493,7 +493,7 @@ else
     -H "Content-Type: application/json" \
     -d "{\"businessKey\":\"${BK_PREFIX}-reserved\",\"variables\":{\"municipality\":\"m2m-routes-test-hijack\"}}")
   check_status "POST /v1/m2m/process/:key/start refuses municipality" "$RESERVED_START_STATUS" "400"
-  check_field "start refusal body" "$(cat /tmp/m2m_reserved_start.json)" '.error.code' 'RESERVED_VARIABLE'
+  check_field "start refusal body" "$(cat /tmp/m2m_reserved_start.json)" '.code' 'RESERVED_VARIABLE'
   STRAY=$(jq -r '.data.processInstanceId // empty' /tmp/m2m_reserved_start.json 2>/dev/null)
   [[ -n "$STRAY" ]] && m2m_delete "$STRAY"
 
@@ -553,7 +553,7 @@ else
       -H "Content-Type: application/json" \
       -d '{"variables":{"municipality":"m2m-routes-test-hijack","probeCompleted":true}}')
     check_status "POST /v1/m2m/task/:id/complete refuses municipality" "$RESERVED_COMPLETE_STATUS" "400"
-    check_field "complete refusal body" "$(cat /tmp/m2m_reserved_complete.json)" '.error.code' 'RESERVED_VARIABLE'
+    check_field "complete refusal body" "$(cat /tmp/m2m_reserved_complete.json)" '.code' 'RESERVED_VARIABLE'
     [[ -n "$(m2m_task_of "$PROC_A")" ]] \
       && pass "a refused completion leaves the task open" \
       || fail "a refused completion closed the task"
@@ -689,7 +689,7 @@ TENANT_STATUS=$(curl -s -o /tmp/m2m_tenant.json -w "%{http_code}" \
   "${BASE_URL}/v1/task" \
   -H "Authorization: Bearer $TOKEN")
 
-TENANT_CODE=$(jq -r '.error.code // empty' /tmp/m2m_tenant.json)
+TENANT_CODE=$(jq -r '.code // empty' /tmp/m2m_tenant.json)
 
 if [[ "$TENANT_STATUS" == "403" && "$TENANT_CODE" == "MISSING_TENANT" ]]; then
   pass "GET /v1/task → 403 MISSING_TENANT (tenant isolation intact)"

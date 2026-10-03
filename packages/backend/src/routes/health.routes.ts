@@ -5,6 +5,7 @@ import { cacheHealth } from '../pa-monitoring/pa-cache';
 import { createLogger } from '@utils/logger';
 import packageJson from '../../package.json';
 import { buildInfo } from '@utils/build-info';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('health-routes');
@@ -86,23 +87,36 @@ router.get('/', async (req, res) => {
       duration: healthData.duration,
     });
 
-    res.status(statusCode).json({
-      success: allUp,
-      data: healthData,
-    });
+    if (allUp) {
+      res.status(statusCode).json({ success: true, data: healthData });
+    } else {
+      // A 503 is problem details (#216), with the full report kept under
+      // `data`, where it has always been.
+      sendProblem(res, req, {
+        status: statusCode,
+        code: 'SERVICE_DEGRADED',
+        detail: 'A required dependency is unavailable',
+        extensions: { data: healthData },
+      });
+    }
   } catch (error) {
     logger.error('Health check failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
 
-    res.status(503).json({
-      success: false,
-      data: {
-        name: 'RONL Business API',
-        version: packageJson.version,
-        status: 'unhealthy',
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendProblem(res, req, {
+      status: 503,
+      code: 'HEALTH_CHECK_FAILED',
+      detail: message,
+      extensions: {
+        data: {
+          name: 'RONL Business API',
+          version: packageJson.version,
+          status: 'unhealthy',
+          timestamp: new Date().toISOString(),
+          error: message,
+        },
       },
     });
   }
@@ -140,22 +154,27 @@ router.get('/ready', async (req, res) => {
         },
       });
     } else {
-      res.status(503).json({
-        success: false,
-        data: {
-          status: 'not ready',
-          reason: 'Operaton unavailable',
-          timestamp: new Date().toISOString(),
+      sendProblem(res, req, {
+        status: 503,
+        code: 'NOT_READY',
+        detail: 'Operaton unavailable',
+        extensions: {
+          data: {
+            status: 'not ready',
+            reason: 'Operaton unavailable',
+            timestamp: new Date().toISOString(),
+          },
         },
       });
     }
   } catch (error) {
-    res.status(503).json({
-      success: false,
-      data: {
-        status: 'not ready',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendProblem(res, req, {
+      status: 503,
+      code: 'NOT_READY',
+      detail: message,
+      extensions: {
+        data: { status: 'not ready', error: message, timestamp: new Date().toISOString() },
       },
     });
   }

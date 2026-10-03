@@ -1,5 +1,5 @@
 import axios from 'axios';
-import express, { type Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware, addTenantToProcessVariables } from '@middleware/tenant.middleware';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { AmbiguousDeploymentError } from '@utils/errors';
 import { auditLog } from '@middleware/audit.middleware';
 import { config } from '@utils/config';
@@ -24,11 +25,12 @@ const logger = createLogger('process-routes');
  * 409 for a key deployed under several organisations, none of them the
  * caller's (#228): there is no basis for choosing which one handles the case.
  */
-function ambiguousDeployment(res: Response, error: AmbiguousDeploymentError): Response {
+function ambiguousDeployment(req: Request, res: Response, error: AmbiguousDeploymentError): void {
   logger.warn('Ambiguous deployment', { processKey: error.processKey, tenants: error.tenants });
-  return res.status(409).json({
-    success: false,
-    error: { code: 'AMBIGUOUS_DEPLOYMENT', message: error.message },
+  return sendProblem(res, req, {
+    status: 409,
+    code: 'AMBIGUOUS_DEPLOYMENT',
+    detail: error.message,
   });
 }
 
@@ -54,12 +56,10 @@ router.post(
 
     // Check if user is authenticated
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
 
@@ -161,7 +161,7 @@ router.post(
           reason: 'AMBIGUOUS_DEPLOYMENT',
           tenants: error.tenants,
         });
-        return ambiguousDeployment(res, error);
+        return ambiguousDeployment(req, res, error);
       }
       // Prefer Operaton's own error message (e.g. "no matching process definition
       // deployed with key ...") over the generic axios message, so the caller can
@@ -184,14 +184,13 @@ router.post(
         error: cause,
       });
 
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'PROCESS_START_FAILED',
-          message: `Failed to start process '${key}'`,
-          details: cause,
-          instance: config.operaton.baseUrl,
-        },
+      // `engine` names the Operaton base URL the start was sent to. It is not
+      // `instance`: in RFC 9457 that member is the request path (#216).
+      sendProblem(res, req, {
+        status: 500,
+        code: 'PROCESS_START_FAILED',
+        detail: `Failed to start process '${key}'`,
+        extensions: { details: cause, engine: config.operaton.baseUrl },
       });
     }
   }
@@ -208,18 +207,20 @@ router.post(
  */
 router.get('/history', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
   const { applicantId } = req.query;
 
   if (!applicantId || typeof applicantId !== 'string') {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'applicantId query parameter is required' },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      detail: 'applicantId query parameter is required',
     });
   }
 
@@ -229,18 +230,17 @@ router.get('/history', async (req, res) => {
   // in citizens' cases.
   const isCaseworker = (req.user.roles ?? []).includes('caseworker');
   if (!isCaseworker && !isCitizen(req.user)) {
-    return res.status(403).json({
-      success: false,
-      error: {
-        code: 'FORBIDDEN',
-        message: 'Only citizens and caseworkers may read process history',
-      },
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'FORBIDDEN',
+      detail: 'Only citizens and caseworkers may read process history',
     });
   }
   if (!isCaseworker && applicantId !== req.user.userId) {
-    return res.status(403).json({
-      success: false,
-      error: { code: 'FORBIDDEN', message: 'Citizens may only request their own history' },
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'FORBIDDEN',
+      detail: 'Citizens may only request their own history',
     });
   }
 
@@ -264,9 +264,10 @@ router.get('/history', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_HISTORY_FAILED',
+      detail: 'Failed to retrieve process history',
     });
   }
 });
@@ -284,12 +285,10 @@ router.get('/:id/status', async (req, res) => {
 
   // Check if user is authenticated
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-      },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -325,12 +324,10 @@ router.get('/:id/status', async (req, res) => {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
 
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'PROCESS_NOT_FOUND',
-        message: 'Process instance not found',
-      },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'PROCESS_NOT_FOUND',
+      detail: 'Process instance not found',
     });
   }
 });
@@ -344,12 +341,10 @@ router.get('/:id/variables', async (req, res) => {
 
   // Check if user is authenticated
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-      },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -379,12 +374,10 @@ router.get('/:id/variables', async (req, res) => {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
 
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'PROCESS_NOT_FOUND',
-        message: 'Process instance not found',
-      },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'PROCESS_NOT_FOUND',
+      detail: 'Process instance not found',
     });
   }
 });
@@ -396,9 +389,10 @@ router.get('/:id/variables', async (req, res) => {
  */
 router.get('/:id/historic-variables', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -420,12 +414,10 @@ router.get('/:id/historic-variables', async (req, res) => {
       processInstanceId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'HISTORIC_VARIABLES_FAILED',
-        message: 'Failed to retrieve historic variables',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'HISTORIC_VARIABLES_FAILED',
+      detail: 'Failed to retrieve historic variables',
     });
   }
 });
@@ -439,9 +431,10 @@ router.get('/:id/historic-variables', async (req, res) => {
  */
 router.get('/:id/activity-history', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -463,9 +456,10 @@ router.get('/:id/activity-history', async (req, res) => {
       processInstanceId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'ACTIVITY_HISTORY_FAILED', message: 'Failed to retrieve activity history' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'ACTIVITY_HISTORY_FAILED',
+      detail: 'Failed to retrieve activity history',
     });
   }
 });
@@ -479,9 +473,10 @@ router.get('/:id/activity-history', async (req, res) => {
  */
 router.get('/:id/lineage', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -497,18 +492,20 @@ router.get('/:id/lineage', async (req, res) => {
     res.json({ success: true, data: lineage });
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return res.status(404).json({
-        success: false,
-        error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'PROCESS_NOT_FOUND',
+        detail: 'Process instance not found',
       });
     }
     logger.error('Failed to get process lineage', {
       processInstanceId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_LINEAGE_FAILED', message: 'Failed to retrieve process lineage' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_LINEAGE_FAILED',
+      detail: 'Failed to retrieve process lineage',
     });
   }
 });
@@ -533,16 +530,18 @@ const PROCESS_KEY = /^[A-Za-z_][A-Za-z0-9_.-]{0,254}$/;
  */
 router.get('/definition/key/:key/swimlane', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const { key } = req.params;
   if (!PROCESS_KEY.test(key)) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'INVALID_PROCESS_KEY', message: 'Invalid process definition key' },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'INVALID_PROCESS_KEY',
+      detail: 'Invalid process definition key',
     });
   }
   try {
@@ -550,9 +549,10 @@ router.get('/definition/key/:key/swimlane', async (req, res) => {
     res.json({ success: true, data: model });
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return res.status(404).json({
-        success: false,
-        error: { code: 'PROCESS_DEFINITION_NOT_FOUND', message: 'Process definition not found' },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'PROCESS_DEFINITION_NOT_FOUND',
+        detail: 'Process definition not found',
       });
     }
     logger.error('Failed to build process swimlane model', {
@@ -560,9 +560,10 @@ router.get('/definition/key/:key/swimlane', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'SWIMLANE_MODEL_FAILED', message: 'Failed to build process model' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SWIMLANE_MODEL_FAILED',
+      detail: 'Failed to build process model',
     });
   }
 });
@@ -574,9 +575,10 @@ router.get('/definition/key/:key/swimlane', async (req, res) => {
  */
 router.get('/:instanceId/decision-document', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -596,19 +598,18 @@ router.get('/:instanceId/decision-document', async (req, res) => {
     const msg = error instanceof Error ? error.message : '';
 
     if (msg === 'DOCUMENT_NOT_FOUND') {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'DOCUMENT_NOT_FOUND',
-          message: 'No document template found for this process instance',
-        },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'DOCUMENT_NOT_FOUND',
+        detail: 'No document template found for this process instance',
       });
     }
 
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return res.status(404).json({
-        success: false,
-        error: { code: 'DOCUMENT_NOT_FOUND', message: 'Process instance or definition not found' },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'DOCUMENT_NOT_FOUND',
+        detail: 'Process instance or definition not found',
       });
     }
 
@@ -617,9 +618,10 @@ router.get('/:instanceId/decision-document', async (req, res) => {
       error: msg || 'Unknown error',
     });
 
-    res.status(500).json({
-      success: false,
-      error: { code: 'DOCUMENT_FETCH_FAILED', message: 'Failed to retrieve decision document' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOCUMENT_FETCH_FAILED',
+      detail: 'Failed to retrieve decision document',
     });
   }
 });
@@ -636,9 +638,10 @@ router.get('/:instanceId/decision-document', async (req, res) => {
  */
 router.get('/:key/start-form', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -651,12 +654,10 @@ router.get('/:key/start-form', async (req, res) => {
     );
 
     if (!contentType.includes('application/json')) {
-      return res.status(415).json({
-        success: false,
-        error: {
-          code: 'UNSUPPORTED_FORM_TYPE',
-          message: `Process '${key}' has an embedded HTML start form. Only Camunda Forms (JSON) are supported.`,
-        },
+      return sendProblem(res, req, {
+        status: 415,
+        code: 'UNSUPPORTED_FORM_TYPE',
+        detail: `Process '${key}' has an embedded HTML start form. Only Camunda Forms (JSON) are supported.`,
       });
     }
 
@@ -664,7 +665,7 @@ router.get('/:key/start-form', async (req, res) => {
     res.json({ success: true, data: schema });
   } catch (error) {
     if (error instanceof AmbiguousDeploymentError) {
-      return ambiguousDeployment(res, error);
+      return ambiguousDeployment(req, res, error);
     }
     logger.error('Failed to fetch start form', {
       processKey: key,
@@ -675,15 +676,13 @@ router.get('/:key/start-form', async (req, res) => {
       (error.response?.status === 404 || error.response?.status === 400)
         ? 404
         : 500;
-    res.status(status).json({
-      success: false,
-      error: {
-        code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
-        message:
-          status === 404
-            ? `No deployed start form found for process '${key}'`
-            : 'Failed to retrieve start form',
-      },
+    sendProblem(res, req, {
+      status: status,
+      code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
+      detail:
+        status === 404
+          ? `No deployed start form found for process '${key}'`
+          : 'Failed to retrieve start form',
     });
   }
 });
@@ -696,9 +695,10 @@ router.get('/:key/start-form', async (req, res) => {
  */
 router.get('/:key/variable-hints', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -713,12 +713,10 @@ router.get('/:key/variable-hints', async (req, res) => {
       processKey: key,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'VARIABLE_HINTS_FAILED',
-        message: 'Failed to retrieve variable hints',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'VARIABLE_HINTS_FAILED',
+      detail: 'Failed to retrieve variable hints',
     });
   }
 });
@@ -737,12 +735,10 @@ router.delete('/:id', async (req, res) => {
 
   // Check if user is authenticated
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-      },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -780,12 +776,10 @@ router.delete('/:id', async (req, res) => {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
 
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'PROCESS_DELETE_FAILED',
-        message: 'Failed to cancel process',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_DELETE_FAILED',
+      detail: 'Failed to cancel process',
     });
   }
 });

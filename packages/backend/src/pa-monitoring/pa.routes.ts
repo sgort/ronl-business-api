@@ -23,6 +23,7 @@ import { matchesQueryTerms } from './query-match';
 import { computeNotifications } from './notifications.service';
 import { toRssXml } from './rss';
 import { config } from '@utils/config';
+import { sendProblem } from '@utils/problem';
 import type { FeedItem, Signal } from '@ronl/shared';
 
 const router = express.Router();
@@ -40,7 +41,7 @@ router.post('/curator/run', jwtMiddleware, requireRoles('public-affairs'), async
 });
 
 // ── GET /v1/pa/curator/status ─────────────────────────────────────────────────
-router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), async (_req, res) => {
+router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), async (req, res) => {
   try {
     const [signalCounts, searchCounts] = await Promise.all([
       db.one<{ total: string; candidate: string; confirmed: string }>(
@@ -72,9 +73,10 @@ router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), asy
       },
     });
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: { code: 'STATUS_ERROR', message: err instanceof Error ? err.message : String(err) },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'STATUS_ERROR',
+      detail: err instanceof Error ? err.message : String(err),
     });
   }
 });
@@ -87,14 +89,16 @@ router.get('/curator/status', jwtMiddleware, requireRoles('public-affairs'), asy
 // authenticated GET /v1/pa/feed-token.
 router.get('/signals.rss', async (req, res) => {
   const token = typeof req.query['token'] === 'string' ? req.query['token'] : null;
-  if (!token) return res.status(401).send('Missing token');
+  if (!token)
+    return sendProblem(res, req, { status: 401, code: 'MISSING_TOKEN', detail: 'Missing token' });
 
   try {
     const tokenRow = await db.oneOrNone<{ user_id: string; tenant_id: string }>(
       `SELECT user_id, tenant_id FROM pa_feed_tokens WHERE token = $1`,
       [token]
     );
-    if (!tokenRow) return res.status(401).send('Invalid token');
+    if (!tokenRow)
+      return sendProblem(res, req, { status: 401, code: 'INVALID_TOKEN', detail: 'Invalid token' });
 
     const tab = typeof req.query['tab'] === 'string' ? req.query['tab'] : null;
     const dossierId = typeof req.query['dossierId'] === 'string' ? req.query['dossierId'] : null;
@@ -119,7 +123,7 @@ router.get('/signals.rss', async (req, res) => {
     res.type('application/rss+xml; charset=utf-8').send(xml);
   } catch (err) {
     logger.error('Signals RSS error', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).send('Internal error');
+    sendProblem(res, req, { status: 500, code: 'INTERNAL_ERROR', detail: 'Internal error' });
   }
 });
 
@@ -133,7 +137,12 @@ router.use(requireRoles('public-affairs'));
 // curation cycle's own opt-in-per-search treatment of the EU source), skip,
 // top.
 router.get('/feed', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const q = typeof req.query['q'] === 'string' ? req.query['q'] : null;
   const source = typeof req.query['source'] === 'string' ? req.query['source'] : 'both';
@@ -185,9 +194,10 @@ router.get('/feed', async (req, res) => {
     res.json({ success: true, data: { items, total, skip, top } });
   } catch (err) {
     logger.error('Feed error', { error: err instanceof Error ? err.message : String(err) });
-    res.status(502).json({
-      success: false,
-      error: { code: 'UPSTREAM_ERROR', message: 'Upstream feed unavailable' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'UPSTREAM_ERROR',
+      detail: 'Upstream feed unavailable',
     });
   }
 });
@@ -218,7 +228,12 @@ router.get('/types', (_req, res) => {
 // Read-only TK schedule: plenaire + commissiedebatten ±14/+30 days from today.
 // No curation loop — straight fetch → normalise → taxonomy match → respond.
 router.get('/agenda', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const today = new Date();
   const from = new Date(today);
@@ -249,9 +264,10 @@ router.get('/agenda', async (req, res) => {
     res.json({ success: true, data: enriched });
   } catch (err) {
     logger.error('Agenda error', { error: err instanceof Error ? err.message : String(err) });
-    res.status(502).json({
-      success: false,
-      error: { code: 'AGENDA_ERROR', message: 'Upstream agenda unavailable' },
+    sendProblem(res, req, {
+      status: 502,
+      code: 'AGENDA_ERROR',
+      detail: 'Upstream agenda unavailable',
     });
   }
 });
@@ -259,7 +275,12 @@ router.get('/agenda', async (req, res) => {
 // ── GET /v1/pa/signals ───────────────────────────────────────────────────────
 // Returns confirmed signals. Query: tab, dossierId, status.
 router.get('/signals', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const tab = typeof req.query['tab'] === 'string' ? req.query['tab'] : null;
   const dossierId = typeof req.query['dossierId'] === 'string' ? req.query['dossierId'] : null;
@@ -310,7 +331,7 @@ router.get('/signals', async (req, res) => {
     logger.error('Signals fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SIGNALS_ERROR' } });
+    sendProblem(res, req, { status: 500, code: 'SIGNALS_ERROR', detail: 'Failed to load signals' });
   }
 });
 
@@ -320,7 +341,12 @@ router.get('/signals', async (req, res) => {
 // (up to 100 rows each) to read four numbers off their meta. Must stay above any
 // /signals/:id-shaped GET so 'counts' is not swallowed as an id.
 router.get('/signals/counts', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const status =
     typeof req.query['status'] === 'string' ? req.query['status'] : 'candidate,ai_drafted';
@@ -344,7 +370,11 @@ router.get('/signals/counts', async (req, res) => {
     logger.error('Signal counts fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SIGNAL_COUNTS_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SIGNAL_COUNTS_ERROR',
+      detail: 'Failed to count signals',
+    });
   }
 });
 
@@ -352,11 +382,20 @@ router.get('/signals/counts', async (req, res) => {
 // Promote one raw feed item (body = FeedItem) into the inbox as a candidate.
 // Scoring/persist stays in curation.service; this route stays thin.
 router.post('/signals', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const item = req.body as Partial<FeedItem>;
   if (!item?.id || !item.title || !item.source) {
-    return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_FIELDS',
+      detail: 'id, title and source are required',
+    });
   }
 
   try {
@@ -372,13 +411,22 @@ router.post('/signals', async (req, res) => {
     logger.error('Promote to inbox error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'PROMOTE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROMOTE_ERROR',
+      detail: 'Failed to promote signal',
+    });
   }
 });
 
 // ── POST /v1/pa/signals/:id/confirm ──────────────────────────────────────────
 router.post('/signals/:id/confirm', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { id } = req.params;
   const { duiding, impact, impactLabel, rel } = req.body as {
@@ -392,7 +440,8 @@ router.post('/signals/:id/confirm', async (req, res) => {
     const existing = await db.oneOrNone<{ id: string }>('SELECT id FROM pa_signals WHERE id = $1', [
       id,
     ]);
-    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    if (!existing)
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Signal not found' });
 
     const confirmedAt = new Date().toISOString();
     const confirmedBy = req.user.displayName ?? req.user.preferredUsername ?? req.user.userId;
@@ -442,7 +491,11 @@ router.post('/signals/:id/confirm', async (req, res) => {
       id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'CONFIRM_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'CONFIRM_ERROR',
+      detail: 'Failed to confirm signal',
+    });
   }
 });
 
@@ -454,7 +507,12 @@ router.post('/signals/:id/confirm', async (req, res) => {
 // `WHERE pa_signals.status = 'candidate'`, so a later curation cycle leaves it
 // alone exactly as it leaves a confirmed one alone.
 router.post('/signals/:id/dismiss', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { id } = req.params;
 
@@ -462,7 +520,8 @@ router.post('/signals/:id/dismiss', async (req, res) => {
     const existing = await db.oneOrNone<{ id: string }>('SELECT id FROM pa_signals WHERE id = $1', [
       id,
     ]);
-    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    if (!existing)
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Signal not found' });
 
     await db.none(
       `UPDATE pa_signals SET status = 'dismissed', routing = NULL, updated_at = NOW() WHERE id = $1`,
@@ -482,13 +541,22 @@ router.post('/signals/:id/dismiss', async (req, res) => {
       id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DISMISS_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DISMISS_ERROR',
+      detail: 'Failed to dismiss signal',
+    });
   }
 });
 
 // ── GET /v1/pa/searches ───────────────────────────────────────────────────────
 router.get('/searches', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   try {
     // Team (unowned) rows have no `notify` column that means anything — see
@@ -517,13 +585,22 @@ router.get('/searches', async (req, res) => {
     logger.error('Searches fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SEARCHES_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SEARCHES_ERROR',
+      detail: 'Failed to load saved searches',
+    });
   }
 });
 
 // ── POST /v1/pa/searches ──────────────────────────────────────────────────────
 router.post('/searches', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { dossierId, query, tags, scope } = req.body as {
     dossierId?: string;
@@ -533,7 +610,11 @@ router.post('/searches', async (req, res) => {
   };
 
   if (!query?.q) {
-    return res.status(400).json({ success: false, error: { code: 'MISSING_QUERY' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_QUERY',
+      detail: 'query.q is required',
+    });
   }
 
   try {
@@ -556,13 +637,22 @@ router.post('/searches', async (req, res) => {
     logger.error('Search create error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SEARCH_CREATE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SEARCH_CREATE_ERROR',
+      detail: 'Failed to create saved search',
+    });
   }
 });
 
 // ── DELETE /v1/pa/searches/:id ────────────────────────────────────────────────
 router.delete('/searches/:id', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { id } = req.params;
   try {
@@ -572,14 +662,22 @@ router.delete('/searches/:id', async (req, res) => {
       [id, req.user.userId, req.user.tenantId]
     );
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'NOT_FOUND',
+        detail: 'Saved search not found',
+      });
     }
     res.json({ success: true });
   } catch (err) {
     logger.error('Search delete error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SEARCH_DELETE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SEARCH_DELETE_ERROR',
+      detail: 'Failed to delete saved search',
+    });
   }
 });
 
@@ -587,7 +685,12 @@ router.delete('/searches/:id', async (req, res) => {
 // Edit scope, query, tags, and/or dossierId in place.
 // Tenant-guarded (not user_id-only) so team criteria are editable by any PA officer.
 router.patch('/searches/:id', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { scope, query, tags, dossierId, notify } = req.body as {
     scope?: 'tenant' | 'user';
@@ -604,13 +707,25 @@ router.patch('/searches/:id', async (req, res) => {
     dossierId === undefined &&
     notify === undefined
   ) {
-    return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_FIELDS',
+      detail: 'At least one field to update is required',
+    });
   }
   if (scope !== undefined && scope !== 'tenant' && scope !== 'user') {
-    return res.status(400).json({ success: false, error: { code: 'BAD_SCOPE' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'BAD_SCOPE',
+      detail: "scope must be 'tenant' or 'user'",
+    });
   }
   if (query !== undefined && !query.q?.trim()) {
-    return res.status(400).json({ success: false, error: { code: 'EMPTY_QUERY' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'EMPTY_QUERY',
+      detail: 'query.q must not be empty',
+    });
   }
 
   try {
@@ -653,7 +768,11 @@ router.patch('/searches/:id', async (req, res) => {
       values
     );
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'NOT_FOUND',
+        detail: 'Saved search not found',
+      });
     }
 
     const row = result.rows[0] as {
@@ -734,19 +853,32 @@ router.patch('/searches/:id', async (req, res) => {
     logger.error('Search update error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SEARCH_UPDATE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SEARCH_UPDATE_ERROR',
+      detail: 'Failed to update saved search',
+    });
   }
 });
 
 // ── PATCH /v1/pa/signals/:id ─────────────────────────────────────────────────
 // Link a watchlist signal to a dossier; clears routing.
 router.patch('/signals/:id', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { id } = req.params;
   const { dossierId } = req.body as { dossierId?: string };
   if (!dossierId) {
-    return res.status(400).json({ success: false, error: { code: 'MISSING_DOSSIER_ID' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_DOSSIER_ID',
+      detail: 'dossierId is required',
+    });
   }
 
   try {
@@ -759,7 +891,7 @@ router.patch('/signals/:id', async (req, res) => {
       [dossierId, id]
     );
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Signal not found' });
     }
     const updated = await db.one<Record<string, unknown>>(
       `SELECT id, tab, dossier_id, title, src, bron, subbron, commissie, regio, sentiment, ref, rel, impact, impact_label,
@@ -785,7 +917,11 @@ router.patch('/signals/:id', async (req, res) => {
       id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'LINK_DOSSIER_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'LINK_DOSSIER_ERROR',
+      detail: 'Failed to link signal to dossier',
+    });
   }
 });
 
@@ -794,7 +930,12 @@ router.patch('/signals/:id', async (req, res) => {
 // notifications.service's computeNotifications() at the end of each curation
 // cycle. Query: unseen=true restricts to rows not yet acked.
 router.get('/notifications', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const unseenOnly = req.query['unseen'] === 'true';
 
@@ -852,7 +993,11 @@ router.get('/notifications', async (req, res) => {
     logger.error('Notifications fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'NOTIFICATIONS_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'NOTIFICATIONS_ERROR',
+      detail: 'Failed to load notifications',
+    });
   }
 });
 
@@ -860,7 +1005,12 @@ router.get('/notifications', async (req, res) => {
 // Marks notifications seen. Body { ids?: string[] } — omitted acks every unseen
 // notification for the caller (tkconv's whole-batch delivery, no per-item read state).
 router.post('/notifications/ack', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   const { ids } = req.body as { ids?: string[] };
 
@@ -883,14 +1033,23 @@ router.post('/notifications/ack', async (req, res) => {
     logger.error('Notifications ack error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'NOTIFICATIONS_ACK_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'NOTIFICATIONS_ACK_ERROR',
+      detail: 'Failed to acknowledge notifications',
+    });
   }
 });
 
 // ── GET /v1/pa/feed-token ─────────────────────────────────────────────────────
 // Find-or-create the caller's personal RSS token (GET /v1/pa/signals.rss?token=...).
 router.get('/feed-token', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
 
   try {
     const existing = await db.oneOrNone<{ token: string }>(
@@ -909,7 +1068,11 @@ router.get('/feed-token', async (req, res) => {
     res.json({ success: true, data: { token, url } });
   } catch (err) {
     logger.error('Feed token error', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({ success: false, error: { code: 'FEED_TOKEN_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'FEED_TOKEN_ERROR',
+      detail: 'Failed to issue feed token',
+    });
   }
 });
 

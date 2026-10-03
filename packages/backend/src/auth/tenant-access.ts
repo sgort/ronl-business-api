@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type { AuthenticatedUser } from '@ronl/shared';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 
 const logger = createLogger('tenant-access');
 
@@ -57,16 +58,17 @@ export function denyTenant(
   req: Request,
   res: Response,
   context: Record<string, unknown> = {}
-): Response {
+): void {
   logger.warn('Tenant mismatch', {
     userId: req.user?.userId,
     userTenant: req.user?.tenantId,
     path: req.originalUrl,
     ...context,
   });
-  return res.status(403).json({
-    success: false,
-    error: { code: 'TENANT_MISMATCH', message: TENANT_MISMATCH_MESSAGE },
+  return sendProblem(res, req, {
+    status: 403,
+    code: 'TENANT_MISMATCH',
+    detail: TENANT_MISMATCH_MESSAGE,
   });
 }
 

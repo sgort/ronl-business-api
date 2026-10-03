@@ -7,6 +7,7 @@ import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
 import { inferType } from '@utils/operaton-variables';
 import { RESERVED_PROCESS_VARIABLES } from '@auth/tenant-access';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('m2m-routes');
@@ -57,13 +58,11 @@ function isAllowed(op: string): boolean {
   return M2M_ALLOWED_OPERATIONS.includes(op);
 }
 
-function notAllowed(res: Response): void {
-  res.status(403).json({
-    success: false,
-    error: {
-      code: 'OPERATION_NOT_PERMITTED',
-      message: 'This operation is not available on the M2M API.',
-    },
+function notAllowed(req: Request, res: Response): void {
+  sendProblem(res, req, {
+    status: 403,
+    code: 'OPERATION_NOT_PERMITTED',
+    detail: 'This operation is not available on the M2M API.',
   });
 }
 
@@ -83,12 +82,10 @@ function requireM2mClient(req: Request, res: Response, next: NextFunction) {
     userId: req.user?.userId,
     path: req.path,
   });
-  res.status(403).json({
-    success: false,
-    error: {
-      code: 'M2M_CLIENT_NOT_ALLOWED',
-      message: 'This API is only available to registered M2M clients.',
-    },
+  sendProblem(res, req, {
+    status: 403,
+    code: 'M2M_CLIENT_NOT_ALLOWED',
+    detail: 'This API is only available to registered M2M clients.',
   });
 }
 
@@ -124,12 +121,11 @@ function refuseReserved(
   const reserved = Object.keys(variables).filter((key) => names.includes(key));
   if (reserved.length === 0) return false;
   auditLog(req, action, 'failure', { ...details, reason: 'RESERVED_VARIABLE', reserved });
-  res.status(400).json({
-    success: false,
-    error: {
-      code: 'RESERVED_VARIABLE',
-      message: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
-    },
+  sendProblem(res, req, {
+    status: 400,
+    code: 'RESERVED_VARIABLE',
+    detail: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
+    extensions: { reserved },
   });
   return true;
 }
@@ -150,7 +146,7 @@ const RESERVED_AT_START = ['municipality', 'originTenantId'] as const;
  * List active process instances. No tenant filter — returns all instances.
  */
 router.get('/process', async (req: Request, res: Response) => {
-  if (!isAllowed('process.list')) return notAllowed(res);
+  if (!isAllowed('process.list')) return notAllowed(req, res);
   try {
     const data = await m2mOperatonService.listProcessInstances(
       req.query as Record<string, unknown>
@@ -161,9 +157,10 @@ router.get('/process', async (req: Request, res: Response) => {
     logger.error('m2m process.list failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_LIST_FAILED', message: 'Failed to list process instances' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_LIST_FAILED',
+      detail: 'Failed to list process instances',
     });
   }
 });
@@ -173,7 +170,7 @@ router.get('/process', async (req: Request, res: Response) => {
  * Start a process instance by definition key.
  */
 router.post('/process/:key/start', async (req: Request, res: Response) => {
-  if (!isAllowed('process.start')) return notAllowed(res);
+  if (!isAllowed('process.start')) return notAllowed(req, res);
   const { key } = req.params;
   const { variables = {}, businessKey } = req.body;
   if (
@@ -200,9 +197,10 @@ router.post('/process/:key/start', async (req: Request, res: Response) => {
       processKey: key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_START_FAILED', message: 'Failed to start process' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_START_FAILED',
+      detail: 'Failed to start process',
     });
   }
 });
@@ -223,7 +221,7 @@ export const HISTORY_GET_DEPRECATED = '@1790985600';
  * NOTE: Must be registered before /process/:id/* to avoid route shadowing.
  */
 async function queryHistory(req: Request, res: Response) {
-  if (!isAllowed('process.history')) return notAllowed(res);
+  if (!isAllowed('process.history')) return notAllowed(req, res);
   try {
     const data = await m2mOperatonService.queryProcessHistory(req.body ?? {});
     res.json({ success: true, data });
@@ -231,9 +229,10 @@ async function queryHistory(req: Request, res: Response) {
     logger.error('m2m process.history failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_HISTORY_FAILED', message: 'Failed to retrieve process history' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_HISTORY_FAILED',
+      detail: 'Failed to retrieve process history',
     });
   }
 }
@@ -248,7 +247,7 @@ router.get('/process/history', (req: Request, res: Response) => {
  * GET /v1/m2m/process/:id/status
  */
 router.get('/process/:id/status', async (req: Request, res: Response) => {
-  if (!isAllowed('process.status')) return notAllowed(res);
+  if (!isAllowed('process.status')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const instance = await m2mOperatonService.getProcessInstance(id);
@@ -268,9 +267,10 @@ router.get('/process/:id/status', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'PROCESS_NOT_FOUND',
+      detail: 'Process instance not found',
     });
   }
 });
@@ -279,7 +279,7 @@ router.get('/process/:id/status', async (req: Request, res: Response) => {
  * GET /v1/m2m/process/:id/variables
  */
 router.get('/process/:id/variables', async (req: Request, res: Response) => {
-  if (!isAllowed('process.variables')) return notAllowed(res);
+  if (!isAllowed('process.variables')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const variables = await m2mOperatonService.getProcessVariables(id);
@@ -291,9 +291,10 @@ router.get('/process/:id/variables', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'PROCESS_NOT_FOUND',
+      detail: 'Process instance not found',
     });
   }
 });
@@ -302,7 +303,7 @@ router.get('/process/:id/variables', async (req: Request, res: Response) => {
  * GET /v1/m2m/process/:id/historic-variables
  */
 router.get('/process/:id/historic-variables', async (req: Request, res: Response) => {
-  if (!isAllowed('process.historic-variables')) return notAllowed(res);
+  if (!isAllowed('process.historic-variables')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const variables = await m2mOperatonService.getHistoricVariables(id);
@@ -312,9 +313,10 @@ router.get('/process/:id/historic-variables', async (req: Request, res: Response
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'PROCESS_NOT_FOUND', message: 'Process instance not found' },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'PROCESS_NOT_FOUND',
+      detail: 'Process instance not found',
     });
   }
 });
@@ -323,7 +325,7 @@ router.get('/process/:id/historic-variables', async (req: Request, res: Response
  * GET /v1/m2m/process/:id/decision-document
  */
 router.get('/process/:id/decision-document', async (req: Request, res: Response) => {
-  if (!isAllowed('process.decision-document')) return notAllowed(res);
+  if (!isAllowed('process.decision-document')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const template = await m2mOperatonService.getDecisionDocument(id);
@@ -333,9 +335,10 @@ router.get('/process/:id/decision-document', async (req: Request, res: Response)
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'DOCUMENT_NOT_FOUND', message: 'Decision document not found' },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'DOCUMENT_NOT_FOUND',
+      detail: 'Decision document not found',
     });
   }
 });
@@ -344,17 +347,15 @@ router.get('/process/:id/decision-document', async (req: Request, res: Response)
  * GET /v1/m2m/process/:key/start-form
  */
 router.get('/process/:key/start-form', async (req: Request, res: Response) => {
-  if (!isAllowed('process.start-form')) return notAllowed(res);
+  if (!isAllowed('process.start-form')) return notAllowed(req, res);
   const { key } = req.params;
   try {
     const { data, contentType } = await m2mOperatonService.getDeployedStartForm(key);
     if (!contentType.includes('application/json')) {
-      return res.status(415).json({
-        success: false,
-        error: {
-          code: 'UNSUPPORTED_FORM_TYPE',
-          message: 'Only Camunda Forms (JSON) are supported',
-        },
+      return sendProblem(res, req, {
+        status: 415,
+        code: 'UNSUPPORTED_FORM_TYPE',
+        detail: 'Only Camunda Forms (JSON) are supported',
       });
     }
     res.json({ success: true, data: JSON.parse(data) });
@@ -363,9 +364,7 @@ router.get('/process/:key/start-form', async (req: Request, res: Response) => {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({ success: false, error: { code: 'FORM_NOT_FOUND', message: 'Start form not found' } });
+    sendProblem(res, req, { status: 404, code: 'FORM_NOT_FOUND', detail: 'Start form not found' });
   }
 });
 
@@ -373,7 +372,7 @@ router.get('/process/:key/start-form', async (req: Request, res: Response) => {
  * GET /v1/m2m/process/:key/variable-hints
  */
 router.get('/process/:key/variable-hints', async (req: Request, res: Response) => {
-  if (!isAllowed('process.variable-hints')) return notAllowed(res);
+  if (!isAllowed('process.variable-hints')) return notAllowed(req, res);
   const { key } = req.params;
   try {
     const variables = await m2mOperatonService.getVariableHints(key);
@@ -383,9 +382,10 @@ router.get('/process/:key/variable-hints', async (req: Request, res: Response) =
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'VARIABLE_HINTS_FAILED', message: 'Failed to retrieve variable hints' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'VARIABLE_HINTS_FAILED',
+      detail: 'Failed to retrieve variable hints',
     });
   }
 });
@@ -394,7 +394,7 @@ router.get('/process/:key/variable-hints', async (req: Request, res: Response) =
  * DELETE /v1/m2m/process/:id
  */
 router.delete('/process/:id', async (req: Request, res: Response) => {
-  if (!isAllowed('process.delete')) return notAllowed(res);
+  if (!isAllowed('process.delete')) return notAllowed(req, res);
   const { id } = req.params;
   const { reason } = req.body;
   try {
@@ -409,9 +409,10 @@ router.delete('/process/:id', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESS_DELETE_FAILED', message: 'Failed to cancel process' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESS_DELETE_FAILED',
+      detail: 'Failed to cancel process',
     });
   }
 });
@@ -425,7 +426,7 @@ router.delete('/process/:id', async (req: Request, res: Response) => {
  * List all open tasks. No tenant filter — returns tasks across all organisations.
  */
 router.get('/task', async (req: Request, res: Response) => {
-  if (!isAllowed('task.list')) return notAllowed(res);
+  if (!isAllowed('task.list')) return notAllowed(req, res);
   try {
     const tasks = await m2mOperatonService.getUserTasks();
     res.json({ success: true, data: tasks });
@@ -433,9 +434,10 @@ router.get('/task', async (req: Request, res: Response) => {
     logger.error('m2m task.list failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_LIST_FAILED', message: 'Failed to list tasks' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_LIST_FAILED',
+      detail: 'Failed to list tasks',
     });
   }
 });
@@ -444,7 +446,7 @@ router.get('/task', async (req: Request, res: Response) => {
  * GET /v1/m2m/task/:id
  */
 router.get('/task/:id', async (req: Request, res: Response) => {
-  if (!isAllowed('task.get')) return notAllowed(res);
+  if (!isAllowed('task.get')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const task = await m2mOperatonService.getTask(id);
@@ -454,9 +456,7 @@ router.get('/task/:id', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(404)
-      .json({ success: false, error: { code: 'TASK_NOT_FOUND', message: 'Task not found' } });
+    sendProblem(res, req, { status: 404, code: 'TASK_NOT_FOUND', detail: 'Task not found' });
   }
 });
 
@@ -464,7 +464,7 @@ router.get('/task/:id', async (req: Request, res: Response) => {
  * GET /v1/m2m/task/:id/variables
  */
 router.get('/task/:id/variables', async (req: Request, res: Response) => {
-  if (!isAllowed('task.variables')) return notAllowed(res);
+  if (!isAllowed('task.variables')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const variables = await m2mOperatonService.getTaskVariables(id);
@@ -474,9 +474,10 @@ router.get('/task/:id/variables', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_VARIABLES_FAILED', message: 'Failed to retrieve task variables' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_VARIABLES_FAILED',
+      detail: 'Failed to retrieve task variables',
     });
   }
 });
@@ -485,17 +486,15 @@ router.get('/task/:id/variables', async (req: Request, res: Response) => {
  * GET /v1/m2m/task/:id/form-schema
  */
 router.get('/task/:id/form-schema', async (req: Request, res: Response) => {
-  if (!isAllowed('task.form-schema')) return notAllowed(res);
+  if (!isAllowed('task.form-schema')) return notAllowed(req, res);
   const { id } = req.params;
   try {
     const { data, contentType } = await m2mOperatonService.getDeployedTaskForm(id);
     if (!contentType.includes('application/json')) {
-      return res.status(415).json({
-        success: false,
-        error: {
-          code: 'UNSUPPORTED_FORM_TYPE',
-          message: 'Only Camunda Forms (JSON) are supported',
-        },
+      return sendProblem(res, req, {
+        status: 415,
+        code: 'UNSUPPORTED_FORM_TYPE',
+        detail: 'Only Camunda Forms (JSON) are supported',
       });
     }
     res.json({ success: true, data: JSON.parse(data) });
@@ -504,10 +503,7 @@ router.get('/task/:id/form-schema', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'FORM_NOT_FOUND', message: 'Form schema not found' },
-    });
+    sendProblem(res, req, { status: 404, code: 'FORM_NOT_FOUND', detail: 'Form schema not found' });
   }
 });
 
@@ -516,7 +512,7 @@ router.get('/task/:id/form-schema', async (req: Request, res: Response) => {
  * Body: { "userId": "..." } — optional, falls back to token subject.
  */
 router.post('/task/:id/claim', async (req: Request, res: Response) => {
-  if (!isAllowed('task.claim')) return notAllowed(res);
+  if (!isAllowed('task.claim')) return notAllowed(req, res);
   const { id } = req.params;
   const { userId } = req.body;
   try {
@@ -528,9 +524,10 @@ router.post('/task/:id/claim', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_CLAIM_FAILED', message: 'Failed to claim task' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_CLAIM_FAILED',
+      detail: 'Failed to claim task',
     });
   }
 });
@@ -539,7 +536,7 @@ router.post('/task/:id/claim', async (req: Request, res: Response) => {
  * POST /v1/m2m/task/:id/complete
  */
 router.post('/task/:id/complete', async (req: Request, res: Response) => {
-  if (!isAllowed('task.complete')) return notAllowed(res);
+  if (!isAllowed('task.complete')) return notAllowed(req, res);
   const { id } = req.params;
   const { variables = {} } = req.body;
   // All three, exactly as /v1/task/{id}/complete: completion is not where any
@@ -561,9 +558,10 @@ router.post('/task/:id/complete', async (req: Request, res: Response) => {
       id,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_COMPLETE_FAILED', message: 'Failed to complete task' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_COMPLETE_FAILED',
+      detail: 'Failed to complete task',
     });
   }
 });
@@ -576,7 +574,7 @@ router.post('/task/:id/complete', async (req: Request, res: Response) => {
  * POST /v1/m2m/decision/:key/evaluate
  */
 router.post('/decision/:key/evaluate', async (req: Request, res: Response) => {
-  if (!isAllowed('decision.evaluate')) return notAllowed(res);
+  if (!isAllowed('decision.evaluate')) return notAllowed(req, res);
   const { key } = req.params;
   const { variables = {} } = req.body;
 
@@ -593,12 +591,10 @@ router.post('/decision/:key/evaluate', async (req: Request, res: Response) => {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'DECISION_EVALUATION_FAILED',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DECISION_EVALUATION_FAILED',
+      detail: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -607,7 +603,7 @@ router.post('/decision/:key/evaluate', async (req: Request, res: Response) => {
  * GET /v1/m2m/decision/:key
  */
 router.get('/decision/:key', async (req: Request, res: Response) => {
-  if (!isAllowed('decision.get')) return notAllowed(res);
+  if (!isAllowed('decision.get')) return notAllowed(req, res);
   const { key } = req.params;
   try {
     const data = await m2mOperatonService.getDecisionDefinition(key);
@@ -617,9 +613,10 @@ router.get('/decision/:key', async (req: Request, res: Response) => {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'DECISION_NOT_FOUND', message: 'Decision definition not found' },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'DECISION_NOT_FOUND',
+      detail: 'Decision definition not found',
     });
   }
 });

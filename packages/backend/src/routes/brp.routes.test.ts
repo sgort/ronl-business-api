@@ -11,7 +11,14 @@ jest.mock('@auth/jwt.middleware', () => {
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
     req.auth = { userId: 'u', tenantId: 'flevoland', requestId: 'r' } as Request['auth'];
     next();
@@ -83,8 +90,8 @@ describe('POST /v1/brp/personen', () => {
 
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'post', '/brp/personen');
-    expect(res.body.error.code).toBe('BRP_API_ERROR');
-    expect(res.body.error.details).toEqual({ message: 'not found' });
+    expect(res.body.code).toBe('BRP_API_ERROR');
+    expect(res.body.details).toEqual({ message: 'not found' });
   });
 
   it('maps an axios error to its upstream status and message', async () => {
@@ -97,7 +104,7 @@ describe('POST /v1/brp/personen', () => {
 
     expect(res.status).toBe(502);
     expectToMatchOperation(res, 'post', '/brp/personen');
-    expect(res.body.error.message).toBe('upstream boom');
+    expect(res.body.detail).toBe('upstream boom');
     expect(mockAuditLog).toHaveBeenCalledWith(expect.anything(), 'brp.personen.fetch', 'error', {
       error: expect.any(String),
     });
@@ -110,7 +117,7 @@ describe('POST /v1/brp/personen', () => {
 
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/brp/personen');
-    expect(res.body.error.message).toBe('BRP API request failed');
+    expect(res.body.detail).toBe('BRP API request failed');
   });
 });
 

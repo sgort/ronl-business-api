@@ -4,6 +4,7 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('hr-routes');
@@ -20,9 +21,10 @@ router.get('/onboarding/profile', async (req, res) => {
   const { employeeId } = req.query;
 
   if (!employeeId || typeof employeeId !== 'string') {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'employeeId query parameter is required' },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      detail: 'employeeId query parameter is required',
     });
   }
 
@@ -35,9 +37,10 @@ router.get('/onboarding/profile', async (req, res) => {
       tenantId: req.user!.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'HR_PROFILE_FAILED', message: 'Failed to retrieve HR onboarding profile' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'HR_PROFILE_FAILED',
+      detail: 'Failed to retrieve HR onboarding profile',
     });
   }
 });
@@ -48,9 +51,10 @@ router.get('/onboarding/profile', async (req, res) => {
  */
 router.get('/onboarding/completed', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -62,12 +66,10 @@ router.get('/onboarding/completed', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'ONBOARDING_LIST_FAILED',
-        message: 'Failed to retrieve completed onboardings',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'ONBOARDING_LIST_FAILED',
+      detail: 'Failed to retrieve completed onboardings',
     });
   }
 });

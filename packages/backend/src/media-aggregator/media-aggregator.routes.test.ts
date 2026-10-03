@@ -80,7 +80,7 @@ describe('GET /search — behaviour', () => {
     const res = await request(app).get('/v1/media-aggregator/search');
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/media-aggregator/search');
-    expect(res.body.error).toBe('search_failed');
+    expect(res.body.code).toBe('SEARCH_FAILED');
   });
 });
 
@@ -98,6 +98,6 @@ describe('GET /health', () => {
     const res = await request(app).get('/v1/media-aggregator/health');
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/media-aggregator/health');
-    expect(res.body).toEqual({ ok: false });
+    expect(res.body.code).toBe('STORE_UNAVAILABLE');
   });
 });

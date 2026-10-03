@@ -4,6 +4,7 @@ import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { denyTenant, tenantAllows } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('capacity-routes');
@@ -18,9 +19,10 @@ router.use(tenantMiddleware);
  */
 router.get('/active', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   try {
@@ -31,12 +33,10 @@ router.get('/active', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'CAPACITY_CLAIM_LIST_FAILED',
-        message: 'Failed to retrieve active capacity claims',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'CAPACITY_CLAIM_LIST_FAILED',
+      detail: 'Failed to retrieve active capacity claims',
     });
   }
 });
@@ -47,9 +47,10 @@ router.get('/active', async (req, res) => {
  */
 router.get('/completed', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   try {
@@ -60,12 +61,10 @@ router.get('/completed', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'CAPACITY_CLAIM_COMPLETED_LIST_FAILED',
-        message: 'Failed to retrieve completed capacity claims',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'CAPACITY_CLAIM_COMPLETED_LIST_FAILED',
+      detail: 'Failed to retrieve completed capacity claims',
     });
   }
 });
@@ -78,9 +77,10 @@ router.get('/completed', async (req, res) => {
  */
 router.get('/:instanceId/documents', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const { instanceId } = req.params;
@@ -101,12 +101,10 @@ router.get('/:instanceId/documents', async (req, res) => {
       instanceId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'CAPACITY_CLAIM_DOCUMENTS_FAILED',
-        message: 'Failed to retrieve capacity claim documents',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'CAPACITY_CLAIM_DOCUMENTS_FAILED',
+      detail: 'Failed to retrieve capacity claim documents',
     });
   }
 });

@@ -9,7 +9,14 @@ jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
     next();
   },
@@ -81,14 +88,14 @@ describe.each([
     const res = await auth(request(app).get(`/v1/besluitvorming/${path}`));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', `/besluitvorming/${path}`);
-    expect(res.body.error.code).toBe('BESLUIT_LIST_FAILED');
+    expect(res.body.code).toBe('BESLUIT_LIST_FAILED');
   });
 
   it('500 when the service rejects with something other than an Error', async () => {
     svc.getBesluitList.mockRejectedValue('boom');
     const res = await auth(request(app).get(`/v1/besluitvorming/${path}`));
     expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('BESLUIT_LIST_FAILED');
+    expect(res.body.code).toBe('BESLUIT_LIST_FAILED');
   });
 
   it('401 for an authenticated request without a user', async () => {

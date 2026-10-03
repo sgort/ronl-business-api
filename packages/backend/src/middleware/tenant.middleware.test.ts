@@ -20,6 +20,7 @@ import {
 function makeRes() {
   const res = {} as Response;
   res.status = jest.fn().mockReturnValue(res);
+  res.type = jest.fn().mockReturnValue(res);
   res.json = jest.fn().mockReturnValue(res);
   return res;
 }
@@ -55,7 +56,7 @@ describe('tenantMiddleware', () => {
     const next = jest.fn();
     tenantMiddleware(req, res, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('MISSING_TENANT');
+    expect((res.json as jest.Mock).mock.calls[0][0].code).toBe('MISSING_TENANT');
   });
 
   it('establishes tenant context and syncs req.auth.tenantId', () => {
@@ -86,12 +87,21 @@ describe('validateTenantParam', () => {
       user: { userId: 'u', tenantId: 'flevoland' },
       params: { tenantId: 'utrecht' },
       path: '/x',
+      originalUrl: '/x',
     } as unknown as Request;
     const res = makeRes();
     const next = jest.fn();
     validateTenantParam()(req, res, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('TENANT_MISMATCH');
+    expect(res.type).toHaveBeenCalledWith('application/problem+json');
+    expect(res.json).toHaveBeenCalledWith({
+      type: 'about:blank',
+      status: 403,
+      title: 'Tenant mismatch',
+      detail: 'Access denied: organisation mismatch',
+      instance: '/x',
+      code: 'TENANT_MISMATCH',
+    });
   });
 
   it('calls next when the param matches the user tenant', () => {

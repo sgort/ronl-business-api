@@ -5,6 +5,7 @@ import { runChatStream } from '@services/mcpChat.service';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
 import { llmRegistry } from '@services/llm/LlmRegistry';
 import { config } from '@utils/config';
+import { sendProblem } from '@utils/problem';
 
 const router = express.Router();
 const logger = createLogger('mcp-routes');
@@ -51,9 +52,10 @@ router.get('/models', (_req, res) => {
  */
 router.post('/chat', async (req, res) => {
   if (!config.mcp.enabled) {
-    return res.status(503).json({
-      success: false,
-      error: { code: 'MCP_DISABLED', message: 'MCP is not enabled' },
+    return sendProblem(res, req, {
+      status: 503,
+      code: 'MCP_DISABLED',
+      detail: 'MCP is not enabled',
     });
   }
 
@@ -70,23 +72,26 @@ router.post('/chat', async (req, res) => {
   };
 
   if (!message?.trim()) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'INVALID_REQUEST', message: 'message is required' },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'INVALID_REQUEST',
+      detail: 'message is required',
     });
   }
 
   if (!modelId) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'INVALID_REQUEST', message: 'modelId is required' },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'INVALID_REQUEST',
+      detail: 'modelId is required',
     });
   }
 
   if (!mcpRegistry.isAnyConnected(sources.length > 0 ? sources : undefined)) {
-    return res.status(503).json({
-      success: false,
-      error: { code: 'MCP_NOT_CONNECTED', message: 'No selected MCP sources are connected' },
+    return sendProblem(res, req, {
+      status: 503,
+      code: 'MCP_NOT_CONNECTED',
+      detail: 'No selected MCP sources are connected',
     });
   }
 

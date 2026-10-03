@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 
 const logger = createLogger('tenant-middleware');
 
@@ -16,12 +17,10 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
 
   if (!req.user) {
     logger.error('Tenant middleware called without authenticated user');
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-      },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -32,12 +31,10 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
       userId: req.user.userId,
     });
 
-    return res.status(403).json({
-      success: false,
-      error: {
-        code: 'MISSING_TENANT',
-        message: 'Organisation information missing',
-      },
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'MISSING_TENANT',
+      detail: 'Organisation information missing',
     });
   }
 
@@ -65,12 +62,10 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
 export const validateTenantParam = (paramName: string = 'tenantId') => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
 
@@ -85,12 +80,10 @@ export const validateTenantParam = (paramName: string = 'tenantId') => {
         path: req.path,
       });
 
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'TENANT_MISMATCH',
-          message: 'Access denied: organisation mismatch',
-        },
+      return sendProblem(res, req, {
+        status: 403,
+        code: 'TENANT_MISMATCH',
+        detail: 'Access denied: organisation mismatch',
       });
     }
 

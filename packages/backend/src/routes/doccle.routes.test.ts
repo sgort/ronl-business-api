@@ -12,7 +12,14 @@ import type { Request, Response, NextFunction } from 'express';
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     if (!req.headers['x-test-auth']) {
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     }
     req.user = {
       userId: 'test-user',
@@ -72,7 +79,7 @@ describe('auth gate', () => {
     const res = await request(app).get('/v1/doccle/status');
     expect(res.status).toBe(401);
     expectToMatchOperation(res, 'get', '/doccle/status');
-    expect(res.body.error.code).toBe('MISSING_TOKEN');
+    expect(res.body.code).toBe('MISSING_TOKEN');
     expect(svc.healthCheck).not.toHaveBeenCalled();
   });
 });
@@ -123,7 +130,7 @@ describe('PUT /senders/:senderName/receivers/:externalReference', () => {
       'put',
       '/doccle/senders/{senderName}/receivers/{externalReference}'
     );
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
     expect(svc.createOrUpdateReceiver).not.toHaveBeenCalled();
   });
 
@@ -157,7 +164,7 @@ describe('PUT /senders/:senderName/receivers/:externalReference', () => {
       'put',
       '/doccle/senders/{senderName}/receivers/{externalReference}'
     );
-    expect(res.body.error.code).toBe('DOCCLE_ERROR');
+    expect(res.body.code).toBe('DOCCLE_ERROR');
   });
 });
 
@@ -177,7 +184,7 @@ describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:do
       'post',
       '/doccle/senders/{senderName}/receivers/{externalReferenceId}/documents/{documentId}'
     );
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
     expect(svc.putDocument).not.toHaveBeenCalled();
   });
 
@@ -197,7 +204,7 @@ describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:do
       request(app).post('/v1/doccle/senders/acme/receivers/ref-1/documents/doc-1')
     ).send(valid);
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('DOCCLE_ERROR');
+    expect(res.body.code).toBe('DOCCLE_ERROR');
   });
 });
 
@@ -229,7 +236,7 @@ describe('service failures that are not Error instances', () => {
     svc[method].mockRejectedValue('upstream reset');
     const res = await send();
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('DOCCLE_ERROR');
+    expect(res.body.code).toBe('DOCCLE_ERROR');
   });
 });
 
@@ -255,6 +262,6 @@ describe('POST /senders/:senderName/receivers/:externalReferenceId/documents/:do
       request(app).post('/v1/doccle/senders/acme/receivers/ref-1/documents/doc-1/paid')
     );
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('DOCCLE_ERROR');
+    expect(res.body.code).toBe('DOCCLE_ERROR');
   });
 });

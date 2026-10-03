@@ -15,6 +15,7 @@ import express from 'express';
 import { jwtMiddleware, requireRoles } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { db } from '@services/audit.service';
 import { computeNotifications } from './notifications.service';
 import {
@@ -105,7 +106,12 @@ async function appendVersion(
 // Default → cockpit view: published, non-archived, rich Dossier[].
 // ?admin=1 → management view: every dossier as an AdminDossier (with versies).
 router.get('/dossiers', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const admin = req.query['admin'] === '1' || req.query['admin'] === 'true';
 
   try {
@@ -132,13 +138,22 @@ router.get('/dossiers', async (req, res) => {
     logger.error('Dossiers fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIERS_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIERS_ERROR',
+      detail: 'Failed to load dossiers',
+    });
   }
 });
 
 // ── GET /v1/pa/dossiers/:id ─────────────────────────────────────────
 router.get('/dossiers/:id', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const admin = req.query['admin'] === '1' || req.query['admin'] === 'true';
 
   try {
@@ -146,7 +161,8 @@ router.get('/dossiers/:id', async (req, res) => {
       `SELECT ${DOSSIER_COLS} FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`,
       [req.params.id, req.user.tenantId]
     );
-    if (!row) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    if (!row)
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Dossier not found' });
     if (admin) {
       return res.json({
         success: true,
@@ -159,7 +175,7 @@ router.get('/dossiers/:id', async (req, res) => {
       id: req.params.id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_ERROR' } });
+    sendProblem(res, req, { status: 500, code: 'DOSSIER_ERROR', detail: 'Failed to load dossier' });
   }
 });
 
@@ -170,7 +186,12 @@ router.get('/dossiers/:id', async (req, res) => {
 // confirmed signal for that dossier (tkconv's "watch this entity" mode), as
 // opposed to a topic search that happens to be scoped to the same dossier.
 router.post('/dossiers/:id/watch', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const dossierId = req.params.id;
 
   try {
@@ -219,13 +240,22 @@ router.post('/dossiers/:id/watch', async (req, res) => {
       dossierId,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_WATCH_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIER_WATCH_ERROR',
+      detail: 'Failed to watch dossier',
+    });
   }
 });
 
 // ── DELETE /v1/pa/dossiers/:id/watch ────────────────────────────────
 router.delete('/dossiers/:id/watch', async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const dossierId = req.params.id;
 
   try {
@@ -240,7 +270,11 @@ router.delete('/dossiers/:id/watch', async (req, res) => {
       dossierId,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_WATCH_DELETE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIER_WATCH_DELETE_ERROR',
+      detail: 'Failed to unwatch dossier',
+    });
   }
 });
 
@@ -261,18 +295,31 @@ const EMPTY_MD: DossierMarkdown = { waaromNu: '', waarover: '', onsVerhaal: '' }
 // ── POST /v1/pa/dossiers ────────────────────────────────────────────
 // Create a dossier (requires pa-author+). Publishing requires pa-editor+.
 router.post('/dossiers', requireRoles('pa-author', 'pa-editor', 'pa-admin'), async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const caps = dossierCaps(req.user.roles);
   const b = req.body as DossierWriteBody;
 
   const naam = (b.naam ?? '').trim();
   const onderwerp = (b.onderwerp ?? '').trim();
   if (naam.length < 3 || onderwerp.length === 0) {
-    return res.status(400).json({ success: false, error: { code: 'INVALID_FIELDS' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'INVALID_FIELDS',
+      detail: 'naam needs at least 3 characters and onderwerp is required',
+    });
   }
   const gepubliceerd = Boolean(b.gepubliceerd);
   if (gepubliceerd && !caps.publish) {
-    return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_PUBLISH' } });
+    return sendProblem(res, req, {
+      status: 403,
+      code: 'FORBIDDEN_PUBLISH',
+      detail: 'Publishing requires the pa-editor or pa-admin role',
+    });
   }
 
   const status: AdminDossierStatus = b.status === 'sluimerend' ? 'sluimerend' : 'actief';
@@ -285,7 +332,12 @@ router.post('/dossiers', requireRoles('pa-author', 'pa-editor', 'pa-admin'), asy
     const exists = await db.oneOrNone<{ id: string }>('SELECT id FROM pa_dossiers WHERE id = $1', [
       id,
     ]);
-    if (exists) return res.status(409).json({ success: false, error: { code: 'ID_CONFLICT' } });
+    if (exists)
+      return sendProblem(res, req, {
+        status: 409,
+        code: 'ID_CONFLICT',
+        detail: 'A dossier with this id already exists',
+      });
 
     const body = buildBodyFromAuthoring({ id, naam, onderwerp, status, momentum, kompas, md });
     await db.none(
@@ -324,7 +376,11 @@ router.post('/dossiers', requireRoles('pa-author', 'pa-editor', 'pa-admin'), asy
     logger.error('Dossier create error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_CREATE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIER_CREATE_ERROR',
+      detail: 'Failed to create dossier',
+    });
   }
 });
 
@@ -335,7 +391,12 @@ router.patch(
   '/dossiers/:id',
   requireRoles('pa-author', 'pa-editor', 'pa-admin'),
   async (req, res) => {
-    if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+    if (!req.user)
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
+      });
     const caps = dossierCaps(req.user.roles);
     const b = req.body as DossierWriteBody;
     const { id } = req.params;
@@ -346,7 +407,11 @@ router.patch(
       b.status !== 'sluimerend' &&
       b.status !== 'gearchiveerd'
     ) {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_STATUS' } });
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'INVALID_STATUS',
+        detail: "status must be 'actief', 'sluimerend' or 'gearchiveerd'",
+      });
     }
 
     try {
@@ -354,11 +419,20 @@ router.patch(
         `SELECT ${DOSSIER_COLS} FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`,
         [id, req.user.tenantId]
       );
-      if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+      if (!existing)
+        return sendProblem(res, req, {
+          status: 404,
+          code: 'NOT_FOUND',
+          detail: 'Dossier not found',
+        });
       // Archived dossiers are read-only. Un-archiving is an explicit, audited
       // action (POST /dossiers/:id/unarchive), not a silent status flip.
       if (existing['status'] === 'gearchiveerd') {
-        return res.status(409).json({ success: false, error: { code: 'ARCHIVED_READONLY' } });
+        return sendProblem(res, req, {
+          status: 409,
+          code: 'ARCHIVED_READONLY',
+          detail: 'Archived dossiers are read-only',
+        });
       }
 
       // Archiving is an Archiefwet action that must capture classificatie/
@@ -366,7 +440,11 @@ router.patch(
       // not a plain field write that would silently archive with no metadata
       // and no role gate beyond the generic author/editor/admin PATCH guard.
       if (b.status === 'gearchiveerd' && !caps.archive) {
-        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_ARCHIVE' } });
+        return sendProblem(res, req, {
+          status: 403,
+          code: 'FORBIDDEN_ARCHIVE',
+          detail: 'Archiving requires the pa-admin role',
+        });
       }
 
       // Guard both directions of the publish transition against the *existing*
@@ -377,14 +455,22 @@ router.patch(
         Boolean(b.gepubliceerd) !== Boolean(existing['gepubliceerd']) &&
         !caps.publish
       ) {
-        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN_PUBLISH' } });
+        return sendProblem(res, req, {
+          status: 403,
+          code: 'FORBIDDEN_PUBLISH',
+          detail: 'Publishing requires the pa-editor or pa-admin role',
+        });
       }
 
       const naam = b.naam !== undefined ? b.naam.trim() : (existing['naam'] as string);
       const onderwerp =
         b.onderwerp !== undefined ? b.onderwerp.trim() : (existing['onderwerp'] as string);
       if (naam.length < 3 || onderwerp.length === 0) {
-        return res.status(400).json({ success: false, error: { code: 'INVALID_FIELDS' } });
+        return sendProblem(res, req, {
+          status: 400,
+          code: 'INVALID_FIELDS',
+          detail: 'naam needs at least 3 characters and onderwerp is required',
+        });
       }
 
       const status = (b.status ?? existing['status']) as AdminDossierStatus;
@@ -453,7 +539,11 @@ router.patch(
         id,
         error: err instanceof Error ? err.message : String(err),
       });
-      res.status(500).json({ success: false, error: { code: 'DOSSIER_UPDATE_ERROR' } });
+      sendProblem(res, req, {
+        status: 500,
+        code: 'DOSSIER_UPDATE_ERROR',
+        detail: 'Failed to update dossier',
+      });
     }
   }
 );
@@ -462,7 +552,12 @@ router.patch(
 // Archiefwet archive (requires pa-admin). Captures classificatie + bewaartermijn
 // + grondslag, sets status=gearchiveerd, unpublishes, bumps version.
 router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const { id } = req.params;
   const { classificatie, bewaartermijn, reden } = req.body as Partial<DossierArchief>;
 
@@ -476,7 +571,11 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
     typeof reden !== 'string' ||
     !reden.trim()
   ) {
-    return res.status(400).json({ success: false, error: { code: 'INVALID_ARCHIVE_METADATA' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'INVALID_ARCHIVE_METADATA',
+      detail: 'classificatie, bewaartermijn and reden are required and must be valid values',
+    });
   }
 
   try {
@@ -484,7 +583,8 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
       `SELECT versie FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`,
       [id, req.user.tenantId]
     );
-    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    if (!existing)
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Dossier not found' });
 
     const nextVersie = Number(existing.versie ?? 1) + 1;
     const archief: DossierArchief = {
@@ -518,7 +618,11 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
       id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_ARCHIVE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIER_ARCHIVE_ERROR',
+      detail: 'Failed to archive dossier',
+    });
   }
 });
 
@@ -527,7 +631,12 @@ router.post('/dossiers/:id/archive', requireRoles('pa-admin'), async (req, res) 
 // status → actief (or sluimerend), clears the Archiefwet metadata, leaves it
 // unpublished (must be re-published to return to the cockpit), bumps version.
 router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const { id } = req.params;
   const { status } = req.body as { status?: AdminDossierStatus };
   const restored: AdminDossierStatus = status === 'sluimerend' ? 'sluimerend' : 'actief';
@@ -537,9 +646,14 @@ router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res
       `SELECT versie, status FROM pa_dossiers WHERE id = $1 AND tenant_id = $2`,
       [id, req.user.tenantId]
     );
-    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    if (!existing)
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Dossier not found' });
     if (existing.status !== 'gearchiveerd') {
-      return res.status(400).json({ success: false, error: { code: 'NOT_ARCHIVED' } });
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'NOT_ARCHIVED',
+        detail: 'Dossier is not archived',
+      });
     }
 
     const nextVersie = Number(existing.versie ?? 1) + 1;
@@ -566,7 +680,11 @@ router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res
       id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_UNARCHIVE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIER_UNARCHIVE_ERROR',
+      detail: 'Failed to unarchive dossier',
+    });
   }
 });
 
@@ -594,7 +712,12 @@ router.post('/dossiers/:id/unarchive', requireRoles('pa-admin'), async (req, res
 // column; the dossier row was already matched on tenant above, so by the time
 // this runs the id is known to belong to the caller's tenant.
 router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
-  if (!req.user) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (!req.user)
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
+    });
   const { id } = req.params;
   const tenantId = req.user.tenantId;
   try {
@@ -613,7 +736,7 @@ router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
       return { signals: signals.rowCount, searches: searches.rowCount };
     });
     if (!deleted) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+      return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Dossier not found' });
     }
     logger.info('Dossier deleted with its curation', {
       id,
@@ -627,12 +750,16 @@ router.delete('/dossiers/:id', requireRoles('pa-admin'), async (req, res) => {
       id,
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'DOSSIER_DELETE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DOSSIER_DELETE_ERROR',
+      detail: 'Failed to delete dossier',
+    });
   }
 });
 
 // ── GET/POST /v1/pa/templates ───────────────────────────────────────
-router.get('/templates', async (_req, res) => {
+router.get('/templates', async (req, res) => {
   try {
     const rows = await db.any<Record<string, unknown>>(
       `SELECT id, naam, cat, beschrijving, versie, eigenaar, gebruikt, seed, status
@@ -655,7 +782,11 @@ router.get('/templates', async (_req, res) => {
     logger.error('Templates fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'TEMPLATES_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TEMPLATES_ERROR',
+      detail: 'Failed to load templates',
+    });
   }
 });
 
@@ -669,7 +800,7 @@ router.post('/templates', requireRoles('pa-editor', 'pa-admin'), async (req, res
     seed?: unknown;
   };
   if (!naam || !naam.trim()) {
-    return res.status(400).json({ success: false, error: { code: 'MISSING_NAAM' } });
+    return sendProblem(res, req, { status: 400, code: 'MISSING_NAAM', detail: 'naam is required' });
   }
   try {
     const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -691,12 +822,16 @@ router.post('/templates', requireRoles('pa-editor', 'pa-admin'), async (req, res
     logger.error('Template create error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'TEMPLATE_CREATE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TEMPLATE_CREATE_ERROR',
+      detail: 'Failed to create template',
+    });
   }
 });
 
 // ── GET/POST /v1/pa/snippets ────────────────────────────────────────
-router.get('/snippets', async (_req, res) => {
+router.get('/snippets', async (req, res) => {
   try {
     const rows = await db.any<Record<string, unknown>>(
       `SELECT id, naam, cat, md FROM pa_snippets ORDER BY naam`
@@ -706,14 +841,22 @@ router.get('/snippets', async (_req, res) => {
     logger.error('Snippets fetch error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SNIPPETS_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SNIPPETS_ERROR',
+      detail: 'Failed to load snippets',
+    });
   }
 });
 
 router.post('/snippets', requireRoles('pa-editor', 'pa-admin'), async (req, res) => {
   const { naam, cat, md } = req.body as { naam?: string; cat?: string; md?: string };
   if (!naam || !naam.trim() || md === undefined) {
-    return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'MISSING_FIELDS',
+      detail: 'naam and md are required',
+    });
   }
   try {
     const id = `snip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -728,7 +871,11 @@ router.post('/snippets', requireRoles('pa-editor', 'pa-admin'), async (req, res)
     logger.error('Snippet create error', {
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).json({ success: false, error: { code: 'SNIPPET_CREATE_ERROR' } });
+    sendProblem(res, req, {
+      status: 500,
+      code: 'SNIPPET_CREATE_ERROR',
+      detail: 'Failed to create snippet',
+    });
   }
 });
 
