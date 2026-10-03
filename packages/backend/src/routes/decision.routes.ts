@@ -3,6 +3,7 @@ import { jwtMiddleware, requireAssuranceLevel } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable } from '@ronl/shared';
 import { inferType } from '@utils/operaton-variables';
@@ -27,12 +28,10 @@ router.post(
 
     // Check if user is authenticated
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
+      return sendProblem(res, req, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        detail: 'Authentication required',
       });
     }
 
@@ -90,12 +89,10 @@ router.post(
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'DECISION_EVALUATION_FAILED',
-          message: errorMessage,
-        },
+      sendProblem(res, req, {
+        status: 500,
+        code: 'DECISION_EVALUATION_FAILED',
+        detail: errorMessage,
       });
     }
   }
@@ -110,12 +107,10 @@ router.get('/:key', async (req, res) => {
 
   // Check if user is authenticated
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-      },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -146,12 +141,10 @@ router.get('/:key', async (req, res) => {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
 
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'DECISION_NOT_FOUND',
-        message: 'Decision definition not found',
-      },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'DECISION_NOT_FOUND',
+      detail: 'Decision definition not found',
     });
   }
 });

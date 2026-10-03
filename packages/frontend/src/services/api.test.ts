@@ -42,12 +42,19 @@ describe('businessApi.health', () => {
     expect(result).toEqual({ name: 'api', version: '1.0.0', status: 'healthy' });
   });
 
-  it('falls back to the error response body when the server still returned data', async () => {
+  it('falls back to the report in the 503 problem body', async () => {
     server.use(
       http.get('*/health', () =>
         HttpResponse.json(
-          { success: false, data: { name: 'api', version: '1.0.0', status: 'degraded' } },
-          { status: 503 }
+          {
+            type: 'about:blank',
+            status: 503,
+            title: 'Service unavailable',
+            detail: 'One or more dependencies are down',
+            instance: '/v1/health',
+            data: { name: 'api', version: '1.0.0', status: 'degraded' },
+          },
+          { status: 503, headers: { 'Content-Type': 'application/problem+json' } }
         )
       )
     );
@@ -115,7 +122,30 @@ describe('businessApi.evaluateDecision', () => {
     expect(result).toEqual({ success: true, data: [{ eligible: true }] });
   });
 
-  it('falls back to the error response body when the request fails', async () => {
+  it('normalises a problem-details error body into the ApiResponse shape', async () => {
+    server.use(
+      http.post('*/decision/zorgtoeslag/evaluate', () =>
+        HttpResponse.json(
+          {
+            type: 'about:blank',
+            status: 400,
+            title: 'Bad',
+            detail: 'x',
+            instance: '/v1/decision/zorgtoeslag/evaluate',
+            code: 'BAD',
+          },
+          { status: 400, headers: { 'Content-Type': 'application/problem+json' } }
+        )
+      )
+    );
+
+    const result = await businessApi.evaluateDecision('zorgtoeslag', {});
+
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({ code: 'BAD', message: 'x' });
+  });
+
+  it('passes a legacy envelope error body through unchanged', async () => {
     server.use(
       http.post('*/decision/zorgtoeslag/evaluate', () =>
         HttpResponse.json({ success: false, error: { code: 'BAD', message: 'x' } }, { status: 400 })
@@ -150,16 +180,34 @@ describe('businessApi.process', () => {
     expect(result).toEqual({ success: true, data: { processInstanceId: 'pi-1' } });
   });
 
-  it('start falls back to the error response body when the request fails', async () => {
+  it('start maps a problem body back to error.details and error.instance (engine)', async () => {
     server.use(
       http.post('*/process/AwbShellProcess/start', () =>
-        HttpResponse.json({ success: false, error: { message: 'nope' } }, { status: 400 })
+        HttpResponse.json(
+          {
+            type: 'about:blank',
+            status: 500,
+            title: 'Process start failed',
+            detail: 'nope',
+            instance: '/v1/process/AwbShellProcess/start',
+            code: 'PROCESS_START_FAILED',
+            details: 'Unknown property used in expression',
+            engine: 'https://engine.example/engine-rest',
+          },
+          { status: 500, headers: { 'Content-Type': 'application/problem+json' } }
+        )
       )
     );
 
     const result = await businessApi.process.start('AwbShellProcess', {});
 
-    expect(result).toEqual({ success: false, error: { message: 'nope' } });
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({
+      code: 'PROCESS_START_FAILED',
+      message: 'nope',
+      details: 'Unknown property used in expression',
+      instance: 'https://engine.example/engine-rest',
+    });
   });
 
   it('startForm fetches the process start form schema', async () => {

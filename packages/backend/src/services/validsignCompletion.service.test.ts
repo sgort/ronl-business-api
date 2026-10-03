@@ -39,7 +39,7 @@ jest.mock('@utils/config', () => ({
   config: { edocs: { department: 'IVR' } },
 }));
 
-import { completeSignature } from './validsignCompletion.service';
+import { completeSignature, signedArchiveNames } from './validsignCompletion.service';
 import { operatonService } from '@services/operaton.service';
 import { validsignService } from '@services/validsign.service';
 import { edocsService } from '@services/edocs.service';
@@ -330,6 +330,96 @@ describe('completeSignature', () => {
     expect(mockLogger.error).toHaveBeenCalledWith(
       'Archiving the signed document to eDOCS skipped: EDOCS_DEPARTMENT is not configured',
       expect.objectContaining({ processInstanceId: 'pi-1' })
+    );
+  });
+});
+
+describe('signedArchiveNames', () => {
+  it('names the archive after the template and the case', () => {
+    expect(
+      signedArchiveNames({
+        templateId: 'besluit-gb-besluit',
+        templateName: 'Besluit onder gedelegeerde bevoegdheid',
+        reference: 'flevoland-1759400000000',
+      })
+    ).toEqual({
+      signedFile: 'besluit-gb-besluit-flevoland-1759400000000-signed.pdf',
+      evidenceFile: 'besluit-gb-besluit-flevoland-1759400000000-evidence.pdf',
+      signedTitle:
+        'flevoland-1759400000000 — Besluit onder gedelegeerde bevoegdheid (ondertekend) — getekend document',
+      evidenceTitle:
+        'flevoland-1759400000000 — Besluit onder gedelegeerde bevoegdheid (ondertekend) — bewijsoverzicht',
+    });
+  });
+
+  it('falls back to neutral names for a package created before the template was recorded', () => {
+    expect(signedArchiveNames({ reference: 'pkg-1' })).toEqual({
+      signedFile: 'ondertekend-document-pkg-1-signed.pdf',
+      evidenceFile: 'ondertekend-document-pkg-1-evidence.pdf',
+      signedTitle: 'pkg-1 — Ondertekend document (ondertekend) — getekend document',
+      evidenceTitle: 'pkg-1 — Ondertekend document (ondertekend) — bewijsoverzicht',
+    });
+  });
+});
+
+describe('completeSignature — archive names', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    config.edocs.department = 'IVR';
+    mockGetPackageStatus.mockResolvedValue('COMPLETED');
+  });
+
+  it('archives under the signed template and the case business key', async () => {
+    mockFindInstance.mockResolvedValue({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+      businessKey: 'flevoland-1',
+      templateId: 'besluit-gb-besluit',
+      templateName: 'Besluit onder gedelegeerde bevoegdheid',
+    });
+
+    await completeSignature('pkg-names-1');
+
+    expect(mockUploadDocument).toHaveBeenNthCalledWith(
+      1,
+      null,
+      'besluit-gb-besluit-flevoland-1-signed.pdf',
+      expect.any(String),
+      expect.objectContaining({
+        docName:
+          'flevoland-1 — Besluit onder gedelegeerde bevoegdheid (ondertekend) — getekend document',
+      })
+    );
+    expect(mockUploadDocument).toHaveBeenNthCalledWith(
+      2,
+      null,
+      'besluit-gb-besluit-flevoland-1-evidence.pdf',
+      expect.any(String),
+      expect.objectContaining({
+        docName:
+          'flevoland-1 — Besluit onder gedelegeerde bevoegdheid (ondertekend) — bewijsoverzicht',
+      })
+    );
+  });
+
+  it('falls back to the package id when the instance has no business key and no template recorded', async () => {
+    mockFindInstance.mockResolvedValue({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+    });
+
+    expect(await completeSignature('pkg-names-2')).toBe('completed');
+
+    expect(mockUploadDocument).toHaveBeenNthCalledWith(
+      1,
+      null,
+      'ondertekend-document-pkg-names-2-signed.pdf',
+      expect.any(String),
+      expect.objectContaining({
+        docName: 'pkg-names-2 — Ondertekend document (ondertekend) — getekend document',
+      })
     );
   });
 });

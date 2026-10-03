@@ -668,7 +668,7 @@ describe('parseSwimlane — Awb phases', () => {
     // The expected map is the prototype's CWP_AWB_PHASES grouping — which it
     // derived from "Fase N:" task names — now produced from ronl:awbPhase.
     const shell = parseSwimlane(awbXml('AwbShellProcess'), 'AwbShellProcess');
-    const phaseOf = Object.fromEntries(shell.nodes.map((n) => [n.id, n.awbPhase]));
+    const phaseOf = Object.fromEntries(shell.nodes.map((n) => [n.id, n.phase]));
     expect(phaseOf).toEqual({
       StartEvent_AWB: '1',
       Task_Phase1_Identity: '1',
@@ -692,11 +692,11 @@ describe('parseSwimlane — Awb phases', () => {
 
   it('puts the whole subprocess in 4+5', () => {
     const sub = parseSwimlane(awbXml('TreeFellingPermitSubProcess'), 'TreeFellingPermitSubProcess');
-    expect(new Set(sub.nodes.map((n) => n.awbPhase))).toEqual(new Set(['4+5']));
+    expect(new Set(sub.nodes.map((n) => n.phase))).toEqual(new Set(['4+5']));
   });
 
   it.each(ALL)('%s carries no Awb phase', (code, key) => {
-    expect(parseSwimlane(xml(key), code).nodes.some((n) => n.awbPhase !== undefined)).toBe(false);
+    expect(parseSwimlane(xml(key), code).nodes.some((n) => n.phase !== undefined)).toBe(false);
   });
 
   const proc = (body: string) =>
@@ -715,7 +715,7 @@ describe('parseSwimlane — Awb phases', () => {
       <bpmn:userTask id="U" ronl:awbPhase=""/>
       <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>
       <bpmn:sequenceFlow id="G" sourceRef="T" targetRef="U"/>`);
-    expect(m.nodes.map((n) => n.awbPhase)).toEqual([undefined, undefined, undefined]);
+    expect(m.nodes.map((n) => n.phase)).toEqual([undefined, undefined, undefined]);
   });
 
   it('leaves an unmarked node without a marked predecessor unphased', () => {
@@ -723,7 +723,7 @@ describe('parseSwimlane — Awb phases', () => {
       <bpmn:startEvent id="S"/>
       <bpmn:userTask id="T" ronl:awbPhase="2"/>
       <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>`);
-    const phaseOf = Object.fromEntries(m.nodes.map((n) => [n.id, n.awbPhase]));
+    const phaseOf = Object.fromEntries(m.nodes.map((n) => [n.id, n.phase]));
     expect(phaseOf).toEqual({ S: undefined, T: '2' });
   });
 
@@ -735,7 +735,7 @@ describe('parseSwimlane — Awb phases', () => {
       <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="G"/>
       <bpmn:sequenceFlow id="F2" sourceRef="S" targetRef="J"/>
       <bpmn:sequenceFlow id="F3" sourceRef="G" targetRef="J"/>`);
-    expect(m.nodes.find((n) => n.id === 'J')?.awbPhase).toBe('7');
+    expect(m.nodes.find((n) => n.id === 'J')?.phase).toBe('7');
   });
 
   it('does not let a rework loop pull an earlier node into a later phase', () => {
@@ -750,7 +750,7 @@ describe('parseSwimlane — Awb phases', () => {
       <bpmn:sequenceFlow id="F3" sourceRef="B" targetRef="G"/>
       <bpmn:sequenceFlow id="F4" sourceRef="G" targetRef="E"/>
       <bpmn:sequenceFlow id="F5" sourceRef="G" targetRef="A"/>`);
-    const phaseOf = Object.fromEntries(m.nodes.map((n) => [n.id, n.awbPhase]));
+    const phaseOf = Object.fromEntries(m.nodes.map((n) => [n.id, n.phase]));
     expect(phaseOf).toEqual({ S: '1', A: '1', B: '3', G: '3', E: '3' });
   });
 });
@@ -774,20 +774,249 @@ describe('parseSwimlane — every Awb example process is fully phased', () => {
 
   it.each([...SHELLS, ...SUBS])('%s puts every node in an Awb phase', (key) => {
     const unphased = parseSwimlane(awbXml(key), key)
-      .nodes.filter((n) => n.awbPhase === undefined)
+      .nodes.filter((n) => n.phase === undefined)
       .map((n) => n.id);
     expect(unphased).toEqual([]);
   });
 
   it.each(SHELLS.slice(1))('%s groups its nodes exactly as the kapvergunning shell', (key) => {
     const phases = (k: string) =>
-      Object.fromEntries(parseSwimlane(awbXml(k), k).nodes.map((n) => [n.id, n.awbPhase]));
+      Object.fromEntries(parseSwimlane(awbXml(k), k).nodes.map((n) => [n.id, n.phase]));
     expect(phases(key)).toEqual(phases('AwbShellProcess'));
   });
 
   it.each(SUBS)('%s is entirely 4+5', (key) => {
-    expect(new Set(parseSwimlane(awbXml(key), key).nodes.map((n) => n.awbPhase))).toEqual(
+    expect(new Set(parseSwimlane(awbXml(key), key).nodes.map((n) => n.phase))).toEqual(
       new Set(['4+5'])
+    );
+  });
+});
+
+describe('parseSwimlane — phase set', () => {
+  const proc = (attrs: string, body: string) =>
+    parseSwimlane(
+      `<?xml version="1.0"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:ronl="http://ronl.nl/schema/1.0">
+  <bpmn:process id="P" ${attrs}>${body}</bpmn:process>
+</bpmn:definitions>`,
+      'P'
+    );
+
+  it('gives an Awb-marked process the built-in Awb table', () => {
+    const shell = parseSwimlane(awbXml('AwbShellProcess'), 'AwbShellProcess');
+    expect(shell.phaseSet).toEqual({
+      scheme: 'awb',
+      label: 'Awb-fase',
+      phases: [
+        { code: '1', name: 'Rechtsbetrekking', codeLabel: 'Fase 1' },
+        { code: '2', name: 'Ontvangst', codeLabel: 'Fase 2' },
+        { code: '3', name: 'Ontvankelijkheid', codeLabel: 'Fase 3' },
+        { code: '4+5', name: 'Behandeling en besluit', codeLabel: 'Fase 4+5' },
+        { code: '6', name: 'Bekendmaking', codeLabel: 'Fase 6' },
+        { code: '7', name: 'Betaling', codeLabel: 'Fase 7' },
+        { code: '8', name: 'Ketenproces', codeLabel: 'Fase 8' },
+        { code: 'archivering', name: 'Archivering', codeLabel: 'Archiefwet' },
+      ],
+    });
+  });
+
+  it.each(ALL)('%s has no phase set', (code, key) => {
+    expect(parseSwimlane(xml(key), code).phaseSet).toBeUndefined();
+  });
+
+  it('has no phase set when the process declares phases but marks no node', () => {
+    const m = proc('ronl:phases="a:Alpha"', '<bpmn:startEvent id="S"/>');
+    expect(m.phaseSet).toBeUndefined();
+    expect(m.nodes[0].phase).toBeUndefined();
+  });
+
+  it('reads phases the process declares, numbering them under its own label', () => {
+    const m = proc(
+      'ronl:phases="a:Alpha;b:Beta" ronl:phaseLabel="Stap"',
+      `<bpmn:startEvent id="S" ronl:phase="a"/>
+      <bpmn:userTask id="T" ronl:phase="b"/>
+      <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>`
+    );
+    expect(m.phaseSet).toEqual({
+      scheme: 'bpmn',
+      label: 'Stap',
+      phases: [
+        { code: 'a', name: 'Alpha', codeLabel: 'Stap 1' },
+        { code: 'b', name: 'Beta', codeLabel: 'Stap 2' },
+      ],
+    });
+    expect(m.nodes.map((n) => n.phase)).toEqual(['a', 'b']);
+  });
+
+  it('labels declared phases "Fase" when the process names no label', () => {
+    const m = proc('ronl:phases="a:Alpha"', '<bpmn:startEvent id="S" ronl:phase="a"/>');
+    expect(m.phaseSet?.label).toBe('Fase');
+    expect(m.phaseSet?.phases[0].codeLabel).toBe('Fase 1');
+  });
+
+  it('skips malformed and duplicate entries, and trims the rest', () => {
+    const m = proc(
+      'ronl:phases=" a : Alpha ;;b;:x;c:Gamma: two;a:Again;d: "',
+      '<bpmn:startEvent id="S" ronl:phase="a"/>'
+    );
+    expect(m.phaseSet?.phases).toEqual([
+      { code: 'a', name: 'Alpha', codeLabel: 'Fase 1' },
+      { code: 'c', name: 'Gamma: two', codeLabel: 'Fase 2' },
+    ]);
+  });
+
+  it('ignores a ronl:phase code the process did not declare', () => {
+    const m = proc(
+      'ronl:phases="a:Alpha"',
+      `<bpmn:startEvent id="S" ronl:phase="a"/>
+      <bpmn:userTask id="T" ronl:phase="zz"/>
+      <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>`
+    );
+    expect(m.nodes.map((n) => n.phase)).toEqual(['a', 'a']);
+  });
+
+  it('ignores ronl:awbPhase in a process that declares its own phases', () => {
+    const m = proc(
+      'ronl:phases="a:Alpha;b:Beta"',
+      `<bpmn:startEvent id="S" ronl:phase="a"/>
+      <bpmn:userTask id="T" ronl:awbPhase="2"/>
+      <bpmn:sequenceFlow id="F" sourceRef="S" targetRef="T"/>`
+    );
+    expect(m.phaseSet?.scheme).toBe('bpmn');
+    expect(m.nodes.map((n) => n.phase)).toEqual(['a', 'a']);
+  });
+
+  it('ignores ronl:phase in a process without declared phases', () => {
+    const m = proc('', '<bpmn:startEvent id="S" ronl:phase="1"/>');
+    expect(m.phaseSet).toBeUndefined();
+    expect(m.nodes[0].phase).toBeUndefined();
+  });
+
+  it('inherits declared phases the way Awb phases inherit: latest at a join', () => {
+    const m = proc(
+      'ronl:phases="a:Alpha;b:Beta;c:Gamma"',
+      `<bpmn:startEvent id="S" ronl:phase="a"/>
+      <bpmn:exclusiveGateway id="G" ronl:phase="c"/>
+      <bpmn:userTask id="J"/>
+      <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="G"/>
+      <bpmn:sequenceFlow id="F2" sourceRef="S" targetRef="J"/>
+      <bpmn:sequenceFlow id="F3" sourceRef="G" targetRef="J"/>`
+    );
+    expect(m.nodes.find((n) => n.id === 'J')?.phase).toBe('c');
+  });
+});
+
+// ── A process that declares its own phases: the HR capacity claim ───────────
+// Copied from linked-data-explorer's public/examples, where the process lists
+// its phases in ronl:phases and marks the node that starts each one with
+// ronl:phase. Its own folder, like awb/, so the root still holds exactly the
+// twelve RIP phases.
+describe('parseSwimlane — HR capacity claim, declared phases', () => {
+  const key = 'ManagementCapacityClaimProcess';
+  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.nl.bpmn`), 'utf-8'), key);
+
+  it('reads the eight phases the process declares, numbered under "Fase"', () => {
+    expect(m.phaseSet?.scheme).toBe('bpmn');
+    expect(m.phaseSet?.label).toBe('Fase');
+    expect(m.phaseSet?.phases.map((p) => [p.code, p.name, p.codeLabel])).toEqual([
+      ['intake', 'Intake', 'Fase 1'],
+      ['claim', 'Claim opstellen', 'Fase 2'],
+      ['routering', 'Routering', 'Fase 3'],
+      ['agenda', 'Agendering', 'Fase 4'],
+      ['besluit', 'Directiebesluit', 'Fase 5'],
+      ['heroverweging', 'Heroverweging', 'Fase 6'],
+      ['overdracht', 'Overdracht', 'Fase 7'],
+      ['reservering', 'Financiële reservering', 'Fase 8'],
+    ]);
+  });
+
+  it('puts every node in the phase the design groups it under', () => {
+    expect(Object.fromEntries(m.nodes.map((n) => [n.id, n.phase]))).toEqual({
+      StartEvent_CapacityClaim: 'intake',
+      Task_ConsultAndClassify: 'intake',
+      Gateway_RequestType: 'claim',
+      Task_PrepareStaffingClaim: 'claim',
+      Task_PrepareHiringClaim: 'claim',
+      Gateway_MergePrepare: 'claim',
+      Task_DetermineRouting: 'routering',
+      Task_MapRoutingOutputs: 'routering',
+      Task_SubmitToBoardAgenda: 'agenda',
+      Task_BoardDecision: 'besluit',
+      Gateway_BoardDecision: 'besluit',
+      Task_ReconsiderationMeeting: 'heroverweging',
+      Gateway_ReconsiderationOutcome: 'heroverweging',
+      EndEvent_Withdrawn: 'heroverweging',
+      // The rework loop back to "Type aanvraag?" is a back edge: the reset
+      // stays in the phase that triggered it rather than dragging the claim
+      // forward into it.
+      Task_ResetClaimFields: 'heroverweging',
+      Gateway_DecisionRoute: 'overdracht',
+      Task_HandoverToRecruitment: 'overdracht',
+      Task_HandoverToProcurement: 'overdracht',
+      Gateway_MergeHandover: 'reservering',
+      Task_RegisterReservation: 'reservering',
+      EndEvent_ClaimCompleted: 'reservering',
+    });
+  });
+});
+
+describe('parseSwimlane — besluitvorming onder gedelegeerde bevoegdheid', () => {
+  const key = 'GedelegeerdBesluitProcess';
+  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.bpmn`), 'utf-8'), key);
+
+  it('reads six lanes, each human lane holding its own besluit role', () => {
+    expect(m.lanes.map((l) => [l.key, l.candidateGroups])).toEqual([
+      ['Lane_Indiener', ['besluit-indiener']],
+      ['Lane_Juridisch', ['besluit-jurist']],
+      ['Lane_Systeem', undefined],
+      ['Lane_Bestuursautoriteit', ['besluit-bestuursautoriteit']],
+      ['Lane_Ondertekenaar', ['besluit-ondertekenaar']],
+      ['Lane_Registratie', ['besluit-registratie']],
+    ]);
+  });
+
+  it('declares the six phases', () => {
+    expect(m.phaseSet?.scheme).toBe('bpmn');
+    expect(m.phaseSet?.phases.map((p) => [p.code, p.codeLabel])).toEqual([
+      ['voorbereiding', 'Fase 1'],
+      ['toetsing', 'Fase 2'],
+      ['memorandum', 'Fase 3'],
+      ['ondertekening', 'Fase 4'],
+      ['escalatie', 'Fase 5'],
+      ['registratie', 'Fase 6'],
+    ]);
+  });
+
+  it('puts every node in the phase the design groups it under', () => {
+    expect(Object.fromEntries(m.nodes.map((n) => [n.id, n.phase]))).toEqual({
+      StartEvent_Besluit: 'voorbereiding',
+      Task_KiesSjabloon: 'voorbereiding',
+      Task_VulSjabloonIn: 'voorbereiding',
+      Task_AdviesToetsing: 'toetsing',
+      Task_ControleerVoorwaarden: 'toetsing',
+      Task_Beslisregels: 'toetsing',
+      Gateway_VoorwaardenVervuld: 'toetsing',
+      Gateway_Memorandum: 'toetsing',
+      Task_Memorandum: 'memorandum',
+      Task_AdviesAkkoord: 'memorandum',
+      Gateway_Akkoord: 'memorandum',
+      Task_DienIn: 'ondertekening',
+      Task_Onderteken: 'ondertekening',
+      Gateway_Ondertekend: 'ondertekening',
+      Task_Escaleren: 'escalatie',
+      Task_NeemBesluit: 'escalatie',
+      Task_Registreer: 'registratie',
+      Task_Archiveer: 'registratie',
+      EndEvent_Besluit: 'registratie',
+    });
+  });
+
+  it('escalates a declined signature, forward, with no rework loop anywhere', () => {
+    // A decline is an incident for the bevoegde bestuursautoriteit, not a
+    // correction round: there is no edge back into earlier work.
+    expect(m.edges.filter((e) => e.back)).toEqual([]);
+    expect(m.edges).toContainEqual(
+      expect.objectContaining({ from: 'Gateway_Ondertekend', to: 'Task_Escaleren' })
     );
   });
 });

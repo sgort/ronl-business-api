@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import {
   doccleService,
   DoccleDocumentPayload,
@@ -43,9 +44,10 @@ router.put(
     const receiver = req.body as DoccleReceiverPayload;
 
     if (!receiver?.id) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'MISSING_FIELDS', message: 'receiver.id is required.' },
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'MISSING_FIELDS',
+        detail: 'receiver.id is required.',
       });
     }
 
@@ -62,9 +64,10 @@ router.put(
         externalReference,
         error: error instanceof Error ? error.message : String(error),
       });
-      res.status(502).json({
-        success: false,
-        error: { code: 'DOCCLE_ERROR', message: 'Failed to create or update Doccle receiver.' },
+      sendProblem(res, req, {
+        status: 502,
+        code: 'DOCCLE_ERROR',
+        detail: 'Failed to create or update Doccle receiver.',
       });
     }
   }
@@ -81,12 +84,10 @@ router.post(
     const document = req.body as DoccleDocumentPayload;
 
     if (!document?.documentFile?.contentBase64 || !document?.documentFile?.mimeType) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'MISSING_FIELDS',
-          message: 'documentFile.contentBase64 and documentFile.mimeType are required.',
-        },
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'MISSING_FIELDS',
+        detail: 'documentFile.contentBase64 and documentFile.mimeType are required.',
       });
     }
 
@@ -105,9 +106,10 @@ router.post(
         documentId,
         error: error instanceof Error ? error.message : String(error),
       });
-      res.status(502).json({
-        success: false,
-        error: { code: 'DOCCLE_ERROR', message: 'Failed to send document to Doccle.' },
+      sendProblem(res, req, {
+        status: 502,
+        code: 'DOCCLE_ERROR',
+        detail: 'Failed to send document to Doccle.',
       });
     }
   }
@@ -131,9 +133,10 @@ router.post(
         documentId,
         error: error instanceof Error ? error.message : String(error),
       });
-      res.status(502).json({
-        success: false,
-        error: { code: 'DOCCLE_ERROR', message: 'Failed to mark Doccle document as paid.' },
+      sendProblem(res, req, {
+        status: 502,
+        code: 'DOCCLE_ERROR',
+        detail: 'Failed to mark Doccle document as paid.',
       });
     }
   }

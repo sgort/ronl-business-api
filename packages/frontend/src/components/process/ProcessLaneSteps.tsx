@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import type { AwbPhaseCode } from '@ronl/shared';
+import { phaseRef } from './phaseSet';
 import type { ProcessContext } from './processContext';
 import {
   KIND_TAG,
@@ -23,11 +23,11 @@ const fmt = (d: string) =>
     minute: '2-digit',
   });
 
-/** The Awb phase of the call activity that runs a called process, for its "deelproces" tag. */
-function calledPhase(ctx: ProcessContext, processKey: string): AwbPhaseCode | undefined {
+/** The phase of the call activity that runs a called process, for its "deelproces" tag: "4+5". */
+function calledPhase(ctx: ProcessContext, processKey: string): string | undefined {
   for (const model of Object.values(ctx.models)) {
     const call = model.nodes.find((n) => n.kind === 'call' && n.calls === processKey);
-    if (call?.awbPhase) return call.awbPhase;
+    if (call?.phase && model.phaseSet) return phaseRef(model.phaseSet, call.phase);
   }
   return undefined;
 }
@@ -75,7 +75,7 @@ export default function ProcessLaneSteps({
 }: {
   ctx: ProcessContext;
   roles: readonly string[];
-  onOpen: (phase?: AwbPhaseCode) => void;
+  onOpen: (phase?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const groups = groupByLane(buildTrail(ctx), ctx);
@@ -158,7 +158,7 @@ export default function ProcessLaneSteps({
       <button
         type="button"
         className="cwp-link cwp-lanesteps-foot"
-        onClick={() => onOpen(ctx.awbPhase ?? undefined)}
+        onClick={() => onOpen(ctx.phase ?? undefined)}
       >
         Hele proces als swimlane bekijken →
       </button>

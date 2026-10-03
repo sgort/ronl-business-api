@@ -1,10 +1,11 @@
 import express from 'express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { denyTenant, tenantAllows } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { RIP_PHASE_KEYS } from '@ronl/shared';
 
 const router = express.Router();
@@ -38,12 +39,13 @@ const modelledKeys = () => RIP_PHASE_KEYS.map((p) => p.processDefinitionKey);
  * Its three tests had been skipping since the ladder closed; they were deleted
  * with it rather than left limping.
  */
-function resolvePhaseKey(code: string, res: Response): string | null {
+function resolvePhaseKey(code: string, req: Request, res: Response): string | null {
   const phase = RIP_PHASE_KEYS.find((p) => p.code === code);
   if (!phase) {
-    res.status(404).json({
-      success: false,
-      error: { code: 'UNKNOWN_PHASE', message: `Unknown RIP phase '${code}'` },
+    sendProblem(res, req, {
+      status: 404,
+      code: 'UNKNOWN_PHASE',
+      detail: `Unknown RIP phase '${code}'`,
     });
     return null;
   }
@@ -73,9 +75,10 @@ function resolvePhaseKey(code: string, res: Response): string | null {
  */
 router.get('/phases/active', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const tenantId = req.user.tenantId;
@@ -110,12 +113,10 @@ router.get('/phases/active', async (req, res) => {
     }
   });
   if (!anySucceeded) {
-    return res.status(500).json({
-      success: false,
-      error: {
-        code: 'RIP_ACTIVE_AGGREGATE_FAILED',
-        message: 'Failed to retrieve active RIP phase instances for any modelled phase',
-      },
+    return sendProblem(res, req, {
+      status: 500,
+      code: 'RIP_ACTIVE_AGGREGATE_FAILED',
+      detail: 'Failed to retrieve active RIP phase instances for any modelled phase',
     });
   }
   res.json({ success: true, data: rows });
@@ -127,13 +128,14 @@ router.get('/phases/active', async (req, res) => {
  */
 router.get('/phases/:code/active', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const { code } = req.params;
-  const key = resolvePhaseKey(code, res);
+  const key = resolvePhaseKey(code, req, res);
   if (!key) return;
   try {
     const list = await operatonService.getRipPhaseActiveList(key, req.user.tenantId);
@@ -144,12 +146,10 @@ router.get('/phases/:code/active', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'RIP_LIST_FAILED',
-        message: 'Failed to retrieve active RIP phase instances',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'RIP_LIST_FAILED',
+      detail: 'Failed to retrieve active RIP phase instances',
     });
   }
 });
@@ -160,13 +160,14 @@ router.get('/phases/:code/active', async (req, res) => {
  */
 router.get('/phases/:code/completed', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const { code } = req.params;
-  const key = resolvePhaseKey(code, res);
+  const key = resolvePhaseKey(code, req, res);
   if (!key) return;
   try {
     const list = await operatonService.getRipPhaseCompletedList(key, req.user.tenantId);
@@ -177,12 +178,10 @@ router.get('/phases/:code/completed', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'RIP_COMPLETED_LIST_FAILED',
-        message: 'Failed to retrieve completed RIP phase instances',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'RIP_COMPLETED_LIST_FAILED',
+      detail: 'Failed to retrieve completed RIP phase instances',
     });
   }
 });
@@ -193,13 +192,14 @@ router.get('/phases/:code/completed', async (req, res) => {
  */
 router.get('/phases/:code/model', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const code = req.params.code;
-  const key = resolvePhaseKey(code, res);
+  const key = resolvePhaseKey(code, req, res);
   if (!key) return;
   try {
     const model = await operatonService.getPhaseSwimlaneModel(key, code, req.user.tenantId);
@@ -210,9 +210,10 @@ router.get('/phases/:code/model', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PHASE_MODEL_FAILED', message: 'Failed to build phase process model' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PHASE_MODEL_FAILED',
+      detail: 'Failed to build phase process model',
     });
   }
 });
@@ -224,9 +225,10 @@ router.get('/phases/:code/model', async (req, res) => {
  */
 router.get('/phases/deployment-status', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   try {
@@ -240,12 +242,10 @@ router.get('/phases/deployment-status', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'DEPLOYMENT_STATUS_FAILED',
-        message: 'Failed to retrieve phase deployment status',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'DEPLOYMENT_STATUS_FAILED',
+      detail: 'Failed to retrieve phase deployment status',
     });
   }
 });
@@ -256,9 +256,10 @@ router.get('/phases/deployment-status', async (req, res) => {
  */
 router.get('/phases/counts', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   try {
@@ -273,12 +274,10 @@ router.get('/phases/counts', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'PHASE_COUNTS_FAILED',
-        message: 'Failed to retrieve phase instance counts',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PHASE_COUNTS_FAILED',
+      detail: 'Failed to retrieve phase instance counts',
     });
   }
 });
@@ -292,9 +291,10 @@ router.get('/phases/counts', async (req, res) => {
  */
 router.get('/instances/:instanceId/documents', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   const { instanceId } = req.params;
@@ -315,12 +315,10 @@ router.get('/instances/:instanceId/documents', async (req, res) => {
       instanceId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'RIP_DOCUMENTS_FAILED',
-        message: 'Failed to retrieve RIP instance documents',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'RIP_DOCUMENTS_FAILED',
+      detail: 'Failed to retrieve RIP instance documents',
     });
   }
 });

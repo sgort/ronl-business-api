@@ -11,7 +11,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = {
       userId: 'u-1',
       tenantId: 'flevoland',
@@ -126,7 +133,7 @@ describe('GET /v1/task', () => {
     const res = await auth(request(app).get('/v1/task'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/task');
-    expect(res.body.error.code).toBe('TASK_LIST_FAILED');
+    expect(res.body.code).toBe('TASK_LIST_FAILED');
   });
 });
 
@@ -144,7 +151,7 @@ describe('GET /v1/task/history', () => {
     const res = await auth(request(app).get('/v1/task/history'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/task/history');
-    expect(res.body.error.code).toBe('TASK_HISTORY_FAILED');
+    expect(res.body.code).toBe('TASK_HISTORY_FAILED');
   });
 });
 
@@ -165,7 +172,7 @@ describe('GET /v1/task/:id', () => {
     const res = await auth(request(app).get('/v1/task/t1'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/task/{id}');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('opens a task whose Operaton tenant disagrees but whose variable is the caller tenant', async () => {
@@ -182,7 +189,7 @@ describe('GET /v1/task/:id', () => {
     const res = await auth(request(app).get('/v1/task/t1'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/task/{id}');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 when the task is not found', async () => {
@@ -190,7 +197,7 @@ describe('GET /v1/task/:id', () => {
     const res = await auth(request(app).get('/v1/task/t1'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/task/{id}');
-    expect(res.body.error.code).toBe('TASK_NOT_FOUND');
+    expect(res.body.code).toBe('TASK_NOT_FOUND');
   });
 });
 
@@ -222,7 +229,7 @@ describe('GET /v1/task/:id/variables', () => {
     const res = await auth(request(app).get('/v1/task/t1/variables'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/task/{id}/variables');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 when variables cannot be retrieved', async () => {
@@ -231,7 +238,7 @@ describe('GET /v1/task/:id/variables', () => {
     const res = await auth(request(app).get('/v1/task/t1/variables'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/task/{id}/variables');
-    expect(res.body.error.code).toBe('TASK_VARIABLES_FAILED');
+    expect(res.body.code).toBe('TASK_VARIABLES_FAILED');
   });
 });
 
@@ -246,7 +253,7 @@ describe('GET /v1/task/:id/form-schema', () => {
     const res = await auth(request(app).get('/v1/task/t1/form-schema'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/task/{id}/form-schema');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('parses and returns a Camunda (JSON) form', async () => {
@@ -265,7 +272,7 @@ describe('GET /v1/task/:id/form-schema', () => {
     const res = await auth(request(app).get('/v1/task/t1/form-schema'));
     expect(res.status).toBe(415);
     expectToMatchOperation(res, 'get', '/task/{id}/form-schema');
-    expect(res.body.error.code).toBe('UNSUPPORTED_FORM_TYPE');
+    expect(res.body.code).toBe('UNSUPPORTED_FORM_TYPE');
   });
 
   it('404 when the upstream returns a 404/400', async () => {
@@ -273,7 +280,7 @@ describe('GET /v1/task/:id/form-schema', () => {
     const res = await auth(request(app).get('/v1/task/t1/form-schema'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/task/{id}/form-schema');
-    expect(res.body.error.code).toBe('FORM_NOT_FOUND');
+    expect(res.body.code).toBe('FORM_NOT_FOUND');
   });
 
   it('500 for other failures', async () => {
@@ -281,7 +288,7 @@ describe('GET /v1/task/:id/form-schema', () => {
     const res = await auth(request(app).get('/v1/task/t1/form-schema'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/task/{id}/form-schema');
-    expect(res.body.error.code).toBe('FORM_FETCH_FAILED');
+    expect(res.body.code).toBe('FORM_FETCH_FAILED');
   });
 });
 
@@ -294,7 +301,7 @@ describe('POST /v1/task/:id/claim', () => {
     const res = await auth(request(app).post('/v1/task/t1/claim'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'post', '/task/{id}/claim');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.claimTask).not.toHaveBeenCalled();
   });
 
@@ -320,7 +327,7 @@ describe('POST /v1/task/:id/claim', () => {
     const res = await auth(request(app).post('/v1/task/t1/claim'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/task/{id}/claim');
-    expect(res.body.error.code).toBe('TASK_CLAIM_FAILED');
+    expect(res.body.code).toBe('TASK_CLAIM_FAILED');
   });
 });
 
@@ -333,7 +340,7 @@ describe('POST /v1/task/:id/complete', () => {
     const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'post', '/task/{id}/complete');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.completeTask).not.toHaveBeenCalled();
   });
 
@@ -348,10 +355,8 @@ describe('POST /v1/task/:id/complete', () => {
 
       expect(res.status).toBe(400);
       expectToMatchOperation(res, 'post', '/task/{id}/complete');
-      expect(res.body.error.code).toBe('RESERVED_VARIABLE');
-      expect(res.body.error.message).toBe(
-        `Variables set at process start cannot be changed: ${key}`
-      );
+      expect(res.body.code).toBe('RESERVED_VARIABLE');
+      expect(res.body.detail).toBe(`Variables set at process start cannot be changed: ${key}`);
       expect(svc.completeTask).not.toHaveBeenCalled();
     }
   );
@@ -365,10 +370,11 @@ describe('POST /v1/task/:id/complete', () => {
 
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/task/{id}/complete');
-    expect(res.body.error.code).toBe('RESERVED_VARIABLE');
-    expect(res.body.error.message).toBe(
+    expect(res.body.code).toBe('RESERVED_VARIABLE');
+    expect(res.body.detail).toBe(
       'Variables set at process start cannot be changed: applicantId, municipality'
     );
+    expect(res.body.reserved).toEqual(['applicantId', 'municipality']);
     expect(svc.completeTask).not.toHaveBeenCalled();
   });
 
@@ -384,7 +390,7 @@ describe('POST /v1/task/:id/complete', () => {
 
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'post', '/task/{id}/complete');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.completeTask).not.toHaveBeenCalled();
   });
 
@@ -420,7 +426,7 @@ describe('POST /v1/task/:id/complete', () => {
     const res = await auth(request(app).post('/v1/task/t1/complete')).send({ variables: {} });
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/task/{id}/complete');
-    expect(res.body.error.code).toBe('TASK_COMPLETE_FAILED');
+    expect(res.body.code).toBe('TASK_COMPLETE_FAILED');
   });
 });
 
@@ -440,7 +446,7 @@ describe('handler guards for an authenticated request without a user', () => {
   ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
     const res = await noUser(request(app)[method](path));
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -494,7 +500,7 @@ describe('non-Error rejections', () => {
     svc[fn].mockRejectedValue('socket hang up');
     const res = await auth(request(app)[method](path));
     expect(res.status).toBe(status);
-    expect(res.body.success).toBe(false);
+    expect(res.body.status).toBe(status);
   });
 });
 

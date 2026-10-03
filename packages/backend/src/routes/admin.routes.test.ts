@@ -8,7 +8,15 @@ import type { Request, Response, NextFunction } from 'express';
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     const roles = req.headers['x-test-roles'] as string | undefined;
-    if (!roles) return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+    if (!roles)
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = {
       userId: 'u',
       tenantId: 'flevoland',
@@ -25,9 +33,23 @@ jest.mock('@auth/jwt.middleware', () => ({
     (...roles: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
       if (!req.user)
-        return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+        return res.status(401).type('application/problem+json').json({
+          type: 'about:blank',
+          status: 401,
+          title: 'Unauthorized',
+          detail: 'Unauthorized',
+          instance: req.originalUrl,
+          code: 'UNAUTHORIZED',
+        });
       if (!roles.some((r) => req.user!.roles.includes(r)))
-        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN' } });
+        return res.status(403).type('application/problem+json').json({
+          type: 'about:blank',
+          status: 403,
+          title: 'Forbidden',
+          detail: 'Forbidden',
+          instance: req.originalUrl,
+          code: 'FORBIDDEN',
+        });
       next();
     },
 }));
@@ -67,7 +89,7 @@ describe('GET /v1/admin/audit', () => {
     const res = await request(app).get('/v1/admin/audit').set('x-test-roles', 'caseworker');
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/admin/audit');
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.code).toBe('FORBIDDEN');
   });
 
   it('returns rows with pagination for an admin', async () => {
@@ -101,7 +123,7 @@ describe('GET /v1/admin/audit', () => {
 
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/admin/audit');
-    expect(res.body.error.code).toBe('DB_ERROR');
+    expect(res.body.code).toBe('DB_ERROR');
   });
 
   it('500 DB_ERROR when the query rejects with a non-Error', async () => {
@@ -112,6 +134,6 @@ describe('GET /v1/admin/audit', () => {
 
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/admin/audit');
-    expect(res.body.error.code).toBe('DB_ERROR');
+    expect(res.body.code).toBe('DB_ERROR');
   });
 });

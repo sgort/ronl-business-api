@@ -556,9 +556,16 @@ an environment_.
 
 ### 4.4 Operaton — nothing to do
 
-ACC and PROD point at the **same** engine (`OPERATON_BASE_URL` and
-`OPERATON_M2M_BASE_URL` are identical on both), so the twelve RIP process models
-are already deployed. The backend deploys no BPMN itself. Side effect worth
+ACC and PROD point at the **same** engine (`OPERATON_BASE_URL` is
+`https://operaton.open-regels.nl/engine-rest` on both), so the twelve RIP process
+models are already deployed.
+
+`/v1/m2m` uses that same engine on every tier (#262): `OPERATON_M2M_BASE_URL`,
+`OPERATON_M2M_USERNAME` and `OPERATON_M2M_PASSWORD` are **not set**. Until
+3 October 2026 both tiers set them to the separate `operaton-doc` engine, which
+is also what the backend fell back to when they were absent. If PROD still
+carries them, delete them; a value there now means "a different engine on
+purpose". The backend deploys no BPMN itself. Side effect worth
 remembering: RIP instances started from ACC live in the same engine,
 tenant-scoped.
 

@@ -108,8 +108,10 @@ services:
       - ronl-network
 
   # Redis Cache (for session storage and rate limiting)
+  # Held at 7.2 (7.2.16): the last BSD-3-Clause line. Redis 7.4 and later is
+  # RSALv2/SSPLv1. ACC and PROD run Azure Cache for Redis 6.0, also BSD-3.
   redis:
-    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    image: redis:7.2-alpine@sha256:29e8589c3f9ba699b5f7aa4b3c7733c58852a3626439e619aa0ee78de08c6ca0
     container_name: ronl-redis
     command: redis-server --appendonly yes
     volumes:

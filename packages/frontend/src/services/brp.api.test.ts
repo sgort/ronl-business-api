@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import axios, { type AxiosError } from 'axios';
 import type { PersonState } from '../types/brp.types';
 import { brpApi } from './brp.api';
 
@@ -75,6 +76,32 @@ describe('brpApi.getPersonByBSN', () => {
     server.use(http.post('*/brp/personen', () => HttpResponse.json({}, { status: 500 })));
 
     await expect(brpApi.getPersonByBSN('999992235')).rejects.toBeTruthy();
+  });
+
+  it('normalises a problem-details error body into the ApiResponse shape before rethrowing', async () => {
+    server.use(
+      http.post('*/brp/personen', () =>
+        HttpResponse.json(
+          {
+            type: 'about:blank',
+            status: 502,
+            title: 'Brp unavailable',
+            detail: 'BRP did not answer',
+            instance: '/v1/brp/personen',
+            code: 'BRP_UNAVAILABLE',
+          },
+          { status: 502, headers: { 'Content-Type': 'application/problem+json' } }
+        )
+      )
+    );
+
+    const error = await brpApi.getPersonByBSN('999992235').catch((e: unknown) => e);
+
+    expect(axios.isAxiosError(error)).toBe(true);
+    expect((error as AxiosError).response?.data).toMatchObject({
+      success: false,
+      error: { code: 'BRP_UNAVAILABLE', message: 'BRP did not answer' },
+    });
   });
 
   it('attaches a bearer token when one is available', async () => {

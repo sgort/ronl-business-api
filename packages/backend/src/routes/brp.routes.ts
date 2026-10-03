@@ -3,6 +3,7 @@ import axios from 'axios';
 import jwtMiddleware from '../auth/jwt.middleware';
 import { auditLog } from '../middleware/audit.middleware';
 import { createLogger } from '../utils/logger';
+import { sendProblem } from '../utils/problem';
 
 const router = express.Router();
 const logger = createLogger('brp-routes');
@@ -43,13 +44,11 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
         upstreamCode: typeof upstreamCode === 'string' ? upstreamCode : undefined,
       });
 
-      return res.status(response.status).json({
-        success: false,
-        error: {
-          code: 'BRP_API_ERROR',
-          message: 'BRP API returned an error',
-          details: response.data,
-        },
+      return sendProblem(res, req, {
+        status: response.status,
+        code: 'BRP_API_ERROR',
+        detail: 'BRP API returned an error',
+        extensions: { details: response.data },
       });
     }
 
@@ -78,13 +77,7 @@ router.post('/personen', jwtMiddleware, async (req: Request, res: Response) => {
       ? error.response?.data?.message || error.message
       : 'BRP API request failed';
 
-    res.status(statusCode).json({
-      success: false,
-      error: {
-        code: 'BRP_API_ERROR',
-        message,
-      },
-    });
+    sendProblem(res, req, { status: statusCode, code: 'BRP_API_ERROR', detail: message });
   }
 });
 

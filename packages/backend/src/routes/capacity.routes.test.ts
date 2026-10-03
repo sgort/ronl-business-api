@@ -11,7 +11,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
     next();
   },
@@ -79,7 +86,7 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/active'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr-capacity/active');
-    expect(res.body.error.code).toBe('CAPACITY_CLAIM_LIST_FAILED');
+    expect(res.body.code).toBe('CAPACITY_CLAIM_LIST_FAILED');
   });
 
   it('GET /completed returns the tenant list', async () => {
@@ -97,7 +104,7 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/completed'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr-capacity/completed');
-    expect(res.body.error.code).toBe('CAPACITY_CLAIM_COMPLETED_LIST_FAILED');
+    expect(res.body.code).toBe('CAPACITY_CLAIM_COMPLETED_LIST_FAILED');
   });
 });
 
@@ -123,7 +130,7 @@ describe('GET /:instanceId/documents', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on service failure', async () => {
@@ -131,7 +138,7 @@ describe('GET /:instanceId/documents', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
-    expect(res.body.error.code).toBe('CAPACITY_CLAIM_DOCUMENTS_FAILED');
+    expect(res.body.code).toBe('CAPACITY_CLAIM_DOCUMENTS_FAILED');
   });
 });
 
@@ -147,7 +154,7 @@ describe('handler guards for an authenticated request without a user', () => {
   ])('%s → 401 UNAUTHORIZED', async (path) => {
     const res = await noUser(request(app).get(path));
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -159,7 +166,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/active'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr-capacity/active');
-    expect(res.body.error.code).toBe('CAPACITY_CLAIM_LIST_FAILED');
+    expect(res.body.code).toBe('CAPACITY_CLAIM_LIST_FAILED');
   });
 
   it('GET /completed still answers 500', async () => {
@@ -167,7 +174,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/completed'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr-capacity/completed');
-    expect(res.body.error.code).toBe('CAPACITY_CLAIM_COMPLETED_LIST_FAILED');
+    expect(res.body.code).toBe('CAPACITY_CLAIM_COMPLETED_LIST_FAILED');
   });
 
   it('GET /:instanceId/documents still answers 500', async () => {
@@ -175,7 +182,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
-    expect(res.body.error.code).toBe('CAPACITY_CLAIM_DOCUMENTS_FAILED');
+    expect(res.body.code).toBe('CAPACITY_CLAIM_DOCUMENTS_FAILED');
   });
 });
 
@@ -189,6 +196,6 @@ describe('tenant isolation when the instance has no municipality', () => {
     const res = await auth(request(app).get('/v1/hr-capacity/pi-1/documents'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/hr-capacity/{instanceId}/documents');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 });

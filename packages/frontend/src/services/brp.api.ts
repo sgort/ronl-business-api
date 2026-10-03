@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import keycloak from './keycloak';
+import { toApiResponse } from '../utils/problem';
 import type { PersonState, BRPPersonenResponse } from '../types/brp.types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
@@ -32,6 +33,11 @@ class BRPApiService {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
+        // Error bodies are RFC 9457 problem details since #216; normalise
+        // them to the ApiResponse shape, as the main api client does.
+        if (axios.isAxiosError(error) && error.response) {
+          error.response.data = toApiResponse(error.response.data);
+        }
         console.error('BRP API error:', {
           message: error.message,
           response: error.response?.data,

@@ -15,7 +15,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
     next();
   },
@@ -105,7 +112,7 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/active'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
-    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+    expect(res.body.code).toBe('UNKNOWN_PHASE');
     expect(svc.getRipPhaseActiveList).not.toHaveBeenCalled();
   });
 
@@ -114,7 +121,7 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
-    expect(res.body.error.code).toBe('RIP_LIST_FAILED');
+    expect(res.body.code).toBe('RIP_LIST_FAILED');
   });
 
   it('GET /phases/:code/completed returns the tenant list', async () => {
@@ -129,7 +136,7 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/completed'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
-    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+    expect(res.body.code).toBe('UNKNOWN_PHASE');
   });
 
   it('the fixed /phases routes are not swallowed by /phases/:code', async () => {
@@ -146,7 +153,7 @@ describe('lists', () => {
     // The tell-tale sign of being swallowed by /phases/:code/active would be a
     // 404 UNKNOWN_PHASE (code="active" is not in the catalogue) — the aggregate
     // shape below is proof this hit the literal route instead.
-    expect(activeRes.body.error).toBeUndefined();
+    expect(activeRes.body.code).toBeUndefined();
     expect(activeRes.body.data).toEqual([]);
   });
 
@@ -155,7 +162,7 @@ describe('lists', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
-    expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
+    expect(res.body.code).toBe('RIP_COMPLETED_LIST_FAILED');
   });
 });
 
@@ -200,7 +207,7 @@ describe('GET /phases/active', () => {
     const res = await auth(request(app).get('/v1/rip/phases/active'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/active');
-    expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
+    expect(res.body.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
   });
 });
 
@@ -225,7 +232,7 @@ describe('GET /phases/deployment-status', () => {
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/deployment-status');
-    expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
+    expect(res.body.code).toBe('DEPLOYMENT_STATUS_FAILED');
   });
 });
 
@@ -254,7 +261,7 @@ describe('GET /phases/counts', () => {
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/counts');
-    expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
+    expect(res.body.code).toBe('PHASE_COUNTS_FAILED');
   });
 });
 
@@ -282,7 +289,7 @@ describe('GET /instances/:instanceId/documents', () => {
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on service failure', async () => {
@@ -290,7 +297,7 @@ describe('GET /instances/:instanceId/documents', () => {
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
-    expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
+    expect(res.body.code).toBe('RIP_DOCUMENTS_FAILED');
   });
 });
 
@@ -310,7 +317,7 @@ describe('handler guards for an authenticated request without a user', () => {
   ])('%s → 401 UNAUTHORIZED', async (path) => {
     const res = await noUser(request(app).get(path));
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -322,7 +329,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/active'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/active');
-    expect(res.body.error.code).toBe('RIP_LIST_FAILED');
+    expect(res.body.code).toBe('RIP_LIST_FAILED');
   });
 
   it('GET /phases/active still answers 500 when every phase rejects without an Error', async () => {
@@ -330,7 +337,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/active'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/active');
-    expect(res.body.error.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
+    expect(res.body.code).toBe('RIP_ACTIVE_AGGREGATE_FAILED');
   });
 
   it('GET /phases/deployment-status still answers 500', async () => {
@@ -338,7 +345,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/deployment-status'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/deployment-status');
-    expect(res.body.error.code).toBe('DEPLOYMENT_STATUS_FAILED');
+    expect(res.body.code).toBe('DEPLOYMENT_STATUS_FAILED');
   });
 
   it('GET /phases/counts still answers 500', async () => {
@@ -347,7 +354,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/counts'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/counts');
-    expect(res.body.error.code).toBe('PHASE_COUNTS_FAILED');
+    expect(res.body.code).toBe('PHASE_COUNTS_FAILED');
   });
 
   it('GET /instances/:instanceId/documents still answers 500', async () => {
@@ -355,7 +362,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
-    expect(res.body.error.code).toBe('RIP_DOCUMENTS_FAILED');
+    expect(res.body.code).toBe('RIP_DOCUMENTS_FAILED');
   });
 
   it('GET /phases/:code/completed still answers 500', async () => {
@@ -363,7 +370,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/completed'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/completed');
-    expect(res.body.error.code).toBe('RIP_COMPLETED_LIST_FAILED');
+    expect(res.body.code).toBe('RIP_COMPLETED_LIST_FAILED');
   });
 
   it('GET /phases/:code/model still answers 500', async () => {
@@ -371,7 +378,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.1/model'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
-    expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
+    expect(res.body.code).toBe('PHASE_MODEL_FAILED');
   });
 });
 
@@ -386,7 +393,7 @@ describe('tenant isolation when the instance has no municipality', () => {
     const res = await auth(request(app).get('/v1/rip/instances/pi-1/documents'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/rip/instances/{instanceId}/documents');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 });
 
@@ -434,7 +441,7 @@ describe('GET /phases/:code/model', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R9.9/model'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
-    expect(res.body.error.code).toBe('UNKNOWN_PHASE');
+    expect(res.body.code).toBe('UNKNOWN_PHASE');
     expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
   });
 
@@ -443,6 +450,6 @@ describe('GET /phases/:code/model', () => {
     const res = await auth(request(app).get('/v1/rip/phases/R2.2/model'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/rip/phases/{code}/model');
-    expect(res.body.error.code).toBe('PHASE_MODEL_FAILED');
+    expect(res.body.code).toBe('PHASE_MODEL_FAILED');
   });
 });

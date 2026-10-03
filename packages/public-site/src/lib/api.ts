@@ -1,3 +1,5 @@
+import { problemMessage } from './problem';
+
 /**
  * Resolves the backend base URL in both runtimes this module is used from:
  *  - the browser build, where Vite statically replaces `import.meta.env.*`
@@ -28,10 +30,10 @@ async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${resolveApiBase()}/public${path}`);
   const body = (await res.json()) as ApiEnvelope<T>;
   if (!res.ok) {
-    throw new Error(`${path} → HTTP ${res.status}: ${body.error?.message ?? 'request failed'}`);
+    throw new Error(`${path} → HTTP ${res.status}: ${problemMessage(body, 'request failed')}`);
   }
   if (!body.success) {
-    throw new Error(body.error?.message ?? 'Request failed');
+    throw new Error(problemMessage(body, 'Request failed'));
   }
   return body.data as T;
 }
@@ -44,10 +46,10 @@ async function getJSONOrNull<T>(path: string): Promise<T | null> {
   const body = (await res.json()) as ApiEnvelope<T>;
   if (res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(`${path} → HTTP ${res.status}: ${body.error?.message ?? 'request failed'}`);
+    throw new Error(`${path} → HTTP ${res.status}: ${problemMessage(body, 'request failed')}`);
   }
   if (!body.success) {
-    throw new Error(body.error?.message ?? 'Request failed');
+    throw new Error(problemMessage(body, 'Request failed'));
   }
   return body.data as T;
 }

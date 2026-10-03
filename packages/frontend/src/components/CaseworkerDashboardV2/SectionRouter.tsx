@@ -37,6 +37,8 @@ import IouFeedbackSection from '../CaseworkerDashboard/IouFeedbackSection';
 import IouZakenSection from '../CaseworkerDashboard/IouZakenSection';
 import AuditSection from '../CaseworkerDashboard/AuditSection';
 import CapacityClaimSection from '../CaseworkerDashboard/CapacityClaimSection';
+import BesluitStartSection from '../CaseworkerDashboard/BesluitStartSection';
+import BesluitOverzichtSection from '../CaseworkerDashboard/BesluitOverzichtSection';
 import CapacityClaimArchiefSection from '../CaseworkerDashboard/CapacityClaimArchiefSection';
 import DvtpStartSection from '../CaseworkerDashboard/DvtpStartSection';
 import DvtpTakenSection from '../CaseworkerDashboard/DvtpTakenSection';
@@ -135,6 +137,13 @@ export default function SectionRouter({
   // ── Capacity claim ────────────────────────────────────────────────
   if (sectionId === 'capacity-claim') return <CapacityClaimSection user={user} />;
   if (sectionId === 'capacity-claim-archief') return <CapacityClaimArchiefSection user={user} />;
+
+  // ── Besluitvorming onder gedelegeerde bevoegdheid ─────────────────
+  if (sectionId === 'besluit-starten') return <BesluitStartSection user={user} />;
+  if (sectionId === 'besluiten-lopend')
+    return <BesluitOverzichtSection user={user} state="lopend" />;
+  if (sectionId === 'besluiten-afgerond')
+    return <BesluitOverzichtSection user={user} state="afgerond" />;
 
   // ── DVTP ──────────────────────────────────────────────────────────
   if (sectionId === 'dvtp-start') {

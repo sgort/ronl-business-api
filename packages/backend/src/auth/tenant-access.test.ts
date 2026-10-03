@@ -182,9 +182,14 @@ describe('denyTenant', () => {
   it('answers 403 TENANT_MISMATCH with the one message', async () => {
     const res = await request(app).get('/probe');
     expect(res.status).toBe(403);
+    expect(res.headers['content-type']).toMatch(/^application\/problem\+json/);
     expect(res.body).toEqual({
-      success: false,
-      error: { code: 'TENANT_MISMATCH', message: TENANT_MISMATCH_MESSAGE },
+      type: 'about:blank',
+      status: 403,
+      title: 'Tenant mismatch',
+      detail: TENANT_MISMATCH_MESSAGE,
+      instance: '/probe',
+      code: 'TENANT_MISMATCH',
     });
     expect(TENANT_MISMATCH_MESSAGE).toBe('Access denied: organisation mismatch');
   });
@@ -205,6 +210,6 @@ describe('denyTenant', () => {
   it('answers the same way without a context or a user', async () => {
     const res = await request(app).get('/probe-no-context');
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 });

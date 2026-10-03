@@ -14,6 +14,7 @@ import cors from 'cors';
 import { OpenApiDocument, readOpenApiDocument } from '../openapi/document';
 import { getErrorMessage } from '../utils/errors';
 import logger from '../utils/logger';
+import { sendProblem } from '../utils/problem';
 
 export function createOpenApiRouter(load: () => OpenApiDocument = readOpenApiDocument): Router {
   const router = Router();
@@ -55,12 +56,10 @@ export function createOpenApiRouter(load: () => OpenApiDocument = readOpenApiDoc
   router.get('/', (req: Request, res: Response) => {
     if (!document) {
       logger.error('[openapi] document unavailable', { error: getErrorMessage(loadError) });
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'OPENAPI_UNAVAILABLE',
-          message: 'The OpenAPI description is not available',
-        },
+      sendProblem(res, req, {
+        status: 500,
+        code: 'OPENAPI_UNAVAILABLE',
+        detail: 'The OpenAPI description is not available',
       });
       return;
     }

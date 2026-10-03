@@ -77,6 +77,8 @@ describe('GET /v1/health', () => {
     const res = await request(app).get('/v1/health');
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/health');
+    expect(res.headers['content-type']).toMatch(/^application\/problem\+json/);
+    expect(res.body.code).toBe('SERVICE_DEGRADED');
     expect(res.body.data.status).toBe('degraded');
   });
 
@@ -107,7 +109,7 @@ describe('GET /v1/health', () => {
     const res = await request(app).get('/v1/health');
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/health');
-    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe('HEALTH_CHECK_FAILED');
     expect(res.body.data.status).toBe('unhealthy');
     expect(res.body.data.error).toBe('operaton exploded');
   });
@@ -151,6 +153,7 @@ describe('GET /v1/health/ready', () => {
     const res = await request(app).get('/v1/health/ready');
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/health/ready');
+    expect(res.body.code).toBe('NOT_READY');
     expect(res.body.data.reason).toBe('Operaton unavailable');
   });
 
@@ -252,6 +255,8 @@ describe('GET /v1/health — failure paths', () => {
 
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/health');
+    expect(res.headers['content-type']).toMatch(/^application\/problem\+json/);
+    expect(res.body.code).toBe('SERVICE_DEGRADED');
     expect(res.body.data.status).toBe('degraded');
     expect(res.body.data.dependencies.keycloak).toEqual({
       status: 'down',
@@ -280,7 +285,7 @@ describe('GET /v1/health — failure paths', () => {
 
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/health');
-    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe('HEALTH_CHECK_FAILED');
     expect(res.body.data.status).toBe('unhealthy');
     expect(res.body.data.error).toBe('operaton client exploded');
   });

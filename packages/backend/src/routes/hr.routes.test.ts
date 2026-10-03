@@ -11,7 +11,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'u', tenantId: 'flevoland' } as Request['user'];
     next();
   },
@@ -63,7 +70,7 @@ describe('GET /v1/hr/onboarding/profile', () => {
     const res = await auth(request(app).get('/v1/hr/onboarding/profile'));
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
-    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.code).toBe('VALIDATION_ERROR');
   });
 
   it('returns the profile scoped to the tenant', async () => {
@@ -80,7 +87,7 @@ describe('GET /v1/hr/onboarding/profile', () => {
     const res = await auth(request(app).get('/v1/hr/onboarding/profile?employeeId=e1'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
-    expect(res.body.error.code).toBe('HR_PROFILE_FAILED');
+    expect(res.body.code).toBe('HR_PROFILE_FAILED');
   });
 });
 
@@ -103,7 +110,7 @@ describe('GET /v1/hr/onboarding/completed', () => {
     const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
-    expect(res.body.error.code).toBe('ONBOARDING_LIST_FAILED');
+    expect(res.body.code).toBe('ONBOARDING_LIST_FAILED');
   });
 });
 
@@ -114,7 +121,7 @@ describe('handler guard for an authenticated request without a user', () => {
     const res = await request(app).get('/v1/hr/onboarding/completed').set('x-test-no-user', '1');
     expect(res.status).toBe(401);
     expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -126,7 +133,7 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/hr/onboarding/profile?employeeId=e-1'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr/onboarding/profile');
-    expect(res.body.error.code).toBe('HR_PROFILE_FAILED');
+    expect(res.body.code).toBe('HR_PROFILE_FAILED');
   });
 
   it('GET /onboarding/completed still answers 500', async () => {
@@ -134,6 +141,6 @@ describe('non-Error rejections', () => {
     const res = await auth(request(app).get('/v1/hr/onboarding/completed'));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/hr/onboarding/completed');
-    expect(res.body.error.code).toBe('ONBOARDING_LIST_FAILED');
+    expect(res.body.code).toBe('ONBOARDING_LIST_FAILED');
   });
 });

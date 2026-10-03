@@ -4,6 +4,7 @@ import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
 import { OperatonVariable, Task } from '@ronl/shared';
 import { inferType } from '@utils/operaton-variables';
@@ -35,9 +36,10 @@ async function taskMunicipality(task: Task): Promise<unknown> {
  */
 router.get('/', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -60,9 +62,10 @@ router.get('/', async (req, res) => {
       tenantId: req.user.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_LIST_FAILED', message: 'Failed to retrieve tasks' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_LIST_FAILED',
+      detail: 'Failed to retrieve tasks',
     });
   }
 });
@@ -74,9 +77,10 @@ router.get('/', async (req, res) => {
  */
 router.get('/history', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -94,9 +98,10 @@ router.get('/history', async (req, res) => {
       tenantId: req.user?.tenantId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_HISTORY_FAILED', message: 'Failed to retrieve completed tasks' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_HISTORY_FAILED',
+      detail: 'Failed to retrieve completed tasks',
     });
   }
 });
@@ -107,9 +112,10 @@ router.get('/history', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -129,10 +135,7 @@ router.get('/:id', async (req, res) => {
       taskId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(404).json({
-      success: false,
-      error: { code: 'TASK_NOT_FOUND', message: 'Task not found' },
-    });
+    sendProblem(res, req, { status: 404, code: 'TASK_NOT_FOUND', detail: 'Task not found' });
   }
 });
 
@@ -143,9 +146,10 @@ router.get('/:id', async (req, res) => {
  */
 router.get('/:id/variables', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -172,9 +176,10 @@ router.get('/:id/variables', async (req, res) => {
       taskId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_VARIABLES_FAILED', message: 'Failed to retrieve task variables' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_VARIABLES_FAILED',
+      detail: 'Failed to retrieve task variables',
     });
   }
 });
@@ -190,9 +195,10 @@ router.get('/:id/variables', async (req, res) => {
  */
 router.get('/:id/form-schema', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -209,12 +215,10 @@ router.get('/:id/form-schema', async (req, res) => {
     const { data, contentType } = await operatonService.getDeployedTaskForm(id);
 
     if (!contentType.includes('application/json')) {
-      return res.status(415).json({
-        success: false,
-        error: {
-          code: 'UNSUPPORTED_FORM_TYPE',
-          message: `Task '${id}' has an embedded HTML form. Only Camunda Forms (JSON) are supported.`,
-        },
+      return sendProblem(res, req, {
+        status: 415,
+        code: 'UNSUPPORTED_FORM_TYPE',
+        detail: `Task '${id}' has an embedded HTML form. Only Camunda Forms (JSON) are supported.`,
       });
     }
 
@@ -230,15 +234,13 @@ router.get('/:id/form-schema', async (req, res) => {
       (error.response?.status === 404 || error.response?.status === 400)
         ? 404
         : 500;
-    res.status(status).json({
-      success: false,
-      error: {
-        code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
-        message:
-          status === 404
-            ? `No deployed form found for task '${id}'`
-            : 'Failed to retrieve task form schema',
-      },
+    sendProblem(res, req, {
+      status: status,
+      code: status === 404 ? 'FORM_NOT_FOUND' : 'FORM_FETCH_FAILED',
+      detail:
+        status === 404
+          ? `No deployed form found for task '${id}'`
+          : 'Failed to retrieve task form schema',
     });
   }
 });
@@ -249,9 +251,10 @@ router.get('/:id/form-schema', async (req, res) => {
  */
 router.post('/:id/claim', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -275,9 +278,10 @@ router.post('/:id/claim', async (req, res) => {
       taskId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_CLAIM_FAILED', message: 'Failed to claim task' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_CLAIM_FAILED',
+      detail: 'Failed to claim task',
     });
   }
 });
@@ -288,9 +292,10 @@ router.post('/:id/claim', async (req, res) => {
  */
 router.post('/:id/complete', async (req, res) => {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
 
@@ -315,12 +320,11 @@ router.post('/:id/complete', async (req, res) => {
         reason: 'RESERVED_VARIABLE',
         reserved,
       });
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'RESERVED_VARIABLE',
-          message: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
-        },
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'RESERVED_VARIABLE',
+        detail: `Variables set at process start cannot be changed: ${reserved.join(', ')}`,
+        extensions: { reserved },
       });
     }
 
@@ -340,9 +344,10 @@ router.post('/:id/complete', async (req, res) => {
       taskId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'TASK_COMPLETE_FAILED', message: 'Failed to complete task' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'TASK_COMPLETE_FAILED',
+      detail: 'Failed to complete task',
     });
   }
 });

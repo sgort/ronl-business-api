@@ -391,6 +391,40 @@ describe('ProjectDetail — live instance with open tasks', () => {
     await waitFor(() => expect(screen.getByTestId('task-form-viewer')).toBeTruthy());
     expect(document.querySelector('.pb-sign-frame')).toBeNull();
   });
+
+  it('shows neither form nor panel while the signing spec is still loading', async () => {
+    // The form would let a signature task be approved without signing.
+    const user = userEvent.setup();
+    mockTaskSpec.mockReturnValue(new Promise(() => {}));
+    mockUseOpenTasks.mockReturnValue({
+      data: [
+        {
+          id: 'task-1',
+          name: 'Aanleveren Projectplan',
+          created: '2026-01-01T00:00:00Z',
+          executionId: 'e1',
+          processDefinitionId: 'RipR21Process:1:def',
+          processDefinitionKey: 'RipR21Process',
+          processInstanceId: 'pi-1',
+          taskDefinitionKey: 'Task_AanlevrenProjectplan',
+          suspended: false,
+        },
+      ],
+      loading: false,
+      error: false,
+      reload: vi.fn(),
+    });
+    const liveRef = { nr: '99999', instanceId: 'pi-1' };
+
+    render(<ProjectDetail projectRef={liveRef} onBack={vi.fn()} />);
+    await user.click(
+      screen.getByText('Aanleveren Projectplan', { selector: '.pb-taken-item-name' })
+    );
+    await user.click(await screen.findByRole('button', { name: 'Taak claimen' }));
+
+    expect(await screen.findByText('Ondertekening controleren…')).toBeTruthy();
+    expect(screen.queryByTestId('task-form-viewer')).toBeNull();
+  });
 });
 
 describe('ProjectDetail — live instance past R2.1', () => {

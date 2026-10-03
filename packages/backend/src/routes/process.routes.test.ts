@@ -13,7 +13,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     // `if (!req.user)` guard is written for, which jwtMiddleware itself never produces.
     if (req.headers['x-test-no-user']) return next();
     if (!req.headers['x-test-auth'])
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     const roles = ((req.headers['x-test-roles'] as string) ?? 'caseworker').split(',');
     req.user = {
       userId: 'u-1',
@@ -170,9 +177,9 @@ describe('POST /:key/start', () => {
     });
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'post', '/process/{key}/start');
-    expect(res.body.error).toEqual({
+    expect(res.body).toMatchObject({
       code: 'TENANT_MISMATCH',
-      message: 'Access denied: organisation mismatch',
+      detail: 'Access denied: organisation mismatch',
     });
     expect(svc.startProcess).not.toHaveBeenCalled();
   });
@@ -184,7 +191,7 @@ describe('POST /:key/start', () => {
       .send({ variables: {} });
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'post', '/process/{key}/start');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.startProcess).not.toHaveBeenCalled();
   });
 
@@ -219,8 +226,8 @@ describe('POST /:key/start', () => {
     });
     expect(res.status).toBe(409);
     expectToMatchOperation(res, 'post', '/process/{key}/start');
-    expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
-    expect(res.body.error.message).toContain('AwbShellProcess');
+    expect(res.body.code).toBe('AMBIGUOUS_DEPLOYMENT');
+    expect(res.body.detail).toContain('AwbShellProcess');
     expect(svc.startProcess).not.toHaveBeenCalled();
   });
 
@@ -232,7 +239,10 @@ describe('POST /:key/start', () => {
     const res = await auth(request(app).post('/v1/process/P/start')).send({ variables: {} });
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/process/{key}/start');
-    expect(res.body.error.details).toBe('no matching process definition deployed with key P');
+    expect(res.body.details).toBe('no matching process definition deployed with key P');
+    // The engine base URL is `engine`; `instance` is the request path (#216).
+    expect(res.body.engine).toBe('http://op');
+    expect(res.body.instance).toBe('/v1/process/P/start');
   });
 });
 
@@ -241,7 +251,7 @@ describe('GET /history', () => {
     const res = await auth(request(app).get('/v1/process/history'));
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'get', '/process/history');
-    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.code).toBe('VALIDATION_ERROR');
   });
 
   it('403 when a citizen requests another citizen', async () => {
@@ -271,8 +281,8 @@ describe('GET /history', () => {
     );
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/history');
-    expect(res.body.error.code).toBe('FORBIDDEN');
-    expect(res.body.error.message).toBe('Only citizens and caseworkers may read process history');
+    expect(res.body.code).toBe('FORBIDDEN');
+    expect(res.body.detail).toBe('Only citizens and caseworkers may read process history');
     expect(svc.getProcessHistory).not.toHaveBeenCalled();
   });
 
@@ -316,7 +326,7 @@ describe('GET /:id/status', () => {
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/status');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 when the instance is missing', async () => {
@@ -342,7 +352,7 @@ describe('GET /:id/variables', () => {
     const res = await auth(request(app).get('/v1/process/pi/variables'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/variables');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 on failure', async () => {
@@ -370,7 +380,7 @@ describe('GET /:id/historic-variables', () => {
     const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on failure', async () => {
@@ -400,7 +410,7 @@ describe('GET /:id/activity-history', () => {
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on failure', async () => {
@@ -422,7 +432,7 @@ describe('GET /:instanceId/decision-document', () => {
     const res = await auth(request(app).get('/v1/process/pi/decision-document'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{instanceId}/decision-document');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('404 for an axios 404', async () => {
@@ -439,7 +449,7 @@ describe('GET /:instanceId/decision-document', () => {
     const res = await auth(request(app).get('/v1/process/pi/decision-document'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/process/{instanceId}/decision-document');
-    expect(res.body.error.code).toBe('DOCUMENT_NOT_FOUND');
+    expect(res.body.code).toBe('DOCUMENT_NOT_FOUND');
   });
 
   it('500 for other failures', async () => {
@@ -475,7 +485,7 @@ describe('GET /:key/start-form', () => {
     const res = await auth(request(app).get('/v1/process/P/start-form'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/process/{key}/start-form');
-    expect(res.body.error.code).toBe('FORM_NOT_FOUND');
+    expect(res.body.code).toBe('FORM_NOT_FOUND');
   });
 
   it('500 for other failures', async () => {
@@ -490,7 +500,7 @@ describe('GET /:key/start-form', () => {
     const res = await auth(request(app).get('/v1/process/P/start-form'));
     expect(res.status).toBe(409);
     expectToMatchOperation(res, 'get', '/process/{key}/start-form');
-    expect(res.body.error.code).toBe('AMBIGUOUS_DEPLOYMENT');
+    expect(res.body.code).toBe('AMBIGUOUS_DEPLOYMENT');
   });
 });
 
@@ -525,7 +535,7 @@ describe('DELETE /:id', () => {
     const res = await auth(request(app).delete('/v1/process/pi')).send({});
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'delete', '/process/{id}');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('500 on failure', async () => {
@@ -556,7 +566,7 @@ describe('handler guards for an authenticated request without a user', () => {
   ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
     const res = await noUser(request(app)[method](path));
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -641,7 +651,7 @@ describe('POST /:key/start failure causes', () => {
     const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/process/{key}/start');
-    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe('PROCESS_START_FAILED');
   });
 
   it('falls back to Unknown error when the rejection is not an Error at all', async () => {
@@ -649,7 +659,7 @@ describe('POST /:key/start failure causes', () => {
     const res = await auth(request(app).post('/v1/process/SomeProcess/start').send({}));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/process/{key}/start');
-    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe('PROCESS_START_FAILED');
   });
 });
 
@@ -660,7 +670,7 @@ describe('GET /history for a token without a roles claim', () => {
       .set('x-test-auth', '1')
       .set('x-test-no-roles', '1');
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(res.body.code).toBe('FORBIDDEN');
     expect(svc.getProcessHistory).not.toHaveBeenCalled();
   });
 });
@@ -689,7 +699,7 @@ describe('non-Error rejections', () => {
     svc[fn].mockRejectedValue('socket hang up');
     const res = await auth(request(app)[method](path));
     expect(res.status).toBe(status);
-    expect(res.body.success).toBe(false);
+    expect(res.body.status).toBe(status);
   });
 });
 
@@ -701,7 +711,7 @@ describe('GET /:key/start-form error mapping', () => {
     const res = await auth(request(app).get('/v1/process/SomeProcess/start-form'));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/process/{key}/start-form');
-    expect(res.body.error.code).toBe('FORM_NOT_FOUND');
+    expect(res.body.code).toBe('FORM_NOT_FOUND');
   });
 });
 
@@ -711,7 +721,7 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('GET /:id/historic-variables still serves the applicant', async () => {
@@ -726,7 +736,7 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     const res = await auth(request(app).get('/v1/process/pi/activity-history'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/activity-history');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.getActivityHistory).not.toHaveBeenCalled();
   });
 
@@ -736,7 +746,7 @@ describe('detail checks refuse an instance with no municipality (#218 D3)', () =
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/status');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('DELETE /:id refuses and deletes nothing', async () => {
@@ -777,7 +787,7 @@ describe('the applicant reads their own case on every process read (#229)', () =
     const res = await auth(request(app).get('/v1/process/pi/status'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/status');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('GET /:id/variables admits the applicant', async () => {
@@ -793,7 +803,7 @@ describe('the applicant reads their own case on every process read (#229)', () =
     const res = await auth(request(app).get('/v1/process/pi/variables'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'get', '/process/{id}/variables');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
   });
 
   it('GET /:id/activity-history admits the applicant', async () => {
@@ -824,7 +834,7 @@ describe('the applicant reads their own case on every process read (#229)', () =
     const res = await auth(request(app).delete('/v1/process/pi'));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, 'delete', '/process/{id}');
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.deleteProcessInstance).not.toHaveBeenCalled();
   });
 });
@@ -855,7 +865,7 @@ describe('GET /definition/key/:key/swimlane', () => {
       const res = await auth(request(app).get(`/v1/process/definition/key/${key}/swimlane`));
       expect(res.status).toBe(400);
       expectToMatchOperation(res, ...op);
-      expect(res.body.error.code).toBe('INVALID_PROCESS_KEY');
+      expect(res.body.code).toBe('INVALID_PROCESS_KEY');
       expect(svc.getPhaseSwimlaneModel).not.toHaveBeenCalled();
     }
   );
@@ -867,7 +877,7 @@ describe('GET /definition/key/:key/swimlane', () => {
     const res = await auth(request(app).get(path));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, ...op);
-    expect(res.body.error.code).toBe('PROCESS_DEFINITION_NOT_FOUND');
+    expect(res.body.code).toBe('PROCESS_DEFINITION_NOT_FOUND');
   });
 
   it('answers 500 on any other engine failure', async () => {
@@ -877,7 +887,7 @@ describe('GET /definition/key/:key/swimlane', () => {
     const res = await auth(request(app).get(path));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, ...op);
-    expect(res.body.error.code).toBe('SWIMLANE_MODEL_FAILED');
+    expect(res.body.code).toBe('SWIMLANE_MODEL_FAILED');
   });
 
   it('answers 500 on a non-Error rejection', async () => {
@@ -885,7 +895,7 @@ describe('GET /definition/key/:key/swimlane', () => {
     const res = await auth(request(app).get(path));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, ...op);
-    expect(res.body.error.code).toBe('SWIMLANE_MODEL_FAILED');
+    expect(res.body.code).toBe('SWIMLANE_MODEL_FAILED');
   });
 });
 
@@ -913,7 +923,7 @@ describe('GET /:id/lineage', () => {
     const res = await auth(request(app).get(path));
     expect(res.status).toBe(403);
     expectToMatchOperation(res, ...op);
-    expect(res.body.error.code).toBe('TENANT_MISMATCH');
+    expect(res.body.code).toBe('TENANT_MISMATCH');
     expect(svc.getProcessLineage).not.toHaveBeenCalled();
   });
 
@@ -925,7 +935,7 @@ describe('GET /:id/lineage', () => {
     const res = await auth(request(app).get(path));
     expect(res.status).toBe(404);
     expectToMatchOperation(res, ...op);
-    expect(res.body.error.code).toBe('PROCESS_NOT_FOUND');
+    expect(res.body.code).toBe('PROCESS_NOT_FOUND');
   });
 
   it('answers 500 on any other failure, including a non-Error rejection', async () => {
@@ -934,6 +944,6 @@ describe('GET /:id/lineage', () => {
     const res = await auth(request(app).get(path));
     expect(res.status).toBe(500);
     expectToMatchOperation(res, ...op);
-    expect(res.body.error.code).toBe('PROCESS_LINEAGE_FAILED');
+    expect(res.body.code).toBe('PROCESS_LINEAGE_FAILED');
   });
 });

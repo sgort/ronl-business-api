@@ -42,6 +42,7 @@ const mockGetSigningKey = (jwksRsa as unknown as jest.Mock).mock.results[0].valu
 function makeRes() {
   const res = {} as Response & { statusCode: number };
   res.status = jest.fn().mockReturnValue(res);
+  res.type = jest.fn().mockReturnValue(res);
   res.json = jest.fn().mockReturnValue(res);
   return res;
 }
@@ -62,12 +63,25 @@ beforeEach(() => jest.clearAllMocks());
 
 describe('jwtMiddleware', () => {
   it('401 MISSING_TOKEN when Authorization header is absent', async () => {
-    const req = { headers: {}, path: '/x', ip: '1.1.1.1' } as unknown as Request;
+    const req = {
+      headers: {},
+      path: '/x',
+      originalUrl: '/x?y=1',
+      ip: '1.1.1.1',
+    } as unknown as Request;
     const res = makeRes();
     const next = jest.fn();
     await jwtMiddleware(req, res, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(401);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('MISSING_TOKEN');
+    expect(res.type).toHaveBeenCalledWith('application/problem+json');
+    expect(res.json).toHaveBeenCalledWith({
+      type: 'about:blank',
+      status: 401,
+      title: 'Missing token',
+      detail: 'Authorization header missing or invalid',
+      instance: '/x',
+      code: 'MISSING_TOKEN',
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -232,7 +246,7 @@ describe('jwtMiddleware', () => {
     const next = jest.fn();
     await jwtMiddleware(req, res, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(401);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('INVALID_TOKEN');
+    expect((res.json as jest.Mock).mock.calls[0][0].code).toBe('INVALID_TOKEN');
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -248,7 +262,7 @@ describe('jwtMiddleware', () => {
     const next = jest.fn();
     await jwtMiddleware(req, res, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(401);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('INVALID_TOKEN');
+    expect((res.json as jest.Mock).mock.calls[0][0].code).toBe('INVALID_TOKEN');
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -360,7 +374,7 @@ describe('requireRoles', () => {
   it('403 when the user lacks all required roles', () => {
     const { res, next } = run({ userId: 'u', roles: ['viewer'] }, ['admin']);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('FORBIDDEN');
+    expect((res.json as jest.Mock).mock.calls[0][0].code).toBe('FORBIDDEN');
     expect(next).not.toHaveBeenCalled();
   });
 });
@@ -389,7 +403,7 @@ describe('requireAssuranceLevel', () => {
   it('403 INSUFFICIENT_ASSURANCE when the user is below the minimum level', () => {
     const { res, next } = run({ userId: 'u', assuranceLevel: 'basis' }, 'substantieel');
     expect(res.status).toHaveBeenCalledWith(403);
-    expect((res.json as jest.Mock).mock.calls[0][0].error.code).toBe('INSUFFICIENT_ASSURANCE');
+    expect((res.json as jest.Mock).mock.calls[0][0].code).toBe('INSUFFICIENT_ASSURANCE');
     expect(next).not.toHaveBeenCalled();
   });
 });

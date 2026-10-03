@@ -39,6 +39,19 @@ describe('lib/api', () => {
     await expect(getNieuws()).rejects.toThrow(/HTTP 500/);
   });
 
+  it("puts a problem-details body's detail in the error message", async () => {
+    mockFetchOnce(500, {
+      type: 'about:blank',
+      status: 500,
+      title: 'Internal server error',
+      detail: 'Catalogus niet beschikbaar',
+      instance: '/v1/public/nieuws',
+      code: 'INTERNAL_ERROR',
+    });
+    const { getNieuws } = await import('./api');
+    await expect(getNieuws()).rejects.toThrow(/HTTP 500: Catalogus niet beschikbaar/);
+  });
+
   it('throws when success:false even on HTTP 200', async () => {
     mockFetchOnce(200, { success: false, error: { code: 'X', message: 'business error' } });
     const { getBerichten } = await import('./api');
@@ -68,7 +81,14 @@ describe('lib/api', () => {
   it('still throws from a by-slug lookup when the failure is not a 404', async () => {
     // getJSONOrNull treats only 404 as "normal absence"; a 500 is still a
     // fault, and swallowing it would render an empty detail page instead.
-    mockFetchOnce(500, { success: false, error: { code: 'X', message: 'upstream down' } });
+    mockFetchOnce(500, {
+      type: 'about:blank',
+      status: 500,
+      title: 'Internal server error',
+      detail: 'upstream down',
+      instance: '/v1/public/regels/zorgtoeslag',
+      code: 'INTERNAL_ERROR',
+    });
     const { getRegelBySlug } = await import('./api');
     await expect(getRegelBySlug('zorgtoeslag')).rejects.toThrow(/HTTP 500: upstream down/);
   });

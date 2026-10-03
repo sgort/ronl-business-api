@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { PhaseSwimlaneModel } from '@ronl/shared';
+import type { PhaseSet, PhaseSwimlaneModel } from '@ronl/shared';
+import { AWB_SET } from '../../test/kapvergunningFixtures';
 import type { ProcessContext } from './processContext';
 import ProcessWhere from './ProcessWhere';
 
@@ -25,7 +26,8 @@ const ctx = (over: Partial<ProcessContext> = {}): ProcessContext => ({
   history: [],
   statusByProcess: {},
   current: { processKey: 'TreeFellingPermitSubProcess', nodeId: 'Sub_CaseReview' },
-  awbPhase: '4+5',
+  phase: '4+5',
+  phaseSet: AWB_SET,
   chain: [
     { instanceId: 'p', processKey: 'AwbShellProcess' },
     {
@@ -39,8 +41,10 @@ const ctx = (over: Partial<ProcessContext> = {}): ProcessContext => ({
 });
 
 describe('ProcessWhere', () => {
-  it('renders nothing for a process without Awb phases', () => {
-    const { container } = render(<ProcessWhere ctx={ctx({ awbPhase: null })} onOpen={vi.fn()} />);
+  it('renders nothing for a process without phases', () => {
+    const { container } = render(
+      <ProcessWhere ctx={ctx({ phase: null, phaseSet: null })} onOpen={vi.fn()} />
+    );
     expect(container.firstChild).toBeNull();
   });
 
@@ -54,7 +58,7 @@ describe('ProcessWhere', () => {
     ['1', 'Waar sta ik · Awb-fase 1 · stap 1 van 8'],
     ['archivering', 'Waar sta ik · Awb-fase Archivering · stap 8 van 8'],
   ] as const)('names phase %s by its Awb number and its step on the stepper', (phase, text) => {
-    render(<ProcessWhere ctx={ctx({ awbPhase: phase })} onOpen={vi.fn()} />);
+    render(<ProcessWhere ctx={ctx({ phase })} onOpen={vi.fn()} />);
     expect(screen.getByText(text)).toBeTruthy();
   });
 
@@ -68,7 +72,8 @@ describe('ProcessWhere', () => {
       false
     );
     expect(screen.getByRole('button', { name: 'Fase 4+5 · Behandeling en besluit' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Fase archivering · Archivering' })).toBeTruthy();
+    // Archiving is named after its law, not numbered.
+    expect(screen.getByRole('button', { name: 'Archiefwet · Archivering' })).toBeTruthy();
   });
 
   it('names the subprocess and the decision deadline in the caption when they apply', () => {
@@ -85,7 +90,7 @@ describe('ProcessWhere', () => {
     const { container } = render(
       <ProcessWhere
         ctx={ctx({
-          awbPhase: '6',
+          phase: '6',
           current: { processKey: 'AwbShellProcess', nodeId: 'Task_Phase6_Notify' },
           chain: [{ instanceId: 'p', processKey: 'AwbShellProcess' }],
         })}
@@ -103,5 +108,45 @@ describe('ProcessWhere', () => {
     expect(onOpen).toHaveBeenLastCalledWith('2');
     fireEvent.click(screen.getByRole('button', { name: 'Bekijk proces →' }));
     expect(onOpen).toHaveBeenLastCalledWith('4+5');
+  });
+
+  describe('with phases the process declared itself', () => {
+    const CLAIM: PhaseSet = {
+      scheme: 'bpmn',
+      label: 'Fase',
+      phases: [
+        { code: 'intake', name: 'Intake', codeLabel: 'Fase 1' },
+        { code: 'claim', name: 'Claim opstellen', codeLabel: 'Fase 2' },
+        { code: 'besluit', name: 'Directiebesluit', codeLabel: 'Fase 3' },
+      ],
+    };
+    const claimCtx = () =>
+      ctx({
+        models: { Claim: model('Claim', 'Beheer capaciteitsclaim') },
+        current: { processKey: 'Claim', nodeId: 'Task_PrepareStaffingClaim' },
+        chain: [{ instanceId: 'p', processKey: 'Claim' }],
+        phase: 'claim',
+        phaseSet: CLAIM,
+      });
+
+    it("numbers the phase by its position, under the set's own label", () => {
+      render(<ProcessWhere ctx={claimCtx()} onOpen={vi.fn()} />);
+      expect(screen.getByText('Waar sta ik · Fase 2 · stap 2 van 3')).toBeTruthy();
+    });
+
+    it('draws one step per declared phase, and captions the current one', () => {
+      const { container } = render(<ProcessWhere ctx={claimCtx()} onOpen={vi.fn()} />);
+      expect(container.querySelectorAll('.pb-step')).toHaveLength(3);
+      expect(container.querySelector('.cwp-where-cap b')!.textContent).toBe(
+        'Fase 2 · Claim opstellen'
+      );
+    });
+
+    it('opens the process at a declared phase by its code', () => {
+      const onOpen = vi.fn();
+      render(<ProcessWhere ctx={claimCtx()} onOpen={onOpen} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Fase 3 · Directiebesluit' }));
+      expect(onOpen).toHaveBeenLastCalledWith('besluit');
+    });
   });
 });

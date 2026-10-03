@@ -52,6 +52,7 @@ import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { config } from '@utils/config';
 import { formatDutchDateTime } from '@utils/dutch-datetime';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import { getErrorMessage } from '@utils/errors';
 import { rateLimitKey } from '@utils/client-ip';
 import { operatonService } from '@services/operaton.service';
@@ -249,9 +250,7 @@ callbackRouter.post(
       logger.warn('ValidSign callback rejected: bad shared secret', {
         presented: describePresented(req),
       });
-      return res
-        .status(401)
-        .json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid secret' } });
+      return sendProblem(res, req, { status: 401, code: 'UNAUTHORIZED', detail: 'Invalid secret' });
     }
     const packageId = String((req.body as { packageId?: string }).packageId ?? '');
     const event = (req.body as { name?: string }).name;
@@ -283,9 +282,10 @@ callbackRouter.use(
   (err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (isBodyParseError(err)) {
       logger.warn('ValidSign callback rejected: malformed or oversized body');
-      return res.status(400).json({
-        success: false,
-        error: { code: 'INVALID_BODY', message: 'Malformed request body' },
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'INVALID_BODY',
+        detail: 'Malformed request body',
       });
     }
     next(err);
@@ -456,10 +456,7 @@ function applyCeremonyFramingHeaders(res: express.Response): void {
 // ValidSign's own callbacks rely on.
 callbackRouter.get('/stub/ceremony/:packageId', callbackLimiter, (req, res) => {
   if (!validsignService.isStub) {
-    return res.status(404).json({
-      success: false,
-      error: { code: 'NOT_FOUND', message: 'Not found' },
-    });
+    return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Not found' });
   }
   const { packageId } = req.params;
   try {
@@ -470,9 +467,7 @@ callbackRouter.get('/stub/ceremony/:packageId', callbackLimiter, (req, res) => {
       packageId,
       error: getErrorMessage(error),
     });
-    return res
-      .status(404)
-      .json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } });
+    return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Not found' });
   }
 });
 
@@ -481,10 +476,7 @@ callbackRouter.get('/stub/ceremony/:packageId', callbackLimiter, (req, res) => {
 // callback route above.
 callbackRouter.post('/stub/ceremony/:packageId/sign', callbackLimiter, async (req, res) => {
   if (!validsignService.isStub) {
-    return res.status(404).json({
-      success: false,
-      error: { code: 'NOT_FOUND', message: 'Not found' },
-    });
+    return sendProblem(res, req, { status: 404, code: 'NOT_FOUND', detail: 'Not found' });
   }
   const { packageId } = req.params;
   const outcomeRaw = (req.body as { outcome?: string }).outcome;
@@ -642,7 +634,17 @@ router.use(tenantMiddleware);
 
 type SignatureStatus = 'none' | 'sent' | 'completed' | 'declined' | 'failed';
 
-function statusFromVariables(variables: Record<string, unknown>): SignatureStatus {
+/**
+ * The signing state of THIS task. The validsign* variables are process
+ * variables, so after a declined signature they outlive the task that
+ * created them: a rework loop that brings the case back to a new signing
+ * task would otherwise open on 'declined' and be refused. Variables recorded
+ * by another task describe that task's attempt, not this one's. A package
+ * without a recorded task id predates the field and is taken at face value.
+ */
+function statusFromVariables(variables: Record<string, unknown>, taskId: string): SignatureStatus {
+  const owner = variables['validsignTaskId'];
+  if (typeof owner === 'string' && owner !== taskId) return 'none';
   const raw = variables['validsignStatus'];
   if (raw === 'sent' || raw === 'completed' || raw === 'declined' || raw === 'failed') return raw;
   return 'none';
@@ -679,9 +681,15 @@ router.get('/task/:taskId/spec', async (req, res) => {
     if (!spec) {
       return res.json({ success: true, data: { required: false } });
     }
-    const status = statusFromVariables(variables);
-    const packageId = variables['validsignPackageId'] as string | undefined;
-    const signingUrl = variables['validsignSigningUrl'] as string | undefined;
+    const status = statusFromVariables(variables, taskId);
+    // Another task's package is not this task's to resume.
+    const ownPackage = status !== 'none';
+    const packageId = ownPackage
+      ? (variables['validsignPackageId'] as string | undefined)
+      : undefined;
+    const signingUrl = ownPackage
+      ? (variables['validsignSigningUrl'] as string | undefined)
+      : undefined;
     return res.json({
       success: true,
       data: {
@@ -703,9 +711,10 @@ router.get('/task/:taskId/spec', async (req, res) => {
       taskId,
       error: getErrorMessage(error),
     });
-    return res.status(500).json({
-      success: false,
-      error: { code: 'SIGNATURE_SPEC_FAILED', message: 'Failed to resolve signature spec' },
+    return sendProblem(res, req, {
+      status: 500,
+      code: 'SIGNATURE_SPEC_FAILED',
+      detail: 'Failed to resolve signature spec',
     });
   }
 });
@@ -735,19 +744,18 @@ router.post('/task/:taskId/package', async (req, res) => {
   const { taskId } = req.params;
   const user = req.user;
   if (!user) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    return sendProblem(res, req, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      detail: 'Authentication required',
     });
   }
   if (!user.email) {
-    return res.status(422).json({
-      success: false,
-      error: {
-        code: 'MISSING_SIGNER_EMAIL',
-        message:
-          'The signed-in user has no email claim on their token; cannot create a signature package',
-      },
+    return sendProblem(res, req, {
+      status: 422,
+      code: 'MISSING_SIGNER_EMAIL',
+      detail:
+        'The signed-in user has no email claim on their token; cannot create a signature package',
     });
   }
 
@@ -757,12 +765,10 @@ router.post('/task/:taskId/package', async (req, res) => {
   const deliveryRaw = (req.body as { delivery?: unknown } | undefined)?.delivery;
   const delivery = deliveryRaw === undefined ? 'embedded' : deliveryRaw;
   if (delivery !== 'embedded' && delivery !== 'email') {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'INVALID_DELIVERY',
-        message: `delivery must be 'embedded' or 'email', got: ${JSON.stringify(deliveryRaw)}`,
-      },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'INVALID_DELIVERY',
+      detail: `delivery must be 'embedded' or 'email', got: ${JSON.stringify(deliveryRaw)}`,
     });
   }
 
@@ -780,9 +786,10 @@ router.post('/task/:taskId/package', async (req, res) => {
       task.taskDefinitionKey
     );
     if (!spec) {
-      return res.status(404).json({
-        success: false,
-        error: { code: 'NOT_SIGNATURE_TASK', message: 'This task has no signature template' },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'NOT_SIGNATURE_TASK',
+        detail: 'This task has no signature template',
       });
     }
 
@@ -805,20 +812,18 @@ router.post('/task/:taskId/package', async (req, res) => {
     // no code path anywhere that ever clears it back to retriable, would
     // strand the task behind a manual Operaton variable edit forever, which
     // defeats the purpose of an automatic guard.
-    const existingStatus = statusFromVariables(variables);
+    const existingStatus = statusFromVariables(variables, taskId);
     if (
       existingStatus === 'sent' ||
       existingStatus === 'completed' ||
       existingStatus === 'declined'
     ) {
       const existingPackageId = variables['validsignPackageId'] as string | undefined;
-      return res.status(409).json({
-        success: false,
-        error: {
-          code: 'VALIDSIGN_PACKAGE_EXISTS',
-          message: 'A signature request has already been created for this task',
-        },
-        data: { packageId: existingPackageId },
+      return sendProblem(res, req, {
+        status: 409,
+        code: 'VALIDSIGN_PACKAGE_EXISTS',
+        detail: 'A signature request has already been created for this task',
+        extensions: { data: { packageId: existingPackageId } },
       });
     }
 
@@ -847,6 +852,12 @@ router.post('/task/:taskId/package', async (req, res) => {
     const processVariables: Record<string, OperatonVariable> = {
       validsignPackageId: { value: packageId, type: 'String' },
       validsignStatus: { value: 'sent', type: 'String' },
+      // Which task this package belongs to, so a later signing task in the
+      // same instance starts fresh (see statusFromVariables), and what was
+      // signed, so completion can name the archive without knowing the process.
+      validsignTaskId: { value: taskId, type: 'String' },
+      validsignTemplateId: { value: spec.templateId, type: 'String' },
+      validsignTemplateName: { value: spec.template.name, type: 'String' },
     };
 
     if (delivery === 'email') {
@@ -885,9 +896,10 @@ router.post('/task/:taskId/package', async (req, res) => {
       taskId,
       error: getErrorMessage(error),
     });
-    return res.status(500).json({
-      success: false,
-      error: { code: 'SIGNATURE_PACKAGE_FAILED', message: 'Failed to create signature package' },
+    return sendProblem(res, req, {
+      status: 500,
+      code: 'SIGNATURE_PACKAGE_FAILED',
+      detail: 'Failed to create signature package',
     });
   }
 });
@@ -916,16 +928,17 @@ router.get('/task/:taskId/status', async (req, res) => {
     if (!taskTenantAllowed(req, variables)) {
       return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
     }
-    return res.json({ success: true, data: { status: statusFromVariables(variables) } });
+    return res.json({ success: true, data: { status: statusFromVariables(variables, taskId) } });
   } catch (error) {
     if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
       logger.error('Failed to resolve signature status', {
         taskId,
         error: getErrorMessage(error),
       });
-      return res.status(500).json({
-        success: false,
-        error: { code: 'SIGNATURE_STATUS_FAILED', message: 'Failed to resolve signature status' },
+      return sendProblem(res, req, {
+        status: 500,
+        code: 'SIGNATURE_STATUS_FAILED',
+        detail: 'Failed to resolve signature status',
       });
     }
 
@@ -937,7 +950,7 @@ router.get('/task/:taskId/status', async (req, res) => {
         }
         return res.json({
           success: true,
-          data: { status: statusFromVariables(historicVariables) },
+          data: { status: statusFromVariables(historicVariables, taskId) },
         });
       }
       // Neither the runtime nor history knows this task id. This is a
@@ -945,18 +958,20 @@ router.get('/task/:taskId/status', async (req, res) => {
       // 404 (a distinguishable code) rather than 500, so the panel can tell
       // "this will never resolve" apart from a transient failure and stop
       // polling, instead of retrying a dead endpoint forever.
-      return res.status(404).json({
-        success: false,
-        error: { code: 'SIGNATURE_STATUS_NOT_FOUND', message: 'Task not found' },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'SIGNATURE_STATUS_NOT_FOUND',
+        detail: 'Task not found',
       });
     } catch (historyError) {
       logger.error('Failed to resolve signature status from history', {
         taskId,
         error: getErrorMessage(historyError),
       });
-      return res.status(500).json({
-        success: false,
-        error: { code: 'SIGNATURE_STATUS_FAILED', message: 'Failed to resolve signature status' },
+      return sendProblem(res, req, {
+        status: 500,
+        code: 'SIGNATURE_STATUS_FAILED',
+        detail: 'Failed to resolve signature status',
       });
     }
   }

@@ -1,6 +1,6 @@
 import type {
   ActivityHistoryItem,
-  AwbPhaseCode,
+  PhaseSet,
   PhaseSwimlaneModel,
   ProcessLineage,
 } from '@ronl/shared';
@@ -19,8 +19,10 @@ export interface ProcessContext {
   /** nodeStatusFromHistory per process key, over that key's entries only. */
   statusByProcess: Record<string, Record<string, StatusKey>>;
   current: { processKey: string; nodeId: string };
-  /** The task's own node's Awb phase, when its BPMN carries markers. */
-  awbPhase: AwbPhaseCode | null;
+  /** The task's own node's phase code, when its BPMN carries markers. */
+  phase: string | null;
+  /** The phases `phase` belongs to: from the model that placed the node, which may be a caller's. */
+  phaseSet: PhaseSet | null;
   /** The call chain, top-most first; a called instance names the call activity it came from. */
   chain: Array<{ instanceId: string; processKey: string; calledFrom?: string }>;
   /** Whether the task's own process has lanes; without them the flat list stays. */
@@ -85,22 +87,25 @@ function mergeHistories(histories: Record<string, ActivityHistoryItem[]>): Activ
 }
 
 /**
- * The task node's Awb phase, or -- when its process carries no markers or its
+ * The task node's phase, or -- when its process carries no markers or its
  * model did not load -- the phase of the call activity that started it,
  * walking up the chain. A subprocess sits wholly inside its caller's phase.
+ * The set comes with it, from the same model, so the stepper always shows
+ * the phases the code belongs to.
  */
-function awbPhaseOf(
+function phaseOf(
   chain: ProcessContext['chain'],
   models: Record<string, PhaseSwimlaneModel>,
   nodeId: string
-): AwbPhaseCode | null {
+): Pick<ProcessContext, 'phase' | 'phaseSet'> {
   let id: string | undefined = nodeId;
   for (let i = chain.length - 1; i >= 0 && id; i--) {
-    const phase = models[chain[i].processKey]?.nodes.find((n) => n.id === id)?.awbPhase;
-    if (phase) return phase;
+    const model = models[chain[i].processKey];
+    const phase = model?.nodes.find((n) => n.id === id)?.phase;
+    if (phase && model.phaseSet) return { phase, phaseSet: model.phaseSet };
     id = chain[i].calledFrom;
   }
-  return null;
+  return { phase: null, phaseSet: null };
 }
 
 /**
@@ -149,7 +154,7 @@ export function buildProcessContext(input: ProcessContextInput): ProcessContext 
     history,
     statusByProcess,
     current: { processKey, nodeId },
-    awbPhase: awbPhaseOf(chain, models, nodeId),
+    ...phaseOf(chain, models, nodeId),
     chain,
     hasLanes: (own?.lanes.length ?? 0) > 0,
   };

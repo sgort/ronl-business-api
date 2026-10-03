@@ -17,6 +17,7 @@ import {
 } from '@services/search.service';
 import axios from 'axios';
 import { config } from '@utils/config';
+import { sendProblem } from '@utils/problem';
 import { getProductenDienstenItems } from '@services/productenDiensten.service';
 import multer from 'multer';
 import FormData from 'form-data';
@@ -67,13 +68,12 @@ const publicWriteLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    success: false,
-    error: {
+  handler: (req, res) =>
+    sendProblem(res, req, {
+      status: 429,
       code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Too many submissions, please try again later.',
-    },
-  },
+      detail: 'Too many submissions, please try again later.',
+    }),
   keyGenerator: (req) => req.ip || 'unknown',
 });
 
@@ -87,26 +87,29 @@ async function verifyAltcha(req: Request, res: Response, next: NextFunction) {
   }
   const token = (req.body as Record<string, string>)?.altcha;
   if (!token) {
-    res.status(400).json({
-      success: false,
-      error: { code: 'ALTCHA_MISSING', message: 'ALTCHA verification is required.' },
+    sendProblem(res, req, {
+      status: 400,
+      code: 'ALTCHA_MISSING',
+      detail: 'ALTCHA verification is required.',
     });
     return;
   }
   try {
     const ok = await verifySolution(token, config.altcha.hmacKey, true);
     if (!ok) {
-      res.status(400).json({
-        success: false,
-        error: { code: 'ALTCHA_INVALID', message: 'ALTCHA verification failed.' },
+      sendProblem(res, req, {
+        status: 400,
+        code: 'ALTCHA_INVALID',
+        detail: 'ALTCHA verification failed.',
       });
       return;
     }
     next();
   } catch {
-    res.status(400).json({
-      success: false,
-      error: { code: 'ALTCHA_ERROR', message: 'ALTCHA verification error.' },
+    sendProblem(res, req, {
+      status: 400,
+      code: 'ALTCHA_ERROR',
+      detail: 'ALTCHA verification error.',
     });
   }
 }
@@ -122,11 +125,12 @@ function meta() {
  * Issues a fresh proof-of-work challenge for ALTCHA widget on public write forms.
  * No authentication required.
  */
-router.get('/altcha/challenge', async (_req: Request, res: Response) => {
+router.get('/altcha/challenge', async (req: Request, res: Response) => {
   if (!config.altcha.hmacKey) {
-    res.status(503).json({
-      success: false,
-      error: { code: 'ALTCHA_NOT_CONFIGURED', message: 'ALTCHA is not configured.' },
+    sendProblem(res, req, {
+      status: 503,
+      code: 'ALTCHA_NOT_CONFIGURED',
+      detail: 'ALTCHA is not configured.',
     });
     return;
   }
@@ -140,9 +144,10 @@ router.get('/altcha/challenge', async (_req: Request, res: Response) => {
     res.json(challenge);
   } catch (error) {
     logger.error('Failed to create ALTCHA challenge', { error: String(error) });
-    res.status(500).json({
-      success: false,
-      error: { code: 'ALTCHA_ERROR', message: 'Could not generate challenge.' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'ALTCHA_ERROR',
+      detail: 'Could not generate challenge.',
     });
   }
 });
@@ -169,9 +174,10 @@ router.get('/nieuws', async (req: Request, res: Response) => {
     logger.error('Failed to serve nieuws', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'NIEUWS_FETCH_FAILED', message: 'Nieuws kon niet worden opgehaald.' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'NIEUWS_FETCH_FAILED',
+      detail: 'Nieuws kon niet worden opgehaald.',
     });
   }
 });
@@ -198,9 +204,10 @@ router.get('/berichten', async (req: Request, res: Response) => {
     logger.error('Failed to serve berichten', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'BERICHTEN_FETCH_FAILED', message: 'Berichten konden niet worden opgehaald.' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'BERICHTEN_FETCH_FAILED',
+      detail: 'Berichten konden niet worden opgehaald.',
     });
   }
 });
@@ -211,9 +218,10 @@ router.get('/berichten', async (req: Request, res: Response) => {
 router.get('/berichten/:id', (req: Request, res: Response) => {
   const item = getBerichtById(req.params.id);
   if (!item) {
-    return res.status(404).json({
-      success: false,
-      error: { code: 'BERICHT_NOT_FOUND', message: 'Bericht niet gevonden.' },
+    return sendProblem(res, req, {
+      status: 404,
+      code: 'BERICHT_NOT_FOUND',
+      detail: 'Bericht niet gevonden.',
     });
   }
   res.json({ success: true, data: item, meta: meta() });
@@ -241,12 +249,10 @@ router.get('/producten-diensten', async (req: Request, res: Response) => {
     logger.error('Failed to serve producten-diensten', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'PRODUCTEN_DIENSTEN_FETCH_FAILED',
-        message: 'Producten & diensten konden niet worden opgehaald.',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PRODUCTEN_DIENSTEN_FETCH_FAILED',
+      detail: 'Producten & diensten konden niet worden opgehaald.',
     });
   }
 });
@@ -270,12 +276,10 @@ router.get('/regelcatalogus', async (req: Request, res: Response) => {
     logger.error('Failed to serve regelcatalogus', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'REGELCATALOGUS_FETCH_FAILED',
-        message: 'Regelcatalogus kon niet worden opgehaald.',
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'REGELCATALOGUS_FETCH_FAILED',
+      detail: 'Regelcatalogus kon niet worden opgehaald.',
     });
   }
 });
@@ -285,7 +289,7 @@ router.get('/regelcatalogus', async (req: Request, res: Response) => {
  * Publicly-visible deployed BPMN processes (Camunda deployment index via LDE).
  * No authentication required. Cached 5 minutes server-side.
  */
-router.get('/processen', async (_req: Request, res: Response) => {
+router.get('/processen', async (req: Request, res: Response) => {
   try {
     const items = await getPublicProcesses();
     res.json({ success: true, data: items, meta: meta() });
@@ -293,9 +297,10 @@ router.get('/processen', async (_req: Request, res: Response) => {
     logger.error('Failed to serve processen', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCESSEN_FETCH_FAILED', message: 'Processen konden niet worden opgehaald.' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCESSEN_FETCH_FAILED',
+      detail: 'Processen konden niet worden opgehaald.',
     });
   }
 });
@@ -307,9 +312,10 @@ router.get('/processen/:key', async (req: Request, res: Response) => {
   try {
     const item = await getPublicProcessByKey(req.params.key);
     if (!item) {
-      return res.status(404).json({
-        success: false,
-        error: { code: 'PROCES_NOT_FOUND', message: 'Proces niet gevonden.' },
+      return sendProblem(res, req, {
+        status: 404,
+        code: 'PROCES_NOT_FOUND',
+        detail: 'Proces niet gevonden.',
       });
     }
     res.json({ success: true, data: item, meta: meta() });
@@ -318,9 +324,10 @@ router.get('/processen/:key', async (req: Request, res: Response) => {
       key: req.params.key,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'PROCES_FETCH_FAILED', message: 'Proces kon niet worden opgehaald.' },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'PROCES_FETCH_FAILED',
+      detail: 'Proces kon niet worden opgehaald.',
     });
   }
 });
@@ -361,10 +368,7 @@ router.get('/zoeken', async (req: Request, res: Response) => {
     logger.error('Failed to serve zoeken', {
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: { code: 'ZOEKEN_FAILED', message: 'Zoeken is mislukt.' },
-    });
+    sendProblem(res, req, { status: 500, code: 'ZOEKEN_FAILED', detail: 'Zoeken is mislukt.' });
   }
 });
 
@@ -379,9 +383,10 @@ function detailBySlug(type: PublicItemType) {
       const index = await getPublicIndex();
       const item = getPublicItemBySlug(index, type, req.params.slug);
       if (!item) {
-        return res.status(404).json({
-          success: false,
-          error: { code: 'ITEM_NOT_FOUND', message: 'Item niet gevonden.' },
+        return sendProblem(res, req, {
+          status: 404,
+          code: 'ITEM_NOT_FOUND',
+          detail: 'Item niet gevonden.',
         });
       }
       res.json({ success: true, data: item, meta: meta() });
@@ -391,9 +396,10 @@ function detailBySlug(type: PublicItemType) {
         slug: req.params.slug,
         error: error instanceof Error ? error.message : String(error),
       });
-      res.status(500).json({
-        success: false,
-        error: { code: 'ITEM_FETCH_FAILED', message: 'Item kon niet worden opgehaald.' },
+      sendProblem(res, req, {
+        status: 500,
+        code: 'ITEM_FETCH_FAILED',
+        detail: 'Item kon niet worden opgehaald.',
       });
     }
   };
@@ -424,23 +430,19 @@ router.post('/use-case', publicWriteLimiter, verifyAltcha, async (req: Request, 
   const { title, description } = req.body as { title?: string; description?: string };
 
   if (!title?.trim() || !description?.trim()) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'USE_CASE_INVALID',
-        message: 'Both title and description are required.',
-      },
+    return sendProblem(res, req, {
+      status: 400,
+      code: 'USE_CASE_INVALID',
+      detail: 'Both title and description are required.',
     });
   }
 
   if (!config.gitlab.token) {
     logger.error('GitLab token not configured — cannot create use-case issue');
-    return res.status(500).json({
-      success: false,
-      error: {
-        code: 'GITLAB_NOT_CONFIGURED',
-        message: 'Use-case submission is not configured on this server.',
-      },
+    return sendProblem(res, req, {
+      status: 500,
+      code: 'GITLAB_NOT_CONFIGURED',
+      detail: 'Use-case submission is not configured on this server.',
     });
   }
 
@@ -467,12 +469,10 @@ router.post('/use-case', publicWriteLimiter, verifyAltcha, async (req: Request, 
         status: gitlabRes.status,
         response: gitlabRes.data,
       });
-      return res.status(502).json({
-        success: false,
-        error: {
-          code: 'GITLAB_ERROR',
-          message: `GitLab returned ${gitlabRes.status}: ${JSON.stringify(gitlabRes.data)}`,
-        },
+      return sendProblem(res, req, {
+        status: 502,
+        code: 'GITLAB_ERROR',
+        detail: `GitLab returned ${gitlabRes.status}: ${JSON.stringify(gitlabRes.data)}`,
       });
     }
 
@@ -488,12 +488,10 @@ router.post('/use-case', publicWriteLimiter, verifyAltcha, async (req: Request, 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('Failed to create use-case work item', { error: message });
-    return res.status(502).json({
-      success: false,
-      error: {
-        code: 'GITLAB_UNREACHABLE',
-        message: `Could not reach GitLab: ${message}`,
-      },
+    return sendProblem(res, req, {
+      status: 502,
+      code: 'GITLAB_UNREACHABLE',
+      detail: `Could not reach GitLab: ${message}`,
     });
   }
 });
@@ -514,18 +512,16 @@ router.post(
     const gitlabBase = process.env.GITLAB_BASE_URL ?? 'https://git.open-regels.nl';
 
     if (!token || !projectPath) {
-      return res.status(503).json({
-        success: false,
-        error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+      return sendProblem(res, req, {
+        status: 503,
+        code: 'GITLAB_NOT_CONFIGURED',
+        detail: 'GitLab integration is not configured.',
       });
     }
 
     const file = req.file;
     if (!file) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'NO_FILE', message: 'No file provided.' },
-      });
+      return sendProblem(res, req, { status: 400, code: 'NO_FILE', detail: 'No file provided.' });
     }
 
     try {
@@ -541,9 +537,10 @@ router.post(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Failed to upload file to GitLab', { error: message });
-      return res.status(502).json({
-        success: false,
-        error: { code: 'GITLAB_UNREACHABLE', message: `Could not reach GitLab: ${message}` },
+      return sendProblem(res, req, {
+        status: 502,
+        code: 'GITLAB_UNREACHABLE',
+        detail: `Could not reach GitLab: ${message}`,
       });
     }
   }
@@ -562,9 +559,10 @@ router.get('/use-cases', async (req: Request, res: Response) => {
 
   if (!token || !projectPath) {
     logger.error('GitLab env vars missing for use-cases listing');
-    return res.status(503).json({
-      success: false,
-      error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+    return sendProblem(res, req, {
+      status: 503,
+      code: 'GITLAB_NOT_CONFIGURED',
+      detail: 'GitLab integration is not configured.',
     });
   }
 
@@ -601,12 +599,10 @@ router.get('/use-cases', async (req: Request, res: Response) => {
       state,
       error: error instanceof Error ? error.message : String(error),
     });
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'USE_CASES_FETCH_FAILED',
-        message: "Gebruiksscenario's konden niet worden opgehaald.",
-      },
+    sendProblem(res, req, {
+      status: 500,
+      code: 'USE_CASES_FETCH_FAILED',
+      detail: "Gebruiksscenario's konden niet worden opgehaald.",
     });
   }
 });
@@ -629,18 +625,20 @@ router.post(
 
     if (!token || !projectPath) {
       logger.error('GitLab env vars missing for feedback submission');
-      return res.status(503).json({
-        success: false,
-        error: { code: 'GITLAB_NOT_CONFIGURED', message: 'GitLab integration is not configured.' },
+      return sendProblem(res, req, {
+        status: 503,
+        code: 'GITLAB_NOT_CONFIGURED',
+        detail: 'GitLab integration is not configured.',
       });
     }
 
     const { name, org, role, contact, description } = req.body as Record<string, string>;
 
     if (!name?.trim() || !contact?.trim() || !description?.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'MISSING_FIELDS', message: 'name, contact, and description are required.' },
+      return sendProblem(res, req, {
+        status: 400,
+        code: 'MISSING_FIELDS',
+        detail: 'name, contact, and description are required.',
       });
     }
 
@@ -718,9 +716,10 @@ ${description.trim()}${screenshotsSection}`;
       logger.error('Failed to submit feedback', {
         error: error instanceof Error ? error.message : String(error),
       });
-      res.status(500).json({
-        success: false,
-        error: { code: 'FEEDBACK_SUBMIT_FAILED', message: 'Feedback kon niet worden ingediend.' },
+      sendProblem(res, req, {
+        status: 500,
+        code: 'FEEDBACK_SUBMIT_FAILED',
+        detail: 'Feedback kon niet worden ingediend.',
       });
     }
   }

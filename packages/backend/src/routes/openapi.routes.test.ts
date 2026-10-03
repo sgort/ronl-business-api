@@ -86,7 +86,7 @@ describe('GET /v1/openapi.json', () => {
       ).not.toThrow();
     });
 
-    test('answers 500 with the error envelope', async () => {
+    test('answers 500 with a problem details body', async () => {
       const response = await request(
         appWith(() => {
           throw new Error('ENOENT');
@@ -94,9 +94,14 @@ describe('GET /v1/openapi.json', () => {
       ).get('/v1/openapi.json');
 
       expect(response.status).toBe(500);
+      expect(response.headers['content-type']).toMatch(/^application\/problem\+json/);
       expect(response.body).toEqual({
-        success: false,
-        error: { code: 'OPENAPI_UNAVAILABLE', message: 'The OpenAPI description is not available' },
+        type: 'about:blank',
+        status: 500,
+        title: 'Openapi unavailable',
+        detail: 'The OpenAPI description is not available',
+        instance: '/v1/openapi.json',
+        code: 'OPENAPI_UNAVAILABLE',
       });
     });
   });

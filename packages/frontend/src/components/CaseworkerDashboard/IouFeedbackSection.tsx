@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AltchaWidget from '../AltchaWidget';
+import { problemMessage } from '../../utils/problem';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL as string;
 const MAX_SCREENSHOTS = 5;
@@ -189,7 +190,7 @@ export default function IouFeedbackSection() {
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
-        throw new Error(data.error?.message || `HTTP ${response.status}`);
+        throw new Error(problemMessage(data, `HTTP ${response.status}`));
       }
       setSuccessData(data.data);
       setSubmitState('success');

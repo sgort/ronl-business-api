@@ -1,6 +1,6 @@
 {
   "name": "@ronl/frontend",
-  "version": "2026.09.15",
+  "version": "2026.10.0",
   "description": "Municipality portal (MijnOmgeving) with identity provider selection",
   "type": "module",
   "scripts": {
@@ -25,7 +25,6 @@
     "@bpmn-io/form-js": "^1.20.1",
     "@ronl/pa-cockpit": "*",
     "@ronl/shared": "*",
-    "@tailwindcss/typography": "^0.5.19",
     "altcha": "^3.0.11",
     "axios": "^1.6.5",
     "keycloak-js": "^23.0.4",
@@ -37,10 +36,11 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@playwright/test": "^1.61.1",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@typescript-eslint/eslint-plugin": "^6.21.0",

@@ -74,6 +74,16 @@ vi.mock('../CaseworkerDashboard/AuditSection', () => ({
 vi.mock('../CaseworkerDashboard/CapacityClaimSection', () => ({
   default: () => <div>capacity-claim</div>,
 }));
+vi.mock('../CaseworkerDashboard/BesluitStartSection', () => ({
+  default: () => <div>besluit-start-section</div>,
+}));
+const mockBesluitOverzicht = vi.hoisted(() => vi.fn());
+vi.mock('../CaseworkerDashboard/BesluitOverzichtSection', () => ({
+  default: (props: { state: string }) => {
+    mockBesluitOverzicht(props);
+    return <div>besluit-overzicht-{props.state}</div>;
+  },
+}));
 vi.mock('../CaseworkerDashboard/CapacityClaimArchiefSection', () => ({
   default: () => <div>capacity-claim-archief</div>,
 }));
@@ -96,7 +106,7 @@ vi.mock('../CaseworkerDashboard/GereedschapSection', () => ({
 // defence-in-depth gate — gating itself is covered separately below.
 const superUser = {
   sub: '1',
-  roles: ['hr-medewerker', 'manager', 'infra-projectteam', 'admin'],
+  roles: ['hr-medewerker', 'manager', 'infra-projectteam', 'admin', 'besluit-indiener'],
   organisation_type: 'municipality',
 } as never;
 
@@ -140,11 +150,22 @@ describe('SectionRouter', () => {
     ['iou-gebruiksscenario', 'iou-gebruiksscenario'],
     ['iou-feedback', 'iou-feedback'],
     ['capacity-claim', 'capacity-claim'],
+    // A distinct label: the fallback prints the section id itself.
+    ['besluit-starten', 'besluit-start-section'],
     ['dvtp-taken', 'dvtp-taken'],
     ['gereedschap-overzicht', 'gereedschap'],
   ])('routes "%s" to its component', (sectionId, text) => {
     render(<SectionRouter {...baseProps} sectionId={sectionId} />);
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['besluiten-lopend', 'lopend'],
+    ['besluiten-afgerond', 'afgerond'],
+  ])('routes "%s" to the besluit overview in state %s', (sectionId, state) => {
+    render(<SectionRouter {...baseProps} sectionId={sectionId} />);
+    expect(screen.getByText(`besluit-overzicht-${state}`)).toBeInTheDocument();
+    expect(mockBesluitOverzicht).toHaveBeenCalledWith(expect.objectContaining({ state }));
   });
 
   it('archief passes the caseworker board id and denies the infra process keys', () => {

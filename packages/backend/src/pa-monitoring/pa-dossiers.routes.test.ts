@@ -14,7 +14,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     if (req.headers['x-test-no-user']) return next();
     const header = req.headers['x-test-roles'] as string | undefined;
     if (!header) {
-      return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     }
     req.user = {
       userId: 'test-user',
@@ -35,11 +42,25 @@ jest.mock('@auth/jwt.middleware', () => ({
       if (req.headers['x-test-no-user']) return next();
       const user = req.user;
       if (!user) {
-        return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+        return res.status(401).type('application/problem+json').json({
+          type: 'about:blank',
+          status: 401,
+          title: 'Unauthorized',
+          detail: 'Authentication required',
+          instance: req.originalUrl,
+          code: 'UNAUTHORIZED',
+        });
       }
       const has = required.some((r) => user.roles.includes(r));
       if (!has) {
-        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN' } });
+        return res.status(403).type('application/problem+json').json({
+          type: 'about:blank',
+          status: 403,
+          title: 'Forbidden',
+          detail: 'Insufficient permissions',
+          instance: req.originalUrl,
+          code: 'FORBIDDEN',
+        });
       }
       next();
     },
@@ -198,7 +219,7 @@ describe('GET /v1/pa/dossiers', () => {
     const res = await request(app).get('/v1/pa/dossiers').set(PA);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/pa/dossiers');
-    expect(res.body.error.code).toBe('DOSSIERS_ERROR');
+    expect(res.body.code).toBe('DOSSIERS_ERROR');
   });
 });
 
@@ -216,6 +237,15 @@ describe('GET /v1/pa/dossiers/:id', () => {
     const res = await request(app).get('/v1/pa/dossiers/unknown').set(PA);
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
+    expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
+    expect(res.body).toEqual({
+      type: 'about:blank',
+      status: 404,
+      title: 'Not found',
+      detail: 'Dossier not found',
+      instance: '/v1/pa/dossiers/unknown',
+      code: 'NOT_FOUND',
+    });
   });
 
   it('public-affairs → 200 cockpit shape (no versies)', async () => {
@@ -241,7 +271,7 @@ describe('GET /v1/pa/dossiers/:id', () => {
     const res = await request(app).get('/v1/pa/dossiers/stikstof').set(PA);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/pa/dossiers/{id}');
-    expect(res.body.error.code).toBe('DOSSIER_ERROR');
+    expect(res.body.code).toBe('DOSSIER_ERROR');
   });
 });
 
@@ -267,7 +297,7 @@ describe('POST /v1/pa/dossiers (create)', () => {
       .set(AUTHOR)
       .send({ naam: 'ab', onderwerp: 'x' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_FIELDS');
+    expect(res.body.code).toBe('INVALID_FIELDS');
   });
 
   it('author publishing → 403 FORBIDDEN_PUBLISH', async () => {
@@ -276,7 +306,7 @@ describe('POST /v1/pa/dossiers (create)', () => {
       .set(AUTHOR)
       .send({ ...valid, gepubliceerd: true });
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN_PUBLISH');
+    expect(res.body.code).toBe('FORBIDDEN_PUBLISH');
   });
 
   it('author, valid → 201 and appends version v1', async () => {
@@ -316,7 +346,7 @@ describe('POST /v1/pa/dossiers (create)', () => {
     const res = await request(app).post('/v1/pa/dossiers').set(AUTHOR).send(valid);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/pa/dossiers');
-    expect(res.body.error.code).toBe('DOSSIER_CREATE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_CREATE_ERROR');
   });
 });
 
@@ -345,7 +375,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ gepubliceerd: true });
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN_PUBLISH');
+    expect(res.body.code).toBe('FORBIDDEN_PUBLISH');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -356,7 +386,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ gepubliceerd: false });
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN_PUBLISH');
+    expect(res.body.code).toBe('FORBIDDEN_PUBLISH');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -379,7 +409,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ status: 'gearchiveerd' });
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN_ARCHIVE');
+    expect(res.body.code).toBe('FORBIDDEN_ARCHIVE');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -390,7 +420,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(EDITOR)
       .send({ status: 'gearchiveerd' });
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('FORBIDDEN_ARCHIVE');
+    expect(res.body.code).toBe('FORBIDDEN_ARCHIVE');
   });
 
   it('unrecognized status value → 400 INVALID_STATUS', async () => {
@@ -399,7 +429,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ status: 'weggegooid' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_STATUS');
+    expect(res.body.code).toBe('INVALID_STATUS');
     expect(mockDb.oneOrNone).not.toHaveBeenCalled();
   });
 
@@ -432,7 +462,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(ADMIN)
       .send({ status: 'actief' });
     expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('ARCHIVED_READONLY');
+    expect(res.body.code).toBe('ARCHIVED_READONLY');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -443,7 +473,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ naam: 'ab' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_FIELDS');
+    expect(res.body.code).toBe('INVALID_FIELDS');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -454,7 +484,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ onderwerp: '   ' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_FIELDS');
+    expect(res.body.code).toBe('INVALID_FIELDS');
   });
 
   it('500s on a DB error', async () => {
@@ -465,7 +495,7 @@ describe('PATCH /v1/pa/dossiers/:id (edit)', () => {
       .set(AUTHOR)
       .send({ onderwerp: 'Aangepast onderwerp' });
     expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('DOSSIER_UPDATE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_UPDATE_ERROR');
   });
 });
 
@@ -555,7 +585,7 @@ describe('POST /v1/pa/dossiers/:id/watch', () => {
     const res = await request(app).post('/v1/pa/dossiers/stikstof/watch').set(PA).send({});
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/watch');
-    expect(res.body.error.code).toBe('DOSSIER_WATCH_ERROR');
+    expect(res.body.code).toBe('DOSSIER_WATCH_ERROR');
   });
 });
 
@@ -584,7 +614,7 @@ describe('DELETE /v1/pa/dossiers/:id/watch', () => {
     const res = await request(app).delete('/v1/pa/dossiers/stikstof/watch').set(PA);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}/watch');
-    expect(res.body.error.code).toBe('DOSSIER_WATCH_DELETE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_WATCH_DELETE_ERROR');
   });
 });
 
@@ -604,7 +634,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
       .set(ADMIN)
       .send({ classificatie: 'intern', bewaartermijn: 'V10' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_ARCHIVE_METADATA');
+    expect(res.body.code).toBe('INVALID_ARCHIVE_METADATA');
   });
 
   it('admin, bad classificatie → 400', async () => {
@@ -621,7 +651,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
       .set(ADMIN)
       .send({ ...meta, reden: 123 });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_ARCHIVE_METADATA');
+    expect(res.body.code).toBe('INVALID_ARCHIVE_METADATA');
   });
 
   it('admin, unknown id → 404', async () => {
@@ -675,7 +705,7 @@ describe('POST /v1/pa/dossiers/:id/archive', () => {
     const res = await request(app).post('/v1/pa/dossiers/stikstof/archive').set(ADMIN).send(meta);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/archive');
-    expect(res.body.error.code).toBe('DOSSIER_ARCHIVE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_ARCHIVE_ERROR');
   });
 });
 
@@ -700,7 +730,7 @@ describe('POST /v1/pa/dossiers/:id/unarchive', () => {
     const res = await request(app).post('/v1/pa/dossiers/stikstof/unarchive').set(ADMIN);
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
-    expect(res.body.error.code).toBe('NOT_ARCHIVED');
+    expect(res.body.code).toBe('NOT_ARCHIVED');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -750,7 +780,7 @@ describe('POST /v1/pa/dossiers/:id/unarchive', () => {
     const res = await request(app).post('/v1/pa/dossiers/omgevingswet-2023/unarchive').set(ADMIN);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'post', '/pa/dossiers/{id}/unarchive');
-    expect(res.body.error.code).toBe('DOSSIER_UNARCHIVE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_UNARCHIVE_ERROR');
   });
 });
 
@@ -831,7 +861,7 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
-    expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_DELETE_ERROR');
   });
 
   it('versions delete failing mid-transaction → 500 (not a partial delete leaving orphaned versions)', async () => {
@@ -840,7 +870,7 @@ describe('DELETE /v1/pa/dossiers/:id', () => {
     const res = await request(app).delete('/v1/pa/dossiers/stikstof').set(ADMIN);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'delete', '/pa/dossiers/{id}');
-    expect(res.body.error.code).toBe('DOSSIER_DELETE_ERROR');
+    expect(res.body.code).toBe('DOSSIER_DELETE_ERROR');
   });
 });
 
@@ -890,7 +920,7 @@ describe('templates + snippets', () => {
     const res = await request(app).get('/v1/pa/templates').set(PA);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/pa/templates');
-    expect(res.body.error.code).toBe('TEMPLATES_ERROR');
+    expect(res.body.code).toBe('TEMPLATES_ERROR');
   });
 
   it('POST /templates without editor → 403', async () => {
@@ -903,7 +933,7 @@ describe('templates + snippets', () => {
     const res = await request(app).post('/v1/pa/templates').set(EDITOR).send({ naam: '   ' });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/pa/templates');
-    expect(res.body.error.code).toBe('MISSING_NAAM');
+    expect(res.body.code).toBe('MISSING_NAAM');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -924,7 +954,7 @@ describe('templates + snippets', () => {
       .set(EDITOR)
       .send({ naam: 'Nieuw sjabloon' });
     expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('TEMPLATE_CREATE_ERROR');
+    expect(res.body.code).toBe('TEMPLATE_CREATE_ERROR');
   });
 
   it('GET /snippets → 200', async () => {
@@ -940,7 +970,7 @@ describe('templates + snippets', () => {
     const res = await request(app).get('/v1/pa/snippets').set(PA);
     expect(res.status).toBe(500);
     expectToMatchOperation(res, 'get', '/pa/snippets');
-    expect(res.body.error.code).toBe('SNIPPETS_ERROR');
+    expect(res.body.code).toBe('SNIPPETS_ERROR');
   });
 
   it('POST /snippets, missing naam → 400 MISSING_FIELDS', async () => {
@@ -949,7 +979,7 @@ describe('templates + snippets', () => {
       .set(EDITOR)
       .send({ naam: '  ', md: 'x' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
     expect(mockDb.none).not.toHaveBeenCalled();
   });
 
@@ -957,7 +987,7 @@ describe('templates + snippets', () => {
     const res = await request(app).post('/v1/pa/snippets').set(EDITOR).send({ naam: 'Blok' });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/pa/snippets');
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
   });
 
   it('POST /snippets as editor → 201', async () => {
@@ -977,7 +1007,7 @@ describe('templates + snippets', () => {
       .set(EDITOR)
       .send({ naam: 'Blok', md: '- item' });
     expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('SNIPPET_CREATE_ERROR');
+    expect(res.body.code).toBe('SNIPPET_CREATE_ERROR');
   });
 });
 
@@ -999,7 +1029,7 @@ describe('handler guards for an authenticated request without a user', () => {
   ] as const)('%s %s -> 401 UNAUTHORIZED', async (method, path) => {
     const res = await request(app)[method](path).set(NO_USER).send({});
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.code).toBe('UNAUTHORIZED');
   });
 });
 

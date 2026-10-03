@@ -4,8 +4,6 @@
  * drift from what the renderer expects.
  */
 
-import type { AwbPhaseCode } from './awb-phases';
-
 export type NodeKind =
   | 'start'
   | 'end'
@@ -52,10 +50,34 @@ export interface SwimNode {
   /** `camunda:formRef` of the node, when it has one. */
   formRef?: string;
   /**
-   * Explicit `ronl:awbPhase`, or inherited from the latest-phase forward
-   * predecessor. Absent throughout a process that carries no markers.
+   * Code of the node's phase in the model's `phaseSet`: its own marker, or
+   * inherited from the latest-phase forward predecessor. Absent throughout a
+   * process that carries no markers.
    */
-  awbPhase?: AwbPhaseCode;
+  phase?: string;
+}
+
+/** One step of a process's phase stepper. */
+export interface ProcessPhase {
+  /** What a node's marker carries: `ronl:awbPhase` for Awb, `ronl:phase` otherwise. */
+  code: string;
+  name: string;
+  /** Under the name on the stepper, and before it in the caption: "Fase 4+5", "Archiefwet", "Fase 2". */
+  codeLabel: string;
+}
+
+/**
+ * The phases a process moves through, in order.
+ *
+ * - `awb`: the built-in Awb table, chosen by `ronl:awbPhase` markers.
+ * - `bpmn`: declared by the process itself in `ronl:phases`, so a process
+ *   modelled in LDE gets a stepper without a change here.
+ */
+export interface PhaseSet {
+  scheme: 'awb' | 'bpmn';
+  /** Prefix of a phase reference, "Awb-fase 6": the process's `ronl:phaseLabel`, "Fase" by default. */
+  label: string;
+  phases: ProcessPhase[];
 }
 
 export interface SwimEdge {
@@ -72,6 +94,8 @@ export interface PhaseSwimlaneModel {
   processKey?: string;
   /** The `bpmn:process` name. */
   processName?: string;
+  /** Present when at least one node carries a phase marker; drives the stepper. */
+  phaseSet?: PhaseSet;
   lanes: SwimLane[];
   nodes: SwimNode[];
   edges: SwimEdge[];

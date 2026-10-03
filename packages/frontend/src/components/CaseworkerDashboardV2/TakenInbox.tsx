@@ -21,13 +21,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  ActivityHistoryItem,
-  AwbPhaseCode,
-  KeycloakUser,
-  PhaseSwimlaneModel,
-  Task,
-} from '@ronl/shared';
+import type { ActivityHistoryItem, KeycloakUser, PhaseSwimlaneModel, Task } from '@ronl/shared';
 import { businessApi } from '../../services/api';
 import TaskFormViewer from '../CaseworkerDashboard/TaskFormViewer';
 import { activityTypeLabel, AUTOMATED_TYPES } from '../CaseworkerDashboard/processSteps';
@@ -36,6 +30,9 @@ import { useTaskProcessContext } from '../process/useTaskProcessContext';
 import ProcessWhere from '../process/ProcessWhere';
 import ProcessLaneSteps from '../process/ProcessLaneSteps';
 import ProcessOverlay from '../process/ProcessOverlay';
+import { phaseRef } from '../process/phaseSet';
+import SigningPanel from '../signing/SigningPanel';
+import { useTaskSignature } from '../signing/useTaskSignature';
 import { usePaletteAction } from './paletteActionsContext';
 
 type FilterId = 'all' | 'overdue' | 'mine' | 'today' | 'week' | 'unassigned';
@@ -103,8 +100,12 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
   const [activity, setActivity] = useState<ActivityHistoryItem[] | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  /** The process overlay: closed, open on the task's own phase, or open at a chosen phase. */
-  const [overlay, setOverlay] = useState<AwbPhaseCode | 'open' | null>(null);
+  /**
+   * The process overlay: closed (null), open on the task's own phase (no
+   * phase), or open at a chosen one. An object rather than a sentinel string:
+   * a phase the process declares itself could be coded anything, "open" too.
+   */
+  const [overlay, setOverlay] = useState<{ phase?: string } | null>(null);
   /** Procesgegevens is a long table; it stays folded until asked for, per task. */
   const [varsOpen, setVarsOpen] = useState(false);
   /** Swimlane model per process key in the list, for the Awb-fase hint; null when it failed. */
@@ -172,10 +173,12 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks]);
 
-  const awbHint = (t: Task): AwbPhaseCode | undefined => {
+  /** "Awb-fase 6", "Fase 2": the task node's phase in its own model, when it has one. */
+  const phaseHint = (t: Task): string | undefined => {
     const model = t.processDefinitionKey ? listModels[t.processDefinitionKey] : undefined;
-    if (!model || model.lanes.length === 0) return undefined;
-    return model.nodes.find((n) => n.id === t.taskDefinitionKey)?.awbPhase;
+    if (!model || model.lanes.length === 0 || !model.phaseSet) return undefined;
+    const phase = model.nodes.find((n) => n.id === t.taskDefinitionKey)?.phase;
+    return phase ? `${model.phaseSet.label} ${phaseRef(model.phaseSet, phase)}` : undefined;
   };
 
   // ── Filter + sort ──────────────────────────────────────
@@ -203,6 +206,9 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
 
   const selected = visible.find((t) => t.id === selectedId) ?? null;
 
+  // Whether the selected task is signed through ValidSign instead of its form.
+  const sig = useTaskSignature(selected?.id ?? null);
+
   // The procesweergave: lanes, Awb phase and history across the call chain.
   // Without lanes (or while loading, or on failure) today's flat list stays.
   const procCtx = useTaskProcessContext(selected);
@@ -216,7 +222,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
       ? {
           id: 'cwp-open-process',
           label: 'Proces van deze taak bekijken',
-          run: () => setOverlay('open'),
+          run: () => setOverlay({}),
         }
       : null
   );
@@ -344,7 +350,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                   </div>
                   <div className="v2-taken-item-meta">
                     <code>{t.processDefinitionKey ?? t.processDefinitionId}</code>
-                    {awbHint(t) && <span className="cwp-awb-hint">Awb-fase {awbHint(t)}</span>}
+                    {phaseHint(t) && <span className="cwp-awb-hint">{phaseHint(t)}</span>}
                     {t.due && (
                       <span className={overdue ? 'due overdue' : 'due'}>
                         {overdue ? 'Te laat — ' : 'Deadline '}
@@ -390,7 +396,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
               <ProcessWhere
                 ctx={lanes}
                 deadline={varString('awbDeadlineDate')}
-                onOpen={(phase) => setOverlay(phase)}
+                onOpen={(phase) => setOverlay({ phase })}
               />
             )}
 
@@ -455,7 +461,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                   key={selected.id}
                   ctx={lanes}
                   roles={roles}
-                  onOpen={(phase) => setOverlay(phase ?? 'open')}
+                  onOpen={(phase) => setOverlay({ phase })}
                 />
               ) : activity && activity.length > 0 ? (
                 <ol className="v2-taken-steps">
@@ -505,6 +511,32 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                 <button type="button" className="v2-btn" onClick={handleClaim} disabled={claiming}>
                   {claiming ? 'Claimen…' : 'Taak claimen'}
                 </button>
+              ) : sig.loading ? (
+                // Neither form nor panel until we know which applies: the form
+                // would let a signature task be approved without signing.
+                <p className="v2-taken-state">Ondertekening controleren…</p>
+              ) : sig.spec?.required ? (
+                <SigningPanel
+                  // Keyed by task: the panel's state comes from its spec once,
+                  // and must never carry one task's ceremony over to the next.
+                  key={selected.id}
+                  taskId={selected.id}
+                  spec={sig.spec}
+                  onCompleted={() => {
+                    // Same as the form's completion below: the panel unmounts
+                    // when the task leaves the list, so the parent owns the message.
+                    setActionMessage({ type: 'success', text: 'Taak voltooid.' });
+                    loadTasks();
+                  }}
+                  onDeclined={() => {
+                    // The task completed server-side and the case loops back.
+                    setActionMessage({
+                      type: 'success',
+                      text: 'Niet ondertekend — de taak gaat terug naar de indiener.',
+                    });
+                    loadTasks();
+                  }}
+                />
               ) : (
                 <TaskFormViewer
                   taskId={selected.id}
@@ -527,7 +559,7 @@ export default function TakenInbox({ user, initialFilter = 'all', onCountChange 
                 task={selected}
                 ctx={lanes}
                 roles={roles}
-                initialPhase={overlay === 'open' ? undefined : overlay}
+                initialPhase={overlay.phase}
                 dossierRef={varString('dossierReference')}
                 returnFocus={() => detailTitleRef.current}
                 onClose={() => setOverlay(null)}

@@ -182,7 +182,7 @@ describe('content feeds', () => {
     const res = await request(app).get('/v1/public/berichten/nope');
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/public/berichten/{id}');
-    expect(res.body.error.code).toBe('BERICHT_NOT_FOUND');
+    expect(res.body.code).toBe('BERICHT_NOT_FOUND');
   });
 
   it('GET /producten-diensten returns items', async () => {
@@ -230,7 +230,7 @@ describe('GET /altcha/challenge', () => {
     const res = await request(app).get('/v1/public/altcha/challenge');
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'get', '/public/altcha/challenge');
-    expect(res.body.error.code).toBe('ALTCHA_NOT_CONFIGURED');
+    expect(res.body.code).toBe('ALTCHA_NOT_CONFIGURED');
   });
 
   it('returns a challenge when configured', async () => {
@@ -254,7 +254,7 @@ describe('POST /use-case', () => {
     const res = await request(app).post('/v1/public/use-case').send({ title: 'only title' });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/public/use-case');
-    expect(res.body.error.code).toBe('USE_CASE_INVALID');
+    expect(res.body.code).toBe('USE_CASE_INVALID');
   });
 
   it('500 when GitLab is not configured', async () => {
@@ -262,7 +262,7 @@ describe('POST /use-case', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D' });
     expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('GITLAB_NOT_CONFIGURED');
+    expect(res.body.code).toBe('GITLAB_NOT_CONFIGURED');
   });
 
   it('201 with the created issue', async () => {
@@ -282,7 +282,7 @@ describe('POST /use-case', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D' });
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('GITLAB_ERROR');
+    expect(res.body.code).toBe('GITLAB_ERROR');
   });
 
   it('502 when GitLab is unreachable', async () => {
@@ -292,7 +292,7 @@ describe('POST /use-case', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D' });
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('GITLAB_UNREACHABLE');
+    expect(res.body.code).toBe('GITLAB_UNREACHABLE');
   });
 });
 
@@ -341,7 +341,7 @@ describe('verifyAltcha (via /use-case, hmacKey set)', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('ALTCHA_MISSING');
+    expect(res.body.code).toBe('ALTCHA_MISSING');
   });
 
   it('400 ALTCHA_INVALID when verification fails', async () => {
@@ -350,7 +350,7 @@ describe('verifyAltcha (via /use-case, hmacKey set)', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D', altcha: 'tok' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('ALTCHA_INVALID');
+    expect(res.body.code).toBe('ALTCHA_INVALID');
   });
 
   it('400 ALTCHA_ERROR when verification throws', async () => {
@@ -359,7 +359,7 @@ describe('verifyAltcha (via /use-case, hmacKey set)', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D', altcha: 'tok' });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('ALTCHA_ERROR');
+    expect(res.body.code).toBe('ALTCHA_ERROR');
   });
 
   it('passes through to the handler when the solution is valid', async () => {
@@ -402,7 +402,7 @@ describe('GitLab upload success paths', () => {
       .post('/v1/public/feedback')
       .send({ name: 'Bob', contact: 'bob@x.nl', description: 'It broke' });
     expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('FEEDBACK_SUBMIT_FAILED');
+    expect(res.body.code).toBe('FEEDBACK_SUBMIT_FAILED');
   });
 });
 
@@ -419,7 +419,7 @@ describe('POST /upload-file and /feedback (validation branches)', () => {
     const res = await request(app).post('/v1/public/upload-file').send({});
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/public/upload-file');
-    expect(res.body.error.code).toBe('NO_FILE');
+    expect(res.body.code).toBe('NO_FILE');
   });
 
   it('feedback → 503 when GitLab env is missing', async () => {
@@ -434,7 +434,7 @@ describe('POST /upload-file and /feedback (validation branches)', () => {
     const res = await request(app).post('/v1/public/feedback').send({ name: 'Bob' });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/public/feedback');
-    expect(res.body.error.code).toBe('MISSING_FIELDS');
+    expect(res.body.code).toBe('MISSING_FIELDS');
   });
 });
 
@@ -461,7 +461,7 @@ describe('GET /processen/:key', () => {
     const res = await request(app).get('/v1/public/processen/nope');
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/public/processen/{key}');
-    expect(res.body.error.code).toBe('PROCES_NOT_FOUND');
+    expect(res.body.code).toBe('PROCES_NOT_FOUND');
   });
 });
 
@@ -541,7 +541,7 @@ describe('GET /nieuws/:slug, /producten/:slug, /regels/:slug', () => {
     const res = await request(app).get('/v1/public/regels/nope');
     expect(res.status).toBe(404);
     expectToMatchOperation(res, 'get', '/public/regels/{slug}');
-    expect(res.body.error.code).toBe('ITEM_NOT_FOUND');
+    expect(res.body.code).toBe('ITEM_NOT_FOUND');
   });
 
   it('500 on failure', async () => {
@@ -686,7 +686,8 @@ describe('failures that are not Error instances', () => {
     fail();
     const res = await request(app).get(path);
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
+    expect(res.body.status).toBe(500);
+    expect(res.body.code).toEqual(expect.any(String));
   });
 
   it('POST /use-case → 502 carrying the stringified reason', async () => {
@@ -696,9 +697,9 @@ describe('failures that are not Error instances', () => {
       .post('/v1/public/use-case')
       .send({ title: 'T', description: 'D' });
     expect(res.status).toBe(502);
-    expect(res.body.error).toMatchObject({
+    expect(res.body).toMatchObject({
       code: 'GITLAB_UNREACHABLE',
-      message: 'Could not reach GitLab: socket hang up',
+      detail: 'Could not reach GitLab: socket hang up',
     });
   });
 

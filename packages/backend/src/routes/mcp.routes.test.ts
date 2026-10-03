@@ -8,7 +8,15 @@ import type { Request, Response, NextFunction } from 'express';
 jest.mock('@auth/jwt.middleware', () => ({
   jwtMiddleware: (req: Request, res: Response, next: NextFunction) => {
     const roles = req.headers['x-test-roles'] as string | undefined;
-    if (!roles) return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+    if (!roles)
+      return res.status(401).type('application/problem+json').json({
+        type: 'about:blank',
+        status: 401,
+        title: 'Missing token',
+        detail: 'Missing token',
+        instance: req.originalUrl,
+        code: 'MISSING_TOKEN',
+      });
     req.user = { userId: 'u', tenantId: 'flevoland', roles: roles.split(',') } as Request['user'];
     next();
   },
@@ -16,7 +24,14 @@ jest.mock('@auth/jwt.middleware', () => ({
     (...roles: string[]) =>
     (req: Request, res: Response, next: NextFunction) => {
       if (!req.user?.roles.some((r) => roles.includes(r)))
-        return res.status(403).json({ success: false, error: { code: 'FORBIDDEN' } });
+        return res.status(403).type('application/problem+json').json({
+          type: 'about:blank',
+          status: 403,
+          title: 'Forbidden',
+          detail: 'Forbidden',
+          instance: req.originalUrl,
+          code: 'FORBIDDEN',
+        });
       next();
     },
 }));
@@ -104,14 +119,14 @@ describe('POST /v1/mcp/chat', () => {
     const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'post', '/mcp/chat');
-    expect(res.body.error.code).toBe('MCP_DISABLED');
+    expect(res.body.code).toBe('MCP_DISABLED');
   });
 
   it('400 when the message is blank', async () => {
     const res = await auth(request(app).post('/v1/mcp/chat')).send({ ...body, message: '  ' });
     expect(res.status).toBe(400);
     expectToMatchOperation(res, 'post', '/mcp/chat');
-    expect(res.body.error.code).toBe('INVALID_REQUEST');
+    expect(res.body.code).toBe('INVALID_REQUEST');
   });
 
   it('400 when modelId is missing', async () => {
@@ -125,7 +140,7 @@ describe('POST /v1/mcp/chat', () => {
     const res = await auth(request(app).post('/v1/mcp/chat')).send(body);
     expect(res.status).toBe(503);
     expectToMatchOperation(res, 'post', '/mcp/chat');
-    expect(res.body.error.code).toBe('MCP_NOT_CONNECTED');
+    expect(res.body.code).toBe('MCP_NOT_CONNECTED');
   });
 
   it('streams the chat turn and a final done event', async () => {

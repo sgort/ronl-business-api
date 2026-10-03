@@ -112,6 +112,190 @@ export const changelog: Changelog = {
   versions: [
     {
       format: 'commits',
+      version: '2026.10.0',
+      status: 'Released',
+      date: '3 okt 2026',
+      scope: ['frontend', 'backend', 'public-site'],
+      commits: [
+        {
+          sha: '6673eee',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'A lockfile-only install no longer rewrites the deps marker',
+          details: [
+            '`npm install --package-lock-only` installs nothing but still runs the root postinstall, so write-deps-marker.sh recorded a lockfile that was never installed. deps:check then reported "in sync" over a stale node_modules, or "not ready" over a correct one on the branch you came from. The script now exits when npm_config_package_lock_only is true (#288).',
+          ],
+        },
+        {
+          sha: 'c48b2cd',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: '@tailwindcss/typography is a devDependency, which clears the daily audit',
+          details: [
+            'The daily dependency audit failed on a high advisory in braces <= 3.0.3 (GHSA-vfj7-8cjw-p6xm), which has no patched release. braces counted as production only because @tailwindcss/typography sat in the frontend’s dependencies, although it is a Tailwind plugin used at build time and tailwindcss itself is a devDependency. Moving it makes braces dev-only. The lockfile diff is dev flags only (#303).',
+          ],
+        },
+        {
+          sha: '81a6c49',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Every error is now RFC 9457 problem details (breaking)',
+          details: [
+            'Every 4xx and 5xx answers application/problem+json with type, status, title, detail and instance, plus a code extension member, instead of { success: false, error: { code, message } }. error.code is now code, and error.message is detail. On process-start errors the engine URL moves from error.instance to an engine extension, because instance is now the request path. Success responses keep { success: true, data }. The title is derived from the code, and type is about:blank, following linked-data-explorer’s #131.',
+            'A malformed JSON body now answers 400 MALFORMED_BODY (and an oversized one 413) instead of 500. The 404, catch-all and rate-limit handlers moved into a tested error.middleware.ts. In the OpenAPI document a Problem schema replaces ErrorEnvelope, every operation documents its 400, and the three nlgov problem-details rules now gate. The frontend normalises problems back into ApiResponse in an axios interceptor, so its components are unchanged; public-site reads detail. External /v1/m2m consumers must adapt (#216).',
+          ],
+        },
+        {
+          sha: '47cea9f',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject:
+            'The Keycloak admin scripts keep secrets out of argv and clean up after themselves',
+          details: [
+            'keycloak-add-entra-idp.sh now deletes mappers that were removed from its JSON, and fails on any extra. Before, a removed role mapper kept granting its role while the run reported success. In all three admin scripts the password reaches curl on stdin and the bearer token through a 0600 config file, so neither shows in the process list. The mapper listing checks its status, temp files live in a mktemp directory with an EXIT trap, and a connection failure reads HTTP 000 instead of 000000 (#252).',
+          ],
+        },
+        {
+          sha: 'c758abe',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'M2M history is queried with POST; the GET is deprecated',
+          details: [
+            'GET /v1/m2m/process/history took its filter as a request body, which clients, proxies and generated SDKs drop, silently returning the whole history. POST /v1/m2m/process/history is now the operation. The GET answers for one release, marked deprecated, with an RFC 9745 Deprecation header. test-m2m-routes.sh asserts that the filter actually filters (#263).',
+          ],
+        },
+        {
+          sha: '9509046',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: 'M2M uses the main engine and can no longer write an access label',
+          details: [
+            '/v1/m2m talked to the separate operaton-doc engine on ACC and PROD; the intent is now one engine on every tier, and an unset OPERATON_M2M_BASE_URL means the main engine (#262). With one engine, the guards matter more: M2M task completion now refuses municipality, originTenantId and applicantId with 400 RESERVED_VARIABLE, as /v1 does, and M2M start refuses a caller-supplied municipality or originTenantId, so the deployed tenant is the only source of the label (#261).',
+          ],
+        },
+        {
+          sha: 'ee5bb54',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'The conformance log comment names the real checker',
+          details: [
+            'conformance.ts referred to a jest-conformance-teardown.cjs that no longer exists; since #269 the check is scripts/check-conformance-coverage.cjs, a separate step after jest.',
+          ],
+        },
+        {
+          sha: 'c69b8ea',
+          author: 'Steven Gort',
+          type: 'chore',
+          subject: 'Local Redis is held at 7.2, the last BSD-3-Clause line',
+          details: [
+            'The redis:7-alpine pin resolved to 7.4.11, which is RSALv2/SSPLv1. docker-compose now pins redis:7.2-alpine by digest (7.2.16). ACC and PROD run Azure Cache for Redis 6.0, also BSD-3.',
+          ],
+        },
+        {
+          sha: '6bd8335',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Lopende and Afgeronde besluiten under Besluitvorming',
+          details: [
+            'Two rail items below "Besluit voorbereiden", for every besluit-* role and listed in Flevoland’s tenant sections. Each besluit shows its onderwerp, key, type and amount, with the current step or the outcome as a badge; opening it shows the details it was decided on.',
+          ],
+        },
+        {
+          sha: 'ca5a480',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Running and completed besluiten listed per tenant',
+          details: [
+            'GET /v1/besluitvorming/active and /completed list GedelegeerdBesluitProcess instances for the caller’s tenant, scoped like /v1/hr-capacity. A running besluit carries its current step; a completed one its outcome: ondertekend, or geëscaleerd — genomen/afgewezen, where the bestuursautoriteit’s decision wins over the declined signature that led there. Both routes are in the OpenAPI document.',
+          ],
+        },
+        {
+          sha: '9d85f7d',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'test-caseworker-flevoland can prepare a besluit',
+          details: [
+            'The everyday Flevoland caseworker test user gains besluit-indiener, so it can start "Besluit voorbereiden" and handle the indiener’s tasks. Dashboard routing keys only on caseworker, so it still lands on the caseworker dashboard.',
+          ],
+        },
+        {
+          sha: '7a558ac',
+          author: 'Steven Gort',
+          type: 'fix',
+          subject: '"Besluit voorbereiden" is listed in Flevoland’s tenant sections',
+          details: [
+            'A rail item shows only when the tenant lists it in public/tenants.json; the role alone is not enough. Flevoland lacked besluit-starten, so the entry stayed hidden even for a besluit-indiener. A test now reads the real tenants.json.',
+          ],
+        },
+        {
+          sha: 'c5eb01c',
+          author: 'Steven Gort',
+          type: 'docs',
+          subject: 'How a process configures signing without code',
+          details: [
+            'A new §9 in the ValidSign document lists what a process needs: ronl:signatureRef on the task, a signOff zone in the document, a fallback form that sets approvalStatus, and a branch on approvalStatus after the task. It explains the per-task signing state, and the parts that described signing as R2.1-only are updated.',
+          ],
+        },
+        {
+          sha: '26644bd',
+          author: 'Steven Gort',
+          type: 'test',
+          subject: 'Besluitvorming gedelegeerd lanes and phases are pinned',
+          details: [
+            'GedelegeerdBesluitProcess.bpmn, copied byte-for-byte from linked-data-explorer, is a parser fixture. The tests pin six lanes, each human lane with its own besluit-* role; six declared phases and every node’s phase; and a declined signature escalating forward, with no rework loop.',
+          ],
+        },
+        {
+          sha: '56abd67',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'Dashboard start for besluitvorming onder gedelegeerde bevoegdheid',
+          details: [
+            'A medewerker begins this process from the dashboard, unlike the citizen-initiated requests. A Besluitvorming → "Besluit voorbereiden" entry, restricted to besluit-indiener, starts GedelegeerdBesluitProcess.',
+          ],
+        },
+        {
+          sha: '795469c',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'One SigningPanel for every task view, including the caseworker inbox',
+          details: [
+            'The signing panel moves out of the Infra-board into components/signing/, behind useTaskSignature, which every task view asks whether a task signs through ValidSign. The caseworker inbox now shows it too, so a process configures signing with ronl:signatureRef alone. Until the answer is in, a view shows "Ondertekening controleren…" rather than the fallback form, which would let a signature task be approved without signing.',
+            'The panel reports a decline so its host refreshes the list, is keyed by task so one ceremony never carries over to the next, and its styles move into signing-panel.css.',
+          ],
+        },
+        {
+          sha: '5c43240',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject:
+            'ValidSign signing state is per task, and archive names follow the template and the case',
+          details: [
+            'Signing was built for one task in R2.1. The package route now records validsignTaskId, so a later signing task in the same instance no longer opens as declined, and a late signature completes the task that sent the package, not whichever task is open next. It also records the template id and name, and signed documents are archived under names built from them and the business key instead of R2.1’s hard-coded ones.',
+          ],
+        },
+        {
+          sha: 'b62536f',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'besluit-* roles and two Flevoland test users',
+          details: [
+            'Five realm roles, one per human swimlane of "Besluitvorming onder gedelegeerde bevoegdheid": besluit-indiener, -jurist, -bestuursautoriteit, -ondertekenaar and -registratie, with two flevoland test users holding them (both with an email address, which ValidSign needs). ACC and PROD do not re-import the realm: create the roles there with keycloak-add-rip-roles.sh and ROLE_PREFIX=besluit-.',
+          ],
+        },
+        {
+          sha: 'f583ff1',
+          author: 'Steven Gort',
+          type: 'feat',
+          subject: 'A process can declare its own phases in its BPMN',
+          details: [
+            'The caseworker stepper knew only the eight Awb phases hard-coded in @ronl/shared. A process can now declare its own: ronl:phases="code:Name;..." with an optional ronl:phaseLabel, and ronl:phase on the node that starts each phase. A process without the declaration reads as before through ronl:awbPhase; the two schemes never mix. Every phased model carries a phaseSet, and the stepper, "Waar sta ik", the overlay, the deelproces tag and the inbox hint all read it, so a new process needs nothing from RBA. The HR capacity claim BPMN is a fixture pinning its eight phases.',
+          ],
+        },
+      ],
+    },
+    {
+      format: 'commits',
       version: '2026.09.15',
       status: 'Released',
       date: '30 sep 2026',
