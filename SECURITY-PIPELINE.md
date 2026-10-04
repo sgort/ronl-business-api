@@ -20,7 +20,7 @@ These are GitHub settings, not files. Without them parts of the policy are inert
 | Dependabot **security updates** | **disabled**                                                                    | it opens competing PRs that ignore the 14-day cooldown                                         |
 | Merge methods                   | merge commits only                                                              | squash and rebase rewrite the SHAs a changelog entry names                                     |
 | `acc` ruleset                   | PR + `audit` + `scan` + the four build checks + `deletion` + `non_fast_forward` | a workflow that runs but cannot block is advice, not a gate                                    |
-| `main` ruleset                  | PR + `audit` + `deletion` + `non_fast_forward`                                  | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
+| `main` ruleset                  | PR + `audit` + `scan` + `deletion` + `non_fast_forward`                         | `main` is promoted from `acc`; the branch that deploys production must not be the weaker one   |
 
 The four build checks on `acc` are `build`, `Build and Deploy ACC Frontend`,
 `Build and Deploy ACC PA Demo` and `Build and Deploy ACC Public Site`, added with
