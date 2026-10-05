@@ -29,8 +29,10 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   await expect(citizenPage).toHaveURL(/\/dashboard\/citizen$/);
 
   await citizenPage.getByRole('button', { name: /Vergunningen/ }).click();
-  await citizenPage.getByLabel('Tree diameter (cm)').fill('35');
-  await citizenPage.getByRole('button', { name: 'Submit application' }).click();
+  // The Kapvergunning forms are Dutch since linked-data-explorer#254 item 1;
+  // the labels below are e2e-fixtures/flevoland's, redeployed by e2e:deploy-fixtures.
+  await citizenPage.getByLabel('Stamdiameter (cm)').fill('35');
+  await citizenPage.getByRole('button', { name: 'Aanvraag indienen' }).click();
   await expect(citizenPage.getByText('Aanvraag ingediend')).toBeVisible({ timeout: 15_000 });
   const businessKey = await citizenPage.locator('.font-mono').innerText();
   // Resolved before the caseworker logs in: the shell instance plus its called
@@ -58,9 +60,9 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   // id has a random per-render prefix (`fjs-form-<id>-Field_ReviewAction-display`),
   // hence the "ends with" attribute selector.
   await caseworkerPage.locator('[id$="-Field_ReviewAction-display"]').click();
-  await caseworkerPage.getByText('Confirm (keep DMN decisions)').click();
-  await caseworkerPage.getByLabel('No – replacement not required').check();
-  await caseworkerPage.getByRole('button', { name: 'Submit review' }).click();
+  await caseworkerPage.getByText('Bevestigen (DMN-beslissingen behouden)').click();
+  await caseworkerPage.getByLabel('Nee – geen herplant verplicht').check();
+  await caseworkerPage.getByRole('button', { name: 'Beoordeling indienen' }).click();
   await expect(caseworkerPage.getByText('Taak voltooid')).toBeVisible({ timeout: 15_000 });
 
   // ── Caseworker: finish the roundtrip — AwbShellProcess's own follow-up
@@ -73,9 +75,9 @@ test('citizen submits a kapvergunning request and caseworker reviews it', async 
   );
 
   await caseworkerPage.locator('[id$="-Field_NotificationMethod-display"]').click();
-  await caseworkerPage.getByText('Email', { exact: true }).click();
-  await caseworkerPage.getByLabel('I confirm the applicant will be notified').check();
-  await caseworkerPage.getByRole('button', { name: 'Confirm notification' }).click();
+  await caseworkerPage.getByText('E-mail', { exact: true }).click();
+  await caseworkerPage.getByLabel('Ik bevestig dat de aanvrager wordt geïnformeerd').check();
+  await caseworkerPage.getByRole('button', { name: 'Bekendmaking bevestigen' }).click();
   await expect(caseworkerPage.getByText('Taak voltooid')).toBeVisible({ timeout: 15_000 });
 
   // Optional cleanup — local Operaton keeps full history by default, which
