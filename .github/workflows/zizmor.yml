@@ -174,6 +174,21 @@ jobs:
         if: always()
         run: npm run check-format
 
+      - name: Swimlane parser fixtures match their fingerprints
+        # The twelve RIP phase BPMNs under rip-swimlane/__fixtures__/ against
+        # rip-bpmn-fingerprints.json, which linked-data-explorer commits
+        # identically. linked-data-explorer is not checked out here, so this is
+        # the fingerprint half of the check; the direct comparison runs where
+        # both trees exist. It used to run only in the pre-push hook, so a push
+        # made with --no-verify, or an edit made in the GitHub UI, skipped the
+        # contract between the two repositories (sgort/linked-data-explorer#254,
+        # items 5 and 11). Here, in the required job, nothing reaches acc or
+        # main around it.
+        #
+        # if: always() for the same reason as the checks above.
+        if: always()
+        run: npm run check-swimlane-fixtures
+
       - name: Verify @ronl/shared holds no logic
         # @ronl/shared has no test runner, so a function placed there escapes
         # the per-file 80% branch floor every other workspace is held to (#80).

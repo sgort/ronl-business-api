@@ -42,7 +42,8 @@
     "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
     "setup": "npm install && npm run docker:up",
     "prepare": "husky",
-    "sbom": "node scripts/write-sbom.mjs"
+    "sbom": "node scripts/write-sbom.mjs",
+    "sbom:check": "node scripts/write-sbom.mjs --check"
   },
   "keywords": [
     "bpmn",

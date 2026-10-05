@@ -18,6 +18,10 @@
 // Usage:
 //   node scripts/write-sbom.mjs            write docs/sbom/<name>-<version>.cdx.json
 //   node scripts/write-sbom.mjs --check    exit 1 if that file is missing or stale
+//   node scripts/write-sbom.mjs --verify-release
+//                                          exit 1 if missing; warn if stale
+//   node scripts/write-sbom.mjs --print-path
+//                                          print that file's path and exit
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,6 +29,13 @@ import { join } from 'node:path';
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const shortName = pkg.name.replace(/^@[^/]+\//, '').replace(/-monorepo$/, '');
 const out = join('docs', 'sbom', `${shortName}-${pkg.version}.cdx.json`);
+
+// --print-path, so the workflow can ask which file belongs to this version
+// without restating the naming rule above.
+if (process.argv.includes('--print-path')) {
+  console.log(out.split('\\').join('/'));
+  process.exit(0);
+}
 
 const generated = execFileSync(
   'npm',
