@@ -325,6 +325,12 @@ const parser = new XMLParser({
   // modeller declared. Note this also strips `ronl:` from documentRef —
   // see the attribute fallback in the node loop.
   removeNSPrefix: true,
+  // Decode numeric character references too. Without it fast-xml-parser
+  // decodes only the five named XML entities, and bpmn-js -- so LDE's Modeler,
+  // which deploys these models -- writes `&` and a line break as `&#38;` and
+  // `&#10;`. Those reached the page as literal text: "Registratie &#38;
+  // Beheer", and "&#10;" inside every multi-line RIP task name (#312 item 2).
+  htmlEntities: true,
   isArray: (name) =>
     ['lane', 'flowNodeRef', 'sequenceFlow', 'BPMNShape', 'BPMNEdge'].includes(name),
 });

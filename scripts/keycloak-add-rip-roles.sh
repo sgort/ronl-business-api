@@ -35,7 +35,14 @@
 #   ADMIN_USER     default: admin
 #   ADMIN_REALM    default: master   (realm the ADMIN account lives in)
 #   ADMIN_PASSWORD required (prompted if unset)
-#   GRANT_USER     default: test-infra-flevoland; set empty to only create roles
+#   GRANT_USER     default: test-infra-flevoland for the rip- roles, EMPTY for any
+#                  other ROLE_PREFIX; set empty to only create roles. It grants
+#                  EVERY prefixed role to that one user. That suits the Infra-board
+#                  test user, who walks every RIP lane (docs/promote-ACC-to-PROD.md,
+#                  D6), and defeats a process whose lanes are meant to be held by
+#                  different people: ROLE_PREFIX=besluit- used to hand all five
+#                  besluit-* roles to test-infra-flevoland (#312 item 4). For those,
+#                  create the roles here and assign each lane in the admin console.
 #   ROLES_FILE     default: config/keycloak/ronl-realm.json
 #   ROLE_PREFIX    default: rip-
 #
@@ -53,9 +60,14 @@ KEYCLOAK_URL="${KEYCLOAK_URL%/}"
 REALM="${REALM:-ronl}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_REALM="${ADMIN_REALM:-master}"
-GRANT_USER="${GRANT_USER-test-infra-flevoland}"
 ROLES_FILE="${ROLES_FILE:-$(dirname "$0")/../config/keycloak/ronl-realm.json}"
 ROLE_PREFIX="${ROLE_PREFIX:-rip-}"
+# After ROLE_PREFIX, which decides the default; see GRANT_USER in the header.
+if [[ "$ROLE_PREFIX" == "rip-" ]]; then
+  GRANT_USER="${GRANT_USER-test-infra-flevoland}"
+else
+  GRANT_USER="${GRANT_USER-}"
+fi
 
 DRY_RUN=false
 for arg in "$@"; do

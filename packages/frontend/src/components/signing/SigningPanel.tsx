@@ -230,7 +230,8 @@ export default function SigningPanel({ taskId, spec, onCompleted, onDeclined }: 
 
   if (state === 'declined') {
     // An outcome, not an error: the task completes with approvalStatus =
-    // rejected and the process loops back. Do not style this as a failure.
+    // rejected and the process takes its decline route -- a rework loop in
+    // R2.1, an escalation in besluitvorming. Do not style this as a failure.
     return (
       <div className="pb-sign-panel pb-sign-declined">
         <p>De ondertekenaar is niet akkoord gegaan met dit document.</p>

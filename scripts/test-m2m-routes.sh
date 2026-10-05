@@ -330,12 +330,12 @@ if [[ "$PROC_HIST_STATUS" == "200" ]]; then
   fi
 fi
 
-# The deprecated GET spelling still answers for one release, and says so.
-HIST_GET_DEPRECATION=$(curl -s -o /dev/null -D - "${BASE_URL}/v1/m2m/process/history" \
-  -H "Authorization: Bearer $TOKEN" | tr -d '\r' | awk -F': ' 'tolower($1)=="deprecation"{print $2}')
-[[ "$HIST_GET_DEPRECATION" == "@1790985600" ]] \
-  && pass "GET /v1/m2m/process/history answers with Deprecation: $HIST_GET_DEPRECATION" \
-  || fail "GET /v1/m2m/process/history — expected Deprecation: @1790985600, got '${HIST_GET_DEPRECATION}'"
+# The GET spelling answered, deprecated, for one release (v2026.10.0) and is
+# removed (#312 item 5). Against a backend that predates the removal this fails,
+# which is the point: it says which build you are talking to.
+HIST_GET_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/v1/m2m/process/history" \
+  -H "Authorization: Bearer $TOKEN")
+check_status "GET /v1/m2m/process/history (removed)" "$HIST_GET_STATUS" "404"
 
 # decision.get — run first, because it doubles as the existence probe. Which
 # decisions are deployed is engine data, not route behaviour: local and ACC talk

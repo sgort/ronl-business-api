@@ -255,39 +255,16 @@ describe('process endpoints', () => {
     expect(res.body.code).toBe('PROCESS_HISTORY_FAILED');
   });
 
-  // The GET spelling stays for one release as a deprecated alias (#263): same
-  // behaviour, plus an RFC 9745 Deprecation header naming when it was deprecated.
-  it('GET /process/history still answers, marked deprecated', async () => {
+  // The GET spelling answered for one release (v2026.10.0) as a deprecated
+  // alias, marked with an RFC 9745 Deprecation header (#263). It is removed
+  // (#312 item 5): a body on GET has no defined meaning, and a client whose
+  // body was dropped silently received the unfiltered history.
+  it('GET /process/history no longer answers', async () => {
     svc.queryProcessHistory.mockResolvedValue([{ id: 'h' }]);
-    const res = await auth(request(app).get('/v1/m2m/process/history')).send({
-      processDefinitionKey: 'AwbZorgtoeslagProcess',
-    });
-    expect(res.status).toBe(200);
-    expectToMatchOperation(res, 'get', '/m2m/process/history');
-    expect(res.headers.deprecation).toBe('@1790985600');
-    expect(svc.queryProcessHistory).toHaveBeenCalledWith({
-      processDefinitionKey: 'AwbZorgtoeslagProcess',
-    });
-  });
-
-  it('GET /process/history → 500 on failure, still marked deprecated', async () => {
-    svc.queryProcessHistory.mockRejectedValue(new Error('boom'));
     const res = await auth(request(app).get('/v1/m2m/process/history'));
-    expect(res.status).toBe(500);
-    expectToMatchOperation(res, 'get', '/m2m/process/history');
-    expect(res.headers.deprecation).toBe('@1790985600');
-  });
-
-  it('GET /process/history obeys the curation gate too', async () => {
-    const index = M2M_ALLOWED_OPERATIONS.indexOf('process.history');
-    M2M_ALLOWED_OPERATIONS.splice(index, 1);
-    try {
-      const res = await auth(request(app).get('/v1/m2m/process/history'));
-      expect(res.status).toBe(403);
-      expectToMatchOperation(res, 'get', '/m2m/process/history');
-    } finally {
-      M2M_ALLOWED_OPERATIONS.splice(index, 0, 'process.history');
-    }
+    expect(res.status).toBe(404);
+    expect(res.headers.deprecation).toBeUndefined();
+    expect(svc.queryProcessHistory).not.toHaveBeenCalled();
   });
 
   it('GET /process/:id/status maps active/ended/suspended', async () => {

@@ -2204,8 +2204,8 @@ paths:
   #                             /v1 ignores the body and uses the token
   #   POST …/task/{id}/complete { taskId, completed }; /v1 sends { taskId, status }
   #   GET  /m2m/process         exists; there is no bare `GET /v1/process`
-  #   POST …/process/history    takes a filter BODY (the GET spelling is
-  #                             deprecated, #263); /v1's is a GET with a
+  #   POST …/process/history    takes a filter BODY (the GET spelling was
+  #                             removed, #263, #312); /v1's is a GET with a
   #                             required `applicantId` query parameter
   #   —                         403 OPERATION_NOT_PERMITTED, the curation gate
   #
@@ -2361,8 +2361,11 @@ paths:
         `variables`, `finished`, `startedAfter`, sorting, paging. An empty body,
         or none at all, returns the unfiltered history.
 
-        Until #263 this was a GET carrying a body. That spelling still answers,
-        deprecated, for one release; see the GET below.
+        Until #263 this was a GET carrying a body. That spelling answered,
+        deprecated, for one release (v2026.10.0) and is removed (#312): RFC 9110
+        gives a body on GET no meaning, and clients, proxies and generated SDKs
+        drop it, so a caller whose filter was dropped silently received the
+        unfiltered history.
 
         `GET /v1/process/history` is not this operation under another name. It
         takes a **required `applicantId` query parameter**, returns one
@@ -2374,33 +2377,6 @@ paths:
           $ref: '#/components/responses/M2mHistory'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/M2mForbidden'
-        '500':
-          description: '`PROCESS_HISTORY_FAILED`.'
-          $ref: '#/components/responses/Error'
-    get:
-      operationId: queryM2mProcessHistoryDeprecated
-      tags: [Machine-to-machine]
-      summary: Query instance history (deprecated GET)
-      security: [{ m2mOAuth: [] }]
-      deprecated: true
-      description: |
-        **Deprecated since 3 October 2026 (#263); use `POST` on this path.**
-        Every response carries `Deprecation: @1790985600` (RFC 9745). It
-        behaves exactly like the POST, and is kept for one release.
-
-        It is deprecated because it takes its filter as a request body. RFC 9110
-        gives a body on GET no meaning, and many clients, proxies and generated
-        SDKs drop it, so a caller whose filter was dropped silently received
-        the unfiltered history instead of an error.
-      requestBody:
-        $ref: '#/components/requestBodies/M2mHistoryQuery'
-      responses:
-        '200':
-          $ref: '#/components/responses/M2mHistory'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
