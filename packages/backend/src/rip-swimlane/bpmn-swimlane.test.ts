@@ -913,7 +913,7 @@ describe('parseSwimlane — phase set', () => {
 // twelve RIP phases.
 describe('parseSwimlane — HR capacity claim, declared phases', () => {
   const key = 'ManagementCapacityClaimProcess';
-  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.nl.bpmn`), 'utf-8'), key);
+  const m = parseSwimlane(readFileSync(join(FIXTURES, 'declared', `${key}.bpmn`), 'utf-8'), key);
 
   it('reads the eight phases the process declares, numbered under "Fase"', () => {
     expect(m.phaseSet?.scheme).toBe('bpmn');

@@ -116,18 +116,47 @@ function upstreamOutOfStep(names, upstream) {
   return stale;
 }
 
-/** Where a phase model lives upstream: RipR22Process.bpmn -> rip-phase-22. */
+/** This repository's own copy of the fingerprint file, or null. */
+function readLocalFingerprints() {
+  if (!existsSync(FINGERPRINTS)) return null;
+  try {
+    return JSON.parse(readFileSync(FINGERPRINTS, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where a model lives upstream. The fingerprint entry's `source` says so,
+ * which is what lets the declared-phase models live anywhere upstream (#312
+ * item 3); a RIP model without an entry falls back to its rip-phase-NN folder.
+ */
 function upstreamPath(name) {
+  const entry = readLocalFingerprints()?.[name] ?? readUpstreamFingerprints()?.[name];
+  if (entry?.source) return join(LDE, entry.source);
   const phase = name.match(/^RipR(\d\d)Process\.bpmn$/)?.[1];
   if (!phase) return null;
   return join(LDE, 'examples', 'organizations', 'flevoland', `rip-phase-${phase}`, name);
 }
 
-const fixtures = existsSync(FIXTURES)
-  ? readdirSync(FIXTURES)
-      .filter((f) => /^RipR\d\dProcess\.bpmn$/.test(f))
-      .sort()
-  : [];
+/**
+ * Every fixture under contract, by file name -> its path here: the twelve RIP
+ * phases at the root, and the processes that declare their own phases under
+ * declared/. The declared ones were copied from upstream and then checked by
+ * nothing until #312 item 3. awb/ is not covered; that issue asked about
+ * declared/ only.
+ */
+const DECLARED = join(FIXTURES, 'declared');
+const fixturePaths = new Map([
+  ...(existsSync(FIXTURES) ? readdirSync(FIXTURES) : [])
+    .filter((f) => /^RipR\d\dProcess\.bpmn$/.test(f))
+    .map((f) => [f, join(FIXTURES, f)]),
+  ...(existsSync(DECLARED) ? readdirSync(DECLARED) : [])
+    .filter((f) => f.endsWith('.bpmn'))
+    .map((f) => [f, join(DECLARED, f)]),
+]);
+const fixtures = [...fixturePaths.keys()].sort();
+const fixturePath = (name) => fixturePaths.get(name);
 
 if (fixtures.length === 0) {
   console.error(`No RIP fixtures found in ${FIXTURES}.`);
@@ -184,7 +213,7 @@ if (sync) {
       console.error(`  no upstream source for ${name} (looked in ${source})`);
       continue;
     }
-    copyFileSync(source, join(FIXTURES, name));
+    copyFileSync(source, fixturePath(name));
     copied += 1;
   }
   copyFileSync(upstreamFingerprintsPath, FINGERPRINTS);
@@ -221,10 +250,10 @@ if (!existsSync(FINGERPRINTS)) {
       problems.push(`- ${name} has no entry in ${FINGERPRINTS} (a new phase model upstream?)`);
       continue;
     }
-    if (sha256(join(FIXTURES, name)) !== entry.sha256) {
+    if (sha256(fixturePath(name)) !== entry.sha256) {
       staleHere.add(name);
       problems.push(
-        `- ${join(FIXTURES, name)} does not match the recorded source fingerprint.\n` +
+        `- ${fixturePath(name)} does not match the recorded source fingerprint.\n` +
           `    These are COPIES; the source of truth is linked-data-explorer's\n` +
           `    ${entry.source}. If the model changed there, refresh:\n` +
           `      npm run check-swimlane-fixtures -- --sync\n` +
@@ -252,7 +281,7 @@ if (existsSync(LDE)) {
     const source = upstreamPath(name);
     if (!source || !existsSync(source)) continue;
     compared += 1;
-    if (readFileSync(join(FIXTURES, name)).equals(readFileSync(source))) continue;
+    if (readFileSync(fixturePath(name)).equals(readFileSync(source))) continue;
 
     // The fingerprint block already reported this one and already named
     // `--sync`, which is the right remedy: the fixture here is the stale side.
@@ -268,7 +297,7 @@ if (existsSync(LDE)) {
     const ourHash = recorded?.[name]?.sha256;
     if (upstream && !stale.includes(name) && upstreamHash && ourHash && upstreamHash !== ourHash) {
       problems.push(
-        `- ${join(FIXTURES, name)} differs from ${source}.\n` +
+        `- ${fixturePath(name)} differs from ${source}.\n` +
           `    Upstream agrees with the hash it recorded for itself and that hash is\n` +
           `    not ours, so the model moved there and these copies are behind:\n` +
           `      npm run check-swimlane-fixtures -- --sync`
@@ -280,7 +309,7 @@ if (existsSync(LDE)) {
     // is not the stale side, and --sync would overwrite it with older content.
     // Say what to do instead of only what not to do.
     problems.push(
-      `- ${join(FIXTURES, name)} differs from ${source},\n` +
+      `- ${fixturePath(name)} differs from ${source},\n` +
         `    but MATCHES the fingerprint both repositories committed. The checkout\n` +
         `    at ${LDE} is the one out of step` +
         (stale.includes(name)
