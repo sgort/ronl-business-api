@@ -270,7 +270,7 @@
       "description": "Machine-to-machine client for MCP-based Operaton interaction via the RONL Business API",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "change-me-in-keycloak-console",
+      "secret": "JwdJQcPDCtbkqPeggujXeWVYJr4W1UlZ",
       "protocol": "openid-connect",
       "publicClient": false,
       "standardFlowEnabled": false,

@@ -206,7 +206,7 @@ describe('TakenInbox', () => {
     await user.click(await screen.findByRole('button', { name: 'decline-signature' }));
 
     expect(
-      await screen.findByText('Niet ondertekend — de taak gaat terug naar de indiener.')
+      await screen.findByText('Niet ondertekend — het proces gaat verder via de afwijzingsroute.')
     ).toBeInTheDocument();
     expect(mockBusinessApi.task.list.mock.calls.length).toBeGreaterThan(listCalls);
   });
