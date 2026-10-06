@@ -48,7 +48,8 @@ jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-import { EdocsService } from './edocs.service';
+import { ReauthRequiredError, UserTokenUnavailableError } from '@auth/entra-token.service';
+import { EdocsAccessDeniedError, EdocsService, lookupEdocsUserId } from './edocs.service';
 
 /** A realistic connect() response carrying both session cookies. */
 const connectResponse = {
@@ -698,5 +699,185 @@ describe('EdocsService — live mode', () => {
       expect(cfg.headers['Cookie']).toBe('X-DM-DST=dst-abc-123; X-DM-CSRF-TOKEN=csrf-xyz-789');
       expect(cfg.headers['X-DM-DST']).toBe('dst-abc-123');
     });
+  });
+});
+
+/** The interceptor the most recently constructed client registered. */
+function lastInterceptor() {
+  const calls = mockClient.interceptors.request.use.mock.calls;
+  return calls[calls.length - 1][0] as (c: { headers: Record<string, string> }) => {
+    headers: Record<string, string>;
+  };
+}
+
+const userConnectResponse = (userId = 'GORTS01') => ({
+  ...connectResponse,
+  data: { data: { USER_ID: userId, SESSION_DURATION: 480 } },
+});
+
+describe('EdocsService — per-user sessions', () => {
+  let service: EdocsService;
+  beforeEach(() => {
+    mockConfig.edocs.stubMode = false;
+    service = new EdocsService();
+  });
+
+  const userClient = (sub: string, token = `id-${sub}`) =>
+    service.forUser({
+      sub,
+      email: `${sub}@flevoland.nl`,
+      getIdToken: jest.fn().mockResolvedValue(token),
+    });
+
+  it('connects a person with X-DM-AUTH and no password', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+    const user = userClient('a', 'id-token-a');
+    await user.listWorkspaces();
+    const [path, body, opts] = mockClient.post.mock.calls[0];
+    expect(path).toBe('connect');
+    expect(body.data).toMatchObject({ library: 'DOCUVITT', timezone: 'Europe/Amsterdam' });
+    expect(body.data).not.toHaveProperty('userid');
+    expect(body.data).not.toHaveProperty('password');
+    expect(opts).toMatchObject({
+      headers: { 'X-DM-AUTH': 'id-token-a' },
+      params: { library: 'DOCUVITT' },
+    });
+    expect(user.actingAs).toBe('user');
+  });
+
+  it('records the eDOCS USER_ID for the person’s e-mail', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
+    mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+    await userClient('steven.gort').listWorkspaces();
+    expect(lookupEdocsUserId('steven.gort@flevoland.nl')).toBe('GORTS01');
+  });
+
+  it('keeps the service session and a person’s session apart', async () => {
+    mockClient.post.mockResolvedValueOnce(connectResponse); // service
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    await service.listWorkspaces();
+    const user = userClient('a');
+    mockClient.post.mockResolvedValueOnce({
+      ...userConnectResponse(),
+      headers: { 'set-cookie': ['X-DM-DST=dst-user-a; Path=/'] },
+    });
+    await user.listWorkspaces();
+    expect(mockClient.post).toHaveBeenCalledTimes(2); // each principal connected once
+    expect(lastInterceptor()({ headers: {} }).headers['X-DM-DST']).toBe('dst-user-a');
+  });
+
+  it('never sends user A’s cookies on user B’s request (Review Focus 3)', async () => {
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    const a = userClient('a');
+    mockClient.post.mockResolvedValueOnce({
+      ...userConnectResponse('A'),
+      headers: { 'set-cookie': ['X-DM-DST=dst-a; Path=/'] },
+    });
+    await a.listWorkspaces();
+    const interceptorA = lastInterceptor();
+    const b = userClient('b');
+    mockClient.post.mockResolvedValueOnce({
+      ...userConnectResponse('B'),
+      headers: { 'set-cookie': ['X-DM-DST=dst-b; Path=/'] },
+    });
+    await b.listWorkspaces();
+    const interceptorB = lastInterceptor();
+    expect(interceptorA({ headers: {} }).headers['X-DM-DST']).toBe('dst-a');
+    expect(interceptorB({ headers: {} }).headers['X-DM-DST']).toBe('dst-b');
+  });
+
+  it('a derived client for the same person reuses that person’s session', async () => {
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    await userClient('a').listWorkspaces();
+    await userClient('a').listWorkspaces();
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the CSRF token as a header as well as a cookie', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+    await userClient('a').listWorkspaces();
+    const headers = lastInterceptor()({ headers: {} }).headers;
+    expect(headers['X-DM-CSRF-TOKEN']).toBe('csrf-xyz-789');
+    expect(headers['Cookie']).toContain('X-DM-CSRF-TOKEN=csrf-xyz-789');
+  });
+
+  it('on a 401 it reconnects with a forced-fresh ID token, then retries', async () => {
+    const getIdToken = jest.fn().mockResolvedValue('id-a');
+    const user = service.forUser({ sub: 'a', getIdToken });
+    mockClient.post.mockResolvedValue(userConnectResponse());
+    mockClient.get
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockResolvedValueOnce({ data: { data: { list: [{ id: 'w' }] } } });
+    await expect(user.listWorkspaces()).resolves.toEqual([{ id: 'w' }]);
+    expect(getIdToken).toHaveBeenNthCalledWith(1, {});
+    expect(getIdToken).toHaveBeenNthCalledWith(2, { forceRefresh: true });
+  });
+
+  it('eDOCS refusing a person’s token is an EdocsAccessDeniedError', async () => {
+    mockClient.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { ERROR: { rapi_code: 13, rapi_details: ['Access not allowed'] } },
+      },
+    });
+    await expect(userClient('a').listWorkspaces()).rejects.toBeInstanceOf(EdocsAccessDeniedError);
+  });
+
+  it('a revoked session ends in ReauthRequiredError, not an upstream error (Review Focus 2)', async () => {
+    const getIdToken = jest
+      .fn()
+      .mockResolvedValueOnce('id-cached')
+      .mockRejectedValueOnce(new ReauthRequiredError());
+    const user = service.forUser({ sub: 'a', getIdToken });
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockRejectedValueOnce({ response: { status: 401 } });
+    await expect(user.listWorkspaces()).rejects.toBeInstanceOf(ReauthRequiredError);
+  });
+
+  it('passes a missing token straight through', async () => {
+    const user = service.forUser({
+      sub: 'a',
+      getIdToken: jest.fn().mockRejectedValue(new UserTokenUnavailableError()),
+    });
+    await expect(user.listWorkspaces()).rejects.toBeInstanceOf(UserTokenUnavailableError);
+    expect(mockClient.post).not.toHaveBeenCalled();
+  });
+
+  it('probeUser reports the person’s eDOCS user, or why not', async () => {
+    mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
+    await expect(userClient('a').probeUser()).resolves.toEqual({
+      authenticated: true,
+      edocsUserId: 'GORTS01',
+    });
+    mockClient.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { ERROR: { message: '', rapi_details: ['Access not allowed'] } },
+      },
+    });
+    await expect(userClient('z').probeUser()).resolves.toEqual({
+      authenticated: false,
+      error: 'Access not allowed',
+    });
+  });
+
+  it('forService returns a service client; the default instance is the service', () => {
+    expect(service.actingAs).toBe('service');
+    expect(userClient('a').forService().actingAs).toBe('service');
+  });
+});
+
+describe('EdocsService — per-user sessions, stub mode', () => {
+  it('a person gets a stub session and the STUB-USER id without any network call', async () => {
+    mockConfig.edocs.stubMode = true;
+    const user = new EdocsService().forUser({ sub: 'a', getIdToken: jest.fn() });
+    await expect(user.probeUser()).resolves.toEqual({
+      authenticated: true,
+      edocsUserId: 'STUB-USER',
+    });
+    expect(mockClient.post).not.toHaveBeenCalled();
   });
 });
