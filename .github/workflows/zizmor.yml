@@ -271,3 +271,91 @@ jobs:
           # contents: read suffices — this only resolves public refs.
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run check-supply-chain
+
+  # What a dependency pull request's lockfile change contains (#248, ICTU R9).
+  # A reviewer is shown `prettier ^3.9.7 -> ^3.9.8`; what moves is
+  # package-lock.json, and nobody reads that diff. Required on acc: it runs
+  # on every pull request, because this workflow has no paths filter, and
+  # succeeds at once when the lockfile is unchanged -- so it can be required
+  # without the never-reports trap.
+  #
+  # Two jobs, for the trust boundary: this one runs code from the head ref
+  # (the script and the lockfile) with a READ-ONLY token; the comment job
+  # holds the write token and runs no repository code at all.
+  lockfile-review:
+    name: lockfile-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+      report: ${{ steps.diff.outputs.report }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.21.0"
+      - name: Test the lockfile diff
+        # Tested where it runs, like promotion-targets.test.mjs.
+        run: node scripts/lockfile-diff.test.mjs
+      - name: Compare package-lock.json with the base
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          if git diff --quiet "$BASE_SHA" HEAD -- package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package-lock.json is unchanged by this pull request." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git show "$BASE_SHA:package-lock.json" > "$RUNNER_TEMP/base-lock.json"
+          status=0
+          node scripts/lockfile-diff.mjs "$RUNNER_TEMP/base-lock.json" package-lock.json \
+            --config lockfile-review.json \
+            --out "$RUNNER_TEMP/report.md" --comment "$RUNNER_TEMP/comment.md" || status=$?
+          if [ -f "$RUNNER_TEMP/report.md" ]; then
+            cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f "$RUNNER_TEMP/comment.md" ]; then
+            # A delimiter per run, so no report content can end the value early.
+            delim="EOF_$(openssl rand -hex 16)"
+            { echo "report<<$delim"; cat "$RUNNER_TEMP/comment.md"; echo; echo "$delim"; } >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
+
+  lockfile-review-comment:
+    name: lockfile-review-comment
+    needs: lockfile-review
+    # always(): a red check still gets the comment that says why. Same-repo
+    # branches only: a fork's token is read-only, and its summary suffices.
+    if: >-
+      always() && github.event_name == 'pull_request' &&
+      needs.lockfile-review.outputs.changed == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post or update the lockfile review comment
+        # No checkout: this job runs no repository code. The report arrives
+        # through env, never ${{ }} inside the script (template injection).
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          REPORT: ${{ needs.lockfile-review.outputs.report }}
+        run: |
+          marker='<!-- lockfile-review -->'
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$id" -f body="$REPORT" > /dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" -f body="$REPORT" > /dev/null
+          fi
