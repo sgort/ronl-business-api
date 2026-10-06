@@ -314,7 +314,14 @@ jobs:
             exit 0
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          git show "$BASE_SHA:package-lock.json" > "$RUNNER_TEMP/base-lock.json"
+          # A pull request that adds the first lockfile has none at the base:
+          # compare against an empty one, so it reads as "everything added"
+          # instead of failing the step with no report (#248 final review).
+          if git cat-file -e "$BASE_SHA:package-lock.json" 2> /dev/null; then
+            git show "$BASE_SHA:package-lock.json" > "$RUNNER_TEMP/base-lock.json"
+          else
+            echo '{"lockfileVersion":3,"packages":{}}' > "$RUNNER_TEMP/base-lock.json"
+          fi
           status=0
           node scripts/lockfile-diff.mjs "$RUNNER_TEMP/base-lock.json" package-lock.json \
             --config lockfile-review.json \
@@ -332,11 +339,15 @@ jobs:
   lockfile-review-comment:
     name: lockfile-review-comment
     needs: lockfile-review
-    # always(): a red check still gets the comment that says why. Same-repo
-    # branches only: a fork's token is read-only, and its summary suffices.
+    # !cancelled(), not always(): a red check still gets the comment that says
+    # why, but a run superseded by a newer push does not overwrite the newer
+    # report with its own (#248 final review). A report must exist: an empty
+    # body would fail the job and leave the previous comment standing. Same-
+    # repo branches only: a fork's token is read-only, and its summary suffices.
     if: >-
-      always() && github.event_name == 'pull_request' &&
+      !cancelled() && github.event_name == 'pull_request' &&
       needs.lockfile-review.outputs.changed == 'true' &&
+      needs.lockfile-review.outputs.report != '' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     permissions:

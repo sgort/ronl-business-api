@@ -505,6 +505,166 @@ check(
 );
 check("exit 2 on wrong arguments", run(okBase), 2);
 
+// ── Final review fixes ───────────────────────────────────────────────────────
+
+// #2: npm moved the root to the other major line while every copy went up.
+const d2 = L.diffPackages(
+  L.collectPackages(
+    lock({
+      [nm("be")]: pkg("be", "2.0.1"),
+      [nm("a/node_modules/be")]: pkg("be", "1.1.11"),
+    }),
+  ),
+  L.collectPackages(
+    lock({
+      [nm("be")]: pkg("be", "1.1.12"),
+      [nm("c/node_modules/be")]: pkg("be", "2.0.2"),
+    }),
+  ),
+);
+check(
+  "a re-hoist across major lines, every copy up, is no downgrade",
+  d2.updated.map((p) => [p.name, p.downgrade]),
+  [["be", false]],
+);
+const d2b = L.diffPackages(
+  L.collectPackages(
+    lock({
+      [nm("ln")]: pkg("ln", "1.4.0"),
+      [nm("q/node_modules/ln")]: pkg("ln", "3.0.0"),
+    }),
+  ),
+  L.collectPackages(
+    lock({
+      [nm("ln")]: pkg("ln", "3.0.0"),
+      [nm("r/node_modules/ln")]: pkg("ln", "1.2.0"),
+    }),
+  ),
+);
+check(
+  "a new copy below every base copy on its own line is a downgrade",
+  d2b.updated.map((p) => [p.name, p.downgrade]),
+  [["ln", true]],
+);
+
+// #3: the cut must not leave the note inside a collapsed <details>.
+const longDetails =
+  `${L.MARKER}\n### Lockfile review\n\n<details>\n<summary>Updated</summary>\n\n` +
+  "- `pkg` `1.0.0` → `1.0.1` — dev\n".repeat(5000) +
+  "\n</details>\n";
+const cutDetails = L.truncateForComment(longDetails);
+check(
+  "a cut report closes every <details> it opened",
+  (cutDetails.match(/<details>/g) ?? []).length,
+  (cutDetails.match(/<\/details>/g) ?? []).length,
+);
+check(
+  "the cut note comes after the last </details>",
+  cutDetails.lastIndexOf("job summary") > cutDetails.lastIndexOf("</details>"),
+  true,
+);
+check(
+  "a cut report with a closed <details> still fits",
+  cutDetails.length <= L.COMMENT_LIMIT,
+  true,
+);
+
+// #6: registry text must not escape its code span or add lines.
+const spoof = L.renderReport({
+  blocking: [],
+  diff: {
+    added: [
+      {
+        name: "evil",
+        versions: ["1.0.0"],
+        dev: false,
+        optional: false,
+        licences: ["MIT`\n\n**✓ Reviewed and approved**"],
+      },
+    ],
+    removed: [],
+    updated: [],
+  },
+  review: {
+    licenceChanges: [],
+    licenceNotAllowed: [
+      {
+        name: "evil",
+        licences: ["MIT`\n\n**✓ Reviewed and approved**"],
+        dev: false,
+      },
+    ],
+    installScripts: [],
+    downgrades: [],
+  },
+});
+check(
+  "registry text cannot start a line of its own in the comment",
+  spoof.split("\n").some((l) => l.startsWith("**✓ Reviewed")),
+  false,
+);
+check(
+  "registry text cannot close its code span",
+  spoof.includes("MIT`"),
+  false,
+);
+check(
+  "a foreign origin is shown inside a code span",
+  L.renderReport({
+    blocking: L.blockingFindings(
+      lock({
+        [nm("x")]: pkg("x", "1.0.0", {
+          resolved: "https://e.example/x.tgz`\n**✓ fine**",
+        }),
+      }),
+    ),
+    diff: { added: [], removed: [], updated: [] },
+    review: {
+      licenceChanges: [],
+      licenceNotAllowed: [],
+      installScripts: [],
+      downgrades: [],
+    },
+  }).includes("`https://e.example/x.tgz' **✓ fine**`"),
+  true,
+);
+
+// #1: unusable input still writes a marked report, so the comment never says ✓.
+const failOut = join(dir, "fail.md");
+const failComment = join(dir, "fail-comment.md");
+check(
+  "exit 2 still writes the report",
+  run(
+    okBase,
+    write("conflict.json", "<<<<<<< HEAD\n{}"),
+    "--config",
+    cfg,
+    "--out",
+    failOut,
+    "--comment",
+    failComment,
+  ),
+  2,
+);
+const failText = existsSync(failComment)
+  ? readFileSync(failComment, "utf8")
+  : "";
+check(
+  "the failure report carries the marker",
+  failText.startsWith(L.MARKER),
+  true,
+);
+check(
+  "the failure report says the review could not run",
+  /could not run/.test(failText) && /conflict\.json/.test(failText),
+  true,
+);
+check(
+  "the failure report never claims a clean result",
+  failText.includes("No blocking findings"),
+  false,
+);
+
 // ── summary (later tasks insert their checks ABOVE this line) ───────────────
 if (failures.length) {
   console.error(
