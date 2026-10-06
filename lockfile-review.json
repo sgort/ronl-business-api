@@ -1,0 +1,17 @@
+{
+  "$comment": "Read by scripts/lockfile-diff.mjs (#248). A NEW package whose licence this list does not allow is a review prompt in the lockfile-review comment, not a failure. The initial list is the permissive set already present in the tree on 5 October 2026; MPL-2.0 and custom licences (bpmn.io's 'SEE LICENSE IN LICENSE') are left off on purpose, so a new one gets looked at.",
+  "allowLicenses": [
+    "MIT",
+    "ISC",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BlueOak-1.0.0",
+    "0BSD",
+    "MIT-0",
+    "Unlicense",
+    "CC0-1.0",
+    "Python-2.0",
+    "CC-BY-4.0"
+  ]
+}
