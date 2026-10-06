@@ -227,6 +227,14 @@ opened as them — without affecting the service probe's lockout throttle.
   sees it.
 - `/v1/edocs` is closed to citizens and to unknown machine clients.
 - The service fallback cannot be enabled on production.
+- **Accepted risk, pending a decision ([#325](https://github.com/sgort/ronl-business-api/issues/325)).**
+  The broker endpoint needs `resource_access.broker.roles = [read-token]` in the caller's
+  access token, so `ronl-business-api`'s access tokens carry it (`broker-roles` mapper) and
+  every user holds it (`default-roles-ronl`). That includes the token the browser holds: a
+  stolen or XSS'd Keycloak access token can read the person's stored Entra token and reach
+  eDOCS as them past RBA's audit, for the ID token's remaining life (about an hour). The
+  refresh token is useless without the client secret. The alternative is a backend-only path
+  through Keycloak token exchange (a preview feature in Keycloak 23).
 
 ## Testing
 
