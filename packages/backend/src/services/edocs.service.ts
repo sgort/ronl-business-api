@@ -111,6 +111,11 @@ export function lookupEdocsUserId(email: string): string | undefined {
   return edocsUserIds.get(email.toLowerCase());
 }
 
+/** The HTTP status of an axios-style error, if it carries a response. */
+function httpStatus(err: unknown): number | undefined {
+  return (err as { response?: { status?: number } })?.response?.status;
+}
+
 /**
  * InfoCenter's connect body carries the client's time zone. The backend runs in
  * UTC on Azure, so the offset is computed for Europe/Amsterdam, not taken from the
@@ -274,7 +279,10 @@ export class EdocsService {
       }
     } catch (err) {
       this.logUpstreamError('connect', err);
-      if (principal.kind === 'user' && (err as { response?: unknown })?.response) {
+      // A 4xx on a person's connect is eDOCS deciding about them (unknown user,
+      // disabled account, token refused). A 5xx is eDOCS failing, not a decision.
+      const status = httpStatus(err);
+      if (principal.kind === 'user' && status !== undefined && status >= 400 && status < 500) {
         throw new EdocsAccessDeniedError(this.upstreamMessage(err));
       }
       throw err;
@@ -322,11 +330,31 @@ export class EdocsService {
     try {
       return await fn();
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 401 || status === 403) {
+      const status = httpStatus(err);
+      if (this.principal.kind === 'user') {
+        // For a person, 403 is eDOCS refusing *them* — no rights on this workspace
+        // or document — not an expired session. Only a 401 is worth a fresh ID
+        // token and one retry; whatever still refuses after that is a refusal.
+        if (status === 403) throw new EdocsAccessDeniedError(this.upstreamMessage(err));
+        if (status === 401) {
+          logger.warn('eDOCS session expired — reconnecting the person with a fresh ID token');
+          this.sessionToken = null;
+          await this.connect({ forceRefresh: true });
+          try {
+            return await fn();
+          } catch (retryErr: unknown) {
+            const retryStatus = httpStatus(retryErr);
+            if (retryStatus === 401 || retryStatus === 403) {
+              throw new EdocsAccessDeniedError(this.upstreamMessage(retryErr));
+            }
+            this.logUpstreamError('request', retryErr);
+            throw retryErr;
+          }
+        }
+      } else if (status === 401 || status === 403) {
         logger.warn('eDOCS session expired — re-authenticating');
         this.sessionToken = null;
-        await this.connect({ forceRefresh: this.principal.kind === 'user' });
+        await this.connect();
         return await fn();
       }
       this.logUpstreamError('request', err);

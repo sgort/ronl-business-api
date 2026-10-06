@@ -21,7 +21,7 @@
 # This script fills in the tenant's endpoints, the client id and the secret.
 # A provider or mapper that exists is updated in place, never duplicated, so
 # the script is safe to re-run -- which is also how a rotated secret goes in.
-# It also grants the broker read-token role to every user already linked to the provider.
+# It also adds the broker read-token role to the realm's default roles, so every user can read their own stored token.
 #
 # THE SECRET
 # ----------
@@ -274,30 +274,31 @@ echo "→ verified: provider ${ALIAS} with $(wc -l <<<"$AFTER") mappers in realm
 echo "→ redirect URI that must be registered in Entra (platform Web):"
 echo "  ${REDIRECT_URI}"
 
-# ── Existing brokered users: the broker read-token role ──────────────────────
-# addReadTokenRoleOnCreate only applies to users Keycloak creates from now on.
-# Users who already signed in through this provider need the broker client's
-# read-token role to read their own stored Entra token (the backend calls the
-# broker token endpoint with the person's own Keycloak token).
+# ── Every user may read their own stored token ───────────────────────────────
+# The backend reads a person's stored Entra token through the broker token
+# endpoint, which requires the broker client's read-token role.
+# addReadTokenRoleOnCreate covers only users Keycloak creates through this
+# provider; an existing user who links Entra later would never get it. The
+# realm's default roles reach every user, existing and future, so the role is
+# added there once. It grants nothing on its own: the endpoint only ever returns
+# the caller's own stored token, and only users linked to the provider have one.
 BROKER_ID=$(curl -sS "${AUTH[@]}" "${BASE}/clients?clientId=broker" | jqr -r '.[0].id // empty')
 ROLE_JSON=$(curl -sS "${AUTH[@]}" "${BASE}/clients/${BROKER_ID}/roles/read-token")
 [[ -n "$BROKER_ID" && "$(jqr -r '.name // empty' <<<"$ROLE_JSON")" == "read-token" ]] || {
   echo "broker client or its read-token role not found in realm ${REALM}" >&2
   exit 1
 }
-GRANTED=0 HELD=0
-while IFS= read -r uid; do
-  [[ -n "$uid" ]] || continue
-  has=$(curl -sS "${AUTH[@]}" "${BASE}/users/${uid}/role-mappings/clients/${BROKER_ID}" \
-    | jqr -r '[.[].name] | index("read-token") // empty')
-  if [[ -n "$has" ]]; then HELD=$((HELD + 1)); continue; fi
-  code=$(jq -c '[{id, name}]' <<<"$ROLE_JSON" | curl -sS -o /dev/null -w '%{http_code}' -X POST "${AUTH[@]}" \
-    -H 'Content-Type: application/json' "${BASE}/users/${uid}/role-mappings/clients/${BROKER_ID}" --data-binary @- || true)
-  [[ "$code" == "204" ]] && GRANTED=$((GRANTED + 1)) \
-    || { echo "  FAILED        read-token for user ${uid} -> HTTP ${code}" >&2; FAILED=$((FAILED + 1)); }
-done < <(curl -sS "${AUTH[@]}" "${BASE}/users?idpAlias=${ALIAS}&max=1000" | jqr -r '.[].id')
-echo "→ broker read-token: ${GRANTED} granted, ${HELD} already held"
-[[ "$FAILED" -eq 0 ]] || exit 1
+DEFAULT_ROLE="default-roles-${REALM}"
+HAS=$(curl -sS "${AUTH[@]}" "${BASE}/roles/${DEFAULT_ROLE}/composites/clients/${BROKER_ID}" \
+  | jqr -r '[.[].name] | index("read-token") // empty')
+if [[ -n "$HAS" ]]; then
+  echo "  present       broker read-token in ${DEFAULT_ROLE}"
+else
+  code=$(jq -c '[{id, name}]' <<<"$ROLE_JSON" | curl -sS -o "$TMPD/out" -w '%{http_code}' -X POST "${AUTH[@]}" \
+    -H 'Content-Type: application/json' "${BASE}/roles/${DEFAULT_ROLE}/composites" --data-binary @- || true)
+  [[ "$code" == "204" ]] && echo "  added         broker read-token to ${DEFAULT_ROLE}" \
+    || { echo "  FAILED        broker read-token in ${DEFAULT_ROLE} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; exit 1; }
+fi
 
 # ── The application client: broker roles in the access token ─────────────────
 # The broker token endpoint hands a person their stored Entra token only when

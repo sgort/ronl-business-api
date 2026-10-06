@@ -168,8 +168,20 @@ export class EntraTokenService {
       const code = status(err);
       if (code === 400 || code === 401) {
         const error = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
-        logger.warn('Entra refused to refresh the ID token', { status: code, error });
-        throw new ReauthRequiredError();
+        // Only these mean the *person's* grant is gone; signing in again fixes them.
+        if (error === 'invalid_grant' || error === 'interaction_required') {
+          logger.warn('Entra refused to refresh the ID token', { status: code, error });
+          throw new ReauthRequiredError();
+        }
+        // Anything else (invalid_client, unauthorized_client, …) is our client
+        // configuration — telling every person to sign in again would never help.
+        logger.error('Entra refused the refresh with this client configuration', {
+          status: code,
+          error,
+        });
+        throw new Error(
+          `Entra refused the refresh (${error ?? code}) — check ENTRA_CLIENT_ID / ENTRA_CLIENT_SECRET`
+        );
       }
       throw err;
     }

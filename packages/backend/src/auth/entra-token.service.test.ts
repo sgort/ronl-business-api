@@ -141,6 +141,29 @@ describe('EntraTokenService', () => {
     await expect(svc.getIdToken('sub-a', 'kc-a')).rejects.toBeInstanceOf(ReauthRequiredError);
   });
 
+  it('interaction_required also means sign in again', async () => {
+    const { http, svc } = make();
+    http.get.mockResolvedValue({ data: { id_token: expired('old'), refresh_token: 'r1' } });
+    http.post.mockRejectedValue(httpError(400, { error: 'interaction_required' }));
+    await expect(svc.getIdToken('sub-a', 'kc-a')).rejects.toBeInstanceOf(ReauthRequiredError);
+  });
+
+  it.each(['invalid_client', 'unauthorized_client'])(
+    'a broken client setting (%s) is not "sign in again" — it surfaces as an error',
+    async (error) => {
+      const { http, svc } = make();
+      http.get.mockResolvedValue({ data: { id_token: expired('old'), refresh_token: 'r1' } });
+      http.post.mockRejectedValue(httpError(401, { error }));
+      const result = svc.getIdToken('sub-a', 'kc-a');
+      await expect(result).rejects.not.toBeInstanceOf(ReauthRequiredError);
+      await expect(svc.getIdToken('sub-a', 'kc-a')).rejects.toThrow(/Entra refused/);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Entra refused'),
+        expect.objectContaining({ error })
+      );
+    }
+  );
+
   it('an expired token with no refresh token means sign in again', async () => {
     const { http, svc } = make();
     http.get.mockResolvedValue({ data: { id_token: expired('old') } });

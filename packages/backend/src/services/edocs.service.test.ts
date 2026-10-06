@@ -826,6 +826,41 @@ describe('EdocsService — per-user sessions', () => {
     await expect(userClient('a').listWorkspaces()).rejects.toBeInstanceOf(EdocsAccessDeniedError);
   });
 
+  it('a 403 on a person’s call is a refusal, not an expired session: no refresh, no reconnect', async () => {
+    const getIdToken = jest.fn().mockResolvedValue('id-a');
+    const user = service.forUser({ sub: 'a', getIdToken });
+    mockClient.post.mockResolvedValueOnce(userConnectResponse());
+    mockClient.get.mockRejectedValueOnce({
+      response: { status: 403, data: { ERROR: { message: 'Geen rechten op dit document' } } },
+    });
+    await expect(user.getDocumentProfile('42')).rejects.toBeInstanceOf(EdocsAccessDeniedError);
+    expect(getIdToken).toHaveBeenCalledTimes(1);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 401 that persists after the forced refresh is a refusal, not a 502', async () => {
+    const user = service.forUser({ sub: 'a', getIdToken: jest.fn().mockResolvedValue('id-a') });
+    mockClient.post.mockResolvedValue(userConnectResponse());
+    mockClient.get.mockRejectedValue({ response: { status: 401 } });
+    await expect(user.listWorkspaces()).rejects.toBeInstanceOf(EdocsAccessDeniedError);
+  });
+
+  it('a 5xx on a person’s connect is an upstream failure, not an access decision', async () => {
+    const err = { response: { status: 503, data: 'Service Unavailable' } };
+    mockClient.post.mockRejectedValueOnce(err);
+    const user = userClient('a');
+    await expect(user.listWorkspaces()).rejects.toBe(err);
+  });
+
+  it('the service account still reconnects on a 403 (its session expiry signal)', async () => {
+    mockClient.post.mockResolvedValue(connectResponse);
+    mockClient.get
+      .mockRejectedValueOnce({ response: { status: 403 } })
+      .mockResolvedValueOnce({ data: { data: { list: [] } } });
+    await expect(service.listWorkspaces()).resolves.toEqual([]);
+    expect(mockClient.post).toHaveBeenCalledTimes(2);
+  });
+
   it('a revoked session ends in ReauthRequiredError, not an upstream error (Review Focus 2)', async () => {
     const getIdToken = jest
       .fn()
