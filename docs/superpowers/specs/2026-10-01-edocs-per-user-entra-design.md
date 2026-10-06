@@ -12,20 +12,20 @@ identity**. Concretely:
   assistant's eDOCS tools — opens an eDOCS session with that employee's own Entra ID
   token. No password, no lockouts, and eDOCS enforces and records that person's rights.
 - Background work — the Operaton worker's RIP archiving and ValidSign's archiving of the
-  signed PDF — runs as the service account `IOUTEST`, and records the employee who caused
+  signed PDF — runs as the service account `testuser001`, and records the employee who caused
   it as the document's author.
 - A person is never silently turned into the service account.
 
 ## Decisions
 
-| Question                                | Decision                                                                                                                                                                     |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Purpose                                 | Both: no stored personal password, _and_ eDOCS sees the real employee. Per user for people, a visible service identity for machines                                          |
-| Background archiving                    | Service session, with the employee as `AUTHOR_ID` (attribution), not per-user tokens kept for later                                                                          |
-| Service identity                        | Dedicated eDOCS account `IOUTEST`, password login — replacing the personal `GORTS01`                                                                                         |
-| A person without an Entra token         | Refused; `EDOCS_ALLOW_SERVICE_FALLBACK=true` allows a visible fallback to the service, never on production                                                                   |
-| How the backend gets the person's token | Keycloak stores the brokered Entra tokens; the backend reads them through the broker token endpoint with the person's own Keycloak token, and refreshes them at Entra itself |
-| Missing eDOCS user for attribution      | Archive anyway, as `IOUTEST`, with "namens <naam> (<e-mail>)" in a visible profile field                                                                                     |
+| Question                                | Decision                                                                                                                                                                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Purpose                                 | Both: no stored personal password, _and_ eDOCS sees the real employee. Per user for people, a visible service identity for machines                                                                        |
+| Background archiving                    | Service session; the employee is recorded as "namens <naam> (<e-mail>)" in a free-text profile field — the service account cannot set `AUTHOR_ID` to another user (probe and Flevoland IT, 6 October 2026) |
+| Service identity                        | Dedicated eDOCS account `testuser001` ("TestUser001 (voor iou)"), password login — replacing the personal `GORTS01` and the locked-out `IOUTEST`                                                           |
+| A person without an Entra token         | Refused; `EDOCS_ALLOW_SERVICE_FALLBACK=true` allows a visible fallback to the service, never on production                                                                                                 |
+| How the backend gets the person's token | Keycloak stores the brokered Entra tokens; the backend reads them through the broker token endpoint with the person's own Keycloak token, and refreshes them at Entra itself                               |
+| Errors                                  | RFC 9457 problem details through `sendProblem` (`application/problem+json`, the code as the `code` member), like every other route since v2026.10.0                                                        |
 
 ## Background
 
@@ -71,12 +71,12 @@ identity**. Concretely:
 
 ### 1. Who connects to eDOCS as whom
 
-| Caller                                                                               | eDOCS session as                      | Credential                                  |
-| ------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------- |
-| A person through `/v1/edocs` (Keycloak token, `azp = ronl-business-api`)             | the person                            | their Entra ID token in `X-DM-AUTH`         |
-| AI-assistant eDOCS tools on behalf of a caseworker                                   | the person                            | the caseworker's token, passed through (§5) |
-| A machine client (`edocs-mcp-client` without a user context, `copilot-studio-edocs`) | `IOUTEST`                             | eDOCS password                              |
-| Operaton worker, ValidSign archiving                                                 | `IOUTEST`, `AUTHOR_ID` = the employee | eDOCS password, attribution (§6)            |
+| Caller                                                                               | eDOCS session as                                  | Credential                                  |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------- |
+| A person through `/v1/edocs` (Keycloak token, `azp = ronl-business-api`)             | the person                                        | their Entra ID token in `X-DM-AUTH`         |
+| AI-assistant eDOCS tools on behalf of a caseworker                                   | the person                                        | the caseworker's token, passed through (§5) |
+| A machine client (`edocs-mcp-client` without a user context, `copilot-studio-edocs`) | `testuser001`                                     | eDOCS password                              |
+| Operaton worker, ValidSign archiving                                                 | `testuser001`, "namens <employee>" in the profile | eDOCS password, attribution (§6)            |
 
 ### 2. The Entra token service — `auth/entra-token.service.ts` (new)
 
@@ -111,13 +111,13 @@ can only ever read the Entra tokens of the person making the request.
   `SESSION_DURATION` in the connect response. The request interceptor sends the cookies
   of the session the call belongs to.
 - `connect(principal)`:
-  - service → today's password body, with `EDOCS_USER_ID` / `EDOCS_PASSWORD` (`IOUTEST`);
+  - service → today's password body, with `EDOCS_USER_ID` / `EDOCS_PASSWORD` (`testuser001`);
   - user → `X-DM-AUTH: <idToken>` with the body
     `{"data":{"library", "tzOffset", "timezone", "tzDST"}}`, no password.
 - `withAuth` keeps its "reconnect once on 401/403" behaviour, per principal. For a user,
   the reconnect asks the Entra token service for a fresh ID token first.
 - The 30-second throttle on the authentication probe stays for the service session; it
-  protects `IOUTEST` from lockout.
+  protects `testuser001` from lockout.
 - Every interactive connect records `email → USER_ID` in the attribution cache (§6).
 - Stub mode is unchanged and applies to every principal.
 - Write calls send `X-DM-CSRF-TOKEN` as a header too if eDOCS turns out to require it;
@@ -129,13 +129,16 @@ A new middleware, `edocsPrincipal`, runs after `jwtMiddleware`:
 
 1. **Who may call.** A person (`azp = ronl-business-api`) needs the role `caseworker` or
    `admin`; a machine client must be in `EDOCS_ALLOWED_CLIENTS`
-   (default `edocs-mcp-client,copilot-studio-edocs`). Otherwise `403 FORBIDDEN`.
+   (default `edocs-mcp-client,copilot-studio-edocs,operaton-mcp-client` — the last is the
+   client every live smoke script and ACC run authenticates as). A person without the role
+   gets `403 FORBIDDEN`, an unlisted client `403 EDOCS_CLIENT_NOT_ALLOWED`. All refusals are
+   problem details (`sendProblem`), with the code in the `code` member.
 2. **As whom.**
    - A machine client → service principal.
    - A person → `getEntraIdToken(...)` → user principal.
      - `UserTokenUnavailableError` → `403 EDOCS_USER_TOKEN_UNAVAILABLE`, **unless**
        `EDOCS_ALLOW_SERVICE_FALLBACK=true`: then the service principal, the response carries
-       `"actingAs": "service"`, and an audit entry records "IOUTEST namens <user>".
+       `"actingAs": "service"`, and an audit entry records "testuser001 namens <user>".
      - `ReauthRequiredError` → `401 EDOCS_REAUTH_REQUIRED`.
 3. The resolved principal is attached to the request; handlers call
    `edocsService.forPrincipal(req.edocsPrincipal)`.
@@ -168,28 +171,36 @@ eDOCS rejecting a person's token (a `rapi_code` other than an expired session) �
   token's `email` (falling back to `preferred_username`). It joins `municipality`,
   `originTenantId` and `applicantId` in `RESERVED_PROCESS_VARIABLES`: a client sending it
   in a completion gets `400 RESERVED_VARIABLE`.
-- **Which eDOCS user.** `AUTHOR_ID` needs an eDOCS user id (`GORTS01`), not an e-mail.
-  Resolution, in order:
-  1. the attribution cache, filled by every interactive connect (`email → USER_ID`);
-  2. an eDOCS user lookup by e-mail or network id through the service session — the
-     endpoint is established by the `IOUTEST` probe (prerequisite 2); results are cached.
+- **How the employee is recorded: "namens …", not `AUTHOR_ID`.** The probe of 6 October
+  2026 showed that the service account cannot set `AUTHOR_ID` to another user: eDOCS
+  accepts `testuser001` as its own author and refuses `GORTS01` with "U hebt een ongeldige
+  eigenschapswaarde ingevoerd". Flevoland IT confirmed the right cannot be granted. So
+  `AUTHOR_ID` and `TYPIST_ID` stay `testuser001`, and the employee is recorded as
+  **"namens <naam> (<e-mail>)"** in a free-text profile field. The probe found two empty
+  candidates on the `D_INTERN_NIEUW` form, `ABSTRACT` and `DESCRIPTION`; PR 3 settles
+  which one InfoCenter shows.
 - **Archiving.** The worker (`rip-edocs-workspace`, `rip-edocs-document`) and ValidSign
-  completion read `edocsAuthor` and pass `author` to `ensureWorkspace` / `uploadDocument`
-  on the service client. With a resolved eDOCS user, `AUTHOR_ID` is that user and
-  `TYPIST_ID` stays `IOUTEST`.
-- **No eDOCS user found.** Archive anyway, as `IOUTEST`, with
-  "namens <naam> (<e-mail>)" in a profile field eDOCS shows, and log a warning. A signed
-  PDF that is not archived is worse than one with the wrong author.
-- No `edocsAuthor` (a process started outside RBA) → today's behaviour: `IOUTEST`.
+  completion read `edocsAuthor` and pass `author` (e-mail and display name) to
+  `ensureWorkspace` / `uploadDocument` on the service client. One function turns `author`
+  into profile fields; it is the only place that knows how attribution is expressed.
+- **A later switch to `AUTHOR_ID`.** Flevoland's authority may decide differently once
+  RBA's design is assessed. That change is confined to the attribution function: it would
+  also set `AUTHOR_ID` to the employee's eDOCS user id, taken from the `email → USER_ID`
+  record that every interactive connect keeps (§3). No setting is added for a right that
+  does not exist yet. The people lookups (`PEOPLE`, `_PEOPLE_ALL`, `PD_PEOPLE_LUP`) answered
+  `missing key` to every call form tried; finding a user by e-mail through eDOCS stays
+  open until then.
+- No `edocsAuthor` (a process started outside RBA) → today's behaviour: `testuser001`, no
+  "namens" text.
 
 ### 7. Configuration
 
-| Setting                                                     | Purpose                                                                                           |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `EDOCS_USER_ID`, `EDOCS_PASSWORD`                           | The service account, now `IOUTEST`                                                                |
-| `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET` | Refreshing a person's Entra ID token; the same values Keycloak's `entra-flevoland` provider holds |
-| `EDOCS_ALLOW_SERVICE_FALLBACK`                              | Default `false`; allows the visible service fallback for people without an Entra token            |
-| `EDOCS_ALLOWED_CLIENTS`                                     | Machine clients allowed on `/v1/edocs`; default `edocs-mcp-client,copilot-studio-edocs`           |
+| Setting                                                     | Purpose                                                                                                     |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `EDOCS_USER_ID`, `EDOCS_PASSWORD`                           | The service account, now `testuser001`                                                                      |
+| `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET` | Refreshing a person's Entra ID token; the same values Keycloak's `entra-flevoland` provider holds           |
+| `EDOCS_ALLOW_SERVICE_FALLBACK`                              | Default `false`; allows the visible service fallback for people without an Entra token                      |
+| `EDOCS_ALLOWED_CLIENTS`                                     | Machine clients allowed on `/v1/edocs`; default `edocs-mcp-client,copilot-studio-edocs,operaton-mcp-client` |
 
 `validateConfig()` gains eDOCS checks when `EDOCS_STUB_MODE=false`: the service
 credentials and the three `ENTRA_*` settings must be present, and
@@ -203,7 +214,7 @@ their tokens.
 
 ### 8. Health
 
-`/v1/edocs/status` keeps reporting the service session (`IOUTEST`): reachable,
+`/v1/edocs/status` keeps reporting the service session (`testuser001`): reachable,
 authenticated. For a person it adds their own path — whether an eDOCS session can be
 opened as them — without affecting the service probe's lockout throttle.
 
@@ -227,8 +238,8 @@ TDD per component:
   user B's token; the cache bound evicts.
 - **eDOCS service**: user connect sends `X-DM-AUTH` and no password; service connect sends
   the password; sessions are separate per principal; expiry triggers a reconnect; the 401
-  retry fetches a fresh ID token for a user; `author` sets `AUTHOR_ID`; the "namens …"
-  fallback when no eDOCS user resolves; connect records `email → USER_ID`.
+  retry fetches a fresh ID token for a user; `author` produces the "namens …" text and
+  leaves `AUTHOR_ID` the service account; connect records `email → USER_ID`.
 - **Routes**: the principal follows from the token; the fallback setting behaves as
   decided; the role and client allow-list are enforced; the error codes of §4.
 - **Assistant**: the token travels in `_meta`, never in the tool arguments; the MCP server
@@ -239,18 +250,17 @@ TDD per component:
   validation in live mode.
 - **Live, by the user**, against `infocenter-test`: the assistant lists eDOCS workspaces as
   `GORTS01`; a Keycloak test account gets `403 EDOCS_USER_TOKEN_UNAVAILABLE`; with the
-  fallback on, the same request runs as `IOUTEST` and says so.
+  fallback on, the same request runs as `testuser001` and says so.
 
 ## Prerequisites
 
-1. **`IOUTEST` unlocked**, with its password verified by Flevoland's eDOCS administrator
-   _before_ the first login attempt — every failed attempt locks it again.
-2. **Probe with `IOUTEST`**: may the service account set `AUTHOR_ID` to another user, and
-   which endpoint finds an eDOCS user by e-mail or network id? §6 follows the outcome.
+1. **A working service account** — done. Flevoland IT provided `testuser001`
+   ("TestUser001 (voor iou)") in place of the locked-out `IOUTEST`; `test-edocs-live.sh`
+   passed 15/15 with it on 6 October 2026.
+2. **The attribution probe** — done, 6 October 2026: the service account may only record
+   itself as `AUTHOR_ID`, and the right cannot be granted (Flevoland IT). §6 follows.
 3. The Keycloak changes of §7, locally and on ACC.
-
-Prerequisites 1 and 2 need access to Flevoland IT, scheduled from **Monday 5 October
-2026**.
+4. For PR 3: which of `ABSTRACT` / `DESCRIPTION` InfoCenter shows.
 
 ## Delivery
 
@@ -262,8 +272,8 @@ Three pull requests, each useful on its own:
    Testable at once with the user's own account.
 2. **The AI assistant as the person** — `callTool` context and `_meta` through the eDOCS
    MCP server.
-3. **Background attribution** — `edocsAuthor`, `AUTHOR_ID`, the user lookup. Starts on
-   Monday 5 October 2026, after prerequisites 1 and 2.
+3. **Background attribution** — `edocsAuthor` and the "namens …" text (§6). No longer
+   blocked; planned once PR 1 is in.
 
 Docs: `docs/EDOCS-GO-LIVE.md`, the Entra runbook in iou-architectuur (the new Keycloak
 settings and the `read-token` role), and the documentation site's eDOCS connector pages.

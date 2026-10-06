@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-01-edocs-per-user-entra-design.md`
 
-**Out of scope here:** spec §6 (background attribution, `edocsAuthor`, `AUTHOR_ID`) — PR 3, planned separately after the `IOUTEST` probe on Monday 5 October 2026.
+**Out of scope here:** spec §6 (background attribution: `edocsAuthor` and the "namens …" text) — PR 3, planned separately once PR 1 is in. The attribution probe ran on 6 October 2026: the service account cannot set `AUTHOR_ID` to another user.
+
+**Revised 2026-10-06** for RFC 9457 problem details (`81a6c49`, v2026.10.0) and the service account `testuser001`.
 
 ## Global Constraints
 
@@ -21,12 +23,13 @@
 - Error codes, verbatim: `EDOCS_USER_TOKEN_UNAVAILABLE` (403), `EDOCS_REAUTH_REQUIRED` (401), `EDOCS_ACCESS_DENIED` (403), `EDOCS_CLIENT_NOT_ALLOWED` (403), `FORBIDDEN` (403), `EDOCS_ERROR` (502, unchanged).
 - Settings, verbatim: `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET`, `ENTRA_IDP_ALIAS` (default `entra-flevoland`), `EDOCS_ALLOW_SERVICE_FALLBACK` (default `false`), `EDOCS_ALLOWED_CLIENTS`.
 - Responses of `/v1/edocs` data routes carry `actingAs: 'user' | 'service'`.
-- The service account stays `EDOCS_USER_ID` / `EDOCS_PASSWORD` (to become `IOUTEST` — an operational change, not code).
+- The service account stays `EDOCS_USER_ID` / `EDOCS_PASSWORD`: `testuser001` ("TestUser001 (voor iou)").
+- Every refusal is a problem detail through `sendProblem(res, req, { status, code, detail })` from `@utils/problem` (`application/problem+json`); tests assert `res.body.code`, never `res.body.error.code`. OpenAPI error responses use `application/problem+json` with `#/components/schemas/Problem`.
 
 ## Rulings against the spec (made while planning)
 
 1. **The exported `edocsService` singleton stays, and is the service principal.** The spec says "no unscoped call path". The worker and ValidSign archiving are service callers by design, so they keep calling `edocsService` unchanged; every `/v1/edocs` handler goes through the principal the middleware resolved. Cost if wrong: one rename (`edocsService.forService()`).
-2. **`EDOCS_ALLOWED_CLIENTS` defaults to `edocs-mcp-client,copilot-studio-edocs,operaton-mcp-client`.** The spec's default omits `operaton-mcp-client`, but `test-edocs-live.sh`, `test-smoke-live.sh` and every ACC run authenticate as it; leaving it out would break them on merge. Narrowing is an App Setting. Cost if wrong: a setting.
+2. **`EDOCS_ALLOWED_CLIENTS` defaults to `edocs-mcp-client,copilot-studio-edocs,operaton-mcp-client`.** `test-edocs-live.sh`, `test-smoke-live.sh` and every ACC run authenticate as `operaton-mcp-client`; leaving it out would break them on merge. Narrowing is an App Setting. Cost if wrong: a setting. (Adopted into the spec on 2026-10-06.)
 3. **Session expiry is the existing "reconnect once on 401/403", per principal**, not a timer from `SESSION_DURATION`: its unit is unverified. The value is recorded on connect for the live test. Cost if wrong: one extra failed request per expired session.
 4. **The fallback's audit entry is a `logger.warn` with `audit: true`**, not a new audit-table row. Cost if wrong: a later call to the audit service.
 
@@ -108,7 +111,7 @@ describe('config.edocs and config.entra', () => {
 
   it('starts live eDOCS when everything is present', async () => {
     process.env.EDOCS_STUB_MODE = 'false';
-    process.env.EDOCS_USER_ID = 'IOUTEST';
+    process.env.EDOCS_USER_ID = 'testuser001';
     process.env.EDOCS_PASSWORD = 'pw';
     process.env.ENTRA_TENANT_ID = 't';
     process.env.ENTRA_CLIENT_ID = 'c';
@@ -234,7 +237,7 @@ EDOCS_ALLOW_SERVICE_FALLBACK=false
 # EDOCS_ALLOWED_CLIENTS=edocs-mcp-client,copilot-studio-edocs,operaton-mcp-client
 ```
 
-and change the comment above `EDOCS_USER_ID=` from "Service-account credentials." to "Service-account credentials (IOUTEST) — machine callers and archiving."
+and change the comment above `EDOCS_USER_ID=` from "Service-account credentials." to "Service-account credentials (testuser001) — machine callers and archiving."
 
 - [ ] **Step 4: Run the tests to see them pass**
 
@@ -1185,7 +1188,7 @@ Hand off `npm test --workspace=@ronl/backend`; then ask. Message: `feat(edocs): 
 **Interfaces:**
 
 - Consumes: `entraTokenService`, the two errors (Task 2); `edocsService`, `EdocsService`, `EdocsAccessDeniedError` (Task 3); `config.edocs.allowedClients`, `config.edocs.allowServiceFallback`, `config.keycloak.clientId` (`'ronl-business-api'`).
-- Produces: `req.auth.token`; `edocsAccess`, `requireEdocsPrincipal`, `sendEdocsError(res, error, message)`; `req.edocs`, `req.edocsActingAs`, `req.edocsUserProblem`.
+- Produces: `req.auth.token`; `edocsAccess`, `requireEdocsPrincipal`, `sendEdocsError(req, res, error, message)`; `req.edocs`, `req.edocsActingAs`, `req.edocsUserProblem`.
 
 - [ ] **Step 1: Keep the raw bearer token on `req.auth` (test first)**
 
@@ -1215,7 +1218,7 @@ const mockConfig = {
     stubMode: false,
     allowServiceFallback: false,
     allowedClients: ['edocs-mcp-client', 'copilot-studio-edocs', 'operaton-mcp-client'],
-    userId: 'IOUTEST',
+    userId: 'testuser001',
   },
 };
 const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
@@ -1250,12 +1253,14 @@ function res() {
     r.statusCode = c;
     return r;
   }) as unknown as Response['status'];
+  r.type = jest.fn(() => r) as unknown as Response['type'];
   r.json = jest.fn((b: unknown) => {
     r.body = b;
     return r;
   }) as unknown as Response['json'];
   return r;
 }
+const anyReq = { originalUrl: '/v1/edocs/workspaces' } as unknown as Request;
 const person = (roles: string[] = ['caseworker']) =>
   ({
     path: '/workspaces',
@@ -1289,14 +1294,14 @@ describe('edocsAccess', () => {
     const r = res();
     await edocsAccess(machine('some-other-client'), r, jest.fn());
     expect(r.statusCode).toBe(403);
-    expect(r.body).toMatchObject({ error: { code: 'EDOCS_CLIENT_NOT_ALLOWED' } });
+    expect(r.body).toMatchObject({ code: 'EDOCS_CLIENT_NOT_ALLOWED' });
   });
 
   it('a person without caseworker or admin gets 403 FORBIDDEN', async () => {
     const r = res();
     await edocsAccess(person(['citizen']), r, jest.fn());
     expect(r.statusCode).toBe(403);
-    expect(r.body).toMatchObject({ error: { code: 'FORBIDDEN' } });
+    expect(r.body).toMatchObject({ code: 'FORBIDDEN' });
     expect(mockGetIdToken).not.toHaveBeenCalled();
   });
 
@@ -1363,7 +1368,7 @@ describe('requireEdocsPrincipal', () => {
       jest.fn()
     );
     expect(r.statusCode).toBe(403);
-    expect(r.body).toMatchObject({ error: { code: 'EDOCS_USER_TOKEN_UNAVAILABLE' } });
+    expect(r.body).toMatchObject({ code: 'EDOCS_USER_TOKEN_UNAVAILABLE' });
   });
 
   it('no token, fallback on → the service, visibly, with an audit line', () => {
@@ -1379,7 +1384,7 @@ describe('requireEdocsPrincipal', () => {
     expect(req.edocsActingAs).toBe('service');
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('fallback'),
-      expect.objectContaining({ audit: true, userId: 'sub-a', actingAs: 'IOUTEST' })
+      expect.objectContaining({ audit: true, userId: 'sub-a', actingAs: 'testuser001' })
     );
   });
 
@@ -1392,7 +1397,7 @@ describe('requireEdocsPrincipal', () => {
       jest.fn()
     );
     expect(r.statusCode).toBe(401);
-    expect(r.body).toMatchObject({ error: { code: 'EDOCS_REAUTH_REQUIRED' } });
+    expect(r.body).toMatchObject({ code: 'EDOCS_REAUTH_REQUIRED' });
   });
 });
 
@@ -1404,15 +1409,16 @@ describe('sendEdocsError', () => {
     [new Error('boom'), 502, 'EDOCS_ERROR'],
   ])('%s → %d %s', (err, status, code) => {
     const r = res();
-    sendEdocsError(r, err, 'Failed to list eDOCS workspaces.');
+    sendEdocsError(anyReq, r, err, 'Failed to list eDOCS workspaces.');
     expect(r.statusCode).toBe(status);
-    expect(r.body).toMatchObject({ success: false, error: { code } });
+    expect(r.body).toMatchObject({ status, code });
+    expect(r.type).toHaveBeenCalledWith('application/problem+json');
   });
 
   it('keeps the route’s own message for an upstream failure', () => {
     const r = res();
-    sendEdocsError(r, new Error('boom'), 'Failed to list eDOCS workspaces.');
-    expect(r.body).toMatchObject({ error: { message: 'Failed to list eDOCS workspaces.' } });
+    sendEdocsError(anyReq, r, new Error('boom'), 'Failed to list eDOCS workspaces.');
+    expect(r.body).toMatchObject({ detail: 'Failed to list eDOCS workspaces.' });
   });
 });
 ```
@@ -1425,6 +1431,7 @@ Run: `npx jest src/routes/edocs.access.test.ts` — FAIL (module not found).
 import type { NextFunction, Request, Response } from 'express';
 import { config } from '@utils/config';
 import { createLogger } from '@utils/logger';
+import { sendProblem } from '@utils/problem';
 import {
   entraTokenService,
   ReauthRequiredError,
@@ -1448,8 +1455,9 @@ declare module 'express-serve-static-core' {
 
 const PERSON_ROLES = ['caseworker', 'admin'];
 
-const fail = (res: Response, status: number, code: string, message: string) =>
-  res.status(status).json({ success: false, error: { code, message } });
+/** Every refusal is an RFC 9457 problem detail, like the rest of the API. */
+const fail = (req: Request, res: Response, status: number, code: string, detail: string) =>
+  sendProblem(res, req, { status, code, detail });
 
 /**
  * Who may call /v1/edocs, and as whom eDOCS sees the call (spec §4).
@@ -1471,6 +1479,7 @@ export async function edocsAccess(req: Request, res: Response, next: NextFunctio
     }
     logger.warn('eDOCS request from a client not on the allow-list', { azp, path: req.path });
     fail(
+      req,
       res,
       403,
       'EDOCS_CLIENT_NOT_ALLOWED',
@@ -1480,7 +1489,7 @@ export async function edocsAccess(req: Request, res: Response, next: NextFunctio
   }
 
   if (!(req.user?.roles ?? []).some((role) => PERSON_ROLES.includes(role))) {
-    fail(res, 403, 'FORBIDDEN', 'eDOCS requires the caseworker or admin role.');
+    fail(req, res, 403, 'FORBIDDEN', 'eDOCS requires the caseworker or admin role.');
     return;
   }
 
@@ -1517,6 +1526,7 @@ export function requireEdocsPrincipal(req: Request, res: Response, next: NextFun
 
   if (req.edocsUserProblem === 'EDOCS_REAUTH_REQUIRED') {
     fail(
+      req,
       res,
       401,
       'EDOCS_REAUTH_REQUIRED',
@@ -1538,6 +1548,7 @@ export function requireEdocsPrincipal(req: Request, res: Response, next: NextFun
   }
 
   fail(
+    req,
     res,
     403,
     'EDOCS_USER_TOKEN_UNAVAILABLE',
@@ -1546,9 +1557,10 @@ export function requireEdocsPrincipal(req: Request, res: Response, next: NextFun
 }
 
 /** Maps an eDOCS call's failure to a response; anything unrecognised stays the route's 502. */
-export function sendEdocsError(res: Response, error: unknown, message: string): void {
+export function sendEdocsError(req: Request, res: Response, error: unknown, message: string): void {
   if (error instanceof ReauthRequiredError) {
     fail(
+      req,
       res,
       401,
       'EDOCS_REAUTH_REQUIRED',
@@ -1556,15 +1568,16 @@ export function sendEdocsError(res: Response, error: unknown, message: string): 
     );
   } else if (error instanceof UserTokenUnavailableError) {
     fail(
+      req,
       res,
       403,
       'EDOCS_USER_TOKEN_UNAVAILABLE',
       'eDOCS is available after signing in with your Flevoland account.'
     );
   } else if (error instanceof EdocsAccessDeniedError) {
-    fail(res, 403, 'EDOCS_ACCESS_DENIED', 'eDOCS refused access for this account.');
+    fail(req, res, 403, 'EDOCS_ACCESS_DENIED', 'eDOCS refused access for this account.');
   } else {
-    fail(res, 502, 'EDOCS_ERROR', message);
+    fail(req, res, 502, 'EDOCS_ERROR', message);
   }
 }
 ```
@@ -1624,7 +1637,7 @@ router.use(requireEdocsPrincipal);
 4. In each of the nine data handlers:
    - replace `edocsService.<method>(` with `req.edocs!.<method>(` (the handlers that declare `_req` rename it to `req`);
    - add `actingAs: req.edocsActingAs,` to the success JSON, after `success: true,`;
-   - replace the `res.status(502).json({ success: false, error: { code: 'EDOCS_ERROR', message: '<msg>' } });` block with `return sendEdocsError(res, error, '<msg>');`, keeping `<msg>` and the `logger.error(...)` line before it unchanged.
+   - replace the `sendProblem(res, req, { status: 502, code: 'EDOCS_ERROR', detail: '<msg>' });` call with `return sendEdocsError(req, res, error, '<msg>');`, keeping `<msg>` and the `logger.error(...)` line before it unchanged. Remove the `sendProblem` import from the routes file if no other call is left.
 
    The nine handlers and their messages, as they stand in the file (verify each while editing):
 
@@ -1658,7 +1671,7 @@ const mockConfig = {
     stubMode: false,
     allowServiceFallback: false,
     allowedClients: ['edocs-mcp-client', 'copilot-studio-edocs', 'operaton-mcp-client'],
-    userId: 'IOUTEST',
+    userId: 'testuser001',
   },
 };
 // Merge over the real config: other modules this router pulls in (version
@@ -1731,7 +1744,7 @@ describe('/v1/edocs — principals', () => {
       .set('x-test-auth', '1')
       .set('x-test-azp', 'random-client');
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('EDOCS_CLIENT_NOT_ALLOWED');
+    expect(res.body.code).toBe('EDOCS_CLIENT_NOT_ALLOWED');
   });
 
   it('a person with an Entra token acts as themselves', async () => {
@@ -1747,7 +1760,7 @@ describe('/v1/edocs — principals', () => {
     svc.healthCheck.mockResolvedValue({ status: 'up', reachable: true, authenticated: true });
     const data = await request(app).get('/v1/edocs/workspaces').set('x-test-auth', '1');
     expect(data.status).toBe(403);
-    expect(data.body.error.code).toBe('EDOCS_USER_TOKEN_UNAVAILABLE');
+    expect(data.body.code).toBe('EDOCS_USER_TOKEN_UNAVAILABLE');
     const status = await request(app).get('/v1/edocs/status').set('x-test-auth', '1');
     expect(status.status).toBe(200);
     expect(status.body.data.user).toEqual({
@@ -1773,7 +1786,7 @@ describe('/v1/edocs — principals', () => {
     svc.listWorkspaces.mockRejectedValue(new EdocsAccessDeniedError('Access not allowed'));
     const res = await request(app).get('/v1/edocs/workspaces').set('x-test-auth', '1');
     expect(res.status).toBe(403);
-    expect(res.body.error.code).toBe('EDOCS_ACCESS_DENIED');
+    expect(res.body.code).toBe('EDOCS_ACCESS_DENIED');
   });
 });
 ```
@@ -1795,23 +1808,15 @@ EdocsForbidden:
       (a Keycloak account, or signed in before tokens were stored).
     - **`EDOCS_ACCESS_DENIED`** -- eDOCS refused the person's token.
   content:
-    application/json:
-      schema:
-        $ref: '#/components/schemas/ErrorEnvelope'
-  headers:
-    API-Version:
-      $ref: '#/components/headers/ApiVersion'
+    application/problem+json:
+      schema: { $ref: '#/components/schemas/Problem' }
 EdocsUnauthorized:
   description: |
     `MISSING_TOKEN` / `INVALID_TOKEN` as everywhere, or **`EDOCS_REAUTH_REQUIRED`**:
     the person's Entra session can no longer be refreshed -- sign in again.
   content:
-    application/json:
-      schema:
-        $ref: '#/components/schemas/ErrorEnvelope'
-  headers:
-    API-Version:
-      $ref: '#/components/headers/ApiVersion'
+    application/problem+json:
+      schema: { $ref: '#/components/schemas/Problem' }
 ```
 
 2. In each of the nine data operations under `/edocs…` (all but `/edocs/status`): replace `'401': $ref: '#/components/responses/Unauthorized'` with `'401': $ref: '#/components/responses/EdocsUnauthorized'`, add `'403': $ref: '#/components/responses/EdocsForbidden'`, and in the `200`/`201` schema's second `allOf` object add, beside `data`:
@@ -1985,7 +1990,7 @@ else
       check_field "acts as the service, visibly" "$(cat /tmp/edocs_1b.json)" '.actingAs' 'service'
     else
       check_status "GET /v1/edocs/workspaces as ${SMOKE_USER} (fallback off)" "$U_CODE" "403"
-      check_field "refused for want of an Entra token" "$(cat /tmp/edocs_1b.json)" '.error.code' 'EDOCS_USER_TOKEN_UNAVAILABLE'
+      check_field "refused for want of an Entra token" "$(cat /tmp/edocs_1b.json)" '.code' 'EDOCS_USER_TOKEN_UNAVAILABLE'
     fi
     S_CODE=$(curl -s -o /tmp/edocs_1b_status.json -w '%{http_code}' "${BASE_URL}/v1/edocs/status" \
       -H "Authorization: Bearer ${USER_TOKEN}")
@@ -2059,7 +2064,7 @@ Expected: `OK`.
 3. `PERSON_TOKEN=<copied> bash scripts/test-edocs-live.sh` — 1c: `authenticated: true`, `edocsUserId: GORTS01`, workspaces `actingAs: user`. Note the `sessionDuration` the backend logged on that connect (ruling 3).
 4. With `EDOCS_ALLOW_SERVICE_FALLBACK=true` and a backend restart: `EXPECT_FALLBACK=true bash scripts/test-edocs-live.sh` — 1b passes with `actingAs: service`; the backend log shows the `audit: true` fallback line.
 
-Note: until `IOUTEST` is unlocked, the service-side steps (status `authenticated`, upload) use whatever `EDOCS_USER_ID` the user's `.env.development` holds.
+Note: the service-side steps (status `authenticated`, upload) run as `testuser001`, which passed `test-edocs-live.sh` 15/15 on 6 October 2026.
 
 - [ ] **Step 6: Stage and ask to commit**
 
@@ -2078,7 +2083,7 @@ Message: `test(edocs): live smoke covers a person with and without an Entra toke
 - Modify: `docs/EDOCS-GO-LIVE.md`
 - Modify (iou-architectuur, on `acc`, per its remotes flow): `docs/en/ronl-business-api/developer/deployment/entra-id.md`
 
-- [ ] **Step 1: `docs/EDOCS-GO-LIVE.md`** — add a section `## People act as themselves (Entra ID)` stating, in this order: the two identities (person via `X-DM-AUTH`, service `EDOCS_USER_ID`, to become `IOUTEST`); the new settings with one line each (copy the `.env.example` comments of Task 1); the error codes table (§ Global Constraints); the Keycloak prerequisite (Task 5 script run, then each person signs in once more); and the smoke commands of Task 6 Step 5. Replace "Prefer a **dedicated service account**…" with "The service account is `IOUTEST`; a person's eDOCS work no longer goes through it."
+- [ ] **Step 1: `docs/EDOCS-GO-LIVE.md`** — add a section `## People act as themselves (Entra ID)` stating, in this order: the two identities (person via `X-DM-AUTH`, service `EDOCS_USER_ID` = `testuser001`); the new settings with one line each (copy the `.env.example` comments of Task 1); the error codes table (§ Global Constraints); the Keycloak prerequisite (Task 5 script run, then each person signs in once more); and the smoke commands of Task 6 Step 5. Replace "Prefer a **dedicated service account**…" with "The service account is `testuser001`; a person's eDOCS work no longer goes through it."
 
 - [ ] **Step 2: Entra runbook** — in `entra-id.md`, section "The Keycloak side", after the mapper table, add:
 
@@ -2240,7 +2245,7 @@ Run: `npx jest src/services/mcp src/services/mcpChat.service.test.ts src/routes/
 
 **Interfaces:**
 
-- Consumes: `_meta.userToken` (Task 9); the `/v1/edocs` error codes (Task 4).
+- Consumes: `_meta.userToken` (Task 9); the `/v1/edocs` problem-detail `code` (Task 4).
 
 - [ ] **Step 1: Write the failing tests** — in `index.test.ts`, extend the `Handler` type's `params` with `_meta?: Record<string, unknown>`, add a helper, and add:
 
@@ -2262,7 +2267,7 @@ describe('acting as the person', () => {
 
   it('does not retry a person’s refusal with its own token', async () => {
     mockBackendClient.get.mockRejectedValue({
-      response: { status: 403, data: { error: { code: 'EDOCS_USER_TOKEN_UNAVAILABLE' } } },
+      response: { status: 403, data: { code: 'EDOCS_USER_TOKEN_UNAVAILABLE' } },
     });
     const res = await callAs('workspace_list', 'kc-a');
     expect(mockBackendClient.get).toHaveBeenCalledTimes(1);
@@ -2275,7 +2280,7 @@ describe('acting as the person', () => {
     ['EDOCS_REAUTH_REQUIRED', 401, /opnieuw in/],
     ['EDOCS_ACCESS_DENIED', 403, /weigert/],
   ])('explains %s in Dutch', async (code, status, pattern) => {
-    mockBackendClient.get.mockRejectedValue({ response: { status, data: { error: { code } } } });
+    mockBackendClient.get.mockRejectedValue({ response: { status, data: { code } } });
     const res = await callAs('workspace_list', 'kc-a');
     expect(res.isError).toBe(true);
     expect(textOf(res)).toMatch(pattern);
@@ -2315,8 +2320,8 @@ async function callBackendAs<T>(path: string, userToken: string): Promise<T> {
     const response = await backend.get(path, { headers: { Authorization: `Bearer ${userToken}` } });
     return response.data?.data as T;
   } catch (err: unknown) {
-    const code = (err as { response?: { data?: { error?: { code?: string } } } })?.response?.data
-      ?.error?.code;
+    // A refusal is a problem detail: the code is a top-level member.
+    const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
     if (code && PERSON_REFUSALS[code]) throw new PersonRefusedError(PERSON_REFUSALS[code]);
     throw err;
   }
