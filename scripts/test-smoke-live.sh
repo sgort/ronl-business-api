@@ -47,6 +47,7 @@
 #     SMOKE_USER         role-bearing user (default: test-caseworker-flevoland)
 #     SMOKE_PASSWORD     its password; on local, auto-loaded from .env
 #                          SMOKE_TEST_PASSWORD when not exported
+#     PERSON_TOKEN       optional: a Flevoland-signed-in person's Keycloak token → eDOCS as themselves
 #   NODE_ENV             picks the .env for creds + the eDOCS probe (default: development)
 #
 # Exit code: 0 when nothing failed, 1 when any check failed (skips never fail).
@@ -482,7 +483,28 @@ else
     else
       fail "GET /v1/mcp/sources — HTTP $MCP_CODE"
     fi
+
+    # eDOCS as a person: the seeded caseworker has no Entra token, so status must
+    # say so (and data routes would refuse it — test-edocs-live.sh 1b covers those).
+    PS_CODE=$(get "$TMP/edocs_person.json" "${BASE_URL}/v1/edocs/status" "${AUTH_USER[@]}")
+    check_status "GET /v1/edocs/status as ${SMOKE_USER}" "$PS_CODE" "200"
+    if [[ "$(jq -r '.data.stubMode' "$TMP/edocs_person.json")" == "true" ]]; then
+      skip "eDOCS person path — stub mode"
+    elif [[ "$(jq -r '.data.user.available' "$TMP/edocs_person.json")" == "false" ]]; then
+      pass "eDOCS: ${SMOKE_USER} has no Entra identity ($(jq -r '.data.user.problem // "?"' "$TMP/edocs_person.json"))"
+    else
+      fail "eDOCS: ${SMOKE_USER} unexpectedly has an eDOCS identity"
+    fi
   fi
+fi
+
+if [[ -n "${PERSON_TOKEN:-}" ]]; then
+  echo "── Tier 2c — Flevoland person → eDOCS as themselves ─────────────────────────"
+  PC_CODE=$(get "$TMP/edocs_pc.json" "${BASE_URL}/v1/edocs/status" -H "Authorization: Bearer ${PERSON_TOKEN}")
+  check_status "GET /v1/edocs/status as the person" "$PC_CODE" "200"
+  [[ "$(jq -r '.data.user.authenticated' "$TMP/edocs_pc.json")" == "true" ]] \
+    && pass "eDOCS knows the person as $(jq -r '.data.user.edocsUserId' "$TMP/edocs_pc.json")" \
+    || fail "eDOCS person path: $(jq -r '.data.user.problem // .data.user.error // "no detail"' "$TMP/edocs_pc.json")"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
