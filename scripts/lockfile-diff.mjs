@@ -140,6 +140,12 @@ export function collectPackages(doc) {
 }
 
 /** Added, removed and updated names; an update can be a downgrade. */
+/** A version's line: its major, or "0.minor" below 1.0.0. */
+function line(version) {
+  const [major, minor] = String(version).split(/[.+-]/);
+  return major === "0" ? `0.${minor}` : major;
+}
+
 export function diffPackages(base, head) {
   const added = [];
   const removed = [];
@@ -151,24 +157,37 @@ export function diffPackages(base, head) {
       continue;
     }
     if (b.versions.join() === h.versions.join()) continue;
-    // A downgrade is a consumer moving back: an install path now holding an
-    // older version that is NEW to the tree, or a single-version package
-    // going down (it may have been hoisted). Version SETS cannot say it, and
-    // replaying #230/#251 showed three ways to be wrong: losing a newer copy
-    // (agent-base), every copy on several major lines going up
-    // (brace-expansion), and npm hoisting an existing older copy to the root
-    // (type-fest 0.21.3, already installed elsewhere).
-    const samePathDown = Object.entries(h.paths).some(
-      ([key, v]) =>
-        b.paths[key] &&
+    // A downgrade is a consumer moving back, judged per version LINE (major;
+    // minor for 0.x), because version SETS mislead: replaying #230/#251 showed
+    // a lost newer copy (agent-base), every copy on several lines going up
+    // (brace-expansion) and npm hoisting an existing older copy to the root
+    // (type-fest), and the final review a root re-hoisted onto the other
+    // line while every copy went up (#248). Three ways to move back:
+    // - a new version below every base version on its own line;
+    // - a path now holding a new, lower version, while the line it held is
+    //   gone from the tree (or survives only lower);
+    // - a single-version package going down (it may have been hoisted).
+    const sameLine = (v) => b.versions.filter((x) => line(x) === line(v));
+    const lineDown = h.versions.some(
+      (v) =>
         !b.versions.includes(v) &&
-        compareVersions(v, b.paths[key]) < 0,
+        sameLine(v).length > 0 &&
+        sameLine(v).every((x) => compareVersions(x, v) > 0),
     );
+    const samePathDown = Object.entries(h.paths).some(([key, v]) => {
+      const was = b.paths[key];
+      if (!was || b.versions.includes(v) || compareVersions(v, was) >= 0) {
+        return false;
+      }
+      return !h.versions.some(
+        (x) => line(x) === line(was) && compareVersions(x, was) >= 0,
+      );
+    });
     const singleDown =
       b.versions.length === 1 &&
       h.versions.length === 1 &&
       compareVersions(h.versions[0], b.versions[0]) < 0;
-    const downgrade = samePathDown || singleDown;
+    const downgrade = lineDown || samePathDown || singleDown;
     updated.push({
       name,
       from: b.versions,
@@ -202,7 +221,7 @@ export function blockingFindings(doc) {
     const from = entry.resolved;
     if (typeof from !== "string" || !from.startsWith(REGISTRY)) {
       const detail = from
-        ? `resolved from ${from}`
+        ? `resolved from ${code(from)}`
         : "no resolved origin recorded";
       findings.push({ rule: "origin", key, detail });
     }
@@ -279,7 +298,14 @@ export function parseConfig(text, label) {
 export const MARKER = "<!-- lockfile-review -->";
 export const COMMENT_LIMIT = 65536;
 
-const code = (s) => `\`${s}\``;
+// Names, versions, licences and origins come from registry metadata. A
+// backtick or line break in one would close its code span and let a package
+// write its own lines into the bot's comment — "✓ approved" included — so
+// both are neutralised (#248 final review).
+const code = (s) =>
+  `\`${String(s)
+    .replace(/[\r\n]+/g, " ")
+    .replace(/`/g, "'")}\``;
 const versions = (v) => (v.length ? v.map(code).join(", ") : "—");
 const licences = (l) =>
   l.map((x) => (x === null ? "_none recorded_" : code(x))).join(", ");
@@ -393,8 +419,15 @@ export function truncateForComment(report) {
   const note =
     "\n\n_Cut to fit a GitHub comment. The full report is in " +
     "the `lockfile-review` job summary._\n";
-  const room = report.slice(0, COMMENT_LIMIT - note.length);
-  return room.slice(0, room.lastIndexOf("\n")) + note;
+  // The cut nearly always lands in the last, longest <details>; left open, it
+  // would fold the note away with the list it explains. Close it first.
+  const close = "\n</details>\n";
+  const room = report.slice(0, COMMENT_LIMIT - note.length - close.length);
+  const cut = room.slice(0, room.lastIndexOf("\n"));
+  const open =
+    (cut.match(/<details>/g) ?? []).length -
+    (cut.match(/<\/details>/g) ?? []).length;
+  return cut + (open > 0 ? close : "") + note;
 }
 
 /** One ::error line per blocking finding, escaped as Actions requires. */
@@ -407,12 +440,32 @@ export function annotations(blocking) {
   );
 }
 
+/** The value after a --flag, or undefined. */
+function optionOf(args, name) {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+
+/**
+ * What the comment says when the review could not run. Without it an exit 2
+ * left no report, and the comment from an earlier push — "✓ No blocking
+ * findings" — stayed beside a red check (#248 final review).
+ */
+export function renderFailure(message) {
+  return [
+    MARKER,
+    "### Lockfile review",
+    "",
+    "**✗ The lockfile review could not run** — the check fails.",
+    "",
+    code(message),
+    "",
+  ].join("\n");
+}
+
 function main(argv) {
   const args = argv.slice(2);
-  const option = (name) => {
-    const i = args.indexOf(name);
-    return i >= 0 ? args[i + 1] : undefined;
-  };
+  const option = (name) => optionOf(args, name);
   const positional = args.filter(
     (a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--")),
   );
@@ -446,7 +499,7 @@ function main(argv) {
   const comment = option("--comment");
   if (comment) writeFileSync(comment, truncateForComment(report));
   if (process.env.GITHUB_ACTIONS === "true") {
-    for (const line of annotations(blocking)) console.log(line);
+    for (const annotation of annotations(blocking)) console.log(annotation);
   }
   return blocking.length ? 1 : 0;
 }
@@ -458,9 +511,15 @@ if (invoked) {
     process.exitCode = main(process.argv);
   } catch (err) {
     // Anything unexpected is exit 2 as well: a crash must not read as clean.
+    const message = err instanceof InputError ? err.message : String(err);
     console.error(
       `lockfile-diff: ${err instanceof InputError ? err.message : err.stack}`,
     );
+    // Still write the report files, so the comment says why.
+    const args = process.argv.slice(2);
+    for (const file of [optionOf(args, "--out"), optionOf(args, "--comment")]) {
+      if (file) writeFileSync(file, renderFailure(message));
+    }
     process.exitCode = 2;
   }
 }
