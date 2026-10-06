@@ -24,7 +24,11 @@
     {
       "name": "municipality",
       "identityProviderMapper": "hardcoded-attribute-idp-mapper",
-      "config": { "syncMode": "FORCE", "attribute": "municipality", "attribute.value": "flevoland" }
+      "config": {
+        "syncMode": "FORCE",
+        "attribute": "municipality",
+        "attribute.value": "flevoland"
+      }
     },
     {
       "name": "organisation-type",
@@ -84,5 +88,20 @@
         "role": "infra-projectteam"
       }
     }
-  ]
+  ],
+  "clientMapper": {
+    "name": "broker-roles",
+    "protocol": "openid-connect",
+    "protocolMapper": "oidc-usermodel-client-role-mapper",
+    "consentRequired": false,
+    "config": {
+      "usermodel.clientRoleMapping.clientId": "broker",
+      "claim.name": "resource_access.${client_id}.roles",
+      "jsonType.label": "String",
+      "multivalued": "true",
+      "access.token.claim": "true",
+      "id.token.claim": "false",
+      "userinfo.token.claim": "false"
+    }
+  }
 }

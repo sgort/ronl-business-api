@@ -298,5 +298,33 @@ while IFS= read -r uid; do
 done < <(curl -sS "${AUTH[@]}" "${BASE}/users?idpAlias=${ALIAS}&max=1000" | jqr -r '.[].id')
 echo "→ broker read-token: ${GRANTED} granted, ${HELD} already held"
 [[ "$FAILED" -eq 0 ]] || exit 1
+
+# ── The application client: broker roles in the access token ─────────────────
+# The broker token endpoint hands a person their stored Entra token only when
+# their access token carries resource_access.broker.roles = [read-token]. The
+# application client has no client-role mapper and no "roles" client scope, so
+# its tokens carried realm_access only and the endpoint answered 403 even with
+# the role granted. This mapper (keycloak-entra-idp.json, clientMapper) adds the
+# broker client's roles. Created or updated by name, like the provider mappers.
+APP_CLIENT="${APP_CLIENT:-ronl-business-api}"
+APP_ID=$(curl -sS "${AUTH[@]}" "${BASE}/clients?clientId=${APP_CLIENT}" | jqr -r '.[0].id // empty')
+[[ -n "$APP_ID" ]] || { echo "client ${APP_CLIENT} not found in realm ${REALM}" >&2; exit 1; }
+CM_NAME=$(jqr -r '.clientMapper.name' "$IDP_FILE")
+CM_URL="${BASE}/clients/${APP_ID}/protocol-mappers/models"
+CM_ID=$(curl -sS "${AUTH[@]}" "$CM_URL" | jqr -r --arg n "$CM_NAME" '[.[] | select(.name == $n)][0].id // empty')
+if [[ -n "$CM_ID" ]]; then
+  code=$(jq -c --arg id "$CM_ID" '.clientMapper + {id: $id}' "$IDP_FILE" \
+    | curl -sS -o "$TMPD/out" -w '%{http_code}' -X PUT "${AUTH[@]}" \
+        -H 'Content-Type: application/json' "${CM_URL}/${CM_ID}" --data-binary @- || true)
+  [[ "$code" == "204" ]] && echo "  updated       client mapper ${CM_NAME} on ${APP_CLIENT}" \
+    || { echo "  FAILED        client mapper ${CM_NAME} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; exit 1; }
+else
+  code=$(jq -c '.clientMapper' "$IDP_FILE" \
+    | curl -sS -o "$TMPD/out" -w '%{http_code}' -X POST "${AUTH[@]}" \
+        -H 'Content-Type: application/json' "$CM_URL" --data-binary @- || true)
+  [[ "$code" == "201" ]] && echo "  created       client mapper ${CM_NAME} on ${APP_CLIENT}" \
+    || { echo "  FAILED        client mapper ${CM_NAME} -> HTTP ${code}: $(head -c 200 "$TMPD/out")" >&2; exit 1; }
+fi
+
 echo "→ users who signed in before this run must sign in once more for Keycloak to store their tokens"
 echo "Done."
