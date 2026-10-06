@@ -7,6 +7,15 @@ on:
     paths:
       - 'packages/public-site/**'
       - '.github/workflows/azure-publicsite-acc.yml'
+      # The root lockfile and manifest: every workspace resolves through them, so
+      # a lockfile-only change -- Renovate's lock-file maintenance above all --
+      # moves this app's dependencies too. Without them such a pull request was
+      # built and tested by nothing and its merge deployed nothing
+      # (ronl-business-api#247). The backend has listed them since
+      # sgort/linked-data-explorer#119. A preview is still not created for it:
+      # see source_changed in the changes job.
+      - 'package-lock.json'
+      - 'package.json'
       # .nvmrc sets the Node version this workflow builds, tests and ships on.
       # Without it here, a Node bump built and deployed nothing (sgort/linked-data-explorer#119).
       - '.nvmrc'
@@ -74,7 +83,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           # The paths under push: above, as one regular expression. Keep the two in step.
-          PATTERN: '^(\.nvmrc$|packages/public-site/|\.github/workflows/azure-publicsite-acc\.yml$)'
+          PATTERN: '^(\.nvmrc$|packages/public-site/|\.github/workflows/azure-publicsite-acc\.yml$|package-lock\.json$|package\.json$)'
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
