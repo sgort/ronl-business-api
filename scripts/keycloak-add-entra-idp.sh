@@ -21,6 +21,7 @@
 # This script fills in the tenant's endpoints, the client id and the secret.
 # A provider or mapper that exists is updated in place, never duplicated, so
 # the script is safe to re-run -- which is also how a rotated secret goes in.
+# It also grants the broker read-token role to every user already linked to the provider.
 #
 # THE SECRET
 # ----------
@@ -272,4 +273,30 @@ done <<<"$AFTER"
 echo "→ verified: provider ${ALIAS} with $(wc -l <<<"$AFTER") mappers in realm ${REALM}"
 echo "→ redirect URI that must be registered in Entra (platform Web):"
 echo "  ${REDIRECT_URI}"
+
+# ── Existing brokered users: the broker read-token role ──────────────────────
+# addReadTokenRoleOnCreate only applies to users Keycloak creates from now on.
+# Users who already signed in through this provider need the broker client's
+# read-token role to read their own stored Entra token (the backend calls the
+# broker token endpoint with the person's own Keycloak token).
+BROKER_ID=$(curl -sS "${AUTH[@]}" "${BASE}/clients?clientId=broker" | jqr -r '.[0].id // empty')
+ROLE_JSON=$(curl -sS "${AUTH[@]}" "${BASE}/clients/${BROKER_ID}/roles/read-token")
+[[ -n "$BROKER_ID" && "$(jqr -r '.name // empty' <<<"$ROLE_JSON")" == "read-token" ]] || {
+  echo "broker client or its read-token role not found in realm ${REALM}" >&2
+  exit 1
+}
+GRANTED=0 HELD=0
+while IFS= read -r uid; do
+  [[ -n "$uid" ]] || continue
+  has=$(curl -sS "${AUTH[@]}" "${BASE}/users/${uid}/role-mappings/clients/${BROKER_ID}" \
+    | jqr -r '[.[].name] | index("read-token") // empty')
+  if [[ -n "$has" ]]; then HELD=$((HELD + 1)); continue; fi
+  code=$(jq -c '[{id, name}]' <<<"$ROLE_JSON" | curl -sS -o /dev/null -w '%{http_code}' -X POST "${AUTH[@]}" \
+    -H 'Content-Type: application/json' "${BASE}/users/${uid}/role-mappings/clients/${BROKER_ID}" --data-binary @- || true)
+  [[ "$code" == "204" ]] && GRANTED=$((GRANTED + 1)) \
+    || { echo "  FAILED        read-token for user ${uid} -> HTTP ${code}" >&2; FAILED=$((FAILED + 1)); }
+done < <(curl -sS "${AUTH[@]}" "${BASE}/users?idpAlias=${ALIAS}&max=1000" | jqr -r '.[].id')
+echo "→ broker read-token: ${GRANTED} granted, ${HELD} already held"
+[[ "$FAILED" -eq 0 ]] || exit 1
+echo "→ users who signed in before this run must sign in once more for Keycloak to store their tokens"
 echo "Done."
