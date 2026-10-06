@@ -3148,11 +3148,25 @@ paths:
                           authenticated: { type: boolean }
                           latencyMs: { type: integer, description: Present only when measured. }
                           error: { type: string, description: Present only when the check failed. }
+                          user:
+                            type: object
+                            description: Present for a person only -- can eDOCS be reached as them?
+                            required: [available]
+                            properties:
+                              available: { type: boolean }
+                              authenticated: { type: boolean }
+                              edocsUserId: { type: string }
+                              problem:
+                                type: string
+                                enum: [EDOCS_USER_TOKEN_UNAVAILABLE, EDOCS_REAUTH_REQUIRED, STUB_MODE]
+                              error: { type: string }
           headers:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
 
   /edocs/workspaces:
     get:
@@ -3169,6 +3183,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/EdocsWorkspace' }
@@ -3176,7 +3194,9 @@ paths:
             API-Version:
               $ref: '#/components/headers/ApiVersion'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3207,6 +3227,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [workspaceId, workspaceName, created]
@@ -3225,7 +3249,9 @@ paths:
           description: '`projectNumber` or `projectName` missing (`MISSING_FIELDS`).'
           $ref: '#/components/responses/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3265,6 +3291,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [documentId, documentNumber]
@@ -3285,7 +3315,9 @@ paths:
             `metadata.department` missing (`MISSING_FIELDS`).
           $ref: '#/components/responses/Error'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3309,6 +3341,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [workspaceId, documents]
@@ -3323,7 +3359,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3348,6 +3386,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         description: The library's profile fields, verbatim.
@@ -3358,7 +3400,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3380,6 +3424,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [documentId, versions]
@@ -3399,7 +3447,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3428,6 +3478,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [contentBase64]
@@ -3439,7 +3493,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3460,6 +3516,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [documentId, deleted]
@@ -3472,7 +3532,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -3493,6 +3555,10 @@ paths:
                   - $ref: '#/components/schemas/TimestampedEnvelope'
                   - type: object
                     properties:
+                      actingAs:
+                        type: string
+                        enum: [user, service]
+                        description: Whether eDOCS saw the signed-in person or the service account.
                       data:
                         type: object
                         required: [workspaceId, deleted]
@@ -3505,7 +3571,9 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          $ref: '#/components/responses/EdocsUnauthorized'
+        '403':
+          $ref: '#/components/responses/EdocsForbidden'
         '502':
           $ref: '#/components/responses/UpstreamFailed'
 
@@ -7402,6 +7470,27 @@ components:
         upstream, not in this service.
 
         Error responses on these mounts carry no `timestamp`.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    EdocsForbidden:
+      description: |
+        Refused before or by eDOCS. The codes:
+
+        - **`FORBIDDEN`** -- a person without the `caseworker` or `admin` realm role.
+        - **`EDOCS_CLIENT_NOT_ALLOWED`** -- a machine client not on `EDOCS_ALLOWED_CLIENTS`.
+        - **`EDOCS_USER_TOKEN_UNAVAILABLE`** -- a person with no Entra ID token
+          (a Keycloak account, or signed in before tokens were stored).
+        - **`EDOCS_ACCESS_DENIED`** -- eDOCS refused the person's token.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    EdocsUnauthorized:
+      description: |
+        `MISSING_TOKEN` / `INVALID_TOKEN` as everywhere, or **`EDOCS_REAUTH_REQUIRED`**:
+        the person's Entra session can no longer be refreshed -- sign in again.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

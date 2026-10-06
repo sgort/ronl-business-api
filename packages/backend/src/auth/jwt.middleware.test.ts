@@ -116,6 +116,8 @@ describe('jwtMiddleware', () => {
       assuranceLevel: 'substantieel',
     });
     expect(req.auth).toMatchObject({ azp: 'ronl-frontend', ipAddress: '2.2.2.2' });
+    // Kept for calls made on the person's behalf (Keycloak broker endpoint).
+    expect(req.auth?.token).toBe('good.token');
     expect(res.status).not.toHaveBeenCalled();
   });
 

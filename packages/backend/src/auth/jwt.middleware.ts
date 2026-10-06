@@ -154,6 +154,7 @@ export const jwtMiddleware = async (req: Request, res: Response, next: NextFunct
     req.auth = {
       ...user,
       azp: payload.azp,
+      token,
       requestId: (req.headers['x-request-id'] as string) || `req-${Date.now()}`,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
