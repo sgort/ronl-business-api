@@ -8,14 +8,27 @@ import { BOARDS } from './login-choice/boards.config';
 const mockNavigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: window.location.pathname, search: window.location.search }),
+  useLocation: () => ({
+    pathname: window.location.pathname,
+    search: window.location.search,
+    // React Router keeps navigation state in history.state.usr.
+    state: (window.history.state as { usr?: unknown } | null)?.usr ?? null,
+  }),
 }));
 
+const mockLogout = vi.hoisted(() => vi.fn());
+vi.mock('../services/keycloak', () => ({ default: { logout: mockLogout } }));
+
 vi.mock('../components/LoginChoice/BoardCard', () => ({
-  default: ({ board, onOpen }: never) => (
+  default: ({ board, onOpen, onOpenWithEntra }: never) => (
     <div>
       <span>board:{(board as { id: string }).id}</span>
       <button onClick={() => (onOpen as () => void)()}>open-{(board as { id: string }).id}</button>
+      {onOpenWithEntra && (
+        <button onClick={() => (onOpenWithEntra as () => void)()}>
+          entra-{(board as { id: string }).id}
+        </button>
+      )}
     </div>
   ),
 }));
@@ -168,6 +181,105 @@ describe('LoginChoice', () => {
     await user.click(screen.getByRole('button', { name: 'Changelog' }));
 
     expect(screen.getByText('changelog-open')).toBeInTheDocument();
+  });
+
+  describe('Flevoland account per board', () => {
+    it('is offered on every board with an Entra role, and not on Woo', () => {
+      render(<LoginChoice />);
+
+      for (const board of BOARDS) {
+        const button = screen.queryByRole('button', { name: `entra-${board.id}` });
+        if (board.entraRole) expect(button).toBeInTheDocument();
+        else expect(button).not.toBeInTheDocument();
+      }
+      expect(screen.queryByRole('button', { name: 'entra-woo' })).not.toBeInTheDocument();
+    });
+
+    it('logs in with Entra ID and keeps the chosen board', async () => {
+      const user = userEvent.setup();
+      render(<LoginChoice />);
+
+      await user.click(screen.getByRole('button', { name: 'entra-public-affairs' }));
+
+      expect(sessionStorage.getItem('selected_idp')).toBe('entra-flevoland');
+      expect(sessionStorage.getItem('post_login_redirect')).toBe('/dashboard/public-affairs');
+      expect(JSON.parse(sessionStorage.getItem('login_board_request') ?? 'null')).toEqual({
+        route: '/dashboard/public-affairs',
+        landing: '/',
+      });
+      expect(mockNavigate).toHaveBeenCalledWith('/auth');
+    });
+  });
+
+  describe('the no-access dialog', () => {
+    function deniedAt(url: string, accessDenied: Record<string, unknown>) {
+      window.history.replaceState({ usr: { accessDenied } }, '', url);
+    }
+
+    it('opens over the grid with what AuthCallback refused', () => {
+      deniedAt('/', { route: '/dashboard/public-affairs', name: 'Steven Gort', home: null });
+      render(<LoginChoice />);
+
+      expect(
+        screen.getByRole('dialog', { name: 'Geen toegang tot PA-Cockpit' })
+      ).toBeInTheDocument();
+      expect(screen.getByText('IOU_PA')).toBeInTheDocument();
+      expect(
+        screen.getByText(`${BOARDS.length} borden · allemaal beschikbaar`)
+      ).toBeInTheDocument();
+    });
+
+    it('opens over a tenant page too', async () => {
+      deniedAt('/amsterdam', { route: '/dashboard/caseworker', home: null });
+      render(<LoginChoice />);
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Geen toegang tot Caseworker' })
+      ).toBeInTheDocument();
+      expect(screen.getByText('Werkomgeving · Gemeente amsterdam')).toBeInTheDocument();
+    });
+
+    it.each([
+      ['a route that is no board', { route: '/dashboard/nope', home: null }],
+      ['no route at all', { home: null }],
+    ])('stays shut for %s', (_label, state) => {
+      deniedAt('/', state);
+      render(<LoginChoice />);
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('closing it clears the state, so a refresh or Back does not reopen it', async () => {
+      const user = userEvent.setup();
+      deniedAt('/', { route: '/dashboard/woo', home: null });
+      render(<LoginChoice />);
+
+      await user.click(screen.getByRole('button', { name: 'Sluiten' }));
+
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true, state: null });
+    });
+
+    it('"Naar mijn dashboard" opens their own dashboard', async () => {
+      const user = userEvent.setup();
+      deniedAt('/', { route: '/dashboard/woo', home: '/dashboard/caseworker' });
+      render(<LoginChoice />);
+
+      await user.click(screen.getByRole('button', { name: 'Naar mijn dashboard' }));
+
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard/caseworker');
+    });
+
+    it('"Uitloggen" logs out back to this landing page', async () => {
+      const user = userEvent.setup();
+      deniedAt('/', { route: '/dashboard/woo', home: null });
+      render(<LoginChoice />);
+
+      await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
+
+      await waitFor(() =>
+        expect(mockLogout).toHaveBeenCalledWith({ redirectUri: `${window.location.origin}/` })
+      );
+    });
   });
 
   describe('tenant landing', () => {

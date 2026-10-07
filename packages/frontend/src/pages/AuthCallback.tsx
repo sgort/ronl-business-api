@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { consumeBoardRequest, type AccessDeniedState } from '../services/board-request';
 import keycloak, { initializeKeycloak } from '../services/keycloak';
 
 const POST_LOGIN_KEY = 'post_login_redirect';
@@ -48,12 +49,41 @@ function canAccessRedirect(path: string, roles: string[]): boolean {
   return true;
 }
 
-function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean }) => void) {
+/** The dashboard a staff role opens, or null for someone without one. */
+function getStaffDashboard(): string | null {
+  const home = getRoleDashboard();
+  return home === '/dashboard/citizen' ? null : home;
+}
+
+type Navigate = (to: string, opts?: { replace?: boolean; state?: unknown }) => void;
+
+function navigateAfterLogin(navigate: Navigate) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const roles: string[] = (keycloak.tokenParsed as any)?.realm_access?.roles ?? [];
+  const token = keycloak.tokenParsed as any;
+  const roles: string[] = token?.realm_access?.roles ?? [];
   const stored = consumePostLoginRedirect();
-  const target = stored && canAccessRedirect(stored, roles) ? stored : getRoleDashboard();
-  navigate(target, { replace: true });
+  const request = consumeBoardRequest();
+
+  if (stored && canAccessRedirect(stored, roles)) {
+    navigate(stored, { replace: true });
+    return;
+  }
+
+  // A board picked on a landing page that the role does not open: say so on
+  // that page, rather than quietly opening another dashboard (or, without any
+  // staff role, the citizen one). A redirect a dashboard stored keeps the
+  // quiet fallback.
+  if (stored && request?.route === stored) {
+    const accessDenied: AccessDeniedState = {
+      route: stored,
+      name: token?.name,
+      home: getStaffDashboard(),
+    };
+    navigate(request.landing, { replace: true, state: { accessDenied } });
+    return;
+  }
+
+  navigate(getRoleDashboard(), { replace: true });
 }
 
 /**
@@ -87,6 +117,12 @@ function navigateAfterLogin(navigate: (to: string, opts?: { replace?: boolean })
  *   dashboard, e.g. /v2 before sending the user to /auth), and it points at a
  *   /dashboard/... path, we honour that instead of the default role dashboard.
  *   This is what lets users log in from /v2 and land back on /v2.
+ *
+ *   When the role does not open that path, a redirect a dashboard stored falls
+ *   back to the role dashboard. A board chosen on a landing page (a card, the
+ *   single-board CTA, or a card's "Flevoland-account") instead goes back to
+ *   that landing page with an accessDenied router state, and the page explains
+ *   the refusal in AccessDeniedDialog; see services/board-request.ts.
  */
 export default function AuthCallback() {
   const navigate = useNavigate();
