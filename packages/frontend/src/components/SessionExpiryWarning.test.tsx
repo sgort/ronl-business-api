@@ -70,7 +70,7 @@ describe('SessionExpiryWarning', () => {
     await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
 
     expect(mockKeycloak.logout).toHaveBeenCalledWith({
-      redirectUri: window.location.origin + '/?tenant=amsterdam',
+      redirectUri: window.location.origin + '/amsterdam',
     });
     delete mockKeycloak.tokenParsed.municipality;
   });

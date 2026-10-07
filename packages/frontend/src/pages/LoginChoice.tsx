@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import ChangelogPanel from './ChangelogPanel';
 import { BOARDS } from './login-choice/boards.config';
@@ -10,30 +11,18 @@ import {
   applyTenantTheme,
   loadTenantConfigs,
   resolveLandingTenant,
-  type TenantConfig,
+  type LandingResolution,
 } from '../services/tenant';
 import './login-choice/login-portal.css';
 
-/**
- * The tenant the page is for, once tenants.json has answered. null means none
- * could be resolved, which shows the Flevoland grid as before.
- */
-function useLandingTenant(): { resolved: boolean; tenant: TenantConfig | null } {
-  const [state, setState] = useState<{ resolved: boolean; tenant: TenantConfig | null }>({
-    resolved: false,
-    tenant: null,
-  });
+/** Whether tenants.json has answered, and whether it gave any tenants. */
+function useTenantsLoaded(): { loaded: boolean; hasTenants: boolean } {
+  const [state, setState] = useState({ loaded: false, hasTenants: false });
 
   useEffect(() => {
     let live = true;
     loadTenantConfigs().then((registry) => {
-      if (!live) return;
-      // A failed load returns {} but keeps any earlier cache; resolve only from a fresh one.
-      const tenant = Object.keys(registry).length
-        ? resolveLandingTenant(window.location.search)
-        : null;
-      if (tenant) applyTenantTheme(tenant.theme);
-      setState({ resolved: true, tenant });
+      if (live) setState({ loaded: true, hasTenants: Object.keys(registry).length > 0 });
     });
     return () => {
       live = false;
@@ -43,21 +32,50 @@ function useLandingTenant(): { resolved: boolean; tenant: TenantConfig | null } 
   return state;
 }
 
+/**
+ * What this URL shows, once tenants.json has answered; null until then.
+ * The route renders this page for both / and /:tenantId, so it follows the
+ * location rather than resolving once on mount.
+ */
+function useLandingResolution(): LandingResolution | null {
+  const { pathname, search } = useLocation();
+  const { loaded, hasTenants } = useTenantsLoaded();
+  if (!loaded) return null;
+  // A failed load returns {} but keeps any earlier cache; resolve only from a fresh one.
+  if (!hasTenants) {
+    return pathname === '/' ? { kind: 'grid', tenant: null } : { kind: 'redirect', to: '/' };
+  }
+  return resolveLandingTenant(pathname, search);
+}
+
 export default function LoginChoice() {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const { startMedewerkerLogin, startIdpLogin } = useLandingLogin();
-  const { resolved, tenant } = useLandingTenant();
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const resolution = useLandingResolution();
 
-  // Without ?tenant= the page is Flevoland's grid, which renders at once. With
-  // it, wait for tenants.json rather than flash Flevoland at another tenant.
-  if (!resolved && new URLSearchParams(window.location.search).has('tenant')) return null;
+  const redirectTo = resolution?.kind === 'redirect' ? resolution.to : null;
+  const theme = resolution && resolution.kind !== 'redirect' ? resolution.tenant?.theme : null;
 
-  // A tenant without "boards" has all of them, so Flevoland keeps its grid.
-  const boardIds = tenant?.boards;
-  const tenantBoards = boardIds ? BOARDS.filter((board) => boardIds.includes(board.id)) : BOARDS;
-  if (tenant && tenantBoards.length === 1) {
-    return <SingleBoardLanding tenant={tenant} board={tenantBoards[0]} />;
+  useEffect(() => {
+    if (redirectTo) navigate(redirectTo, { replace: true });
+  }, [redirectTo, navigate]);
+
+  useEffect(() => {
+    if (theme) applyTenantTheme(theme);
+  }, [theme]);
+
+  if (resolution?.kind === 'single') {
+    const board = BOARDS.find((b) => b.id === resolution.tenant.boards?.[0]);
+    if (board) return <SingleBoardLanding tenant={resolution.tenant} board={board} />;
   }
+
+  // Plain / is Flevoland's grid, which renders at once. A tenant path, or a
+  // legacy ?tenant=, waits for tenants.json rather than flash Flevoland at
+  // another tenant, and so does a redirect.
+  const waiting = !resolution && (pathname !== '/' || new URLSearchParams(search).has('tenant'));
+  if (waiting || redirectTo) return null;
 
   return (
     <div className="lcp">

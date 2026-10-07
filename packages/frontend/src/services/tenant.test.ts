@@ -6,6 +6,7 @@ import {
   getTenantConfig,
   initializeTenantTheme,
   loadTenantConfigs,
+  RESERVED_TENANT_IDS,
   resolveLandingTenant,
   type TenantConfig,
 } from './tenant';
@@ -124,39 +125,106 @@ describe('tenant service', () => {
   });
 
   describe('resolveLandingTenant', () => {
-    const amsterdamConfig: TenantConfig = { ...utrechtConfig, id: 'amsterdam' };
+    const single = (id: string, extra: Partial<TenantConfig> = {}): TenantConfig => ({
+      ...utrechtConfig,
+      id,
+      boards: ['caseworker'],
+      ...extra,
+    });
 
     beforeEach(async () => {
       mockFetchOnce({
         tenants: {
           utrecht: utrechtConfig,
-          amsterdam: amsterdamConfig,
-          'disabled-city': disabledConfig,
+          amsterdam: single('amsterdam'),
+          'den-bosch': single('den-bosch'),
+          oldtown: single('oldtown', { enabled: false }),
+          multi: single('multi', { boards: ['caseworker', 'woo'] }),
+          auth: single('auth'),
         },
         default: 'utrecht',
       });
       await loadTenantConfigs();
     });
 
-    it('returns the tenant named by ?tenant=', () => {
-      expect(resolveLandingTenant('?tenant=amsterdam')?.id).toBe('amsterdam');
+    describe('/<id>', () => {
+      it('resolves a single-board tenant', () => {
+        const r = resolveLandingTenant('/amsterdam', '');
+        expect(r).toEqual({ kind: 'single', tenant: expect.objectContaining({ id: 'amsterdam' }) });
+      });
+
+      it('accepts a trailing slash and ids with a hyphen', () => {
+        expect(resolveLandingTenant('/amsterdam/', '').kind).toBe('single');
+        expect(resolveLandingTenant('/den-bosch', '').kind).toBe('single');
+      });
+
+      it('wins over ?tenant=', () => {
+        const r = resolveLandingTenant('/amsterdam', '?tenant=den-bosch');
+        expect(r).toEqual({ kind: 'single', tenant: expect.objectContaining({ id: 'amsterdam' }) });
+      });
+
+      it('redirects a mixed-case id to its lower-case path', () => {
+        expect(resolveLandingTenant('/Amsterdam', '')).toEqual({
+          kind: 'redirect',
+          to: '/amsterdam',
+        });
+      });
+
+      it.each([
+        ['an unknown tenant', '/nowhere'],
+        ['a disabled tenant', '/oldtown'],
+        ['a tenant with several boards', '/multi'],
+        ['the default tenant', '/utrecht'],
+        ['a reserved id, even when tenants.json lists it', '/auth'],
+        ['an inherited object key', '/constructor'],
+        ['__proto__', '/__proto__'],
+        ['an id that breaks the pattern', '/a'],
+        ['an undecodable segment', '/%E0%A4%A'],
+      ])('sends %s to /', (_label, path) => {
+        expect(resolveLandingTenant(path, '')).toEqual({ kind: 'redirect', to: '/' });
+      });
     });
 
-    it('falls back to the default tenant when there is no ?tenant=', () => {
-      expect(resolveLandingTenant('')?.id).toBe('utrecht');
+    describe('legacy ?tenant=', () => {
+      it('redirects a single-board tenant to /<id>', () => {
+        expect(resolveLandingTenant('/', '?tenant=amsterdam')).toEqual({
+          kind: 'redirect',
+          to: '/amsterdam',
+        });
+      });
+
+      it('lower-cases the id', () => {
+        expect(resolveLandingTenant('/', '?tenant=AMSTERDAM')).toEqual({
+          kind: 'redirect',
+          to: '/amsterdam',
+        });
+      });
+
+      it.each([
+        ['an unknown tenant', '?tenant=nowhere'],
+        ['a disabled tenant', '?tenant=oldtown'],
+        ['a tenant with several boards', '?tenant=multi'],
+        ['an inherited object key', '?tenant=constructor'],
+        ['__proto__', '?tenant=__proto__'],
+      ])('shows the default grid for %s', (_label, search) => {
+        expect(resolveLandingTenant('/', search)).toEqual({
+          kind: 'grid',
+          tenant: expect.objectContaining({ id: 'utrecht' }),
+        });
+      });
     });
 
-    it('falls back to the default tenant for an unknown tenant', () => {
-      expect(resolveLandingTenant('?tenant=nowhere')?.id).toBe('utrecht');
+    it('shows the default grid on /', () => {
+      expect(resolveLandingTenant('/', '')).toEqual({
+        kind: 'grid',
+        tenant: expect.objectContaining({ id: 'utrecht' }),
+      });
     });
 
-    it('falls back to the default tenant for a disabled tenant', () => {
-      expect(resolveLandingTenant('?tenant=disabled-city')?.id).toBe('utrecht');
-    });
-
-    it('does not resolve inherited object keys as tenants', () => {
-      expect(resolveLandingTenant('?tenant=constructor')?.id).toBe('utrecht');
-      expect(resolveLandingTenant('?tenant=__proto__')?.id).toBe('utrecht');
+    it('reserves the paths the app and the static host already use', () => {
+      for (const id of ['auth', 'dashboard', 'assets', 'tenants', 'api', 't']) {
+        expect(RESERVED_TENANT_IDS).toContain(id);
+      }
     });
   });
 

@@ -211,7 +211,7 @@ describe('Dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
 
     expect(mockKeycloak.logout).toHaveBeenCalledWith({
-      redirectUri: window.location.origin + '/?tenant=utrecht',
+      redirectUri: window.location.origin + '/utrecht',
     });
   });
 });

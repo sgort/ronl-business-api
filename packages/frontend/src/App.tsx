@@ -115,6 +115,10 @@ function App() {
           }
         />
 
+        {/* A single-board tenant's landing page, e.g. /amsterdam. After the fixed
+            routes for readability; LoginChoice sends any other id back to /. */}
+        <Route path="/:tenantId" element={<LoginChoice />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

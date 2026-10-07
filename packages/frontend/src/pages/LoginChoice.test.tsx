@@ -6,7 +6,10 @@ import LoginChoice from './LoginChoice';
 import { BOARDS } from './login-choice/boards.config';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
-vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: window.location.pathname, search: window.location.search }),
+}));
 
 vi.mock('../components/LoginChoice/BoardCard', () => ({
   default: ({ board, onOpen }: never) => (
@@ -55,8 +58,8 @@ const TENANTS_JSON = {
   },
 };
 
-function visit(search: string) {
-  window.history.replaceState(null, '', `/${search}`);
+function visit(url: string) {
+  window.history.replaceState(null, '', url || '/');
 }
 
 beforeEach(() => {
@@ -168,8 +171,8 @@ describe('LoginChoice', () => {
   });
 
   describe('tenant landing', () => {
-    it('?tenant=amsterdam shows the single-board layout, themed for the tenant', async () => {
-      visit('?tenant=amsterdam');
+    it('/amsterdam shows the single-board layout, themed for the tenant', async () => {
+      visit('/amsterdam');
       render(<LoginChoice />);
 
       expect(
@@ -179,17 +182,18 @@ describe('LoginChoice', () => {
       expect(screen.queryByText(/borden · allemaal beschikbaar/)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Flevoland-account/ })).not.toBeInTheDocument();
       expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#ec0000');
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
 
-    it('renders nothing until the named tenant is resolved, so Flevoland never flashes', () => {
-      visit('?tenant=amsterdam');
+    it('renders nothing until a tenant path is resolved, so Flevoland never flashes', () => {
+      visit('/amsterdam');
       vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})));
       const { container } = render(<LoginChoice />);
 
       expect(container).toBeEmptyDOMElement();
     });
 
-    it('no ?tenant= shows the Flevoland grid', async () => {
+    it('/ shows the Flevoland grid', async () => {
       render(<LoginChoice />);
 
       await waitFor(() =>
@@ -201,32 +205,61 @@ describe('LoginChoice', () => {
       expect(
         screen.queryByRole('button', { name: /Inloggen als medewerker/ })
       ).not.toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('/?tenant=amsterdam is replaced by /amsterdam', async () => {
+      visit('/?tenant=amsterdam');
+      const { container } = render(<LoginChoice />);
+
+      await waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/amsterdam', { replace: true })
+      );
+      expect(container).toBeEmptyDOMElement();
     });
 
     it.each([
-      ['an unknown tenant', '?tenant=nowhere'],
-      ['a disabled tenant', '?tenant=oldtown'],
-    ])('%s falls back to the Flevoland grid', async (_label, search) => {
-      visit(search);
-      render(<LoginChoice />);
+      ['the default tenant', '/flevoland'],
+      ['an unknown tenant', '/nowhere'],
+      ['a disabled tenant', '/oldtown'],
+    ])('%s path is replaced by /', async (_label, path) => {
+      visit(path);
+      const { container } = render(<LoginChoice />);
 
-      expect(
-        await screen.findByText(`${BOARDS.length} borden · allemaal beschikbaar`)
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole('button', { name: /Inloggen als medewerker/ })
-      ).not.toBeInTheDocument();
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
+      expect(container).toBeEmptyDOMElement();
     });
 
-    it('falls back to the Flevoland grid when tenants.json cannot be loaded', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-      visit('?tenant=amsterdam');
+    it('an unknown ?tenant= stays on the Flevoland grid', async () => {
+      visit('/?tenant=nowhere');
       render(<LoginChoice />);
 
       expect(
         await screen.findByText(`${BOARDS.length} borden · allemaal beschikbaar`)
       ).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    describe('when tenants.json cannot be loaded', () => {
+      beforeEach(() => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+      });
+
+      it('/ still shows the Flevoland grid', async () => {
+        render(<LoginChoice />);
+
+        expect(
+          await screen.findByText(`${BOARDS.length} borden · allemaal beschikbaar`)
+        ).toBeInTheDocument();
+      });
+
+      it('a tenant path is replaced by /', async () => {
+        visit('/amsterdam');
+        render(<LoginChoice />);
+
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
+      });
     });
   });
 });

@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { BOARDS } from './boards.config';
-import type { TenantConfig } from '../../services/tenant';
+import { RESERVED_TENANT_IDS, TENANT_ID_PATTERN, type TenantConfig } from '../../services/tenant';
 
 // The landing page reads these fields from the real tenants.json; a typo in an
 // id or a logo path would only show up on the deployed page.
@@ -43,5 +43,26 @@ describe('tenants.json landing fields', () => {
   )('%s has a test caseworker and a test citizen in the local realm', (id) => {
     expect(realmUsers).toContain(`test-caseworker-${id}`);
     expect(realmUsers).toContain(`test-citizen-${id}`);
+  });
+
+  // /<id> is a landing page, so an id must never shadow a route, a folder or
+  // a file the static host serves at the top level.
+  const topLevel = readdirSync(PUBLIC).map((name) => name.replace(/.[^.]+$/, ''));
+
+  it.each(tenants.map((t) => [t.id] as const))('%s is a valid, unreserved landing path', (id) => {
+    expect(id).toMatch(TENANT_ID_PATTERN);
+    expect(RESERVED_TENANT_IDS).not.toContain(id);
+    expect(topLevel).not.toContain(id);
+  });
+
+  // The build writes dist/<id>/index.html with this copy and card.
+  it.each(
+    tenants.filter((t) => t.enabled && t.boards?.length === 1).map((t) => [t.id, t] as const)
+  )('%s has share copy and a card for both environments', (id, tenant) => {
+    expect(tenant.share?.title).toBeTruthy();
+    expect(tenant.share?.description).toBeTruthy();
+    for (const env of ['acc', 'prod']) {
+      expect(existsSync(join(PUBLIC, `og-image-${id}-${env}.png`))).toBe(true);
+    }
   });
 });
