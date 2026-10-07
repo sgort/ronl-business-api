@@ -205,6 +205,13 @@ jobs:
 
       - name: Install Playwright browser
         working-directory: packages/pa-demo
+        # --with-deps runs apt-get, which depends on the runner's Ubuntu mirror.
+        # On 7 October 2026 azure.archive.ubuntu.com stopped answering and this
+        # step hung for over ten minutes, with only GitHub's six-hour job limit
+        # to end it (run 37670760579). A healthy install took 22 seconds (run
+        # 37667693167); ten minutes leaves room for a slow mirror and still
+        # fails a dead one fast enough to re-run the job.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
       - name: E2E tests
