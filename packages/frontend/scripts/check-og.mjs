@@ -103,6 +103,17 @@ for (const tenant of pages) {
   }
 }
 
+// Static Web Apps ignores a trailing slash when it compares routes and
+// refuses the whole config on a duplicate, which fails the upload after this
+// check has passed (run 37620361964: "duplicate route /amsterdam/").
+const routeKeys = (swa.routes ?? []).map((r) => r.route.replace(/\/+$/, '') || '/');
+const duplicates = routeKeys.filter((key, i) => routeKeys.indexOf(key) !== i);
+for (const key of new Set(duplicates)) {
+  problems.push(
+    `staticwebapp.config.json has a duplicate route ${key} (a trailing slash does not count)`
+  );
+}
+
 if (problems.length > 0) {
   console.error(
     `check-og: the ${mode} build's link previews are wrong:\n  - ${problems.join('\n  - ')}`

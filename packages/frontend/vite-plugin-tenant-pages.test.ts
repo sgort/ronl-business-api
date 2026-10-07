@@ -122,18 +122,34 @@ describe('tenantPageTenants', () => {
 });
 
 describe('withTenantRoutes', () => {
-  it('rewrites /<id> and /<id>/ to the tenant page, ahead of the existing routes', () => {
+  it('rewrites /<id> to the tenant page, ahead of the existing routes', () => {
     const config = withTenantRoutes(
       { routes: [{ route: '/*', allowedRoles: ['anonymous'] }], navigationFallback: {} },
-      ['amsterdam']
+      ['amsterdam', 'unive']
     );
 
     expect(config.routes).toEqual([
       { route: '/amsterdam', rewrite: '/amsterdam/index.html' },
-      { route: '/amsterdam/', rewrite: '/amsterdam/index.html' },
+      { route: '/unive', rewrite: '/unive/index.html' },
       { route: '/*', allowedRoles: ['anonymous'] },
     ]);
     expect(config.navigationFallback).toEqual({});
+  });
+
+  // Static Web Apps ignores a trailing slash when it compares routes, and
+  // refuses the whole config when two are equal: "A rule was already
+  // processed with a duplicate route /amsterdam/". One rule covers both forms.
+  it('never emits two routes that differ only by a trailing slash', () => {
+    const config = withTenantRoutes({ routes: [{ route: '/*' }] }, ['amsterdam', 'unive']);
+    const normalised = (config.routes ?? []).map((r) => r.route.replace(/\/+$/, '') || '/');
+
+    expect(new Set(normalised).size).toBe(normalised.length);
+  });
+
+  it('refuses a tenant whose route the config already has', () => {
+    expect(() => withTenantRoutes({ routes: [{ route: '/amsterdam/' }] }, ['amsterdam'])).toThrow(
+      /duplicate route \/amsterdam/
+    );
   });
 });
 
