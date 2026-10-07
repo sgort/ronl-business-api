@@ -3,6 +3,7 @@
  * connection guards and system prompt. MCP SDK mocked; mock client injected.
  */
 
+const mockWarn = jest.fn();
 const mockClientCtor = jest.fn();
 const mockTransportCtor = jest.fn();
 jest.mock('@modelcontextprotocol/sdk/client/index.js', () => ({ Client: mockClientCtor }));
@@ -17,7 +18,7 @@ jest.mock('@utils/config', () => ({
   },
 }));
 jest.mock('@utils/logger', () => ({
-  createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
+  createLogger: () => ({ info: jest.fn(), warn: mockWarn, error: jest.fn(), debug: jest.fn() }),
 }));
 
 import { EdocsMcpProvider } from './EdocsMcpProvider';
@@ -118,6 +119,23 @@ describe('EdocsMcpProvider', () => {
     inject(p, { callTool });
     await p.callTool('workspace_list', {});
     expect(callTool).toHaveBeenCalledWith({ name: 'workspace_list', arguments: {} });
+  });
+
+  it('warns when a call has no caller, because it then runs as the service account', async () => {
+    const p = new EdocsMcpProvider();
+    inject(p, { callTool: jest.fn().mockResolvedValue({ content: [] }) });
+    await p.callTool('workspace_list', {});
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('service account'),
+      expect.objectContaining({ tool: 'workspace_list' })
+    );
+  });
+
+  it('does not warn when the call is made for a person', async () => {
+    const p = new EdocsMcpProvider();
+    inject(p, { callTool: jest.fn().mockResolvedValue({ content: [] }) });
+    await p.callTool('workspace_list', {}, { userToken: 'kc-a' });
+    expect(mockWarn).not.toHaveBeenCalled();
   });
 
   it('throws when not connected', async () => {

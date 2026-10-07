@@ -80,6 +80,7 @@ const PERSON_REFUSALS: Record<string, string> = {
     'Geen eDOCS-toegang via uw account: eDOCS is alleen beschikbaar na inloggen met uw Flevoland-account.',
   EDOCS_REAUTH_REQUIRED: 'Uw Flevoland-sessie is verlopen. Log opnieuw in om eDOCS te gebruiken.',
   EDOCS_ACCESS_DENIED: 'eDOCS weigert de toegang voor uw account.',
+  EDOCS_CLIENT_NOT_ALLOWED: 'eDOCS is niet beschikbaar via deze toepassing.',
 };
 
 class PersonRefusedError extends Error {}
@@ -91,8 +92,15 @@ async function callBackendAs<T>(path: string, userToken: string): Promise<T> {
     return response.data?.data as T;
   } catch (err: unknown) {
     // A refusal is a problem detail: the code is a top-level member.
-    const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+    const response = (err as { response?: { status?: number; data?: { code?: string } } })
+      ?.response;
+    const code = response?.data?.code;
     if (code && PERSON_REFUSALS[code]) throw new PersonRefusedError(PERSON_REFUSALS[code]);
+    // Any other 401 is the person's token itself: it was captured when the chat
+    // started and can expire before the chat ends.
+    if (response?.status === 401) {
+      throw new PersonRefusedError(PERSON_REFUSALS.EDOCS_REAUTH_REQUIRED);
+    }
     throw err;
   }
 }
