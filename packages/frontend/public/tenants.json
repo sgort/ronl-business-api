@@ -109,6 +109,10 @@
         "src": "/tenants/amsterdam/logo.png",
         "shape": "wide"
       },
+      "share": {
+        "title": "Uw werkvoorraad, overzichtelijk op één plek",
+        "description": "Aanvragen, meldingen en vergunningen behandelen in één werkomgeving van Gemeente Amsterdam. Log in als medewerker."
+      },
       "theme": {
         "primary": "#EC0000",
         "primaryDark": "#B80000",
@@ -551,6 +555,10 @@
         "src": "/tenants/toeslagen/logo.png",
         "shape": "square"
       },
+      "share": {
+        "title": "Aanvragen, wijzigingen en bezwaren in één werkvoorraad",
+        "description": "Toeslagdossiers op wettelijke termijn behandelen in één werkomgeving van Dienst Toeslagen. Log in als medewerker."
+      },
       "theme": {
         "primary": "#154273",
         "primaryDark": "#0d2f52",
@@ -618,6 +626,10 @@
       "organisationCode": "KVK-12345678",
       "enabled": true,
       "boards": ["caseworker"],
+      "share": {
+        "title": "Al je claims en aanvragen, helder op een rij",
+        "description": "Schadeclaims, polisaanvragen en wijzigingen afhandelen in één werkomgeving van Univé. Log in als medewerker."
+      },
       "theme": {
         "primary": "#E4007D",
         "primaryDark": "#B3005F",

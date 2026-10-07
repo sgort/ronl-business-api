@@ -62,6 +62,8 @@ export interface TenantConfig {
   /** Boards shown on the landing page. Missing means all of them. */
   boards?: BoardId[];
   logo?: TenantLogo;
+  /** Link-preview copy for the tenant's /<id> page, written into its HTML at build time. */
+  share?: { title: string; description: string };
 }
 
 export interface TenantRegistry {
@@ -99,14 +101,69 @@ export function getDefaultTenantConfig(): TenantConfig | null {
 }
 
 /**
- * The tenant the unauthenticated landing page is for: `?tenant=<id>`, or the
- * default tenant when that is missing, unknown or disabled.
+ * Top-level paths that can never be a tenant's landing page: the app's own
+ * routes, folders the static host serves, and names kept free for later.
+ * A tenant with one of these ids gets no /<id> page.
  */
-export function resolveLandingTenant(search: string): TenantConfig | null {
-  const id = new URLSearchParams(search).get('tenant');
-  const tenant =
-    id && Object.prototype.hasOwnProperty.call(cachedTenants, id) ? cachedTenants[id] : null;
-  return tenant?.enabled ? tenant : getDefaultTenantConfig();
+export const RESERVED_TENANT_IDS: readonly string[] = [
+  'auth',
+  'dashboard',
+  'assets',
+  'tenants',
+  'api',
+  't',
+  'pa',
+];
+
+/** What a tenant id must look like to be a landing path. */
+export const TENANT_ID_PATTERN = /^[a-z][a-z0-9-]{1,30}$/;
+
+export type LandingResolution =
+  | { kind: 'grid'; tenant: TenantConfig | null }
+  | { kind: 'single'; tenant: TenantConfig }
+  | { kind: 'redirect'; to: string };
+
+/** The enabled tenant with exactly one board that owns the landing path /<id>, if any. */
+function singleBoardTenant(id: string): TenantConfig | null {
+  if (!TENANT_ID_PATTERN.test(id) || RESERVED_TENANT_IDS.includes(id)) return null;
+  if (!Object.prototype.hasOwnProperty.call(cachedTenants, id)) return null;
+  const tenant = cachedTenants[id];
+  return tenant.enabled && tenant.boards?.length === 1 ? tenant : null;
+}
+
+function firstSegment(pathname: string): string | null {
+  const segment = pathname.split('/')[1] ?? '';
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the unauthenticated landing page shows for a URL.
+ *
+ * - `/<id>` is a single-board tenant's page. Any other id (unknown, disabled,
+ *   several boards, reserved) goes to `/`, so Flevoland is never rendered
+ *   under a foreign URL; a mixed-case id goes to its lower-case path.
+ * - `/?tenant=<id>`, the URL before tenants had paths, redirects to `/<id>`.
+ * - Anything else is the default tenant's board grid.
+ */
+export function resolveLandingTenant(pathname: string, search: string): LandingResolution {
+  const segment = firstSegment(pathname);
+  if (segment === null) return { kind: 'redirect', to: '/' };
+  if (segment) {
+    const id = segment.toLowerCase();
+    const tenant = singleBoardTenant(id);
+    if (!tenant) return { kind: 'redirect', to: '/' };
+    if (segment !== id) return { kind: 'redirect', to: `/${id}` };
+    return { kind: 'single', tenant };
+  }
+
+  const legacy = new URLSearchParams(search).get('tenant')?.toLowerCase();
+  if (legacy && singleBoardTenant(legacy)) return { kind: 'redirect', to: `/${legacy}` };
+
+  return { kind: 'grid', tenant: getDefaultTenantConfig() };
 }
 
 export function applyTenantTheme(theme: TenantTheme): void {

@@ -124,7 +124,7 @@ describe('CaseworkerDashboardV2', () => {
     await user.click(screen.getByTitle('Uitloggen'));
 
     expect(mockKeycloak.logout).toHaveBeenCalledWith({
-      redirectUri: window.location.origin + '/?tenant=amsterdam',
+      redirectUri: window.location.origin + '/amsterdam',
     });
   });
 
