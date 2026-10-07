@@ -70,26 +70,37 @@ export function tenantPageTenants(tenants: Record<string, TenantPageEntry>): Ten
   );
 }
 
-/** Replaces the one tag `pattern` matches; a missing or doubled tag fails the build. */
+const failCount = (label: string, found: number) =>
+  new Error(`tenant pages: expected one ${label} in index.html, found ${found}`);
+
+/**
+ * Replaces the one tag `pattern` matches; a missing or doubled tag fails the
+ * build. `pattern` is a global regex literal, so it can count its matches
+ * without building a RegExp at run time.
+ */
 function replaceOne(html: string, pattern: RegExp, replacement: string, label: string): string {
-  const matches = html.match(new RegExp(pattern.source, 'g'))?.length ?? 0;
-  if (matches !== 1) {
-    throw new Error(`tenant pages: expected one ${label} in index.html, found ${matches}`);
-  }
+  if (!pattern.global) throw new Error(`tenant pages: the ${label} pattern must be global`);
+  const found = html.match(pattern)?.length ?? 0;
+  if (found !== 1) throw failCount(label, found);
   return html.replace(pattern, () => replacement);
 }
 
 const metaTag = (attr: 'name' | 'property', key: string, value: string) =>
   `<meta ${attr}="${key}" content="${escapeHtml(value)}" />`;
 
+/**
+ * Replaces the one <meta> tag for `key`, found by plain string search. The
+ * opening includes the quote after the key, so og:image never matches
+ * og:image:alt.
+ */
 function setMeta(html: string, attr: 'name' | 'property', key: string, value: string): string {
-  const escapedKey = key.replace(/[.:]/g, '\\$&');
-  return replaceOne(
-    html,
-    new RegExp(`<meta ${attr}="${escapedKey}" content="[^"]*" />`),
-    metaTag(attr, key, value),
-    key
-  );
+  const opening = `<meta ${attr}="${key}" content="`;
+  const found = html.split(opening).length - 1;
+  if (found !== 1) throw failCount(key, found);
+  const start = html.indexOf(opening);
+  const close = html.indexOf('" />', start + opening.length);
+  if (close === -1) throw failCount(key, 0);
+  return html.slice(0, start) + metaTag(attr, key, value) + html.slice(close + '" />'.length);
 }
 
 export function renderTenantPage(html: string, tenant: TenantPage, env: PageEnv): string {
@@ -98,14 +109,14 @@ export function renderTenantPage(html: string, tenant: TenantPage, env: PageEnv)
   let page = html;
   page = replaceOne(
     page,
-    /<title>[^<]*<\/title>/,
+    /<title>[^<]*<\/title>/g,
     `<title>${escapeHtml(siteName)}</title>`,
     'title'
   );
   page = setMeta(page, 'name', 'description', tenant.share.description);
   page = replaceOne(
     page,
-    /<link rel="canonical" href="[^"]*" \/>/,
+    /<link rel="canonical" href="[^"]*" \/>/g,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
     'canonical'
   );

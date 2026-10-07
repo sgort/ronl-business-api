@@ -103,6 +103,27 @@ describe('renderTenantPage', () => {
 
     expect(() => renderTenantPage(drifted, unive, ACC)).toThrow(/og:url/);
   });
+
+  it.each([
+    ['og:title', /<meta property="og:title"[^>]*>/],
+    ['title', /<title>[^<]*<\/title>/],
+    ['canonical', /<link rel="canonical"[^>]*>/],
+  ])('fails loudly when the template has %s twice', (label, tag) => {
+    const doubled = BUILT.replace(tag, (t) => t + t);
+
+    expect(() => renderTenantPage(doubled, unive, ACC)).toThrow(
+      new RegExp(`one ${label} in index.html, found 2`)
+    );
+  });
+
+  it('tells og:image apart from og:image:alt', () => {
+    const html = renderTenantPage(BUILT, unive, ACC);
+
+    expect(meta(html, 'property', 'og:image')).toBe(
+      'https://acc.mijn.open-regels.nl/og-image-unive-acc.png'
+    );
+    expect(meta(html, 'property', 'og:image:alt')).toMatch(/^Werkomgeving Univé/);
+  });
 });
 
 describe('tenantPageTenants', () => {
