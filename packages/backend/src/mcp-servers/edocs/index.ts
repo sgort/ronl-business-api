@@ -9,6 +9,9 @@ import axios, { AxiosInstance } from 'axios';
 // server directly — EdocsService stays the single place that knows eDOCS'
 // auth/quirks. Only the tools listed here have live-tested backend routes;
 // no tool is added on the basis of the OpenAPI spec alone.
+//
+// A call that carries _meta.userToken (a caseworker's Keycloak token, passed by
+// the backend) reaches /v1/edocs as that person; without it, as edocs-mcp-client.
 
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL ?? 'http://localhost:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM ?? 'ronl';
@@ -71,6 +74,29 @@ async function callBackend<T>(path: string): Promise<T> {
   }
 }
 
+/** Plain-Dutch explanations the assistant can pass on, per /v1/edocs refusal code. */
+const PERSON_REFUSALS: Record<string, string> = {
+  EDOCS_USER_TOKEN_UNAVAILABLE:
+    'Geen eDOCS-toegang via uw account: eDOCS is alleen beschikbaar na inloggen met uw Flevoland-account.',
+  EDOCS_REAUTH_REQUIRED: 'Uw Flevoland-sessie is verlopen. Log opnieuw in om eDOCS te gebruiken.',
+  EDOCS_ACCESS_DENIED: 'eDOCS weigert de toegang voor uw account.',
+};
+
+class PersonRefusedError extends Error {}
+
+/** One call as the person: their token, no retry with another identity. */
+async function callBackendAs<T>(path: string, userToken: string): Promise<T> {
+  try {
+    const response = await backend.get(path, { headers: { Authorization: `Bearer ${userToken}` } });
+    return response.data?.data as T;
+  } catch (err: unknown) {
+    // A refusal is a problem detail: the code is a top-level member.
+    const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+    if (code && PERSON_REFUSALS[code]) throw new PersonRefusedError(PERSON_REFUSALS[code]);
+    throw err;
+  }
+}
+
 // ── Tool definitions ───────────────────────────────────────────────────────
 // One tool per live-tested read-only /v1/edocs/* route (see
 // docs/en/ronl-business-api/developer/testing/edocs-live-testing.md). No
@@ -125,11 +151,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args = {} } = request.params;
+  const userToken = (request.params._meta as { userToken?: unknown } | undefined)?.userToken;
+  const get = <T>(path: string): Promise<T> =>
+    typeof userToken === 'string' && userToken
+      ? callBackendAs<T>(path, userToken)
+      : callBackend<T>(path);
 
   try {
     switch (name) {
       case 'workspace_list': {
-        const result = await callBackend('/workspaces');
+        const result = await get('/workspaces');
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
 
@@ -141,7 +172,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
-        const result = await callBackend(`/workspaces/${workspaceId}/documents`);
+        const result = await get(`/workspaces/${workspaceId}/documents`);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
 
@@ -153,7 +184,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
-        const result = await callBackend(`/documents/${documentId}/profile`);
+        const result = await get(`/documents/${documentId}/profile`);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
 
@@ -165,7 +196,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
-        const result = await callBackend(`/documents/${documentId}/versions`);
+        const result = await get(`/documents/${documentId}/versions`);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }
 
@@ -173,6 +204,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
     }
   } catch (err) {
+    if (err instanceof PersonRefusedError) {
+      return { content: [{ type: 'text', text: err.message }], isError: true };
+    }
     const message = err instanceof Error ? err.message : String(err);
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
   }

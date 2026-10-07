@@ -18,13 +18,23 @@ export interface McpProviderMeta {
   description: string;
 }
 
+/** Who a tool call is made for. Never part of the tool arguments the model sees. */
+export interface McpCallContext {
+  /** The caller's raw Keycloak access token — only for providers that act as the person. */
+  userToken?: string;
+}
+
 export interface McpProvider {
   readonly meta: McpProviderMeta;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   /** Returns the curated, allowed tool definitions for this provider */
   getToolDefinitions(): Promise<ToolDefinition[]>;
-  callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult>;
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    context?: McpCallContext
+  ): Promise<McpToolResult>;
   isConnected(): boolean;
   /** Contributes a block to the shared system prompt describing this provider's capabilities */
   systemPromptContribution(): string;

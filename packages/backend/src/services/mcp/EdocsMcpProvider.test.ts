@@ -100,6 +100,26 @@ describe('EdocsMcpProvider', () => {
     await expect(p.callTool('workspace_list', {})).resolves.toBe(result);
   });
 
+  it('sends the caller’s token in _meta, never in the tool arguments', async () => {
+    const p = new EdocsMcpProvider();
+    const callTool = jest.fn().mockResolvedValue({ content: [] });
+    inject(p, { callTool });
+    await p.callTool('workspace_list', { a: 1 }, { userToken: 'kc-a' });
+    expect(callTool).toHaveBeenCalledWith({
+      name: 'workspace_list',
+      arguments: { a: 1 },
+      _meta: { userToken: 'kc-a' },
+    });
+  });
+
+  it('sends no _meta without a caller', async () => {
+    const p = new EdocsMcpProvider();
+    const callTool = jest.fn().mockResolvedValue({ content: [] });
+    inject(p, { callTool });
+    await p.callTool('workspace_list', {});
+    expect(callTool).toHaveBeenCalledWith({ name: 'workspace_list', arguments: {} });
+  });
+
   it('throws when not connected', async () => {
     const p = new EdocsMcpProvider();
     await expect(p.getToolDefinitions()).rejects.toThrow('not connected');

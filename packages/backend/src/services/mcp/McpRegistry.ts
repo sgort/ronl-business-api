@@ -1,5 +1,11 @@
 import { createLogger } from '@utils/logger';
-import type { McpProvider, McpProviderMeta, McpToolResult, ToolDefinition } from './McpProvider';
+import type {
+  McpCallContext,
+  McpProvider,
+  McpProviderMeta,
+  McpToolResult,
+  ToolDefinition,
+} from './McpProvider';
 
 const logger = createLogger('mcp-registry');
 
@@ -54,12 +60,18 @@ export class McpRegistry {
     return results;
   }
 
-  async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+  async callTool(
+    name: string,
+    args: Record<string, unknown>,
+    context?: McpCallContext
+  ): Promise<McpToolResult> {
     const provider = this.toolIndex.get(name);
     if (!provider) {
       throw new Error(`No provider found for tool: ${name}`);
     }
-    return provider.callTool(name, args);
+    // Only pass a context when there is one, so providers and their tests that
+    // never take one keep seeing the two-argument call.
+    return context ? provider.callTool(name, args, context) : provider.callTool(name, args);
   }
 
   buildSystemPrompt(providerIds?: string[]): string {

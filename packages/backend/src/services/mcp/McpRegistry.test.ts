@@ -55,6 +55,16 @@ describe('connectAll / callTool', () => {
     expect(p.callTool).toHaveBeenCalledWith('search', { q: 'x' });
   });
 
+  it('passes the call context to the provider', async () => {
+    const p = makeProvider('edocs', { tools: [tool('workspace_list')] });
+    registry.register(p);
+
+    await registry.connectAll();
+    await registry.callTool('workspace_list', {}, { userToken: 'kc-a' });
+
+    expect(p.callTool).toHaveBeenCalledWith('workspace_list', {}, { userToken: 'kc-a' });
+  });
+
   it('continues when one provider fails to connect', async () => {
     const bad = makeProvider('bad', { connect: jest.fn().mockRejectedValue(new Error('nope')) });
     const good = makeProvider('good', { tools: [tool('t1')] });

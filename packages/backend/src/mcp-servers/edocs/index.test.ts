@@ -38,7 +38,9 @@ jest.mock('axios', () => ({
   },
 }));
 
-type Handler = (req: { params: { name: string; arguments?: Record<string, unknown> } }) => Promise<{
+type Handler = (req: {
+  params: { name: string; arguments?: Record<string, unknown>; _meta?: Record<string, unknown> };
+}) => Promise<{
   content: Array<{ type: string; text: string }>;
   isError?: boolean;
 }>;
@@ -301,5 +303,51 @@ describe('CallTool — request shapes and non-Error failures', () => {
     const res = await call('workspace_list');
     expect(res.isError).toBe(true);
     expect(textOf(res)).toBe('Error: socket hang up');
+  });
+});
+
+const callAs = (name: string, userToken: string, args: Record<string, unknown> = {}) =>
+  callTool({ params: { name, arguments: args, _meta: { userToken } } });
+
+describe('acting as the person', () => {
+  beforeEach(() => loadModule());
+
+  it('uses the caller’s token instead of its own client_credentials token', async () => {
+    mockBackendClient.get.mockResolvedValue({ data: { data: [] } });
+    await callAs('workspace_list', 'kc-a');
+    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(mockBackendClient.get).toHaveBeenCalledWith('/workspaces', {
+      headers: { Authorization: 'Bearer kc-a' },
+    });
+  });
+
+  it('does not retry a person’s refusal with its own token', async () => {
+    mockBackendClient.get.mockRejectedValue({
+      response: { status: 403, data: { code: 'EDOCS_USER_TOKEN_UNAVAILABLE' } },
+    });
+    const res = await callAs('workspace_list', 'kc-a');
+    expect(mockBackendClient.get).toHaveBeenCalledTimes(1);
+    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toMatch(/Flevoland-account/);
+  });
+
+  it.each([
+    ['EDOCS_REAUTH_REQUIRED', 401, /opnieuw in/],
+    ['EDOCS_ACCESS_DENIED', 403, /weigert/],
+  ])('explains %s in Dutch', async (code, status, pattern) => {
+    mockBackendClient.get.mockRejectedValue({ response: { status, data: { code } } });
+    const res = await callAs('workspace_list', 'kc-a');
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toMatch(pattern);
+  });
+
+  it('without _meta it keeps its own token, as before', async () => {
+    mockAxiosPost.mockResolvedValue(tokenResponse('tok1'));
+    mockBackendClient.get.mockResolvedValue({ data: { data: [] } });
+    await call('workspace_list');
+    expect(mockBackendClient.get).toHaveBeenCalledWith('/workspaces', {
+      headers: { Authorization: 'Bearer tok1' },
+    });
   });
 });
