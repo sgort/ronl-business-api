@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import keycloak from '../services/keycloak';
+import { landingUrl } from '../services/landing';
 
 // Warn when this many seconds remain on the token
 const WARN_BEFORE_SECONDS = 120;
@@ -73,7 +74,9 @@ export default function SessionExpiryWarning() {
   };
 
   const handleLogout = () => {
-    keycloak.logout({ redirectUri: window.location.origin });
+    keycloak.logout({
+      redirectUri: landingUrl(keycloak.tokenParsed?.municipality as string | undefined),
+    });
   };
 
   if (secondsLeft === null) return null;

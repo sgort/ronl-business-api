@@ -6,7 +6,7 @@ import SessionExpiryWarning from './SessionExpiryWarning';
 
 const mockKeycloak = vi.hoisted(() => ({
   authenticated: true,
-  tokenParsed: { exp: 0 },
+  tokenParsed: { exp: 0 } as { exp: number; municipality?: string },
   updateToken: vi.fn(),
   login: vi.fn(),
   logout: vi.fn(),
@@ -58,7 +58,21 @@ describe('SessionExpiryWarning', () => {
 
     await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
 
-    expect(mockKeycloak.logout).toHaveBeenCalledWith({ redirectUri: window.location.origin });
+    expect(mockKeycloak.logout).toHaveBeenCalledWith({ redirectUri: window.location.origin + '/' });
+  });
+
+  it('"Uitloggen" returns to the landing page of the tenant in the token', async () => {
+    const user = userEvent.setup();
+    setExpiryInSeconds(90);
+    mockKeycloak.tokenParsed.municipality = 'amsterdam';
+    render(<SessionExpiryWarning />);
+
+    await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
+
+    expect(mockKeycloak.logout).toHaveBeenCalledWith({
+      redirectUri: window.location.origin + '/?tenant=amsterdam',
+    });
+    delete mockKeycloak.tokenParsed.municipality;
   });
 
   it('stays silent for an anonymous visitor', () => {
