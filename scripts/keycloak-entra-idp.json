@@ -17,7 +17,8 @@
       "pkceEnabled": "true",
       "pkceMethod": "S256",
       "syncMode": "FORCE",
-      "backchannelSupported": "false"
+      "backchannelSupported": "false",
+      "hideOnLogin": "true"
     }
   },
   "mappers": [
