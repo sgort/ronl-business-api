@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
 const mockKeycloak = vi.hoisted(() => ({
   init: vi.fn(),
   login: vi.fn(),
-  tokenParsed: null as { realm_access?: { roles: string[] } } | null,
+  tokenParsed: null as { realm_access?: { roles: string[] }; name?: string } | null,
 }));
 vi.mock('../services/keycloak', () => ({
   default: mockKeycloak,
@@ -221,5 +221,93 @@ describe('AuthCallback', () => {
     await vi.waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard/citizen', { replace: true })
     );
+  });
+
+  describe('a board chosen on a landing page', () => {
+    function choose(route: string, landing = '/') {
+      sessionStorage.setItem('post_login_redirect', route);
+      sessionStorage.setItem('login_board_request', JSON.stringify({ route, landing }));
+    }
+
+    it('opens it when the role allows', async () => {
+      choose('/dashboard/public-affairs');
+      mockKeycloak.init.mockResolvedValue(true);
+      setRoles(['public-affairs']);
+
+      render(<AuthCallback />);
+
+      await vi.waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard/public-affairs', { replace: true })
+      );
+      expect(sessionStorage.getItem('login_board_request')).toBeNull();
+    });
+
+    it('goes back to that landing page with the no-access state when the role does not allow', async () => {
+      choose('/dashboard/public-affairs');
+      mockKeycloak.init.mockResolvedValue(true);
+      mockKeycloak.tokenParsed = { realm_access: { roles: ['caseworker'] }, name: 'Steven Gort' };
+
+      render(<AuthCallback />);
+
+      await vi.waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/', {
+          replace: true,
+          state: {
+            accessDenied: {
+              route: '/dashboard/public-affairs',
+              name: 'Steven Gort',
+              home: '/dashboard/caseworker',
+            },
+          },
+        })
+      );
+      expect(sessionStorage.getItem('login_board_request')).toBeNull();
+    });
+
+    it('offers no dashboard of their own to someone without any staff role', async () => {
+      choose('/dashboard/caseworker', '/amsterdam');
+      mockKeycloak.init.mockResolvedValue(true);
+      setRoles(['citizen']);
+
+      render(<AuthCallback />);
+
+      await vi.waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/amsterdam', {
+          replace: true,
+          state: {
+            accessDenied: { route: '/dashboard/caseworker', name: undefined, home: null },
+          },
+        })
+      );
+    });
+
+    it('works the same after a login through an identity provider', async () => {
+      choose('/dashboard/infra-board');
+      sessionStorage.setItem('selected_idp', 'entra-flevoland');
+      mockKeycloak.init.mockResolvedValue(true);
+      setRoles(['caseworker']);
+
+      render(<AuthCallback />);
+
+      await vi.waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/', expect.objectContaining({ replace: true }))
+      );
+    });
+
+    it('keeps the quiet fallback when a dashboard, not a landing page, stored the redirect', async () => {
+      sessionStorage.setItem('post_login_redirect', '/dashboard/woo');
+      sessionStorage.setItem(
+        'login_board_request',
+        JSON.stringify({ route: '/dashboard/caseworker', landing: '/' })
+      );
+      mockKeycloak.init.mockResolvedValue(true);
+      setRoles(['caseworker']);
+
+      render(<AuthCallback />);
+
+      await vi.waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard/caseworker', { replace: true })
+      );
+    });
   });
 });

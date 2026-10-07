@@ -13,6 +13,12 @@ export interface BoardEntry {
   preview: PreviewKind;
   blurb: string;
   testUser: string;
+  /**
+   * The Entra ID app role that grants `role` (scripts/keycloak-entra-idp.json).
+   * Set, the card offers "Flevoland-account" and the no-access dialog names it.
+   * Woo has none until Flevoland IT creates one.
+   */
+  entraRole?: string;
 }
 
 export const BOARDS: BoardEntry[] = [
@@ -27,6 +33,7 @@ export const BOARDS: BoardEntry[] = [
       'Persoonlijke werkvoorraad voor zaakbehandelaars: taken, claims en ' +
       'deadlines per zaak — met een ingebouwde assistent voor snelle toetsing.',
     testUser: 'test-caseworker-flevoland',
+    entraRole: 'IOU_USERS',
   },
   {
     id: 'public-affairs',
@@ -39,6 +46,7 @@ export const BOARDS: BoardEntry[] = [
       'Bestuurlijk overzicht van dossiers en issues: een kompas dat prioriteit ' +
       'en momentum weegt, zodat het bestuur op tijd kan bijsturen.',
     testUser: 'test-pa-flevoland',
+    entraRole: 'IOU_PA',
   },
   {
     id: 'infra-board',
@@ -51,6 +59,7 @@ export const BOARDS: BoardEntry[] = [
       'Portfoliosturing op infrastructuurprojecten: fase-swimlanes, status ' +
       'per project en RIP-beheer — van planvorming tot oplevering.',
     testUser: 'test-infra-flevoland',
+    entraRole: 'IOU_INFRA',
   },
   {
     id: 'woo',
