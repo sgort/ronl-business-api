@@ -335,11 +335,36 @@ describe('acting as the person', () => {
   it.each([
     ['EDOCS_REAUTH_REQUIRED', 401, /opnieuw in/],
     ['EDOCS_ACCESS_DENIED', 403, /weigert/],
+    ['EDOCS_CLIENT_NOT_ALLOWED', 403, /niet beschikbaar via deze toepassing/],
   ])('explains %s in Dutch', async (code, status, pattern) => {
     mockBackendClient.get.mockRejectedValue({ response: { status, data: { code } } });
     const res = await callAs('workspace_list', 'kc-a');
     expect(res.isError).toBe(true);
     expect(textOf(res)).toMatch(pattern);
+  });
+
+  it.each([
+    ['an expired token (INVALID_TOKEN)', { code: 'INVALID_TOKEN' }],
+    ['a 401 without a problem detail', undefined],
+  ])('treats %s as a session to sign in again, without retrying', async (_label, data) => {
+    mockBackendClient.get.mockRejectedValue({ response: { status: 401, data } });
+    const res = await callAs('workspace_list', 'kc-a');
+    expect(mockBackendClient.get).toHaveBeenCalledTimes(1);
+    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toMatch(/opnieuw in/);
+  });
+
+  it('never retries an unmapped 403 with its own token', async () => {
+    mockBackendClient.get.mockRejectedValue(
+      Object.assign(new Error('Request failed with status code 403'), {
+        response: { status: 403, data: { code: 'FORBIDDEN' } },
+      })
+    );
+    const res = await callAs('workspace_list', 'kc-a');
+    expect(mockBackendClient.get).toHaveBeenCalledTimes(1);
+    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(res.isError).toBe(true);
   });
 
   it('without _meta it keeps its own token, as before', async () => {

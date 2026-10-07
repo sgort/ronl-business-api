@@ -112,6 +112,13 @@ export class EdocsMcpProvider implements McpProvider {
   ): Promise<McpToolResult> {
     this.assertConnected();
     logger.info('Calling eDOCS tool', { tool: name, asPerson: Boolean(context?.userToken) });
+    if (!context?.userToken) {
+      // Without a caller the MCP server falls back to its own client token, so
+      // eDOCS sees the service account rather than a person.
+      logger.warn('eDOCS tool called without a caller: runs as the service account', {
+        tool: name,
+      });
+    }
     const result = await this.client!.callTool({
       name,
       arguments: args,
