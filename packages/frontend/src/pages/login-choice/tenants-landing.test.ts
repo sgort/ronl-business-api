@@ -47,7 +47,11 @@ describe('tenants.json landing fields', () => {
 
   // /<id> is a landing page, so an id must never shadow a route, a folder or
   // a file the static host serves at the top level.
-  const topLevel = readdirSync(PUBLIC).map((name) => name.replace(/.[^.]+$/, ''));
+  const topLevel = readdirSync(PUBLIC).map((name) => name.replace(/\.[^.]+$/, ''));
+
+  it('reads the top-level names as the host serves them, folders whole and files without extension', () => {
+    expect(topLevel).toEqual(expect.arrayContaining(['pa', 'tenants', 'og-image-acc']));
+  });
 
   it.each(tenants.map((t) => [t.id] as const))('%s is a valid, unreserved landing path', (id) => {
     expect(id).toMatch(TENANT_ID_PATTERN);
