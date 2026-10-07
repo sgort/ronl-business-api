@@ -3,6 +3,8 @@
  * Handles multi-tenant theming and configuration
  */
 
+import type { BoardId } from '../pages/login-choice/boards.config';
+
 export type OrganisationType = 'municipality' | 'province' | 'national' | 'commercial';
 
 export interface TenantTheme {
@@ -39,6 +41,12 @@ export interface LeftPanelSections {
   [pageId: string]: LeftPanelSection[];
 }
 
+/** 'wide' logos carry the name in the artwork; 'square' ones get the name beside them. */
+export interface TenantLogo {
+  src: string;
+  shape: 'wide' | 'square';
+}
+
 export interface TenantConfig {
   id: string;
   name: string;
@@ -51,6 +59,9 @@ export interface TenantConfig {
   contact: TenantContact;
   enabled: boolean;
   leftPanelSections?: LeftPanelSections;
+  /** Boards shown on the landing page. Missing means all of them. */
+  boards?: BoardId[];
+  logo?: TenantLogo;
 }
 
 export interface TenantRegistry {
@@ -85,6 +96,17 @@ export function getTenantConfig(tenantId: string): TenantConfig | null {
 export function getDefaultTenantConfig(): TenantConfig | null {
   if (!cachedDefaultTenantId) return null;
   return cachedTenants[cachedDefaultTenantId] || null;
+}
+
+/**
+ * The tenant the unauthenticated landing page is for: `?tenant=<id>`, or the
+ * default tenant when that is missing, unknown or disabled.
+ */
+export function resolveLandingTenant(search: string): TenantConfig | null {
+  const id = new URLSearchParams(search).get('tenant');
+  const tenant =
+    id && Object.prototype.hasOwnProperty.call(cachedTenants, id) ? cachedTenants[id] : null;
+  return tenant?.enabled ? tenant : getDefaultTenantConfig();
 }
 
 export function applyTenantTheme(theme: TenantTheme): void {

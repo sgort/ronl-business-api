@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
+import { landingUrl } from '../services/landing';
 import { businessApi } from '../services/api';
 import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse } from '@ronl/shared';
@@ -370,7 +371,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleLogout = () => keycloak.logout({ redirectUri: window.location.origin });
+  const handleLogout = () => keycloak.logout({ redirectUri: landingUrl(user?.municipality) });
 
   const enabledServices = tenant
     ? Object.entries(tenant.features)

@@ -1,0 +1,365 @@
+/* Landing page for a tenant with one board (unauthenticated /?tenant=<id>).
+   ALL selectors scoped under .lcp-single — nothing leaks into .lcp (the
+   Flevoland board grid) or the dashboards. Tenant colour comes only from the
+   theme variables applyTenantTheme() sets on :root. */
+
+.lcp-single {
+  --tint:  color-mix(in oklch, var(--color-primary) 9%, #fff);
+  --ink:   #0f172a;
+  --text:  #1f2937;
+  --muted: #5b6472;
+  --line:  #e3e8ef;
+  --pink:  #e70077;
+  --blue:  #0046ad;
+
+  box-sizing: border-box;
+  font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: #f6f8fb;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lcp-single *, .lcp-single *::before, .lcp-single *::after { box-sizing: border-box; }
+.lcp-single a { color: var(--color-primary); }
+.lcp-single a:hover { color: var(--color-primary-dark); }
+
+/* ── Top bar ──────────────────────────────────────────────── */
+.lcp-single .topbar {
+  background: #fff;
+  border-top: 4px solid var(--color-primary);
+  border-bottom: 1px solid var(--line);
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 28px;
+}
+
+.lcp-single .tlogo { height: 44px; display: flex; align-items: center; }
+.lcp-single .tlogo img { height: 100%; width: auto; display: block; }
+.lcp-single .tlogo img.sq { border-radius: 8px; }
+
+.lcp-single .tword {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.lcp-single .tword small {
+  display: block;
+  font-family: "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.lcp-single .tname {
+  margin-left: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.lcp-single .tname span { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); }
+
+.lcp-single .tb-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+
+.lcp-single .citizen-link {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.lcp-single .citizen-link:hover { color: var(--ink); text-decoration: underline; }
+
+.lcp-single .login-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--color-primary);
+  background: #fff;
+  border: 1.5px solid var(--color-primary);
+  padding: 8px 15px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.lcp-single .login-link:hover { background: var(--tint); }
+
+/* ── Page ─────────────────────────────────────────────────── */
+.lcp-single .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; width: 100%; flex: 1; }
+
+.lcp-single .hero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 56px;
+  align-items: center;
+  padding: 72px 0 56px;
+}
+
+.lcp-single .eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  margin: 0 0 18px;
+}
+
+.lcp-single h1 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+
+.lcp-single .lede {
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 28px;
+  text-wrap: pretty;
+}
+
+.lcp-single .actions { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+
+.lcp-single .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 0;
+  cursor: pointer;
+  padding: 14px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px color-mix(in oklch, var(--color-primary) 30%, transparent);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.lcp-single .btn-primary:hover { background: var(--color-primary-dark); transform: translateY(-1px); }
+
+.lcp-single .alt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--muted);
+  align-items: center;
+}
+
+.lcp-single .alt .note { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ── Board preview (decorative) ───────────────────────────── */
+.lcp-single .shot {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 24px 50px -24px rgba(15, 23, 42, 0.28), 0 2px 4px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  font-size: 11.5px;
+}
+
+.lcp-single .shot-bar {
+  height: 34px;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 11.5px;
+}
+
+.lcp-single .shot-bar .dots { display: flex; gap: 5px; }
+.lcp-single .shot-bar .dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); }
+.lcp-single .shot-bar .sb-t { margin-left: 6px; }
+.lcp-single .shot-bar .sb-u { margin-left: auto; opacity: 0.85; font-weight: 500; }
+
+.lcp-single .shot-body { display: grid; grid-template-columns: 118px minmax(0, 1fr); min-height: 300px; }
+
+.lcp-single .shot-nav {
+  background: #f8fafc;
+  border-right: 1px solid var(--line);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lcp-single .shot-nav span { padding: 6px 8px; border-radius: 5px; color: var(--muted); font-weight: 500; }
+.lcp-single .shot-nav span.on { background: var(--tint); color: var(--color-primary-dark); font-weight: 600; }
+
+.lcp-single .shot-nav .grp {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #98a1af;
+  padding: 10px 8px 4px;
+}
+
+.lcp-single .shot-main { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.lcp-single .sm-head { display: flex; align-items: baseline; justify-content: space-between; }
+.lcp-single .sm-head b { font-size: 14px; color: var(--ink); }
+.lcp-single .sm-head span { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--muted); }
+
+.lcp-single .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.lcp-single .kpi { border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
+.lcp-single .kpi .n { font-size: 18px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.lcp-single .kpi .l { color: var(--muted); font-size: 10.5px; }
+.lcp-single .kpi.warn .n { color: var(--pink); }
+
+.lcp-single .rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.lcp-single .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.lcp-single .row:first-child { border-top: 0; }
+
+.lcp-single .row .t {
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lcp-single .row .t small {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  margin-top: 1px;
+}
+
+.lcp-single .row .due { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 10.5px; }
+
+.lcp-single .chip {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #eef2f7;
+  color: #475263;
+  white-space: nowrap;
+}
+
+.lcp-single .chip.late { background: #fde7f1; color: #b0005a; }
+.lcp-single .chip.mine { background: var(--tint); color: var(--color-primary-dark); }
+
+/* ── Three points ─────────────────────────────────────────── */
+.lcp-single .points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  padding: 34px 0 8px;
+  border-top: 1px solid var(--line);
+}
+
+.lcp-single .pt .k {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.lcp-single .pt h3 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 8px 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.lcp-single .pt p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
+
+/* ── Footer ───────────────────────────────────────────────── */
+.lcp-single footer {
+  border-top: 1px solid var(--line);
+  margin-top: 56px;
+  padding: 22px 0 40px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lcp-single .foot-right { display: inline-flex; align-items: center; gap: 18px; }
+
+/* As on the Flevoland page: bold, in the tenant's primary colour. */
+.lcp-single .changelog-link {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.lcp-single .changelog-link:hover { text-decoration: underline; }
+
+.lcp-single .ronl { display: inline-flex; align-items: center; gap: 6px; }
+.lcp-single .ronl b { font-family: "Source Serif 4", Georgia, serif; font-size: 14px; color: var(--blue); }
+.lcp-single .ronl b i { color: var(--pink); font-style: normal; }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 920px) {
+  .lcp-single .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 48px; }
+  .lcp-single h1 { font-size: 34px; }
+  .lcp-single .points { grid-template-columns: 1fr; }
+  .lcp-single .citizen-link { display: none; }
+}
+
+@media (max-width: 560px) {
+  .lcp-single .shot-body { grid-template-columns: 1fr; }
+  .lcp-single .shot-nav { display: none; }
+  .lcp-single .topbar { padding: 0 16px; }
+  .lcp-single .wrap { padding: 0 16px; }
+}

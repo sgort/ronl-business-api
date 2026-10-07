@@ -114,7 +114,12 @@ export default function AuthCallback() {
             sessionStorage.removeItem('selected_idp');
             navigateAfterLogin(navigate);
           } else {
-            await keycloak.login(selectedIdp ? { idpHint: selectedIdp } : undefined);
+            // A tenant landing page may hint its test citizen at the login form.
+            const loginHint = sessionStorage.getItem('username_hint') ?? undefined;
+            sessionStorage.removeItem('username_hint');
+            await keycloak.login(
+              selectedIdp ? { idpHint: selectedIdp, ...(loginHint && { loginHint }) } : undefined
+            );
           }
         }
       } catch (err) {

@@ -1,41 +1,62 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
 import ChangelogPanel from './ChangelogPanel';
 import { BOARDS } from './login-choice/boards.config';
+import { useLandingLogin } from './login-choice/landing-login';
 import BoardCard from '../components/LoginChoice/BoardCard';
+import SingleBoardLanding from '../components/LoginChoice/SingleBoardLanding';
 import { FLEVOLAND_IDP } from '../services/identity-providers';
+import {
+  applyTenantTheme,
+  loadTenantConfigs,
+  resolveLandingTenant,
+  type TenantConfig,
+} from '../services/tenant';
 import './login-choice/login-portal.css';
 
-const POST_LOGIN_KEY = 'post_login_redirect';
+/**
+ * The tenant the page is for, once tenants.json has answered. null means none
+ * could be resolved, which shows the Flevoland grid as before.
+ */
+function useLandingTenant(): { resolved: boolean; tenant: TenantConfig | null } {
+  const [state, setState] = useState<{ resolved: boolean; tenant: TenantConfig | null }>({
+    resolved: false,
+    tenant: null,
+  });
+
+  useEffect(() => {
+    let live = true;
+    loadTenantConfigs().then((registry) => {
+      if (!live) return;
+      // A failed load returns {} but keeps any earlier cache; resolve only from a fresh one.
+      const tenant = Object.keys(registry).length
+        ? resolveLandingTenant(window.location.search)
+        : null;
+      if (tenant) applyTenantTheme(tenant.theme);
+      setState({ resolved: true, tenant });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  return state;
+}
 
 export default function LoginChoice() {
-  const navigate = useNavigate();
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const { startMedewerkerLogin, startIdpLogin } = useLandingLogin();
+  const { resolved, tenant } = useLandingTenant();
 
-  function startMedewerkerLogin(target?: string, usernameHint?: string) {
-    try {
-      if (target) sessionStorage.setItem(POST_LOGIN_KEY, target);
-      if (usernameHint) sessionStorage.setItem('username_hint', usernameHint);
-      sessionStorage.setItem('selected_idp', 'medewerker');
-    } catch {
-      /* sessionStorage unavailable — AuthCallback still defaults sensibly */
-    }
-    navigate('/auth');
-  }
+  // Without ?tenant= the page is Flevoland's grid, which renders at once. With
+  // it, wait for tenants.json rather than flash Flevoland at another tenant.
+  if (!resolved && new URLSearchParams(window.location.search).has('tenant')) return null;
 
-  function startIdpLogin(idp: 'digid' | 'eherkenning' | 'eidas' | typeof FLEVOLAND_IDP) {
-    try {
-      // A board click stores a redirect and a test-user hint before the user
-      // may come back and choose an identity provider instead. Neither belongs
-      // to this login: the landing page follows the role Entra/DigiD grants.
-      sessionStorage.removeItem(POST_LOGIN_KEY);
-      sessionStorage.removeItem('username_hint');
-      sessionStorage.setItem('selected_idp', idp);
-    } catch {
-      /* non-fatal */
-    }
-    navigate('/auth');
+  // A tenant without "boards" has all of them, so Flevoland keeps its grid.
+  const boardIds = tenant?.boards;
+  const tenantBoards = boardIds ? BOARDS.filter((board) => boardIds.includes(board.id)) : BOARDS;
+  if (tenant && tenantBoards.length === 1) {
+    return <SingleBoardLanding tenant={tenant} board={tenantBoards[0]} />;
   }
 
   return (
@@ -47,7 +68,11 @@ export default function LoginChoice() {
           </span>
           <span className="sub">WERKOMGEVING</span>
         </span>
-        <button type="button" className="login-link" onClick={() => startMedewerkerLogin()}>
+        <button
+          type="button"
+          className="login-link"
+          onClick={() => startMedewerkerLogin(undefined, 'test-caseworker-flevoland')}
+        >
           <svg
             width="15"
             height="15"
@@ -64,7 +89,11 @@ export default function LoginChoice() {
           </svg>
           Inloggen
         </button>
-        <button type="button" className="citizen-link" onClick={() => startIdpLogin('digid')}>
+        <button
+          type="button"
+          className="citizen-link"
+          onClick={() => startIdpLogin('digid', 'test-citizen-flevoland')}
+        >
           Inwoner? Log in met DigiD
         </button>
         <span className="tenant">

@@ -6,6 +6,7 @@ import {
   getTenantConfig,
   initializeTenantTheme,
   loadTenantConfigs,
+  resolveLandingTenant,
   type TenantConfig,
 } from './tenant';
 
@@ -119,6 +120,43 @@ describe('tenant service', () => {
       await loadTenantConfigs();
 
       expect(getDefaultTenantConfig()).toBeNull();
+    });
+  });
+
+  describe('resolveLandingTenant', () => {
+    const amsterdamConfig: TenantConfig = { ...utrechtConfig, id: 'amsterdam' };
+
+    beforeEach(async () => {
+      mockFetchOnce({
+        tenants: {
+          utrecht: utrechtConfig,
+          amsterdam: amsterdamConfig,
+          'disabled-city': disabledConfig,
+        },
+        default: 'utrecht',
+      });
+      await loadTenantConfigs();
+    });
+
+    it('returns the tenant named by ?tenant=', () => {
+      expect(resolveLandingTenant('?tenant=amsterdam')?.id).toBe('amsterdam');
+    });
+
+    it('falls back to the default tenant when there is no ?tenant=', () => {
+      expect(resolveLandingTenant('')?.id).toBe('utrecht');
+    });
+
+    it('falls back to the default tenant for an unknown tenant', () => {
+      expect(resolveLandingTenant('?tenant=nowhere')?.id).toBe('utrecht');
+    });
+
+    it('falls back to the default tenant for a disabled tenant', () => {
+      expect(resolveLandingTenant('?tenant=disabled-city')?.id).toBe('utrecht');
+    });
+
+    it('does not resolve inherited object keys as tenants', () => {
+      expect(resolveLandingTenant('?tenant=constructor')?.id).toBe('utrecht');
+      expect(resolveLandingTenant('?tenant=__proto__')?.id).toBe('utrecht');
     });
   });
 

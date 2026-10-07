@@ -204,13 +204,15 @@ describe('Dashboard', () => {
     );
   });
 
-  it('logout calls keycloak.logout with the app origin as redirect', async () => {
+  it("logout returns to the landing page of the user's own tenant", async () => {
     const user = userEvent.setup();
     render(<Dashboard />);
 
     await user.click(screen.getByRole('button', { name: 'Uitloggen' }));
 
-    expect(mockKeycloak.logout).toHaveBeenCalledWith({ redirectUri: window.location.origin });
+    expect(mockKeycloak.logout).toHaveBeenCalledWith({
+      redirectUri: window.location.origin + '/?tenant=utrecht',
+    });
   });
 });
 

@@ -104,6 +104,11 @@
       "organisationType": "municipality",
       "municipalityCode": "GM0363",
       "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/amsterdam/logo.png",
+        "shape": "wide"
+      },
       "theme": {
         "primary": "#EC0000",
         "primaryDark": "#B80000",
@@ -377,6 +382,7 @@
       "organisationType": "province",
       "organisationCode": "PV24",
       "enabled": true,
+      "boards": ["caseworker", "public-affairs", "infra-board", "woo"],
       "theme": {
         "primary": "#0046ad",
         "primaryDark": "#134F7D",
@@ -540,6 +546,11 @@
       "organisationType": "national",
       "organisationCode": "OIN-00000001003214345000",
       "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/toeslagen/logo.png",
+        "shape": "square"
+      },
       "theme": {
         "primary": "#154273",
         "primaryDark": "#0d2f52",
@@ -602,10 +613,11 @@
     "unive": {
       "id": "unive",
       "name": "Unive",
-      "displayName": "Unive Verzekeringen",
+      "displayName": "Univé Verzekeringen",
       "organisationType": "commercial",
       "organisationCode": "KVK-12345678",
       "enabled": true,
+      "boards": ["caseworker"],
       "theme": {
         "primary": "#E4007D",
         "primaryDark": "#B3005F",
