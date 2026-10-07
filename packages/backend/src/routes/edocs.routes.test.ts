@@ -24,18 +24,55 @@ jest.mock('@auth/jwt.middleware', () => ({
     req.user = {
       userId: 'test-user',
       tenantId: 'flevoland',
-      roles: ['public-affairs'],
+      roles: ['caseworker'],
       organisationType: 'province',
       assuranceLevel: 'substantieel',
       displayName: 'Test User',
       preferredUsername: 'test-user',
     };
+    req.auth = {
+      ...req.user,
+      azp: (req.headers['x-test-azp'] as string) ?? 'ronl-business-api',
+      token: 'kc-test',
+      requestId: 'r',
+    };
     next();
   },
 }));
 
-jest.mock('@services/edocs.service', () => ({
-  edocsService: {
+const mockConfig = {
+  keycloak: { clientId: 'ronl-business-api' },
+  edocs: {
+    stubMode: false,
+    allowServiceFallback: false,
+    allowedClients: ['edocs-mcp-client', 'copilot-studio-edocs', 'operaton-mcp-client'],
+    userId: 'testuser001',
+  },
+};
+// Merge over the real config: other modules this router pulls in (version
+// middleware, conformance helpers) read their own keys. The edocs/keycloak
+// objects stay the mockConfig ones, so tests can still flip them.
+jest.mock('@utils/config', () => {
+  const actual = jest.requireActual('@utils/config').config;
+  return {
+    config: {
+      ...actual,
+      keycloak: { ...actual.keycloak, ...mockConfig.keycloak },
+      edocs: Object.assign(mockConfig.edocs, { ...actual.edocs, ...mockConfig.edocs }),
+    },
+  };
+});
+const mockGetIdToken = jest.fn().mockResolvedValue('id-test');
+jest.mock('@auth/entra-token.service', () => {
+  const actual = jest.requireActual('@auth/entra-token.service');
+  return {
+    ...actual,
+    entraTokenService: { getIdToken: (...a: unknown[]) => mockGetIdToken(...a) },
+  };
+});
+
+jest.mock('@services/edocs.service', () => {
+  const svc: Record<string, jest.Mock> = {
     healthCheck: jest.fn(),
     listWorkspaces: jest.fn(),
     ensureWorkspace: jest.fn(),
@@ -46,8 +83,14 @@ jest.mock('@services/edocs.service', () => ({
     downloadDocumentVersion: jest.fn(),
     deleteDocument: jest.fn(),
     deleteWorkspace: jest.fn(),
-  },
-}));
+    probeUser: jest.fn(),
+  };
+  svc.forUser = jest.fn(() => svc);
+  class EdocsAccessDeniedError extends Error {
+    readonly code = 'EDOCS_ACCESS_DENIED';
+  }
+  return { edocsService: svc, EdocsAccessDeniedError };
+});
 
 jest.mock('@utils/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
@@ -71,6 +114,8 @@ const svc = edocsService as unknown as {
   downloadDocumentVersion: jest.Mock;
   deleteDocument: jest.Mock;
   deleteWorkspace: jest.Mock;
+  probeUser: jest.Mock;
+  forUser: jest.Mock;
 };
 
 const app = express();
@@ -443,5 +488,68 @@ describe('non-Error rejections', () => {
     const res = await (body ? req.send(body) : req);
     expect(res.status).toBe(502);
     expect(res.body.code).toBe('EDOCS_ERROR');
+  });
+});
+
+describe('/v1/edocs — principals', () => {
+  it('a listed machine client acts as the service', async () => {
+    svc.listWorkspaces.mockResolvedValue([]);
+    const res = await request(app)
+      .get('/v1/edocs/workspaces')
+      .set('x-test-auth', '1')
+      .set('x-test-azp', 'operaton-mcp-client');
+    expect(res.status).toBe(200);
+    expect(res.body.actingAs).toBe('service');
+  });
+
+  it('an unlisted machine client is refused', async () => {
+    const res = await request(app)
+      .get('/v1/edocs/workspaces')
+      .set('x-test-auth', '1')
+      .set('x-test-azp', 'random-client');
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('EDOCS_CLIENT_NOT_ALLOWED');
+  });
+
+  it('a person with an Entra token acts as themselves', async () => {
+    svc.listWorkspaces.mockResolvedValue([]);
+    const res = await request(app).get('/v1/edocs/workspaces').set('x-test-auth', '1');
+    expect(res.status).toBe(200);
+    expect(res.body.actingAs).toBe('user');
+  });
+
+  it('a person without an Entra token gets 403 on data, but 200 on status with the reason', async () => {
+    const { UserTokenUnavailableError } = jest.requireActual('@auth/entra-token.service');
+    mockGetIdToken.mockRejectedValue(new UserTokenUnavailableError());
+    svc.healthCheck.mockResolvedValue({ status: 'up', reachable: true, authenticated: true });
+    const data = await request(app).get('/v1/edocs/workspaces').set('x-test-auth', '1');
+    expect(data.status).toBe(403);
+    expect(data.body.code).toBe('EDOCS_USER_TOKEN_UNAVAILABLE');
+    const status = await request(app).get('/v1/edocs/status').set('x-test-auth', '1');
+    expect(status.status).toBe(200);
+    expect(status.body.data.user).toEqual({
+      available: false,
+      problem: 'EDOCS_USER_TOKEN_UNAVAILABLE',
+    });
+    mockGetIdToken.mockResolvedValue('id-test');
+  });
+
+  it('status tells a person whether eDOCS knows them', async () => {
+    svc.healthCheck.mockResolvedValue({ status: 'up', reachable: true, authenticated: true });
+    svc.probeUser.mockResolvedValue({ authenticated: true, edocsUserId: 'GORTS01' });
+    const res = await request(app).get('/v1/edocs/status').set('x-test-auth', '1');
+    expect(res.body.data.user).toEqual({
+      available: true,
+      authenticated: true,
+      edocsUserId: 'GORTS01',
+    });
+  });
+
+  it('eDOCS refusing the person is 403 EDOCS_ACCESS_DENIED, not 502', async () => {
+    const { EdocsAccessDeniedError } = jest.requireMock('@services/edocs.service');
+    svc.listWorkspaces.mockRejectedValue(new EdocsAccessDeniedError('Access not allowed'));
+    const res = await request(app).get('/v1/edocs/workspaces').set('x-test-auth', '1');
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('EDOCS_ACCESS_DENIED');
   });
 });

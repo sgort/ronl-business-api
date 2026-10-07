@@ -38,6 +38,8 @@ export interface AuthContext extends AuthenticatedUser {
   ipAddress?: string;
   userAgent?: string;
   azp?: string;
+  /** The raw bearer token, for calls made on the person's behalf (Keycloak broker endpoint). Never log it. */
+  token?: string;
 }
 
 export interface TokenValidationResult {
