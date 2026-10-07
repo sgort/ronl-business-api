@@ -104,13 +104,26 @@ describe('runChatStream', () => {
     await runChatStream([], 'hi', emit, [], 'model-1');
 
     expect(events).toContainEqual({ type: 'status', message: 'Calling search…' });
-    expect(mcp.callTool).toHaveBeenCalledWith('search', { q: 'x' });
+    expect(mcp.callTool).toHaveBeenCalledWith('search', { q: 'x' }, undefined);
     expect(streamTurn).toHaveBeenCalledTimes(2);
     expect(events).toContainEqual({ type: 'delta', text: 'done' });
     // the tool result is fed back to the provider on the second turn
     const secondMessages = streamTurn.mock.calls[1][0].messages;
     const toolResults = secondMessages.find((m: { role: string }) => m.role === 'tool_results');
     expect(toolResults.results[0]).toMatchObject({ toolUseId: 'search-1', content: 'result text' });
+  });
+
+  it('passes the caller’s context to every tool call', async () => {
+    const streamTurn = jest
+      .fn()
+      .mockImplementationOnce(async () => toolTurn('workspace_list', {}))
+      .mockImplementationOnce(async () => endTurn('done'));
+    llm.getProvider.mockReturnValue(makeProvider(streamTurn));
+    mcp.callTool.mockResolvedValue({ content: [{ text: '[]' }] });
+
+    await runChatStream([], 'hi', emit, [], 'model-1', undefined, { userToken: 'kc-a' });
+
+    expect(mcp.callTool).toHaveBeenCalledWith('workspace_list', {}, { userToken: 'kc-a' });
   });
 
   it('feeds a failed tool call back as an error result', async () => {

@@ -1,5 +1,6 @@
 import { createLogger } from '@utils/logger';
 import { mcpRegistry } from '@services/mcp/McpRegistry';
+import type { McpCallContext } from '@services/mcp/McpProvider';
 import { llmRegistry } from '@services/llm/LlmRegistry';
 import { LlmError, type AgentMessage, type AgentToolResult } from '@services/llm/LlmProvider';
 
@@ -36,7 +37,9 @@ export async function runChatStream(
   emit: ChatEventCallback,
   selectedProviderIds: string[],
   modelId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /** Who the tool calls are made for — passed to the providers, never to the model. */
+  context?: McpCallContext
 ): Promise<void> {
   const provider = llmRegistry.getProvider(modelId);
   if (!provider) {
@@ -104,7 +107,7 @@ export async function runChatStream(
       logger.info('Executing tool', { tool: toolUse.name });
 
       try {
-        const result = await mcpRegistry.callTool(toolUse.name, toolUse.input);
+        const result = await mcpRegistry.callTool(toolUse.name, toolUse.input, context);
         toolResults.push({
           toolUseId: toolUse.id,
           content: truncateToolResult(result.content.map((c) => c.text).join('\n')),

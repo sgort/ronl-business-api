@@ -128,7 +128,11 @@ router.post('/chat', async (req, res) => {
   });
 
   try {
-    await runChatStream(history, message, send, sources, modelId, abortController.signal);
+    // The caller's token travels with each tool call (in MCP _meta), so a provider
+    // that acts as the person — eDOCS — reaches its backend route as them.
+    await runChatStream(history, message, send, sources, modelId, abortController.signal, {
+      userToken: req.auth?.token,
+    });
     send({ type: 'done' });
   } catch (error) {
     if (!abortController.signal.aborted) {

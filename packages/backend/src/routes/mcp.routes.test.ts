@@ -18,6 +18,7 @@ jest.mock('@auth/jwt.middleware', () => ({
         code: 'MISSING_TOKEN',
       });
     req.user = { userId: 'u', tenantId: 'flevoland', roles: roles.split(',') } as Request['user'];
+    req.auth = { ...req.user, requestId: 'r', token: 'kc-route' } as Request['auth'];
     next();
   },
   requireRoles:
@@ -160,7 +161,8 @@ describe('POST /v1/mcp/chat', () => {
       expect.any(Function),
       ['operaton'],
       'claude-opus-4-8',
-      expect.any(Object)
+      expect.any(Object),
+      { userToken: 'kc-route' }
     );
   });
 
@@ -254,7 +256,8 @@ describe('POST /chat with the optional fields left out', () => {
       expect.any(Function),
       [],
       'claude-opus-4-8',
-      expect.any(Object)
+      expect.any(Object),
+      { userToken: 'kc-route' }
     );
   });
 });
