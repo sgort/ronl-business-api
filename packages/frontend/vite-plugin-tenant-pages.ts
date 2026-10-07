@@ -9,9 +9,10 @@
  * the tenant's "share" entry in tenants.json, the card image from
  * public/og-image-<id>-<acc|prod>.png.
  *
- * It also adds a rewrite per tenant to the shipped staticwebapp.config.json,
- * so /amsterdam and /amsterdam/ both serve the tenant page rather than the
- * navigation fallback, whatever Static Web Apps does with a trailing slash.
+ * It also adds one rewrite per tenant to the shipped staticwebapp.config.json,
+ * so /amsterdam serves the tenant page rather than the navigation fallback.
+ * Static Web Apps ignores a trailing slash when matching routes, so that one
+ * rule covers /amsterdam/ too.
  *
  * Which tenants qualify mirrors the landing page: enabled, exactly one board.
  * That their ids are valid, unreserved paths is enforced by a unit test over
@@ -127,12 +128,29 @@ export function renderTenantPage(html: string, tenant: TenantPage, env: PageEnv)
   return page;
 }
 
+/** How Static Web Apps compares routes: a trailing slash makes no difference. */
+const routeKey = (route: string) => route.replace(/\/+$/, '') || '/';
+
+/**
+ * One rewrite per tenant. Static Web Apps treats /amsterdam and /amsterdam/
+ * as the same route, so this rule serves both, and a second rule for the
+ * slash form makes it refuse the whole config ("duplicate route"), which
+ * fails the deploy. A clash with a route the config already has fails the
+ * build here instead.
+ */
 export function withTenantRoutes(config: SwaConfig, ids: string[]): SwaConfig {
-  const tenantRoutes = ids.flatMap((id) => [
-    { route: `/${id}`, rewrite: `/${id}/index.html` },
-    { route: `/${id}/`, rewrite: `/${id}/index.html` },
-  ]);
-  return { ...config, routes: [...tenantRoutes, ...(config.routes ?? [])] };
+  const existing = config.routes ?? [];
+  const taken = new Set(existing.map((r) => routeKey(r.route)));
+  const tenantRoutes = ids.map((id) => {
+    if (taken.has(routeKey(`/${id}`))) {
+      throw new Error(
+        `tenant pages: staticwebapp.config.json already has a duplicate route /${id}`
+      );
+    }
+    taken.add(routeKey(`/${id}`));
+    return { route: `/${id}`, rewrite: `/${id}/index.html` };
+  });
+  return { ...config, routes: [...tenantRoutes, ...existing] };
 }
 
 /** Writes dist/<id>/index.html per tenant page and their routes; returns the ids written. */
