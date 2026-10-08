@@ -779,6 +779,47 @@ describe('EdocsService — per-user sessions', () => {
     expect(user.actingAs).toBe('user');
   });
 
+  // #338: eDOCS lets an account record only itself as author, so a person's own
+  // write names them -- never the service account.
+  describe('author of a person’s own write', () => {
+    const uploadedProfile = (): Record<string, unknown> => {
+      const call = mockFormAppend.mock.calls.find((c) => c[0] === 'data');
+      return JSON.parse(call![1] as string) as Record<string, unknown>;
+    };
+    const uploaded = { data: { data: { list: [{ id: 'doc-p', DOCNUM: '9' }] } } };
+
+    it('names the person as AUTHOR_ID and TYPIST_ID of an upload', async () => {
+      mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
+      mockClient.post.mockResolvedValueOnce(uploaded);
+      await userClient('a').uploadDocument(null, 'p.pdf', 'YmFzZTY0', {
+        docName: 'Mine',
+        department: 'IVR',
+      });
+      expect(uploadedProfile()).toMatchObject({ AUTHOR_ID: 'GORTS01', TYPIST_ID: 'GORTS01' });
+    });
+
+    it('names the person as author of a workspace they create', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(userConnectResponse('GORTS01'))
+        .mockResolvedValueOnce({ data: { data: { id: 'ws-p' } } });
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+      await userClient('a').ensureWorkspace('P-1', 'Mine');
+      const createBody = mockClient.post.mock.calls[1][1].data;
+      expect(createBody).toMatchObject({ AUTHOR_ID: 'GORTS01', TYPIST_ID: 'GORTS01' });
+    });
+
+    it('leaves the author to eDOCS when connect named no USER_ID', async () => {
+      mockClient.post.mockResolvedValueOnce({ ...connectResponse, data: { data: {} } });
+      mockClient.post.mockResolvedValueOnce(uploaded);
+      await userClient('a').uploadDocument(null, 'p.pdf', 'YmFzZTY0', {
+        docName: 'Mine',
+        department: 'IVR',
+      });
+      expect(uploadedProfile()).not.toHaveProperty('AUTHOR_ID');
+      expect(uploadedProfile()).not.toHaveProperty('TYPIST_ID');
+    });
+  });
+
   it('records the eDOCS USER_ID for the person’s e-mail', async () => {
     mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
     mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
