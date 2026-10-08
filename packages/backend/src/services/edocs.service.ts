@@ -32,6 +32,34 @@ export interface EdocsDocumentMetadata {
   appId?: string;
   formName?: string;
   extra?: Record<string, string>;
+  /** The employee a service write is done for — recorded as "namens …", never as AUTHOR_ID. */
+  author?: EdocsAuthor;
+}
+
+/** The employee who caused a background write (spec §6). */
+export interface EdocsAuthor {
+  email: string;
+  name?: string;
+}
+
+/** eDOCS' title (DOCNAME) limit, kept below so a long name never makes eDOCS reject the upload. */
+const MAX_DOCNAME_LENGTH = 254;
+
+/**
+ * The title with "namens <naam> (<e-mail>)" appended. The service account may only
+ * record itself as AUTHOR_ID (probe and Flevoland IT, 6 October 2026), and the title
+ * ("Onderwerp") is the one free-text field InfoCenter shows on the D_INTERN_NIEUW
+ * form, so the employee goes there. The only place that knows how attribution is
+ * written: a later move to another field, or to AUTHOR_ID (spec §6), changes this
+ * function and nothing else.
+ */
+export function attributedDocName(docName: string, author?: EdocsAuthor): string {
+  const email = author?.email.trim();
+  if (!email) return docName;
+  const name = author?.name?.trim();
+  const suffix = ` — namens ${name ? `${name} (${email})` : email}`;
+  const room = Math.max(0, MAX_DOCNAME_LENGTH - suffix.length);
+  return (docName.slice(0, room) + suffix).slice(0, MAX_DOCNAME_LENGTH);
 }
 
 export interface EdocsDocumentVersion {
@@ -480,6 +508,7 @@ export class EdocsService {
         workspaceId,
         filename,
         docName: metadata.docName,
+        attributed: Boolean(metadata.author),
       });
       return { documentId: stubDocId, documentNumber: stubDocNumber, workspaceId };
     }
@@ -489,6 +518,7 @@ export class EdocsService {
         workspaceId,
         filename,
         docName: metadata.docName,
+        attributed: Boolean(metadata.author),
       });
 
       // Standalone (no workspace ref) uploads need an explicit form to select a
@@ -500,7 +530,7 @@ export class EdocsService {
       // 400s expecting a "copy" source); it only accepts a true multipart body,
       // matching the OpenAPI spec's declared content-type.
       const profileData = {
-        DOCNAME: metadata.docName,
+        DOCNAME: attributedDocName(metadata.docName, metadata.author),
         AUTHOR_ID: config.edocs.userId,
         TYPIST_ID: config.edocs.userId,
         APP_ID: metadata.appId ?? 'DEFAULT',

@@ -49,7 +49,12 @@ jest.mock('@utils/logger', () => ({
 }));
 
 import { ReauthRequiredError, UserTokenUnavailableError } from '@auth/entra-token.service';
-import { EdocsAccessDeniedError, EdocsService, lookupEdocsUserId } from './edocs.service';
+import {
+  attributedDocName,
+  EdocsAccessDeniedError,
+  EdocsService,
+  lookupEdocsUserId,
+} from './edocs.service';
 
 /** A realistic connect() response carrying both session cookies. */
 const connectResponse = {
@@ -366,6 +371,34 @@ describe('EdocsService — live mode', () => {
       const fileAppendCall = mockFormAppend.mock.calls.find((c) => c[0] === 'file');
       expect(fileAppendCall![2]).toMatchObject({ filename: 'a.pdf' });
       expect(Buffer.isBuffer(fileAppendCall![1])).toBe(true);
+    });
+
+    it('records the author in the title and keeps the service account as AUTHOR_ID', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-a', DOCNUM: '1' }] } } });
+
+      await svc.uploadDocument(null, 'a.pdf', 'YmFzZTY0', {
+        docName: 'Signed',
+        department: 'IVR',
+        author: { email: 'a@flevoland.nl', name: 'An Example' },
+      });
+
+      expect(lastProfileData()).toMatchObject({
+        DOCNAME: 'Signed — namens An Example (a@flevoland.nl)',
+        AUTHOR_ID: 'svc-user',
+        TYPIST_ID: 'svc-user',
+      });
+    });
+
+    it('keeps the title as given without an author', async () => {
+      mockClient.post
+        .mockResolvedValueOnce(connectResponse)
+        .mockResolvedValueOnce({ data: { data: { list: [{ id: 'doc-c', DOCNUM: '3' }] } } });
+
+      await svc.uploadDocument(null, 'c.pdf', 'YmFzZTY0', { docName: 'Plain', department: 'IVR' });
+
+      expect(lastProfileData().DOCNAME).toBe('Plain');
     });
 
     it('defaults APP_ID to DEFAULT and omits form_name when no formName is supplied', async () => {
@@ -914,5 +947,37 @@ describe('EdocsService — per-user sessions, stub mode', () => {
       edocsUserId: 'STUB-USER',
     });
     expect(mockClient.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('attributedDocName', () => {
+  it('appends "namens <naam> (<e-mail>)" to the title', () => {
+    expect(
+      attributedDocName('RIP-1 — Intake Report', {
+        email: 'steven.gort@flevoland.nl',
+        name: 'Steven Gort',
+      })
+    ).toBe('RIP-1 — Intake Report — namens Steven Gort (steven.gort@flevoland.nl)');
+  });
+
+  it('appends only the e-mail when there is no name', () => {
+    expect(attributedDocName('Doc', { email: 'a@flevoland.nl' })).toBe(
+      'Doc — namens a@flevoland.nl'
+    );
+  });
+
+  it('leaves the title alone without an author, or with an empty e-mail', () => {
+    expect(attributedDocName('Doc', undefined)).toBe('Doc');
+    expect(attributedDocName('Doc', { email: '  ' })).toBe('Doc');
+  });
+
+  it('shortens the title, never the attribution, to stay within 254 characters', () => {
+    const result = attributedDocName('t'.repeat(300), { email: 'a@b.nl', name: 'An Example' });
+    expect(result).toHaveLength(254);
+    expect(result.endsWith(' — namens An Example (a@b.nl)')).toBe(true);
+  });
+
+  it('cuts an attribution that alone is longer than 254 characters', () => {
+    expect(attributedDocName('Doc', { email: 'a@b.nl', name: 'x'.repeat(400) })).toHaveLength(254);
   });
 });
