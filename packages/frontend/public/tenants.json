@@ -17,8 +17,8 @@
       },
       "features": {
         "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
+        "vergunningen": false,
+        "subsidies": false,
         "meldingen": true,
         "dvtp": true
       },
@@ -122,8 +122,8 @@
       },
       "features": {
         "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
+        "vergunningen": false,
+        "subsidies": false,
         "meldingen": true,
         "dvtp": true
       },
@@ -224,8 +224,8 @@
       },
       "features": {
         "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
+        "vergunningen": false,
+        "subsidies": false,
         "meldingen": true,
         "dvtp": true
       },
@@ -315,8 +315,8 @@
       },
       "features": {
         "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
+        "vergunningen": false,
+        "subsidies": false,
         "meldingen": true,
         "dvtp": true
       },
@@ -406,8 +406,8 @@
       },
       "features": {
         "zorgtoeslag": true,
-        "vergunningen": true,
-        "subsidies": true,
+        "vergunningen": false,
+        "subsidies": false,
         "meldingen": true,
         "dvtp": true
       },
