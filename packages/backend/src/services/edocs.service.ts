@@ -100,19 +100,38 @@ interface EdocsSession {
   edocsUserId?: string;
 }
 
-/** Sessions per principal key ('service' | 'user:<sub>'), bounded, oldest evicted first. */
-class EdocsSessionStore {
+const SERVICE_KEY = 'service';
+
+/**
+ * Sessions per principal key ('service' | 'user:<sub>'). People's sessions are
+ * bounded, least recently used evicted first; the service session never counts
+ * against the bound, so a busy day cannot push the archiving session out (#326).
+ * An evicted session is not closed at eDOCS; it lapses after SESSION_DURATION.
+ */
+export class EdocsSessionStore {
   private readonly sessions = new Map<string, EdocsSession>();
+  /** In-flight connects per key: concurrent first requests share one session (#326). */
+  readonly connecting = new Map<string, Promise<void>>();
   constructor(private readonly maxEntries = 500) {}
   get(key: string): EdocsSession | undefined {
-    return this.sessions.get(key);
+    const session = this.sessions.get(key);
+    if (session) {
+      this.sessions.delete(key);
+      this.sessions.set(key, session);
+    }
+    return session;
   }
   set(key: string, session: EdocsSession): void {
     this.sessions.delete(key);
     this.sessions.set(key, session);
-    if (this.sessions.size > this.maxEntries) {
-      const oldest = this.sessions.keys().next().value;
-      if (oldest !== undefined) this.sessions.delete(oldest);
+    const people = this.sessions.size - (this.sessions.has(SERVICE_KEY) ? 1 : 0);
+    if (people > this.maxEntries) {
+      for (const candidate of this.sessions.keys()) {
+        if (candidate !== SERVICE_KEY) {
+          this.sessions.delete(candidate);
+          break;
+        }
+      }
     }
   }
   delete(key: string): void {
@@ -137,6 +156,15 @@ function rememberEdocsUser(email: string, userId: string): void {
 /** The eDOCS USER_ID last seen for this e-mail address, if any person connected with it. */
 export function lookupEdocsUserId(email: string): string | undefined {
   return edocsUserIds.get(email.toLowerCase());
+}
+
+/**
+ * A cookie's value from a "A=1; B=2" string. Everything after the FIRST "=":
+ * a base64-like value can end in "=" padding (#326).
+ */
+function cookieValue(cookies: string, name: string): string | undefined {
+  const pair = cookies.split('; ').find((c) => c.startsWith(`${name}=`));
+  return pair?.slice(name.length + 1);
 }
 
 /** The HTTP status of an axios-style error, if it carries a response. */
@@ -208,17 +236,11 @@ export class EdocsService {
         // Send all cookies back as Cookie header
         cfg.headers['Cookie'] = this.sessionToken;
         // Also send X-DM-DST value alone as a header (some endpoints require this)
-        const dstValue = this.sessionToken
-          .split('; ')
-          .find((c) => c.startsWith('X-DM-DST='))
-          ?.split('=')[1];
+        const dstValue = cookieValue(this.sessionToken, 'X-DM-DST');
         if (dstValue) {
           cfg.headers['X-DM-DST'] = dstValue;
         }
-        const csrfValue = this.sessionToken
-          .split('; ')
-          .find((c) => c.startsWith('X-DM-CSRF-TOKEN='))
-          ?.split('=')[1];
+        const csrfValue = cookieValue(this.sessionToken, 'X-DM-CSRF-TOKEN');
         if (csrfValue) {
           cfg.headers['X-DM-CSRF-TOKEN'] = csrfValue;
         }
@@ -232,7 +254,7 @@ export class EdocsService {
   }
 
   private get sessionKey(): string {
-    return this.principal.kind === 'service' ? 'service' : `user:${this.principal.sub}`;
+    return this.principal.kind === 'service' ? SERVICE_KEY : `user:${this.principal.sub}`;
   }
 
   private get sessionToken(): string | null {
@@ -359,9 +381,16 @@ export class EdocsService {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (!this.sessionToken) {
-      await this.connect();
+    if (this.sessionToken) return;
+    // Concurrent first requests for one principal share one connect, so no
+    // second eDOCS session is opened and orphaned (#326).
+    const key = this.sessionKey;
+    let pending = this.store.connecting.get(key);
+    if (!pending) {
+      pending = this.connect().finally(() => this.store.connecting.delete(key));
+      this.store.connecting.set(key, pending);
     }
+    await pending;
   }
 
   private async withAuth<T>(fn: () => Promise<T>): Promise<T> {

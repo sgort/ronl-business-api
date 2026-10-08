@@ -80,6 +80,8 @@ const MIN_VALIDITY_MS = 60_000;
  */
 export class EntraTokenService {
   private readonly cache = new Map<string, EntraTokens>();
+  /** One lookup per user at a time: concurrent first requests share it (#326). */
+  private readonly inflight = new Map<string, Promise<string>>();
 
   constructor(
     private readonly http: AxiosInstance = axios.create({ timeout: 10_000 }),
@@ -87,13 +89,33 @@ export class EntraTokenService {
     private readonly maxEntries = 500
   ) {}
 
-  async getIdToken(
+  getIdToken(
     userSub: string,
     keycloakAccessToken: string,
     opts: { forceRefresh?: boolean } = {}
   ): Promise<string> {
+    // A forced refresh is its own lookup: it must not adopt a plain one's answer.
+    const key = opts.forceRefresh ? `${userSub}\u0000refresh` : userSub;
+    const pending = this.inflight.get(key);
+    if (pending) return pending;
+    const run = this.resolveIdToken(userSub, keycloakAccessToken, opts).finally(() =>
+      this.inflight.delete(key)
+    );
+    this.inflight.set(key, run);
+    return run;
+  }
+
+  private async resolveIdToken(
+    userSub: string,
+    keycloakAccessToken: string,
+    opts: { forceRefresh?: boolean }
+  ): Promise<string> {
     let tokens = this.cache.get(userSub);
-    if (!tokens) {
+    if (tokens) {
+      // Least recently used goes first: a user who keeps working stays cached.
+      this.cache.delete(userSub);
+      this.cache.set(userSub, tokens);
+    } else {
       tokens = await this.readStored(keycloakAccessToken);
       this.remember(userSub, tokens);
     }
