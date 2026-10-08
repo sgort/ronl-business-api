@@ -528,6 +528,16 @@ describe('isCallbackPath', () => {
 });
 
 describe('GET /v1/validsign/task/:taskId/spec', () => {
+  // Runs on every task the inbox opens, alongside the task pane's own read.
+  // A deserialising read can write an object variable back and collide with
+  // that one (ENGINE-03005); this route only needs strings.
+  it('reads the task variables without deserialising them', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue(null);
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
+    await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
+    expect(mockGetTaskVariables).toHaveBeenCalledWith('task-1', { deserializeValues: false });
+  });
+
   it('reports required:false for an untagged task', async () => {
     mockGetTaskSignatureSpec.mockResolvedValue(null);
     const res = await request(app).get('/v1/validsign/task/task-1/spec').set(authHeader);
@@ -965,6 +975,12 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
 });
 
 describe('GET /v1/validsign/task/:taskId/status', () => {
+  it('reads the task variables without deserialising them', async () => {
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland' });
+    await request(app).get('/v1/validsign/task/task-1/status').set(authHeader);
+    expect(mockGetTaskVariables).toHaveBeenCalledWith('task-1', { deserializeValues: false });
+  });
+
   it('returns the status from process variables', async () => {
     mockGetTaskVariables.mockResolvedValue({
       municipality: 'flevoland',

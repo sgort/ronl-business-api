@@ -407,12 +407,54 @@ export class OperatonService {
   /**
    * Get process variables
    */
-  async getProcessVariables(processInstanceId: string): Promise<Record<string, OperatonVariable>> {
+  async getProcessVariables(
+    processInstanceId: string,
+    options: { deserializeValues?: boolean } = {}
+  ): Promise<Record<string, OperatonVariable>> {
     try {
-      const response = await this.client.get(`/process-instance/${processInstanceId}/variables`);
+      // deserializeValues: false for a caller that needs only primitive values:
+      // a deserialising read can write an object variable back (see
+      // getAccessVariables).
+      const response =
+        options.deserializeValues === false
+          ? await this.client.get(`/process-instance/${processInstanceId}/variables`, {
+              params: { deserializeValues: false },
+            })
+          : await this.client.get(`/process-instance/${processInstanceId}/variables`);
       return response.data;
     } catch (error) {
       logger.error('Failed to get process variables', {
+        processInstanceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * The two variables an access check reads, municipality and applicantId,
+   * without deserialising any object variable. A deserialising read is not
+   * read-only: Operaton writes an object variable back when it re-serialises
+   * differently, and two such reads of one instance at once collide
+   * (ENGINE-03005, optimistic locking). On ACC that failed a claim whose tenant
+   * check ran alongside the task pane's own read of the same sub-process,
+   * which keeps decision results (svbResult and the like) as Java-serialised
+   * maps. This read never writes.
+   */
+  async getAccessVariables(
+    processInstanceId: string
+  ): Promise<{ municipality: unknown; applicantId: unknown }> {
+    try {
+      const response = await this.client.get(`/process-instance/${processInstanceId}/variables`, {
+        params: { deserializeValues: false },
+      });
+      const variables = response.data as Record<string, OperatonVariable>;
+      return {
+        municipality: variables.municipality?.value,
+        applicantId: variables.applicantId?.value,
+      };
+    } catch (error) {
+      logger.error('Failed to get access variables', {
         processInstanceId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -1342,9 +1384,12 @@ export class OperatonService {
   /**
    * Get all process variables for a task, resolved via the task's processInstanceId.
    */
-  async getTaskVariables(taskId: string): Promise<Record<string, unknown>> {
+  async getTaskVariables(
+    taskId: string,
+    options: { deserializeValues?: boolean } = {}
+  ): Promise<Record<string, unknown>> {
     const task = await this.getTask(taskId);
-    const variables = await this.getProcessVariables(task.processInstanceId);
+    const variables = await this.getProcessVariables(task.processInstanceId, options);
     const plain: Record<string, unknown> = {};
     for (const [key, variable] of Object.entries(variables)) {
       plain[key] = variable.value;

@@ -38,6 +38,7 @@ jest.mock('@services/operaton.service', () => ({
     getCompletedTasks: jest.fn(),
     getTask: jest.fn(),
     getProcessVariables: jest.fn(),
+    getAccessVariables: jest.fn(),
     getDeployedTaskForm: jest.fn(),
     claimTask: jest.fn(),
     completeTask: jest.fn(),
@@ -106,6 +107,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   // Default: the task's process instance belongs to the caller's tenant.
   svc.getProcessVariables.mockResolvedValue(ownedVars);
+  // The access check's own read (see the describe at the end of this file),
+  // following whatever a test sets for the instance's variables.
+  svc.getAccessVariables.mockImplementation(async (id: string) => {
+    const vars = (await svc.getProcessVariables(id)) ?? {};
+    return { municipality: vars.municipality?.value, applicantId: vars.applicantId?.value };
+  });
 });
 
 describe('GET /v1/task', () => {
@@ -228,10 +235,20 @@ describe('GET /v1/task/:id/variables', () => {
     expect(res.body.data).toEqual({ municipality: 'flevoland' });
   });
 
-  it('reads the variables once, for both the check and the response', async () => {
+  it('checks access with the non-deserialising read, then reads the variables once to return them', async () => {
     svc.getTask.mockResolvedValue(task());
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland', applicantId: undefined });
     await auth(request(app).get('/v1/task/t1/variables'));
+    expect(svc.getAccessVariables).toHaveBeenCalledTimes(1);
     expect(svc.getProcessVariables).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not read every variable for a task of another tenant', async () => {
+    svc.getTask.mockResolvedValue(task());
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'utrecht', applicantId: undefined });
+    const res = await auth(request(app).get('/v1/task/t1/variables'));
+    expect(res.status).toBe(403);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
   });
 
   it('403 TENANT_MISMATCH when the instance variable names another tenant', async () => {
@@ -577,5 +594,51 @@ describe('POST /:id/complete without a variables key', () => {
     expect(res.status).toBe(200);
     expectToMatchOperation(res, 'post', '/task/{id}/complete');
     expect(svc.completeTask).toHaveBeenCalledWith('t-1', { variables: {} });
+  });
+});
+
+// Operaton writes a deserialised object variable back when it re-serialises
+// differently, so a full read is not read-only. On ACC a claim's tenant check
+// collided with the task pane's read of the same sub-process (ENGINE-03005)
+// and the claim failed. The access check reads only what it needs, and never
+// deserialises; a full read stays only where the variables are returned.
+describe('the tenant check does not read every variable', () => {
+  beforeEach(() => {
+    svc.getTask.mockResolvedValue(task());
+    svc.getProcessVariables.mockRejectedValue(new Error('ENGINE-03005 OptimisticLockingException'));
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland', applicantId: 'u-9' });
+  });
+
+  it('claim', async () => {
+    svc.claimTask.mockResolvedValue(undefined);
+    const res = await auth(request(app).post('/v1/task/t1/claim'));
+    expect(res.status).toBe(200);
+    expect(svc.getAccessVariables).toHaveBeenCalledWith('pi-1');
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('complete', async () => {
+    svc.completeTask.mockResolvedValue(undefined);
+    const res = await auth(request(app).post('/v1/task/t1/complete').send({ variables: {} }));
+    expect(res.status).toBe(200);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('form-schema', async () => {
+    svc.getDeployedTaskForm.mockResolvedValue({
+      data: JSON.stringify(form),
+      contentType: 'application/json',
+    });
+    const res = await auth(request(app).get('/v1/task/t1/form-schema'));
+    expect(res.status).toBe(200);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('refuses another tenant from the access read alone', async () => {
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'utrecht', applicantId: undefined });
+    const res = await auth(request(app).post('/v1/task/t1/claim'));
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('TENANT_MISMATCH');
+    expect(svc.claimTask).not.toHaveBeenCalled();
   });
 });

@@ -82,6 +82,36 @@ describe('passthrough queries', () => {
     expect(mockClient.get).toHaveBeenCalledWith('/process-instance/pi/variables');
   });
 
+  // A deserialising read can write an object variable back (ENGINE-03005 on
+  // ACC, when a claim's tenant check and the task pane read one instance at
+  // once). The access check needs two strings and must never write.
+  it('getAccessVariables reads municipality and applicantId without deserialising', async () => {
+    mockClient.get.mockResolvedValue({
+      data: {
+        municipality: { value: 'heusden', type: 'String' },
+        applicantId: { value: 'u-1', type: 'String' },
+        svbResult: { value: 'rO0ABXNy...', type: 'Object' },
+      },
+    });
+
+    await expect(svc.getAccessVariables('pi')).resolves.toEqual({
+      municipality: 'heusden',
+      applicantId: 'u-1',
+    });
+    expect(mockClient.get).toHaveBeenCalledWith('/process-instance/pi/variables', {
+      params: { deserializeValues: false },
+    });
+  });
+
+  it('getAccessVariables leaves out what the instance does not have', async () => {
+    mockClient.get.mockResolvedValue({ data: {} });
+
+    await expect(svc.getAccessVariables('pi')).resolves.toEqual({
+      municipality: undefined,
+      applicantId: undefined,
+    });
+  });
+
   it('getTask GETs /task/:id', async () => {
     mockClient.get.mockResolvedValue({ data: { id: 't1' } });
     await expect(svc.getTask('t1')).resolves.toEqual({ id: 't1' });
@@ -694,6 +724,19 @@ describe('getTaskVariables', () => {
     await expect(svc.getTaskVariables('t1')).resolves.toEqual({ amount: 42, name: 'Bob' });
     expect(mockClient.get).toHaveBeenNthCalledWith(1, '/task/t1');
     expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-instance/pi-9/variables');
+  });
+
+  it('can read them without deserialising, for callers that need only strings', async () => {
+    mockClient.get
+      .mockResolvedValueOnce({ data: { id: 't1', processInstanceId: 'pi-9' } })
+      .mockResolvedValueOnce({ data: { municipality: { value: 'heusden', type: 'String' } } });
+
+    await expect(svc.getTaskVariables('t1', { deserializeValues: false })).resolves.toEqual({
+      municipality: 'heusden',
+    });
+    expect(mockClient.get).toHaveBeenNthCalledWith(2, '/process-instance/pi-9/variables', {
+      params: { deserializeValues: false },
+    });
   });
 });
 
@@ -2000,6 +2043,7 @@ describe('failures that are not Error instances', () => {
     ['getDeployedProcessKeys', () => svc.getDeployedProcessKeys(['K'], 'flevoland')],
     ['getProcessInstance', () => svc.getProcessInstance('pi-1')],
     ['getProcessVariables', () => svc.getProcessVariables('pi-1')],
+    ['getAccessVariables', () => svc.getAccessVariables('pi-1')],
     ['getActivityHistory', () => svc.getActivityHistory('pi-1')],
     ['deleteProcessInstance', () => svc.deleteProcessInstance('pi-1', 'reason')],
     ['getProcessHistory', () => svc.getProcessHistory('applicant-1', 'flevoland')],

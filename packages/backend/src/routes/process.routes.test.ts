@@ -46,6 +46,7 @@ jest.mock('@services/operaton.service', () => ({
     getProcessHistory: jest.fn(),
     getProcessInstance: jest.fn(),
     getProcessVariables: jest.fn(),
+    getAccessVariables: jest.fn(),
     getHistoricVariables: jest.fn(),
     getActivityHistory: jest.fn(),
     getDecisionDocument: jest.fn(),
@@ -95,6 +96,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   // Default: the process is deployed under the caller's own tenant.
   svc.resolveDeployedTenant.mockResolvedValue('flevoland');
+  // The access check's own read, following whatever a test sets for the
+  // instance's variables (see the describe at the end of this file).
+  svc.getAccessVariables.mockImplementation(async (id: string) => {
+    const vars = (await svc.getProcessVariables(id)) ?? {};
+    return { municipality: vars.municipality?.value, applicantId: vars.applicantId?.value };
+  });
 });
 
 describe('POST /:key/start', () => {
@@ -1002,5 +1009,46 @@ describe('GET /:id/lineage', () => {
     expect(res.status).toBe(500);
     expectToMatchOperation(res, ...op);
     expect(res.body.code).toBe('PROCESS_LINEAGE_FAILED');
+  });
+});
+
+// A deserialising read of every variable can write an object variable back
+// and collide with another read of the same instance (ENGINE-03005). The
+// access check reads municipality and applicantId alone, without
+// deserialising; the full read stays only where the variables are returned.
+describe('the access check does not read every variable', () => {
+  beforeEach(() => {
+    svc.getProcessVariables.mockRejectedValue(new Error('ENGINE-03005 OptimisticLockingException'));
+    svc.getAccessVariables.mockResolvedValue({ municipality: 'flevoland', applicantId: 'u-9' });
+  });
+
+  it('GET /:id/status', async () => {
+    svc.getProcessInstance.mockResolvedValue({
+      id: 'pi',
+      definitionId: 'd',
+      ended: false,
+      suspended: false,
+    });
+    const res = await auth(request(app).get('/v1/process/pi/status'));
+    expect(res.status).toBe(200);
+    expect(svc.getAccessVariables).toHaveBeenCalledWith('pi');
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /:id', async () => {
+    svc.deleteProcessInstance.mockResolvedValue(undefined);
+    const res = await auth(request(app).delete('/v1/process/pi')).send({ reason: 'obsolete' });
+    expect(res.status).toBe(200);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
+  });
+
+  it('GET /:id/variables reads them all only after access is settled', async () => {
+    svc.getAccessVariables.mockResolvedValue({
+      municipality: 'utrecht',
+      applicantId: 'someone-else',
+    });
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.status).toBe(403);
+    expect(svc.getProcessVariables).not.toHaveBeenCalled();
   });
 });
