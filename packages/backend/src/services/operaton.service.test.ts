@@ -1529,6 +1529,34 @@ describe('findInstanceByValidsignPackage', () => {
     });
   });
 
+  it('reads the employee who acted as the author', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [
+        /\/process-instance\/pi-1\/variables$/,
+        {
+          data: {
+            edocsAuthor: { value: 'a@flevoland.nl', type: 'String' },
+            edocsAuthorName: { value: 'An Example', type: 'String' },
+          },
+        },
+      ],
+      ['/task', { data: [{ id: 'task-1' }] }],
+    ]);
+    const result = await svc.findInstanceByValidsignPackage('pkg-1');
+    expect(result?.author).toEqual({ email: 'a@flevoland.nl', name: 'An Example' });
+  });
+
+  it('has no author when the instance names none', async () => {
+    routeGet([
+      ['/process-instance', { data: [{ id: 'pi-1' }] }],
+      [/\/process-instance\/pi-1\/variables$/, { data: {} }],
+      ['/task', { data: [{ id: 'task-1' }] }],
+    ]);
+    const result = await svc.findInstanceByValidsignPackage('pkg-1');
+    expect(result?.author).toBeUndefined();
+  });
+
   it('returns null when no running instance carries that package id', async () => {
     routeGet([['/process-instance', { data: [] }]]);
     expect(await svc.findInstanceByValidsignPackage('pkg-missing')).toBeNull();

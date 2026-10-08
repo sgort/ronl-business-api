@@ -84,6 +84,39 @@ a person's Keycloak access token — the one the browser holds — can read thei
 own stored Entra token from Keycloak's broker endpoint, and so reach eDOCS as
 them past RBA's audit for about an hour.
 
+## Background archiving: "namens …"
+
+The Operaton worker (`rip-edocs-document`) and ValidSign completion archive as
+the service account `testuser001`. eDOCS lets the service account record only
+itself as `AUTHOR_ID`, so the employee who caused the write is recorded at the
+end of the document title (Onderwerp) as **"<title> — namens <naam> (<e-mail>)"**.
+InfoCenter shows no free-text summary field on the standalone-upload form
+(`D_INTERN_NIEUW`), so the title is where a colleague sees it.
+
+- The backend stamps `edocsAuthor` (e-mail, or the username) and `edocsAuthorName`
+  when a member of staff starts a process, completes a user task, or creates a
+  ValidSign package (the signer is who the signed document is archived for).
+  Citizens and M2M clients are never stamped.
+- The variables endpoints (`/v1/process/:id/variables`, `/historic-variables`,
+  `/v1/task/:id/variables`) never return them: a citizen reads their own case
+  there, and the employee's e-mail and name are for archiving only.
+- Both variables are reserved: a client that sends them on a task completion gets
+  `400 RESERVED_VARIABLE`, as does an M2M start. On a start through `/v1/process`
+  they are overwritten from the token instead.
+- The title stays within 254 characters: a long title is shortened, never the
+  "namens" part.
+- A process without `edocsAuthor` archives as before, without "namens".
+  Workspaces carry no attribution: they belong to the project.
+- `attributedDocName()` in `edocs.service.ts` is the only place that knows how
+  attribution is written; a later move to another field, or to `AUTHOR_ID`,
+  changes only that function.
+
+**Check it:** run a RIP phase that reaches `rip-edocs-document` locally with
+`EDOCS_STUB_MODE=false` (and `VALIDSIGN_STUB_MODE=true`), signed in with the
+Flevoland account, and open the document in InfoCenter: the Onderwerp ends with
+"— namens <your name> (<your e-mail>)" and the Auteur is `TESTUSER001`. In stub
+mode the backend log shows `attributed: true` on `[stub] uploadDocument()`.
+
 ## Running it
 
 ```bash

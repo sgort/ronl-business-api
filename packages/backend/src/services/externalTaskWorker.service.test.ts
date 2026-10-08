@@ -139,6 +139,22 @@ describe('handleUploadDocument', () => {
     expect(decoded).toContain('INTAKE REPORT (Column 2)');
   });
 
+  it('passes the employee who acted as the author', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', { ...validVars, edocsAuthor: 'a@flevoland.nl' })
+    );
+    expect(mockUpload.mock.calls[0][3].author).toEqual({ email: 'a@flevoland.nl' });
+  });
+
+  it('passes no author when the process has none', async () => {
+    mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
+    await internals(new ExternalTaskWorker()).handleUploadDocument(
+      task('rip-edocs-document', validVars)
+    );
+    expect(mockUpload.mock.calls[0][3]).not.toHaveProperty('author');
+  });
+
   it('defaults the output variable name to edocsDocumentId', async () => {
     mockUpload.mockResolvedValue({ documentId: 'd1', documentNumber: '555', workspaceId: 'ws-1' });
     const out = await internals(new ExternalTaskWorker()).handleUploadDocument(
@@ -318,6 +334,19 @@ describe('fetchAndLock', () => {
       'rip-relatics-workspace',
       'rip-edocs-document',
     ]);
+  });
+
+  it('fetches the author variables for the document topic only', async () => {
+    mockPost.mockResolvedValue({ data: [] });
+    await internals(new ExternalTaskWorker()).fetchAndLock();
+    const topics: Array<{ topicName: string; variables: string[] }> =
+      mockPost.mock.calls[0][1].topics;
+    const byName = (name: string) => topics.find((t) => t.topicName === name)!.variables;
+    expect(byName('rip-edocs-document')).toEqual(
+      expect.arrayContaining(['edocsAuthor', 'edocsAuthorName'])
+    );
+    // A workspace is the project's: its title names no employee.
+    expect(byName('rip-edocs-workspace')).not.toContain('edocsAuthor');
   });
 
   it('returns [] when the response has no data', async () => {

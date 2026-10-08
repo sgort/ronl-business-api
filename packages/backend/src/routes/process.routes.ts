@@ -10,6 +10,11 @@ import {
   tenantAllows,
 } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
+import {
+  EDOCS_AUTHOR_VARIABLES,
+  edocsAuthorVariables,
+  withoutEdocsAuthor,
+} from '@services/edocs-author';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { AmbiguousDeploymentError } from '@utils/errors';
@@ -117,6 +122,11 @@ router.post(
       }
       operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
       operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
+
+      // Who acted, for background eDOCS archiving (spec §6): from the token only,
+      // never from the body -- a sent value is dropped, as municipality is.
+      for (const name of EDOCS_AUTHOR_VARIABLES) delete operatonVariables[name];
+      Object.assign(operatonVariables, edocsAuthorVariables(req.user));
 
       // The business key is the case's human-facing handle, so it names the
       // organisation that owns the case (#234). A caller-supplied key is kept:
@@ -358,9 +368,9 @@ router.get('/:id/variables', async (req, res) => {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
-    // Extract plain values
+    // Extract plain values; the eDOCS author is the backend's own (spec §6)
     const plainVariables: Record<string, unknown> = {};
-    for (const [key, variable] of Object.entries(variables)) {
+    for (const [key, variable] of Object.entries(withoutEdocsAuthor(variables))) {
       plainVariables[key] = variable.value;
     }
 
@@ -408,7 +418,7 @@ router.get('/:id/historic-variables', async (req, res) => {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
-    res.json({ success: true, data: variables });
+    res.json({ success: true, data: withoutEdocsAuthor(variables) });
   } catch (error) {
     logger.error('Failed to get historic variables', {
       processInstanceId: id,
