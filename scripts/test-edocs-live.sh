@@ -408,6 +408,39 @@ else
     -H "Authorization: Bearer ${PERSON_TOKEN}")
   check_status "GET /v1/edocs/workspaces as the person" "$W_CODE" "200"
   check_field "acts as the person" "$(cat /tmp/edocs_1c.json)" '.actingAs' 'user'
+
+  # A person's own write names them as author, never the service account (#338):
+  # eDOCS lets an account record only itself as AUTHOR_ID. The cleanup is
+  # best-effort: the Flevoland library only queues a document for deletion (in
+  # InfoCenter), and the API's delete answers 502, so a refusal is a skip.
+  P_USER_ID=$(jq -r '.data.user.edocsUserId // empty' /tmp/edocs_1c_status.json)
+  P_B64=$(printf 'eDOCS CLI person author check %s' "$(date -u +%FT%TZ)" | base64 | tr -d '\n')
+  PU_CODE=$(curl -s -o /tmp/edocs_1c_upload.json -w '%{http_code}' \
+    -X POST "${BASE_URL}/v1/edocs/documents" -H "Authorization: Bearer ${PERSON_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"filename\":\"person-author-check.txt\",\"contentBase64\":\"${P_B64}\",\"metadata\":{\"docName\":\"eDOCS CLI person author check\",\"department\":\"${EDOCS_DEPARTMENT}\"}}")
+  check_status "POST /v1/edocs/documents as the person" "$PU_CODE" "200"
+  P_DOC_ID=$(jq -r '.data.documentId // empty' /tmp/edocs_1c_upload.json)
+  if [[ -n "$P_DOC_ID" ]]; then
+    check_field "uploads as the person" "$(cat /tmp/edocs_1c_upload.json)" '.actingAs' 'user'
+    PP_CODE=$(curl -s -o /tmp/edocs_1c_profile.json -w '%{http_code}' \
+      "${BASE_URL}/v1/edocs/documents/${P_DOC_ID}/profile" -H "Authorization: Bearer ${PERSON_TOKEN}")
+    check_status "GET the person's document profile" "$PP_CODE" "200"
+    # Wherever the profile nests it: the first string AUTHOR_ID.
+    P_AUTHOR=$(jq -r '[.. | objects | .AUTHOR_ID? | strings] | first // empty' /tmp/edocs_1c_profile.json)
+    if [[ -n "$P_USER_ID" && "$P_AUTHOR" == "$P_USER_ID" ]]; then
+      pass "the person is the author (AUTHOR_ID = $P_AUTHOR)"
+    else
+      fail "AUTHOR_ID is '${P_AUTHOR}', expected the person ('${P_USER_ID}')"
+    fi
+    PD_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
+      "${BASE_URL}/v1/edocs/documents/${P_DOC_ID}" -H "Authorization: Bearer ${PERSON_TOKEN}")
+    if [[ "$PD_CODE" == "200" ]]; then
+      pass "deleted the person's document again (cleanup)"
+    else
+      skip "cleanup: eDOCS did not delete ${P_DOC_ID} (HTTP ${PD_CODE}); queue it for deletion in InfoCenter"
+    fi
+  fi
 fi
 
 # ─── 2. List workspaces (view-only — no create/delete, see header) ────────────

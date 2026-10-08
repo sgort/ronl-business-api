@@ -248,6 +248,17 @@ export class EdocsService {
     return this.store.get(this.sessionKey)?.edocsUserId;
   }
 
+  /**
+   * AUTHOR_ID / TYPIST_ID of a write. eDOCS lets an account record only itself
+   * as author (probe, 6 October 2026), so each principal names itself: the
+   * service account, or the person as connect reported them (#338). A person
+   * whose connect named no USER_ID leaves the fields to eDOCS rather than guess.
+   */
+  private authorFields(): Record<string, string> {
+    const id = this.principal.kind === 'service' ? config.edocs.userId : this.edocsUserId;
+    return id ? { AUTHOR_ID: id, TYPIST_ID: id } : {};
+  }
+
   get actingAs(): 'user' | 'service' {
     return this.principal.kind;
   }
@@ -464,8 +475,7 @@ export class EdocsService {
         {
           data: {
             DOCNAME: workspaceName,
-            AUTHOR_ID: config.edocs.userId,
-            TYPIST_ID: config.edocs.userId,
+            ...this.authorFields(),
           },
         },
         { params: { library: config.edocs.library } }
@@ -531,8 +541,7 @@ export class EdocsService {
       // matching the OpenAPI spec's declared content-type.
       const profileData = {
         DOCNAME: attributedDocName(metadata.docName, metadata.author),
-        AUTHOR_ID: config.edocs.userId,
-        TYPIST_ID: config.edocs.userId,
+        ...this.authorFields(),
         APP_ID: metadata.appId ?? 'DEFAULT',
         UV_AFD_NAAM: metadata.department,
         _restapi: {
