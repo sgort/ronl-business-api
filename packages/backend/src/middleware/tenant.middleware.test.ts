@@ -71,6 +71,21 @@ describe('tenantMiddleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.auth?.tenantId).toBe('flevoland');
   });
+
+  // #326 item 5: the bearer token is non-enumerable on req.auth, so a copy
+  // made with a spread would drop it; the tenant sync must keep it.
+  it('keeps the non-enumerable bearer token when it syncs the tenant', () => {
+    const auth = { userId: 'u', tenantId: 'stale', requestId: 'r1' };
+    Object.defineProperty(auth, 'token', { value: 'kc-token', enumerable: false });
+    const req = {
+      user: { userId: 'u', tenantId: 'flevoland', organisationType: 'province' },
+      auth,
+      path: '/x',
+    } as unknown as Request;
+    tenantMiddleware(req, makeRes(), jest.fn() as NextFunction);
+    expect(req.auth?.tenantId).toBe('flevoland');
+    expect(req.auth?.token).toBe('kc-token');
+  });
 });
 
 describe('validateTenantParam', () => {

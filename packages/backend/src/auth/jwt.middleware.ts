@@ -154,11 +154,14 @@ export const jwtMiddleware = async (req: Request, res: Response, next: NextFunct
     req.auth = {
       ...user,
       azp: payload.azp,
-      token,
       requestId: (req.headers['x-request-id'] as string) || `req-${Date.now()}`,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     };
+    // The bearer token, for calls made on the person's behalf (Keycloak broker
+    // endpoint, the AI assistant's eDOCS tools). Non-enumerable, so a log line or
+    // a copy of req.auth never carries it (#326); readable as req.auth.token.
+    Object.defineProperty(req.auth, 'token', { value: token, enumerable: false });
 
     const duration = Date.now() - startTime;
     logger.info('JWT validation successful', {
