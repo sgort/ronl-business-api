@@ -466,7 +466,7 @@ describe('task endpoints', () => {
 describe('reserved process variables (#261)', () => {
   // The same three /v1/task/{id}/complete refuses. An M2M client has no
   // organisation of its own, so it has no reason to write an access label.
-  it.each(['municipality', 'originTenantId', 'applicantId'])(
+  it.each(['municipality', 'originTenantId', 'applicantId', 'edocsAuthor', 'edocsAuthorName'])(
     'POST /task/:id/complete refuses %s with 400 RESERVED_VARIABLE, before any engine call',
     async (name) => {
       const res = await auth(request(app).post('/v1/m2m/task/t1/complete')).send({
@@ -483,7 +483,8 @@ describe('reserved process variables (#261)', () => {
   // At start the deployed tenant is the only legitimate source of the label,
   // and originTenantId is never set by this surface. applicantId may be: a
   // machine starting a case on a citizen's behalf.
-  it.each(['municipality', 'originTenantId'])(
+  // A machine names no employee; edocsAuthor is set only by a person acting through /v1 (spec §6).
+  it.each(['municipality', 'originTenantId', 'edocsAuthor', 'edocsAuthorName'])(
     'POST /process/:key/start refuses %s with 400 RESERVED_VARIABLE, before any engine call',
     async (name) => {
       const res = await auth(request(app).post('/v1/m2m/process/MyProc/start')).send({

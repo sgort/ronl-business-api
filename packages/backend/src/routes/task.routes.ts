@@ -3,6 +3,7 @@ import express from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
+import { edocsAuthorVariables } from '@services/edocs-author';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
@@ -333,6 +334,9 @@ router.post('/:id/complete', async (req, res) => {
     for (const [key, value] of Object.entries(variables)) {
       operatonVariables[key] = { value, type: inferType(value) };
     }
+    // The member of staff who completed it is the employee later archiving is
+    // done for (spec §6). The reserved check above has already refused a sent value.
+    Object.assign(operatonVariables, edocsAuthorVariables(req.user));
 
     await operatonService.completeTask(id, { variables: operatonVariables });
 

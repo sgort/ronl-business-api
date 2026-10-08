@@ -29,6 +29,8 @@ jest.mock('@auth/jwt.middleware', () => ({
       ...(req.headers['x-test-no-roles'] ? {} : { roles }),
       organisationType: 'province',
       assuranceLevel: 'substantieel',
+      ...(req.headers['x-test-email'] ? { email: req.headers['x-test-email'] } : {}),
+      ...(req.headers['x-test-name'] ? { displayName: req.headers['x-test-name'] } : {}),
     } as unknown as Request['user'];
     next();
   },
@@ -118,6 +120,38 @@ describe('POST /:key/start', () => {
       municipality: { value: 'flevoland', type: 'String' },
       originTenantId: { value: 'flevoland', type: 'String' },
     });
+  });
+
+  it('stamps the member of staff who started it as edocsAuthor', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-a' });
+    await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-email', 'a@flevoland.nl')
+      .set('x-test-name', 'An Example')
+      .send({ variables: {} });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.edocsAuthor).toEqual({ value: 'a@flevoland.nl', type: 'String' });
+    expect(vars.edocsAuthorName).toEqual({ value: 'An Example', type: 'String' });
+  });
+
+  it('overwrites an edocsAuthor the caller sent', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-b' });
+    await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-email', 'a@flevoland.nl')
+      .send({ variables: { edocsAuthor: 'someone-else@x.nl', edocsAuthorName: 'Someone Else' } });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.edocsAuthor).toEqual({ value: 'a@flevoland.nl', type: 'String' });
+    expect(vars.edocsAuthorName).toBeUndefined();
+  });
+
+  it('strips edocsAuthor from a citizen start', async () => {
+    svc.startProcess.mockResolvedValue({ id: 'pi-c' });
+    await auth(request(app).post('/v1/process/P/start'))
+      .set('x-test-roles', 'citizen')
+      .set('x-test-email', 'c@example.nl')
+      .send({ variables: { edocsAuthor: 'a@flevoland.nl' } });
+    const vars = svc.startProcess.mock.calls[0][1].variables;
+    expect(vars.edocsAuthor).toBeUndefined();
+    expect(vars.edocsAuthorName).toBeUndefined();
   });
 
   it('applies AwbZorgtoeslag coercions; a citizen case goes to the toeslagen deployment', async () => {

@@ -74,15 +74,19 @@ export function denyTenant(
 
 /**
  * Process variables that decide access, set only at process start
- * (resolveStartTenant, addTenantToProcessVariables). A user may not
- * overwrite them afterwards -- a task completion that carried
- * `municipality` would relabel the whole instance, handing the case to
- * another tenant (or to none).
+ * (resolveStartTenant, addTenantToProcessVariables), plus the eDOCS author the
+ * backend stamps from the caller's token (services/edocs-author.ts). A user may
+ * not write them -- a task completion that carried `municipality` would
+ * relabel the whole instance, handing the case to another tenant (or to
+ * none), and one that carried `edocsAuthor` would archive documents in
+ * another employee's name.
  */
 export const RESERVED_PROCESS_VARIABLES: readonly string[] = [
   'municipality',
   'originTenantId',
   'applicantId',
+  'edocsAuthor',
+  'edocsAuthorName',
 ];
 
 /** The reserved keys present in a variables map, in the map's own order. */

@@ -164,8 +164,14 @@ describe('reservedVariablesIn', () => {
     ]);
   });
 
-  it('RESERVED_PROCESS_VARIABLES is exactly the three tenant-decision keys', () => {
-    expect(RESERVED_PROCESS_VARIABLES).toEqual(['municipality', 'originTenantId', 'applicantId']);
+  it('RESERVED_PROCESS_VARIABLES is the tenant-decision keys plus the eDOCS author', () => {
+    expect(RESERVED_PROCESS_VARIABLES).toEqual([
+      'municipality',
+      'originTenantId',
+      'applicantId',
+      'edocsAuthor',
+      'edocsAuthorName',
+    ]);
   });
 });
 

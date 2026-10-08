@@ -23,6 +23,8 @@ jest.mock('@auth/jwt.middleware', () => ({
       userId: 'u-1',
       tenantId: 'flevoland',
       roles: ['manager'],
+      ...(req.headers['x-test-email'] ? { email: req.headers['x-test-email'] } : {}),
+      ...(req.headers['x-test-name'] ? { displayName: req.headers['x-test-name'] } : {}),
     } as Request['user'];
     next();
   },
@@ -360,6 +362,43 @@ describe('POST /v1/task/:id/complete', () => {
       expect(svc.completeTask).not.toHaveBeenCalled();
     }
   );
+
+  it.each(['edocsAuthor', 'edocsAuthorName'])(
+    '400 RESERVED_VARIABLE when the body variables include %s',
+    async (key) => {
+      svc.getTask.mockResolvedValue(task());
+      const res = await auth(request(app).post('/v1/task/t1/complete')).send({
+        variables: { [key]: 'x' },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('RESERVED_VARIABLE');
+      expect(svc.completeTask).not.toHaveBeenCalled();
+    }
+  );
+
+  it('stamps the member of staff who completed it as edocsAuthor', async () => {
+    svc.getTask.mockResolvedValue(task());
+    svc.completeTask.mockResolvedValue(undefined);
+    const res = await auth(request(app).post('/v1/task/t1/complete'))
+      .set('x-test-email', 'a@flevoland.nl')
+      .set('x-test-name', 'An Example')
+      .send({ variables: { decision: 'granted' } });
+    expect(res.status).toBe(200);
+    expect(svc.completeTask).toHaveBeenCalledWith('t1', {
+      variables: {
+        decision: { value: 'granted', type: 'String' },
+        edocsAuthor: { value: 'a@flevoland.nl', type: 'String' },
+        edocsAuthorName: { value: 'An Example', type: 'String' },
+      },
+    });
+  });
+
+  it('keeps the previous author when the token names nobody', async () => {
+    svc.getTask.mockResolvedValue(task());
+    svc.completeTask.mockResolvedValue(undefined);
+    await auth(request(app).post('/v1/task/t1/complete')).send({ variables: { decision: 'x' } });
+    expect(svc.completeTask.mock.calls[0][1].variables).not.toHaveProperty('edocsAuthor');
+  });
 
   it('400 RESERVED_VARIABLE lists two offending keys in body order', async () => {
     svc.getTask.mockResolvedValue(task());

@@ -10,6 +10,7 @@ import {
   tenantAllows,
 } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
+import { EDOCS_AUTHOR_VARIABLES, edocsAuthorVariables } from '@services/edocs-author';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { AmbiguousDeploymentError } from '@utils/errors';
@@ -117,6 +118,11 @@ router.post(
       }
       operatonVariables.municipality = { value: startTenant.municipality, type: 'String' };
       operatonVariables.originTenantId = { value: startTenant.originTenantId, type: 'String' };
+
+      // Who acted, for background eDOCS archiving (spec §6): from the token only,
+      // never from the body -- a sent value is dropped, as municipality is.
+      for (const name of EDOCS_AUTHOR_VARIABLES) delete operatonVariables[name];
+      Object.assign(operatonVariables, edocsAuthorVariables(req.user));
 
       // The business key is the case's human-facing handle, so it names the
       // organisation that owns the case (#234). A caller-supplied key is kept:

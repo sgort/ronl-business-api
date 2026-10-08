@@ -135,7 +135,14 @@ function refuseReserved(
  * label, and this surface never sets originTenantId. applicantId is allowed --
  * a machine may start a case on a citizen's behalf.
  */
-const RESERVED_AT_START = ['municipality', 'originTenantId'] as const;
+const RESERVED_AT_START = [
+  'municipality',
+  'originTenantId',
+  // A machine names no employee; edocsAuthor is set only by a person acting
+  // through /v1 (spec §6).
+  'edocsAuthor',
+  'edocsAuthorName',
+] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROCESS
