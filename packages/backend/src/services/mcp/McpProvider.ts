@@ -16,6 +16,12 @@ export interface McpProviderMeta {
   displayName: string;
   /** Short description shown as tooltip/helper text in the UI */
   description: string;
+  /**
+   * The provider acts as the caller (their own token) rather than as a service.
+   * Only such a provider receives the McpCallContext; every other one gets the
+   * two-argument call, so it can never forward the caller's token (#326).
+   */
+  actsAsPerson?: boolean;
 }
 
 /** Who a tool call is made for. Never part of the tool arguments the model sees. */

@@ -38,11 +38,10 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
     });
   }
 
+  // In place, not as a spread copy: a copy would drop the non-enumerable
+  // bearer token that jwtMiddleware put on req.auth (#326).
   if (req.auth) {
-    req.auth = {
-      ...req.auth,
-      tenantId,
-    };
+    req.auth.tenantId = tenantId;
   }
 
   logger.debug('Tenant context established', {

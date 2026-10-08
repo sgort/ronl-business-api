@@ -121,6 +121,21 @@ describe('jwtMiddleware', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
+  // #326 item 5: readable where it is used, but invisible to a log line or a
+  // copy, so a future logger.info(req.auth) cannot leak it.
+  it('keeps the bearer token out of anything that serialises or copies req.auth', async () => {
+    mockVerify.mockImplementation((_t, _k, _o, cb) => cb(null, basePayload));
+    const req = {
+      headers: { authorization: 'Bearer good.token' },
+      path: '/x',
+    } as unknown as Request;
+    await jwtMiddleware(req, makeRes(), jest.fn() as NextFunction);
+    expect(req.auth?.token).toBe('good.token');
+    expect(Object.keys(req.auth!)).not.toContain('token');
+    expect(JSON.stringify(req.auth)).not.toContain('good.token');
+    expect({ ...req.auth }).not.toHaveProperty('token');
+  });
+
   it('defaults roles to [] when realm_access is absent', async () => {
     mockVerify.mockImplementation((_t, _k, _o, cb) =>
       cb(null, { ...basePayload, realm_access: undefined })

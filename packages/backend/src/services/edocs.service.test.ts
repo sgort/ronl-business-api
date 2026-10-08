@@ -53,6 +53,7 @@ import {
   attributedDocName,
   EdocsAccessDeniedError,
   EdocsService,
+  EdocsSessionStore,
   lookupEdocsUserId,
 } from './edocs.service';
 
@@ -732,6 +733,18 @@ describe('EdocsService — live mode', () => {
       expect(cfg.headers['Cookie']).toBe('X-DM-DST=dst-abc-123; X-DM-CSRF-TOKEN=csrf-xyz-789');
       expect(cfg.headers['X-DM-DST']).toBe('dst-abc-123');
     });
+
+    // #326 item 6: base64-like values end in "=" padding.
+    it('keeps cookie values that contain "="', async () => {
+      mockClient.post.mockResolvedValueOnce({
+        headers: { 'set-cookie': ['X-DM-DST=dst==; Path=/', 'X-DM-CSRF-TOKEN=a=b=; Path=/'] },
+      });
+      mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });
+      await svc.listWorkspaces();
+      const cfg = lastInterceptor()({ headers: {} });
+      expect(cfg.headers['X-DM-DST']).toBe('dst==');
+      expect(cfg.headers['X-DM-CSRF-TOKEN']).toBe('a=b=');
+    });
   });
 });
 
@@ -818,6 +831,66 @@ describe('EdocsService — per-user sessions', () => {
       expect(uploadedProfile()).not.toHaveProperty('AUTHOR_ID');
       expect(uploadedProfile()).not.toHaveProperty('TYPIST_ID');
     });
+  });
+
+  // #326 item 2: the bound applies to people; the service session is never evicted.
+  it('keeps the service session however many people connect', async () => {
+    const store = new EdocsSessionStore(2);
+    const svcClient = new EdocsService({ kind: 'service' }, store);
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    mockClient.post.mockResolvedValueOnce(connectResponse);
+    await svcClient.listWorkspaces();
+    for (const sub of ['a', 'b', 'c']) {
+      mockClient.post.mockResolvedValueOnce(userConnectResponse(sub.toUpperCase()));
+      await svcClient
+        .forUser({ sub, getIdToken: jest.fn().mockResolvedValue('t') })
+        .listWorkspaces();
+    }
+    await svcClient.listWorkspaces();
+    expect(mockClient.post).toHaveBeenCalledTimes(4); // service once, three people once
+  });
+
+  it('evicts the least recently used person, not the first one connected', async () => {
+    const store = new EdocsSessionStore(2);
+    const base = new EdocsService({ kind: 'service' }, store);
+    const person = (sub: string) =>
+      base.forUser({ sub, getIdToken: jest.fn().mockResolvedValue('t') });
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    mockClient.post.mockResolvedValue(userConnectResponse());
+    await person('a').listWorkspaces();
+    await person('b').listWorkspaces();
+    await person('a').listWorkspaces(); // a used again
+    await person('c').listWorkspaces(); // evicts b
+    await person('a').listWorkspaces(); // still connected
+    expect(mockClient.post).toHaveBeenCalledTimes(3);
+  });
+
+  // #326 item 3: two first requests at once open one eDOCS session, not two.
+  it('opens one session for concurrent first requests of one person', async () => {
+    let release: (v: unknown) => void = () => undefined;
+    mockClient.post.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+    mockClient.get.mockResolvedValue({ data: { data: { list: [] } } });
+    const both = Promise.all([userClient('a').listWorkspaces(), userClient('a').listWorkspaces()]);
+    await new Promise((r) => setImmediate(r));
+    release(userConnectResponse());
+    await both;
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+    expect(mockClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  // #326 item 4: a dashboard that polls status must not open a new eDOCS
+  // connect for a person on every load while that person cannot connect.
+  it('remembers a failed person probe for a while instead of reconnecting', async () => {
+    mockClient.post.mockRejectedValue(
+      Object.assign(new Error('HTTP 401'), {
+        response: { status: 401, data: { ERROR: { message: 'Access not allowed' } } },
+      })
+    );
+    const first = await userClient('a').probeUser();
+    const second = await userClient('a').probeUser();
+    expect(first).toEqual({ authenticated: false, error: 'Access not allowed' });
+    expect(second).toEqual(first);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
   });
 
   it('records the eDOCS USER_ID for the person’s e-mail', async () => {

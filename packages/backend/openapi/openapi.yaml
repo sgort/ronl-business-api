@@ -3158,7 +3158,16 @@ paths:
                               edocsUserId: { type: string }
                               problem:
                                 type: string
-                                enum: [EDOCS_USER_TOKEN_UNAVAILABLE, EDOCS_REAUTH_REQUIRED, STUB_MODE]
+                                enum:
+                                  [
+                                    EDOCS_USER_TOKEN_UNAVAILABLE,
+                                    EDOCS_REAUTH_REQUIRED,
+                                    EDOCS_USER_LOOKUP_FAILED,
+                                    STUB_MODE,
+                                  ]
+                                description: >-
+                                  EDOCS_USER_LOOKUP_FAILED -- Keycloak or Entra ID could not be asked for the
+                                  person's token (an outage, not a decision); `error` says why.
                               error: { type: string }
           headers:
             API-Version:
@@ -6806,7 +6815,8 @@ components:
     ProcessLineage:
       type: object
       description: An instance's place in a call chain.
-      required: [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
+      required:
+        [processInstanceId, processDefinitionKey, processDefinitionId, superProcessInstanceId]
       properties:
         processInstanceId: { type: string }
         processDefinitionKey: { type: string }
@@ -7388,6 +7398,11 @@ components:
           description: |
             False means chat cannot use it; selecting only disconnected
             sources answers 503.
+        actsAsPerson:
+          type: boolean
+          description: |
+            Present and true when the source acts as the signed-in person, with
+            their own rights (eDOCS), rather than as a service account.
 
     McpModel:
       type: object

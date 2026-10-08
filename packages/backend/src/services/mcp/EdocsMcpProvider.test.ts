@@ -113,6 +113,10 @@ describe('EdocsMcpProvider', () => {
     });
   });
 
+  it('declares that it acts as the person, so the registry passes it the caller', () => {
+    expect(new EdocsMcpProvider().meta.actsAsPerson).toBe(true);
+  });
+
   it('sends no _meta without a caller', async () => {
     const p = new EdocsMcpProvider();
     const callTool = jest.fn().mockResolvedValue({ content: [] });

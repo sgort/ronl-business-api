@@ -182,6 +182,45 @@ describe('EntraTokenService', () => {
     expect(http.get).toHaveBeenCalledTimes(3);
   });
 
+  // #326 item 2: a user who keeps working stays cached; the least recently
+  // USED one goes, not the first one inserted.
+  it('evicts the least recently used user, not the first one cached', async () => {
+    const { http, svc } = make(2);
+    http.get
+      .mockResolvedValueOnce({ data: { id_token: valid('a') } })
+      .mockResolvedValueOnce({ data: { id_token: valid('b') } })
+      .mockResolvedValueOnce({ data: { id_token: valid('c') } })
+      .mockResolvedValueOnce({ data: { id_token: valid('b2') } });
+    await svc.getIdToken('sub-a', 'kc-a');
+    await svc.getIdToken('sub-b', 'kc-b');
+    await svc.getIdToken('sub-a', 'kc-a'); // a used again
+    await svc.getIdToken('sub-c', 'kc-c'); // evicts b, the least recently used
+    await svc.getIdToken('sub-a', 'kc-a'); // still cached
+    expect(http.get).toHaveBeenCalledTimes(3);
+    await svc.getIdToken('sub-b', 'kc-b'); // read again
+    expect(http.get).toHaveBeenCalledTimes(4);
+  });
+
+  // #326 item 3: two first requests at once share one read of Keycloak.
+  it('reads the broker endpoint once for concurrent first requests of one user', async () => {
+    const { http, svc } = make();
+    let release: (v: unknown) => void = () => undefined;
+    http.get.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+    const both = Promise.all([svc.getIdToken('sub-a', 'kc-a'), svc.getIdToken('sub-a', 'kc-a')]);
+    release({ data: { id_token: valid('a') } });
+    await expect(both).resolves.toEqual([valid('a'), valid('a')]);
+    expect(http.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the next request try again after a shared read failed', async () => {
+    const { http, svc } = make();
+    http.get
+      .mockRejectedValueOnce(httpError(503))
+      .mockResolvedValueOnce({ data: { id_token: valid('a') } });
+    await expect(svc.getIdToken('sub-a', 'kc-a')).rejects.toThrow();
+    await expect(svc.getIdToken('sub-a', 'kc-a')).resolves.toBe(valid('a'));
+  });
+
   it('never puts a token in a log line (Review Focus 4)', async () => {
     const { http, svc } = make();
     http.get.mockResolvedValue({ data: { id_token: expired('old'), refresh_token: 'r-secret' } });

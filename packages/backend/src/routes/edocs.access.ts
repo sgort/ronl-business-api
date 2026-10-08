@@ -20,6 +20,8 @@ declare module 'express-serve-static-core' {
     edocsActingAs?: 'user' | 'service';
     /** Why a person has no client of their own (set by edocsAccess, acted on by requireEdocsPrincipal). */
     edocsUserProblem?: UserProblem;
+    /** Keycloak or Entra could not be asked (5xx, network): not a fact about the person. */
+    edocsLookupError?: unknown;
   }
 }
 
@@ -79,7 +81,13 @@ export async function edocsAccess(req: Request, res: Response, next: NextFunctio
       req.edocsUserProblem = err.code as UserProblem;
       return next();
     }
-    return next(err);
+    // An outage, not a decision about the person. /status reports it in
+    // data.user; every other route fails on it in requireEdocsPrincipal (#326).
+    logger.warn('Could not look up the person’s Entra token', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    req.edocsLookupError = err;
+    return next();
   }
 
   req.edocs = edocsService.forUser({
@@ -103,6 +111,8 @@ export function edocsOf(req: Request): EdocsService {
 /** Data routes need a client. A person without one is refused — or, where allowed, falls back visibly. */
 export function requireEdocsPrincipal(req: Request, res: Response, next: NextFunction): void {
   if (req.edocs) return next();
+  // Never a fallback to the service for an outage: the person is unknown, not refused.
+  if (req.edocsLookupError) return next(req.edocsLookupError);
 
   if (req.edocsUserProblem === 'EDOCS_REAUTH_REQUIRED') {
     fail(

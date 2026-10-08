@@ -69,9 +69,11 @@ export class McpRegistry {
     if (!provider) {
       throw new Error(`No provider found for tool: ${name}`);
     }
-    // Only pass a context when there is one, so providers and their tests that
-    // never take one keep seeing the two-argument call.
-    return context ? provider.callTool(name, args, context) : provider.callTool(name, args);
+    // The context holds the caller's token. Only a provider that acts as the
+    // person receives it; every other one gets the two-argument call (#326).
+    return context && provider.meta.actsAsPerson
+      ? provider.callTool(name, args, context)
+      : provider.callTool(name, args);
   }
 
   buildSystemPrompt(providerIds?: string[]): string {
