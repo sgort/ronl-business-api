@@ -217,6 +217,17 @@ describe('GET /v1/task/:id/variables', () => {
     expect(svc.getProcessVariables).toHaveBeenCalledWith('pi-1');
   });
 
+  it('never returns the eDOCS author', async () => {
+    svc.getTask.mockResolvedValue(task());
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'flevoland', type: 'String' },
+      edocsAuthor: { value: 'a@flevoland.nl', type: 'String' },
+      edocsAuthorName: { value: 'An Example', type: 'String' },
+    });
+    const res = await auth(request(app).get('/v1/task/t1/variables'));
+    expect(res.body.data).toEqual({ municipality: 'flevoland' });
+  });
+
   it('reads the variables once, for both the check and the response', async () => {
     svc.getTask.mockResolvedValue(task());
     await auth(request(app).get('/v1/task/t1/variables'));

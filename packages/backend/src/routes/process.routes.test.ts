@@ -379,6 +379,18 @@ describe('GET /:id/variables', () => {
     expect(res.body.data).toEqual({ municipality: 'flevoland', amount: 42 });
   });
 
+  // The employee's e-mail and name are for archiving only, and a citizen reads
+  // their own case through this endpoint (#229).
+  it('never returns the eDOCS author', async () => {
+    svc.getProcessVariables.mockResolvedValue({
+      municipality: { value: 'flevoland', type: 'String' },
+      edocsAuthor: { value: 'a@flevoland.nl', type: 'String' },
+      edocsAuthorName: { value: 'An Example', type: 'String' },
+    });
+    const res = await auth(request(app).get('/v1/process/pi/variables'));
+    expect(res.body.data).toEqual({ municipality: 'flevoland' });
+  });
+
   it('403 on a tenant mismatch', async () => {
     svc.getProcessVariables.mockResolvedValue({
       municipality: { value: 'utrecht', type: 'String' },
@@ -402,6 +414,17 @@ describe('GET /:id/historic-variables', () => {
     expect(res.status).toBe(200);
     expectToMatchOperation(res, 'get', '/process/{id}/historic-variables');
     expect(res.body.data.decision).toBe('granted');
+  });
+
+  it('never returns the eDOCS author', async () => {
+    svc.getHistoricVariables.mockResolvedValue({
+      municipality: 'flevoland',
+      decision: 'granted',
+      edocsAuthor: 'a@flevoland.nl',
+      edocsAuthorName: 'An Example',
+    });
+    const res = await auth(request(app).get('/v1/process/pi/historic-variables'));
+    expect(res.body.data).toEqual({ municipality: 'flevoland', decision: 'granted' });
   });
 
   it('allows the applicant even under a different authority', async () => {

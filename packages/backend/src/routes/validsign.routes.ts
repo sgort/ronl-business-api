@@ -56,6 +56,7 @@ import { sendProblem } from '@utils/problem';
 import { getErrorMessage } from '@utils/errors';
 import { rateLimitKey } from '@utils/client-ip';
 import { operatonService } from '@services/operaton.service';
+import { edocsAuthorVariables } from '@services/edocs-author';
 import { validsignService } from '@services/validsign.service';
 import { completeSignature } from '@services/validsignCompletion.service';
 import { renderTemplate } from '@services/document/renderTemplate';
@@ -858,6 +859,9 @@ router.post('/task/:taskId/package', async (req, res) => {
       validsignTaskId: { value: taskId, type: 'String' },
       validsignTemplateId: { value: spec.templateId, type: 'String' },
       validsignTemplateName: { value: spec.template.name, type: 'String' },
+      // The signer is who the signed document and its evidence are archived for
+      // (spec §6) -- not whoever completed the task before this one.
+      ...edocsAuthorVariables(user),
     };
 
     if (delivery === 'email') {

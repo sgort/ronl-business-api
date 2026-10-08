@@ -687,6 +687,30 @@ describe('POST /v1/validsign/task/:taskId/package', () => {
     );
   });
 
+  // The signer is the employee the signed document and its evidence are archived
+  // for (spec §6), not whoever completed the task before the signing task.
+  it('records the signer as edocsAuthor', async () => {
+    mockGetTaskSignatureSpec.mockResolvedValue({
+      templateId: 'tpl-1',
+      template: { name: 'Uitgangspunten VO-fase' },
+    });
+    mockGetTaskVariables.mockResolvedValue({ municipality: 'flevoland', projectNumber: 'RIP-1' });
+    mockRenderTemplate.mockReturnValue({ templateId: 'tpl-1', zones: [] });
+    mockToPdf.mockResolvedValue({ bytes: Buffer.from('pdf'), signatureFields: [] });
+    mockValidsign.createPackage.mockResolvedValue({ packageId: 'pkg-1', roleId: 'role-1' });
+    mockValidsign.getSigningUrl.mockResolvedValue('/v1/validsign/stub/ceremony/pkg-1');
+
+    const res = await request(app).post('/v1/validsign/task/task-1/package').set(authHeader);
+
+    expect(res.status).toBe(200);
+    expect(mockSetProcessVariables).toHaveBeenCalledWith(
+      'pi-1',
+      expect.objectContaining({
+        edocsAuthor: { value: 'signer@flevoland.nl', type: 'String' },
+      })
+    );
+  });
+
   it("starts afresh on a new signing task after an earlier task's signature was declined", async () => {
     // A rework loop (declined → revise → sign again) creates a NEW task. The
     // previous attempt's variables are process-wide, so without the task id

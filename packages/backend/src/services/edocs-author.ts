@@ -15,12 +15,21 @@ export const EDOCS_AUTHOR_VARIABLES = ['edocsAuthor', 'edocsAuthorName'] as cons
  * token that names nobody — the previous author then stays.
  */
 export function edocsAuthorVariables(
-  user: Pick<AuthenticatedUser, 'roles' | 'email' | 'preferredUsername' | 'displayName'>
+  user: Pick<
+    AuthenticatedUser,
+    'roles' | 'email' | 'preferredUsername' | 'displayName' | 'givenName' | 'familyName'
+  >
 ): Record<string, OperatonVariable> {
   if (isCitizen(user)) return {};
   const author = user.email?.trim() || user.preferredUsername?.trim();
   if (!author) return {};
-  const name = user.displayName?.trim();
+  // Keycloak often sends given_name/family_name without a `name` claim. Only the
+  // pair counts: a given name alone may be a username split on its first space.
+  const name =
+    user.displayName?.trim() ||
+    (user.givenName?.trim() && user.familyName?.trim()
+      ? `${user.givenName.trim()} ${user.familyName.trim()}`
+      : undefined);
   return {
     edocsAuthor: { value: author, type: 'String' },
     ...(name && { edocsAuthorName: { value: name, type: 'String' } }),
@@ -35,4 +44,15 @@ export function edocsAuthorFrom(
   if (typeof email !== 'string' || !email) return undefined;
   const name = variables.edocsAuthorName?.value;
   return typeof name === 'string' && name ? { email, name } : { email };
+}
+
+/**
+ * The variables without the eDOCS author. Only the backend reads it, for
+ * archiving; a variables response can reach the applicant citizen (#229), who
+ * has no business with an employee's e-mail address and name.
+ */
+export function withoutEdocsAuthor<T>(variables: Record<string, T>): Record<string, T> {
+  const rest = { ...variables };
+  for (const name of EDOCS_AUTHOR_VARIABLES) delete rest[name];
+  return rest;
 }

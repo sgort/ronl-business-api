@@ -3,7 +3,7 @@ import express from 'express';
 import { jwtMiddleware } from '@auth/jwt.middleware';
 import { tenantMiddleware } from '@middleware/tenant.middleware';
 import { operatonService } from '@services/operaton.service';
-import { edocsAuthorVariables } from '@services/edocs-author';
+import { edocsAuthorVariables, withoutEdocsAuthor } from '@services/edocs-author';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { auditLog } from '@middleware/audit.middleware';
@@ -165,9 +165,9 @@ router.get('/:id/variables', async (req, res) => {
       return denyTenant(req, res, { taskId: id, taskTenant });
     }
 
-    // Return plain values
+    // Return plain values; the eDOCS author is the backend's own (spec §6)
     const plainVariables: Record<string, unknown> = {};
-    for (const [key, variable] of Object.entries(variables)) {
+    for (const [key, variable] of Object.entries(withoutEdocsAuthor(variables))) {
       plainVariables[key] = (variable as OperatonVariable).value;
     }
 

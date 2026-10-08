@@ -1,4 +1,9 @@
-import { EDOCS_AUTHOR_VARIABLES, edocsAuthorFrom, edocsAuthorVariables } from './edocs-author';
+import {
+  EDOCS_AUTHOR_VARIABLES,
+  edocsAuthorFrom,
+  edocsAuthorVariables,
+  withoutEdocsAuthor,
+} from './edocs-author';
 
 const staff = { roles: ['caseworker'] };
 
@@ -16,6 +21,28 @@ describe('edocsAuthorVariables', () => {
     expect(edocsAuthorVariables({ ...staff, preferredUsername: 'test-caseworker' })).toEqual({
       edocsAuthor: { value: 'test-caseworker', type: 'String' },
     });
+  });
+
+  // Keycloak's tokens carry given_name/family_name but often no `name` claim
+  // (seen live, 8 October 2026): the archive still names the person.
+  it('falls back to the given and family name when the token has no display name', () => {
+    expect(
+      edocsAuthorVariables({
+        ...staff,
+        email: 'steven.gort@ictu.nl',
+        givenName: 'Infra Medewerker',
+        familyName: 'Flevoland',
+      })
+    ).toEqual({
+      edocsAuthor: { value: 'steven.gort@ictu.nl', type: 'String' },
+      edocsAuthorName: { value: 'Infra Medewerker Flevoland', type: 'String' },
+    });
+  });
+
+  it('records no name from a given name alone, which may be a split username', () => {
+    expect(
+      edocsAuthorVariables({ ...staff, email: 'a@flevoland.nl', givenName: 'a@flevoland.nl' })
+    ).toEqual({ edocsAuthor: { value: 'a@flevoland.nl', type: 'String' } });
   });
 
   it('stamps nothing for a citizen', () => {
@@ -57,5 +84,13 @@ describe('edocsAuthorFrom', () => {
 
   it('names exactly the two variables', () => {
     expect(EDOCS_AUTHOR_VARIABLES).toEqual(['edocsAuthor', 'edocsAuthorName']);
+  });
+});
+
+describe('withoutEdocsAuthor', () => {
+  it('leaves out the author variables and keeps everything else', () => {
+    expect(
+      withoutEdocsAuthor({ edocsAuthor: 'a@b.nl', edocsAuthorName: 'An', decision: 'granted' })
+    ).toEqual({ decision: 'granted' });
   });
 });

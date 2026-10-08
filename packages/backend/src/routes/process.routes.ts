@@ -10,7 +10,11 @@ import {
   tenantAllows,
 } from '@auth/tenant-access';
 import { operatonService } from '@services/operaton.service';
-import { EDOCS_AUTHOR_VARIABLES, edocsAuthorVariables } from '@services/edocs-author';
+import {
+  EDOCS_AUTHOR_VARIABLES,
+  edocsAuthorVariables,
+  withoutEdocsAuthor,
+} from '@services/edocs-author';
 import { createLogger } from '@utils/logger';
 import { sendProblem } from '@utils/problem';
 import { AmbiguousDeploymentError } from '@utils/errors';
@@ -364,9 +368,9 @@ router.get('/:id/variables', async (req, res) => {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
-    // Extract plain values
+    // Extract plain values; the eDOCS author is the backend's own (spec §6)
     const plainVariables: Record<string, unknown> = {};
-    for (const [key, variable] of Object.entries(variables)) {
+    for (const [key, variable] of Object.entries(withoutEdocsAuthor(variables))) {
       plainVariables[key] = variable.value;
     }
 
@@ -414,7 +418,7 @@ router.get('/:id/historic-variables', async (req, res) => {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
-    res.json({ success: true, data: variables });
+    res.json({ success: true, data: withoutEdocsAuthor(variables) });
   } catch (error) {
     logger.error('Failed to get historic variables', {
       processInstanceId: id,
