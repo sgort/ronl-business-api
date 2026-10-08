@@ -12,6 +12,8 @@ import {
 } from '@ronl/shared';
 import type { PhaseSwimlaneModel } from '@ronl/shared';
 import type { DocumentTemplate } from '@services/document/documentTemplate.types';
+import type { EdocsAuthor } from '@services/edocs.service';
+import { edocsAuthorFrom } from '@services/edocs-author';
 import { parseSwimlane } from '../rip-swimlane/bpmn-swimlane';
 
 const logger = createLogger('operaton-service');
@@ -889,6 +891,8 @@ export class OperatonService {
     edocsWorkspaceId?: string;
     department?: string;
     documentId?: string;
+    /** The employee who last acted through RBA, for "namens …" (spec §6). */
+    author?: EdocsAuthor;
   } | null> {
     try {
       const instancesRes = await this.client.get('/process-instance', {
@@ -923,6 +927,7 @@ export class OperatonService {
         edocsWorkspaceId: value('edocsWorkspaceId') as string | undefined,
         department: value('department') as string | undefined,
         documentId: value('validsignDocumentId') as string | undefined,
+        author: edocsAuthorFrom(variables),
       };
     } catch (error) {
       logger.error('Failed to find process instance by ValidSign package', {

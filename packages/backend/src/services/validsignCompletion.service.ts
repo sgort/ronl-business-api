@@ -124,11 +124,12 @@ async function doComplete(packageId: string): Promise<'completed' | 'declined' |
           null,
           names.signedFile,
           signed.toString('base64'),
-          { docName: names.signedTitle, department }
+          { docName: names.signedTitle, department, ...(found.author && { author: found.author }) }
         );
         await edocsService.uploadDocument(null, names.evidenceFile, evidence.toString('base64'), {
           docName: names.evidenceTitle,
           department,
+          ...(found.author && { author: found.author }),
         });
         variables.validsignSignedDocNumber = { value: doc.documentNumber, type: 'String' };
         variables.validsignSignedDocId = { value: doc.documentId, type: 'String' };

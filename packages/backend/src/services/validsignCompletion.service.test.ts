@@ -334,6 +334,44 @@ describe('completeSignature', () => {
   });
 });
 
+describe('completeSignature — attribution', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    config.edocs.department = 'IVR';
+  });
+
+  it('archives both documents for the employee who acted', async () => {
+    mockFindInstance.mockResolvedValue({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+      author: { email: 'a@flevoland.nl', name: 'An Example' },
+    });
+    mockGetPackageStatus.mockResolvedValue('COMPLETED');
+
+    expect(await completeSignature('pkg-1')).toBe('completed');
+    expect(mockUploadDocument).toHaveBeenCalledTimes(2);
+    for (const call of mockUploadDocument.mock.calls) {
+      expect(call[3].author).toEqual({ email: 'a@flevoland.nl', name: 'An Example' });
+    }
+  });
+
+  it('archives without an author when the instance has none', async () => {
+    mockFindInstance.mockResolvedValue({
+      processInstanceId: 'pi-1',
+      taskId: 'task-1',
+      status: 'sent',
+    });
+    mockGetPackageStatus.mockResolvedValue('COMPLETED');
+
+    await completeSignature('pkg-1');
+    expect(mockUploadDocument).toHaveBeenCalledTimes(2);
+    for (const call of mockUploadDocument.mock.calls) {
+      expect(call[3]).not.toHaveProperty('author');
+    }
+  });
+});
+
 describe('signedArchiveNames', () => {
   it('names the archive after the template and the case', () => {
     expect(
