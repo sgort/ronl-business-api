@@ -76,6 +76,8 @@
 #   PERSON_TOKEN=<Keycloak access token>    # optional: a person signed in with the Flevoland
 #                                           # button (DevTools → Network → any /v1 request →
 #                                           # Authorization header, without "Bearer "). Enables 1c.
+#                                           # scripts/test-edocs-person.sh live takes it from
+#                                           # the clipboard and runs this script with it.
 #
 # NOTE: a successful run creates two REAL standalone documents in eDOCS (one
 # per route) and downloads each back to verify the round-trip. Neither is

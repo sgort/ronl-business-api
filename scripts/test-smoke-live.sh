@@ -48,6 +48,7 @@
 #     SMOKE_PASSWORD     its password; on local, auto-loaded from .env
 #                          SMOKE_TEST_PASSWORD when not exported
 #     PERSON_TOKEN       optional: a Flevoland-signed-in person's Keycloak token → eDOCS as themselves
+#                          (scripts/test-edocs-person.sh smoke takes it from the clipboard)
 #   NODE_ENV             picks the .env for creds + the eDOCS probe (default: development)
 #
 # Exit code: 0 when nothing failed, 1 when any check failed (skips never fail).

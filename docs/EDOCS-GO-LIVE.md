@@ -102,6 +102,13 @@ bash scripts/test-edocs-live.sh
 #   1c (PERSON_TOKEN=<a Flevoland-signed-in person's Keycloak token>) checks
 #   eDOCS knows that person and answers actingAs "user"
 
+# The same, with the person's token taken from the clipboard (copy any /v1
+# request as cURL in DevTools first). Never prints the token, stops on an
+# expired one or one from another environment:
+bash scripts/test-edocs-person.sh live          # test-edocs-live.sh, 1c included
+bash scripts/test-edocs-person.sh smoke acc     # test-smoke-live.sh, Tier 2c included
+bash scripts/test-edocs-person.sh diag acc      # only: broker endpoint + /v1/edocs as the person
+
 # Against ACC — always needs an explicit ACC CLIENT_SECRET:
 TARGET=acc CLIENT_SECRET=<acc-m2m-secret> bash scripts/test-edocs-live.sh
 ```
