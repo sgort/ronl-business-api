@@ -238,6 +238,26 @@ describe('the real tenants.json', () => {
     ).tenants;
     const ids = tenantPageTenants(tenants).map((t) => t.id);
 
-    expect(ids.sort()).toEqual(['amsterdam', 'toeslagen', 'unive']);
+    expect(ids.sort()).toEqual(['amsterdam', 'heusden', 'toeslagen', 'unive']);
+  });
+
+  it.each([
+    ['acc', ACC],
+    ['prod', PROD],
+  ] as const)('renders the Heusden %s page from its entry', (env, pageEnv) => {
+    const tenants = JSON.parse(
+      readFileSync(resolve(__dirname, 'public', 'tenants.json'), 'utf-8')
+    ).tenants;
+    const heusden = tenantPageTenants(tenants).find((t) => t.id === 'heusden')!;
+    const html = renderTenantPage(BUILT, heusden, pageEnv);
+
+    expect(meta(html, 'property', 'og:url')).toBe(`${pageEnv.siteUrl}/heusden`);
+    expect(meta(html, 'property', 'og:image')).toBe(
+      `${pageEnv.siteUrl}/og-image-heusden-${env}.png`
+    );
+    expect(meta(html, 'property', 'og:title')).toBe(
+      `${pageEnv.titlePrefix}Uw werkvoorraad, overzichtelijk op één plek`
+    );
+    expect(meta(html, 'property', 'og:site_name')).toBe('Gemeente Heusden · werkomgeving');
   });
 });

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import {
   applyTenantTheme,
   getDefaultTenantConfig,
@@ -242,6 +244,47 @@ describe('tenant service', () => {
       );
       expect(root.style.getPropertyValue('--color-secondary')).toBe(utrechtConfig.theme.secondary);
       expect(root.style.getPropertyValue('--color-accent')).toBe(utrechtConfig.theme.accent);
+    });
+
+    it('sets the page background when the theme has one', () => {
+      applyTenantTheme({ ...utrechtConfig.theme, background: '#eef1ee' });
+
+      expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('#eef1ee');
+    });
+
+    it('removes a previous tenant’s background when the theme has none', () => {
+      applyTenantTheme({ ...utrechtConfig.theme, background: '#eef1ee' });
+      applyTenantTheme(utrechtConfig.theme);
+
+      expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('');
+    });
+  });
+
+  // The real tenants.json, so a typo in Heusden's entry fails here rather than
+  // on the deployed page.
+  describe('the real tenants.json', () => {
+    beforeEach(async () => {
+      const real = JSON.parse(
+        readFileSync(resolve(__dirname, '../../public/tenants.json'), 'utf-8')
+      );
+      mockFetchOnce(real);
+      await loadTenantConfigs();
+    });
+
+    it('gives Heusden its own single-board page at /heusden', () => {
+      expect(resolveLandingTenant('/heusden', '')).toEqual({
+        kind: 'single',
+        tenant: expect.objectContaining({ id: 'heusden', displayName: 'Gemeente Heusden' }),
+      });
+    });
+
+    it('sends /Heusden to /heusden', () => {
+      expect(resolveLandingTenant('/Heusden', '')).toEqual({ kind: 'redirect', to: '/heusden' });
+    });
+
+    it('gives Heusden a page background, and Amsterdam none', () => {
+      expect(getTenantConfig('heusden')?.theme.background).toBe('#eef1ee');
+      expect(getTenantConfig('amsterdam')?.theme.background).toBeUndefined();
     });
   });
 

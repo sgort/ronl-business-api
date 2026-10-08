@@ -629,6 +629,50 @@
       "realmRoles": ["caseworker"]
     },
     {
+      "username": "test-citizen-heusden",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Heusdenaar",
+      "email": "test@heusden.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["heusden"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "opaque_id": ["opaque-citizen-009"]
+      },
+      "realmRoles": ["citizen"]
+    },
+    {
+      "username": "test-caseworker-heusden",
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Medewerker Heusden",
+      "email": "medewerker@heusden.nl",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "municipality": ["heusden"],
+        "organisation_type": ["municipality"],
+        "assurance_level": ["hoog"],
+        "employee_id": ["emp-009"]
+      },
+      "realmRoles": ["caseworker"]
+    },
+    {
       "username": "test-citizen-rotterdam",
       "enabled": true,
       "firstName": "Test",
