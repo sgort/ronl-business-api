@@ -62,12 +62,14 @@ vi.mock('../components/PersonalDataPanel', () => ({
 vi.mock('../components/ProcessStartFormViewer', () => ({
   default: function MockProcessStartFormViewer(props: {
     processKey: string;
+    initialData?: Record<string, unknown>;
     onStarted: (dossier: string) => void;
     onError: (failure: { cause?: string; instance?: string }) => void;
   }) {
     return (
       <div data-testid="process-start-form">
         processKey={props.processKey}
+        <span data-testid="initial-data">{JSON.stringify(props.initialData ?? {})}</span>
         <button type="button" onClick={() => props.onStarted('D-123')}>
           simulate-success
         </button>
@@ -553,5 +555,142 @@ describe('Dashboard zorgtoeslag application', () => {
     expect(
       screen.queryByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('Dashboard Heusdenpas', () => {
+  const TENANT_HEUSDEN = {
+    displayName: 'Gemeente Heusden',
+    features: {
+      zorgtoeslag: true,
+      vergunningen: false,
+      subsidies: false,
+      meldingen: true,
+      dvtp: false,
+      heusdenpas: true,
+    },
+  };
+
+  beforeEach(() => {
+    mockTenant.getTenantConfig.mockReturnValue(TENANT_HEUSDEN);
+  });
+
+  it('offers the Heusdenpas to a tenant that has it', async () => {
+    render(<Dashboard />);
+
+    expect(await screen.findByText('Heusdenpas')).toBeInTheDocument();
+    expect(screen.queryByText('Subsidies')).not.toBeInTheDocument();
+  });
+
+  it('does not offer it to a tenant without it', async () => {
+    mockTenant.getTenantConfig.mockReturnValue(TENANT_UTRECHT);
+    render(<Dashboard />);
+
+    await screen.findByText('Zorgtoeslag');
+    expect(screen.queryByText('Heusdenpas')).not.toBeInTheDocument();
+  });
+
+  it('starts HeusdenpasAanvraagProcess from its deployed start form, not the placeholder', async () => {
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByText('Heusdenpas'));
+
+    expect(screen.getByTestId('process-start-form')).toHaveTextContent(
+      'processKey=HeusdenpasAanvraagProcess'
+    );
+    expect(screen.queryByText('Deze dienst is in ontwikkeling.')).not.toBeInTheDocument();
+  });
+
+  it('confirms a submitted application with its dossier number', async () => {
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByText('Heusdenpas'));
+    await user.click(screen.getByRole('button', { name: 'simulate-success' }));
+
+    expect(screen.getByText('Aanvraag ingediend')).toBeInTheDocument();
+    expect(screen.getByText(/D-123/)).toBeInTheDocument();
+  });
+
+  it('reports an application the engine refused', async () => {
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByText('Heusdenpas'));
+    await user.click(screen.getByRole('button', { name: 'simulate-error' }));
+
+    expect(
+      screen.getByText('De aanvraag kon niet worden ingediend. Probeer het opnieuw.')
+    ).toBeInTheDocument();
+  });
+
+  it('names a Heusdenpas application in Mijn aanvragen', async () => {
+    mockProcessHistory.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'pi-hp',
+          processDefinitionKey: 'HeusdenpasAanvraagProcess',
+          startTime: '2026-10-08T00:00:00Z',
+          endTime: null,
+          state: 'ACTIVE',
+          businessKey: 'heusden-1',
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<Dashboard />);
+
+    await user.click(await screen.findByRole('button', { name: 'Mijn aanvragen' }));
+
+    expect(await screen.findByText('Heusdenpas aanvragen')).toBeInTheDocument();
+  });
+
+  describe('test cases', () => {
+    const initialData = () => JSON.parse(screen.getByTestId('initial-data').textContent ?? '{}');
+
+    it('starts with an empty form for the applicant', async () => {
+      const user = userEvent.setup();
+      render(<Dashboard />);
+      await user.click(await screen.findByText('Heusdenpas'));
+
+      expect(initialData()).toEqual({ applicantId: 'user-1' });
+    });
+
+    it('fills the start form with the chosen test case, keeping the applicant', async () => {
+      const user = userEvent.setup();
+      render(<Dashboard />);
+      await user.click(await screen.findByText('Heusdenpas'));
+
+      await user.selectOptions(
+        screen.getByLabelText('Vul in met een testgeval'),
+        screen.getByRole('option', { name: /te hoog inkomen/ })
+      );
+
+      expect(initialData()).toMatchObject({
+        applicantId: 'user-1',
+        maandelijksBrutoInkomenAanvrager: 2500,
+        aanvragerAlleenstaand: false,
+        aanvragerHeeftKind4Tm17: true,
+      });
+      // The declaration stays for the person to tick.
+      expect(initialData()).not.toHaveProperty('verklaringNaarWaarheid');
+    });
+
+    it('goes back to an empty form when no test case is chosen', async () => {
+      const user = userEvent.setup();
+      render(<Dashboard />);
+      await user.click(await screen.findByText('Heusdenpas'));
+      const select = screen.getByLabelText('Vul in met een testgeval');
+
+      await user.selectOptions(select, screen.getByRole('option', { name: /niet in Heusden/ }));
+      await user.selectOptions(
+        select,
+        screen.getByRole('option', { name: 'Geen (leeg formulier)' })
+      );
+
+      expect(initialData()).toEqual({ applicantId: 'user-1' });
+    });
   });
 });

@@ -15,7 +15,7 @@ interface ProcessSpec {
 }
 
 /**
- * The seven process definitions ronl-business-api's E2E suite requires. Kept
+ * The nine process definitions ronl-business-api's E2E suite requires. Kept
  * in sync with linked-data-explorer's own e2e-fixtures/manifest.json by hand —
  * see docs/superpowers/specs/2026-08-14-tenant-mandatory-adoption-design.md
  * Section C for why this is two small manifests rather than one shared file.
@@ -75,6 +75,19 @@ const PROCESS_SPECS: ProcessSpec[] = [
     fixtureKey: 'ZorgtoeslagProvisionalSubProcessE2E',
     deployedKey: 'ZorgtoeslagProvisionalSubProcess',
     tenantId: 'toeslagen',
+  },
+  // Deployed from linked-data-explorer's examples/organizations/heusden/
+  // swimlanes-for-rba under the same keys everywhere: there is no E2E fixture
+  // variant of this bundle.
+  {
+    fixtureKey: 'HeusdenpasAanvraagProcess',
+    deployedKey: 'HeusdenpasAanvraagProcess',
+    tenantId: 'heusden',
+  },
+  {
+    fixtureKey: 'HeusdenpasBeoordelingSubProcess',
+    deployedKey: 'HeusdenpasBeoordelingSubProcess',
+    tenantId: 'heusden',
   },
 ];
 
@@ -172,6 +185,9 @@ export const REQUIRED_DECISIONS: string[] = [
   'zorgtoeslag_resultaat',
   'BehaalbareHoogteSubsidie',
   'RechtOpSubsidieThuisbatterij',
+  'SVB_LeeftijdsInformatie',
+  'SZW_BijstandsnormInformatie',
+  'RONL_HeusdenpasEindresultaat',
 ];
 
 /**

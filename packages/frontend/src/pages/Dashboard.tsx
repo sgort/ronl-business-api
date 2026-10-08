@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import keycloak, { getUser } from '../services/keycloak';
 import { landingUrl } from '../services/landing';
+import { HEUSDENPAS_TEST_CASES } from './citizen/heusdenpasTestCases';
 import { businessApi } from '../services/api';
 import type { KeycloakUser, OperatonVariable } from '@ronl/shared';
 import type { ApiResponse } from '@ronl/shared';
@@ -38,6 +39,11 @@ const SERVICE_LABELS: Record<string, { label: string; description: string; icon:
     description: 'Overzicht van beschikbare subsidies voor uw situatie.',
     icon: '💶',
   },
+  heusdenpas: {
+    label: 'Heusdenpas',
+    description: 'Vraag de Heusdenpas en het Kindpakket aan bij een laag inkomen.',
+    icon: '🎟️',
+  },
   meldingen: {
     label: 'Meldingen',
     description: 'Doe een melding over uw woonomgeving of openbare ruimte.',
@@ -49,6 +55,7 @@ const PROCESS_DEFINITION_LABELS: Record<string, string> = {
   AwbShellProcess: 'Kapvergunning aanvragen',
   AwbZorgtoeslagProcess: 'Zorgtoeslag aanvragen',
   ThuisbatterijSubsidieAanvraagProcess: 'Thuisbatterij subsidie aanvragen',
+  HeusdenpasAanvraagProcess: 'Heusdenpas aanvragen',
 };
 
 function VergunningForm({
@@ -124,6 +131,113 @@ function VergunningForm({
             applicantId: user?.sub ?? 'unknown',
             productType: 'TreeFellingPermit',
           }}
+          onStarted={(dossier) => setSuccess({ dossier })}
+          onError={setStartFailure}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HeusdenpasForm({
+  user,
+  onBack,
+  onSubmitted,
+}: {
+  user: KeycloakUser | null;
+  onBack: () => void;
+  onSubmitted: () => void;
+}) {
+  const [success, setSuccess] = useState<{ dossier: string } | null>(null);
+  const [startFailure, setStartFailure] = useState<StartFailure | null>(null);
+  const [testCaseId, setTestCaseId] = useState('');
+  const applicantId = user?.sub ?? 'unknown';
+  // Memoised: the viewer re-imports the form whenever initialData changes, so
+  // a new object on every render would wipe what the person typed.
+  const initialData = useMemo(() => {
+    const testCase = HEUSDENPAS_TEST_CASES.find((c) => c.id === testCaseId);
+    return { ...testCase?.values, applicantId };
+  }, [testCaseId, applicantId]);
+
+  if (success) {
+    return (
+      <div>
+        <button
+          onClick={onBack}
+          className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+        >
+          ← Terug naar diensten
+        </button>
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-lg">
+          <div className="text-5xl mb-4">✅</div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Aanvraag ingediend</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Uw aanvraag voor de Heusdenpas is ontvangen en wordt behandeld.
+          </p>
+          <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+            <p className="text-sm font-medium text-gray-700">
+              Dossiernummer: <span className="font-mono">{success.dossier}</span>
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              U ontvangt bericht zodra de aanvraag is beoordeeld (wettelijke termijn: 8 weken, Awb
+              4:13).
+            </p>
+          </div>
+          <button
+            onClick={onSubmitted}
+            className="w-full py-3 text-white font-semibold rounded-lg transition-opacity"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Naar mijn aanvragen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-4 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+      >
+        ← Terug naar diensten
+      </button>
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl">🎟️</span>
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Heusdenpas aanvragen</h2>
+            <p className="text-sm text-gray-500">
+              Vraag de Heusdenpas en het Kindpakket aan als u een laag inkomen heeft.
+            </p>
+          </div>
+        </div>
+        <label
+          className="block text-sm font-medium text-gray-700 mb-1"
+          htmlFor="heusdenpas-testgeval"
+        >
+          Vul in met een testgeval
+        </label>
+        <select
+          id="heusdenpas-testgeval"
+          value={testCaseId}
+          onChange={(e) => setTestCaseId(e.target.value)}
+          className="w-full mb-6 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value="">Geen (leeg formulier)</option>
+          {HEUSDENPAS_TEST_CASES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        {startFailure && <StartFailureNotice failure={startFailure} />}
+        {/* Gemeente Heusden's own process, deployed under tenant heusden. The
+            start event sets productType itself. */}
+        <ProcessStartFormViewer
+          processKey="HeusdenpasAanvraagProcess"
+          initialData={initialData}
           onStarted={(dossier) => setSuccess({ dossier })}
           onError={setStartFailure}
         />
@@ -807,10 +921,25 @@ export default function Dashboard() {
           />
         )}
 
+        {/* ── Heusdenpas (Gemeente Heusden) ── */}
+        {activeTab === 'diensten' && activeService === 'heusdenpas' && (
+          <HeusdenpasForm
+            user={user}
+            onBack={() => {
+              setActiveService(null);
+            }}
+            onSubmitted={() => {
+              setActiveService(null);
+              setActiveTab('aanvragen');
+              setApplications(null);
+            }}
+          />
+        )}
+
         {/* ── Other services (stub) ── */}
         {activeTab === 'diensten' &&
           activeService &&
-          !['zorgtoeslag', 'vergunningen', 'subsidies'].includes(activeService) && (
+          !['zorgtoeslag', 'vergunningen', 'subsidies', 'heusdenpas'].includes(activeService) && (
             <div>
               <button
                 onClick={() => setActiveService(null)}
