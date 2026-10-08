@@ -227,7 +227,8 @@
         "vergunningen": false,
         "subsidies": false,
         "meldingen": true,
-        "dvtp": true
+        "dvtp": true,
+        "heusdenpas": true
       },
       "contact": {
         "phone": "14 073",

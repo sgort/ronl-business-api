@@ -546,6 +546,10 @@ export class OperatonService {
       }
       const response = await this.client.post('/history/process-instance', {
         variables: filters,
+        // Applications only: a called sub-process inherits applicantId and
+        // municipality (camunda:in variables="all") and would otherwise list
+        // as a second application.
+        rootProcessInstances: true,
         sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
       });
 

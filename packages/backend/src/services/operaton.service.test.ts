@@ -596,8 +596,18 @@ describe('getProcessHistory', () => {
         { name: 'applicantId', operator: 'eq', value: 'app-1' },
         { name: 'municipality', operator: 'eq', value: 'flevoland' },
       ],
+      rootProcessInstances: true,
       sorting: [{ sortBy: 'startTime', sortOrder: 'desc' }],
     });
+  });
+
+  // A called sub-process inherits applicantId (camunda:in variables="all"), so
+  // without this a Thuisbatterij or Heusdenpas application listed twice: once
+  // as itself and once as its decision sub-process.
+  it('lists only root instances, not the sub-processes an application calls', async () => {
+    mockClient.post.mockResolvedValue({ data: [] });
+    await svc.getProcessHistory('app-1', 'flevoland');
+    expect(mockClient.post.mock.calls[0][1].rootProcessInstances).toBe(true);
   });
 
   it('filters only by applicantId for citizens', async () => {

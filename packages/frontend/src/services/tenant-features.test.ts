@@ -34,4 +34,10 @@ describe('tenants.json citizen services', () => {
 
     expect(flevoland?.features).toMatchObject({ vergunningen: true, subsidies: true });
   });
+
+  // HeusdenpasAanvraagProcess is deployed under heusden only. Another tenant's
+  // citizen would be handed to Gemeente Heusden by resolveStartTenant.
+  it('offers the Heusdenpas to Heusden and nobody else', () => {
+    expect(tenants.filter((t) => t.features.heusdenpas).map((t) => t.id)).toEqual(['heusden']);
+  });
 });

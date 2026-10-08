@@ -23,6 +23,8 @@ export interface TenantFeatures {
   subsidies: boolean;
   meldingen: boolean;
   dvtp: boolean;
+  /** Gemeente Heusden's Heusdenpas and Kindpakket (HeusdenpasAanvraagProcess). */
+  heusdenpas?: boolean;
 }
 
 export interface TenantContact {
