@@ -878,6 +878,21 @@ describe('EdocsService — per-user sessions', () => {
     expect(mockClient.get).toHaveBeenCalledTimes(2);
   });
 
+  // #326 item 4: a dashboard that polls status must not open a new eDOCS
+  // connect for a person on every load while that person cannot connect.
+  it('remembers a failed person probe for a while instead of reconnecting', async () => {
+    mockClient.post.mockRejectedValue(
+      Object.assign(new Error('HTTP 401'), {
+        response: { status: 401, data: { ERROR: { message: 'Access not allowed' } } },
+      })
+    );
+    const first = await userClient('a').probeUser();
+    const second = await userClient('a').probeUser();
+    expect(first).toEqual({ authenticated: false, error: 'Access not allowed' });
+    expect(second).toEqual(first);
+    expect(mockClient.post).toHaveBeenCalledTimes(1);
+  });
+
   it('records the eDOCS USER_ID for the person’s e-mail', async () => {
     mockClient.post.mockResolvedValueOnce(userConnectResponse('GORTS01'));
     mockClient.get.mockResolvedValueOnce({ data: { data: { list: [] } } });

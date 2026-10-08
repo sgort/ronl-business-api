@@ -32,6 +32,15 @@ router.get('/status', async (req: Request, res: Response) => {
     if (config.edocs.stubMode) user = { available: false, problem: 'STUB_MODE' };
     else if (req.edocsActingAs === 'user' && req.edocs)
       user = { available: true, ...(await req.edocs.probeUser()) };
+    else if (req.edocsLookupError)
+      user = {
+        available: false,
+        problem: 'EDOCS_USER_LOOKUP_FAILED',
+        error:
+          req.edocsLookupError instanceof Error
+            ? req.edocsLookupError.message
+            : String(req.edocsLookupError),
+      };
     else
       user = { available: false, ...(req.edocsUserProblem && { problem: req.edocsUserProblem }) };
   }

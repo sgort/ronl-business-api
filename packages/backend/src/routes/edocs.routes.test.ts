@@ -534,6 +534,33 @@ describe('/v1/edocs — principals', () => {
     mockGetIdToken.mockResolvedValue('id-test');
   });
 
+  // #326 item 4: a Keycloak outage is reported, not turned into a 500.
+  it('status reports a failed Keycloak lookup in data.user instead of failing', async () => {
+    mockGetIdToken.mockRejectedValue(
+      Object.assign(new Error('Request failed with status code 503'), {
+        response: { status: 503 },
+      })
+    );
+    svc.healthCheck.mockResolvedValue({ status: 'up', reachable: true, authenticated: true });
+    const res = await request(app).get('/v1/edocs/status').set('x-test-auth', '1');
+    expect(res.status).toBe(200);
+    expectToMatchOperation(res, 'get', '/edocs/status');
+    expect(res.body.data.user).toEqual({
+      available: false,
+      problem: 'EDOCS_USER_LOOKUP_FAILED',
+      error: 'Request failed with status code 503',
+    });
+    mockGetIdToken.mockResolvedValue('id-test');
+  });
+
+  it('a data route still fails on a Keycloak outage, without falling back to the service', async () => {
+    mockGetIdToken.mockRejectedValue(new Error('socket hang up'));
+    const res = await request(app).get('/v1/edocs/workspaces').set('x-test-auth', '1');
+    expect(res.status).toBe(500);
+    expect(svc.listWorkspaces).not.toHaveBeenCalled();
+    mockGetIdToken.mockResolvedValue('id-test');
+  });
+
   it('status tells a person whether eDOCS knows them', async () => {
     svc.healthCheck.mockResolvedValue({ status: 'up', reachable: true, authenticated: true });
     svc.probeUser.mockResolvedValue({ authenticated: true, edocsUserId: 'GORTS01' });

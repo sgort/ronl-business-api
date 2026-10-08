@@ -112,7 +112,17 @@ export class EdocsSessionStore {
   private readonly sessions = new Map<string, EdocsSession>();
   /** In-flight connects per key: concurrent first requests share one session (#326). */
   readonly connecting = new Map<string, Promise<void>>();
+  /** A person's last failed status probe, so polling does not reconnect each time (#326). */
+  readonly probeFailures = new Map<string, { at: number; error: string }>();
   constructor(private readonly maxEntries = 500) {}
+  rememberProbeFailure(key: string, failure: { at: number; error: string }): void {
+    this.probeFailures.delete(key);
+    this.probeFailures.set(key, failure);
+    if (this.probeFailures.size > this.maxEntries) {
+      const oldest = this.probeFailures.keys().next().value;
+      if (oldest !== undefined) this.probeFailures.delete(oldest);
+    }
+  }
   get(key: string): EdocsSession | undefined {
     const session = this.sessions.get(key);
     if (session) {
@@ -792,17 +802,26 @@ export class EdocsService {
   /** Can an eDOCS session be opened as this person? For /v1/edocs/status. */
   async probeUser(): Promise<{ authenticated: boolean; edocsUserId?: string; error?: string }> {
     if (this.principal.kind !== 'user') throw new Error('probeUser() needs a person’s client');
+    // A failed probe is remembered per person for authProbeTtlMs, as probeAuth()
+    // does for the service, so a polling dashboard does not reconnect on every
+    // load while the person cannot connect (#326).
+    const failed = this.store.probeFailures.get(this.sessionKey);
+    if (failed && Date.now() - failed.at < this.authProbeTtlMs) {
+      return { authenticated: false, error: failed.error };
+    }
     try {
       await this.ensureConnected();
+      this.store.probeFailures.delete(this.sessionKey);
       return { authenticated: true, edocsUserId: this.edocsUserId };
     } catch (err) {
-      if (err instanceof UserTokenUnavailableError || err instanceof ReauthRequiredError) {
-        return { authenticated: false, error: err.code };
-      }
-      return {
-        authenticated: false,
-        error: err instanceof EdocsAccessDeniedError ? err.message : this.upstreamMessage(err),
-      };
+      const error =
+        err instanceof UserTokenUnavailableError || err instanceof ReauthRequiredError
+          ? err.code
+          : err instanceof EdocsAccessDeniedError
+            ? err.message
+            : this.upstreamMessage(err);
+      this.store.rememberProbeFailure(this.sessionKey, { at: Date.now(), error });
+      return { authenticated: false, error };
     }
   }
 
