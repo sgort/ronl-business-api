@@ -122,7 +122,7 @@ describe('index.html link-preview tags', () => {
   });
 
   it('ships both card images, and both cards of every tenant page', () => {
-    const tenantCards = ['amsterdam', 'toeslagen', 'unive'].flatMap((id) => [
+    const tenantCards = ['amsterdam', 'heusden', 'toeslagen', 'unive'].flatMap((id) => [
       `og-image-${id}-prod.png`,
       `og-image-${id}-acc.png`,
     ]);

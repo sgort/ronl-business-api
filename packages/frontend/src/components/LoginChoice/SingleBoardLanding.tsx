@@ -140,7 +140,7 @@ export default function SingleBoardLanding({ tenant, board }: Props) {
   return (
     <div className="lcp-single">
       <header className="topbar">
-        <div className="tlogo">
+        <div className="tlogo" style={{ height: tenant.logo?.height ?? 44 }}>
           <TenantMark tenant={tenant} />
         </div>
         <div className="tb-right">

@@ -197,6 +197,108 @@
         ]
       }
     },
+    "heusden": {
+      "id": "heusden",
+      "name": "Heusden",
+      "displayName": "Gemeente Heusden",
+      "organisationType": "municipality",
+      "municipalityCode": "GM0797",
+      "enabled": true,
+      "boards": ["caseworker"],
+      "logo": {
+        "src": "/tenants/heusden/logo.jpg",
+        "shape": "wide",
+        "height": 58
+      },
+      "share": {
+        "title": "Uw werkvoorraad, overzichtelijk op één plek",
+        "description": "Aanvragen, meldingen en vergunningen behandelen in één werkomgeving van Gemeente Heusden. Log in als medewerker."
+      },
+      "theme": {
+        "primary": "#00505c",
+        "primaryDark": "#003a43",
+        "primaryLight": "#009ee0",
+        "secondary": "#7ab929",
+        "accent": "#009ee0",
+        "background": "#eef1ee"
+      },
+      "features": {
+        "zorgtoeslag": true,
+        "vergunningen": true,
+        "subsidies": true,
+        "meldingen": true,
+        "dvtp": true
+      },
+      "contact": {
+        "phone": "14 073",
+        "email": "gemeente@heusden.nl",
+        "address": "Burgemeester van Kempenstraat 1, 5251 CN Vlijmen",
+        "openingHours": "Ma-Vr 08:30-17:00"
+      },
+      "leftPanelSections": {
+        "home": [
+          {
+            "id": "nieuws",
+            "label": "Nieuws",
+            "isPublic": true
+          },
+          {
+            "id": "berichten",
+            "label": "Berichten",
+            "isPublic": true
+          },
+          {
+            "id": "regelcatalogus",
+            "label": "Regelcatalogus",
+            "isPublic": true
+          },
+          {
+            "id": "procesbibliotheek",
+            "label": "Procesbibliotheek",
+            "isPublic": true
+          }
+        ],
+        "personal-info": [
+          {
+            "id": "profiel",
+            "label": "Profiel",
+            "isPublic": false
+          },
+          {
+            "id": "rollen",
+            "label": "Rollen & rechten",
+            "isPublic": false
+          },
+          {
+            "id": "hr-onboarding",
+            "label": "Medewerker onboarden",
+            "isPublic": false
+          },
+          {
+            "id": "onboarding-archief",
+            "label": "Afgeronde onboardingen",
+            "isPublic": false
+          }
+        ],
+        "projects": [
+          {
+            "id": "taken",
+            "label": "Taken",
+            "isPublic": false
+          },
+          {
+            "id": "actief",
+            "label": "Actieve zaken",
+            "isPublic": false
+          },
+          {
+            "id": "archief",
+            "label": "Archief",
+            "isPublic": false
+          }
+        ]
+      }
+    },
     "rotterdam": {
       "id": "rotterdam",
       "name": "Rotterdam",

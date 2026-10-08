@@ -13,6 +13,8 @@ export interface TenantTheme {
   primaryLight: string;
   secondary: string;
   accent: string;
+  /** Landing-page background (--color-background). Without it the page keeps its default. */
+  background?: string;
 }
 
 export interface TenantFeatures {
@@ -45,6 +47,8 @@ export interface LeftPanelSections {
 export interface TenantLogo {
   src: string;
   shape: 'wide' | 'square';
+  /** Height in the landing top bar, in px. Defaults to 44. */
+  height?: number;
 }
 
 export interface TenantConfig {
@@ -173,6 +177,10 @@ export function applyTenantTheme(theme: TenantTheme): void {
   root.style.setProperty('--color-primary-light', theme.primaryLight);
   root.style.setProperty('--color-secondary', theme.secondary);
   root.style.setProperty('--color-accent', theme.accent);
+  // Removed when absent, so a tenant without one does not keep the previous
+  // tenant's background.
+  if (theme.background) root.style.setProperty('--color-background', theme.background);
+  else root.style.removeProperty('--color-background');
   console.log('🎨 Applied tenant theme:', theme);
 }
 

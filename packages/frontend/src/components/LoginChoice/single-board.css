@@ -15,7 +15,8 @@
   box-sizing: border-box;
   font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
-  background: #f6f8fb;
+  /* A tenant may set its own page background (theme.background). */
+  background: var(--color-background, #f6f8fb);
   min-height: 100vh;
   display: flex;
   flex-direction: column;

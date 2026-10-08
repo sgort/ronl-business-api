@@ -137,6 +137,29 @@ describe('SingleBoardLanding', () => {
     expect(within(banner).queryByText('Werkomgeving medewerkers')).not.toBeInTheDocument();
   });
 
+  it('sizes the top-bar logo from logo.height', () => {
+    render(
+      <SingleBoardLanding
+        tenant={makeTenant({
+          logo: { src: '/tenants/heusden/logo.jpg', shape: 'wide', height: 58 },
+        })}
+        board={caseworker}
+      />
+    );
+
+    expect(screen.getByRole('img', { name: 'Gemeente Amsterdam' }).parentElement).toHaveStyle({
+      height: '58px',
+    });
+  });
+
+  it('keeps the top-bar logo at 44 px without logo.height', () => {
+    render(<SingleBoardLanding tenant={makeTenant()} board={caseworker} />);
+
+    expect(screen.getByRole('img', { name: 'Gemeente Amsterdam' }).parentElement).toHaveStyle({
+      height: '44px',
+    });
+  });
+
   it('a square logo shows the image with the display name', () => {
     render(
       <SingleBoardLanding
