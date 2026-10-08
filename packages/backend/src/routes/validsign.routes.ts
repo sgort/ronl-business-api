@@ -671,7 +671,9 @@ router.get('/task/:taskId/spec', async (req, res) => {
   const { taskId } = req.params;
   try {
     const task = await operatonService.getTask(taskId);
-    const variables = await operatonService.getTaskVariables(taskId);
+    // Strings only, so no deserialising read: this runs on every task the
+    // inbox opens, beside the task pane's own read (see getAccessVariables).
+    const variables = await operatonService.getTaskVariables(taskId, { deserializeValues: false });
     if (!taskTenantAllowed(req, variables)) {
       return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
     }
@@ -928,7 +930,8 @@ router.post('/task/:taskId/package', async (req, res) => {
 router.get('/task/:taskId/status', async (req, res) => {
   const { taskId } = req.params;
   try {
-    const variables = await operatonService.getTaskVariables(taskId);
+    // Strings only, so no deserialising read (see the spec route above).
+    const variables = await operatonService.getTaskVariables(taskId, { deserializeValues: false });
     if (!taskTenantAllowed(req, variables)) {
       return denyTenant(req, res, { taskId, taskTenant: variables['municipality'] });
     }

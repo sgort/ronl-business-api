@@ -305,11 +305,12 @@ router.get('/:id/status', async (req, res) => {
   try {
     const processInstance = await operatonService.getProcessInstance(id);
 
-    // The owning tenant, or the applicant themselves (#229)
-    const variables = await operatonService.getProcessVariables(id);
-    const processTenant = variables.municipality?.value;
+    // The owning tenant, or the applicant themselves (#229). The access read,
+    // which never deserialises (see getAccessVariables).
+    const access = await operatonService.getAccessVariables(id);
+    const processTenant = access.municipality;
 
-    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
+    if (!caseReadAllowed(req.user, processTenant, access.applicantId)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
 
@@ -359,14 +360,17 @@ router.get('/:id/variables', async (req, res) => {
   }
 
   try {
-    const variables = await operatonService.getProcessVariables(id);
+    // The owning tenant, or the applicant themselves (#229). Checked with the
+    // access read, which never deserialises (see getAccessVariables); every
+    // variable is read only once access is settled, because these are returned.
+    const access = await operatonService.getAccessVariables(id);
+    const processTenant = access.municipality;
 
-    // The owning tenant, or the applicant themselves (#229)
-    const processTenant = variables.municipality?.value;
-
-    if (!caseReadAllowed(req.user, processTenant, variables.applicantId?.value)) {
+    if (!caseReadAllowed(req.user, processTenant, access.applicantId)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });
     }
+
+    const variables = await operatonService.getProcessVariables(id);
 
     // Extract plain values; the eDOCS author is the backend's own (spec §6)
     const plainVariables: Record<string, unknown> = {};
@@ -753,9 +757,8 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-    // Verify tenant ownership first
-    const variables = await operatonService.getProcessVariables(id);
-    const processTenant = variables.municipality?.value;
+    // Verify tenant ownership first, with the access read (see getAccessVariables)
+    const { municipality: processTenant } = await operatonService.getAccessVariables(id);
 
     if (!tenantAllows(req.user, processTenant)) {
       return denyTenant(req, res, { processInstanceId: id, processTenant });

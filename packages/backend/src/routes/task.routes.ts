@@ -26,8 +26,10 @@ router.use(tenantMiddleware);
  * <camunda:in variables="all"/>.
  */
 async function taskMunicipality(task: Task): Promise<unknown> {
-  const variables = await operatonService.getProcessVariables(task.processInstanceId);
-  return variables.municipality?.value;
+  // getAccessVariables, not getProcessVariables: a deserialising read can
+  // write an object variable back and collide with another read (ENGINE-03005).
+  const { municipality } = await operatonService.getAccessVariables(task.processInstanceId);
+  return municipality;
 }
 
 /**
@@ -159,11 +161,13 @@ router.get('/:id/variables', async (req, res) => {
   try {
     const task = await operatonService.getTask(id);
 
-    const variables = await operatonService.getProcessVariables(task.processInstanceId);
-    const taskTenant = variables.municipality?.value;
+    const taskTenant = await taskMunicipality(task);
     if (!tenantAllows(req.user, taskTenant)) {
       return denyTenant(req, res, { taskId: id, taskTenant });
     }
+
+    // The full read only once access is settled: these are returned.
+    const variables = await operatonService.getProcessVariables(task.processInstanceId);
 
     // Return plain values; the eDOCS author is the backend's own (spec §6)
     const plainVariables: Record<string, unknown> = {};
