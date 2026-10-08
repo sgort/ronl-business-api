@@ -7398,6 +7398,11 @@ components:
           description: |
             False means chat cannot use it; selecting only disconnected
             sources answers 503.
+        actsAsPerson:
+          type: boolean
+          description: |
+            Present and true when the source acts as the signed-in person, with
+            their own rights (eDOCS), rather than as a service account.
 
     McpModel:
       type: object

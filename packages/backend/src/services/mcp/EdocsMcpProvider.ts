@@ -39,6 +39,8 @@ export class EdocsMcpProvider implements McpProvider {
     displayName: 'eDOCS',
     description:
       "OpenText eDOCS DM — workspaces and documents, via this backend's own /v1/edocs API",
+    // Its tools reach /v1/edocs as the caller (#332), so it receives their token.
+    actsAsPerson: true,
   };
 
   private client: Client | null = null;
