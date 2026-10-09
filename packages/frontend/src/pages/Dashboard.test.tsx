@@ -16,23 +16,15 @@ vi.mock('../services/keycloak', () => ({ default: mockKeycloak, getUser: mockGet
 
 const mockEvaluateDecision = vi.hoisted(() => vi.fn());
 const mockProcessHistory = vi.hoisted(() => vi.fn());
+const mockAvailable = vi.hoisted(() => vi.fn());
 vi.mock('../services/api', () => ({
   businessApi: {
     evaluateDecision: mockEvaluateDecision,
-    process: { history: mockProcessHistory },
+    process: { history: mockProcessHistory, available: mockAvailable },
   },
 }));
 
-const TENANT_UTRECHT = {
-  displayName: 'Gemeente Utrecht',
-  features: {
-    zorgtoeslag: true,
-    vergunningen: true,
-    subsidies: true,
-    meldingen: false,
-    dvtp: false,
-  },
-};
+const TENANT_UTRECHT = { displayName: 'Gemeente Utrecht' };
 const mockTenant = vi.hoisted(() => ({
   initializeTenantTheme: vi.fn().mockResolvedValue(true),
   loadTenantConfigs: vi.fn().mockResolvedValue({}),
@@ -84,8 +76,6 @@ vi.mock('../components/ProcessStartFormViewer', () => ({
   },
 }));
 vi.mock('../components/DecisionViewer', () => ({ default: () => null }));
-vi.mock('../components/CaseworkerDashboard/DvtpStartSection', () => ({ default: () => null }));
-vi.mock('../components/CaseworkerDashboard/DvtpTakenSection', () => ({ default: () => null }));
 
 beforeEach(() => {
   mockKeycloak.authenticated = true;
@@ -98,6 +88,10 @@ beforeEach(() => {
   });
   mockEvaluateDecision.mockResolvedValue({ success: true, data: [] });
   mockProcessHistory.mockResolvedValue({ success: true, data: [] });
+  mockAvailable.mockResolvedValue({
+    success: true,
+    data: { services: ['zorgtoeslag', 'vergunningen', 'subsidies'] },
+  });
   mockTenant.getTenantConfig.mockReturnValue(TENANT_UTRECHT);
   mockTenant.getDefaultTenantConfig.mockReturnValue(null);
   mockBsn.getUserBSN.mockReturnValue('999993653');
@@ -126,13 +120,60 @@ describe('Dashboard', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
   });
 
-  it('lists the services enabled for the tenant', async () => {
+  it('shows exactly the services the backend makes available, in its order', async () => {
+    mockAvailable.mockResolvedValue({
+      success: true,
+      data: { services: ['zorgtoeslag', 'heusdenpas'] },
+    });
     render(<Dashboard />);
 
     expect(await screen.findByText('Zorgtoeslag')).toBeInTheDocument();
-    expect(screen.getByText('Vergunningen')).toBeInTheDocument();
+    expect(screen.getByText('Heusdenpas')).toBeInTheDocument();
+    expect(screen.queryByText('Vergunningen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Subsidies')).not.toBeInTheDocument();
     expect(screen.queryByText('Meldingen')).not.toBeInTheDocument();
+    const cards = screen.getAllByText('Aanvragen →').map((el) => el.parentElement?.textContent);
+    expect(cards[0]).toContain('Zorgtoeslag');
+    expect(cards[1]).toContain('Heusdenpas');
   });
+
+  it('says so when no service is available', async () => {
+    mockAvailable.mockResolvedValue({ success: true, data: { services: [] } });
+    render(<Dashboard />);
+
+    expect(
+      await screen.findByText('Geen diensten beschikbaar voor uw gemeente.')
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      'refused',
+      () =>
+        mockAvailable.mockResolvedValue({
+          success: false,
+          error: { code: 'SERVICES_UNAVAILABLE' },
+        }),
+    ],
+    ['unreachable', () => mockAvailable.mockRejectedValue(new Error('network'))],
+  ])(
+    'shows an error with a retry when the services cannot be loaded (%s), never every card',
+    async (_label, fail) => {
+      fail();
+      const user = userEvent.setup();
+      render(<Dashboard />);
+
+      expect(
+        await screen.findByText('De diensten konden niet worden geladen.')
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Zorgtoeslag')).not.toBeInTheDocument();
+
+      mockAvailable.mockResolvedValue({ success: true, data: { services: ['zorgtoeslag'] } });
+      await user.click(screen.getByRole('button', { name: 'Opnieuw proberen' }));
+      expect(await screen.findByText('Zorgtoeslag')).toBeInTheDocument();
+      expect(screen.queryByText('De diensten konden niet worden geladen.')).toBeNull();
+    }
+  );
 
   it('opening the Vergunningen service mounts the form for AwbShellProcess', async () => {
     const user = userEvent.setup();
@@ -250,23 +291,10 @@ describe('Dashboard header and tabs', () => {
     expect(screen.queryByText(/LoA:/)).not.toBeInTheDocument();
   });
 
-  it('does not offer the consent tab to a tenant without dvtp', async () => {
+  it('offers no "Mijn toestemming" tab (DVTP is retired)', async () => {
     render(<Dashboard />);
-    await screen.findByText('Gemeente Utrecht');
+    await screen.findByText('Zorgtoeslag');
     expect(screen.queryByRole('button', { name: 'Mijn toestemming' })).toBeNull();
-  });
-
-  it('adds the consent tab for a tenant with dvtp enabled', async () => {
-    mockTenant.getTenantConfig.mockReturnValue({
-      ...TENANT_UTRECHT,
-      features: { ...TENANT_UTRECHT.features, dvtp: true },
-    });
-    const user = userEvent.setup();
-    render(<Dashboard />);
-
-    const tab = await screen.findByRole('button', { name: 'Mijn toestemming' });
-    await user.click(tab);
-    expect(tab).toBeInTheDocument();
   });
 });
 
@@ -559,20 +587,12 @@ describe('Dashboard zorgtoeslag application', () => {
 });
 
 describe('Dashboard Heusdenpas', () => {
-  const TENANT_HEUSDEN = {
-    displayName: 'Gemeente Heusden',
-    features: {
-      zorgtoeslag: true,
-      vergunningen: false,
-      subsidies: false,
-      meldingen: true,
-      dvtp: false,
-      heusdenpas: true,
-    },
-  };
-
   beforeEach(() => {
-    mockTenant.getTenantConfig.mockReturnValue(TENANT_HEUSDEN);
+    mockTenant.getTenantConfig.mockReturnValue({ displayName: 'Gemeente Heusden' });
+    mockAvailable.mockResolvedValue({
+      success: true,
+      data: { services: ['zorgtoeslag', 'heusdenpas'] },
+    });
   });
 
   it('offers the Heusdenpas to a tenant that has it', async () => {
@@ -584,13 +604,14 @@ describe('Dashboard Heusdenpas', () => {
 
   it('does not offer it to a tenant without it', async () => {
     mockTenant.getTenantConfig.mockReturnValue(TENANT_UTRECHT);
+    mockAvailable.mockResolvedValue({ success: true, data: { services: ['zorgtoeslag'] } });
     render(<Dashboard />);
 
     await screen.findByText('Zorgtoeslag');
     expect(screen.queryByText('Heusdenpas')).not.toBeInTheDocument();
   });
 
-  it('starts HeusdenpasAanvraagProcess from its deployed start form, not the placeholder', async () => {
+  it('starts HeusdenpasAanvraagProcess from its deployed start form', async () => {
     const user = userEvent.setup();
     render(<Dashboard />);
 
@@ -599,7 +620,6 @@ describe('Dashboard Heusdenpas', () => {
     expect(screen.getByTestId('process-start-form')).toHaveTextContent(
       'processKey=HeusdenpasAanvraagProcess'
     );
-    expect(screen.queryByText('Deze dienst is in ontwikkeling.')).not.toBeInTheDocument();
   });
 
   it('confirms a submitted application with its dossier number', async () => {

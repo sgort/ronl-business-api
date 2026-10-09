@@ -93,27 +93,6 @@ export const MODES: ModeConfig[] = [
           { id: 'filter-week', label: 'Deze week', authRequired: true },
         ],
       },
-      {
-        // DVTP is a demonstration-only flow scoped to municipality
-        // caseworkers (e.g. utrecht, amsterdam). Out of scope for
-        // Flevoland (province) and the national tenants. Gate by
-        // organisation type — `municipality` only.
-        label: 'DVTP',
-        items: [
-          {
-            id: 'dvtp-start',
-            label: 'DVTP starten',
-            authRequired: true,
-            requiredOrgTypes: ['municipality'],
-          },
-          {
-            id: 'dvtp-taken',
-            label: 'DVTP taken',
-            authRequired: true,
-            requiredOrgTypes: ['municipality'],
-          },
-        ],
-      },
     ],
   },
   {
@@ -320,8 +299,6 @@ const SHELL_GLOBAL_SECTION_IDS: ReadonlySet<string> = new Set([
   'filter-waiting',
   'filter-today',
   'filter-week',
-  'dvtp-start',
-  'dvtp-taken',
   'regelsimulatie',
 ]);
 
